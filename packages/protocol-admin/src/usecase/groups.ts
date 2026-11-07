@@ -1,4 +1,9 @@
-import { ASSIGNMENT_LIMIT, type GroupFields, type ListGroupsQuery } from '@odudu/contracts/admin';
+import {
+  ASSIGNMENT_LIMIT,
+  GROUP_LIMIT,
+  type GroupFields,
+  type ListGroupsQuery,
+} from '@odudu/contracts/admin';
 import { isUniqueViolation, withSavepoint, type TenantScopedDatabase } from '@odudu/db';
 import { descendantsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
@@ -17,7 +22,7 @@ import { checkDescription } from '#/service/description';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { groupWireShape } from '#/service/group-wire';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
-import { redactedDiff } from '#/service/audit-detail';
+import { createdDetail, redactedDiff } from '#/service/audit-detail';
 import { holdsDefaultGroup, lockDefaultReach } from '#/usecase/default-reach';
 import {
   guardLastAdministrator,
@@ -187,6 +192,7 @@ export interface CreateGroupDeps {
 
 export type CreateGroupOutcome =
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
+  | { kind: 'group_limit' }
   | { kind: 'ok'; group: GroupFields };
 
 // `OduduError('group_not_found')` from `groupRepository.create` (a
@@ -199,6 +205,11 @@ export async function createGroup(
   deps: CreateGroupDeps,
   input: CreateGroupInput,
 ): Promise<CreateGroupOutcome> {
+  await groupRepository(tx).lockCreation(input.tenantId);
+  if ((await groupRepository(tx).countUpTo(GROUP_LIMIT)) >= GROUP_LIMIT) {
+    return { kind: 'group_limit' };
+  }
+
   // The ceiling `amendGroup`'s reparent enforces, at the other door that
   // chooses a parent: creating a group under one whose roles reach a
   // capability the caller does not hold would place every subject added to
@@ -236,6 +247,7 @@ export async function createGroup(
     description: input.description,
   });
 
+  const group = groupWireShape(created);
   await deps.audit(tx, {
     action: 'group.create',
     resourceType: 'group',
@@ -244,9 +256,10 @@ export async function createGroup(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: createdDetail('group', group),
   });
 
-  return { kind: 'ok', group: groupWireShape(created) };
+  return { kind: 'ok', group };
 }
 
 export interface AmendGroupInput {
@@ -453,6 +466,10 @@ async function amendGroupUnguarded(
     throw error;
   }
 
+  const after = await readGroup(tx, input.groupId);
+  if (after.kind !== 'ok') {
+    throw new Error(`group ${input.groupId} not found immediately after its own amendment`);
+  }
   await deps.audit(tx, {
     action: 'group.amend',
     resourceType: 'group',
@@ -461,12 +478,8 @@ async function amendGroupUnguarded(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff('group', groupWireShape(locked), after.group),
   });
-
-  const after = await readGroup(tx, input.groupId);
-  if (after.kind !== 'ok') {
-    throw new Error(`group ${input.groupId} not found immediately after its own amendment`);
-  }
   return { kind: 'ok', group: after.group, etag: etagOf(after.group) };
 }
 

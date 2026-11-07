@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { noBidiControls } from '#/bidi';
+import { noBidiControls, noNul } from '#/bidi';
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 200;
@@ -56,6 +56,23 @@ export const SCOPE_LIMIT = 1_000;
 
 export function scopeLimitMessage(): string {
   return `a tenant defines at most ${String(SCOPE_LIMIT)} scopes`;
+}
+
+/**
+ * The most roles a tenant defines, a client's own among them, and the most groups.
+ * A create past either is a 409; a tenant that holds more keeps them. The numbers
+ * are a bound on what one tenant can grow by hand or through an agent, and are
+ * meant to be retuned here, in one place, if a deployment needs more.
+ */
+export const ROLE_LIMIT = 1_000;
+export const GROUP_LIMIT = 10_000;
+
+export function roleLimitMessage(): string {
+  return `a tenant defines at most ${String(ROLE_LIMIT)} roles`;
+}
+
+export function groupLimitMessage(): string {
+  return `a tenant defines at most ${String(GROUP_LIMIT)} groups`;
 }
 
 // A shape check, not a policy check: an over-large `limit` is a page size
@@ -129,9 +146,15 @@ export const DESCRIPTION_MAX = 1000;
 export const CLIENT_NAME_MAX = 256;
 
 /**
+ * The longest display name a tenant holds, after the trim. It is the name
+ * every sign-in page and mail shows people, so it is a line, not a document.
+ */
+export const DISPLAY_NAME_MAX = 256;
+
+/**
  * Text by language tag, as a read returns it. A write is checked by
  * `checkLocalisedText` against the tenant's languages, which a shape cannot know.
  */
 export const localisedTextSchema = z.record(z.string(), z.string());
 
-export const descriptionSchema = noBidiControls(z.string().min(1).max(DESCRIPTION_MAX));
+export const descriptionSchema = noNul(noBidiControls(z.string().min(1).max(DESCRIPTION_MAX)));

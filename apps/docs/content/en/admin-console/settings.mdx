@@ -18,7 +18,7 @@ Most of what makes one tenant behave differently from another is a setting: how 
 
 ## 1. Find the section
 
-Choose a name from the row at the top to jump to it: **General**, **Sessions**, **Remember me**, **Registration and recovery**, **Usernames**, **Password policy**, **Brute force**, **Token lifetimes**, **Dynamic client registration** and **Audit retention**. Each field says what it does and the range the server accepts. Durations show the plain reading beside the seconds, for example `1800 s · 30 minutes`.
+Choose a name from the row at the top to jump to it: **General**, **Sessions**, **Remember me**, **Registration and recovery**, **Usernames**, **Password policy**, **Brute force**, **Token lifetimes**, **Client registration** and **Audit retention**. Each field says what it does and the range the server accepts. Durations show the plain reading beside the seconds, for example `1800 s · 30 minutes`.
 
 ## 2. Change a section and save it
 
@@ -29,7 +29,7 @@ Some common changes:
 - To let people create their own accounts, turn on **Self-registration** under **Registration and recovery**, and turn on **Verify email addresses** if you want a link mailed to them. Mail needs an [Email relay](./email.mdx). The sign-in page then shows a link reading _Create an account_, and one reading _Forgot password?_ when password reset is on too. An app can send a person straight to the registration page with `prompt=create`; see [a sign-up button](../guides/sign-a-user-in.md#a-sign-up-button). A form that is refused comes back with the problem beside the field. A taken username is always named. With **Verify email addresses** on, the account is created when the person opens the link and confirms, and an address that already has an account is not named: the page says _Check your email_ as it does for a new address, and that address's owner gets a mail saying someone tried to register it. With it off, nothing can be mailed, so the form says the address is registered. Verification and registration links ask for one click, so mail scanners that open links cannot spend them. A mailed verification or reset link shows _Continue to sign in_ only in the browser where the person started, and only while that sign-in is open. Anywhere else the page says to return to the application and sign in again.
 - To change what a password must satisfy, edit **Minimum length** and the other fields under **Password policy**; [Choose a password policy](#4-choose-a-password-policy) says what to pick. A rule applies to the next password somebody sets, never to one already chosen.
 - To shorten how long a person stays signed in, lower **Idle timeout** and **Maximum lifetime** under **Sessions**.
-- To let applications register themselves with a token, set **Policy** under **Dynamic client registration**; the [Registration tokens](./registration-tokens.mdx) page does the rest.
+- To let applications register themselves with a token, set **Policy** under **Client registration**; the [Registration tokens](./registration-tokens.mdx) page does the rest.
 - To keep the audit trail for longer or shorter, change **Keep events for** under **Audit retention**, and choose which kinds of event are recorded. Changes and reads by administrators are always recorded.
 
 ## 3. Unlock everyone
@@ -112,10 +112,21 @@ The link stops working once it is used, and it asks for one click first, so a ma
 
 A client can carry lifetimes of its own, which win over these.
 
-### Dynamic client registration
+### Client registration
 
-- **Policy** (`client_registration_policy`): **Closed: only an administrator creates clients**, **With a registration token** or **Open: any application may register**.
-- **Most clients** (`max_clients`): a tenant with this many clients refuses to make more, whoever asks. 0 allows none, and a new tenant starts at 200.
+- **Policy** (`client_registration_policy`): **Closed: only an administrator creates clients**, **With a registration token**, **Open: any application may register** or **MCP clients: public clients of the MCP server may register**. The last admits only a public client with `https` or loopback `http` redirects, which may ask for `mcp:read` and whose only audience is the tenant's MCP address; see [consent and audit](../concepts/consent-and-audit.mdx).
+- **Accept client metadata documents** (`cimd_enabled`): a client may use an HTTPS address as its `client_id`, and the document served there describes it. It works under any policy, and a client that comes this way gets the MCP audience only while the policy admits MCP clients. Off, such an address is answered as an unknown client. It saves with the policy, in the same section.
+- **Most clients** (`max_clients`): the most clients an administrator or a registration token can make, the built-in ones included. 0 allows none, and a new tenant starts at 200. Clients that arrive on their own are not counted, so they cannot keep an administrator from making one. Each kind has a limit of its own: 1,000 that registered themselves, and 1,000 from a metadata document. At its limit a new one takes the place of the oldest that nobody approved, signed in through or granted anything, and is refused when there is none.
+
+#### A client named by an address
+
+A tenant can let an app identify itself with a web address instead of registering first. The `cimd_enabled` setting, off by default, turns it on. A `client_id` that is an https address is then fetched: the document served there, a Client ID Metadata Document, gives the app's name and redirect addresses. Odudu keeps the result as a public client and sends people back only to a listed address. Anyone can claim a name, so the consent screen also shows the host the document came from and every redirect address. A client nobody has used for thirty days is removed and returns when its address is next used. With the setting off, sign-in and token requests for such an address are refused like any unknown client; tokens already issued stay valid until they expire.
+
+#### A client that registers itself for MCP
+
+A tenant can also let an agent register itself with `client_registration_policy` set to `mcp`. The registration endpoint then admits only a public client, with https or loopback http redirect addresses, which may hold `mcp:read` and never `mcp:write` (a request that also names `mcp:write` is registered without it, and the response's `scope` says what was kept), and whose only audience is the tenant's MCP address. Each address may register ten clients an hour and the tenant sixty, and the tenant may hold 1,000 clients that registered themselves, whatever `max_clients` says. Any public client that registered itself, under `open` as well as `mcp`, and is never approved, signed in through or granted anything is deleted by `odudu reap` after a week; one with an approval or a grant that has not yet been reaped stays. A tenant imported from an export brings such a client back without its approval or consent, so it is deleted a week after the import unless it is used, and an import whose document holds more than 1,000 of them is refused. Such a client, and a metadata document client on a tenant with this policy, is given that audience and `mcp:read` by the policy and not by anything it sends. If the policy is later changed, such a client stops being offered that audience and `mcp:read` at its next sign-in and its next refresh, so a refresh chain started under the policy carries neither once the policy is off; disable or delete the client to end the chain at once. A metadata document client that signs in with a key rather than as a public client is not given them. A client of these kinds is never offered `mcp:write`. `mcp:read` is optional, so the consent screen offers it as a choice.
+
+An administrator who changes the policy or the switch leaves a `tenant.amend_settings` audit event whose detail holds the value each had before and after. The display name and the languages (`display_name`, `supported_locales`, `default_locale`) are recorded the same way, since people read them on the sign-in pages, and no other setting appears in that detail.
 
 ### Audit retention
 

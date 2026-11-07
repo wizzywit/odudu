@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { noBidiControls } from '#/bidi';
+import { noBidiControls, noNul } from '#/bidi';
 import {
   ASSIGNMENT_LIMIT,
   createdAtSchema,
@@ -117,7 +117,7 @@ export type UsernamePolicy = z.infer<typeof usernamePolicySchema>;
 // The one rule a username is held to, on creation and on a rename alike.
 // Uniqueness is the `users_username_unique` constraint, which compares
 // exactly; the console shows the rule in these words before it asks.
-export const usernameSchema = noBidiControls(z.string().min(1));
+export const usernameSchema = noNul(noBidiControls(z.string().min(1)));
 
 // What a rename is read as before the rule is applied: it is checked against
 // the stored username, so one a row already holds is not refused.
@@ -133,7 +133,7 @@ export const USERNAME_RULE =
 // the usecase ever sees it.
 export const createSubjectRequestSchema = z.object({
   username: usernameSchema,
-  email: z.string().min(1).optional(),
+  email: noNul(z.string().min(1)).optional(),
 });
 export type CreateSubjectRequest = z.infer<typeof createSubjectRequestSchema>;
 

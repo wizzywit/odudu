@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { isCheckViolation, isLockNotAvailable, isUniqueViolation } from '#/sqlstate';
+import {
+  isCheckViolation,
+  isForeignKeyViolation,
+  isLockNotAvailable,
+  isUniqueViolation,
+} from '#/sqlstate';
 
 describe('reading a SQLSTATE off a wrapped driver error', () => {
   it('finds one the driver reports directly', () => {
     expect(isUniqueViolation(Object.assign(new Error('x'), { code: '23505' }))).toBe(true);
     expect(isCheckViolation(Object.assign(new Error('x'), { code: '23514' }))).toBe(true);
+    expect(
+      isForeignKeyViolation(
+        Object.assign(new Error('x'), { cause: Object.assign(new Error('y'), { code: '23503' }) }),
+      ),
+    ).toBe(true);
     expect(isLockNotAvailable(Object.assign(new Error('x'), { code: '55P03' }))).toBe(true);
   });
 

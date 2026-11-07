@@ -1,4 +1,10 @@
-import { BIDI_REFUSED_MESSAGE, checkLocalisedText, refusesBidi } from '@odudu/contracts';
+import {
+  BIDI_REFUSED_MESSAGE,
+  checkLocalisedText,
+  containsNul,
+  NUL_REFUSED_MESSAGE,
+  refusesBidi,
+} from '@odudu/contracts';
 import { CONSENT_TEXT_MAX, DESCRIPTION_MAX } from '@odudu/contracts/admin';
 
 export type Checked<T> = { kind: 'ok'; value: T } | { kind: 'invalid'; message: string };
@@ -10,6 +16,9 @@ export function checkConsentText(value: unknown, current?: string | null): Check
   if (value === null) return { kind: 'ok', value: null };
   if (typeof value !== 'string' || value.length === 0) {
     return { kind: 'invalid', message: 'consent_text must be a non-empty string or null' };
+  }
+  if (containsNul(value)) {
+    return { kind: 'invalid', message: `consent_text ${NUL_REFUSED_MESSAGE}` };
   }
   if (refusesBidi(value, current)) return { kind: 'invalid', message: BIDI_REFUSED_MESSAGE };
   return value.length > CONSENT_TEXT_MAX

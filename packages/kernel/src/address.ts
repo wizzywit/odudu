@@ -14,12 +14,25 @@ export function domainAddress(host: string, tls: boolean): TenantAddress {
   return { origin: `${tls ? 'https' : 'http'}://${host}`, prefix: '' };
 }
 
+// A domain address has no path prefix: the host itself names the tenant.
+export function isDomainAddress(a: TenantAddress | undefined): boolean {
+  return a?.prefix === '';
+}
+
 export function addressIssuer(a: TenantAddress): string {
   return `${a.origin}${a.prefix}`;
 }
 
 export function addressPath(a: TenantAddress, rest: string): string {
   return `${a.prefix}${rest}`;
+}
+
+// The path of a tenant's MCP endpoint under its address, which is also the
+// audience its MCP tokens carry (RFC 9728 §3.3).
+export const MCP_RESOURCE_PATH = '/mcp';
+
+export function mcpAudienceOfIssuer(issuer: string): string {
+  return `${issuer}${MCP_RESOURCE_PATH}`;
 }
 
 export function addressUrl(a: TenantAddress, rest: string): string {

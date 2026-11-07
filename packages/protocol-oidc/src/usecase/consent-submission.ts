@@ -55,7 +55,7 @@ export interface ConsentSubmissionDeps {
   ): Promise<{ subjectId: string; authenticators: string[] } | null>;
   loadPendingRequest(tenantId: string, authSessionId: string): Promise<PendingRequest | null>;
   resolveClientId(tenantId: string, oauthClientId: string): Promise<string | null>;
-  consentContext(tenantId: string, clientId: string): Promise<ConsentContext>;
+  consentContext(tenantId: string, clientId: string, redirectUri?: string): Promise<ConsentContext>;
   // Replaces the client's recorded grant for this subject with exactly the
   // scopes ticked (plus every default, which carries no checkbox) — see
   // consentRepository.record's own comment for why this is a replace, not

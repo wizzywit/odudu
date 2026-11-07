@@ -12,7 +12,7 @@ export interface CountTile {
   href: string;
   noun: { one: string; other: string };
   count: Gated<CountResponse>;
-  // The client cap said beside the count, when settings could be read.
+  // What the client cap counts, said beside the count once both reads are in.
   allowance?: string | undefined;
   againLabel: string;
 }
@@ -32,6 +32,7 @@ export function countTiles(
   areaOf: AreaOf,
 ): CountTile[] {
   const cap = readyData(reads.settings)?.max_clients;
+  const made = readyData(reads.operatorClients);
   return COUNTED.flatMap(({ id, noun }) => {
     const place = areaOf(id);
     if (!readable(authority, place.capability)) return [];
@@ -42,7 +43,10 @@ export function countTiles(
         href: place.href,
         noun,
         count: gate(reads.counts[id], authority, place.capability),
-        allowance: id === 'clients' && typeof cap === 'number' ? limitText(cap) : undefined,
+        allowance:
+          id === 'clients' && typeof cap === 'number' && made !== undefined
+            ? limitText(cap, made)
+            : undefined,
         againLabel: countAgainLabel(noun.other),
       },
     ];

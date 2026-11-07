@@ -69,7 +69,8 @@ overrides of its own: a mail is worded by the tenant's.
 A write takes effect on the next page this process renders; another replica shows
 the previous text for at most 30 seconds, the lifetime of its cache. Each write
 is audited as `message_override.set` or `message_override.delete` with the locale
-and key and, for a set, the length of the text and never the text.
+and key and the text before and after (a delete holds the text it removed), so what
+people read on a page can be read back from the trail and put back.
 
 ## The messages, and a tenant's own wording
 

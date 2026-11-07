@@ -62,6 +62,17 @@ describe('POST /admin/tenants', () => {
     expect(res.json<{ display_name: string | null }>().display_name).toBeNull();
   });
 
+  it('refuses a display name past 256 characters, and makes no tenant', async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: `long-${newId()}`, display_name: 'x'.repeat(257) },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it("registers the console's redirect and post-logout URIs on the new admin client", async () => {
     const token = await fixture.systemAdminToken(['manage-tenants']);
     const res = await fixture.http.inject({
@@ -622,6 +633,23 @@ describe('GET /admin/tenants/{t} and PATCH /admin/tenants/{t}', () => {
     const cleared = await patch('   ');
     expect(cleared.statusCode).toBe(200);
     expect(cleared.json<{ display_name: string | null }>().display_name).toBeNull();
+  });
+
+  it('refuses a display name past 256 characters and keeps the one held', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const patch = (display_name: string) =>
+      fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: { display_name },
+      });
+    await patch('Acme');
+    const refused = await patch('x'.repeat(257));
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<{ detail: string }>().detail).toContain('256');
+    expect((await patch(`  ${'x'.repeat(256)} `)).statusCode).toBe(200);
   });
 
   it('refuses a rename, naming the issuer URLs already minted as the reason', async () => {

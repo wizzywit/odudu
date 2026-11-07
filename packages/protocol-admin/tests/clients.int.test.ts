@@ -84,6 +84,8 @@ describe('POST /admin/tenants/{t}/clients', () => {
         refresh_token_ttl_seconds: 3600,
         consent_required: true,
         token_exchange_impersonation_allowed: true,
+        token_exchange_allowed_for_public: true,
+        token_exchange_actor_from_other_client: true,
         full_scope_allowed: true,
         enabled: false,
       },
@@ -99,6 +101,8 @@ describe('POST /admin/tenants/{t}/clients', () => {
       refresh_token_ttl_seconds: 3600,
       consent_required: true,
       token_exchange_impersonation_allowed: true,
+      token_exchange_allowed_for_public: true,
+      token_exchange_actor_from_other_client: true,
       full_scope_allowed: true,
       enabled: false,
     };
@@ -275,6 +279,43 @@ describe('POST /admin/tenants/{t}/clients', () => {
       },
     });
     expect(res.statusCode).toBe(403);
+  });
+
+  it('is not refused for the clients that arrived over the wire, and still bounded by the ones an operator made', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const settingsToken = await fixture.adminToken(t.name, ['manage-tenant']);
+    const operatorHeld = await fixture.owner.db.execute<{ n: number }>(sql`
+      select count(*)::int as n from clients
+       where tenant_id = ${t.id} and registration_origin not in ('cimd', 'anonymous')`);
+    const held = operatorHeld[0]?.n ?? 0;
+    const settingsRes = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${settingsToken}`, 'content-type': 'application/json' },
+      payload: { max_clients: held + 1 },
+    });
+    expect(settingsRes.statusCode).toBe(200);
+    await fixture.owner.db.execute(sql`
+      insert into clients (id, tenant_id, client_id, name, type, secret_hash,
+                           registration_origin, metadata_used_at)
+      select gen_random_uuid(), ${t.id}, 'flood-' || o || '-' || g, 'Flood', 'public', null, o,
+             case when o = 'cimd' then now() end
+        from generate_series(1, 5) g cross join (values ('cimd'), ('anonymous')) v (o)`);
+
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const create = () =>
+      fixture.http.inject({
+        method: 'POST',
+        url: `/admin/tenants/${t.name}/clients`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: {
+          client_id: `mine-${newId()}`,
+          redirect_uris: ['https://app.example/cb'],
+          token_endpoint_auth_method: 'none',
+        },
+      });
+    expect((await create()).statusCode).toBe(201);
+    expect((await create()).statusCode).toBe(403);
   });
 
   it('refuses jwks and jwks_uri together the same way dynamic registration does', async () => {
@@ -1452,6 +1493,112 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
     );
     expect(outcome.kind).toBe('not_confidential');
     expect(events).toHaveLength(0);
+  });
+});
+
+describe('the built-in MCP client', () => {
+  async function mcpClient(tenantName: string, token: string) {
+    const list = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${tenantName}/clients?client_id=odudu-mcp`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const found = list
+      .json<{ items: { id: string; client_id: string }[] }>()
+      .items.find((client) => client.client_id === 'odudu-mcp');
+    if (found === undefined) throw new Error('the tenant has no odudu-mcp client');
+    return found;
+  }
+
+  it('is in every new tenant, public, on the loopback literals, for the admin API', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const found = await mcpClient(t.name, token);
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients/${found.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(read.json()).toMatchObject({
+      client_id: 'odudu-mcp',
+      type: 'public',
+      enabled: true,
+      builtin_admin: false,
+      token_endpoint_auth_method: 'none',
+      redirect_uris: ['http://127.0.0.1', 'http://[::1]'],
+      grant_types: ['authorization_code', 'refresh_token'],
+      audiences: ['urn:odudu:params:admin-api'],
+    });
+  });
+
+  it('refuses the reserved client_id odudu-mcp', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { client_id: 'odudu-mcp', token_endpoint_auth_method: 'none' },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toMatch(/reserved/iu);
+  });
+
+  it('refuses to delete it: an administrator turns it off by disabling it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const found = await mcpClient(t.name, token);
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/clients/${found.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toMatch(/built-in MCP client/iu);
+  });
+
+  it('can be disabled and enabled again, and its name amended', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const found = await mcpClient(t.name, token);
+    for (const payload of [{ enabled: false }, { enabled: true }, { name: 'Agents' }]) {
+      const res = await fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}/clients/${found.id}`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload,
+      });
+      expect(res.statusCode, JSON.stringify(payload)).toBe(200);
+    }
+  });
+
+  it('refuses to have its marker rewritten', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const found = await mcpClient(t.name, token);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${found.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { builtin_mcp: false },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("is not another tenant's: a foreign tenant's token cannot read or delete it", async () => {
+    const mine = await fixture.createTenant(`acme-${newId()}`);
+    const theirs = await fixture.createTenant(`acme-${newId()}`);
+    const myToken = await fixture.adminToken(mine.name, ['manage-clients']);
+    const theirToken = await fixture.adminToken(theirs.name, ['manage-clients']);
+    const found = await mcpClient(mine.name, myToken);
+    for (const method of ['GET', 'DELETE'] as const) {
+      const res = await fixture.http.inject({
+        method,
+        url: `/admin/tenants/${theirs.name}/clients/${found.id}`,
+        headers: { authorization: `Bearer ${theirToken}` },
+      });
+      expect(res.statusCode, method).toBe(404);
+    }
   });
 });
 

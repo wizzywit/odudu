@@ -110,6 +110,42 @@ describe('a client’s description and its three RFC 7591 pages', () => {
     });
   });
 
+  it('stores an empty description apart from null, and the audit row shows both ways', async () => {
+    const t = await fixture.createTenant(`meta-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {});
+    for (const description of ['first', '', null, '']) {
+      const res = await fixture.patchClient(t.name, client.id, { description });
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json<{ description: string | null }>().description).toBe(description);
+    }
+    const token = await fixture.adminToken(t.name, ['view-audit']);
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit?resource_type=client&resource_id=${client.id}&action=client.amend`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const rows = audit
+      .json<{ items: { detail: { description?: { before: unknown; after: unknown } } }[] }>()
+      .items.flatMap((row) =>
+        row.detail.description === undefined ? [] : [row.detail.description],
+      );
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { before: null, after: 'first' },
+        { before: 'first', after: '' },
+        { before: '', after: null },
+        { before: null, after: '' },
+      ]),
+    );
+  });
+
+  it.each([['name'], ['description']])('refuses a NUL in %s on create with 400', async (field) => {
+    const t = await fixture.createTenant(`meta-${newId()}`);
+    const res = await createClient(t.name, { [field]: 'a\u0000b' });
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.body).toContain(field);
+  });
+
   it('refuses a description longer than 1000 characters', async () => {
     const t = await fixture.createTenant(`meta-${newId()}`);
     const client = await fixture.createConfidentialClient(t.name, {});

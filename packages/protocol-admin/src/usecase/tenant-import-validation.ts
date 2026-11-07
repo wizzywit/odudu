@@ -11,6 +11,10 @@ import {
   CLIENT_SCOPE_LIMIT,
   DESCRIPTION_MAX,
   EXPORT_SUBJECT_CAP,
+  GROUP_LIMIT,
+  groupLimitMessage,
+  ROLE_LIMIT,
+  roleLimitMessage,
   SCOPE_LIMIT,
   smtpPortSchema,
   tenantDocumentSchema,
@@ -22,6 +26,9 @@ import {
 import { isEmailAddress, isValidE164 } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  WIRE_CLIENTS_PER_TENANT,
+  MCP_CLIENT_ID,
+  MCP_CLIENT_REDIRECT_URIS,
   capabilityRoleGraph,
   isReservedTenantName,
   isValidTenantName,
@@ -31,10 +38,11 @@ import {
   tenantSettingProblems,
 } from '@odudu/domain-tenant';
 import {
+  type ClientMetadata,
   clientTokenTtlProblem,
+  discardsServiceAccountRoles,
   isWellFormedWebOrigin,
   parseClientMetadata,
-  type ClientMetadata,
 } from '@odudu/protocol-oidc';
 import { checkDescription } from '#/service/description';
 import { fieldPath } from '#/service/field-path';
@@ -480,6 +488,31 @@ function flowAndSmtpProblems(
   }
 }
 
+// The id alone makes an imported client the built-in one, which /authorize
+// matches on any port, so a document may only describe the shape it has: a
+// public client with no client_credentials grant whose redirect URIs are the
+// bare loopback literals.
+const LOOPBACK_URIS: ReadonlySet<string> = new Set([
+  ...MCP_CLIENT_REDIRECT_URIS,
+  ...MCP_CLIENT_REDIRECT_URIS.map((uri) => `${uri}/`),
+]);
+
+function mcpClientProblems(client: ExportedClient, path: string, problems: Problems): void {
+  if (client.type !== 'public') {
+    problems.add(`${path}.type`, `${MCP_CLIENT_ID} is a public client`);
+  }
+  if (client.grant_types.includes('client_credentials')) {
+    problems.add(`${path}.grant_types`, `${MCP_CLIENT_ID} has no client_credentials grant`);
+  }
+  const bare = (uri: string): boolean => LOOPBACK_URIS.has(uri);
+  if (!client.redirect_uris.every(bare)) {
+    problems.add(
+      `${path}.redirect_uris`,
+      `${MCP_CLIENT_ID} registers only http://127.0.0.1 and http://[::1], with no port`,
+    );
+  }
+}
+
 function clientProblems(
   document: TenantDocument,
   graph: RoleGraph,
@@ -494,12 +527,25 @@ function clientProblems(
     (client) => `the client_id ${client.client_id}`,
     problems,
   );
-  // `lockCapacity` (@odudu/domain-tenant) counts the built-in admin client too.
-  if (document.clients.length + 1 > document.settings.max_clients) {
+  // `lockCapacity` (@odudu/domain-tenant) counts the built-in admin client too,
+  // and no client that registered itself.
+  const operatorMade = document.clients.filter(
+    (client) => client.registration_origin !== 'anonymous',
+  ).length;
+  if (operatorMade + 1 > document.settings.max_clients) {
     problems.add(
       'document.clients',
       `max_clients is ${String(document.settings.max_clients)}, which admits ` +
         `${String(document.settings.max_clients - 1)} clients besides ${ADMIN_CLIENT_ID}`,
+    );
+  }
+  // Registrations evict at most one client each, so an excess would stay.
+  const selfRegistered = document.clients.length - operatorMade;
+  if (selfRegistered > WIRE_CLIENTS_PER_TENANT) {
+    problems.add(
+      'document.clients',
+      `holds ${String(selfRegistered)} clients with registration_origin anonymous, ` +
+        `and a tenant admits ${String(WIRE_CLIENTS_PER_TENANT)}`,
     );
   }
   document.clients.forEach((client, index) => {
@@ -508,6 +554,7 @@ function clientProblems(
       problems.add(`${path}.client_id`, `${ADMIN_CLIENT_ID} is provisioned by every new tenant`);
     }
     if (client.client_id === '') problems.add(`${path}.client_id`, 'is empty');
+    if (client.client_id === MCP_CLIENT_ID) mcpClientProblems(client, path, problems);
     for (const [field, max] of [
       ['name_i18n', CLIENT_NAME_MAX],
       ['description_i18n', DESCRIPTION_MAX],
@@ -555,12 +602,17 @@ function clientProblems(
         problems.add(`${path}.web_origins[${String(originIndex)}]`, 'is not an origin');
       }
     });
-    referenceProblems(
-      client.service_account_roles,
-      `${path}.service_account_roles`,
-      graph,
-      problems,
-    );
+    // A document from before accounts followed the grant may list roles for a
+    // confidential client without it; they are dropped, since no account is
+    // made for them and nothing could use them, so they are not checked.
+    if (!discardsServiceAccountRoles(client.type, client.grant_types)) {
+      referenceProblems(
+        client.service_account_roles,
+        `${path}.service_account_roles`,
+        graph,
+        problems,
+      );
+    }
     if (client.type === 'public' && client.service_account_roles.length > 0) {
       problems.add(`${path}.service_account_roles`, 'a public client has no service account');
     }
@@ -595,6 +647,24 @@ function invariantProblems(
     problems.add(
       'document.scopes',
       `${String(document.scopes.length)} scopes, a tenant defines at most ${String(SCOPE_LIMIT)}`,
+    );
+  }
+  // Provisioning gives the tenant its capability roles whether or not the
+  // document names them, and one it names is the same role, counted once.
+  const roleKeys = new Set([
+    ...document.roles.map(roleKey),
+    ...capabilityRoleGraph().roles.map((name) => roleKey({ name, client: ADMIN_CLIENT_ID })),
+  ]);
+  if (roleKeys.size > ROLE_LIMIT) {
+    problems.add(
+      'document.roles',
+      `${roleLimitMessage()}, and the document with the roles every tenant is provisioned holds ${String(roleKeys.size)}`,
+    );
+  }
+  if (document.groups.length > GROUP_LIMIT) {
+    problems.add(
+      'document.groups',
+      `${groupLimitMessage()}, and the document holds ${String(document.groups.length)}`,
     );
   }
   const markedScopes = document.scopes.filter(
@@ -673,6 +743,7 @@ function invariantProblems(
     ceiling(scope.roles, `document.scopes[${String(index)}].roles`);
   });
   document.clients.forEach((client, index) => {
+    if (discardsServiceAccountRoles(client.type, client.grant_types)) return;
     ceiling(
       client.service_account_roles,
       `document.clients[${String(index)}].service_account_roles`,

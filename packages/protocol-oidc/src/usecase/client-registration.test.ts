@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { registerClient, type ClientRegistrationDeps } from '#/usecase/client-registration';
+import {
+  registerClient as register,
+  type ClientRegistrationDeps,
+  type RegistrationContext,
+} from '#/usecase/client-registration';
+import { pathAddress } from '@odudu/kernel';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 
 const PASSWORD_RULES = {
@@ -24,10 +29,28 @@ const TENANT: TenantLookup = {
   resetPasswordAllowed: false,
   maxSessionsPerBrowser: 25,
   clientRegistrationPolicy: 'open',
+  cimdEnabled: false,
   supportedLocales: ['en'],
   defaultLocale: null,
   passwordRules: PASSWORD_RULES,
 };
+
+const MCP_URL = 'https://idp.example/tenants/acme/mcp';
+const CONTEXT: RegistrationContext = {
+  origin: '203.0.113.9',
+  address: pathAddress('https://idp.example', 'acme'),
+};
+
+// Every call below registers on this tenant's own address; only the
+// `mcp` cases look at the context.
+function registerClient(
+  d: ClientRegistrationDeps,
+  tenant: string,
+  header: string | undefined,
+  body: unknown,
+) {
+  return register(d, tenant, header, body, CONTEXT);
+}
 
 const MINIMAL_METADATA = { redirect_uris: ['https://rp.example/cb'] };
 
@@ -49,6 +72,7 @@ function deps(overrides: Partial<ClientRegistrationDeps> = {}): ClientRegistrati
     hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
     now: () => new Date('2026-09-18T00:00:00Z'),
     tlsClientAuthEnabled: false,
+    mcpRegistrationLimiter: { check: () => ({ allowed: true, retryAfterSeconds: 0 }) },
     ...overrides,
   };
 }
@@ -203,5 +227,86 @@ describe('registerClient — a presented token in the open policy', () => {
     );
     expect(called).toBe(true);
     expect(outcome).toEqual({ kind: 'invalid_token' });
+  });
+});
+
+describe('registerClient — the mcp policy', () => {
+  const mcpTenant = () => Promise.resolve({ ...TENANT, clientRegistrationPolicy: 'mcp' as const });
+  const PUBLIC = { redirect_uris: ['https://rp.example/cb'], token_endpoint_auth_method: 'none' };
+
+  async function refused(body: Record<string, unknown>) {
+    const outcome = await registerClient(deps({ findTenant: mcpTenant }), 'acme', undefined, {
+      ...PUBLIC,
+      ...body,
+    });
+    if (outcome.kind !== 'invalid_metadata') throw new Error(`expected a refusal: ${outcome.kind}`);
+    return outcome;
+  }
+
+  it('refuses a client that would hold a secret, before a transaction opens', async () => {
+    const outcome = await refused({ token_endpoint_auth_method: 'client_secret_basic' });
+    expect(outcome.description).toContain('token_endpoint_auth_method');
+  });
+
+  it('[MCP-AUTH-REDIR-01] refuses a plain-http redirect to a host that is not loopback', async () => {
+    const outcome = await refused({ redirect_uris: ['http://rp.example/cb'] });
+    expect(outcome.error).toBe('invalid_redirect_uri');
+  });
+
+  it('refuses a scope of which nothing may be held', async () => {
+    expect((await refused({ scope: 'mcp:write' })).description).toContain('mcp:write');
+  });
+
+  it('refuses an audience other than the tenant MCP URL', async () => {
+    const outcome = await refused({ audience: ['https://api.example'] });
+    expect(outcome.description).toContain(MCP_URL);
+  });
+
+  it('refuses once the origin has spent its budget, and says when to retry', async () => {
+    const seen: string[] = [];
+    const outcome = await registerClient(
+      deps({
+        findTenant: mcpTenant,
+        mcpRegistrationLimiter: {
+          check: (tenantId, origin) => {
+            seen.push(`${tenantId}:${origin}`);
+            return { allowed: false, retryAfterSeconds: 17, scope: 'tenant' as const };
+          },
+        },
+      }),
+      'acme',
+      undefined,
+      PUBLIC,
+    );
+    expect(outcome).toEqual({ kind: 'rate_limited', retryAfterSeconds: 17, scope: 'tenant' });
+    expect(seen).toEqual(['r1:203.0.113.9']);
+  });
+
+  it('stays closed where no limiter is wired', async () => {
+    const outcome = await registerClient(
+      deps({ findTenant: mcpTenant, mcpRegistrationLimiter: undefined }),
+      'acme',
+      undefined,
+      PUBLIC,
+    );
+    expect(outcome).toEqual({ kind: 'not_found' });
+  });
+
+  it('spends no budget on a tenant whose policy is not mcp', async () => {
+    let asked = false;
+    await registerClient(
+      deps({
+        mcpRegistrationLimiter: {
+          check: () => {
+            asked = true;
+            return { allowed: true, retryAfterSeconds: 0 };
+          },
+        },
+      }),
+      'acme',
+      undefined,
+      { redirect_uris: ['com.example.app:/cb'], grant_types: ['bogus'] },
+    );
+    expect(asked).toBe(false);
   });
 });

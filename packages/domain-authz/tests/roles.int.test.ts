@@ -13,6 +13,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { roleRepository, type RoleRecord } from '#/repository/roles';
+import { groupRepository } from '#/repository/groups';
 import { clientScopeRoles, roleComposites, subjectRoles } from '#/schema/roles';
 
 let containerHandle: TestDatabase | undefined;
@@ -761,5 +762,76 @@ describe('setDefaultForNewSubjects', () => {
         expect((await roleRepository(tx).byId(seeded.roleId))?.defaultForNewSubjects).toBe(false);
       },
     });
+  });
+});
+
+describe('countUpTo and lockCreation', () => {
+  it('counts the tenant’s roles no further than the limit', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    for (const name of ['a', 'b', 'c']) await create({ name, tenantId });
+    const counted = (limit: number) =>
+      withTenant(app.db, tenantId, (tx) => roleRepository(tx).countUpTo(limit));
+    expect(await counted(10)).toBe(3);
+    expect(await counted(3)).toBe(3);
+    expect(await counted(2)).toBe(2);
+  });
+
+  it('does not count another tenant’s roles', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await roleRepository(tx).create({ tenantId, name: 'admin' });
+      },
+      verifySeeded: async (tx) => {
+        expect(await roleRepository(tx).countUpTo(10)).toBe(1);
+      },
+      attempt: async (tx) => roleRepository(tx).countUpTo(10),
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+    });
+  });
+
+  it('does not take the tenant’s row, which every sign-in locks, and waits for no other kind or tenant', async () => {
+    const tenantId = newId();
+    const elsewhere = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await withTenant(app.db, elsewhere, (tx) => seedTenant(tx, elsewhere));
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let taken: () => void = () => undefined;
+    const lockTaken = new Promise<void>((resolve) => {
+      taken = resolve;
+    });
+    const holder = withTenant(app.db, tenantId, async (tx) => {
+      await roleRepository(tx).lockCreation(tenantId);
+      taken();
+      await held;
+    });
+    await lockTaken;
+    const quickly = async (tenant: string, work: (tx: TenantScopedDatabase) => Promise<unknown>) =>
+      withTenant(app.db, tenant, async (tx) => {
+        await tx.execute(sql`select set_config('lock_timeout', '1000', true)`);
+        await work(tx);
+      });
+    try {
+      await quickly(tenantId, (tx) =>
+        tx.execute(sql`select 1 from tenants where id = ${tenantId} for no key update`),
+      );
+      await quickly(tenantId, (tx) => groupRepository(tx).lockCreation(tenantId));
+      await quickly(elsewhere, (tx) => roleRepository(tx).lockCreation(elsewhere));
+      await expect(
+        quickly(tenantId, (tx) => roleRepository(tx).lockCreation(tenantId)),
+      ).rejects.toThrow();
+      await expect(
+        quickly(tenantId, (tx) => roleRepository(tx).lockCreation(tenantId.toUpperCase())),
+      ).rejects.toThrow();
+    } finally {
+      release();
+      await holder;
+    }
   });
 });

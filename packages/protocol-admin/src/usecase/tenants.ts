@@ -1,6 +1,6 @@
 import { liveSessionCondition, provisionTenant, sessions } from '@odudu/authn-flows';
 import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
-import { type ListTenantsQuery, type Tenant } from '@odudu/contracts/admin';
+import { DISPLAY_NAME_MAX, type ListTenantsQuery, type Tenant } from '@odudu/contracts/admin';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
   isUniqueViolation,
@@ -22,6 +22,7 @@ import {
   backchannelLogoutDeliveries,
   BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
   provisionAdminClient,
+  provisionMcpClient,
   type ClientJwks,
 } from '@odudu/protocol-oidc';
 import { and, asc, eq, gt, isNull, lt, sql, type SQL } from 'drizzle-orm';
@@ -137,7 +138,7 @@ export class TenantNameTakenError extends Error {
 }
 
 /**
- * The row, its browser flow, its built-in admin client and its signing key,
+ * The row, its browser flow, its built-in admin and MCP clients and its signing key,
  * inside a transaction `withTenant` has already bound to `row.id` — shared
  * by creating a tenant and importing one, so the two cannot provision
  * differently.
@@ -166,6 +167,7 @@ export async function insertProvisionedTenant(
     consoleBaseUrl: console.baseUrl,
     consoleClientJwks: console.clientJwks,
   });
+  await provisionMcpClient(tx, row.id);
   await mintSigningKey(tx, row.id, kek);
   return created;
 }
@@ -456,7 +458,15 @@ export async function amendTenant(
     if (refusesBidi(value, current.displayName)) {
       return { kind: 'invalid_value', field: 'display_name', description: BIDI_REFUSED_MESSAGE };
     }
-    patch.displayName = normalizeDisplayName(value);
+    const displayName = normalizeDisplayName(value);
+    if (displayName !== null && displayName.length > DISPLAY_NAME_MAX) {
+      return {
+        kind: 'invalid_value',
+        field: 'display_name',
+        description: `display_name is at most ${String(DISPLAY_NAME_MAX)} characters`,
+      };
+    }
+    patch.displayName = displayName;
   }
   if ('enabled' in input.values) {
     const value = input.values.enabled;

@@ -206,6 +206,12 @@ export interface AdminRoute {
   // capability summary — for a caveat a generated client's user needs
   // without reading this repository's own docs.
   readonly description?: string;
+  // The route refuses an `Idempotency-Key`. `secret`: the response carries a
+  // secret shown once, which is never stored, so there is nothing to replay.
+  // `not-atomic`: the route writes outside the request's transaction, so a
+  // record could not prove the call happened. `external-io`: the handler waits
+  // on another server (mail, DNS) while it holds the request's connection.
+  readonly noIdempotency?: 'secret' | 'not-atomic' | 'external-io';
 }
 
 // Appended to the description of every route that mutates one subject.
@@ -554,6 +560,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/subjects/:id/password',
+    noIdempotency: 'secret',
     capability: 'manage-users',
     responseSchema: issuePasswordResponseSchema,
     successStatus: 201,
@@ -842,6 +849,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants',
+    noIdempotency: 'not-atomic',
     capability: MANAGE_TENANTS,
     responseSchema: tenantSchema,
     successStatus: 201,
@@ -853,6 +861,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenant-imports',
+    noIdempotency: 'secret',
     capability: MANAGE_TENANTS,
     responseSchema: importTenantResponseSchema,
     successStatus: 201,
@@ -1130,6 +1139,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/clients',
+    noIdempotency: 'secret',
     capability: 'manage-clients',
     responseSchema: createClientResponseSchema,
     successStatus: 201,
@@ -1151,7 +1161,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: amendClientRequestSchema,
     description:
       `${SERVICE_ACCOUNT_CEILING} ${CLIENT_LIST_BOUND}` +
-      ' `If-Match` is mandatory when the body replaces a list field: an absent header, or `*`, is refused with `428`, and a stale one with `412`. Otherwise it is optional.',
+      ' `If-Match` is mandatory when the body replaces a list field: an absent header, or `*`, is refused with `428`, and a stale one with `412`. Otherwise it is optional.' +
+      ' A `grant_types` that adds `client_credentials` to a confidential client reuses the account it kept, with the roles it still holds, when an upgrade left one idle, and otherwise creates one with no roles; one that leaves it out deletes the account with the roles, token grants and sessions it held, and is refused with `409` when the account holds the last enabled administrator role.',
   },
   {
     method: 'DELETE',
@@ -1167,6 +1178,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/clients/:id/secret',
+    noIdempotency: 'secret',
     capability: 'manage-clients',
     responseSchema: rotateClientSecretResponseSchema,
     querystringSchema: rotateClientSecretQuerySchema,
@@ -1272,6 +1284,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/registration-tokens',
+    noIdempotency: 'secret',
     capability: 'manage-clients',
     responseSchema: mintRegistrationTokenResponseSchema,
     successStatus: 201,
@@ -1333,6 +1346,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/domains/:id/verify',
+    noIdempotency: 'external-io',
     capability: 'manage-domains',
     responseSchema: domainSchema,
     description:
@@ -1401,6 +1415,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: roleSchema,
     successStatus: 201,
     bodySchema: createRoleRequestSchema,
+    description: 'A tenant defines at most 1,000 roles; one more is refused with `409`.',
   },
   {
     method: 'GET',
@@ -1491,6 +1506,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: groupSchema,
     successStatus: 201,
     bodySchema: createGroupRequestSchema,
+    description: 'A tenant defines at most 10,000 groups; one more is refused with `409`.',
   },
   {
     method: 'GET',
@@ -1819,6 +1835,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/smtp/test',
+    noIdempotency: 'external-io',
     capability: 'manage-tenant',
     responseSchema: testSmtpResponseSchema,
     bodySchema: testSmtpRequestSchema,

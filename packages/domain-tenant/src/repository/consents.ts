@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { and, asc, eq, gt, inArray, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { clientScopes } from '#/schema/client-scopes';
 import { clients } from '#/schema/clients';
 import { consentScopes, consents } from '#/schema/consents';
@@ -93,6 +93,11 @@ export function consentRepository(tx: TenantScopedDatabase) {
         throw new Error('upsert into consents returned no row');
       }
       const consentId = row.id;
+
+      await tx
+        .update(clients)
+        .set({ approvedAt: sql`now()` })
+        .where(and(eq(clients.id, clientId), isNull(clients.approvedAt)));
 
       await tx
         .delete(consentScopes)

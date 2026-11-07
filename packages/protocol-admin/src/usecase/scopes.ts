@@ -1,4 +1,9 @@
-import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
+import {
+  BIDI_REFUSED_MESSAGE,
+  containsNul,
+  NUL_REFUSED_MESSAGE,
+  refusesBidi,
+} from '@odudu/contracts';
 import {
   type AssignScopeToClientResponse,
   type ClientScope,
@@ -36,10 +41,12 @@ import {
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { readKeyedPage } from '#/service/in-order';
+import { createdDetail, redactedDiff } from '#/service/audit-detail';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { builtinScopeConfirmationDetail } from '#/service/scope-delete';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
 import { tenantLanguages } from '#/usecase/tenant-languages';
+import { checkDescription } from '#/service/description';
 import { checkConsentText, checkDisplayOrder, checkScopeLocalised } from '#/service/scope-consent';
 import {
   prefixRangeConditions,
@@ -283,13 +290,13 @@ export class ScopeLimitError extends Error {
   }
 }
 
-/** Thrown by `createScope` when a per-language map is refused; the write has not happened. */
-export class ScopeLocalisedTextError extends Error {
+/** Thrown by `createScope` when a field is refused; the write has not happened. */
+export class ScopeFieldError extends Error {
   readonly field: string;
 
   constructor(field: string, message: string) {
     super(message);
-    this.name = 'ScopeLocalisedTextError';
+    this.name = 'ScopeFieldError';
     this.field = field;
   }
 }
@@ -307,6 +314,14 @@ export async function createScope(
   deps: CreateScopeDeps,
   input: CreateScopeInput,
 ): Promise<ClientScope> {
+  if (containsNul(input.name)) {
+    throw new ScopeFieldError('name', `name ${NUL_REFUSED_MESSAGE}`);
+  }
+  const description = checkDescription(input.description);
+  if (description.kind === 'invalid') throw new ScopeFieldError('description', description.message);
+  const consentText = checkConsentText(input.consentText);
+  if (consentText.kind === 'invalid')
+    throw new ScopeFieldError('consent_text', consentText.message);
   const localised: Record<string, Record<string, string>> = {};
   const supplied = [
     ['description_i18n', input.descriptionI18n ?? {}],
@@ -319,7 +334,7 @@ export async function createScope(
       ...(supported === undefined ? {} : { supported }),
     });
     if (checked.kind === 'invalid') {
-      throw new ScopeLocalisedTextError(field, checked.message);
+      throw new ScopeFieldError(field, checked.message);
     }
     localised[field] = checked.value;
   }
@@ -350,6 +365,7 @@ export async function createScope(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: createdDetail('scope', scopeWireShape(created)),
   });
 
   return scopeWireShape(created);
@@ -455,6 +471,13 @@ export async function amendScope(
         description: `description must be at most ${String(DESCRIPTION_MAX)} characters`,
       };
     }
+    if (typeof value === 'string' && containsNul(value)) {
+      return {
+        kind: 'invalid_value',
+        field: 'description',
+        description: `description ${NUL_REFUSED_MESSAGE}`,
+      };
+    }
     if (refusesBidi(value, locked.description)) {
       return { kind: 'invalid_value', field: 'description', description: BIDI_REFUSED_MESSAGE };
     }
@@ -556,6 +579,10 @@ export async function amendScope(
     }
   }
 
+  const after = await readScope(tx, input.scopeId);
+  if (after.kind !== 'ok') {
+    throw new Error(`scope ${input.scopeId} not found immediately after its own amendment`);
+  }
   await deps.audit(tx, {
     action: 'scope.amend',
     resourceType: 'scope',
@@ -564,12 +591,8 @@ export async function amendScope(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff('scope', scopeWireShape(locked), after.scope),
   });
-
-  const after = await readScope(tx, input.scopeId);
-  if (after.kind !== 'ok') {
-    throw new Error(`scope ${input.scopeId} not found immediately after its own amendment`);
-  }
   return { kind: 'ok', scope: after.scope, etag: etagOf(after.scope) };
 }
 
@@ -1191,4 +1214,11 @@ export async function listScopeClients(
     })),
     next,
   };
+}
+
+// Whether the scope is one of the tenant's built-in ones, which the admin API's
+// door keeps an agent from amending. A scope that does not exist is not.
+export async function scopeIsBuiltin(tx: TenantScopedDatabase, scopeId: string): Promise<boolean> {
+  const scope = await clientScopeRepository(tx).byId(scopeId);
+  return scope !== null && isBuiltinScopeName(scope.name);
 }

@@ -82,6 +82,7 @@ const EMAIL_MAIL = 'email/services/mailWording.ts';
 const EMAIL_MAIL_QUERY = 'email/services/mailQuery.ts';
 const ACCESS = 'settings/services/accessSections.ts';
 const PLATFORM = 'settings/services/platformSections.ts';
+const SETTINGS_WORDS = 'settings/services/settingsPageWords.ts';
 const KEYS_WORDS = 'signing-keys/services/keysWords.ts';
 const KEYS_CONFIRM = 'signing-keys/services/confirm.ts';
 const DOMAINS_WORDS = 'domains/services/domainsWords.ts';
@@ -233,6 +234,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Logout: clientTab('logout', 'Logout'),
   Advanced: clientTab('advanced', 'Advanced'),
   'Service account': clientTab('service', 'Service account'),
+  'Grant types': page('clients/services/sectionTitles.ts', "grants: 'Grant types'"),
   Members: several(pageTab('groups', 'members', 'Members'), pageTab('roles', 'members', 'Members')),
   Composites: pageTab('roles', 'composites', 'Composites'),
   'Claim mappers': pageTab('scopes', 'mappers', 'Claim mappers'),
@@ -449,7 +451,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Uses left': page(TOKENS_WORDS, "usesLeft: 'Uses left'"),
   Revoke: page(TOKENS_WORDS, "revoke: 'Revoke'"),
   'Revoke token': page(TOKENS_WORDS, "confirm: 'Revoke token'"),
-  Policy: page(PLATFORM, "label: 'Policy'"),
+  Policy: page(SETTINGS_WORDS, "policyLabel: 'Policy'"),
   'Closed: only an administrator creates clients': page(
     PLATFORM,
     "label: 'Closed: only an administrator creates clients'",
@@ -522,7 +524,15 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Password policy': page(ACCESS, "title: 'Password policy'"),
   'Brute force': page(ACCESS, "title: 'Brute force'"),
   'Token lifetimes': page(PLATFORM, "title: 'Token lifetimes'"),
-  'Dynamic client registration': page(PLATFORM, "title: 'Dynamic client registration'"),
+  'Client registration': page(SETTINGS_WORDS, "registrationTitle: 'Client registration'"),
+  'MCP clients: public clients of the MCP server may register': page(
+    SETTINGS_WORDS,
+    "mcpOption: 'MCP clients: public clients of the MCP server may register'",
+  ),
+  'Accept client metadata documents': page(
+    SETTINGS_WORDS,
+    "cimdLabel: 'Accept client metadata documents'",
+  ),
   'Audit retention': page(PLATFORM, "title: 'Audit retention'"),
   'Idle timeout': page(ACCESS, "label: 'Idle timeout'"),
   'Maximum lifetime': page(ACCESS, "label: 'Maximum lifetime'"),
@@ -719,6 +729,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Allowed: page(AUDIT_KINDS, "'Allowed'"),
   Refused: page(AUDIT_KINDS, "'Refused'"),
   Details: entity('audit-event/ui/AuditTable/AuditTable.tsx', '> Details <'),
+  Actor: entity('audit-event/ui/AuditDetail/AuditDetail.tsx', '<Row term="Actor">'),
+  'Actor client': entity('audit-event/ui/AuditDetail/AuditDetail.tsx', '<Row term="Actor client">'),
   'Export these events': page('audit/services/auditPageWords.ts', "'Export these events'"),
 
   // The overview.
@@ -821,6 +833,14 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Allow impersonation in token exchange': page(
     'clients/services/tokenExchange.ts',
     "'Allow impersonation in token exchange'",
+  ),
+  'Allow a public client to use token exchange': page(
+    'clients/services/tokenExchange.ts',
+    "EXCHANGE_PUBLIC_LABEL = 'Allow a public client to use token exchange'",
+  ),
+  'Accept an actor token issued to another client': page(
+    'clients/services/tokenExchange.ts',
+    "EXCHANGE_ACTOR_LABEL = 'Accept an actor token issued to another client'",
   ),
   'New subjects': page('roles/use-cases/useRoleGeneral.ts', "label: 'New subjects'"),
   'Tenant or client': page('roles/ui/RolesPage/RolesPage.tsx', "label: 'Tenant or client'"),

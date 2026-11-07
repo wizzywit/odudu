@@ -36,7 +36,7 @@ const SETTINGS = {
   client_registration_policy: {
     column: 'clientRegistrationPolicy',
     type: 'text',
-    values: ['disabled', 'open', 'token'],
+    values: ['disabled', 'open', 'token', 'mcp'],
   },
   max_clients: { column: 'maxClients', type: 'integer' },
   max_sessions_per_browser: { column: 'maxSessionsPerBrowser', type: 'integer' },
@@ -53,6 +53,7 @@ const SETTINGS = {
   verify_email_ttl_seconds: { column: 'verifyEmailTtlSeconds', type: 'integer' },
   reset_password_ttl_seconds: { column: 'resetPasswordTtlSeconds', type: 'integer' },
   login_with_email: { column: 'loginWithEmail', type: 'boolean' },
+  cimd_enabled: { column: 'cimdEnabled', type: 'boolean' },
   // The audit trail's admin pair can never be left out: a security trail an
   // attacker holding an administrator's token could switch off is no trail.
   audit_event_types: {

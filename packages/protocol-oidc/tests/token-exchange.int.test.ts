@@ -40,6 +40,7 @@ import { hashRefreshToken } from '#/service/refresh';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { ensureServiceAccount, retireServiceAccount } from '#/usecase/service-account';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -1315,5 +1316,50 @@ describe('[ODUDU-TOKEN-EXCHANGE-SESSION-01] an exchanged token dies with the ses
 
     await endSession(subject.sessionId);
     expect((await introspect(exchanged)).json<{ active: boolean }>().active).toBe(true);
+  });
+});
+
+describe('[ODUDU-TOKEN-EXCHANGE-RETIRE-01] a service account that acted in an exchange', () => {
+  it('ends the exchanged token when the account is retired', async () => {
+    const withGrant = await withTenant(app.db, TENANT_ID, async (tx) => {
+      const client = await clientRepository(tx).byClientId(CLIENT_ID);
+      if (client === null) throw new Error('client missing');
+      await clientOidcConfigRepository(tx).update(client.id, {
+        grantTypes: [
+          'authorization_code',
+          'refresh_token',
+          TOKEN_EXCHANGE_GRANT,
+          'client_credentials',
+        ],
+        clientCredentialsScopes: ['openid'],
+      });
+      return ensureServiceAccount(tx, client);
+    });
+    const credentials = await http.inject({
+      method: 'POST',
+      url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+      payload: 'grant_type=client_credentials&scope=openid',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
+      },
+    });
+    expect(credentials.statusCode).toBe(200);
+    const actorToken = credentials.json<{ access_token: string }>().access_token;
+    const subject = await loginAndGetToken();
+
+    const exchanged = await exchange({ subjectToken: subject.accessToken, actorToken });
+    expect(exchanged.statusCode).toBe(200);
+    const delegated = exchanged.json<{ access_token: string }>().access_token;
+    expect((await introspect(delegated)).json<{ active: boolean }>().active).toBe(true);
+
+    await withTenant(app.db, TENANT_ID, async (tx) => {
+      await clientOidcConfigRepository(tx).update(withGrant.id, {
+        grantTypes: ['authorization_code', 'refresh_token', TOKEN_EXCHANGE_GRANT],
+      });
+      await retireServiceAccount(tx, withGrant);
+    });
+
+    expect((await introspect(delegated)).json<{ active: boolean }>().active).toBe(false);
   });
 });

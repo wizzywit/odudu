@@ -170,15 +170,15 @@ Real questions a newcomer asks, each answered strictly from the built documentat
 - Before: answered
 - Status: answered
 - Pages: admin-console/registration-tokens, reference/protocol, admin-console/settings
-- Note: Policy under Dynamic client registration; a registration token.
+- Note: Policy under Client registration; a registration token.
 
 ## D22. How do I protect an MCP server with Odudu?
 
 - Role: Developer
 - Before: answered
 - Status: answered
-- Pages: roadmap, guides/api
-- Note: Planned (P5a): the MCP metadata and tools. Until then the API guide's token checks apply.
+- Pages: guides/protect-an-mcp-server, guides/connect-claude, guides/connect-cursor, guides/api
+- Note: Answered by the MCP guides: the 401 challenge, the metadata, registration, the sign-in and the tools. A server of your own follows the API guide's token checks.
 
 ## D23. How do I use token exchange?
 

@@ -1,0 +1,179 @@
+---
+title: Connect Claude
+description: Connect Claude Code, Claude Desktop and claude.ai to a tenant's MCP endpoint, what each needs, what an agent can change and the risk that stays.
+sidebar_position: 13
+---
+
+# Connect Claude
+
+Claude reaches an Odudu tenant three ways, and which one you use depends on where the instance is. Claude Code, the terminal tool, connects straight to the tenant's MCP endpoint, and it can do that to an instance on localhost. Claude Desktop can run `odudu mcp`, a local program that talks to the instance for it. claude.ai and the connectors in Claude Desktop are called from Anthropic's servers, so they need an address on the public internet.
+
+You need a tenant set up for MCP clients, which [Protect an MCP server](./protect-an-mcp-server.md) does in its step 4: `client_registration_policy` set to `mcp`, and `cimd_enabled` on if you want Claude Code or claude.ai to identify themselves with their own address. The examples use the quick start's `demo` tenant at `http://localhost:3000`.
+
+## What was checked, and what was not
+
+The Odudu side of this page was run, against a stack built from this repository: the 401 challenge, the two metadata documents, registration under the `mcp` policy, the code flow with PKCE and the `resource` parameter, the token, the read tools in each protocol era, and a refused write by a read token. Two clients nobody here wrote did it, the MCP Inspector 2.13.0 and the TypeScript SDK's client 2.4.0, and they run again on every server change (`infra/conformance/run-mcp.sh`).
+
+**What was run in Claude's own software.** On 6 November 2026 the owner of the project ran Claude Code 2.1.319 and Claude Desktop 3.6556.2, as reported by the owner, against a local instance. In Claude Code the command-line form with `--client-id` and `--callback-port` against a client an administrator made (below) signed in and completed the sign-in inside the session, and the owner ran the reads that existed then (42 tools) and that release's two writes, `update_client_metadata` and `update_scope_metadata`, with an entity tag, a stale tag, refusals and bad arguments, which behaved as this page says. The tools added since (the other reads and ten more write tools), the write budget and the rule that only the endpoint offers the creates, the overrides and the theme drafts were run only against integration tests, the MCP Inspector, the SDK's client and replays of this page's commands, not in a real Claude client. Claude Desktop was run through the `odudu mcp` entry below, with the absolute path to `node`.
+
+**What was not run.** The write tools added after that run in a real Claude client, the `.mcp.json` settings (`oauth.scopes`, and the mix of `clientId`, `callbackPort` and `scopes`), Claude Code's own registration by metadata document or by dynamic registration, the claude.ai and Desktop connectors, and `odudu mcp` on Windows and with the Linux Secret Service. Those follow the vendor's documentation as read on 6 November 2026, linked where each is used, and a vendor can change them. Where a block is the vendor's syntax it is tagged `text`, which the guides use for what is shown and not run. If a step differs from what you see, the vendor's page is right about its own software, and a note to the Odudu project is welcome.
+
+## Claude Code, to an instance on localhost
+
+Add the tenant's endpoint as an HTTP server. The command is the one the Claude Code documentation (`https://code.claude.com/docs/en/mcp`) gives for a remote server:
+
+```text
+claude mcp add --transport http odudu http://localhost:3000/tenants/demo/mcp
+```
+
+Name the entry after the tenant, for example `odudu-acme`; the server also announces its tenant, in its name, its instructions and the start of every tool description.
+
+Then, inside Claude Code, run `/mcp` and choose the server to sign in. Claude Code finds the sign-in from the `401` the endpoint answers with, reads the tenant's metadata, and registers itself, either by its metadata document or by dynamic registration, whichever the tenant allows. Your browser opens on the tenant's sign-in page, and then on a consent screen that names the client and offers `mcp:read` as a choice you tick. You are then signed in for reading: the tools that read what you could read in the admin API.
+
+Which one Claude Code uses is its choice. A tenant with only `cimd_enabled` on is used by its metadata document, one with the `mcp` policy by registration as well. If the tenant allows neither, Claude Code says the server does not support registration, and you use a client you made, below.
+
+### To change descriptions: a client of your own
+
+A client that registered itself, or came from a metadata document, is never given `mcp:write`, however it asks. To let an agent change the descriptive text of clients, scopes, roles and groups, the display name and the wording of the sign-in pages, prepare a draft of a theme for a person to publish, and make roles, groups and scopes that grant nothing, an administrator makes a client for Claude Code. It is public, its audience is the tenant's MCP address, and `mcp:read` and `mcp:write` are assigned to it as optional scopes. On the server's host, with the commands the other guides use:
+
+A **redirect address** (also called the callback) is where Odudu sends the browser, with the sign-in's result, when you have signed in. A client has to say in advance which addresses it may use, and Odudu sends the browser nowhere else. For Claude Code it is a small web server on your own machine that waits for that one visit, so the address is `localhost` and a port number, as in the example below.
+
+Pick a port nothing else listens on, and check it with `lsof -i :8765`, which prints nothing when the port is free. The guides use 8765 because common local services use 8080. Browsers try `localhost` as the IPv6 address `::1` before the IPv4 one, so a service listening on IPv6 on that port, a container for one, takes the redirect and answers "Resource not found" instead of Claude Code.
+
+A client's **Audiences** setting says which servers a token issued to it may be used at. A client sends the address of the server it means to call as the `resource` of its sign-in (RFC 8707), and Odudu puts that address in the token's `aud` only if the client's Audiences list holds it exactly. The MCP endpoint takes a token only when `aud` names its own address. A client whose list does not hold the address is refused with `invalid_target`, which is why a client made without the audience is not offered the MCP endpoint.
+
+```text
+docker compose exec odudu odudu seed client --tenant demo --client-id claude-code --public --redirect-uri http://localhost:8765/callback --audience http://localhost:3000/tenants/demo/mcp
+docker compose exec odudu odudu seed assign-scope --tenant demo --client-id claude-code --scope mcp:read --assignment optional
+docker compose exec odudu odudu seed assign-scope --tenant demo --client-id claude-code --scope mcp:write --assignment optional
+```
+
+The same client can be made in the console, under **Clients**, with its **Audiences** on the Advanced tab, or through the admin API with a token that holds `manage-clients`, as [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows; [The MCP write tools](../reference/transcripts/request-paths/the-mcp-write-tools.md) runs exactly that. A client made without the audience is not offered the MCP endpoint.
+
+Claude Code then takes the client id and a fixed callback port, which must match the redirect address registered above (the vendor's documentation, at `https://code.claude.com/docs/en/mcp`, gives `--client-id` and `--callback-port`, for a public client with no secret, and `oauth.scopes` for the scopes it asks for):
+
+```text
+claude mcp add --transport http --client-id claude-code --callback-port 8765 odudu http://localhost:3000/tenants/demo/mcp
+```
+
+This command-line form, with `--client-id` and `--callback-port` against a client an administrator made, is what the owner ran on 6 November 2026, and it signed in. Claude Code asks for the scopes the server lists unless they are pinned, and the vendor's documentation shows pinning in the server's `oauth` object in `.mcp.json`. If it does not ask for `mcp:write` by itself, add `"scopes": "mcp:read mcp:write"` there. **That `.mcp.json` pinning, and the `.mcp.json` combination of `clientId`, `callbackPort` and `scopes`, were not run.** They are assembled from two of the vendor's examples and are the least certain step on this page.
+
+## Using the tools
+
+Sign in once with `/mcp` inside Claude Code and choose the server; the browser steps above happen then. After that, ask in plain language, for example "who am I signed in as?", "list the clients in this tenant", "which users logged in this week?" or "what changed in the audit trail today?". Claude picks the tool. Claude Code names an MCP server's tools `mcp__<server>__<tool>`, so for a server added as `odudu` they are `mcp__odudu__whoami`, `mcp__odudu__list_clients` and so on, and it asks you to allow a tool the first time it uses it. Read an answer's data as Claude's account of it: the audit trail has what was actually called.
+
+With a client that holds `mcp:write` you can also ask for a change, for example "rewrite the description of the `claude-code` client to say who runs it" or "add a German text for the description of the scope named `reports`". Claude reads the resource first and sends the entity tag it read; approve the call after reading what it will change.
+
+A failure comes back to Claude as an error it reads and tells you, with a reason such as `mcp:invalid_arguments: id: must be a UUID` for a malformed argument, or a refusal that says the person lacks a capability. A call you did not expect to be refused is in the console's audit trail, as an `agent.tool_call` event with the reason. In Claude Code, `/mcp` shows whether the server is connected and lets you sign in again when the sign-in has ended. Claude Desktop shows a server that failed to start in its own settings, which this page did not check further.
+
+## Claude Desktop, through `odudu mcp`
+
+Claude Desktop starts local programs described in its configuration file, and `odudu mcp` is one: it serves the read tools, and with `--allow-writes` the five that amend text, over standard input and output, and calls the instance as you or as a service account. This is the route for an instance Anthropic's servers cannot reach. The file is `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS and `%APPDATA%\Claude\claude_desktop_config.json` on Windows, which **Settings, Developer, Edit Config** opens, and Claude Desktop has to be quit and started again to read it (the Model Context Protocol's guide (`https://modelcontextprotocol.io/docs/develop/connect-local-servers`) has the steps).
+
+As a person, `odudu mcp` opens your browser to sign in, listens for the answer on a loopback port and keeps the sign-in in your operating system's credential store. It has to run on your machine and not in a container, and the command ships in the Odudu image and in the repository, not yet as a download. From a checkout, with Node 24 and `pnpm install` done, the entry is:
+
+```text
+{
+  "mcpServers": {
+    "odudu": {
+      "command": "node",
+      "args": [
+        "/path/to/odudu/apps/server/src/main.ts",
+        "mcp",
+        "--base-url", "http://localhost:3000",
+        "--tenant", "demo"
+      ]
+    }
+  }
+}
+```
+
+That is read-only. `odudu mcp --help` lists the flags; `--allow-writes` asks for `mcp:write` instead and offers the write tools that change a description, a name or the tenant's display name and languages as well (not the three that create something, nor the two that set or clear a message override, nor the two that save a theme draft, which only the endpoint offers, because only the endpoint counts them).
+
+For a service account, which needs no browser, run the command in the container. The key is passed from the environment, so it is not in the arguments:
+
+```text
+{
+  "mcpServers": {
+    "odudu": {
+      "command": "docker",
+      "args": [
+        "compose", "-f", "/path/to/compose.yaml",
+        "exec", "-T", "-e", "ODUDU_MCP_KEY",
+        "odudu", "odudu", "mcp",
+        "--base-url", "http://localhost:3000",
+        "--tenant", "demo",
+        "--client-id", "my-agent"
+      ],
+      "env": { "ODUDU_MCP_KEY": "…the key line's value…" }
+    }
+  }
+}
+```
+
+[Call an API as a service](./machine-to-machine.md#give-a-local-ai-tool-the-key) makes the key and registers the account, and [`odudu mcp` over stdio](../reference/transcripts/request-paths/odudu-mcp-over-stdio.md) is a recorded run of the command with a key. Inside the container the address is the container's own, so `--base-url` is `http://localhost:3000` there whichever port you published, and it has to be the address the instance states as its own.
+
+## claude.ai and Claude Desktop's connectors
+
+A connector is added in claude.ai under **Customize, Connectors, Add, Add custom connector**, with the tenant's MCP address, and Claude offers to use its published identity (a client metadata document), to register automatically or to use your own client (the vendor's page (`https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp`)). Anthropic's servers make the calls, and the vendor says the server must be reachable from Anthropic's addresses over the public internet.
+
+An Odudu you downloaded and run on your own machine is not. Say so plainly: it needs a tunnel, or a real deployment, that gives the instance a public `https` address, and the instance has to state that address as its own (`ODUDU_PUBLIC_BASE_URL`, with TLS ended in front of it; [Deploying](../operating/deploying.md) has the settings). The MCP address you give Claude is then that public one. The tenant's `cimd_enabled` setting and `mcp` policy decide whether Claude's published identity or its registration is accepted. Claude's redirect address is `https://claude.ai/api/mcp/auth_callback`, an `https` address that a registered client or one from a metadata document may use.
+
+None of this was run against Anthropic's servers by the authors, who had no public address to run it from. The Inspector and the SDK client run the same discovery and sign-in against the endpoint on every server change, and that is all this page claims.
+
+## What an agent can and cannot do, and why
+
+An agent's reach follows one line, drawn at access and not at whether a call can be undone: a wrong call may put wrong text in front of a person, and it may not change who can sign in, what a token carries, a secret or a deletion. Every admin API route is in one class, and the counts are of its 152 routes.
+
+| Class | Routes | An agent today                                                                                                                                                                                                 | Why, and what a person does instead                                                                                                                                                                                                                                                                                                                       |
+| ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R     | 59     | Yes, with `mcp:read`                                                                                                                                                                                           | Reads that hold no secret and no credential metadata, and personal data only as the console shows it (a subject's record, the audit trail's actor names and the IP address a request came from), so an agent cannot read out a password or a key. Each call is an audit event.                                                                            |
+| I     | 2      | Yes, for a system administrator's agent only                                                                                                                                                                   | The tenant list and its count. They open no tenant's content, and the agent of any other tenant is refused.                                                                                                                                                                                                                                               |
+| W1    | 13     | Yes for 12, with `mcp:write`; seven of them (the three creates, the two message override tools and the two theme drafts) only through the tenant's MCP endpoint, not `odudu mcp` and not for a service account | Wording, descriptions, drafts and structure that grant nothing, so the worst a wrong call does is put wrong text in front of a person. Each sign-in allows 20 changing calls and 10 creates, and past that a call is refused (`mcp:write_budget`) until the person signs in again. The thirteenth, a theme image upload, needs a person: use the console. |
+| W2    | 32     | Not yet                                                                                                                                                                                                        | Each changes who can sign in or what a token carries: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail. Use the console. A confirmation step the agent cannot answer for itself comes with a later release.                                                                            |
+| C     | 7      | Not yet                                                                                                                                                                                                        | Each returns or sets a secret: passwords, client secrets, registration tokens, signing keys, relay credentials. Use the console. The same confirmation step comes first.                                                                                                                                                                                  |
+| D     | 27     | Not yet                                                                                                                                                                                                        | Each deletes, ends sessions, clears a lockout, changes a signing key or discards a draft. Use the console. The same confirmation step comes first.                                                                                                                                                                                                        |
+| RS    | 8      | Never                                                                                                                                                                                                          | Sensitive reads: personal data, credential metadata, secrets and whole-tenant downloads, which an injected agent could carry out. Read them in the console, or with your own token from the admin API.                                                                                                                                                    |
+| N     | 4      | Never                                                                                                                                                                                                          | Pages drawn for a browser frame, such as mail previews, which are not data an agent can read. The console shows them, and `get_theme_preview_info` says what a draft's preview is made of.                                                                                                                                                                |
+
+Access-changing, credential and destructive operations are not available to an agent yet, so an agent that is told to make one is refused, and a person does it in the console.
+
+## What Claude is allowed to do
+
+With `mcp:read`, which any of the routes above gives, Claude can read what the person who signed in can read: users, clients, scopes, groups, roles, sessions, settings and audit events, subject to that person's capabilities in the [admin API](../concepts/roles-and-groups.mdx). The tools it is offered are the ones the person could use, and a call to one they could not is refused and recorded.
+
+With `mcp:write`, the endpoint offers twelve more tools, and only to a person who holds the capability for each:
+
+- `update_client_metadata` changes a client's name and description and their texts in other languages (`manage-clients`).
+- `update_scope_metadata` changes a scope's description, its texts in other languages and its display order (`manage-tenant`).
+- `update_role_description` and `update_group_description` change the description of a role or a group (`manage-tenant`).
+- `create_role`, `create_group` and `create_scope` make a role, a group or a scope that grants nothing (`manage-tenant`). A new role is held by nobody and is a default for no one; a new group has no roles, no members and no parent; a new scope is assigned to no client, maps no role and has no consent text. The agent chooses a key for each create and sends the same one if it tries again, so one is made however often the call is repeated, and each sign-in allows ten creates and twenty changes in all. Only the endpoint counts them, so a service account, which has no person to sign in and so no endpoint call, cannot create through MCP at all, and `odudu mcp` does not offer them.
+- `update_tenant_text_settings` changes the tenant's display name, the languages its pages are offered in and the default language, and no other setting (`manage-tenant`). It names the entity tag that `get_settings` returned. A language taken out of the list keeps the message overrides written in it.
+- `set_message_override` and `clear_message_override` set the tenant's own wording for one message in one language, and put the default wording back (`manage-tenant`). A set without an entity tag creates, and is refused where an override exists; with the tag `list_message_overrides` gave, it replaces. A tenant holds at most 500, and the text is at most 2,000 characters. A set that creates counts as one of the ten creates of a sign-in; a replacement or a clear counts only among the twenty changes. `clear_message_override` is hinted destructive, as the two theme tools are, so that a client that asks before a call asks first; Odudu enforces no such approval. These two change how many overrides a tenant holds, so only the endpoint offers them: not `odudu mcp`, and not to a service account. **A message override is live at once, and nothing checks what it says.** It can hold up to 2,000 characters, links and addresses included, and an agent that has read details on a page it was told to read could write them where everyone who opens a sign-in page or receives a mail reads them. Review what your agent is told to read and what it writes there; the audit event keeps the text, and `clear_message_override` removes an override.
+- `update_theme_draft` (`manage-tenant`) and `update_client_theme_draft` (`manage-clients`, for a client that is not built in) save a draft of the tenant's theme or of one client's: its colours and font, its stylesheet and its page templates. **A draft is not what people see.** Nothing shows it until a person presses **Publish** in the console, and there is no tool that publishes, restores, discards or resets a theme. The tool reads the draft itself and sends each part the agent did not name exactly as it is stored, so a stylesheet is never rewritten by being read; the parts it does name replace those parts whole and are at most 512 KiB together with the rest. The tool reads the draft and the published theme together, and the admin API's answer must be under 1 MiB for it to do so: a theme whose answer is over 1 MiB cannot be read or updated by the tool, and is edited in the console. A theme whose answer fits under 1 MiB but is too large for `get_theme` to return (over 256,000 bytes) still gives the draft's entity tag beside the refusal, so the draft can be updated. That means the model may be unable to read a theme it can write: `get_theme` answers at most 256,000 bytes and the tool reads up to 1 MiB, so for a theme in between it writes without having read it, and the draft it replaces is not kept. Every save is checked by the admin API by the same rules the console is (a stylesheet or a template that fails them comes back as the admin API's list of problems, and nothing is saved). Only a first draft can carry a warning: it is answered with one, to read the draft again, if the published theme changed while it was saved. It names the entity tag that `get_theme` or `get_client_theme` returned, and none when that read says there is no draft, which makes the first one. A first draft counts as one of the ten creates of a sign-in, a replacement only among the twenty changes. **A draft that is replaced is not kept.** The audit event records which parts changed, with the length and a SHA-256 digest of each before and after, and not their text, so it shows that a person's draft was overwritten and cannot bring it back; for that reason both are hinted as destructive, so that a client that asks before a call asks first. Only the endpoint offers these two: not `odudu mcp`, and not to a service account.
+
+**The display name and the message overrides are shown to people on the sign-in pages and in mail, as soon as they are saved**, where they type a password. Read what an agent is about to write there as you would read it on that page. A theme draft is different: it goes live only when a person presses Publish, and the person can read it in the console first, though nothing makes them.
+
+It cannot publish, restore, discard or reset a theme, change a built-in client's theme, upload an image, change a redirect address, a secret, a grant, a user, a key or any setting but those three (the registration, sign-in, password, lockout, session and token rules stay with a person), it cannot give a role to anyone, nest one in another, make a role or a group a default for new people, put a group under another, change what a scope asks a person to agree to or which tokens it appears in, and it cannot change a built-in client's name.
+
+Each change is an audit event with the agent's client, the person, and what it set: the text before and after for an edit (a theme draft is the exception: its event holds digests, not text), a display name, a language list or a message override, so an edit is undone by sending the earlier text back, and the name and text of a role, group or scope it made. It cannot delete what it made, so a person removes it in the console; it can clear a message override, and the audit event keeps the text it cleared. The agent reads a resource first and sends the entity tag it read, so an edit over a change made meanwhile is refused.
+
+`mcp:write` is asked about at **every** sign-in, even for a client you made and even when the person agreed before, and the box is not ticked for them. The token lasts ten minutes at most and has no refresh token, so after ten minutes the person signs in again and is asked again.
+
+### When the allowance runs out
+
+Each sign-in allows 20 changing calls, 10 of them creates (a create is one of the 20 too), counted in the database for the sign-in's token and for every token exchanged from it, so only a new sign-in renews it. A call over the allowance is not made: Claude is told `mcp:write_budget` (`429`, "Too many changes in this sign-in"), and the audit trail has an `agent.tool_call` event with the outcome refused and the reason `write_budget`. Ask the person to sign in again to give it a new allowance. A call the admin API refuses (a stale tag, a value it does not accept) gives its place back, because nothing changed; a call that timed out, could not be reached or whose answer was too large keeps it, since the change may have been made. A create sent again with the same key is answered from what was stored and spends a second place, so a retry after an unknown outcome costs one. If the allowance cannot be read within five seconds the call is not made and Claude is told `mcp:write_budget_unavailable` (`503`); if the sign-in has ended it is told `mcp:access_ended` (`401`). `odudu mcp` keeps a count of its own for each run, renewed by each new browser sign-in.
+
+### The risk that stays
+
+An agent reads text, and text can carry instructions. A client's name, a scope's description, a username or an audit event is written by someone, and an agent that reads it may follow what it says. With `mcp:write` for a person who may edit clients or scopes, such an instruction can make it edit the **descriptive text** of clients, scopes, roles and groups, write the tenant's display name and the wording of its sign-in pages, prepare a theme draft that a person must still publish, and add roles, groups and scopes that grant nothing, and it will. That text is shown to people, on the consent screen for one and on the sign-in pages, where they type a password, for the display name and the overrides, so it can mislead them at the moment they are most trusting. It cannot change what a client, scope, role or group may do, who holds what, who may sign in, or any secret.
+
+What limits it is real and is not a guarantee: the scope is asked about every time and lasts ten minutes, only those twelve tools write, the admin API refuses everything else whatever a tool says, and every change is recorded, and reversible too except a replaced theme draft, which is recorded by digest and not kept. What stops it before the first edit is Claude asking you to approve each tool call, and that approval is **Claude's, not Odudu's**. Leave it on for the write tools, and read what a call is about to change. A client that is never assigned `mcp:write` cannot write at all, so give it only to a client that needs it.
+
+## Check it works
+
+Ask Claude who it is signed in as. It should call `whoami` and name you, with the capabilities you hold. Then ask it to list the clients, and look in the console's audit trail for the `agent.tool_call` events that name the tool and your client.
+
+## What the owner still runs by hand
+
+Recorded as an open task in the project's notes: connect real Claude Code, Claude Desktop and claude.ai to an instance and record what each negotiated, the exact registration it sent, and any step on this page that differs.

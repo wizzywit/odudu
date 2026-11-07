@@ -1,6 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clientRepository, verifyClientSecret, type ClientRecord } from '@odudu/domain-tenant';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
+import { tenantCimdRepository } from '#/repository/tenant-cimd';
 import {
   clientSecretLimiterKey,
   isPasswordAuthMethod,
@@ -105,6 +106,15 @@ async function verifyClientCredentials(
       { tenantId: deps.tenantId, claimedClientId: oauthClientId },
       'client authentication refused for an unregistered client_id',
     );
+    throw invalidClient(WWW_AUTHENTICATE);
+  }
+
+  // A client that came from a metadata document exists only while the tenant
+  // allows them; with the setting off it is refused as an unknown one is.
+  if (
+    client.registrationOrigin === 'cimd' &&
+    !(await tenantCimdRepository(tx).enabled(deps.tenantId))
+  ) {
     throw invalidClient(WWW_AUTHENTICATE);
   }
 

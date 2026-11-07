@@ -2,6 +2,7 @@ import {
   amendGroupRequestSchema,
   ASSIGNMENT_LIMIT,
   createGroupRequestSchema,
+  groupLimitMessage,
   listGroupsQuerySchema,
   setGroupDefaultRequestSchema,
   setGroupRolesRequestSchema,
@@ -203,6 +204,13 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       throw error;
     }
 
+    if (outcome.kind === 'group_limit') {
+      return sendProblem(
+        reply,
+        request,
+        problem(409, 'about:blank', 'Conflict', groupLimitMessage()),
+      );
+    }
     if (outcome.kind === 'capability_ceiling') {
       return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
     }

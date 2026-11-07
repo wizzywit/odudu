@@ -27,7 +27,7 @@ import {
   scopeImpact,
   readScopeRoles,
   ScopeLimitError,
-  ScopeLocalisedTextError,
+  ScopeFieldError,
   setScopeRoles,
   unassignScopeFromClient,
   type AmendScopeOutcome,
@@ -153,7 +153,7 @@ export function createScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       // The transaction has already rolled back by the time this is
       // caught — see the comment beside `createScope`'s own call
       // (#/usecase/scopes.ts).
-      if (error instanceof ScopeLocalisedTextError) {
+      if (error instanceof ScopeFieldError) {
         return sendProblem(
           reply,
           request,

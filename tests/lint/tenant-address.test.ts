@@ -16,12 +16,16 @@ import { describe, expect, it } from 'vitest';
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 
 // The address service itself; the admin and console gateways, which are
-// reached by path on the shared host only; the console's CLI client; and the
-// app's route-prefix test, which reads a route pattern.
+// reached by path on the shared host only; the MCP catalogue, its tenant tools
+// and its path expansion, which name admin route patterns; the console's CLI
+// client; and the app's route-prefix test, which reads a route pattern.
 const ALLOWED = [
   'packages/kernel/src/address.ts',
   'packages/protocol-admin/',
   'packages/console-gateway/',
+  'packages/mcp/src/service/catalogue.ts',
+  'packages/mcp/src/service/admin-path.ts',
+  'packages/mcp/src/service/tools/tenants.ts',
   'apps/server/src/cli/console.ts',
   'apps/server/src/app.ts',
 ];

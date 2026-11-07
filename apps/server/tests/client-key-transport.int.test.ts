@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { gzipSync } from 'node:zlib';
 import { createServer, type Server } from 'node:https';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
@@ -6,7 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { createClientKeyRequest } from '#/client-key-transport';
+import { fetchCimdDocument, ResponseTimedOut, ResponseTooLarge } from '@odudu/protocol-oidc';
+import { createClientKeyRequest, createCimdRequest } from '#/client-key-transport';
 
 // `.invalid` is reserved by RFC 2606 and never resolves. The hostname below
 // names no real host on purpose: if the transport ever let Node re-resolve
@@ -222,5 +224,84 @@ describe('createClientKeyRequest', () => {
         resolve();
       });
     });
+  });
+});
+
+describe('createCimdRequest', () => {
+  const urlFor = (port: number): URL =>
+    new URL(`https://${PINNED_HOSTNAME}:${String(port)}/client.json`);
+
+  it('returns the Cache-Control header and asks for JSON', async () => {
+    let accept: string | undefined;
+    const { port, address } = await startServer((req, res) => {
+      accept = req.headers.accept;
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'max-age=60' });
+      res.end('{}');
+    });
+    const response = await createCimdRequest({ ca: cert })(urlFor(port), address);
+    expect(response).toMatchObject({ status: 200, cacheControl: 'max-age=60' });
+    expect(accept).toBe('application/json');
+  });
+
+  it('stops reading at five KiB while the body is still streaming', async () => {
+    let writes = 0;
+    const { port, address } = await startServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.on('error', () => undefined);
+      const next = (): void => {
+        if (res.destroyed) return;
+        writes += 1;
+        res.write('x'.repeat(1024));
+        setImmediate(next);
+      };
+      next();
+    });
+    await expect(createCimdRequest({ ca: cert })(urlFor(port), address)).rejects.toBeInstanceOf(
+      ResponseTooLarge,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const settled = writes;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(writes).toBe(settled);
+  });
+
+  it('reports a body that never ends as a timeout', async () => {
+    const { port, address } = await startServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.write('{');
+    });
+    await expect(
+      createCimdRequest({ ca: cert, totalTimeoutMs: 200 })(urlFor(port), address),
+    ).rejects.toBeInstanceOf(ResponseTimedOut);
+  });
+
+  it('sends no accept-encoding and refuses a gzip body it did not decode, through the fetcher', async () => {
+    let encoding: string | string[] | undefined;
+    const { port } = await startServer((req, res) => {
+      encoding = req.headers['accept-encoding'];
+      res.writeHead(200, { 'content-type': 'application/json', 'content-encoding': 'gzip' });
+      res.end(gzipSync('{"a":1}'));
+    });
+    const transport = createCimdRequest({ ca: cert });
+    const outcome = await fetchCimdDocument(urlFor(port).href, {
+      // The guard sees a public answer; the connection goes to the test server.
+      lookup: () => Promise.resolve(['93.184.216.34']),
+      request: (url) => transport(url, '127.0.0.1'),
+      now: () => new Date(),
+    });
+    expect(encoding).toBeUndefined();
+    expect(outcome).toEqual({ kind: 'refused', reason: 'not_json' });
+  });
+
+  it('hands a redirect back unfollowed', async () => {
+    let followed = false;
+    const { port, address } = await startServer((req, res) => {
+      if (req.url === '/elsewhere') followed = true;
+      res.writeHead(302, { location: '/elsewhere' });
+      res.end();
+    });
+    const response = await createCimdRequest({ ca: cert })(urlFor(port), address);
+    expect(response.status).toBe(302);
+    expect(followed).toBe(false);
   });
 });

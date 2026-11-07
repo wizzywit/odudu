@@ -18,6 +18,7 @@ export interface AttentionInputs {
   settings: Settings | undefined;
   smtp: SmtpConfig | undefined;
   keys: readonly SigningKey[] | undefined;
+  // The clients `max_clients` counts, not every client.
   clients: CountResponse | undefined;
   now: Date;
   rules: EntityRules;
@@ -63,7 +64,8 @@ function promotions(
 }
 
 // A capped count is a floor: it decides "full" only when the cap is at or
-// below the count it stopped at.
+// below the count it stopped at. Open registration is not here: clients that
+// register themselves have a limit of their own, which max_clients does not set.
 function registration(
   settings: Settings | undefined,
   clients: CountResponse | undefined,
@@ -71,15 +73,14 @@ function registration(
   if (settings === undefined || clients === undefined) return [];
   const policy = settings.client_registration_policy;
   const cap = settings.max_clients;
-  if ((policy !== 'open' && policy !== 'token') || typeof cap !== 'number') return [];
+  if (policy !== 'token' || typeof cap !== 'number') return [];
   if (clients.count < cap) return [];
-  const how = policy === 'open' ? 'open to anyone' : 'open with a registration token';
   return [
     {
       id: 'registration',
       area: 'settings',
-      title: 'Dynamic registration has no room left',
-      detail: `Registration is ${how}, but the tenant already holds its limit of ${String(cap)} clients, so every registration is refused.`,
+      title: 'Registration by token has no room left',
+      detail: `Registration is open with a registration token, but the tenant already holds its limit of ${String(cap)} clients, so every registration is refused.`,
     },
   ];
 }

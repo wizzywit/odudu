@@ -792,6 +792,90 @@
       "when": 1790432081737,
       "tag": "0112_user_credentials_passkey_rp_id",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1790518481737,
+      "tag": "0113_mcp_scopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1790518482737,
+      "tag": "0114_builtin_mcp_client",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1790518483737,
+      "tag": "0115_client_metadata_cache",
+      "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1790522083737,
+      "tag": "0116_cimd_clients",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1790525683737,
+      "tag": "0117_mcp_registration_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1790529283737,
+      "tag": "0118_unused_dynamic_clients_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1790532883737,
+      "tag": "0119_clients_approved_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1790536483737,
+      "tag": "0120_token_exchange_client_bounds",
+      "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1790540083737,
+      "tag": "0121_idempotency_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1790543683737,
+      "tag": "0122_service_accounts_by_grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1790630083737,
+      "tag": "0123_client_ceilings",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1790716483737,
+      "tag": "0124_agent_write_budget",
+      "breakpoints": true
     }
   ]
 }

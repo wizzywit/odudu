@@ -53,9 +53,19 @@ import {
   DEFAULT_CONSOLE_DIR,
   DEFAULT_INSTRUMENT_DIR,
   DEFAULT_OUTBOX_MAX_ATTEMPTS,
+  isDomainAddress,
   newId,
   systemClock,
 } from '@odudu/kernel';
+import {
+  createToolLimiter,
+  DEFAULT_TOOL_LIMITS,
+  MCP_PATH_FORM,
+  RESOURCE_METADATA_PATH_FORM,
+  registerMcpRoute,
+  registerResourceMetadataRoute,
+  type ToolLimiterOptions,
+} from '@odudu/mcp';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -70,6 +80,13 @@ import {
   type UnroutedDeps,
   standardClaimMappers,
   type AuditRefusalBudget,
+  AS_METADATA_PATH_FORM,
+  CIMD_FETCHES_PER_HOST_PER_MINUTE,
+  CIMD_FETCHES_PER_TENANT_PER_MINUTE,
+  CIMD_LIMITER_MAX_HOSTS,
+  CIMD_LIMITER_MAX_TENANTS,
+  createFetchLimiter,
+  type CimdRequest,
 } from '@odudu/protocol-oidc';
 import { docsRoutes } from '@odudu/web-assets';
 import Fastify, {
@@ -83,7 +100,11 @@ import { randomBytes } from 'node:crypto';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
 import { findHeldSignInIn } from '#/held-sign-in';
-import { createClientKeyRequest, defaultClientKeyLookup } from '#/client-key-transport';
+import {
+  createCimdRequest,
+  createClientKeyRequest,
+  defaultClientKeyLookup,
+} from '#/client-key-transport';
 import { type ConsoleKeys, missingConsoleKey } from '#/console-key';
 import { registerHealth } from '#/health';
 import { registerDomainCheck } from '#/domain-check';
@@ -92,6 +113,8 @@ import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
+import { mcpRouteDepsFor } from '#/mcp-deps';
+import { mcpRegistrationBudget } from '#/mcp-registration-budget';
 import { throttleOrigin } from '#/throttle-origin';
 
 export interface AppDeps {
@@ -219,6 +242,25 @@ export interface AppDeps {
    * `ODUDU_LOGIN_THROTTLE_*` says.
    */
   readonly loginThrottle?: ThrottleSettings;
+  /**
+   * The registrations one address may make on a tenant whose client
+   * registration policy is `mcp`, and the tenant may take from every address
+   * together. Default to `DEFAULT_MCP_REGISTRATION_THROTTLE` and
+   * `DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE`.
+   */
+  readonly mcpRegistrationThrottle?: ThrottleSettings;
+  readonly mcpTenantRegistrationThrottle?: ThrottleSettings;
+  /**
+   * What the MCP endpoint allows a principal and a tenant, in this process.
+   * Defaults to `DEFAULT_TOOL_LIMITS`; a test passes smaller numbers or a
+   * clock of its own.
+   */
+  readonly mcpToolLimits?: Partial<ToolLimiterOptions>;
+  /**
+   * The requests one origin may make to any MCP endpoint, counted before
+   * anything is read for them. Defaults to `DEFAULT_MCP_ORIGIN_THROTTLE`.
+   */
+  readonly mcpOriginThrottle?: ThrottleSettings;
   /** The proxy's domain question; its own budget, per origin. */
   readonly domainCheckThrottle?: ThrottleSettings;
   /**
@@ -230,6 +272,15 @@ export interface AppDeps {
    * it explicitly rather than getting it silently.
    */
   readonly allowPrivateClientUrls?: boolean;
+  /**
+   * How a Client ID Metadata Document is fetched. The defaults are the real
+   * resolver and the pinned `node:https` request, behind the address guard
+   * that has no switch; a test of the whole path swaps them, never the guard.
+   */
+  readonly cimdTransport?: {
+    readonly lookup: (hostname: string) => Promise<readonly string[]>;
+    readonly request: CimdRequest;
+  };
   /**
    * The same escape hatch for the relay a tenant configures through
    * `PUT /smtp`. Separate from `allowPrivateClientUrls` because an
@@ -267,7 +318,29 @@ export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60
 // registered hosts can be enumerated.
 export const DEFAULT_DOMAIN_CHECK_THROTTLE: ThrottleSettings = { limit: 300, windowSeconds: 60 };
 
+// Per origin, and behind a proxy the origin is the proxy, so this is the
+// whole deployment's traffic from it: ten a second is room for many agents and
+// bounds what garbage tokens can cost in tenant and key reads before the
+// per-principal budget, which needs a verified token, applies.
+export const DEFAULT_MCP_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, windowSeconds: 60 };
+
 export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
+
+// An agent registers once per installation, so ten an hour from one address
+// is generous. At this limit the limiter keeps the exact log, which at the
+// key cap holds ten timestamps for each of at most `MAX_THROTTLE_KEYS` keys
+// (ADR 0023).
+export const DEFAULT_MCP_REGISTRATION_THROTTLE: ThrottleSettings = {
+  limit: 10,
+  windowSeconds: 3600,
+};
+
+// Sixty an hour for the tenant over every address, so a tenant's `max_clients`
+// (200 by default) is not filled in the time an administrator takes to notice.
+export const DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE: ThrottleSettings = {
+  limit: 60,
+  windowSeconds: 3600,
+};
 
 // Mirrors the account lockout's own defaults (brute_force_max_failures,
 // brute_force_lockout_seconds — packages/db/drizzle/0041_login_failures.sql):
@@ -441,7 +514,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // A domain is the tenant's own address: its pages name no operator link.
   const atDomain: UnroutedDeps = { links: {} };
   app.setNotFoundHandler((request, reply) =>
-    answerNotFound(request, reply, request.tenantAddress?.prefix === '' ? atDomain : unrouted),
+    answerNotFound(request, reply, isDomainAddress(request.tenantAddress) ? atDomain : unrouted),
   );
   app.setErrorHandler<FastifyError>((error, request, reply) =>
     answerServerError(error, request, reply),
@@ -460,6 +533,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     now: () => new Date(),
   });
 
+  const mcpRegistrations = mcpRegistrationBudget({
+    perOrigin: deps.mcpRegistrationThrottle ?? DEFAULT_MCP_REGISTRATION_THROTTLE,
+    perTenant: deps.mcpTenantRegistrationThrottle ?? DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE,
+    now: () => new Date(),
+  });
+
   const loginLimiter: RateLimiter = slidingWindow({
     ...(deps.loginThrottle ?? DEFAULT_LOGIN_THROTTLE),
     now: () => new Date(),
@@ -475,6 +554,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     request: createClientKeyRequest(),
     now: () => new Date(),
     allowPrivate: deps.allowPrivateClientUrls ?? false,
+  });
+
+  // One limiter for the process: its windows are the per-host and per-tenant
+  // budgets for fetching a client's metadata document, so a second instance
+  // would be a second budget.
+  const cimdFetchLimiter = createFetchLimiter({
+    now: () => new Date(),
+    perHost: CIMD_FETCHES_PER_HOST_PER_MINUTE,
+    perTenant: CIMD_FETCHES_PER_TENANT_PER_MINUTE,
+    windowMs: 60_000,
+    maxHosts: CIMD_LIMITER_MAX_HOSTS,
+    maxTenants: CIMD_LIMITER_MAX_TENANTS,
   });
 
   // One instance for the process, shared by `oidcRoutes` (issuance and
@@ -496,6 +587,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return refuse(reply, route, decision.retryAfterSeconds);
   });
 
+  // The MCP endpoint reads a tenant and verifies a token before it knows who is
+  // asking, so its own budget per origin comes first, and a tenant name is made
+  // safe to look up before anything does.
+  const mcpOriginLimiter: RateLimiter = slidingWindow({
+    ...(deps.mcpOriginThrottle ?? DEFAULT_MCP_ORIGIN_THROTTLE),
+    now: () => new Date(),
+  });
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.method !== 'POST' || request.routeOptions.url !== MCP_PATH_FORM) return;
+    const decision = mcpOriginLimiter.check(throttleOrigin(request.ip));
+    if (!decision.allowed) return refuse(reply, MCP_PATH_FORM, decision.retryAfterSeconds);
+    neutraliseRequestInput(request);
+  });
+
   // After the throttle, so a throttled request costs no statement about its
   // tenant. A domain host's own lookup cannot wait: it decides the route.
   app.addHook('onRequest', pathAddressCheck);
@@ -504,7 +609,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // in a name, a form field, a query parameter or the tenant segment cannot
   // be a database parameter, so it is made one no account answers to.
   app.addHook('preValidation', (request, _reply, done) => {
-    if (request.routeOptions.url?.startsWith('/tenants/') === true) {
+    const route = request.routeOptions.url;
+    if (
+      route?.startsWith('/tenants/') === true ||
+      route === AS_METADATA_PATH_FORM ||
+      route === RESOURCE_METADATA_PATH_FORM ||
+      route === MCP_PATH_FORM
+    ) {
       neutraliseRequestInput(request);
     }
     done();
@@ -638,8 +749,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
       clientSecretLimiter,
+      mcpRegistrationLimiter: mcpRegistrations,
       auditRefusalBudget: auditRefusalBudget(() => new Date()),
       clientKeySet: privateKeyJwtKeySet,
+      cimd: {
+        lookup: deps.cimdTransport?.lookup ?? defaultClientKeyLookup,
+        request: deps.cimdTransport?.request ?? createCimdRequest(),
+        limiter: cimdFetchLimiter,
+        warn: (message, context) => {
+          app.log.warn(context, message);
+        },
+      },
       claimMappers,
       tls,
       ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),
@@ -648,6 +768,25 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         ? {}
         : { tlsClientCertHeader: deps.tlsClientCertHeader }),
     }),
+  );
+
+  registerResourceMetadataRoute(app, {
+    findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
+  });
+  registerMcpRoute(
+    app,
+    mcpRouteDepsFor(
+      {
+        app,
+        database: deps.database,
+        ownerDatabase: deps.ownerDatabase,
+        kek: deps.kek,
+        claimMappers,
+        logger: deps.logger,
+        publicBaseUrl: deps.publicBaseUrl,
+      },
+      createToolLimiter({ ...DEFAULT_TOOL_LIMITS, ...deps.mcpToolLimits }),
+    ),
   );
 
   // getCurrentEmail, markVerified and setPassword are the only points where

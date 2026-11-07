@@ -1,4 +1,5 @@
 import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
+import { DISPLAY_NAME_MAX } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   isSystemTenantId,
@@ -14,6 +15,7 @@ import {
   type TenantSettingValue,
   normalizeDisplayName,
 } from '@odudu/domain-tenant';
+import { redactedDiff } from '#/service/audit-detail';
 import { etagOf, matches } from '#/service/etag';
 
 export interface SettingsAuditEvent {
@@ -197,6 +199,20 @@ export async function amendSettings(
     };
   }
 
+  const longName = coerced.settings.some(
+    ({ column, value }) =>
+      column === 'displayName' && typeof value === 'string' && value.length > DISPLAY_NAME_MAX,
+  );
+  if (longName) {
+    return {
+      kind: 'out_of_range',
+      problems: [
+        { name: 'display_name', message: `at most ${String(DISPLAY_NAME_MAX)} characters` },
+      ],
+      ranged: false,
+    };
+  }
+
   // The request schema admits `{}` and Drizzle refuses an empty `set`, so a
   // caller sending one would be told the server broke for a request the
   // schema accepted. Answered after the precondition, so `If-Match` still
@@ -238,6 +254,7 @@ export async function amendSettings(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff('tenant_settings', current.settings, settings),
   });
 
   return { kind: 'amended', settings, etag: etagOf(settings) };

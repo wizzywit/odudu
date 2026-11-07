@@ -58,7 +58,7 @@ Usernames
 Password policy
 Brute force
 Token lifetimes
-Dynamic client registration
+Client registration
 Audit retention
 General
 What this tenant's own pages call it, and whether it is in service.
@@ -189,18 +189,22 @@ Authorization code
 s
 60 s · 1 minute
 A client has this long to trade a code for tokens. Between 1 s and 600 s · 10 minutes.
-Dynamic client registration
-Whether applications may register themselves as clients of this tenant.
+Client registration
+How applications become clients of this tenant: by registering themselves, or by naming a metadata document.
 Policy
 Closed: only an administrator creates clients
 ▾
 Closed: only an administrator creates clients
 With a registration token
 Open: any application may register
+MCP clients: public clients of the MCP server may register
+Accept client metadata documents
+Off
+A client may use an HTTPS address as its client_id, and the document served there describes it. Works under any policy; the MCP audience is granted only under the MCP policy.
 Most clients
 clients
 200 clients
-A tenant with this many clients refuses to make more, however they are created. At least 0 clients.
+The most clients an administrator or a registration token can make. Clients that register themselves have limits of their own. At least 0 clients.
 Audit retention
 How long the audit trail is kept, and which events it records.
 Keep events for

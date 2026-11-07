@@ -807,3 +807,116 @@ describe('grantNewSubjectDefaults', () => {
     });
   });
 });
+
+describe('countUpTo and lockCreation', () => {
+  it('counts the tenant’s groups at every depth, no further than the limit', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await withTenant(app.db, tenantId, async (tx) => {
+      const root = await groupRepository(tx).create({ tenantId, name: 'a', parentId: null });
+      await groupRepository(tx).create({ tenantId, name: 'b', parentId: root.id });
+      await groupRepository(tx).create({ tenantId, name: 'c', parentId: null });
+    });
+    const counted = (limit: number) =>
+      withTenant(app.db, tenantId, (tx) => groupRepository(tx).countUpTo(limit));
+    expect(await counted(10)).toBe(3);
+    expect(await counted(3)).toBe(3);
+    expect(await counted(2)).toBe(2);
+  });
+
+  it('does not count another tenant’s groups', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await groupRepository(tx).create({ tenantId, name: 'engineering', parentId: null });
+      },
+      verifySeeded: async (tx) => {
+        expect(await groupRepository(tx).countUpTo(10)).toBe(1);
+      },
+      attempt: async (tx) => groupRepository(tx).countUpTo(10),
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+    });
+  });
+
+  it('does not take the tenant’s row, which every sign-in locks, and waits for no other kind or tenant', async () => {
+    const tenantId = newId();
+    const elsewhere = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await withTenant(app.db, elsewhere, (tx) => seedTenant(tx, elsewhere));
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let taken: () => void = () => undefined;
+    const lockTaken = new Promise<void>((resolve) => {
+      taken = resolve;
+    });
+    const holder = withTenant(app.db, tenantId, async (tx) => {
+      await groupRepository(tx).lockCreation(tenantId);
+      taken();
+      await held;
+    });
+    await lockTaken;
+    const quickly = async (tenant: string, work: (tx: TenantScopedDatabase) => Promise<unknown>) =>
+      withTenant(app.db, tenant, async (tx) => {
+        await tx.execute(sql`select set_config('lock_timeout', '1000', true)`);
+        await work(tx);
+      });
+    try {
+      await quickly(tenantId, (tx) =>
+        tx.execute(sql`select 1 from tenants where id = ${tenantId} for no key update`),
+      );
+      await quickly(tenantId, (tx) => roleRepository(tx).lockCreation(tenantId));
+      await quickly(elsewhere, (tx) => groupRepository(tx).lockCreation(elsewhere));
+      await expect(
+        quickly(tenantId, (tx) => groupRepository(tx).lockCreation(tenantId)),
+      ).rejects.toThrow();
+      await expect(
+        quickly(tenantId, (tx) => groupRepository(tx).lockCreation(tenantId.toUpperCase())),
+      ).rejects.toThrow();
+    } finally {
+      release();
+      await holder;
+    }
+  });
+});
+
+describe('reparent, with names that mean something to a pattern', () => {
+  // A path is matched as text, so a name holding the characters LIKE reads as
+  // a wildcard must move its own subtree and nothing beside it.
+  it.each([
+    ['a%', 'ab'],
+    ['a_', 'ax'],
+    ['a\\', 'a'],
+  ])('moves the subtree of %s and leaves the unrelated group %s alone', async (odd, other) => {
+    const tenant = await tenantFixture();
+    const moved = await tenant.createGroup(odd, null);
+    await tenant.createGroup('kid', moved.id);
+    const unrelated = await tenant.createGroup(other, null);
+    await tenant.createGroup('child', unrelated.id);
+    const parent = await tenant.createGroup('p', null);
+
+    await tenant.reparent(moved.id, parent.id);
+
+    expect((await tenant.byPath(`/p/${odd}`))?.id).toBe(moved.id);
+    expect((await tenant.byPath(`/p/${odd}/kid`))?.name).toBe('kid');
+    expect((await tenant.byPath(`/${other}`))?.id).toBe(unrelated.id);
+    expect((await tenant.byPath(`/${other}/child`))?.name).toBe('child');
+    expect(await tenant.byPath(`/${odd}`)).toBeNull();
+  });
+
+  it('leaves another tenant’s groups of the same names alone', async () => {
+    const mine = await tenantFixture();
+    const theirs = await tenantFixture();
+    const theirMoved = await theirs.createGroup('a%', null);
+    await theirs.createGroup('kid', theirMoved.id);
+    const moved = await mine.createGroup('a%', null);
+    await mine.createGroup('kid', moved.id);
+    const parent = await mine.createGroup('p', null);
+    await mine.reparent(moved.id, parent.id);
+    expect((await theirs.byPath('/a%/kid'))?.name).toBe('kid');
+    expect(await theirs.byPath('/p/a%')).toBeNull();
+  });
+});

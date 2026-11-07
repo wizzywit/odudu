@@ -16,8 +16,15 @@ import {
   type ExpiryPolicy,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { type ClientRecord } from '@odudu/domain-tenant';
-import { isUuid } from '@odudu/kernel';
+import { ADMIN_API_AUDIENCE, type ClientRecord } from '@odudu/domain-tenant';
+import {
+  audiencesHeld,
+  refusesWriteScope,
+  requestWithGrantableScope,
+  type McpPolicyGrant,
+} from '#/service/mcp-registration-policy';
+import { scopesCoherentWithAudience } from '#/service/mcp-scopes';
+import { isUuid, mcpAudienceOfIssuer } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
@@ -42,6 +49,7 @@ import {
   type ConsentGateDeps,
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
+import { resolveAuthorizeClient } from '#/usecase/resolve-cimd-client';
 import { decideReuse, withinMaxAge, type ResolvedSession } from '#/usecase/session-reuse';
 import {
   AUTHORIZE_REQUEST_DESCRIPTIONS,
@@ -166,6 +174,8 @@ export interface ResolvedClient {
   scopes: readonly string[];
 }
 
+const NO_CLIENT: ResolvedClient = { client: null, config: null, scopes: [] };
+
 export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
   // The tenant's own signing keys, which is the whole of "did this server
@@ -179,6 +189,10 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // Scoped to the resolved tenant by the caller composing this dependency
   // (index.ts), the same way listPublishableKeys is for the JWKS route.
   resolveClient(tenantId: string, oauthClientId: string): Promise<ResolvedClient>;
+  // Brings the client a URL client_id names up to date with its metadata
+  // document, answering whether it is now usable. Absent where documents
+  // cannot be fetched.
+  refreshCimdClient?: (tenantId: string, url: string, policy: McpPolicyGrant) => Promise<boolean>;
   // The names, of those given, that the tenant defines as scopes: the same
   // vocabulary discovery advertises, asked about only the scopes a request
   // names.
@@ -352,14 +366,28 @@ export async function handleAuthorizationRequest(
   const oauthClientId = params.client_id;
   const resolved: ResolvedClient =
     oauthClientId === undefined
-      ? { client: null, config: null, scopes: [] }
-      : await deps.resolveClient(tenant.id, oauthClientId);
+      ? NO_CLIENT
+      : await resolveAuthorizeClient(
+          {
+            resolveClient: (tenantId, id) => deps.resolveClient(tenantId, id),
+            empty: NO_CLIENT,
+            ...(deps.refreshCimdClient === undefined
+              ? {}
+              : { refreshCimdClient: deps.refreshCimdClient }),
+          },
+          tenant,
+          oauthClientId,
+          mcpAudienceOfIssuer(issuer),
+        );
 
+  // A client nobody at the tenant vetted is asked about what it can be given:
+  // a request that also names the write scope is not refused for it.
+  const asked = requestWithGrantableScope(resolved.client?.registrationOrigin ?? '', params);
   const outcome = validateAuthorizationRequest(
-    params,
+    asked,
     resolved.client,
     resolved.config,
-    new Set(await deps.scopesNamed(tenant.id, requestedScopeTokens(params.scope))),
+    new Set(await deps.scopesNamed(tenant.id, requestedScopeTokens(asked.scope))),
     new Set(resolved.scopes),
     repeatedKey,
   );
@@ -385,9 +413,32 @@ export async function handleAuthorizationRequest(
   // it may not use is refused before a session is ever touched. A client
   // with no registered audience (every client in this repository, today)
   // still succeeds with an empty resolved audience — see parseResource.
-  const resourceOutcome = parseResource(resourceParam(rawParams), resolved.config?.audiences ?? []);
+  const mcpAudience = mcpAudienceOfIssuer(issuer);
+  const resourceOutcome = parseResource(
+    resourceParam(rawParams),
+    audiencesHeld(
+      resolved.client?.registrationOrigin ?? '',
+      tenant.clientRegistrationPolicy,
+      resolved.config?.audiences ?? [],
+      mcpAudience,
+    ),
+  );
   if (resourceOutcome.kind === 'invalid_target') return reject('invalid_target');
   const audience = resourceOutcome.audience;
+  if (
+    refusesWriteScope(
+      resolved.client?.registrationOrigin ?? '',
+      requestedScopeTokens(asked.scope),
+    ) ||
+    !scopesCoherentWithAudience(
+      requestedScopeTokens(asked.scope),
+      audience,
+      mcpAudience,
+      ADMIN_API_AUDIENCE,
+    )
+  ) {
+    return reject('invalid_scope');
+  }
 
   // OIDC Dynamic Client Registration §2: a request's own `max_age` wins,
   // and the client's `default_max_age` stands in where it carries none.
@@ -606,6 +657,7 @@ export async function handleAuthorizationRequest(
       decision.subjectId,
       request.scope,
       [...outcome.prompts],
+      request.redirectUri,
     );
     if (gate.kind === 'refuse') return reject('consent_required');
     if (gate.kind === 'ask') {
@@ -845,6 +897,7 @@ export async function handleSelectAccountSubmission(
     chosen.subjectId,
     pending.scope,
     pending.prompt,
+    pending.redirectUri,
   );
   if (gate.kind === 'refuse') return reject('consent_required');
   if (gate.kind === 'ask') {

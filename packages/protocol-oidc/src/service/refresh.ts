@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { subjectIsEnabled, type SubjectRecord } from '@odudu/domain-identity';
 import { type ClientRecord } from '@odudu/domain-tenant';
+import { holdsMcpScope, refreshAllowedForScope } from '#/service/mcp-scopes';
 import { type TokenGrantRecord } from '#/schema/token-grants';
 
 // 32 random bytes, base64url-encoded: same shape and entropy budget as
@@ -29,8 +30,20 @@ export type RefreshGrantDecision =
   | { readonly ok: true; readonly scope: readonly string[] }
   | {
       readonly ok: false;
-      readonly reason: 'client_mismatch' | 'grant_revoked' | 'subject_disabled' | 'scope_widened';
+      readonly reason:
+        | 'client_mismatch'
+        | 'grant_revoked'
+        | 'subject_disabled'
+        | 'write_not_refreshable'
+        | 'scope_widened'
+        | 'mcp_scope_dropped';
     };
+
+export function refusalIsAboutScope(
+  reason: Extract<RefreshGrantDecision, { ok: false }>['reason'],
+): boolean {
+  return reason === 'scope_widened' || reason === 'mcp_scope_dropped';
+}
 
 // Stage 3's grant-specific rules for `refresh_token`, pure: no queries, no
 // I/O. `grant` and `subject` are loaded by the usecase, which runs this both
@@ -55,9 +68,17 @@ export function evaluateRefreshGrant(
       ? request.requestedScope.split(' ').filter((token) => token.length > 0)
       : grantedTokens;
 
+  if (!refreshAllowedForScope(grantedTokens)) return { ok: false, reason: 'write_not_refreshable' };
+
   const grantedSet = new Set(grantedTokens);
   const widened = requestedTokens.some((token) => !grantedSet.has(token));
   if (widened) return { ok: false, reason: 'scope_widened' };
+
+  // A token for the admin API with no MCP scope is the person's own, so a
+  // narrowing may not turn an agent's grant into one.
+  if (holdsMcpScope(grantedTokens) && !holdsMcpScope(requestedTokens)) {
+    return { ok: false, reason: 'mcp_scope_dropped' };
+  }
 
   return { ok: true, scope: requestedTokens };
 }

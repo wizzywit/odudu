@@ -13,6 +13,11 @@ export function isCheckViolation(error: unknown): boolean {
   return hasSqlState(error, '23514');
 }
 
+/** SQLSTATE 23503: a row names one that is gone, or was removed while the write waited. */
+export function isForeignKeyViolation(error: unknown): boolean {
+  return hasSqlState(error, '23503');
+}
+
 /** SQLSTATE 55P03: a lock not taken within `lock_timeout`. */
 export function isLockNotAvailable(error: unknown): boolean {
   return hasSqlState(error, '55P03');

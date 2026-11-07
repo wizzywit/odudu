@@ -16,6 +16,10 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     type: 'value',
     full_scope_allowed: 'value',
     skip_logout_confirmation: 'value',
+    consent_required: 'value',
+    token_exchange_impersonation_allowed: 'value',
+    token_exchange_allowed_for_public: 'value',
+    token_exchange_actor_from_other_client: 'value',
     redirect_uris: 'value',
     grant_types: 'value',
     token_endpoint_auth_method: 'value',
@@ -35,6 +39,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     id_token_signed_response_alg: 'value',
     default_max_age: 'value',
     require_auth_time: 'value',
+    service_subject_id: 'value',
     // `jwks` reaches here through `clientWireShape` and can really change
     // on an amend. `secret_hash` and `password_encrypted` cannot: neither
     // is ever part of a client's wire shape, and `rotateClientSecret`
@@ -51,6 +56,16 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     display_name: 'value',
     enabled: 'value',
   },
+  // The two settings that decide who may become a client of the tenant and the
+  // three that are wording people read: the display name and the languages.
+  // Every other setting stays out of the audit detail, as an unlisted field does.
+  tenant_settings: {
+    client_registration_policy: 'value',
+    cimd_enabled: 'value',
+    display_name: 'value',
+    supported_locales: 'value',
+    default_locale: 'value',
+  },
   group: {
     name: 'value',
     description: 'value',
@@ -60,10 +75,14 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
   role: {
     name: 'value',
     description: 'value',
+    client_id: 'value',
     default_for_new_subjects: 'value',
   },
   scope: {
     name: 'value',
+    description: 'value',
+    include_in_id_token: 'value',
+    include_in_access_token: 'value',
     default_client_assignment: 'value',
     consent_text: 'value',
     description_i18n: 'value',
@@ -160,4 +179,36 @@ export function redactedDiff(
       sensitivity === 'sensitive' ? { changed: true } : { before: beforeValue, after: afterValue };
   }
   return diff;
+}
+
+// What a row holds before anything sets it, for the resources a create records
+// by what it chose: a field still at one of these is not named.
+const CREATED_DEFAULTS: Record<string, Record<string, unknown>> = {
+  role: { description: null, client_id: null, default_for_new_subjects: false },
+  group: { description: null, parent_id: null, default_for_new_subjects: false },
+  scope: {
+    description: null,
+    include_in_id_token: true,
+    include_in_access_token: true,
+    default_client_assignment: null,
+    consent_text: null,
+    description_i18n: {},
+    consent_text_i18n: {},
+    display_order: 0,
+  },
+};
+
+/**
+ * The fields a create chose, as `{ after }` each: a field that holds what an
+ * empty row holds is left out, so the row names what was set and nothing else.
+ */
+export function createdDetail(resourceType: string, created: unknown): Record<string, unknown> {
+  const defaults = CREATED_DEFAULTS[resourceType] ?? {};
+  const diff = redactedDiff(resourceType, null, created);
+  return Object.fromEntries(
+    Object.entries(diff).filter(([field, change]) => {
+      if (!isRecord(change) || !('after' in change) || !Object.hasOwn(defaults, field)) return true;
+      return valuesDiffer(change.after, defaults[field]);
+    }),
+  );
 }

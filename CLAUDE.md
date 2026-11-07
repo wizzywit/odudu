@@ -49,7 +49,7 @@ The sequence, in order:
 Work happens on a branch; `main` is protected and requires `verify`,
 `container`, `commit-messages`, `query-plans` and `gate` to pass. The `gate`
 job waits for every other job in `verify.yml` (`lighthouse`, `e2e`,
-`quickstart` and `conformance` among them) and passes one skipped for a
+`quickstart`, `conformance` and `mcp` among them) and passes one skipped for a
 prose-only change (ADR 0044), so it is the one check that stands for them all.
 
 ### What a phase owes before it closes

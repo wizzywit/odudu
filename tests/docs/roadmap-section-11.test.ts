@@ -97,15 +97,6 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'example applications',
   ],
   ['P4g', 'The stable `0.1.0` follows'],
-  ['P5a', 'It passes the MCP authorization profile', 'claude and cursor configuration examples'],
-  ['P5a', 'The admin API as tools', 'read-only by default', 'protect an mcp server with odudu'],
-  [
-    'P5a',
-    'The server does not yet publish',
-    'protected-resource and authorization-server metadata',
-    '`idempotency-key` header',
-  ],
-  ['P5a', 'The admin API has no `Idempotency-Key` header today', '`idempotency-key` header'],
   ['P4f', 'A "me" API', '"me" api', 'application-initiated actions'],
   [
     'P4f',
@@ -154,7 +145,8 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ],
   ['P4i', 'Each ships with a guide', 'a runnable example in ci', 'a version of its own'],
   ['P4i', 'They wrap what exists', 'the "me" api wrapped'],
-  ['P5', 'Budgets, attenuation and approval', 'ciba approvals'],
+  ['P4i', 'The `odudu mcp` command', '`odudu mcp` published as a package of its own'],
+  ['P5', 'Budgets across a delegation, attenuation and approval', 'ciba approvals'],
   ['P5', 'Delegation depth becomes a setting', '`max_depth`'],
   [
     'P5',
@@ -162,7 +154,28 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'persisted on the grant',
     'revoking every grant exchanged from it',
   ],
-  ['P5b', 'The irreversible tools', 'out-of-band approval'],
+  [
+    'P5b',
+    'The writes the MCP server withholds',
+    'the access-changing writes',
+    'the credential tools',
+    'the destructive tools',
+  ],
+  [
+    'P5b',
+    'Each waits for a confirmation step',
+    'a confirmation step the agent cannot answer for itself',
+    'mcp elicitation',
+    "out-of-band approval through p5's ciba flow",
+    'a step-up scope',
+  ],
+  ['P5b', 'The injection suite gains', 'a scenario in the injection suite for each class'],
+  ['P5b', 'A theme image', 'the theme image upload, and any other binary payload'],
+  [
+    'P5b',
+    'The owner decides whether a theme draft',
+    'whether a theme draft an agent replaces is kept as a version a person can restore',
+  ],
   ['P6', 'Sign in with Google', 'upstream oidc idp'],
   [
     'P6',
@@ -223,6 +236,33 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ['P14', 'An agent library', 'agent library for delegation'],
 ];
 
+// What the roadmap's Shipped section says a finished phase built, and the
+// words of that phase's criterion that carry it. A phase that has left Next
+// has no sentence above to hold its row to, so this keeps the two agreeing.
+const SHIPPED_CLAIMS: readonly (readonly [
+  phase: string,
+  shipped: string,
+  ...criterion: string[],
+])[] = [
+  ['P5a', '61 tools that read what the admin api reads', 'exposing the admin api as tools'],
+  [
+    'P5a',
+    'publishing, restoring, discarding and resetting a theme are not offered',
+    'the irreversible or wide-blast tools',
+  ],
+  ['P5a', 'client id metadata documents', 'client id metadata documents'],
+  ['P5a', "a tenant's `mcp` registration policy", 'narrow `mcp` client registration policy'],
+  ['P5a', '`odudu mcp`', '`odudu mcp` signing a person in', 'built-in `odudu-mcp` public client'],
+  ['P5a', '[protect an mcp server]', 'protect an mcp server with odudu'],
+  ['P5a', '[connect cursor]', 'claude and cursor configuration examples'],
+  ['P5a', '`idempotency-key` header', '`idempotency-key` header on the admin api'],
+  [
+    'P5a',
+    'a service account only while it holds the `client_credentials` grant',
+    "create a client's service account when its client credentials grant is switched on",
+  ],
+];
+
 const sentencesOf = (text: string): string[] => text.split(/(?<=\.)\s+(?=[A-Z])/u);
 
 describe('the roadmap and section 11 of the design spec agree', () => {
@@ -246,6 +286,22 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     expect(missing, 'roadmap work its phase criterion does not name').toEqual([]);
   });
 
+  it("names in a shipped phase's criterion what the roadmap says it shipped", () => {
+    const lines = roadmapLines();
+    const start = lines.findIndex((line) => line.startsWith('## Shipped'));
+    const end = lines.findIndex((line, index) => index > start && line.startsWith('## '));
+    const shipped = squash(lines.slice(start, end).join(' '));
+    const rows = criteria();
+    const problems: string[] = [];
+    for (const [phase, said, ...phrases] of SHIPPED_CLAIMS) {
+      if (!shipped.includes(said)) problems.push(`the roadmap no longer says: ${said}`);
+      for (const phrase of phrases) {
+        if (!(rows.get(phase) ?? '').includes(phrase)) problems.push(`${phase}: ${phrase}`);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
   it('keeps no claim for a sentence the roadmap no longer has', () => {
     const all = phaseBullets().flatMap(({ phase, text }) =>
       sentencesOf(text).map((sentence) => ({ phase, sentence })),
@@ -266,7 +322,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     const missing: string[] = [];
     let seen = 0;
     // A phase that has shipped leaves "Next" and "Later" for "Shipped".
-    const shipped = new Set(['P4b', 'P4k']);
+    const shipped = new Set(['P4b', 'P4k', 'P5a']);
     for (const [phase, row] of criteria()) {
       const at = row.indexOf(MARKER);
       if (at === -1) continue;
@@ -316,6 +372,11 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       ['P9'],
       ['resource server as a first-class thing'],
     ],
+    [
+      "An agent's reads are audited",
+      ['P11'],
+      'a volume measurement of the audit tables, covered by partitioning',
+    ],
     ['RFC 7523 has no clause table', ['P13'], 'protocol-note bookkeeping, no product behaviour'],
     [
       'The session cap is per browser',
@@ -342,6 +403,35 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       'A person with no password and only passkeys',
       ['P4f'],
       ['their own profile, credentials, sessions and consents'],
+    ],
+    ["The MCP endpoint's request limits", ['P11'], ["the mcp endpoint's request limits"]],
+    ['`odudu mcp` runs only from', ['P4i'], ['`odudu mcp` command']],
+    ["The admin API's OpenAPI document grew", ['P4i'], ['the published openapi document']],
+    ['The injection suite drives a scripted agent', ['P5b'], ['a model that is measured']],
+    ['Which confirmation step', ['P5b'], ['confirmation step']],
+    [
+      'Whether an agent of the system tenant',
+      ['P5b'],
+      'a design decision inside the confirmation step, no capability of its own',
+    ],
+    [
+      '`POST ~/subjects/bulk` is never offered',
+      ['P5b'],
+      'a standing owner decision that places no work',
+    ],
+    ['Wording that goes live at once', ['P5b'], ['confirmation step']],
+    ['Binary uploads', ['P5b'], ['a theme image']],
+    ['Mail sending', ['P5b'], ['sending mail']],
+    [
+      'The tools refuse text and names',
+      ['P5b'],
+      'one validation rule shared by the tools and the admin API, owed to whichever phase next changes it, no product behaviour',
+    ],
+    ['A theme draft an agent replaces', ['P5b'], ['a theme draft an agent replaces']],
+    [
+      'The admin API accepts a scope name with a space',
+      ['P5b'],
+      'one validation pattern on the scope contract, owed to whichever phase next changes it, no product behaviour',
     ],
     [
       'The cleanup P4k left in branding and clients',

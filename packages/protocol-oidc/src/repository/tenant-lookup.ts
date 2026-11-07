@@ -37,11 +37,14 @@ export interface TenantLookup {
   // The cap admitSession (ADR 0033) evicts down to before inserting a new
   // session.
   maxSessionsPerBrowser: number;
-  // The three-state gate the registration endpoint and discovery's
-  // registration_endpoint both read: 'disabled' answers neither, 'open'
-  // and 'token' both advertise the endpoint and differ only in whether an
-  // initial access token is required (ADR 0026).
-  clientRegistrationPolicy: 'disabled' | 'open' | 'token';
+  // The gate the registration endpoint and discovery's registration_endpoint
+  // both read: 'disabled' answers neither, 'open' and 'token' both advertise
+  // the endpoint and differ only in whether an initial access token is
+  // required (ADR 0026), and 'mcp' advertises it for public clients bound to
+  // the tenant's MCP endpoint.
+  clientRegistrationPolicy: 'disabled' | 'open' | 'token' | 'mcp';
+  // Whether a URL client_id is resolved to its Client ID Metadata Document.
+  cimdEnabled: boolean;
   // The languages the tenant's pages are offered in and, when it has set one,
   // the one used ahead of the browser's preference; discovery advertises the
   // list as `ui_locales_supported`.
@@ -72,6 +75,7 @@ const LOOKUP_COLUMNS = {
   resetPasswordAllowed: tenants.resetPasswordAllowed,
   maxSessionsPerBrowser: tenants.maxSessionsPerBrowser,
   clientRegistrationPolicy: tenants.clientRegistrationPolicy,
+  cimdEnabled: tenants.cimdEnabled,
   supportedLocales: tenants.supportedLocales,
   defaultLocale: tenants.defaultLocale,
   passwordMinLength: tenants.passwordMinLength,
@@ -118,6 +122,9 @@ function lookupOf(row: LookupRow): TenantLookup {
 export function tenantLookupRepository(db: Database) {
   return {
     async byName(name: string): Promise<TenantLookup | null> {
+      // PostgreSQL cannot store U+0000 in text, so no tenant is named that way
+      // and the query would fail instead of finding nothing.
+      if (name.includes('\u0000')) return null;
       const rows = await db.select(LOOKUP_COLUMNS).from(tenants).where(eq(tenants.name, name));
       const row = rows[0];
       if (row === undefined) return null;

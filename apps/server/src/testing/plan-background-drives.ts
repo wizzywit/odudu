@@ -3,6 +3,7 @@ import { credentialRepository } from '@odudu/domain-identity';
 import { assetRepository, themeRepository } from '@odudu/domain-theme';
 import {
   canonicalHostOf,
+  clientRepository,
   hostState,
   lookupHost,
   tenantAddressing,
@@ -10,7 +11,27 @@ import {
   verifiedDomainPage,
 } from '@odudu/domain-tenant';
 import { capturingSender, sendPending } from '@odudu/email';
-import { loadConfig } from '@odudu/kernel';
+import { loadConfig, newId } from '@odudu/kernel';
+import { WRITE_BUDGET } from '@odudu/mcp';
+import {
+  CIMD_CACHE_MAX_ROWS,
+  cimdCacheRepository,
+  cimdClientRepository,
+  dynamicClientRepository,
+  idleServiceAccounts,
+  parseCimdDocument,
+  persistCimdClient,
+  publicExchangeClientsAtRisk,
+  tenantCimdRepository,
+  tokenGrantRepository,
+  WIRE_CLIENTS_PER_TENANT,
+} from '@odudu/protocol-oidc';
+import {
+  fingerprintOf,
+  idempotencyRepository,
+  IDEMPOTENCY_WINDOW_SECONDS,
+  withIdempotency,
+} from '@odudu/protocol-admin';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { type LightMyRequestResponse } from 'fastify';
 import { REAP_ORDER, RETENTION_RULES, retentionPolicyFromConfig } from '#/cli/reap';
@@ -55,9 +76,11 @@ export async function driveBackground(world: PlanWorld, capture: Capture): Promi
   );
 }
 
+const DYNAMIC_CLIENT_RULES: ReadonlySet<string> = new Set(['cimd_clients', 'dynamic_clients']);
+
 // What the retention pass would send for one tenant, built by the pass's own
 // rules and taken as the text and parameters its driver would send.
-export function retentionRuns(world: PlanWorld): PathRun[] {
+export function retentionRuns(world: PlanWorld, volumeTenantId: string): PathRun[] {
   const tenant = {
     ssoSessionMaxSeconds: 36_000,
     bruteForceFailureResetSeconds: 900,
@@ -75,9 +98,135 @@ export function retentionRuns(world: PlanWorld): PathRun[] {
       path: `reap: ${table}`,
       area: 'reap',
       outputBound: true,
-      statements: [{ handle: 'app', tenantId: world.tenantId, query: sql, parameters: params }],
+      statements: [
+        {
+          handle: 'app',
+          // The two client rules are planned where the volume holds such rows.
+          tenantId: DYNAMIC_CLIENT_RULES.has(table) ? volumeTenantId : world.tenantId,
+          query: sql,
+          parameters: params,
+        },
+      ],
     };
   });
+}
+
+export async function driveClientMetadataCache(world: PlanWorld, capture: Capture): Promise<void> {
+  const cache = cimdCacheRepository(world.app);
+  const now = new Date();
+  const url = 'https://plans-5.example.com/client.json';
+  await capture('cimd cache: a fresh document', 'oidc', () => cache.find(world.tenantId, url, now));
+  await capture('cimd cache: a document nobody fetched', 'oidc', () =>
+    cache.find(world.tenantId, 'https://nobody.example.com/client.json', now),
+  );
+  await capture('cimd cache: store one and trim to the ceiling', 'oidc', () =>
+    cache.store(
+      world.tenantId,
+      'https://plans-new.example.com/client.json',
+      { client_name: 'x' },
+      now,
+      new Date(now.getTime() + 600_000),
+      CIMD_CACHE_MAX_ROWS,
+    ),
+  );
+}
+
+// The tenant the volume fills with idempotency keys holds 9,500 live ones and
+// 500 past their window: a stored key is one primary key read, a new key is
+// refused by a count that stops at the ceiling, and a recorded call is one
+// upsert.
+export async function driveIdempotency(world: PlanWorld, capture: Capture): Promise<void> {
+  const now = new Date();
+  const route = 'POST /admin/tenants/:tenant/roles';
+  const fingerprint = fingerprintOf('POST', '/x', { a: 1 });
+  const call = (key: string) =>
+    withTenant(world.app.db, world.tenantId, (tx) =>
+      withIdempotency(tx, { tenantId: world.tenantId, key, route, fingerprint, now }, () =>
+        Promise.resolve({
+          response: { status: 201, body: '{}', headers: {} },
+          withinTransaction: true,
+        }),
+      ),
+    );
+  await capture('idempotency: a stored key replayed', 'admin', () => call('plans-key-5000'));
+  await capture('idempotency: a lapsed key runs again', 'admin', () => call('plans-key-5'));
+  await capture('idempotency: a new key counted against the ceiling', 'admin', () =>
+    call('plans-key-new'),
+  );
+  await capture('idempotency: a call recorded', 'admin', () =>
+    withTenant(world.app.db, world.tenantId, (tx) =>
+      idempotencyRepository(tx).insert({
+        tenantId: world.tenantId,
+        key: 'plans-key-recorded',
+        route,
+        fingerprint,
+        response: { status: 201, body: '{}', headers: {} },
+        now,
+        expiresAt: new Date(now.getTime() + IDEMPOTENCY_WINDOW_SECONDS * 1000),
+      }),
+    ),
+  );
+}
+
+// The stored side of a metadata document client, in the one tenant the volume
+// fills to the ceiling of them: a new document is refused by the count alone, a stored
+// one is read and left, and the setting /token reads for such a client is one
+// row by key.
+export async function driveCimdClients(world: PlanWorld, capture: Capture): Promise<void> {
+  const now = new Date();
+  const [held] = await world.owner.sql<{ tenant_id: string }[]>`
+    select tenant_id from clients where registration_origin = 'cimd' limit 1`;
+  if (held === undefined) throw new Error('the volume holds no metadata document client');
+  const tenantId = held.tenant_id;
+  const client = (url: string) => {
+    const outcome = parseCimdDocument(url, {
+      client_id: url,
+      client_name: 'Plans',
+      redirect_uris: ['https://app.example.com/cb'],
+    });
+    if (outcome.kind !== 'ok') throw new Error('the plan document must validate');
+    return outcome.client;
+  };
+  const persist = (url: string) =>
+    withTenant(world.app.db, tenantId, (tx) => persistCimdClient(tx, tenantId, client(url), now));
+  await capture('cimd client: a stored document, refreshed', 'oidc', () =>
+    persist('https://plans-5.example.com/client.json'),
+  );
+  await capture('cimd client: a new document at the ceiling', 'oidc', () =>
+    persist('https://plans-new.example.com/client.json'),
+  );
+  await capture('cimd client: the tenant setting read at /token', 'oidc', () =>
+    withTenant(world.app.db, tenantId, (tx) => tenantCimdRepository(tx).enabled(tenantId)),
+  );
+}
+
+// What registration and the metadata path read at their ceilings, in the tenant
+// whose oldest clients are all protected, and the boot read of idle accounts.
+export async function driveClientCeilings(
+  world: PlanWorld,
+  volumeTenantId: string,
+  capture: Capture,
+): Promise<void> {
+  const now = new Date();
+  const inTenant = <T>(run: Parameters<typeof withTenant<T>>[2]) =>
+    withTenant(world.app.db, volumeTenantId, run);
+  await capture('clients: the operator ceiling count', 'oidc', () =>
+    inTenant((tx) => clientRepository(tx).lockCapacity(volumeTenantId)),
+  );
+  await capture('clients: the self-registered ceiling count', 'oidc', () =>
+    inTenant((tx) =>
+      clientRepository(tx).lockWireCapacity(volumeTenantId, WIRE_CLIENTS_PER_TENANT),
+    ),
+  );
+  await capture('clients: a self-registered client to evict', 'oidc', () =>
+    inTenant((tx) => dynamicClientRepository(tx).evict(volumeTenantId, now)),
+  );
+  await capture('clients: a metadata document client to evict', 'oidc', () =>
+    inTenant((tx) => cimdClientRepository(tx).evictable(now)),
+  );
+  await capture('boot: service accounts without the grant', 'oidc', () =>
+    idleServiceAccounts(world.owner.db),
+  );
 }
 
 export async function driveGateway(world: PlanWorld, capture: Capture): Promise<void> {
@@ -148,6 +297,24 @@ export async function driveRepositories(
       await credentials.countUnspentRecoveryCodes(subjectId);
       await credentials.deleteRecoveryCodes(subjectId);
       await credentials.rotatePassword(subjectId, { from: 'x', to: 'y' }, 3);
+    }),
+  );
+  const agentGrant = newId();
+  await withTenant(database, world.tenantId, (tx) =>
+    tokenGrantRepository(tx).create({
+      id: agentGrant,
+      tenantId: world.tenantId,
+      clientId: world.clientDbId,
+      subjectId,
+      scope: 'mcp:write',
+      audience: ['https://plans1.example.com/mcp'],
+    }),
+  );
+  await capture('grants: an agent write is spent and given back', 'oidc', () =>
+    withTenant(database, world.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      await grants.reserveAgentWrite(agentGrant, 'create', WRITE_BUDGET);
+      await grants.releaseAgentWrite(agentGrant, 'create');
     }),
   );
   await capture('themes: what a sign-in render and an asset route read', 'authn', () =>
@@ -229,5 +396,13 @@ export async function driveRepositories(
       await domains.retireIssuer(world.tenantId, 'https://drive-old.example.com', now);
       await domains.clearRetirement(world.tenantId, 'https://drive-old.example.com');
     }),
+  );
+}
+
+// The read the server makes at boot for public clients the exchange limits
+// stopped, across every tenant with the owner connection.
+export async function driveExchangeUpgrade(world: PlanWorld, capture: Capture): Promise<void> {
+  await capture('boot: public clients holding the exchange grant', 'oidc', () =>
+    publicExchangeClientsAtRisk(world.owner.db),
   );
 }

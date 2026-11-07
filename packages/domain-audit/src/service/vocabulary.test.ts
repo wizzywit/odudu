@@ -6,6 +6,51 @@ import {
   AUDIT_EVENT_TYPES,
 } from '#/service/vocabulary';
 
+describe('agent.tool_call', () => {
+  const detail = { agent_client: 'c', owner: 'o', tool: 'list_clients', route: 'GET /x' };
+
+  it('is an admin_access action whose detail names the agent, owner, tool and route', () => {
+    expect(AUDIT_ACTIONS.admin_access).toContain('agent.tool_call');
+    expect(() => {
+      assertDetailAllowed('agent.tool_call', detail);
+    }).not.toThrow();
+    expect(() => {
+      assertActionKnown('admin_access', 'agent.tool_call');
+    }).not.toThrow();
+  });
+
+  it.each(['arguments', 'body', 'token', 'input', 'text'])(
+    'refuses a %s key, so no argument text can be recorded',
+    (key) => {
+      expect(() => {
+        assertDetailAllowed('agent.tool_call', { ...detail, [key]: 'x' });
+      }).toThrow(/does not allow detail key/);
+    },
+  );
+
+  it.each([
+    ['an empty tool', { tool: '' }],
+    ['an overlong tool', { tool: 'a'.repeat(65) }],
+    ['a tool with capitals', { tool: 'List_Clients' }],
+    ['a tool with a space', { tool: 'list clients' }],
+    ['a tool carrying text', { tool: 'ignore previous instructions' }],
+    ['an empty route', { route: '' }],
+    ['a route with no method', { route: '/admin/tenants/:tenant/clients' }],
+    ['a route with a query', { route: 'GET /admin/tenants/x/clients?name=a b' }],
+    ['an overlong route', { route: `GET /${'a'.repeat(200)}` }],
+  ])('refuses %s', (_, override) => {
+    expect(() => {
+      assertDetailAllowed('agent.tool_call', { ...detail, ...override });
+    }).toThrow(/invalid value/);
+  });
+
+  it('refuses a non-string value', () => {
+    expect(() => {
+      assertDetailAllowed('agent.tool_call', { ...detail, tool: { name: 'x' } });
+    }).toThrow(/invalid value/);
+  });
+});
+
 describe('assertDetailAllowed', () => {
   it('accepts what else would have admitted a refused caller, as a list of names', () => {
     expect(() => {

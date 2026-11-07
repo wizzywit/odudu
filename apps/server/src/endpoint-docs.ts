@@ -67,6 +67,39 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     auth: 'None',
     purpose: 'The discovery document: the tenant’s issuer, endpoints and supported features.',
   },
+  'GET /.well-known/oauth-authorization-server/tenants/:tenant': {
+    auth: 'None',
+    purpose:
+      'The authorization server metadata (RFC 8414) of a tenant at the path address: the same issuer and endpoints as discovery, plus the scopes an MCP client asks for.',
+  },
+  'GET /tenants/:tenant/.well-known/oauth-authorization-server': {
+    auth: 'None',
+    purpose:
+      'The authorization server metadata of a tenant at its own domain, where the host reads it as `/.well-known/oauth-authorization-server`; `404` at the path address.',
+  },
+  'GET /.well-known/oauth-protected-resource/tenants/:tenant/mcp': {
+    auth: 'None',
+    purpose:
+      'The protected resource metadata (RFC 9728) of a tenant’s MCP endpoint at the path address: the resource URL, the tenant’s issuer as its authorization server, and the scopes it accepts.',
+  },
+  'GET /tenants/:tenant/.well-known/oauth-protected-resource/mcp': {
+    auth: 'None',
+    purpose:
+      'The protected resource metadata of a tenant at its own domain, where the host reads it as `/.well-known/oauth-protected-resource/mcp`; `404` at the path address.',
+  },
+  'POST /tenants/:tenant/mcp': {
+    auth: 'Access token',
+    purpose:
+      'The tenant’s MCP endpoint (Streamable HTTP, stateless; revisions 2026-07-28 and 2025-11-25): JSON-RPC requests for the tools that read the admin API as the signed-in person and, for a token holding `mcp:write`, the twelve that change the descriptive text of a client, scope, role or group, change the tenant’s display name and languages, set or clear a message override, save a draft of a theme that only a person can publish, or create a role, group or scope that grants nothing. Takes a bearer token whose audience is this URL and whose scope holds `mcp:read` or `mcp:write`; `401` with a `WWW-Authenticate` challenge naming the protected resource metadata for no usable token, `403` for a foreign `Origin` or `Host`, `429` with `Retry-After` past the per-principal budget. At a tenant’s own domain it is `/mcp` there; `404` at the path address of a tenant that has a domain.',
+  },
+  'GET /tenants/:tenant/mcp': {
+    auth: 'None',
+    purpose: 'Answers `405` with `Allow: POST`: the endpoint keeps no session to open a stream on.',
+  },
+  'DELETE /tenants/:tenant/mcp': {
+    auth: 'None',
+    purpose: 'Answers `405` with `Allow: POST`: the endpoint keeps no session to end.',
+  },
   [`GET ${OIDC}/certs`]: {
     auth: 'None',
     purpose: 'The JWKS: the tenant’s public signing keys.',
@@ -112,7 +145,8 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   },
   'POST /tenants/:tenant/clients-registrations/openid-connect': {
     auth: 'Initial access token (optional)',
-    purpose: 'Dynamic client registration (RFC 7591), when the tenant allows it.',
+    purpose:
+      'Dynamic client registration (RFC 7591), when the tenant allows it. A tenant whose policy is `mcp` admits only public clients bound to its MCP address, ten an hour from one address.',
   },
   [`POST ${LOGIN}/authenticate`]: {
     auth: 'Sign-in session',

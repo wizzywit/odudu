@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-tenant';
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { tokenGrants, type TokenGrantRecord } from '#/schema/token-grants';
 
@@ -77,6 +77,22 @@ export interface FrontChannelTarget {
 }
 
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
+  // The grant whose counters this one spends: the root named on it, or its own
+  // when no exchange made it. A grant that was exchanged and names no root has
+  // none and is refused, as is one whose id matches no grant. An exchanged grant
+  // from before the column whose parent was deleted before the backfill cannot be
+  // told from a sign-in's own grant and keeps a budget of its own.
+  async function budgetGrant(id: string): Promise<string | null> {
+    const rows = await tx
+      .select({ root: tokenGrants.budgetGrantId, parent: tokenGrants.exchangedFromGrantId })
+      .from(tokenGrants)
+      .where(eq(tokenGrants.id, id));
+    const row = rows[0];
+    if (row === undefined) return null;
+    if (row.root !== null) return row.root;
+    return row.parent === null ? id : null;
+  }
+
   // One read behind both ways of asking for a session's clients, so the
   // join and the `enabled` filter cannot differ between them.
   async function sessionClients(
@@ -120,6 +136,10 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
           sessionId: input.sessionId ?? null,
           actorSubjectId: input.actorSubjectId ?? null,
           exchangedFromGrantId: input.exchangedFromGrantId ?? null,
+          budgetGrantId:
+            input.exchangedFromGrantId == null
+              ? null
+              : await budgetGrant(input.exchangedFromGrantId),
           actChain: input.actChain ?? null,
           expCeiling: input.expCeiling ?? null,
           requestedUserinfoClaims:
@@ -145,6 +165,62 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         .where(and(eq(tokenGrants.id, id), isNull(tokenGrants.revokedAt)))
         .returning({ id: tokenGrants.id });
       return rows.length > 0;
+    },
+
+    // Spends one call of the grant's write budget: true when the grant was
+    // within `limits`, and the count is raised by the same statement, which the
+    // row lock serialises, so of any number of calls made at once no more than
+    // the limit are told yes. A grant that is missing, revoked or in another
+    // tenant is false. A create is also a mutating call.
+    async reserveAgentWrite(
+      id: string,
+      kind: 'mutating' | 'create',
+      limits: { readonly mutating: number; readonly creates: number },
+    ): Promise<boolean> {
+      const create = kind === 'create';
+      const root = await budgetGrant(id);
+      if (root === null) return false;
+      const rows = await tx
+        .update(tokenGrants)
+        .set({
+          agentWrites: sql`${tokenGrants.agentWrites} + 1`,
+          agentCreates: sql`${tokenGrants.agentCreates} + ${create ? 1 : 0}`,
+        })
+        .where(
+          and(
+            eq(tokenGrants.id, root),
+            isNull(tokenGrants.revokedAt),
+            lt(tokenGrants.agentWrites, limits.mutating),
+            create ? lt(tokenGrants.agentCreates, limits.creates) : undefined,
+          ),
+        )
+        .returning({ id: tokenGrants.id });
+      return rows.length > 0;
+    },
+
+    // Whether the grant exists in this tenant and has not been revoked, which
+    // tells a spent budget from a sign-in that has ended.
+    async isLive(id: string): Promise<boolean> {
+      const [own, root] = [id, await budgetGrant(id)];
+      if (root === null) return false;
+      const rows = await tx
+        .select({ id: tokenGrants.id })
+        .from(tokenGrants)
+        .where(and(inArray(tokenGrants.id, [own, root]), isNull(tokenGrants.revokedAt)));
+      return rows.length === new Set([own, root]).size;
+    },
+
+    // Gives back a call known to have changed nothing, never below none.
+    async releaseAgentWrite(id: string, kind: 'mutating' | 'create'): Promise<void> {
+      const root = await budgetGrant(id);
+      if (root === null) return;
+      await tx
+        .update(tokenGrants)
+        .set({
+          agentWrites: sql`greatest(${tokenGrants.agentWrites} - 1, 0)`,
+          agentCreates: sql`greatest(${tokenGrants.agentCreates} - ${kind === 'create' ? 1 : 0}, 0)`,
+        })
+        .where(eq(tokenGrants.id, root));
     },
 
     async byId(id: string): Promise<TokenGrantRecord | null> {
@@ -217,6 +293,18 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         .update(tokenGrants)
         .set({ revokedAt })
         .where(and(eq(tokenGrants.subjectId, subjectId), isNull(tokenGrants.revokedAt)))
+        .returning({ id: tokenGrants.id });
+      return rows.length;
+    },
+
+    // The foreign key on `actor_subject_id` only clears the column when the
+    // actor goes, which would leave the delegated token live with its `act`
+    // claim intact; a caller that removes an actor revokes what it acted in.
+    async revokeForActor(actorSubjectId: string): Promise<number> {
+      const rows = await tx
+        .update(tokenGrants)
+        .set({ revokedAt: sql`now()` })
+        .where(and(eq(tokenGrants.actorSubjectId, actorSubjectId), isNull(tokenGrants.revokedAt)))
         .returning({ id: tokenGrants.id });
       return rows.length;
     },

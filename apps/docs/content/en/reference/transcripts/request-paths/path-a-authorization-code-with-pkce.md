@@ -81,6 +81,8 @@ curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration
     "address",
     "email",
     "groups",
+    "mcp:read",
+    "mcp:write",
     "offline_access",
     "openid",
     "phone",
@@ -127,12 +129,13 @@ for every tenant — see
 reads them.
 
 `scopes_supported` is the tenant's own scope vocabulary, read from the
-database rather than compiled in: these eight are what `odudu seed` gives a
+database rather than compiled in: these ten are what `odudu seed` gives a
 new tenant, and a tenant that is given another scope advertises it here the
 moment it exists. A scope is seeded only once a claim mapper can answer for
 it, or — `offline_access`'s own exception — once it asks for a grant shape
 rather than for data (see [offline access](./rp-initiated-logout.md#offline-access) below), so this
-list never promises claims nothing returns.
+list never promises claims nothing returns. `mcp:read` and `mcp:write` are the third kind: they ask to use
+the tenant's MCP endpoint, which carries no claims either.
 
 Being advertised is only half of what `/authorize` needs, though — **a scope
 is granted only when the tenant defines it _and_ the client is assigned it**,
@@ -1264,12 +1267,12 @@ already single-use spent by then, and the answer is `invalid_grant`, not
 only a fresh code isolates which one actually fired.
 
 `demo-spa` has no registered `audiences` — every client seeded by this document
-does not, `odudu seed` has no flag for one yet — so its code's stored `resource`
+does not, because none was given `odudu seed client --audience` — so its code's stored `resource`
 is `[]`, and no `resource` named at `/token` is ever found in it; the ordinary
 redemption above, naming none, still succeeds with `aud` the issuer alone,
 exactly as it did before this existed. A client registered for at least one
-audience — `audiences`, set directly on `client_oidc_config` today, since no
-seed flag or registration field exposes it — would see `resource` narrow `aud`
+audience — set with `odudu seed client --audience`, in the console or through the
+admin API's `audiences` — would see `resource` narrow `aud`
 to that one value instead; an integration test exercises that case, and the
 refresh grant's own derivation. The refresh path narrows from the grant that the
 original redemption already resolved, not from the client's current

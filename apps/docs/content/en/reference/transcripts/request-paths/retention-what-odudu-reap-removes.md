@@ -26,7 +26,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 Those zeros are the point. By this stage the database holds a consumed
@@ -63,11 +63,25 @@ and a replayed spent one are refused identically — so
 `ODUDU_RETENTION_ACTION_TOKEN_SECONDS`) is a courtesy window for an operator
 to read, not a bound ADR 0021's detection-window argument requires.
 
-`tenant_issuer_retirements` and `tenant_domains` report `0` in every count
+`tenant_issuer_retirements`, `client_metadata_cache`, `idempotency_keys`, `cimd_clients`, `dynamic_clients` and `tenant_domains` report `0` in every count
 until the last section of the walkthrough, which registers a custom domain and
 switches a tenant's address. The first has no window of its own: a retired
 issuer is deleted once its `expires_at` has passed, since nothing accepts it
-after that. The second deletes only a `pending` row older than
+after that. `client_metadata_cache` holds the Client ID Metadata Documents the
+server fetched for a tenant, and is emptied of the rows whose cache lifetime has
+ended; it stays empty here because nothing in this walkthrough fetches one.
+`idempotency_keys` is what the admin API remembers of a `POST` that carried an `Idempotency-Key`: a
+key is kept for 24 hours and deleted once its `expires_at` has passed, and it stays empty here because nothing
+in this walkthrough sends one until the section after the dynamic clients below.
+`cimd_clients` is the clients kept from those documents: one nobody has resolved for
+thirty days is deleted, unless it holds a refresh token that can still be used, and it
+comes back the next time its address is used. It stays empty here for the same reason.
+`dynamic_clients` is the public clients that registered themselves (`registration_origin`
+`anonymous`): one older than a week that nobody ever approved (a withdrawn approval
+still counts), no grant was made to, and no live code or pending sign-in belongs to is
+deleted, and a disabled one stays. It stays empty here as well,
+until the section after the domains below.
+`tenant_domains` deletes only a `pending` row older than
 `ODUDU_RETENTION_PENDING_DOMAIN_SECONDS` (a week), a domain whose ownership
 nobody proved. A `verified` or `failed` row is never deleted by this pass,
 however old.
@@ -95,7 +109,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"tenant_domains":0,"sessions":1,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":1,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
@@ -114,7 +128,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 `console_sessions` and `console_logins` report `0` in every capture in this
@@ -142,7 +156,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":2,"console_logins":1,"tenant_issuer_retirements":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":2,"console_logins":1,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 The idle session and the expired one are removed, and so is the expired login.
@@ -172,7 +186,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":1,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":1,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 The expired request is gone and the live one remains.
@@ -191,9 +205,9 @@ odudu reap
 ```
 
 ```
-{"command":"domain","tenant":"demo","tenantId":"01a1a890-fb42-797a-a345-7f4ffaf5138f","host":"old.acme-corp.dev","state":"pending","canonical":false,"created":true,"recordName":"_odudu-challenge.old.acme-corp.dev","recordValue":"odudu-domain-verification=L8aR335bPzoXmcxSwIb8_5p2uxbNX9IFFk95g-ughfE"}
-{"command":"domain","tenant":"demo","tenantId":"01a1a890-fb42-797a-a345-7f4ffaf5138f","host":"login.acme-corp.dev","state":"verified","canonical":true,"created":true}
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"command":"domain","tenant":"demo","tenantId":"01a1ad1a-6166-7f58-9cce-6bff2c6322a7","host":"old.acme-corp.dev","state":"pending","canonical":false,"created":true,"recordName":"_odudu-challenge.old.acme-corp.dev","recordValue":"odudu-domain-verification=XYrQ46Q0JQkha8pT71r7SF3G7BaCtXWXiuWdQNy92Co"}
+{"command":"domain","tenant":"demo","tenantId":"01a1ad1a-6166-7f58-9cce-6bff2c6322a7","host":"login.acme-corp.dev","state":"verified","canonical":true,"created":true}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 Nothing is due: the pending row is a minute old and the retired issuer is inside
@@ -209,7 +223,7 @@ docker compose exec -T postgres psql -U odudu -d odudu -c "select host, state, c
 ```
 UPDATE 1
 UPDATE 1
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":1,"tenant_domains":1,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":1,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":1,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
         host         |  state   | canonical
 ---------------------+----------+-----------
  login.acme-corp.dev | verified | t
@@ -218,6 +232,78 @@ UPDATE 1
 
 The unproved domain and the expired retirement are gone. The verified domain,
 which is the tenant's address, stays however old it is.
+
+`dynamic_clients` is what keeps a tenant that lets clients register themselves from
+filling with ones nobody used. Its state is what the commands below make, on a stack whose
+other tenants hold nothing a week old: a tenant `dyn-demo` seeded with a
+client and `ada` as [Bootstrap](./bootstrap.md) seeds `demo`, its registration policy set
+to `open`, and two public clients registered, `unused` and `approved`:
+
+```bash
+odudu seed --tenant dyn-demo --client dyn-app \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+odudu seed tenant --name dyn-demo --set client_registration_policy=open
+curl -sS -X POST http://localhost:3000/tenants/dyn-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/unused"],"token_endpoint_auth_method":"none","client_name":"unused"}'
+curl -sS -X POST http://localhost:3000/tenants/dyn-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/approved"],"token_endpoint_auth_method":"none","client_name":"approved"}'
+```
+
+```
+{"created":true,"tenant":"dyn-demo","tenantId":"01a1ad89-3aef-717f-9734-7efac6f0d9bd","clientId":"dyn-app","userSubjectId":"01a1ad89-3bbc-7884-bf85-dd4a9f8f87d3"}
+{"command":"tenant","created":false,"tenant":"dyn-demo","tenantId":"01a1ad89-3aef-717f-9734-7efac6f0d9bd","settings":["client_registration_policy"]}
+{"client_id":"01a1ad89-3e99-7606-8297-a8d676a62998","client_id_issued_at":1793912815,"redirect_uris":["https://rp.example/unused"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"unused"}
+{"client_id":"01a1ad89-3eb3-7a1e-9d2b-2b956b7a9f0a","client_id_issued_at":1793912815,"redirect_uris":["https://rp.example/approved"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"approved"}
+```
+
+A person approves one of them (a consent row, written here directly), and both are
+backdated by eight days, each statement scoped to the tenant. The unused one is deleted and
+the approved one stays:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c "insert into consents (id, tenant_id, subject_id, client_id) select gen_random_uuid(), c.tenant_id, u.subject_id, c.id from clients c join users u on u.tenant_id = c.tenant_id join tenants t on t.id = c.tenant_id where t.name = 'dyn-demo' and c.name = 'approved' and u.username = 'ada'; update clients set created_at = created_at - interval '8 days' where registration_origin = 'anonymous' and tenant_id = (select id from tenants where name = 'dyn-demo');"
+odudu reap
+docker compose exec -T postgres psql -U odudu -d odudu -c "select c.name, c.registration_origin, c.type from clients c join tenants t on t.id = c.tenant_id where t.name = 'dyn-demo' and c.registration_origin = 'anonymous' order by c.name;"
+```
+
+```
+INSERT 0 1
+UPDATE 2
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":1,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+   name   | registration_origin |  type
+----------+---------------------+--------
+ approved | anonymous           | public
+(1 row)
+```
+
+`idempotency_keys` is the table of the admin API's `Idempotency-Key`. A key is kept for 24 hours
+from the call that made it, and a row past that is deleted. The table's own check refuses an
+expiry before its creation, so the backdating moves both. In a tenant `idem-demo`, made through the
+admin API with a token got as in [Getting the token](../admin-paths/getting-the-token.md), two roles were
+created, each with a key of its own ([the roles page](../admin-paths/get-roles-post-roles-get-rolesid-patch-rolesid-and-delete-rolesid.md#retrying-a-create-with-an-idempotency-key)
+shows the calls). The first key's row is backdated by two days, which leaves it a day past its window,
+and the other stays:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c "update idempotency_keys set created_at = created_at - interval '2 days', expires_at = expires_at - interval '2 days' where key = '6f9c1c2e-6a0e-4b8a-9c1e-2d7b1e0a5f01' and tenant_id = (select id from tenants where name = 'idem-demo');"
+odudu reap
+docker compose exec -T postgres psql -U odudu -d odudu -c "select k.key, k.expires_at > now() as live from idempotency_keys k join tenants t on t.id = k.tenant_id where t.name = 'idem-demo' order by k.key;"
+```
+
+```
+UPDATE 1
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":1,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+                 key                  | live
+--------------------------------------+------
+ 9a41e3c0-7d52-4e8b-a6f1-0c2b5d7e8f33 | t
+(1 row)
+```
+
+The lapsed key is gone and the live one remains, so a retry of the first call a day later runs again,
+and a retry of the second still replays.
 
 ## When the pass refuses, or finds nothing to look at
 

@@ -181,31 +181,49 @@ target ceiling): derived on every read, one query for a whole page, and outside
 the `ETag`, which is taken over the stored fields alone, as a group's
 `admin_reach` is outside its own. It is empty for a client with no service
 account. A caller needs no `view-users` to read it, so a console can judge the
-ceiling from the record. `billing`'s service account was then given
-`manage-users`, which nests `view-users`, with `psql` (no route assigns a role
-to a service account):
+ceiling from the record. `billing`, made with `authorization_code` alone, has no
+service account, because a confidential client has one only while it holds the
+`client_credentials` grant. A `PATCH` adding the grant creates one, with no roles,
+and `billing`'s service account was then given `manage-users`, which nests
+`view-users`, with `psql` (no route assigns a role to a service account). The
+`PATCH` sent the `ETag` the `GET` before it answered:
 
 ```bash
-curl -sS -D - -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$ID | grep -i '^etag'
-jq -c '{client_id, service_account_admin_reach}' body.json
+curl -sS -D headers.txt -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$ID
+ETAG=$(grep -i '^etag:' headers.txt | cut -d' ' -f2 | tr -d '\r')
+echo "$ETAG"
+jq -c '{client_id, grant_types, service_subject_id, service_account_admin_reach}' body.json
+```
+
+```
+"a7ed472bbe52a7e820fe9412e01b2d1b1755aa02c3b26596723472b1f8006399"
+{"client_id":"billing","grant_types":["authorization_code"],"service_subject_id":null,"service_account_admin_reach":[]}
+```
+
+```bash
+curl -sS -D headers.txt -o body.json -X PATCH -H "$A" -H "$J" -H "If-Match: $ETAG" \
+  -d '{"grant_types":["authorization_code","client_credentials"]}' $P/clients/$ID
+grep -i '^\(HTTP\|etag\)' headers.txt | tr -d '\r'
+jq -c '{client_id, grant_types, has_service_account: (.service_subject_id != null), service_account_admin_reach}' body.json
 docker compose exec -T postgres psql -U odudu -d odudu -tA -c \
   "insert into subject_roles (tenant_id, subject_id, role_id) select c.tenant_id, c.service_subject_id, r.id from clients c join clients a on a.tenant_id = c.tenant_id and a.client_id = 'odudu-admin' join roles r on r.client_id = a.id and r.name = 'manage-users' where c.id = '$ID'"
-curl -sS -D - -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$ID | grep -i '^etag'
+curl -sS -D - -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$ID | grep -i '^etag' | tr -d '\r'
 jq -c '{client_id, service_account_admin_reach}' body.json
 ```
 
 ```
-etag: "ccb1d256a6bee75fef0c52ec2c7800c58b18cd4767b5788fb8b41adff4ecadfe"
-{"client_id":"billing","service_account_admin_reach":[]}
+HTTP/1.1 200 OK
+etag: "060ac550d8892be5154b0083ff960944e2bcdcc9bd4078869eef444f342d1f37"
+{"client_id":"billing","grant_types":["authorization_code","client_credentials"],"has_service_account":true,"service_account_admin_reach":[]}
 INSERT 0 1
-etag: "ccb1d256a6bee75fef0c52ec2c7800c58b18cd4767b5788fb8b41adff4ecadfe"
+etag: "060ac550d8892be5154b0083ff960944e2bcdcc9bd4078869eef444f342d1f37"
 {"client_id":"billing","service_account_admin_reach":["view-users","manage-users"]}
 ```
 
-The `ETag` did not move. `GET /clients?client_id_exact=` finds the one client
-whose `client_id` is exactly the value, case kept, through the unique index; a
-prefix finds none, and it is one of the three searches that may not be
-combined:
+The `ETag` moved once, with the new account, and did not move again with the
+role. `GET /clients?client_id_exact=` finds the one client whose `client_id` is
+exactly the value, case kept, through the unique index; a prefix finds none, and
+it is one of the three searches that may not be combined:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients?client_id_exact=billing" | jq -c '[.items[] | {client_id, service_account_admin_reach}]'
@@ -215,7 +233,103 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients?client_id_exact=bil
 
 ```
 [{"client_id":"billing","service_account_admin_reach":["view-users","manage-users"]}]
-{"items":[]}{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id, client_id_exact or name, not more than one","errors":[{"path":"name","message":"search one field at a time: client_id, client_id_exact or name, not more than one"}],"instance":"01a18730-4ed1-7ba3-80e7-0adacdd38e59"}
+{"items":[]}{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id, client_id_exact or name, not more than one","errors":[{"path":"name","message":"search one field at a time: client_id, client_id_exact or name, not more than one"}],"instance":"01a1ae77-2056-7126-bdc3-3de79966fadd"}
+```
+
+**A service account follows the grant.** Taking `client_credentials` out of a
+client's `grant_types` deletes its account, and with it every token grant, role and
+session it held, so a leaked secret has nothing left to sign in as. `etl` was made
+with both grants and the admin API as its audience. Its service account was given
+`manage-users` with `psql`, as above, it asked for a token and used it on
+`GET /subjects` (`200`), and `psql` then counted its subject, the token grants it
+held and its roles:
+
+```bash
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"etl","redirect_uris":["https://etl.example/callback"],"grant_types":["authorization_code","client_credentials"],"audiences":["urn:odudu:params:admin-api"]}' $P/clients > etl.json
+EID=$(jq -r .id etl.json); SECRET=$(jq -r .client_secret etl.json); SUB=$(jq -r .service_subject_id etl.json)
+docker compose exec -T postgres psql -U odudu -d odudu -tA -c \
+  "insert into subject_roles (tenant_id, subject_id, role_id) select c.tenant_id, c.service_subject_id, r.id from clients c join clients a on a.tenant_id = c.tenant_id and a.client_id = 'odudu-admin' join roles r on r.client_id = a.id and r.name = 'manage-users' where c.id = '$EID'"
+TOKEN=$(curl -sS -u "etl:$SECRET" -d grant_type=client_credentials \
+  http://localhost:3000/tenants/client-limits-demo/protocol/openid-connect/token | jq -r .access_token)
+curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" "$P/subjects?limit=1"
+HELD="select (select count(*) from subjects where id = '$SUB') as account, (select count(*) from token_grants where subject_id = '$SUB') as grants, (select count(*) from subject_roles where subject_id = '$SUB') as roles"
+docker compose exec -T postgres psql -U odudu -d odudu -c "$HELD"
+```
+
+```
+INSERT 0 1
+200
+ account | grants | roles
+---------+--------+-------
+       1 |      1 |     1
+(1 row)
+```
+
+A `PATCH` leaving `authorization_code` alone took the grant out. The account, its
+grant and its role are gone. The token it held is refused with `401`, since the
+grant it names no longer exists, and the secret, presented again, is refused
+`unauthorized_client`:
+
+```bash
+curl -sS -D headers.txt -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$EID
+curl -sS -o body.json -X PATCH -H "$A" -H "$J" -H "If-Match: $(grep -i '^etag:' headers.txt | cut -d' ' -f2 | tr -d '\r')" \
+  -d '{"grant_types":["authorization_code"]}' $P/clients/$EID
+jq -c '{grant_types, service_subject_id}' body.json
+docker compose exec -T postgres psql -U odudu -d odudu -c "$HELD"
+curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" "$P/subjects?limit=1"
+curl -sS -u "etl:$SECRET" -d grant_type=client_credentials \
+  http://localhost:3000/tenants/client-limits-demo/protocol/openid-connect/token; echo
+```
+
+```
+{"grant_types":["authorization_code"],"service_subject_id":null}
+ account | grants | roles
+---------+--------+-------
+       0 |      0 |     0
+(1 row)
+
+401
+{"error":"unauthorized_client","error_description":"This client may not use this grant type."}
+```
+
+Adding the grant back makes a new account, a different subject, which holds no
+role:
+
+```bash
+curl -sS -D headers.txt -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$EID
+curl -sS -o body.json -X PATCH -H "$A" -H "$J" -H "If-Match: $(grep -i '^etag:' headers.txt | cut -d' ' -f2 | tr -d '\r')" \
+  -d '{"grant_types":["authorization_code","client_credentials"]}' $P/clients/$EID
+jq -c '{grant_types, new_account: (.service_subject_id != null and .service_subject_id != "'"$SUB"'")}' body.json
+docker compose exec -T postgres psql -U odudu -d odudu -tA -c \
+  "select count(*) from subject_roles where subject_id = '$(jq -r .service_subject_id body.json)'"
+```
+
+```
+{"grant_types":["authorization_code","client_credentials"],"new_account":true}
+0
+```
+
+A client whose account holds the tenant's last administrator role, `tenant-admin`
+here, `ops` being the only holder in `client-limits-demo`, is refused the removal
+with `409`, and nothing changes:
+
+```bash
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"ops","redirect_uris":["https://ops.example/callback"],"grant_types":["authorization_code","client_credentials"]}' $P/clients > ops.json
+OID=$(jq -r .id ops.json)
+docker compose exec -T postgres psql -U odudu -d odudu -tA -c \
+  "insert into subject_roles (tenant_id, subject_id, role_id) select c.tenant_id, c.service_subject_id, r.id from clients c join clients a on a.tenant_id = c.tenant_id and a.client_id = 'odudu-admin' join roles r on r.client_id = a.id and r.name = 'tenant-admin' where c.id = '$OID'"
+curl -sS -D headers.txt -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$OID
+curl -sS -X PATCH -H "$A" -H "$J" -H "If-Match: $(grep -i '^etag:' headers.txt | cut -d' ' -f2 | tr -d '\r')" \
+  -d '{"grant_types":["authorization_code"]}' $P/clients/$OID; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$OID | jq -c '{grant_types, has_service_account: (.service_subject_id != null)}'
+```
+
+```
+INSERT 0 1
+{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a1ae77-d2d8-7db8-99a2-7ec984aaf35e"}
+{"grant_types":["authorization_code","client_credentials"],"has_service_account":true}
 ```
 
 The RFC 7591 metadata fields among them — `redirect_uris`, `grant_types`,
@@ -394,8 +508,10 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"id":"01a18730-5106-7312-9a0c-cf3f17eb0159","client_id":"demo-backend","name":"demo-backend","description":null,"name_i18n":{},"description_i18n":{},"type":"confidential","enabled":false,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-10-29T10:24:13.030Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a18730-50e8-7a77-b66d-ce29310c719d","scopes":[{"id":"01a18730-50a6-741e-a584-a18e0f78dcff","name":"address","assignment":"default"},{"id":"01a18730-50a5-738e-8d35-dc4011adccc8","name":"email","assignment":"default"},{"id":"01a18730-50ab-712d-8dac-a92c7f162005","name":"groups","assignment":"default"},{"id":"01a18730-50ae-7733-814b-7bbe2e121312","name":"offline_access","assignment":"optional"},{"id":"01a18730-50a1-7db4-b07c-8e5a4c7a867f","name":"openid","assignment":"default"},{"id":"01a18730-50a8-7b8c-a892-f75294f4e111","name":"phone","assignment":"default"},{"id":"01a18730-50a2-745f-b600-59c8f0b533bf","name":"profile","assignment":"default"},{"id":"01a18730-50aa-7463-a120-d041f14d0268","name":"roles","assignment":"default"}],"service_account_admin_reach":[],"supported_locales":["en"]}
+{"id":"01a1adb4-e2f0-7d82-90d5-8d0bb7127360","client_id":"demo-backend","name":"demo-backend","description":null,"name_i18n":{},"description_i18n":{},"type":"confidential","enabled":false,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-11-05T21:54:35.346Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a1adb4-e2d3-7685-814d-cc89271e8b87","scopes":[{"id":"01a1adb4-e292-7035-ab6b-555c0ca39f96","name":"address","assignment":"default"},{"id":"01a1adb4-e290-7bf2-86a1-701df0a83e49","name":"email","assignment":"default"},{"id":"01a1adb4-e295-780c-a1ef-ced4e2865dc3","name":"groups","assignment":"default"},{"id":"01a1adb4-e296-71e3-8ba4-a20a8d98cda6","name":"offline_access","assignment":"optional"},{"id":"01a1adb4-e28e-7487-aa84-bf6d83c359fb","name":"openid","assignment":"default"},{"id":"01a1adb4-e293-71ae-beb9-42089fd8395b","name":"phone","assignment":"default"},{"id":"01a1adb4-e28f-7d72-afc6-7eb13d878da3","name":"profile","assignment":"default"},{"id":"01a1adb4-e294-7a12-95f1-f15f06fc9c4b","name":"roles","assignment":"default"}],"service_account_admin_reach":[],"supported_locales":["en"]}
 ```
+
+This block was run again after the token exchange limits joined the client, so its ids and times are not those of the blocks around it.
 
 `odudu-admin`, `builtin_admin` true, the same request against the other id
 in that listing, does not:
@@ -437,8 +553,10 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"id":"01a18730-5291-7dd2-8854-48d5e5da472a","client_id":"billing","name":"billing","description":"Invoices and payment runs","name_i18n":{},"description_i18n":{},"type":"confidential","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-10-29T10:24:13.425Z","redirect_uris":["https://billing.example/callback"],"grant_types":["authorization_code","client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":"https://billing.example/about","policy_uri":"https://billing.example/privacy","tos_uri":"https://billing.example/terms","id_token_signed_response_alg":"ES256","default_max_age":3600,"require_auth_time":true,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a18730-5273-7b58-b0e4-e5ebf23ba25a","scopes":[{"id":"01a18730-522f-7532-a4de-7edd21d8b2e7","name":"address","assignment":"default"},{"id":"01a18730-522e-790a-8322-1ba91c502e22","name":"email","assignment":"default"},{"id":"01a18730-5235-7a37-8572-f96591a5e361","name":"groups","assignment":"default"},{"id":"01a18730-5236-7d63-aade-cb883d063dc3","name":"offline_access","assignment":"optional"},{"id":"01a18730-522a-78e8-870c-b1497e268f59","name":"openid","assignment":"default"},{"id":"01a18730-5231-7e26-aea4-4ea0128437e1","name":"phone","assignment":"default"},{"id":"01a18730-522c-7a67-9099-3444abcaa2c3","name":"profile","assignment":"default"},{"id":"01a18730-5233-7ac0-a0bc-0dcf9f53e575","name":"roles","assignment":"default"}],"service_account_admin_reach":[],"client_secret":"5XCYri62iVFzAxYrA2Y7ay4BF4zTj9o-AjDVC1gT41o"}
+{"id":"01a1adb4-e474-78db-8aeb-2adac0aa0936","client_id":"billing","name":"billing","description":"Invoices and payment runs","name_i18n":{},"description_i18n":{},"type":"confidential","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-11-05T21:54:35.733Z","redirect_uris":["https://billing.example/callback"],"grant_types":["authorization_code","client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":"https://billing.example/about","policy_uri":"https://billing.example/privacy","tos_uri":"https://billing.example/terms","id_token_signed_response_alg":"ES256","default_max_age":3600,"require_auth_time":true,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a1adb4-e457-7ec3-8823-d49e91d3ec97","scopes":[{"id":"01a1adb4-e40e-75e6-825e-1b9963fcb59f","name":"openid","assignment":"default"},{"id":"01a1adb4-e40f-72ae-a419-cd7fbcf5ac7a","name":"profile","assignment":"default"},{"id":"01a1adb4-e411-78ba-be0d-fdf518c07f79","name":"email","assignment":"default"},{"id":"01a1adb4-e412-728f-90fc-5764c5825b55","name":"address","assignment":"default"},{"id":"01a1adb4-e413-7af9-b9ea-6c02c04e7ca0","name":"phone","assignment":"default"},{"id":"01a1adb4-e414-7872-a2d1-95eac99a02fa","name":"roles","assignment":"default"},{"id":"01a1adb4-e415-78fe-bc6a-9bf6b9c8b2a0","name":"groups","assignment":"default"},{"id":"01a1adb4-e416-757e-bb8a-69f2a7df0ed6","name":"offline_access","assignment":"optional"}],"service_account_admin_reach":[],"client_secret":"i-Np3xgfyV50-qWtyqy6QL6mnO83Xgnxnzrw_dZUOZA"}
 ```
+
+This block was run again after the token exchange limits joined the client, so its ids and times are not those of the blocks around it.
 
 A page that is not https, or an algorithm no key of the tenant produces,
 is refused by name — the tenant holds only the `ES256` key it was created

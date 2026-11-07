@@ -12,9 +12,11 @@ A client is an application that signs people in through your tenant: a web app, 
 
 <ConsoleShot
   name="clients"
-  alt="The demo tenant's Clients list: the built-in odudu-admin client and my-app, with a Create a client button."
-  caption="The demo tenant lists my-app beside its built-in administration client."
+  alt="The demo tenant's Clients list: the built-in odudu-admin and odudu-mcp clients and my-app, with a Create a client button."
+  caption="The demo tenant lists my-app beside its two built-in clients."
 />
+
+Every tenant also lists `odudu-mcp`, the public client a local MCP tool signs in through. It asks for the `mcp:read` scope, and `mcp:write` if the person allows it, and shows each person a consent screen. Its redirect URIs are `http://127.0.0.1` and `http://[::1]`, which accept any port, because such a tool listens on a free one. You can disable it, which stops those sign-ins, but you cannot delete it, and its ID is reserved. Its other settings stay yours to change.
 
 ## 1. Register a client
 
@@ -69,9 +71,9 @@ It starts with the **Installation** block: the **Issuer** and **Discovery URL** 
 - **Key source** says where the server finds the client's public keys. The keys check a signed assertion and encrypt UserInfo to the client. Choose **None published**, **A JWKS URI** (an https address the server fetches the keys from) or **A key set pasted here**. A key set with a private key in it is refused.
 - Under UserInfo, **Signing algorithm** defaults to **Plain JSON, not signed**. **Encryption algorithm** defaults to **Not encrypted**, and **Content encryption** applies only once you choose an encryption algorithm. Encrypting needs a published key to encrypt to.
 - **Response type** and PKCE are shown as fixed: every client signs people in with the authorization code flow and a `S256` code challenge, so no token travels through the browser.
-- **Audiences** are the resource servers its access tokens are meant for. **Allow impersonation in token exchange** lets the client exchange a token for one that stands for the person, with no actor named.
+- **Audiences** are the resource servers its access tokens are meant for. **Allow impersonation in token exchange** lets the client exchange a token for one that stands for the person, with no actor named. **Allow a public client to use token exchange** lets a public client, which holds no secret, use the grant at all, and **Accept an actor token issued to another client** lets the client present an actor token that was issued to a different client. Both are off, and each is refused at the token endpoint until turned on. All three save together under Token exchange.
 
-Every confidential client has a service account, except the built-in admin client. A public client has none, and the **Service account** tab says so. Turning the `client_credentials` grant off keeps the account and its roles, and the tab marks it as not in use.
+A client has a service account only while it holds the `client_credentials` grant, so a public client, the built-in admin client and a confidential client without the grant have none, and the **Service account** tab says which applies. Turning the grant on under **Grant types** and saving creates the account with no roles. Turning it off and saving removes the account with every role, token grant and session it held, and revokes the tokens exchanged with it as the actor, so a leaked secret can no longer sign in as the client. Odudu refuses a token already issued from then on, in the admin API and at introspection, but a resource server that checks only a token's signature accepts it until it expires, at most the access-token lifetime. Past audit events by the account keep its id and lose its name. Turning the grant on again starts a new account that holds nothing. A tenant's last administrator cannot be removed this way: if the account holds that role, the save is refused. After an upgrade, a confidential client without the grant whose account something still names keeps it with its roles, and the tab marks it as not in use. Turning the grant on makes those roles active again, as they were given by an administrator, so read them on the tab first; turning it on and off again removes the account.
 
 ## When a secret leaks
 

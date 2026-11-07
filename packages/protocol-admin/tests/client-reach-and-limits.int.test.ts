@@ -204,6 +204,41 @@ async function overLimitClient(): Promise<{
   return { tenant, token, id: client.id };
 }
 
+describe('GET /clients?counts_toward_max_clients=', () => {
+  it('separates the clients max_clients counts from the ones that arrived on their own', async () => {
+    const t = await fixture.createTenant(`counted-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    for (const origin of ['anonymous', 'anonymous', 'cimd']) {
+      await fixture.owner.sql`
+        insert into clients (id, tenant_id, client_id, name, type, secret_hash,
+                             registration_origin, metadata_used_at)
+        values (${newId()}, ${t.id}, ${`self-${newId()}`}, 'Self', 'public', null, ${origin},
+                case when ${origin} = 'cimd' then now() end)`;
+    }
+    const count = async (query: string) =>
+      (await call(token, 'GET', `/admin/tenants/${t.name}/clients/count${query}`)).json<{
+        count: number;
+      }>().count;
+    const total = await count('');
+    const counted = await count('?counts_toward_max_clients=true');
+    expect(await count('?counts_toward_max_clients=false')).toBe(3);
+    expect(counted + 3).toBe(total);
+    const listed = await call(
+      token,
+      'GET',
+      `/admin/tenants/${t.name}/clients?counts_toward_max_clients=true`,
+    );
+    expect(listed.statusCode, listed.payload).toBe(200);
+    expect(listed.json<{ items: unknown[] }>().items).toHaveLength(counted);
+    const bad = await call(
+      token,
+      'GET',
+      `/admin/tenants/${t.name}/clients/count?counts_toward_max_clients=maybe`,
+    );
+    expect(bad.statusCode).toBe(400);
+  });
+});
+
 describe('a client stored over the limit', () => {
   it('still has a field it does not list amended', async () => {
     const { tenant, token, id } = await overLimitClient();

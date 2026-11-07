@@ -28,7 +28,12 @@ import {
 import { driveAccount, driveRequiredActions } from '#/testing/plan-account-drives';
 import {
   driveBackground,
+  driveCimdClients,
+  driveClientCeilings,
+  driveClientMetadataCache,
+  driveExchangeUpgrade,
   driveGateway,
+  driveIdempotency,
   driveRepositories,
   retentionRuns,
 } from '#/testing/plan-background-drives';
@@ -37,11 +42,9 @@ import { driveAdminWrites } from '#/testing/plan-admin-writes';
 import { BRANDING_PATHS, driveBranding } from '#/testing/plan-branding-drives';
 import { driveOidc } from '#/testing/plan-oidc-drives';
 import { pathLog, type PathRun } from '#/testing/plan-paths';
+import { LARGE_TABLE_ROWS, ROWS_PER_READ } from '#/testing/plan-volume';
 import { startPlanWorld, type PlanWorld } from '#/testing/plan-world';
 
-const LARGE_TABLE_ROWS = 5_000;
-// A page of MAX_LIMIT rows with up to ten rows each of what hangs off it.
-const ROWS_PER_READ = 10 * MAX_LIMIT;
 // A listing's batched lookups (a page's clients' names, say) are skipped by a
 // page whose rows need none, so the two sizes may differ by a few; a query per
 // row would differ by the page size.
@@ -76,8 +79,16 @@ beforeAll(async () => {
   const ids = await adminIds(world);
   await driveRepositories(world, world.app.db, ids.subject, log.capture);
   await driveBackground(world, log.capture);
+  await driveClientMetadataCache(world, log.capture);
+  await driveIdempotency(world, log.capture);
+  await driveCimdClients(world, log.capture);
+  const [dynamic] = await world.owner.sql<{ tenant_id: string }[]>`
+    select tenant_id from clients where registration_origin = 'cimd' limit 1`;
+  if (dynamic === undefined) throw new Error('the volume holds no metadata document client');
+  await driveClientCeilings(world, dynamic.tenant_id, log.capture);
+  await driveExchangeUpgrade(world, log.capture);
   await driveGateway(world, log.capture);
-  log.runs.push(...retentionRuns(world));
+  log.runs.push(...retentionRuns(world, dynamic.tenant_id));
   const tokens = await adminTokens(world);
   ({ counts, sizes } = await driveAdmin(world, recorder, log.capture, tokens, ids));
   await driveAdminWrites(world, log.capture, tokens, ids);

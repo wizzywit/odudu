@@ -271,6 +271,85 @@ describe('clientRepository', () => {
     });
   });
 
+  it('counts only the clients an operator made against max_clients', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await tx.update(tenants).set({ maxClients: 5 }).where(eq(tenants.id, tenantId));
+      for (let n = 0; n < 4; n += 1) {
+        await insertClient(tx, tenantId, {
+          registrationOrigin: 'anonymous',
+          type: 'public',
+          secretHash: null,
+        });
+        await insertClient(tx, tenantId, {
+          registrationOrigin: 'cimd',
+          type: 'public',
+          secretHash: null,
+          metadataUsedAt: new Date(),
+        });
+      }
+      await insertClient(tx, tenantId, { registrationOrigin: 'operator' });
+      await insertClient(tx, tenantId, { registrationOrigin: 'token' });
+      await insertClient(tx, tenantId, { registrationOrigin: 'seeded' });
+      expect(await clientRepository(tx).lockCapacity(tenantId)).toEqual({
+        maxClients: 5,
+        count: 3,
+      });
+    });
+  });
+
+  it('counts the clients that registered themselves against their own ceiling', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      for (let n = 0; n < 3; n += 1) {
+        await insertClient(tx, tenantId, {
+          registrationOrigin: 'anonymous',
+          type: 'public',
+          secretHash: null,
+        });
+      }
+      await insertClient(tx, tenantId, { registrationOrigin: 'operator' });
+      expect(await clientRepository(tx).lockWireCapacity(tenantId, 2)).toEqual({
+        maxClients: 2,
+        count: 2,
+      });
+      expect(await clientRepository(tx).lockWireCapacity(tenantId, 10)).toEqual({
+        maxClients: 10,
+        count: 3,
+      });
+    });
+  });
+
+  it('counts self-registered clients for the resolved tenant only', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await insertClient(tx, tenantId, {
+          registrationOrigin: 'anonymous',
+          type: 'public',
+          secretHash: null,
+        });
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        const capacity = await clientRepository(tx).lockWireCapacity(tenantId, 10);
+        expect(capacity.count).toBe(1);
+      },
+      attempt: async (tx, tenantId) => {
+        try {
+          return await clientRepository(tx).lockWireCapacity(tenantId, 10);
+        } catch (error) {
+          return { threw: true, message: error instanceof Error ? error.message : String(error) };
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toMatchObject({ threw: true });
+      },
+    });
+  });
+
   it('cannot amend a client under a different tenant context', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {
@@ -353,6 +432,93 @@ describe('clientRepository', () => {
       verifyTenantAUnaffected: async (tx, clientDbId) => {
         const survived = await clientRepository(tx).byId(clientDbId);
         expect(survived).not.toBeNull();
+      },
+    });
+  });
+
+  it('points a client at its service subject and takes the pointer away again', async () => {
+    const tenantId = newId();
+    const subjectId = newId();
+    const clientDbId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await tx.execute(
+        sql`insert into subjects (id, tenant_id, type) values (${subjectId}, ${tenantId}, 'service')`,
+      );
+      await insertClient(tx, tenantId, { id: clientDbId });
+      const attached = await clientRepository(tx).setServiceSubject(clientDbId, subjectId);
+      expect(attached.serviceSubjectId).toBe(subjectId);
+      const detached = await clientRepository(tx).setServiceSubject(clientDbId, null);
+      expect(detached.serviceSubjectId).toBeNull();
+    });
+  });
+
+  it('clears the idle-account marker whenever the pointer is set', async () => {
+    const tenantId = newId();
+    const clientDbId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await insertClient(tx, tenantId, { id: clientDbId, serviceAccountIdle: true });
+      await clientRepository(tx).setServiceSubject(clientDbId, null);
+      const [row] = await tx
+        .select({ idle: clients.serviceAccountIdle })
+        .from(clients)
+        .where(eq(clients.id, clientDbId));
+      expect(row?.idle).toBe(false);
+    });
+  });
+
+  it('cannot clear the idle marker of a client under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const id = newId();
+        await insertClient(tx, tenantId, { id, serviceAccountIdle: true });
+        return id;
+      },
+      verifySeeded: async (tx, id) => {
+        const [row] = await tx
+          .select({ idle: clients.serviceAccountIdle })
+          .from(clients)
+          .where(eq(clients.id, id));
+        expect(row?.idle).toBe(true);
+      },
+      attempt: (tx, id) => clientRepository(tx).clearServiceAccountIdle(id),
+      expectBlocked: () => undefined,
+      verifyTenantAUnaffected: async (tx, id) => {
+        const [row] = await tx
+          .select({ idle: clients.serviceAccountIdle })
+          .from(clients)
+          .where(eq(clients.id, id));
+        expect(row?.idle).toBe(true);
+      },
+    });
+  });
+
+  it('cannot re-point a client under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const id = newId();
+        await insertClient(tx, tenantId, { id });
+        return id;
+      },
+      verifySeeded: async (tx, clientDbId) => {
+        expect((await clientRepository(tx).byId(clientDbId))?.serviceSubjectId).toBeNull();
+      },
+      attempt: async (tx, clientDbId) => {
+        try {
+          await clientRepository(tx).setServiceSubject(clientDbId, null);
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, clientDbId) => {
+        expect(await clientRepository(tx).byId(clientDbId)).not.toBeNull();
       },
     });
   });

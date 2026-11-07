@@ -107,3 +107,35 @@ One whole-tenant door is exempt: disabling the tenant, through
 it, held to no ceiling and counting none. A disable already shuts every subject
 out, so ending their sessions takes nothing more than the disable itself does;
 what it is held to is `manage-tenant` and the refusal of the `system` tenant.
+
+## Amendment, 2026-11-05 — an agent's reads are audited
+
+A resource server's reads (`/introspect`, `/userinfo`) write no audit row, and
+an ordinary administrator's GETs write none. An agent's do: each MCP tool call,
+read or write, is one `admin_access` row, `agent.tool_call`, naming the agent
+client, the owner, the tool and the admin route, and never its arguments or
+what came back. The two differ because an agent acts on text it reads, so what
+it read is the evidence when it does something it should not have, and because
+a person can be asked what they looked at while an agent cannot.
+
+`admin_access` is always stored: a tenant's `audit_event_types` cannot drop it
+(`tenants_audit_event_types_check`), so an agent read cannot be silently
+unrecorded by a setting. The volume is one row per tool call, bounded by the
+audit retention window and the tool rate of a model, within ADR 0041's
+100,000,000 events. An agent that calls a route its scope or field allowlist
+does not admit is refused with a `capability.refused` row (`insufficient_scope`
+or `agent_without_mcp_scope`). ADR 0050 holds the rest.
+
+The row has two writers, so that a call is recorded once. The MCP endpoint writes
+it for a call it serves, and the admin-audience token it signs for that call carries
+a `via` claim of `mcp` beside `act`, which no other path can produce: a token
+exchange or a refresh builds its claims itself and copies none from the token it is
+given, and a claim mapper's `via` is dropped. The admin API writes the row, at its
+door and before the handler runs, for every agent call whose token does not carry
+that marker: a token issued to the built-in `odudu-mcp` client or to a service
+account (how `odudu mcp` calls), and an exchanged token, which has `act` too but was
+not signed by the endpoint. The door cannot know a tool's name, so the row's `tool`
+is the route (`admin.get.clients`) and its `route` the route key. If the row cannot
+be written the call is a `503` and does not run, the stance the endpoint takes when
+it cannot record a call. A call the scope or the capability refuses leaves only its
+refusal row.

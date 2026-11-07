@@ -1,6 +1,55 @@
-import { withTenant, withTenantThen, type Database, type TenantScopedDatabase } from '@odudu/db';
+import {
+  withSavepoint,
+  withTenant,
+  withTenantThen,
+  type Database,
+  type TenantScopedDatabase,
+} from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { type FastifyRequest } from 'fastify';
+
+interface RequestTransaction {
+  readonly tenantId: string;
+  readonly tx: TenantScopedDatabase;
+  joined: boolean;
+  readonly after: (() => void)[];
+}
+
+const OPEN = new WeakMap<FastifyRequest, RequestTransaction>();
+
+/**
+ * Runs `fn` with `tx` as the transaction every `adminTx` of this request for
+ * `tenantId` joins, so what a handler writes and what the caller records
+ * about it commit together. Answers whether the handler joined it at all: one
+ * that opened a transaction of its own wrote outside it.
+ */
+export async function withRequestTransaction<T>(
+  request: FastifyRequest,
+  tenantId: string,
+  tx: TenantScopedDatabase,
+  fn: () => Promise<T>,
+): Promise<{ value: T; joined: boolean; after: readonly (() => void)[] }> {
+  const open: RequestTransaction = { tenantId, tx, joined: false, after: [] };
+  OPEN.set(request, open);
+  try {
+    const value = await fn();
+    return { value, joined: open.joined, after: open.after };
+  } finally {
+    OPEN.delete(request);
+  }
+}
+
+/**
+ * Runs `effect` once what the request wrote is committed: at once for a
+ * request with no transaction held open for it, and after the commit for one
+ * that has (a keyed call), so what it drops from a cache cannot be filled
+ * again from the data it replaces. Dropped when the call is undone.
+ */
+export function afterCommit(request: FastifyRequest, effect: () => void): void {
+  const open = OPEN.get(request);
+  if (open === undefined) effect();
+  else open.after.push(effect);
+}
 
 /**
  * Every admin route's own `withTenant`: binds the request's id and address
@@ -15,6 +64,14 @@ export function adminTx<T>(
   tenantId: string,
   fn: (tx: TenantScopedDatabase) => Promise<T>,
 ): Promise<T> {
+  const open = OPEN.get(request);
+  if (open?.tenantId === tenantId) {
+    open.joined = true;
+    // A savepoint, so a statement that fails inside `fn` undoes only its own
+    // writes and leaves the request's transaction usable, as a transaction
+    // of its own would.
+    return withSavepoint(open.tx, fn);
+  }
   return withTenant(db, tenantId, fn, requestContextFrom(request));
 }
 

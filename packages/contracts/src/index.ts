@@ -1,4 +1,9 @@
 export {
+  asMetadataDocument,
+  CLIENT_ASSERTION_SIGNING_ALGS_SUPPORTED,
+  type AsMetadataDocument,
+} from '#/as-metadata';
+export {
   CORE_PROMPT_VALUES,
   discoveryDocument,
   promptValuesSupported,
@@ -32,7 +37,10 @@ export {
   BIDI_REFUSED,
   BIDI_REFUSED_MESSAGE,
   containsBidiControl,
+  containsNul,
+  NUL_REFUSED_MESSAGE,
   noBidiControls,
+  noNul,
   refusesBidi,
   stripBidiControls,
 } from '#/bidi';

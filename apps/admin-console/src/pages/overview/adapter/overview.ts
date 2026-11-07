@@ -47,6 +47,18 @@ export function readCount(
   }
 }
 
+// What `max_clients` counts: the clients an administrator or a registration
+// token made, leaving out those that registered themselves.
+export function readOperatorClientCount(
+  gateway: Gateway,
+  tenant: string,
+): Promise<GatewayResult<CountResponse>> {
+  return adminCall(gateway, 'GET', tenant, ['clients', 'count'], {
+    schema: countResponseSchema,
+    query: new URLSearchParams({ counts_toward_max_clients: 'true' }),
+  });
+}
+
 export async function readLatestAudit(
   gateway: Gateway,
   tenant: string,

@@ -49,6 +49,17 @@ export {
   type TenantCapability,
 } from '#/service/admin-capabilities';
 export {
+  MCP_CLIENT_ID,
+  MCP_CLIENT_LIFETIMES,
+  MCP_CLIENT_NAME,
+  MCP_CLIENT_REDIRECT_URIS,
+  holdsMcpScope,
+  isMcpScope,
+  MCP_READ_SCOPE,
+  MCP_SCOPES,
+  MCP_WRITE_SCOPE,
+} from '#/service/mcp-client';
+export {
   isReservedTenantName,
   isValidTenantName,
   RESERVED_TENANT_NAMES,
@@ -57,7 +68,9 @@ export {
 export { clients, type ClientRecord } from '#/schema/clients';
 export {
   clientRepository,
+  COUNTED_BY_MAX_CLIENTS,
   ClientIdConflictError,
+  WIRE_CLIENTS_PER_TENANT,
   type ClientCapacity,
   type NewClient,
 } from '#/repository/clients';
@@ -102,6 +115,8 @@ export {
   type MintedClientRegistrationToken,
   type RegistrationTokenRecord,
 } from '#/repository/client-registration-tokens';
+export { assignMcpScope } from '#/usecase/assign-mcp-scope';
+export { provisionMcpClient } from '#/usecase/provision-mcp-client';
 export {
   capabilityRoleGraph,
   provisionAdminClient,

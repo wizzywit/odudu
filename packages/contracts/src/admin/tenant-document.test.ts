@@ -3,6 +3,7 @@ import { CLIENT_LIST_LIMIT, listLimitMessage } from '#/admin/shared';
 import {
   REGISTRATION_POLICY_SETTINGS,
   tenantDocumentSchema,
+  registrationPolicySchema,
   type ExportedClient,
   type TenantDocument,
 } from '#/admin/tenant-document';
@@ -36,6 +37,8 @@ const CLIENT: ExportedClient = {
   backchannel_logout_session_required: false,
   consent_required: false,
   token_exchange_impersonation_allowed: false,
+  token_exchange_allowed_for_public: false,
+  token_exchange_actor_from_other_client: false,
   userinfo_signed_response_alg: null,
   userinfo_encrypted_response_alg: null,
   userinfo_encrypted_response_enc: null,
@@ -86,6 +89,7 @@ const DOCUMENT: TenantDocument = {
     verify_email_ttl_seconds: 43_200,
     reset_password_ttl_seconds: 300,
     login_with_email: false,
+    cimd_enabled: false,
     audit_event_types: ['admin_mutation', 'admin_access'],
     supported_locales: ['en'],
     default_locale: null,
@@ -176,6 +180,18 @@ describe('tenantDocumentSchema', () => {
     expect(result.data?.clients[0]?.skip_logout_confirmation).toBe(false);
   });
 
+  it('imports a client of a document from before the exchange limits with both off', () => {
+    const older: Record<string, unknown> = { ...CLIENT };
+    delete older.token_exchange_allowed_for_public;
+    delete older.token_exchange_actor_from_other_client;
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, clients: [older] });
+    expect(result.success).toBe(true);
+    expect(result.data?.clients[0]).toMatchObject({
+      token_exchange_allowed_for_public: false,
+      token_exchange_actor_from_other_client: false,
+    });
+  });
+
   it('imports a document from before languages and overrides: English only, no default, none', () => {
     const without = (record: object, ...names: string[]): Record<string, unknown> =>
       Object.fromEntries(Object.entries(record).filter(([name]) => !names.includes(name)));
@@ -258,5 +274,25 @@ describe('tenantDocumentSchema', () => {
       'registration_allowed',
       'verify_email',
     ]);
+  });
+});
+
+describe('registrationPolicySchema', () => {
+  it.each(['disabled', 'open', 'token', 'mcp'])('accepts the client policy %s', (policy) => {
+    const parsed = registrationPolicySchema.safeParse({
+      registration_allowed: false,
+      verify_email: false,
+      client_registration_policy: policy,
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('refuses a policy the server does not know', () => {
+    const parsed = registrationPolicySchema.safeParse({
+      registration_allowed: false,
+      verify_email: false,
+      client_registration_policy: 'anyone',
+    });
+    expect(parsed.success).toBe(false);
   });
 });

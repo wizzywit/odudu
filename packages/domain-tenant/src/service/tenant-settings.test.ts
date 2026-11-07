@@ -86,15 +86,28 @@ describe('coercing a value that arrived as a string', () => {
     });
   });
 
-  // `tenants_client_registration_policy_check` (migration 0045, renamed by
-  // 0058) names these three and nothing else — a value the CHECK would
+  // `tenants_client_registration_policy_check` (migrations 0045, 0058 and
+  // 0117) names these four and nothing else — a value the CHECK would
   // refuse anyway is caught here first, so the caller reads a 400 naming
   // them, not a 500.
-  it('refuses a registration policy outside disabled, open and token, naming them', () => {
+  it('refuses a registration policy outside disabled, open, token and mcp, naming them', () => {
     expect(coerceTenantSetting('client_registration_policy', 'sometimes')).toEqual({
       kind: 'invalid_value',
       expected: 'text',
-      values: ['disabled', 'open', 'token'],
+      values: ['disabled', 'open', 'token', 'mcp'],
+    });
+  });
+
+  it('coerces the mcp registration policy and the client metadata document switch', () => {
+    expect(coerceTenantSetting('client_registration_policy', 'mcp')).toEqual({
+      kind: 'coerced',
+      column: 'clientRegistrationPolicy',
+      value: 'mcp',
+    });
+    expect(coerceTenantSetting('cimd_enabled', 'true')).toEqual({
+      kind: 'coerced',
+      column: 'cimdEnabled',
+      value: true,
     });
   });
 

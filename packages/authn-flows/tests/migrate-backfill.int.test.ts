@@ -279,7 +279,11 @@ describe('the scope default assignment, run by a schema owner that is not a supe
         sql`select name, default_client_assignment from client_scopes order by name`,
       ),
     );
+    // 0113 and 0114 give the tenant its MCP scopes as they do a superuser
+    // owner's, assigned to no client by default.
     expect(rows.map((row) => ({ ...row }))).toEqual([
+      { name: 'mcp:read', default_client_assignment: null },
+      { name: 'mcp:write', default_client_assignment: null },
       { name: 'offline_access', default_client_assignment: 'optional' },
       { name: 'openid', default_client_assignment: 'default' },
       { name: 'reports:read', default_client_assignment: null },

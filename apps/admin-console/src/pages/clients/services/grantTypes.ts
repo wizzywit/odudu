@@ -11,7 +11,8 @@ export const GRANT_LABELS: Readonly<Record<string, string>> = {
 const GRANT_NOTES: Readonly<Record<string, string>> = {
   authorization_code: 'Signs a person in through the browser.',
   refresh_token: 'Renews a sign-in without the person returning.',
-  client_credentials: "The client acts as itself, through its service account's roles.",
+  client_credentials:
+    "The client acts as itself, through its service account's roles. Turning it on creates the account; turning it off removes it with its roles.",
   'urn:ietf:params:oauth:grant-type:token-exchange': 'Trades one token for another (RFC 8693).',
 };
 

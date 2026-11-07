@@ -295,12 +295,12 @@ describeFields(clientFieldsSchema, {
   skip_logout_confirmation:
     "When true, `/logout` signs a user out of this client without the confirmation page, but only for a request carrying an ID token this client was issued, for the session that is current, even an expired one. Anyone holding such a token can then sign that user out by opening a link. Off for every client but the console's own, and never settable through dynamic registration.",
   registration_origin:
-    'How the client came to exist: `seeded` by `odudu seed` or `odudu init`, `anonymous` or `token` through dynamic registration, or `operator` through the admin API.',
+    'How the client came to exist: `seeded` by `odudu seed` or `odudu init`, `anonymous` or `token` through dynamic registration, `operator` through the admin API, or `cimd` from the Client ID Metadata Document its `client_id` names.',
   created_at: 'When the client was created, as an ISO 8601 date and time.',
   redirect_uris:
     'The addresses the authorization server may send the user back to after sign-in. A request naming any other address is refused.',
   grant_types:
-    'The grants the client may use at the token endpoint, such as `authorization_code`, `refresh_token`, `client_credentials`.',
+    'The grants the client may use at the token endpoint, such as `authorization_code`, `refresh_token`, `client_credentials`. A confidential client has a service account only while `client_credentials` is listed: adding it creates the account and removing it deletes the account with its roles and token grants.',
   token_endpoint_auth_method:
     'How a confidential client authenticates at the token endpoint, for example `client_secret_basic`, `client_secret_post` or `private_key_jwt`.',
   audiences:
@@ -332,6 +332,10 @@ describeFields(clientFieldsSchema, {
     'Whether the user must approve what the client asks for on a consent screen before tokens are issued.',
   token_exchange_impersonation_allowed:
     'Whether the client may use token exchange (RFC 8693) to act as a user rather than on behalf of one.',
+  token_exchange_allowed_for_public:
+    'Whether a public client may use token exchange at all. Off by default: a public client holds no secret, so reaching the grant proves nothing about who asked.',
+  token_exchange_actor_from_other_client:
+    'Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it.',
   userinfo_signed_response_alg:
     'The algorithm that signs this client’s UserInfo responses. Null returns plain JSON.',
   userinfo_encrypted_response_alg:
@@ -353,7 +357,7 @@ describeFields(clientFieldsSchema, {
   builtin_admin:
     'True for the tenant’s built-in admin console client, which cannot be deleted and is limited in what can be amended.',
   service_subject_id:
-    'The service account a confidential client authenticates as, or null when it has none.',
+    'The service account a client authenticates as, or null when it holds no client_credentials grant or is public. Setting grant_types creates it when the grant is added and deletes it, with the roles and token grants it held, when the grant is removed.',
   scopes:
     'The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for).',
 });
@@ -363,6 +367,8 @@ describeFields(listClientsQuerySchema, {
   name: 'Only clients whose name starts with this.',
   type: 'Only clients of this type.',
   enabled: '`true` for enabled clients only.',
+  counts_toward_max_clients:
+    '`true` for the clients `max_clients` counts, which are those an administrator or a registration token made; `false` for the ones that registered themselves or came from a metadata document.',
 });
 describeFields(countClientsQuerySchema, {
   client_id: 'Only clients whose `client_id` starts with this.',
@@ -370,6 +376,8 @@ describeFields(countClientsQuerySchema, {
   name: 'Only clients whose name starts with this.',
   type: 'Only clients of this type.',
   enabled: '`true` for enabled clients only.',
+  counts_toward_max_clients:
+    '`true` for the clients `max_clients` counts, which are those an administrator or a registration token made; `false` for the ones that registered themselves or came from a metadata document.',
 });
 describeFields(clientInstallationSchema, {
   issuer: 'The issuer identifier the application must trust.',
@@ -843,6 +851,10 @@ describeFields(exportedClientSchema, {
     'Whether the user must approve what the client asks for on a consent screen before tokens are issued.',
   token_exchange_impersonation_allowed:
     'Whether the client may use token exchange (RFC 8693) to act as a user rather than on behalf of one.',
+  token_exchange_allowed_for_public:
+    'Whether a public client may use token exchange at all. Off by default: a public client holds no secret, so reaching the grant proves nothing about who asked.',
+  token_exchange_actor_from_other_client:
+    'Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it.',
   userinfo_signed_response_alg:
     'The algorithm that signs this client’s UserInfo responses. Null returns plain JSON.',
   userinfo_encrypted_response_alg:
@@ -927,7 +939,7 @@ describeFields(registrationPolicySchema, {
   registration_allowed: 'Whether people may register themselves.',
   verify_email: 'Whether a registered address must be verified before sign-in.',
   client_registration_policy:
-    'Who may register clients dynamically: nobody (`disabled`), anybody (`open`) or the holder of an initial access token (`token`).',
+    'Who may register clients dynamically: nobody (`disabled`), anybody (`open`), the holder of an initial access token (`token`) or a public client of the kind MCP clients register as (`mcp`).',
 });
 describeFields(tenantDocumentSchema, {
   version: 'The document format version; always 1.',
@@ -967,7 +979,8 @@ describeFields(tenantSettingsDocumentSchema, {
   brute_force_max_lockout_seconds: 'The longest a lockout can grow to when it is tripped again.',
   brute_force_failure_reset_seconds:
     'How long without a failed sign-in before the count starts again.',
-  max_clients: 'The most clients the tenant may hold.',
+  max_clients:
+    'The most clients an administrator or a registration token can make. Clients that register themselves or come from a metadata document have limits of their own.',
   max_sessions_per_browser: 'The most sessions one browser may hold at once.',
   remember_me_allowed: 'Whether the sign-in form offers to stay signed in.',
   remember_me_idle_seconds: 'How long a remembered session may sit idle.',
@@ -982,6 +995,8 @@ describeFields(tenantSettingsDocumentSchema, {
   verify_email_ttl_seconds: 'How long a mailed email-verification link works.',
   reset_password_ttl_seconds: 'How long a mailed password-reset link works.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
+  cimd_enabled:
+    'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',
   audit_event_types: 'The audit event types the tenant stores.',
   supported_locales:
     'The language tags the tenant’s pages are offered in, 1 to 32, each such as `fr` or `zh-Hant-TW`; discovery advertises them as `ui_locales_supported`.',
@@ -1125,6 +1140,8 @@ describeFields(testSmtpResponseSchema, {
 describeFields(whoamiResponseSchema, {
   subjectId: 'The subject the access token was issued to.',
   issuerTenantId: 'The tenant that issued the token, which is the caller’s own tenant.',
+  issuerTenantName:
+    'The name of that tenant, the one its address and sign-in page carry. It tells apart connections to several tenants.',
   capabilities:
     'The admin capabilities the caller holds in its own tenant, directly, through a group or nested in a role. A composite such as `tenant-admin` is reported as the capabilities it carries.',
   crossTenant:

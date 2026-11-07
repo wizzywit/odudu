@@ -1,6 +1,7 @@
 import formbody from '@fastify/formbody';
 import { OAUTH_ERROR_DESCRIPTIONS } from '#/service/oauth-errors';
 import { provisionTenant } from '@odudu/authn-flows';
+import { CLIENT_ASSERTION_SIGNING_ALGS_SUPPORTED } from '@odudu/contracts';
 import { generateSigningKey, signingKeys, type SigningKeyRecord } from '@odudu/crypto';
 import {
   createDatabase,
@@ -78,8 +79,8 @@ const REFUSAL = {
 
 let logLines: unknown[] = [];
 
-function buildClientKey(): Promise<SigningKeyRecord> {
-  return buildClientSigningKey(KEK, TENANT_ID);
+function buildClientKey(alg: 'RS256' | 'ES256' = 'RS256'): Promise<SigningKeyRecord> {
+  return buildClientSigningKey(KEK, TENANT_ID, alg);
 }
 
 function jwksFor(key: SigningKeyRecord): { keys: Record<string, unknown>[] } {
@@ -111,6 +112,7 @@ function signAssertion(
 let clientKey: SigningKeyRecord;
 let inlineKey: SigningKeyRecord;
 let strangerKey: SigningKeyRecord;
+let es256Key: SigningKeyRecord;
 let serviceSubjectId: string;
 
 // The fake transport `clientKeySet` fetches through. No real socket is
@@ -193,6 +195,7 @@ async function setupTenant(): Promise<void> {
   clientKey = await buildClientKey();
   inlineKey = await buildClientKey();
   strangerKey = await buildClientKey();
+  es256Key = await buildClientKey('ES256');
 
   await withTenant(app.db, TENANT_ID, async (tx) => {
     await tx.insert(tenants).values({ id: TENANT_ID, name: TENANT });
@@ -220,6 +223,11 @@ async function setupTenant(): Promise<void> {
       clientId: 'inline-jwks-client',
       method: 'private_key_jwt',
       jwks: jwksFor(inlineKey),
+    });
+    await createClient(tx, {
+      clientId: 'es256-client',
+      method: 'private_key_jwt',
+      jwks: jwksFor(es256Key),
     });
     await createClient(tx, {
       clientId: 'unreachable-client',
@@ -674,6 +682,35 @@ describe('[ODUDU-PRIVATE-KEY-JWT-02] private_key_jwt at /revoke and /introspect'
     }>();
     expect(doc.introspection_endpoint_auth_methods_supported).toContain('private_key_jwt');
     expect(doc.revocation_endpoint_auth_methods_supported).toContain('private_key_jwt');
+  });
+});
+
+describe('[ODUDU-PRIVATE-KEY-JWT-06] the algorithms the metadata advertises', () => {
+  const PROVEN = ['ES256', 'RS256'];
+
+  it('advertises exactly the algorithms proven below', () => {
+    expect([...CLIENT_ASSERTION_SIGNING_ALGS_SUPPORTED].sort()).toEqual(PROVEN);
+  });
+
+  it.each([
+    ['RS256', 'pkj-client'],
+    ['ES256', 'es256-client'],
+  ])('accepts an %s assertion at /token, /revoke and /introspect', async (alg, clientId) => {
+    const key = alg === 'ES256' ? es256Key : clientKey;
+    const signed = () => signAssertion(key, clientId);
+    const issued = await token({ assertion: await signed() });
+    expect(issued.statusCode).toBe(200);
+    const accessToken = issued.json<{ access_token: string }>().access_token;
+    const revoked = await postForm('revoke', withAssertion(await signed(), { token: accessToken }));
+    expect(revoked.statusCode).toBe(200);
+    expect(await isRevoked(accessToken)).toBe(true);
+
+    const introspected = await postForm(
+      'token/introspect',
+      withAssertion(await signed(), { token: accessToken }),
+    );
+    expect(introspected.statusCode).toBe(200);
+    expect(introspected.json()).toHaveProperty('active');
   });
 });
 

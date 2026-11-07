@@ -13,7 +13,12 @@ export const MESSAGE_OVERRIDE_MAX_LENGTH = 2000;
 
 export const messageOverrideLocaleSchema = z.string().regex(new RegExp(LOCALE_PATTERN, 'u'));
 // The key of a catalogue message; whether it names one is the server's to say.
-export const messageOverrideKeySchema = z.string().min(1).max(MESSAGE_OVERRIDE_KEY_MAX_LENGTH);
+// A text column cannot hold a NUL, so a key with one is refused here, not by the database.
+export const messageOverrideKeySchema = z
+  .string()
+  .min(1)
+  .max(MESSAGE_OVERRIDE_KEY_MAX_LENGTH)
+  .regex(/^[^\u0000]*$/u);
 
 export const messageOverrideSchema = z.object({
   locale: messageOverrideLocaleSchema,

@@ -3,6 +3,10 @@ import {
   ASSIGNMENT_LIMIT,
   CLIENT_SCOPE_LIMIT,
   EXPORT_SUBJECT_CAP,
+  GROUP_LIMIT,
+  groupLimitMessage,
+  ROLE_LIMIT,
+  roleLimitMessage,
   SCOPE_LIMIT,
   TENANT_IMPORT_BODY_LIMIT,
   tenantDocumentSchema,
@@ -25,6 +29,7 @@ import {
   clientScopeMapperRepository,
   clientScopeRepository,
   tenantSettingsRepository,
+  WIRE_CLIENTS_PER_TENANT,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import {
@@ -32,7 +37,7 @@ import {
   clientOidcConfigRepository,
   tenantLookupRepository,
 } from '@odudu/protocol-oidc';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -117,6 +122,8 @@ async function seededSource(): Promise<{ id: string; name: string; confidentialI
       redirect_uris: ['https://spa.example/callback'],
       web_origins: ['+'],
       skip_logout_confirmation: true,
+      token_exchange_allowed_for_public: true,
+      token_exchange_actor_from_other_client: true,
     },
   });
   expect(spa.statusCode, spa.payload).toBe(201);
@@ -189,6 +196,8 @@ async function seededSource(): Promise<{ id: string; name: string; confidentialI
     await tenantSettingsRepository(tx).amend(t.id, {
       passwordMinLength: 12,
       usernameEditable: true,
+      cimdEnabled: true,
+      clientRegistrationPolicy: 'mcp',
     });
 
     const grace = await subjectRepository(tx).create({ tenantId: t.id, type: 'user' });
@@ -250,6 +259,58 @@ describe('POST /admin/tenant-imports', () => {
     expect((await exportOf(token, viaDocument)).settings.display_name).toBeNull();
   });
 
+  it('exports a tenant whose stored display name is longer than the bound a write now has', async () => {
+    const source = await fixture.createTenant(`legacy-src-${newId()}`);
+    await fixture.owner
+      .sql`update tenants set display_name = ${'x'.repeat(300)} where id = ${source.id}`;
+    const token = await operatorToken();
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${source.name}/export`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(res.json<{ settings: { display_name: string } }>().settings.display_name).toBe(
+      'x'.repeat(300),
+    );
+  });
+
+  it('refuses a document display name of 257 characters, naming it, and takes 256', async () => {
+    const source = await fixture.createTenant(`bound-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const withName = (display_name: string) => ({
+      ...original,
+      settings: { ...original.settings, display_name },
+    });
+    const refused = await postImport(token, {
+      name: `bound-a-${newId()}`,
+      document: withName('x'.repeat(257)),
+    });
+    expect(refused.statusCode).toBe(400);
+    expect((refused.json<ImportRefusal>().errors ?? []).map((error) => error.path)).toEqual([
+      'document.settings.display_name',
+    ]);
+    const name = `bound-b-${newId()}`;
+    const taken = await postImport(token, { name, document: withName('x'.repeat(256)) });
+    expect(taken.statusCode, taken.payload).toBe(201);
+    expect((await exportOf(token, name)).settings.display_name).toBe('x'.repeat(256));
+  });
+
+  it('refuses a request display name of 257 characters, and makes no tenant', async () => {
+    const source = await fixture.createTenant(`bound-req-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const name = `bound-c-${newId()}`;
+    const refused = await postImport(token, {
+      name,
+      display_name: 'x'.repeat(257),
+      document: original,
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
   it('re-exports what it imported, apart from the name and what cannot travel', async () => {
     const source = await seededSource();
     const token = await operatorToken();
@@ -261,17 +322,25 @@ describe('POST /admin/tenant-imports', () => {
       ['hana', false],
       ['ivan', true],
     ]);
+    expect(original.settings.cimd_enabled).toBe(true);
+    expect(original.registration_policy.client_registration_policy).toBe('mcp');
     expect(original.scopes.map((scope) => scope.name)).toContain('billing');
     expect(original.scopes.map((scope) => scope.name)).not.toContain('phone');
     expect(original.groups.map((group) => group.path)).toEqual(['/finance', '/finance/payroll']);
+    // The seed's two clients and the built-in MCP client every tenant carries.
     expect(original.clients.map((client) => client.type).sort()).toEqual([
       'confidential',
+      'public',
       'public',
     ]);
     expect(original.smtp).not.toBeNull();
     expect(
       original.clients.map((client) => [client.client_id, client.skip_logout_confirmation]),
     ).toEqual(expect.arrayContaining([['spa', true]]));
+    expect(original.clients.find((client) => client.client_id === 'spa')).toMatchObject({
+      token_exchange_allowed_for_public: true,
+      token_exchange_actor_from_other_client: true,
+    });
     const name = `import-${newId()}`;
 
     const res = await postImport(token, { name, display_name: 'Imported', document: original });
@@ -293,6 +362,284 @@ describe('POST /admin/tenant-imports', () => {
       })),
     };
     expect(withoutRenamedFields(reexported)).toEqual(withoutRenamedFields(expected));
+  });
+
+  describe('service accounts', () => {
+    async function tenantWithAccounts(): Promise<{ name: string; token: string }> {
+      const t = await fixture.createTenant(`acct-${newId()}`);
+      const token = await operatorToken();
+      const make = async (clientId: string, grants: string[]): Promise<string> => {
+        const res = await fixture.http.inject({
+          method: 'POST',
+          url: `/admin/tenants/${t.name}/clients`,
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          payload: JSON.stringify({
+            client_id: clientId,
+            redirect_uris: ['https://app.example/cb'],
+            grant_types: grants,
+            token_endpoint_auth_method: 'client_secret_basic',
+          }),
+        });
+        expect(res.statusCode, res.payload).toBe(201);
+        return (
+          res.json<{ id: string; service_subject_id: string | null }>().service_subject_id ?? ''
+        );
+      };
+      const active = await make('active', ['authorization_code', 'client_credentials']);
+      const idle = await make('idle', ['authorization_code', 'client_credentials']);
+      await withTenant(fixture.app.db, t.id, async (tx) => {
+        const role = await roleRepository(tx).create({ tenantId: t.id, name: 'reader' });
+        await roleRepository(tx).assignToSubject(active, role.id);
+        await roleRepository(tx).assignToSubject(idle, role.id);
+        await tx.execute(
+          sql`update client_oidc_config set grant_types = ARRAY['authorization_code']
+               where client_id = (select id from clients where client_id = 'idle')`,
+        );
+        await tx.execute(
+          sql`update clients set service_account_idle = true where client_id = 'idle'`,
+        );
+      });
+      return { name: t.name, token };
+    }
+
+    it('exports roles for an account in use, none for an idle one, and names the omission', async () => {
+      const { name, token } = await tenantWithAccounts();
+      const document = await exportOf(token, name);
+      const roles = (clientId: string) =>
+        document.clients.find((client) => client.client_id === clientId)?.service_account_roles;
+      expect(roles('active')).toEqual([{ name: 'reader', client: null }]);
+      expect(roles('idle')).toEqual([]);
+      const index = document.clients.findIndex((client) => client.client_id === 'idle');
+      expect(document.omitted).toContain(`clients[${String(index)}].service_account_roles`);
+    });
+
+    it('imports its own export and exports the same document again', async () => {
+      const { name, token } = await tenantWithAccounts();
+      const original = await exportOf(token, name);
+      const copy = `import-${newId()}`;
+      const res = await postImport(token, { name: copy, document: original });
+      expect(res.statusCode, res.payload).toBe(201);
+      expect(withoutRenamedFields(await exportOf(token, copy))).toEqual(
+        withoutRenamedFields(original),
+      );
+    });
+
+    it('accepts a backup that lists roles for a client without the grant, and drops them', async () => {
+      const { name, token } = await tenantWithAccounts();
+      const original = await exportOf(token, name);
+      const legacy: TenantDocument = {
+        ...original,
+        clients: original.clients.map((client) =>
+          client.client_id === 'idle'
+            ? { ...client, service_account_roles: [{ name: 'reader', client: null }] }
+            : client,
+        ),
+      };
+      const copy = `import-${newId()}`;
+      const res = await postImport(token, { name: copy, document: legacy });
+      expect(res.statusCode, res.payload).toBe(201);
+      const again = await exportOf(token, copy);
+      expect(again.clients.find((c) => c.client_id === 'idle')?.service_account_roles).toEqual([]);
+    });
+
+    async function importWith(
+      clientId: string,
+      change: Partial<TenantDocument['clients'][number]>,
+    ): Promise<{ statusCode: number; paths: string[] }> {
+      const { name, token } = await tenantWithAccounts();
+      const original = await exportOf(token, name);
+      const edited: TenantDocument = {
+        ...original,
+        clients: original.clients.map((client) =>
+          client.client_id === clientId ? { ...client, ...change } : client,
+        ),
+      };
+      const res = await postImport(token, { name: `import-${newId()}`, document: edited });
+      const errors = res.statusCode === 400 ? (res.json<ImportRefusal>().errors ?? []) : [];
+      return { statusCode: res.statusCode, paths: errors.map((error) => error.path) };
+    }
+
+    it('drops a role a client without the grant lists even when the backup lost the role', async () => {
+      const outcome = await importWith('idle', {
+        service_account_roles: [{ name: 'deleted-long-ago', client: null }],
+      });
+      expect(outcome.statusCode).toBe(201);
+    });
+
+    it('still refuses a missing role listed for a client that holds the grant', async () => {
+      const outcome = await importWith('active', {
+        service_account_roles: [{ name: 'deleted-long-ago', client: null }],
+      });
+      expect(outcome.statusCode).toBe(400);
+      expect(outcome.paths.some((path) => path.endsWith('.service_account_roles[0]'))).toBe(true);
+    });
+
+    it('still refuses roles listed for a public client', async () => {
+      const outcome = await importWith('idle', {
+        type: 'public',
+        token_endpoint_auth_method: 'none',
+        service_account_roles: [{ name: 'reader', client: null }],
+      });
+      expect(outcome.statusCode).toBe(400);
+      expect(outcome.paths.some((path) => path.endsWith('.service_account_roles'))).toBe(true);
+    });
+  });
+
+  it('exports a tenant holding a metadata document client and a role it owns, and imports the document', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    await withTenant(fixture.app.db, source.id, async (tx) => {
+      const created = await clientRepository(tx).create({
+        tenantId: source.id,
+        clientId: 'https://notes.example.com/client.json',
+        name: 'Notes',
+        type: 'public',
+        secretHash: null,
+        registrationOrigin: 'cimd',
+        metadataUsedAt: new Date(),
+      });
+      await roleRepository(tx).create({
+        tenantId: source.id,
+        name: 'notes-editor',
+        clientId: created.id,
+      });
+    });
+
+    const document = await exportOf(token, source.name);
+
+    expect(document.clients.map((client) => client.client_id)).not.toContain(
+      'https://notes.example.com/client.json',
+    );
+    expect(document.roles.map((role) => role.client)).not.toContain(
+      'https://notes.example.com/client.json',
+    );
+    const res = await postImport(token, { name: `import-${newId()}`, document });
+    expect(res.statusCode, res.payload).toBe(201);
+  });
+
+  async function mcpClientRows(tenantId: string) {
+    return withTenant(fixture.app.db, tenantId, async (tx) => {
+      const repository = clientRepository(tx);
+      const client = await repository.byClientId('odudu-mcp');
+      const config =
+        client === null ? null : await clientOidcConfigRepository(tx).byClientId(client.id);
+      const held =
+        client === null ? [] : await clientScopeRepository(tx).forClientByAssignment(client.id);
+      return { client, config, held };
+    });
+  }
+
+  it('carries the built-in MCP client in the export and reproduces it on import, once', async () => {
+    const source = await fixture.createTenant(`mcp-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const exported = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    expect(exported).toMatchObject({
+      type: 'public',
+      redirect_uris: ['http://127.0.0.1', 'http://[::1]'],
+      grant_types: ['authorization_code', 'refresh_token'],
+      audiences: ['urn:odudu:params:admin-api'],
+      consent_required: true,
+    });
+    expect(
+      original.scopes
+        .filter((scope) => scope.name.startsWith('mcp:'))
+        .map((scope) => [scope.name, scope.clients.find((c) => c.client_id === 'odudu-mcp')]),
+    ).toEqual([
+      ['mcp:read', { client_id: 'odudu-mcp', assignment: 'default' }],
+      ['mcp:write', { client_id: 'odudu-mcp', assignment: 'optional' }],
+    ]);
+
+    // The new tenant is provisioned with its own built-in client and the
+    // document describes one too: neither a conflict nor a second client.
+    const name = `mcp-copy-${newId()}`;
+    const res = await postImport(token, { name, document: original });
+    expect(res.statusCode, res.payload).toBe(201);
+    const imported = await tenantIdOf(name);
+    const rows = await mcpClientRows(imported ?? '');
+    expect(rows.client).toMatchObject({ type: 'public', secretHash: null, builtinMcp: true });
+    expect(rows.config?.redirectUris).toEqual(['http://127.0.0.1', 'http://[::1]']);
+    expect(Object.fromEntries(rows.held.map((h) => [h.scope.name, h.assignment]))).toMatchObject({
+      'mcp:read': 'default',
+      'mcp:write': 'optional',
+    });
+    const count = await fixture.owner.sql<{ n: number }[]>`
+      select count(*)::int as n from clients where tenant_id = ${imported ?? ''} and client_id = 'odudu-mcp'`;
+    expect(count[0]?.n).toBe(1);
+    expect(withoutRenamedFields(await exportOf(token, name))).toEqual(
+      withoutRenamedFields(original),
+    );
+  });
+
+  it.each([
+    ['a confidential type', { type: 'confidential' }, 'type'],
+    [
+      'a client_credentials grant',
+      { grant_types: ['authorization_code', 'client_credentials'] },
+      'grant_types',
+    ],
+    [
+      'a secret-bearing auth method',
+      { token_endpoint_auth_method: 'client_secret_basic', type: 'confidential' },
+      'type',
+    ],
+    ['an https redirect', { redirect_uris: ['https://evil.example/cb'] }, 'redirect_uris'],
+    ['localhost', { redirect_uris: ['http://localhost'] }, 'redirect_uris'],
+    ['a loopback with a port', { redirect_uris: ['http://127.0.0.1:8080'] }, 'redirect_uris'],
+    ['a loopback with a path', { redirect_uris: ['http://127.0.0.1/cb'] }, 'redirect_uris'],
+  ])('refuses an odudu-mcp client with %s, creating no tenant', async (_label, change, field) => {
+    const source = await fixture.createTenant(`mcp-bad-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const document = {
+      ...original,
+      clients: original.clients.map((client) =>
+        client.client_id === 'odudu-mcp' ? { ...client, ...change } : client,
+      ),
+    };
+    const name = `mcp-bad-copy-${newId()}`;
+    const res = await postImport(token, { name, document });
+    expect(res.statusCode, res.payload).toBe(400);
+    const errors = res.json<{ errors: { path: string; message: string }[] }>().errors;
+    expect(errors.some((e) => e.path.includes('document.clients[') && e.path.endsWith(field))).toBe(
+      true,
+    );
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
+  it('keeps a disabled built-in MCP client disabled across an import', async () => {
+    const source = await fixture.createTenant(`mcp-off-${newId()}`);
+    const token = await operatorToken();
+    await withTenant(fixture.app.db, source.id, async (tx) => {
+      const client = await clientRepository(tx).byClientId('odudu-mcp');
+      if (client === null) throw new Error('expected odudu-mcp');
+      await clientRepository(tx).update(client.id, { enabled: false });
+    });
+    const name = `mcp-off-copy-${newId()}`;
+    const res = await postImport(token, { name, document: await exportOf(token, source.name) });
+    expect(res.statusCode, res.payload).toBe(201);
+    const rows = await mcpClientRows((await tenantIdOf(name)) ?? '');
+    expect(rows.client).toMatchObject({ enabled: false, builtinMcp: true });
+  });
+
+  it('leaves the provisioned MCP client in place for a document that predates it', async () => {
+    const source = await fixture.createTenant(`mcp-old-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const older: TenantDocument = {
+      ...original,
+      clients: original.clients.filter((client) => client.client_id !== 'odudu-mcp'),
+      scopes: original.scopes.map((scope) => ({
+        ...scope,
+        clients: scope.clients.filter((entry) => entry.client_id !== 'odudu-mcp'),
+      })),
+    };
+    const name = `mcp-old-copy-${newId()}`;
+    const res = await postImport(token, { name, document: older });
+    expect(res.statusCode, res.payload).toBe(201);
+    const rows = await mcpClientRows((await tenantIdOf(name)) ?? '');
+    expect(rows.client).toMatchObject({ builtinMcp: true, enabled: true });
+    expect(rows.config).not.toBeNull();
   });
 
   it('carries a tenant’s languages and default across, and refuses a default outside the list', async () => {
@@ -450,6 +797,92 @@ describe('POST /admin/tenant-imports', () => {
       expect(res.statusCode, res.payload).toBe(201);
       expect(await stored((await tenantIdOf(name)) ?? '')).toHaveLength(500);
     });
+  });
+
+  it('counts only the clients an operator made against the max_clients it carries', async () => {
+    const source = await fixture.createTenant(`cap-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const base = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (base === undefined) throw new Error('fixture: a tenant exports no built-in MCP client');
+    const made = (n: number, origin: 'anonymous' | 'operator') => ({
+      ...base,
+      client_id: `${origin}-${String(n)}`,
+      registration_origin: origin,
+    });
+    const document = (clients: TenantDocument['clients']): TenantDocument => ({
+      ...original,
+      settings: { ...original.settings, max_clients: 2 },
+      clients,
+    });
+    const selfRegistered = [1, 2, 3].map((n) => made(n, 'anonymous'));
+    const ok = await postImport(token, {
+      name: `cap-ok-${newId()}`,
+      document: document([...original.clients, ...selfRegistered]),
+    });
+    expect(ok.statusCode, ok.payload).toBe(201);
+    const refused = await postImport(token, {
+      name: `cap-no-${newId()}`,
+      document: document([...original.clients, made(2, 'operator')]),
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.payload).toContain('max_clients is 2');
+  });
+
+  it('refuses a document holding more self-registered clients than the tenant admits', async () => {
+    const source = await fixture.createTenant(`wire-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const base = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (base === undefined) throw new Error('fixture: a tenant exports no built-in MCP client');
+    const selfRegistered = (count: number) =>
+      Array.from({ length: count }, (_, n) => ({
+        ...base,
+        client_id: `self-${String(n)}`,
+        registration_origin: 'anonymous' as const,
+      }));
+    const document = (count: number): TenantDocument => ({
+      ...original,
+      clients: [...original.clients, ...selfRegistered(count)],
+    });
+    const refused = await postImport(token, {
+      name: `wire-no-${newId()}`,
+      document: document(WIRE_CLIENTS_PER_TENANT + 1),
+    });
+    expect(refused.statusCode, refused.payload).toBe(400);
+    expect(refused.payload).toContain('document.clients');
+    expect(refused.payload).toContain(String(WIRE_CLIENTS_PER_TENANT + 1));
+    expect(refused.payload).toContain(String(WIRE_CLIENTS_PER_TENANT));
+    const ok = await postImport(token, {
+      name: `wire-ok-${newId()}`,
+      document: document(WIRE_CLIENTS_PER_TENANT),
+    });
+    expect(ok.statusCode, ok.payload).toBe(201);
+  });
+
+  it('refuses a self-registered client whose redirect address is not a URL', async () => {
+    const source = await fixture.createTenant(`bad-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const base = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (base === undefined) throw new Error('fixture: a tenant exports no built-in MCP client');
+    const refused = await postImport(token, {
+      name: `bad-${newId()}`,
+      document: {
+        ...original,
+        clients: [
+          ...original.clients,
+          {
+            ...base,
+            client_id: 'self-registered',
+            registration_origin: 'anonymous',
+            redirect_uris: ['not a url'],
+          },
+        ],
+      },
+    });
+    expect(refused.statusCode, refused.payload).toBe(400);
+    expect(refused.payload).toContain('.redirect_uris');
   });
 
   it('answers each confidential client a fresh secret that authenticates at /token', async () => {
@@ -688,6 +1121,108 @@ describe('POST /admin/tenant-imports', () => {
     const named = errors.find((error) => error.path === 'document.roles[0].composites');
     expect(named?.message).toContain(String(ASSIGNMENT_LIMIT + 1));
     expect(named?.message).toContain(String(ASSIGNMENT_LIMIT));
+  });
+
+  it('refuses a document that defines more roles than a tenant may, in the words a create is refused with', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const broken: TenantDocument = {
+      ...document,
+      roles: [
+        ...document.roles,
+        ...Array.from({ length: ROLE_LIMIT }, (_, n) => ({
+          name: `bulk-${String(n)}`,
+          client: null,
+          description: null,
+          default_for_new_subjects: false,
+          builtin: false,
+          composites: [],
+        })),
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    const named = errors.find((error) => error.path === 'document.roles');
+    expect(named?.message).toContain(roleLimitMessage());
+  });
+
+  it('counts the capability roles every tenant is provisioned with: exactly the limit in custom roles is too many', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const broken: TenantDocument = {
+      ...document,
+      roles: Array.from({ length: ROLE_LIMIT }, (_, n) => ({
+        name: `custom-${String(n)}`,
+        client: null,
+        description: null,
+        default_for_new_subjects: false,
+        builtin: false,
+        composites: [],
+      })),
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    expect(errors.find((error) => error.path === 'document.roles')?.message).toContain(
+      roleLimitMessage(),
+    );
+  });
+
+  it('counts a capability role the document carries once, so the limit is reached and not passed', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const custom = ROLE_LIMIT - document.roles.length;
+    const atTheLimit: TenantDocument = {
+      ...document,
+      roles: [
+        ...document.roles,
+        ...Array.from({ length: custom }, (_, n) => ({
+          name: `custom-${String(n)}`,
+          client: null,
+          description: null,
+          default_for_new_subjects: false,
+          builtin: false,
+          composites: [],
+        })),
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: atTheLimit });
+
+    expect(res.statusCode, res.payload.slice(0, 300)).toBe(201);
+  });
+
+  it('refuses a document that defines more groups than a tenant may, in the same words', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const broken: TenantDocument = {
+      ...document,
+      groups: [
+        ...document.groups,
+        ...Array.from({ length: GROUP_LIMIT }, (_, n) => ({
+          path: `/bulk-${String(n)}`,
+          description: null,
+          default_for_new_subjects: false,
+          roles: [],
+        })),
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    const named = errors.find((error) => error.path === 'document.groups');
+    expect(named?.message).toContain(groupLimitMessage());
   });
 
   it('refuses a document that defines more scopes than a tenant may', async () => {
@@ -1107,8 +1642,9 @@ describe('POST /admin/tenant-imports', () => {
     const source = await seededSource();
     const token = await operatorToken();
     const document = await exportOf(token, source.name);
-    // A description is bounded, so the bulk is many roles, each at the bound.
-    const padding = Array.from({ length: 1_100 }, (_, index) => ({
+    // A description is bounded, so the bulk is many roles and groups, each at the
+    // bound, and as many as a tenant may define.
+    const padding = Array.from({ length: ROLE_LIMIT - document.roles.length }, (_, index) => ({
       name: `padding-${String(index)}`,
       client: null,
       description: 'x'.repeat(1_000),
@@ -1116,7 +1652,17 @@ describe('POST /admin/tenant-imports', () => {
       builtin: false,
       composites: [],
     }));
-    const padded = { ...document, roles: [...document.roles, ...padding] };
+    const groupPadding = Array.from({ length: 1_000 }, (_, index) => ({
+      path: `/padding-${String(index)}`,
+      description: 'x'.repeat(1_000),
+      default_for_new_subjects: false,
+      roles: [],
+    }));
+    const padded = {
+      ...document,
+      roles: [...document.roles, ...padding],
+      groups: [...document.groups, ...groupPadding],
+    };
 
     const res = await postImport(token, { name: `import-${newId()}`, document: padded });
 

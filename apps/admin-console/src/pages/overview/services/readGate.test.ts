@@ -44,6 +44,7 @@ describe('which reads the overview asks for', () => {
       discovery: false,
       subjects: false,
       clients: false,
+      operatorClients: false,
       groups: false,
       roles: false,
       scopes: false,
@@ -74,6 +75,7 @@ describe('which reads the overview asks for', () => {
       smtp: true,
       audit: true,
       clients: true,
+      operatorClients: true,
       subjects: false,
     });
   });
@@ -82,6 +84,7 @@ describe('which reads the overview asks for', () => {
     expect(readCapability('discovery', areaOf)).toBeNull();
     expect(readCapability('jwks', areaOf)).toBeNull();
     expect(readCapability('audit', areaOf)).toBe('view-audit');
+    expect(readCapability('operatorClients', areaOf)).toBe('manage-clients');
     expect(readCapability('smtp', areaOf)).toBe('manage-tenant');
   });
 });

@@ -5,6 +5,7 @@ import { clientScopeAssignmentViewSchema } from '#/admin/scopes';
 import {
   createdAtSchema,
   cursorQuerySchema,
+  booleanFlagSchema,
   enabledFilterSchema,
   idSchema,
   localisedTextSchema,
@@ -12,7 +13,13 @@ import {
 } from '#/admin/shared';
 
 export const clientTypeSchema = z.enum(['public', 'confidential']);
-export const registrationOriginSchema = z.enum(['seeded', 'anonymous', 'token', 'operator']);
+export const registrationOriginSchema = z.enum([
+  'seeded',
+  'anonymous',
+  'token',
+  'operator',
+  'cimd',
+]);
 
 // What the `ETag` is taken over: the stored fields alone.
 export const clientFieldsSchema = z.object({
@@ -49,6 +56,8 @@ export const clientFieldsSchema = z.object({
   backchannel_logout_session_required: z.boolean(),
   consent_required: z.boolean(),
   token_exchange_impersonation_allowed: z.boolean(),
+  token_exchange_allowed_for_public: z.boolean(),
+  token_exchange_actor_from_other_client: z.boolean(),
   userinfo_signed_response_alg: z.string().nullable(),
   userinfo_encrypted_response_alg: z.string().nullable(),
   userinfo_encrypted_response_enc: z.string().nullable(),
@@ -122,6 +131,7 @@ const clientFilters = {
   name: searchPrefixSchema.optional(),
   type: clientTypeSchema.optional(),
   enabled: enabledFilterSchema.optional(),
+  counts_toward_max_clients: booleanFlagSchema.optional(),
 };
 // Addressed to the second field, the one a caller adds to an existing search.
 const oneClientSearchRule = {

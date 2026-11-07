@@ -6,14 +6,14 @@ import {
   type NewClientScope,
 } from '#/repository/client-scopes';
 
-interface DefaultScope {
+export interface DefaultScope {
   scope: Omit<NewClientScope, 'tenantId'>;
   // 'default' pre-approves a scope the way P1 always has; 'optional' is
   // what lets P3's consent screen tell a pre-approved scope from one the
   // user must see and approve separately. `offline_access` is the one
   // scope here where that distinction matters — a credential a logout
   // cannot end is not something to pre-approve silently.
-  assignment: ClientScopeAssignment;
+  assignment: ClientScopeAssignment | null;
 }
 
 // A scope is a promise about claims, and discovery advertises every scope a
@@ -24,7 +24,7 @@ interface DefaultScope {
 // not a resource server named in `aud`. `offline_access` is the exception:
 // it maps no claims, because it asks for a grant shape, not data — see
 // docs/protocols/oidc-backchannel.md §2.7.
-const DEFAULT_SCOPES: readonly DefaultScope[] = [
+export const DEFAULT_SCOPES: readonly DefaultScope[] = [
   { scope: { name: 'openid', includeInAccessToken: false }, assignment: 'default' },
   { scope: { name: 'profile', includeInAccessToken: false }, assignment: 'default' },
   { scope: { name: 'email', includeInAccessToken: false }, assignment: 'default' },
@@ -35,6 +35,28 @@ const DEFAULT_SCOPES: readonly DefaultScope[] = [
   {
     scope: { name: 'offline_access', includeInAccessToken: false, includeInIdToken: false },
     assignment: 'optional',
+  },
+  // Asked for at a tenant's MCP endpoint and the admin API it calls, and
+  // refused at every other audience (service/mcp-scopes.ts in protocol-oidc).
+  // Assigned to no client: an MCP client is given them on purpose. What a person
+  // is shown at consent is the page catalogue's (consent.scope.mcpRead). The same
+  // rows are backfilled into existing tenants by 0113_mcp_scopes.sql.
+  {
+    scope: {
+      name: 'mcp:read',
+      includeInIdToken: false,
+      description:
+        'Read the tenant through an MCP client: its settings and records, nothing changed.',
+    },
+    assignment: null,
+  },
+  {
+    scope: {
+      name: 'mcp:write',
+      includeInIdToken: false,
+      description: 'Change the tenant through an MCP client, with a short-lived access token.',
+    },
+    assignment: null,
   },
 ];
 
@@ -106,10 +128,13 @@ export async function restoreBuiltinScopes(
   if ((await repository.countUpTo(SCOPE_LIMIT)) + missing.length > SCOPE_LIMIT) {
     return { kind: 'scope_limit' };
   }
-  // Every built-in is marked for new clients, so the whole set must fit under
-  // that ceiling before the first row is written: nothing is committed on a refusal.
+  // Each missing built-in that is marked for new clients must fit under that
+  // ceiling before the first row is written: nothing is committed on a refusal.
+  const markedMissing = DEFAULT_SCOPES.filter(
+    ({ scope, assignment }) => assignment !== null && missing.includes(scope.name),
+  ).length;
   const marked = await repository.countDefaultsUpTo(tenantId, CLIENT_SCOPE_LIMIT);
-  if (marked + missing.length > CLIENT_SCOPE_LIMIT) {
+  if (marked + markedMissing > CLIENT_SCOPE_LIMIT) {
     return { kind: 'default_scope_limit', message: defaultScopeLimitMessage() };
   }
   for (const defaultScope of DEFAULT_SCOPES) {

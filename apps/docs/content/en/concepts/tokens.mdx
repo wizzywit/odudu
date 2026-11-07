@@ -42,6 +42,8 @@ An access token that lives five minutes would mean signing in every five minutes
 
 It lives 14 days by default, and **it works once**. Each refresh gives back a new refresh token and uses up the old one. Store the new one.
 
+A grant that holds `mcp:write` is the exception. Its access token lives ten minutes at most, whatever the tenant or client sets, and it is issued with no refresh token, so the person signs in again to keep writing. Asking for `offline_access` beside `mcp:write` is not an error; it is ignored. A refresh token cannot widen a grant to `mcp:write`, and exchanging a write token for a refresh token is refused with `invalid_scope`.
+
 ## A refresh token used twice
 
 Suppose a thief copies a refresh token. Both of you now hold the same string, and only one of you can use it first. Whoever comes second sends a token that has already been used. Odudu cannot tell which of you is the thief. It refuses the call and revokes the whole family: every token from that sign-in, including the one the honest app was about to use. The honest app finds out on its next refresh, signs the person in again, and the thief is left with nothing.
@@ -52,7 +54,11 @@ Each client can set its own access and refresh lifetimes, with `access_token_ttl
 
 ## Machines have tokens too
 
-A service with no person involved asks for an access token with its own secret and receives one whose subject is the client's own service account. There is no ID token and no refresh token, because nobody signed in. See [Call an API as a service](../guides/machine-to-machine.md).
+A service with no person involved asks for an access token with its own secret and receives one whose subject is the client's own service account, which a client has only while it holds that grant. There is no ID token and no refresh token, because nobody signed in. See [Call an API as a service](../guides/machine-to-machine.md).
+
+## Tokens for an agent
+
+An AI agent reaches a tenant's MCP endpoint, `/tenants/{tenant}/mcp`, with an access token whose `aud` is that address, and it gets one only for a client the tenant allowed it. The scopes `mcp:read` and `mcp:write` mean something only at that address and at the admin API. The endpoint never passes your token on. For each tool call it signs another token in-process: the subject is the person, an `act` claim names the agent's client, the scope is cut to what that call needs, and it lives 300 seconds at most. The admin API sees the call as the agent's and the person's own capabilities decide it. [Connect Claude](../guides/connect-claude.md) shows the sign-in.
 
 ## Working with tokens
 

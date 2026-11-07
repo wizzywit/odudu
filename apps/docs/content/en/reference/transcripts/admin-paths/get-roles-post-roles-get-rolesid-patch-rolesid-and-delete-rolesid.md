@@ -321,3 +321,250 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0ee91-6bf2-708d-839a-f58481e120e8"}
 {"items":[{"id":"01a17b00-fab5-79b4-ac4b-85cf3c61ac0d","occurred_at":"2026-10-27T01:37:04.180Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a17aee-035a-7fbd-b91e-5d1bf526e06a","actor_subject_id":"01a17b00-f2ad-73d0-9614-632615bd007d","actor_client_id":"01a17aee-036f-79c1-9d61-075c9eb9f690","actor_name":"kai","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":"01a0ee91-6bf2-708d-839a-f58481e120e8","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"manage-tenant","also_admits":["view-users"]}}],"next":"eyJhZnRlciI6IjIwMjYtMTAtMjdUMDE6Mzc6MDQuMTgwWnwwMWExN2IwMC1mYWI1LTc5YjQtYWM0Yi04NWNmM2M2MWFjMGQiLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6IjAxYTE3YWVlLTAzNWEtN2ZiZC1iOTFlLTVkMWJmNTI2ZTA2YSIsImZpbHRlcnMiOiJzV3pnMmJuM3FLa3djU0htSGVxS1gyYlZ5VlA3Tl8wRWdhSmI3Si1TeWRrIn0.p7U0bK0GfLYBChgI0CUD3PbRR6ClAVOiDVsLOoDqPTw"}
 ```
+
+## Retrying a create with an Idempotency-Key
+
+An agent or a script that never hears an answer cannot tell whether a create arrived, and sending it again may
+create the role twice. The `POST` routes therefore take an `Idempotency-Key` header (all but the few below) (1 to 255 letters, digits and
+`_ . : -`; a UUID is the usual choice). The first call with a key runs. A repeat of it within 24 hours is answered with
+the same status, the same body and the same `ETag`, marked `Idempotent-Replayed: true`, without running again and
+without a second audit row. The record is written in the transaction of the call it records, so one exists only for a
+call that happened. A key belongs to its tenant, its route and the caller that first used it. These blocks ran on a
+freshly built compose stack in a tenant `idem-demo` made for them (`POST /admin/tenants`), with a token got as in
+[Getting the token](./getting-the-token.md); first the call:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 6f9c1c2e-6a0e-4b8a-9c1e-2d7b1e0a5f01" \
+  -d '{"name": "billing-viewer", "description": "read-only access to invoices"}' \
+  http://localhost:3000/admin/tenants/idem-demo/roles
+```
+
+```
+HTTP/1.1 201 Created
+x-request-id: 01a1adf9-2c62-7d1d-904f-9e5d86372bcf
+cache-control: no-store
+etag: "3d09ecc5d47b8ac57c8f0558a6970fdb6134e98a752311a818d0b3eb5c5c9780"
+content-type: application/json; charset=utf-8
+content-length: 239
+Date: Thu, 05 Nov 2026 23:09:10 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a1adf9-2c73-7ce6-b8aa-37bf1c28cadd","name":"billing-viewer","description":"read-only access to invoices","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-11-05T23:09:10.639Z","admin_reach":[]}
+```
+
+And the same command again, as a client that lost the answer would send it. The status, the `etag` and the body are
+the first call's, `idempotent-replayed` is the only new header, and `created_at` is still the first call's instant:
+
+```
+HTTP/1.1 201 Created
+x-request-id: 01a1adf9-2c85-72a2-b327-682418d54851
+cache-control: no-store
+etag: "3d09ecc5d47b8ac57c8f0558a6970fdb6134e98a752311a818d0b3eb5c5c9780"
+content-type: application/json; charset=utf-8
+idempotent-replayed: true
+content-length: 239
+Date: Thu, 05 Nov 2026 23:09:10 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a1adf9-2c73-7ce6-b8aa-37bf1c28cadd","name":"billing-viewer","description":"read-only access to invoices","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-11-05T23:09:10.639Z","admin_reach":[]}
+```
+
+One role exists and one `role.create` audit row was written:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/idem-demo/roles?name=billing"
+docker compose exec -T postgres psql -U odudu -d odudu -c "select count(*) as role_create_rows from audit_events e join tenants t on t.id = e.tenant_id where t.name = 'idem-demo' and e.action = 'role.create';"
+```
+
+```
+{"items":[{"id":"01a1adf9-2c73-7ce6-b8aa-37bf1c28cadd","name":"billing-viewer","description":"read-only access to invoices","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-11-05T23:09:10.639Z","admin_reach":[]}]}
+ role_create_rows
+------------------
+                1
+(1 row)
+```
+
+The same key with a different body is refused with `422` and nothing is applied, so a client that reuses a key by
+mistake finds out instead of being told its new request succeeded. A key presented by another caller is refused the
+same way, never answered with the first caller's response:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 6f9c1c2e-6a0e-4b8a-9c1e-2d7b1e0a5f01" \
+  -d '{"name": "billing-admin"}' \
+  http://localhost:3000/admin/tenants/idem-demo/roles
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/idem-demo/roles?name=billing-admin"
+```
+
+```
+HTTP/1.1 422 Unprocessable Entity
+x-request-id: 01a1adf9-2d7e-79a0-8d07-26c7bb15196f
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 238
+Date: Thu, 05 Nov 2026 23:09:10 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank#idempotency-key-reused","title":"Unprocessable Content","status":422,"detail":"this Idempotency-Key was used for a different request; use a new key for a new request","instance":"01a1adf9-2d7e-79a0-8d07-26c7bb15196f"}
+{"items":[]}
+```
+
+A refusal or a failure is not kept, so a retry runs: a create of a name that already exists is refused with `409`
+whatever the key, and only the first call's row is in the table below. A key that is empty, over 255 characters or
+holds other characters is `400` (`about:blank#idempotency-key-invalid`) before anything runs:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 0b7d3a64-93f4-4d5c-8a2e-5e6d1f3c7a10" \
+  -d '{"name": "billing-viewer"}' \
+  http://localhost:3000/admin/tenants/idem-demo/roles
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: not a key" \
+  -d '{"name": "billing-admin"}' \
+  http://localhost:3000/admin/tenants/idem-demo/roles
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a1adf9-2da8-7d0b-95dd-a049a3e0f4d8
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 161
+Date: Thu, 05 Nov 2026 23:09:10 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the name \"billing-viewer\" is already in use","instance":"01a1adf9-2da8-7d0b-95dd-a049a3e0f4d8"}
+
+HTTP/1.1 400 Bad Request
+x-request-id: 01a1adf9-2dc0-74fc-86a1-fecd40608b76
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 231
+Date: Thu, 05 Nov 2026 23:09:10 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank#idempotency-key-invalid","title":"Bad Request","status":400,"detail":"Idempotency-Key must be one value of 1 to 255 letters, digits and the characters _ . : -","instance":"01a1adf9-2dc0-74fc-86a1-fecd40608b76"}
+```
+
+A route whose response carries a secret shown once (creating a client, rotating its secret, minting a registration
+token, issuing a password, importing a tenant) takes no key. The server never stores such a body, and running the
+call again would mint a second secret, so a request naming one is refused with `400`
+(`about:blank#idempotency-unsupported`) and nothing is applied; the same request without the header runs as it
+always has:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 5d0c9a1e-2b7f-4f0a-b2a9-3c1d8e6f4a22" \
+  -d '{"uses": 1, "ttl_seconds": 3600}' \
+  http://localhost:3000/admin/tenants/idem-demo/registration-tokens
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a1adf9-2dd6-722b-995b-5adb55849d30
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 264
+Date: Thu, 05 Nov 2026 23:09:11 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank#idempotency-unsupported","title":"Bad Request","status":400,"detail":"this route answers with a secret shown once, which is never stored, so it takes no Idempotency-Key; repeat it without one","instance":"01a1adf9-2dd6-722b-995b-5adb55849d30"}
+```
+
+What the server kept, read as the database owner and scoped to the tenant: one row, for the one call that
+succeeded, kept for a day. It was read straight after the blocks above and before the refusals below,
+which is the only state those blocks leave.
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c "select k.key, k.route, k.response_status, k.expires_at - k.created_at as kept_for from idempotency_keys k join tenants t on t.id = k.tenant_id where t.name = 'idem-demo';"
+```
+
+```
+                 key                  |               route               | response_status | kept_for
+--------------------------------------+-----------------------------------+-----------------+----------
+ 6f9c1c2e-6a0e-4b8a-9c1e-2d7b1e0a5f01 | POST /admin/tenants/:tenant/roles |             201 | 1 day
+(1 row)
+```
+
+Creating a tenant takes no key either, for a different reason: it writes outside the transaction a record of the call would
+share, so a record could not prove the call happened. It is refused with `400` (`about:blank#idempotency-not-atomic`) and
+creates nothing; a repeat of a create that already happened is answered `409`. This one ran on a second freshly built stack,
+`odudu-p5a-i6b`, with a token got as above:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 3e2f8a10-5c4b-4d7e-9f61-0a8b7c6d5e41" \
+  -d '{"name": "idem-demo"}' \
+  http://localhost:3000/admin/tenants
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a1ae19-add4-7c3e-b9a0-4f4c17ef1133
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 296
+Date: Thu, 05 Nov 2026 23:44:40 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank#idempotency-not-atomic","title":"Bad Request","status":400,"detail":"this route writes outside the transaction a record would share, so it takes no Idempotency-Key; a repeat of a create that already happened is answered 409","instance":"01a1ae19-add4-7c3e-b9a0-4f4c17ef1133"}
+```
+
+A route that waits on another server while it runs (testing a tenant's mail relay, verifying a domain's DNS record) takes no
+key either: a slow host would hold the call, its database connection and one of the few places keyed calls run in, so it is
+refused with `400` (`about:blank#idempotency-external-io`) and nothing is applied. This ran on a third freshly built stack,
+`odudu-p5a-i6c`, in a tenant `idem-demo` made there:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 7b1d4c92-0e3a-4f58-8d6c-2a9e5f1b3c70" \
+  -d '{"to": "ops@example.com"}' \
+  http://localhost:3000/admin/tenants/idem-demo/smtp/test
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a1ae31-ea34-7bf9-9f3c-b83885198fcc
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 319
+Date: Fri, 06 Nov 2026 00:11:09 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank#idempotency-external-io","title":"Bad Request","status":400,"detail":"this route waits on another server (mail or DNS) while it runs, which a record cannot cover without holding the call open, so it takes no Idempotency-Key; repeat it without one","instance":"01a1ae31-ea34-7bf9-9f3c-b83885198fcc"}
+```
+
+A `PUT`, a `PATCH` and a `DELETE` ignore the header, since repeating one lands where the first did. A repeat of
+a call that carried `If-Match` is answered from the record before the `If-Match` is read again, which is the point:
+the first call changed the version the header named, so without the record the retry would be refused with `412`.
+A tenant holds at most 10,000 keys that have not expired, past which a new key is refused with `429`
+(`about:blank#idempotency-capacity`), and a response over 64 KiB is refused with `422`
+(`about:blank#idempotency-response-too-large`) and undone. Two calls with one key at the same instant are not
+shown here, since which of them meets the other is a matter of timing: the one that arrives while the first runs is
+answered `409` (`about:blank#idempotency-in-flight`), and the next is replayed. A stored response is a copy of the one sent, kept 24 hours; it can hold subject data and erasing the subject does not purge it; the integration tests hold a call
+open to show it. [Retention](../request-paths/retention-what-odudu-reap-removes.md) shows the keys being deleted.

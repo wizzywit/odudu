@@ -73,7 +73,9 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'groups.groups_name_has_no_slash': "CHECK (((name !~ '/'::text) AND (name <> ''::text)))",
   'groups.groups_path_is_absolute': "CHECK ((path ~~ '/%'::text))",
   'clients.clients_registration_origin_check':
-    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text, 'operator'::text])))",
+    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text, 'operator'::text, 'cimd'::text])))",
+  'clients.clients_metadata_used_for_cimd':
+    "CHECK (((registration_origin = 'cimd'::text) = (metadata_used_at IS NOT NULL)))",
   'clients.clients_secret_matches_type':
     "CHECK (((type <> 'public'::text) OR (secret_hash IS NULL)))",
   'clients.clients_type_check':
@@ -81,7 +83,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'tenants.tenants_brute_force_bounds':
     'CHECK ((((brute_force_max_failures >= 1) AND (brute_force_max_failures <= 100)) AND ((brute_force_lockout_seconds >= 1) AND (brute_force_lockout_seconds <= 86400)) AND (brute_force_max_lockout_seconds >= brute_force_lockout_seconds) AND ((brute_force_failure_reset_seconds >= 60) AND (brute_force_failure_reset_seconds <= 2592000))))',
   'tenants.tenants_client_registration_policy_check':
-    "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text])))",
+    "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text, 'mcp'::text])))",
   'tenants.tenants_max_clients_range': 'CHECK ((max_clients >= 0))',
   'tenants.tenants_max_sessions_per_browser_range':
     'CHECK (((max_sessions_per_browser >= 1) AND (max_sessions_per_browser <= 32)))',
@@ -131,6 +133,21 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((zoneinfo IS NULL) OR (zoneinfo ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text)))",
   'client_oidc_config.client_oidc_config_id_token_ttl_ceiling':
     'CHECK (((id_token_ttl_seconds >= 1) AND (id_token_ttl_seconds <= 3600)))',
+  'idempotency_keys.idempotency_keys_fingerprint_shape':
+    "CHECK ((fingerprint ~ '^[0-9a-f]{64}$'::text))",
+  'idempotency_keys.idempotency_keys_key_length':
+    'CHECK (((length(key) >= 1) AND (length(key) <= 255)))',
+  'idempotency_keys.idempotency_keys_response_body_size':
+    'CHECK ((octet_length(response_body) <= 65536))',
+  'idempotency_keys.idempotency_keys_response_headers_size':
+    'CHECK ((octet_length((response_headers)::text) <= 8192))',
+  'idempotency_keys.idempotency_keys_response_status':
+    'CHECK (((response_status >= 200) AND (response_status <= 299)))',
+  'idempotency_keys.idempotency_keys_route_length': 'CHECK ((length(route) <= 512))',
+  'idempotency_keys.idempotency_keys_status': "CHECK ((status = 'completed'::text))",
+  'idempotency_keys.idempotency_keys_window': 'CHECK ((expires_at > created_at))',
+  'client_metadata_cache.client_metadata_cache_body_size': 'CHECK ((length((body)::text) <= 8192))',
+  'client_metadata_cache.client_metadata_cache_url_length': 'CHECK ((length(url) <= 2048))',
   'tenant_domains.tenant_domains_canonical_is_verified':
     "CHECK (((NOT canonical) OR (state = 'verified'::text)))",
   'tenant_domains.tenant_domains_failed_checks_floor': 'CHECK ((failed_checks >= 0))',

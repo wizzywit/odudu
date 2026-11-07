@@ -57,6 +57,25 @@ export const clients = pgTable('clients', {
   // Off for every client but the console's own; set only through the admin
   // API (packages/db/drizzle/0106_clients_skip_logout_confirmation.sql).
   skipLogoutConfirmation: boolean('skip_logout_confirmation').notNull().default(false),
+  // Marks the public client every tenant is provisioned with for MCP
+  // clients (`MCP_CLIENT_ID`). At most one true per tenant
+  // (clients_one_builtin_mcp); provisioning adopts a client by this column,
+  // never by the client_id alone.
+  builtinMcp: boolean('builtin_mcp').notNull().default(false),
+  // The last time the client's metadata document was resolved; set exactly
+  // for registration_origin 'cimd' (clients_metadata_used_for_cimd), and what
+  // `reap` ages such a client out by.
+  metadataUsedAt: timestamp('metadata_used_at', { withTimezone: true }),
+  // When a person first approved the client; never cleared, so withdrawing the
+  // approval does not make a self-registered client look unused to `reap`
+  // (packages/db/drizzle/0119_clients_approved_at.sql).
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  // True for a client that holds a service account without the
+  // client_credentials grant: left standing by the migration that stopped
+  // giving every confidential client one, because something still names the
+  // account. Cleared the moment the pointer changes
+  // (packages/db/drizzle/0122_service_accounts_by_grant.sql).
+  serviceAccountIdle: boolean('service_account_idle').notNull().default(false),
   // Search keys, in the C collation, filled by the database
   // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
   clientIdSearch: text('client_id_search').generatedAlwaysAs(sql`lower(client_id)`),
@@ -84,7 +103,9 @@ export interface ClientRecord {
   createdAt: Date;
   serviceSubjectId: string | null;
   fullScopeAllowed: boolean;
-  registrationOrigin: 'seeded' | 'anonymous' | 'token' | 'operator';
+  registrationOrigin: 'seeded' | 'anonymous' | 'token' | 'operator' | 'cimd';
   builtinAdmin: boolean;
   skipLogoutConfirmation: boolean;
+  builtinMcp: boolean;
+  metadataUsedAt: Date | null;
 }

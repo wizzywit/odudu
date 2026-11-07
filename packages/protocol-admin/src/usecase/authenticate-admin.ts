@@ -1,7 +1,9 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
-import { ADMIN_API_AUDIENCE, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, holdsMcpScope, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import {
+  extractBearerToken,
+  narrowActClaim,
   tenantIssuer,
   type AcceptedIssuersLookup,
   type TenantLookup,
@@ -11,7 +13,25 @@ import {
 export interface AdminPrincipal {
   readonly subjectId: string;
   readonly issuerTenantId: string;
+  // The name of that tenant, as the token's issuer resolved it.
+  readonly issuerTenantName: string;
   readonly clientDbId: string;
+  // The token's `scope` claim, split; empty when it carries none.
+  readonly scopes: readonly string[];
+  // Present when the token was minted for an AI agent acting for `subjectId`.
+  readonly agent?: AdminAgent;
+}
+
+export interface AdminAgent {
+  readonly clientId: string;
+  readonly ownerSubjectId: string;
+  // Set when the token carries the marker only the MCP endpoint signs (`via` is
+  // `mcp`, beside `act`): the endpoint records the call itself. `act` alone is
+  // not it, since a token exchange makes act tokens too.
+  readonly viaEndpoint?: true;
+  // Set when the owner is the client's own service account: no person signed in to
+  // that grant, so nothing counts what it creates against anybody's sign-in.
+  readonly ownerIsServiceAccount?: true;
 }
 
 // A genuine token from another tenant of this deployment, presented at a
@@ -33,7 +53,18 @@ export type AdminAuthOutcome =
       // Why a foreign issuer could not be resolved, for the log alone: the
       // response is the same plain refusal whatever it was.
       foreignIssuerError?: unknown;
-    };
+    }
+  // An agent token is the owner's identity narrowed to what its MCP scope
+  // grants; one holding no MCP scope has nothing to narrow it and is refused.
+  | { kind: 'forbidden'; reason: 'agent_without_mcp_scope'; principal: AdminPrincipal };
+
+export interface ClientState {
+  readonly enabled: boolean;
+  readonly builtinMcp: boolean;
+  readonly builtinAdmin: boolean;
+  // The client's service account, when it has one.
+  readonly serviceSubjectId?: string | null;
+}
 
 export interface AuthenticateAdminDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -45,7 +76,8 @@ export interface AuthenticateAdminDeps {
     lifespans: SessionLifespans,
     now: Date,
   ): Promise<boolean>;
-  isClientEnabled(tenantId: string, clientDbId: string): Promise<boolean>;
+  // `builtinMcp` is the `builtin_mcp` marker, never the client_id string.
+  loadClientState(tenantId: string, clientDbId: string): Promise<ClientState | null>;
   isSubjectEnabled(tenantId: string, subjectId: string): Promise<boolean>;
   // The issuers a token for this tenant may carry: its canonical address and
   // any it left whose window is open, the set /userinfo checks against.
@@ -73,18 +105,10 @@ export interface AuthenticateAdminInput {
   now: Date;
 }
 
-const BEARER_PATTERN = /^Bearer\s+(.+)$/iu;
-
-function extractBearerToken(header: string | undefined): string | undefined {
-  const match = header === undefined ? null : BEARER_PATTERN.exec(header);
-  const token = match?.[1];
-  return token !== undefined && token.length > 0 ? token : undefined;
-}
-
 // Read before the signature verifies, only to decide which tenant's keys
 // to verify against (spec §7 step 1) — trusted for nothing else, and
 // re-read from the verified payload once the signature checks out.
-function unverifiedIssuer(token: string): string | undefined {
+export function unverifiedIssuer(token: string): string | undefined {
   const segments = token.split('.');
   const segment = segments[1];
   if (segments.length !== 3 || segment === undefined || segment.length === 0) return undefined;
@@ -103,8 +127,9 @@ function unauthenticated(reason: string): AdminAuthOutcome {
   return { kind: 'unauthenticated', reason };
 }
 
-interface MatchedTenant {
+export interface MatchedTenant {
   readonly id: string;
+  readonly name: string;
   readonly lifespans: SessionLifespans;
 }
 
@@ -155,7 +180,7 @@ async function matchIssuer(
 
   const tenant = name === input.targetTenantName ? input.targetTenant : await deps.findTenant(name);
   if (!tenant?.enabled) return undefined;
-  return { id: tenant.id, lifespans: lifespansOf(tenant) };
+  return { id: tenant.id, name, lifespans: lifespansOf(tenant) };
 }
 
 function bareOriginHost(iss: string): string | undefined {
@@ -169,7 +194,7 @@ function bareOriginHost(iss: string): string | undefined {
 
 async function foreignTenantName(
   deps: AuthenticateAdminDeps,
-  input: AuthenticateAdminInput,
+  input: Pick<AuthenticateAdminInput, 'issuerBase' | 'now'>,
   iss: string,
 ): Promise<string | undefined> {
   const prefix = tenantIssuer(input.issuerBase, '');
@@ -184,11 +209,13 @@ async function foreignTenantName(
 
 // Resolves an issuer neither of the two above, only to learn whether a
 // tenant here really signed it. The answer changes no response.
-async function resolveForeignIssuer(
+export async function resolveForeignIssuer(
   deps: AuthenticateAdminDeps,
-  input: AuthenticateAdminInput,
+  input: Pick<AuthenticateAdminInput, 'issuerBase' | 'now'>,
   token: string,
   iss: string,
+  // What the foreign tenant's own token for this door names as its audience.
+  audience: string = ADMIN_API_AUDIENCE,
 ): Promise<ForeignIssuer | undefined> {
   const name = await foreignTenantName(deps, input, iss);
   if (name === undefined) return undefined;
@@ -202,7 +229,7 @@ async function resolveForeignIssuer(
     payload = await verifyJwt(token, {
       keys,
       issuer: iss,
-      audience: ADMIN_API_AUDIENCE,
+      audience,
       typ: 'at+jwt',
     });
   } catch {
@@ -216,6 +243,101 @@ async function resolveForeignIssuer(
       ? await deps.loadGrant(tenant.id, grantId)
       : null;
   return { issuerTenantId: tenant.id, subjectId: payload.sub, clientDbId: grant?.clientId ?? null };
+}
+
+function readScopes(value: unknown): readonly string[] | undefined {
+  if (value === undefined) return [];
+  if (typeof value !== 'string') return undefined;
+  return value.split(' ').filter((scope) => scope.length > 0);
+}
+
+interface AgentClaims {
+  readonly scopes: readonly string[];
+  readonly actorClientId: string | undefined;
+  readonly endpointMinted: boolean;
+}
+
+// `undefined` when `scope` or `act` is present and malformed: a claim that
+// narrows what a token may do is refused when unreadable, never ignored.
+function readAgentClaims(payload: Record<string, unknown>): AgentClaims | undefined {
+  const scopes = readScopes(payload.scope);
+  if (scopes === undefined) return undefined;
+  if (payload.act === undefined) return { scopes, actorClientId: undefined, endpointMinted: false };
+  const act = narrowActClaim(payload.act);
+  return act === null
+    ? undefined
+    : { scopes, actorClientId: act.sub, endpointMinted: payload.via === 'mcp' };
+}
+
+// The claims of an access token this tenant signed for `audience`, or null for
+// any reason it does not verify: signature, `typ`, issuer, audience, expiry.
+// The tenant's keys are read before the token is, so a database failure is
+// not mistaken for a bad token.
+export async function verifyTenantAccessToken(
+  deps: Pick<AuthenticateAdminDeps, 'listPublishableKeys'>,
+  tenantId: string,
+  token: string,
+  expected: { readonly issuers: readonly string[]; readonly audience: string },
+): Promise<Record<string, unknown> | null> {
+  const keys = await deps.listPublishableKeys(tenantId);
+  try {
+    return await verifyJwt(token, {
+      keys,
+      issuer: expected.issuers,
+      audience: expected.audience,
+      typ: 'at+jwt',
+    });
+  } catch {
+    return null;
+  }
+}
+
+export type GrantLiveness =
+  | { readonly kind: 'live'; readonly grant: TokenGrantRecord; readonly client: ClientState }
+  | { readonly kind: 'refused'; readonly reason: string };
+
+export type GrantLivenessDeps = Pick<
+  AuthenticateAdminDeps,
+  'loadGrant' | 'isSessionLive' | 'loadClientState' | 'isSubjectEnabled'
+>;
+
+// Whether what a verified access token stands on is still there: its grant
+// not revoked, its session not ended, its client and its subject enabled.
+// One decision for every door that accepts a token this server issued, so
+// ending any of them ends the token at all of them at once. A grant of a
+// client_credentials client has no session, which is not a dead one.
+export async function checkGrantLiveness(
+  deps: GrantLivenessDeps,
+  tenant: MatchedTenant,
+  payload: Record<string, unknown>,
+  subjectId: string,
+  now: Date,
+): Promise<GrantLiveness> {
+  const grantId = payload.grant_id;
+  if (typeof grantId !== 'string' || grantId.length === 0) {
+    return { kind: 'refused', reason: 'invalid_token' };
+  }
+  const grant = await deps.loadGrant(tenant.id, grantId);
+  if (grant?.revokedAt !== null) return { kind: 'refused', reason: 'invalid_grant' };
+
+  if (grant.sessionId !== null) {
+    const sid = payload.sid;
+    if (typeof sid !== 'string' || sid.length === 0) {
+      return { kind: 'refused', reason: 'invalid_token' };
+    }
+    const live = await deps.isSessionLive(tenant.id, sid, tenant.lifespans, now);
+    if (!live) return { kind: 'refused', reason: 'dead_session' };
+  }
+
+  const client = await deps.loadClientState(tenant.id, grant.clientId);
+  if (client?.enabled !== true) return { kind: 'refused', reason: 'client_disabled' };
+
+  // Disabling a subject ends nothing it holds, so an access token issued
+  // before is refused here rather than living out its lifetime.
+  if (!(await deps.isSubjectEnabled(tenant.id, subjectId))) {
+    return { kind: 'refused', reason: 'subject_disabled' };
+  }
+  return { kind: 'live', grant, client };
 }
 
 export async function authenticateAdmin(
@@ -258,34 +380,44 @@ export async function authenticateAdmin(
     return unauthenticated('invalid_token');
   }
 
-  const grantId = payload.grant_id;
-  if (typeof grantId !== 'string' || grantId.length === 0) {
+  const claims = readAgentClaims(payload);
+  if (claims === undefined) return unauthenticated('invalid_token');
+
+  const live = await checkGrantLiveness(deps, matched, payload, payload.sub, input.now);
+  if (live.kind === 'refused') return unauthenticated(live.reason);
+  const { grant, client } = live;
+
+  const holdsScope = holdsMcpScope(claims.scopes);
+  const isAgent = claims.actorClientId !== undefined || holdsScope || client.builtinMcp;
+
+  const base = {
+    subjectId: payload.sub,
+    issuerTenantId: matched.id,
+    issuerTenantName: matched.name,
+    clientDbId: grant.clientId,
+    scopes: claims.scopes,
+  };
+  if (!isAgent) return { kind: 'authenticated', principal: base };
+  if (!holdsScope) {
+    return { kind: 'forbidden', reason: 'agent_without_mcp_scope', principal: base };
+  }
+
+  const clientId = claims.actorClientId ?? payload.client_id;
+  if (typeof clientId !== 'string' || clientId.length === 0) {
     return unauthenticated('invalid_token');
   }
-  const grant = await deps.loadGrant(matched.id, grantId);
-  if (grant?.revokedAt !== null) return unauthenticated('invalid_grant');
-
-  // A client_credentials grant has no session at all, which is not a dead
-  // one: a service account is refused here only if its grant is revoked,
-  // its client disabled or its subject disabled.
-  if (grant.sessionId !== null) {
-    const sid = payload.sid;
-    if (typeof sid !== 'string' || sid.length === 0) return unauthenticated('invalid_token');
-    const live = await deps.isSessionLive(matched.id, sid, matched.lifespans, input.now);
-    if (!live) return unauthenticated('dead_session');
-  }
-
-  const enabled = await deps.isClientEnabled(matched.id, grant.clientId);
-  if (!enabled) return unauthenticated('client_disabled');
-
-  // Disabling a subject ends nothing it holds, so an access token issued
-  // before is refused here rather than living out its lifetime.
-  if (!(await deps.isSubjectEnabled(matched.id, payload.sub))) {
-    return unauthenticated('subject_disabled');
-  }
-
   return {
     kind: 'authenticated',
-    principal: { subjectId: payload.sub, issuerTenantId: matched.id, clientDbId: grant.clientId },
+    principal: {
+      ...base,
+      agent: {
+        clientId,
+        ownerSubjectId: payload.sub,
+        ...(claims.endpointMinted ? { viaEndpoint: true as const } : {}),
+        ...(client.serviceSubjectId === payload.sub
+          ? { ownerIsServiceAccount: true as const }
+          : {}),
+      },
+    },
   };
 }

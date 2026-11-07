@@ -22,6 +22,7 @@ import { groupRepository, roleRepository } from '@odudu/domain-authz';
 import { subjectRepository, userRepository, type ProfileUpdate } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  MCP_CLIENT_ID,
   capabilityRoleGraph,
   clientRepository,
   clientScopeMapperRepository,
@@ -36,10 +37,12 @@ import {
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import {
-  clientOidcConfigRepository,
+  type ClientJwks,
   type ClientMetadata,
   type ClientOidcConfig,
-  type ClientJwks,
+  clientOidcConfigRepository,
+  ensureServiceAccount,
+  needsServiceAccount,
 } from '@odudu/protocol-oidc';
 import { tenantSmtpRepository } from '#/repository/tenant-smtp';
 import { CLAIM_KEY } from '#/usecase/profile';
@@ -162,9 +165,6 @@ async function writeClient(
   metadata: ClientMetadata,
 ): Promise<{ id: string; serviceSubjectId: string | null; secret: string | null }> {
   const confidential = client.type === 'confidential';
-  const serviceSubjectId = confidential
-    ? (await subjectRepository(tx).create({ tenantId, type: 'service' })).id
-    : null;
   const secret = confidential ? generateClientSecret() : null;
   const created = await clientRepository(tx).create({
     tenantId,
@@ -176,10 +176,10 @@ async function writeClient(
     type: client.type,
     secretHash: secret === null ? null : await deps.hashClientSecret(secret),
     enabled: client.enabled,
-    serviceSubjectId,
     fullScopeAllowed: client.full_scope_allowed,
     skipLogoutConfirmation: client.skip_logout_confirmation,
     registrationOrigin: client.registration_origin,
+    builtinMcp: client.client_id === MCP_CLIENT_ID,
   });
   await clientOidcConfigRepository(tx).create({
     clientId: created.id,
@@ -203,6 +203,8 @@ async function writeClient(
     frontchannelLogoutSessionRequired: metadata.frontchannelLogoutSessionRequired,
     consentRequired: client.consent_required,
     tokenExchangeImpersonationAllowed: client.token_exchange_impersonation_allowed,
+    tokenExchangeAllowedForPublic: client.token_exchange_allowed_for_public,
+    tokenExchangeActorFromOtherClient: client.token_exchange_actor_from_other_client,
     userinfoSignedResponseAlg: metadata.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: metadata.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: metadata.userinfoEncryptedResponseEnc,
@@ -214,7 +216,10 @@ async function writeClient(
     defaultMaxAge: metadata.defaultMaxAge,
     requireAuthTime: metadata.requireAuthTime,
   });
-  return { id: created.id, serviceSubjectId, secret };
+  const account = needsServiceAccount(created.type, metadata.grantTypes)
+    ? await ensureServiceAccount(tx, created)
+    : created;
+  return { id: created.id, serviceSubjectId: account.serviceSubjectId, secret };
 }
 
 // Built-in roles are provisioned already and only amended; every other role
@@ -394,6 +399,14 @@ async function writeDocument(
   const clientIds = new Map<string, string>([[ADMIN_CLIENT_ID, admin.id]]);
   const serviceSubjects = new Map<string, string>();
   const secrets: ImportedClientSecret[] = [];
+  // The new tenant is provisioned with the built-in MCP client, and a
+  // document that carries one describes it, whole: the provisioned row gives
+  // way to it rather than colliding. A document without one, from before the
+  // client existed, leaves the provisioned client as it is.
+  if (document.clients.some((client) => client.client_id === MCP_CLIENT_ID)) {
+    const provisioned = await clientRepository(tx).byClientId(MCP_CLIENT_ID);
+    if (provisioned !== null) await clientRepository(tx).delete(provisioned.id);
+  }
   for (const client of document.clients) {
     const written = await writeClient(
       tx,

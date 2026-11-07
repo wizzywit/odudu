@@ -15,6 +15,7 @@ import { effectiveRoles, groupRepository, roleRepository } from '@odudu/domain-a
 import { subjects, users } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  MCP_CLIENT_ID,
   clientRegistrationTokenRepository,
   clientRepository,
   clients,
@@ -177,8 +178,9 @@ describe('seed', () => {
 
     const result = await seed(options);
 
+    // The MCP scopes are defined in the tenant and assigned to no client.
     expect(await assignedScopes(result.tenantId, result.clientId)).toEqual(
-      [...TENANT_DEFAULT_SCOPE_NAMES].sort(),
+      TENANT_DEFAULT_SCOPE_NAMES.filter((name) => !name.startsWith('mcp:')).sort(),
     );
   });
 
@@ -187,9 +189,9 @@ describe('seed', () => {
 
     const first = await seed(options);
     await expect(seed(options)).resolves.toMatchObject({ created: false });
-    // The requested client plus the built-in odudu-admin this tenant's
-    // creation now provisions alongside it.
-    expect(await countClients(first.tenantId)).toBe(2);
+    // The requested client plus the built-in odudu-admin and odudu-mcp this
+    // tenant's creation provisions alongside it.
+    expect(await countClients(first.tenantId)).toBe(3);
     expect(await countSigningKeys(first.tenantId)).toBe(1);
   });
 
@@ -240,6 +242,14 @@ describe('seed', () => {
 
     await expect(seed({ ...options, clientId: ADMIN_CLIENT_ID })).rejects.toThrow(/reserved/);
     const rows = await owner.db.select().from(tenants).where(eq(tenants.name, tenantName));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('refuses the reserved client id odudu-mcp, creating no tenant', async () => {
+    const options = uniqueOptions();
+
+    await expect(seed({ ...options, clientId: MCP_CLIENT_ID })).rejects.toThrow(/reserved/);
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, options.tenant));
     expect(rows).toHaveLength(0);
   });
 
@@ -620,6 +630,8 @@ describe('seed tenant --set', () => {
         registrationAllowed: tenants.registrationAllowed,
         passwordMaxAgeDays: tenants.passwordMaxAgeDays,
         displayName: tenants.displayName,
+        cimdEnabled: tenants.cimdEnabled,
+        clientRegistrationPolicy: tenants.clientRegistrationPolicy,
       })
       .from(tenants)
       .where(eq(tenants.id, tenantId));
@@ -734,6 +746,34 @@ describe('seed tenant --set', () => {
     await expect(seed(['tenant', '--name', name, '--set', 'max_clients=-1'])).rejects.toThrow();
   });
 
+  it('applies the mcp registration policy and the metadata document switch', async () => {
+    const result = await seed([
+      'tenant',
+      '--name',
+      `set-${newId()}`,
+      '--set',
+      'cimd_enabled=true',
+      '--set',
+      'client_registration_policy=mcp',
+    ]);
+
+    if (result.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(result).toMatchObject({ settings: ['cimd_enabled', 'client_registration_policy'] });
+    expect(await tenantSettings(result.tenantId)).toMatchObject({
+      cimdEnabled: true,
+      clientRegistrationPolicy: 'mcp',
+    });
+  });
+
+  it('names the four registration policies when it refuses another', async () => {
+    await expect(
+      seed(['tenant', '--name', `set-${newId()}`, '--set', 'client_registration_policy=nonsense']),
+    ).rejects.toThrow(/disabled, open, token, mcp/u);
+    await expect(
+      seed(['tenant', '--name', `set-${newId()}`, '--set', 'cimd_enabled=maybe']),
+    ).rejects.toThrow(/expects a boolean/u);
+  });
+
   it('cannot write a registration policy the database refuses', async () => {
     const name = `set-${newId()}`;
 
@@ -805,6 +845,28 @@ describe('seed tenant provisions the admin client', () => {
     const second = await seed(['tenant', '--name', name]);
     if (second.command !== 'tenant') throw new Error('expected the tenant command');
     expect(await countAdminClients(second.tenantId)).toBe(1);
+  });
+
+  async function mcpClients(tenantId: string): Promise<{ builtinMcp: boolean }[]> {
+    return withTenant(owner.db, tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(MCP_CLIENT_ID);
+      return client === null ? [] : [{ builtinMcp: client.builtinMcp }];
+    });
+  }
+
+  it('creates the built-in MCP client via `seed tenant` and `seed --tenant`, once each', async () => {
+    const name = `tenant-mcp-${newId()}`;
+    const first = await seed(['tenant', '--name', name]);
+    if (first.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await mcpClients(first.tenantId)).toEqual([{ builtinMcp: true }]);
+    await seed(['tenant', '--name', name]);
+    expect(await mcpClients(first.tenantId)).toEqual([{ builtinMcp: true }]);
+
+    const options = uniqueOptions();
+    const viaClient = await seed(options);
+    expect(await mcpClients(viaClient.tenantId)).toEqual([{ builtinMcp: true }]);
+    await seed(options);
+    expect(await mcpClients(viaClient.tenantId)).toEqual([{ builtinMcp: true }]);
   });
 
   it('creates the built-in admin client via `seed --tenant`, once on a second run', async () => {
@@ -982,7 +1044,9 @@ describe('seed client and the tenant’s default scopes', () => {
       'https://app.example/callback',
     ]);
 
-    const expected = [...TENANT_DEFAULT_SCOPE_NAMES.filter((name) => name !== 'phone')];
+    const expected = TENANT_DEFAULT_SCOPE_NAMES.filter(
+      (name) => name !== 'phone' && !name.startsWith('mcp:'),
+    );
     expect(await assignedScopes(first.tenantId, 'marked-spa')).toEqual(
       [...expected, 'reports:read'].sort(),
     );
@@ -1026,6 +1090,20 @@ describe('seed restore-scopes', () => {
       created: ['roles', 'groups'],
     });
     expect(again).toMatchObject({ command: 'restore-scopes', created: [] });
+    expect(await scopeNames(first.tenantId)).toEqual([...TENANT_DEFAULT_SCOPE_NAMES].sort());
+  });
+
+  it('creates mcp:read and mcp:write again when a tenant has lost them', async () => {
+    const options = uniqueOptions();
+    const first = await seed(options);
+    await deleteScopes(first.tenantId, ['mcp:read', 'mcp:write']);
+
+    const restored = await seed(['restore-scopes', '--tenant', options.tenant]);
+
+    expect(restored).toMatchObject({
+      command: 'restore-scopes',
+      created: ['mcp:read', 'mcp:write'],
+    });
     expect(await scopeNames(first.tenantId)).toEqual([...TENANT_DEFAULT_SCOPE_NAMES].sort());
   });
 
@@ -1318,6 +1396,202 @@ describe('seed client --client-credentials-scope', () => {
       listLimitProblem('client_credentials_scopes', CLIENT_LIST_LIMIT + 1),
     );
   });
+});
+
+async function audiencesOf(tenantName: string, oauthClientId: string): Promise<string[]> {
+  const tenantId = (await owner.db.select().from(tenants).where(eq(tenants.name, tenantName)))[0]
+    ?.id;
+  if (tenantId === undefined) throw new Error(`expected tenant ${tenantName}`);
+  return withTenant(owner.db, tenantId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(clients)
+      .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, oauthClientId)));
+    const client = rows[0];
+    if (client === undefined) throw new Error(`expected client ${oauthClientId}`);
+    const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+    if (config === null) throw new Error(`no oidc config for client ${oauthClientId}`);
+    return config.audiences;
+  });
+}
+
+describe('seed client --audience', () => {
+  const publicClient = (tenant: string, clientId: string, ...extra: string[]) => [
+    'client',
+    '--tenant',
+    tenant,
+    '--client-id',
+    clientId,
+    '--public',
+    '--redirect-uri',
+    'http://127.0.0.1/callback',
+    ...extra,
+  ];
+
+  it('stores each audience once, in the order first named', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(
+      publicClient(
+        options.tenant,
+        'mcp-agent',
+        '--audience',
+        'https://login.example/tenants/demo/mcp',
+        '--audience',
+        'https://api.example/',
+        '--audience',
+        'https://login.example/tenants/demo/mcp',
+      ),
+    );
+    expect(await audiencesOf(options.tenant, 'mcp-agent')).toEqual([
+      'https://login.example/tenants/demo/mcp',
+      'https://api.example/',
+    ]);
+  });
+
+  it('leaves a client with no audience when the flag is absent', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(publicClient(options.tenant, 'plain'));
+    expect(await audiencesOf(options.tenant, 'plain')).toEqual([]);
+  });
+
+  it('refuses an empty audience, which no resource indicator can equal', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await expect(seed(publicClient(options.tenant, 'blank', '--audience', ' '))).rejects.toThrow(
+      /--audience/u,
+    );
+  });
+
+  it('refuses more audiences than a client list may hold, in the words the API uses', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    const flags = Array.from({ length: CLIENT_LIST_LIMIT + 1 }, (_, i) => [
+      '--audience',
+      `https://r${String(i)}.example/`,
+    ]).flat();
+    await expect(seed(publicClient(options.tenant, 'many', ...flags))).rejects.toThrow(
+      listLimitProblem('audiences', CLIENT_LIST_LIMIT + 1),
+    );
+  });
+});
+
+const EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange';
+
+async function exchangeLimitsOf(
+  tenantName: string,
+  oauthClientId: string,
+): Promise<{ forPublic: boolean; fromOtherClient: boolean }> {
+  const tenantId = (await owner.db.select().from(tenants).where(eq(tenants.name, tenantName)))[0]
+    ?.id;
+  if (tenantId === undefined) throw new Error(`expected tenant ${tenantName}`);
+  return withTenant(owner.db, tenantId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(clients)
+      .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, oauthClientId)));
+    const client = rows[0];
+    if (client === undefined) throw new Error(`expected client ${oauthClientId}`);
+    const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+    if (config === null) throw new Error(`no oidc config for client ${oauthClientId}`);
+    return {
+      forPublic: config.tokenExchangeAllowedForPublic,
+      fromOtherClient: config.tokenExchangeActorFromOtherClient,
+    };
+  });
+}
+
+describe('seed client --token-exchange-allowed-for-public and --token-exchange-actor-from-other-client', () => {
+  const exchangeClient = (tenant: string, clientId: string, kind: string, ...extra: string[]) => [
+    'client',
+    '--tenant',
+    tenant,
+    '--client-id',
+    clientId,
+    ...(kind === 'public' ? ['--public'] : ['--client-secret', 'a-service-secret']),
+    '--redirect-uri',
+    'https://app.example/callback',
+    '--grant-type',
+    EXCHANGE_GRANT,
+    ...extra,
+  ];
+
+  it('leave both limits off unless named', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(exchangeClient(options.tenant, 'plain', 'public'));
+    expect(await exchangeLimitsOf(options.tenant, 'plain')).toEqual({
+      forPublic: false,
+      fromOtherClient: false,
+    });
+  });
+
+  it('store each limit when named', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(
+      exchangeClient(
+        options.tenant,
+        'both',
+        'public',
+        '--token-exchange-allowed-for-public',
+        '--token-exchange-actor-from-other-client',
+      ),
+    );
+    await seed(
+      exchangeClient(
+        options.tenant,
+        'actor-only',
+        'confidential',
+        '--token-exchange-actor-from-other-client',
+      ),
+    );
+    expect(await exchangeLimitsOf(options.tenant, 'both')).toEqual({
+      forPublic: true,
+      fromOtherClient: true,
+    });
+    expect(await exchangeLimitsOf(options.tenant, 'actor-only')).toEqual({
+      forPublic: false,
+      fromOtherClient: true,
+    });
+  });
+
+  it('refuse --token-exchange-allowed-for-public on a confidential client', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await expect(
+      seed(
+        exchangeClient(
+          options.tenant,
+          'secret-holder',
+          'confidential',
+          '--token-exchange-allowed-for-public',
+        ),
+      ),
+    ).rejects.toThrow(/--token-exchange-allowed-for-public.*public/u);
+  });
+
+  it.each(['--token-exchange-allowed-for-public', '--token-exchange-actor-from-other-client'])(
+    'refuse %s on a client that cannot use the exchange grant',
+    async (flag) => {
+      const options = uniqueOptions();
+      await seed(options);
+      await expect(
+        seed([
+          'client',
+          '--tenant',
+          options.tenant,
+          '--client-id',
+          'no-exchange',
+          '--public',
+          '--redirect-uri',
+          'https://app.example/callback',
+          flag,
+        ]),
+      ).rejects.toThrow(/token-exchange/u);
+    },
+  );
 });
 
 async function grantTypesOf(tenantName: string, oauthClientId: string): Promise<string[]> {

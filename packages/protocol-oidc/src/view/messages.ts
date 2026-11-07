@@ -70,10 +70,21 @@ export const en = {
 
   'consent.title': 'Allow access?',
   'consent.heading': '{client} is asking for access',
+  'consent.source.host': 'This application is published at {host}',
+  'consent.source.selfRegistered':
+    'This application registered itself. Nobody at this tenant set it up, and its name is its own claim.',
+  'consent.source.more': '… and {count} more',
+  'consent.source.sentTo': 'After you decide, you are sent back to:',
+  'consent.source.otherRedirects': 'It also registered these addresses:',
+  'consent.source.redirects': 'After you decide, you are sent to one of these addresses:',
   'consent.link.about': 'About {client}',
   'consent.link.privacy': 'Privacy policy',
   'consent.link.terms': 'Terms of service',
   'consent.scope.offlineAccess': '{label} — grants ongoing access, even while you are not present',
+  'consent.scope.mcpRead':
+    "{label} — lets the application read this tenant's settings and records on your behalf",
+  'consent.scope.mcpWrite':
+    "{label} — lets the application change this tenant's settings on your behalf",
   'consent.allow': 'Allow',
   'consent.deny': 'Deny',
 

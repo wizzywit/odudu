@@ -233,7 +233,9 @@ describe('GET /admin/tenants/{tenant}/export', () => {
     const openid = document.scopes.find((scope) => scope.name === 'openid');
     expect(openid?.builtin).toBe(true);
     expect(openid?.roles).toEqual([reader]);
-    expect(openid?.clients).toEqual([{ client_id: t.clientId, assignment: 'default' }]);
+    expect(openid?.clients).toEqual(
+      expect.arrayContaining([{ client_id: t.clientId, assignment: 'default' }]),
+    );
     const grace = document.subjects?.find((subject) => subject.username === 'grace');
     expect(grace?.roles).toEqual([{ name: 'billing-auditor', client: null }]);
     expect(grace?.groups).toEqual(['/finance/payroll']);
@@ -306,7 +308,9 @@ describe('GET /admin/tenants/{tenant}/export', () => {
       expect(res.payload, value).not.toContain(value);
     }
     const document = parsed(res.payload);
-    expect(document.clients.map((client) => client.client_id)).toEqual([t.clientId]);
+    expect(document.clients.map((client) => client.client_id).sort()).toEqual(
+      [t.clientId, 'odudu-mcp'].sort(),
+    );
     expect(document.subjects?.map((subject) => subject.username)).toEqual(['grace']);
   });
 
@@ -402,6 +406,23 @@ describe('GET /admin/tenants/{tenant}/export', () => {
     expect(res.statusCode).toBe(413);
     expect(res.json()).toMatchObject({ type: 'about:blank#export-too-large', status: 413 });
     expect(JSON.stringify(res.json())).toContain('roles');
+  }, 60_000);
+
+  it('does not count the roles of an omitted metadata document client against the roles bound', async () => {
+    const t = await fixture.createTenant(`export-${newId()}`);
+    const clientId = newId();
+    await fixture.owner.sql`
+      insert into clients (id, tenant_id, client_id, name, type, registration_origin, metadata_used_at)
+      values (${clientId}, ${t.id}, 'https://notes.example.com/c.json', 'Notes', 'public', 'cimd', now())`;
+    await fixture.owner.sql`
+      insert into roles (id, tenant_id, client_id, name)
+      select gen_random_uuid(), ${t.id}, ${clientId}, 'bulk-' || g
+        from generate_series(1, ${EXPORT_COLLECTION_CAP} + 1) g`;
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+
+    const res = await exportTenant(token, t.name);
+
+    expect(res.statusCode, res.payload.slice(0, 200)).toBe(200);
   }, 60_000);
 
   it('refuses a tenant whose one role nests more composites than an import takes, naming the count', async () => {

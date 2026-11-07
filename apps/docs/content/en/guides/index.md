@@ -18,6 +18,9 @@ The guides assume you have done the [quick start](../quick-start/index.mdx), so 
 5. [Coming from Keycloak](./keycloak.md) maps its ideas to Odudu's and says what does not move.
 6. [WordPress](./wordpress.md) lets people sign in to a WordPress site with the OpenID Connect Generic Client plugin. It was tested by hand, not by an example app.
 7. [Brand a tenant](./brand-a-tenant.md) gives a tenant's sign-in page its own colours, logo, stylesheet and layout through the admin API. It needs an administrator's token, so its commands are not part of the docs commands job.
+8. [Protect an MCP server](./protect-an-mcp-server.md) lets AI clients find a tenant's MCP endpoint, register, sign a person in and call its tools. You can run its commands. It also says what to do for an MCP server of your own.
+9. [Connect Claude](./connect-claude.md) covers Claude Code, Claude Desktop through `odudu mcp`, and claude.ai, with what an agent can change and the risk that stays. It follows the vendor's documentation for Claude's own steps, which the authors have not run yet.
+10. [Connect Cursor](./connect-cursor.md) uses dynamic registration or a client id in `mcp.json`, on the same terms.
 
 ## Then learn what happens underneath
 

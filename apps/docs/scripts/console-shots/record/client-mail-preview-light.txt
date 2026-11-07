@@ -159,6 +159,8 @@ Preview as client
 Search
 Odudu administration
 odudu-admin · confidential
+Odudu MCP
+odudu-mcp · public
 Storefront
 storefront · public
 Show the tenant’s own

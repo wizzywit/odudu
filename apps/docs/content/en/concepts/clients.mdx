@@ -59,7 +59,7 @@ With `private_key_jwt` the client signs a short-lived token with its private key
 
 ## Service accounts and roles
 
-A confidential client gets a **service account**, however it was created, including a tenant import. It is the identity the client uses when it signs in as itself with the `client_credentials` grant. A public client never has one, nor does the built-in admin client. A client cannot change between public and confidential. Switching the grant off keeps the account and its roles, but no token can be issued as it. Deleting the client deletes the account.
+A client gets a **service account**, the identity it signs in as, when it is confidential and holds `client_credentials`. Switching the grant on creates it. Switching it off deletes it with its roles, token grants and tokens exchanged with it, so a leaked secret has nothing to sign in as; a token already issued still works at a resource server that checks only its signature, until it expires. Switching on again starts an empty account, except one an upgrade kept.
 
 **Include all roles in tokens** is off by default: a token carries only the roles mapped to the granted scopes. Switched on, the client still has to ask for the `roles` scope. [Scopes](./scopes.mdx) has the rule.
 

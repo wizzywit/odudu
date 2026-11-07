@@ -2,7 +2,12 @@ import { type SubjectRecord } from '@odudu/domain-identity';
 import { type ClientRecord } from '@odudu/domain-tenant';
 import { describe, expect, it } from 'vitest';
 import { type TokenGrantRecord } from '#/schema/token-grants';
-import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
+import {
+  evaluateRefreshGrant,
+  generateRefreshToken,
+  hashRefreshToken,
+  refusalIsAboutScope,
+} from '#/service/refresh';
 
 const client: ClientRecord = {
   id: 'client-1',
@@ -17,6 +22,8 @@ const client: ClientRecord = {
   fullScopeAllowed: false,
   registrationOrigin: 'seeded',
   builtinAdmin: false,
+  builtinMcp: false,
+  metadataUsedAt: null,
   skipLogoutConfirmation: false,
   nameI18n: {},
   descriptionI18n: {},
@@ -130,7 +137,40 @@ describe('[RFC6749-10.4-02] a refresh token cannot be generated, modified or gue
   });
 });
 
+describe('refusalIsAboutScope', () => {
+  it('is true for both scope refusals and false for every other reason', () => {
+    expect(refusalIsAboutScope('scope_widened')).toBe(true);
+    expect(refusalIsAboutScope('mcp_scope_dropped')).toBe(true);
+    for (const reason of [
+      'client_mismatch',
+      'grant_revoked',
+      'subject_disabled',
+      'write_not_refreshable',
+    ] as const) {
+      expect(refusalIsAboutScope(reason)).toBe(false);
+    }
+  });
+});
+
 describe('evaluateRefreshGrant', () => {
+  it('refuses a grant holding mcp:write as invalid, even for a narrower request', () => {
+    const written: TokenGrantRecord = { ...grant, scope: 'openid mcp:write' };
+    const decision = evaluateRefreshGrant(written, client, subject, { requestedScope: 'openid' });
+    expect(decision).toEqual({ ok: false, reason: 'write_not_refreshable' });
+  });
+
+  it('refuses a narrowing that leaves a grant holding an MCP scope with none', () => {
+    const read: TokenGrantRecord = { ...grant, scope: 'openid mcp:read' };
+    expect(evaluateRefreshGrant(read, client, subject, { requestedScope: 'openid' })).toEqual({
+      ok: false,
+      reason: 'mcp_scope_dropped',
+    });
+    expect(evaluateRefreshGrant(read, client, subject, { requestedScope: 'mcp:read' })).toEqual({
+      ok: true,
+      scope: ['mcp:read'],
+    });
+  });
+
   it('permits a matching client with no requested scope, keeping the original scope', () => {
     const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: '' });
     expect(decision).toEqual({ ok: true, scope: ['openid', 'profile'] });

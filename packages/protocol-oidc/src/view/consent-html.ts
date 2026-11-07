@@ -6,6 +6,7 @@ import {
   NO_CONSENT_I18N,
   type ConsentI18n,
 } from '#/service/consent-i18n';
+import { type ClientSource } from '#/service/client-source';
 import { fillPage } from '#/view/template';
 import { bdi, t, tHtml } from '#/view/messages';
 
@@ -22,6 +23,8 @@ export interface ConsentPageInput {
     readonly clientUri: string | null;
     readonly policyUri: string | null;
     readonly tosUri: string | null;
+    // Absent for a client registered by hand.
+    readonly source?: ClientSource | null;
   };
   defaultScopes: readonly string[];
   optionalScopes: readonly string[];
@@ -38,9 +41,26 @@ function labelOf(scope: string, labels: ConsentPageInput['scopeLabels']): string
 
 // A label is an administrator's own wording and a bare scope name is a tenant's,
 // so each is isolated from the sentence around it.
-function renderDefaultScope(scope: string, labels: ConsentPageInput['scopeLabels']): string {
-  return `<li>${bdi(labelOf(scope, labels))}</li>`;
+function renderDefaultScope(
+  scope: string,
+  labels: ConsentPageInput['scopeLabels'],
+  locale: PageLocale,
+): string {
+  const label = labelOf(scope, labels);
+  const noteKey = mcpNoteKey(scope);
+  const text = noteKey === undefined ? bdi(label) : tHtml(locale, noteKey, {}, { label });
+  return `<li>${text}</li>`;
 }
+
+function mcpNoteKey(scope: string) {
+  return Object.hasOwn(MCP_SCOPE_NOTES, scope) ? MCP_SCOPE_NOTES[scope] : undefined;
+}
+
+// What an MCP scope lets the application do, stated beside it so a person is
+// never asked to approve a bare scope name that acts on the tenant.
+const MCP_SCOPE_NOTES: Readonly<
+  Record<string, 'consent.scope.mcpRead' | 'consent.scope.mcpWrite'>
+> = { 'mcp:read': 'consent.scope.mcpRead', 'mcp:write': 'consent.scope.mcpWrite' };
 
 // OIDC Core §16.18's SHOULD: "the authorization server clearly identifies
 // long-term grants to the user during authorization". `offline_access` is
@@ -58,11 +78,36 @@ function renderOptionalScope(
 ): string {
   const checked = granted.has(scope) ? ' checked' : '';
   const label = labelOf(scope, labels);
+  const noteKey = mcpNoteKey(scope);
   const text =
     scope === LONG_TERM_GRANT_SCOPE
       ? tHtml(locale, 'consent.scope.offlineAccess', {}, { label })
-      : bdi(label);
+      : noteKey === undefined
+        ? bdi(label)
+        : tHtml(locale, noteKey, {}, { label });
   return `<label><input type="checkbox" name="scope" value="${escapeHtml(scope)}"${checked}> ${text}</label>`;
+}
+
+// The name is the client's own word, so the page also says where the client
+// was found and where a decision sends the person.
+function sourceLines(source: ClientSource | null, locale: PageLocale): string[] {
+  if (source === null) return [];
+  if (source.kind === 'self-registered') {
+    return [
+      tHtml(locale, 'consent.source.selfRegistered'),
+      ...(source.sentTo === null
+        ? []
+        : [tHtml(locale, 'consent.source.sentTo'), bdi(source.sentTo)]),
+      ...(source.origins.length === 0 ? [] : [tHtml(locale, 'consent.source.otherRedirects')]),
+      ...source.origins.map((origin) => bdi(origin)),
+      ...(source.more > 0 ? [tHtml(locale, 'consent.source.more', { count: source.more })] : []),
+    ];
+  }
+  return [
+    tHtml(locale, 'consent.source.host', {}, { host: source.host }),
+    tHtml(locale, 'consent.source.redirects'),
+    ...source.redirectUris.map((uri) => bdi(uri)),
+  ];
 }
 
 function renderPageLinks(
@@ -93,7 +138,7 @@ export function renderConsentPage(input: ConsentPageInput, locale: PageLocale): 
   const clientName = consentClientName(input.clientName, i18n, locale.tag);
   const labels = consentScopeTexts(input.scopeLabels, i18n, locale.tag);
   const defaultList = input.defaultScopes
-    .map((scope) => renderDefaultScope(scope, labels))
+    .map((scope) => renderDefaultScope(scope, labels, locale))
     .join('\n  ');
   const optionalList = input.optionalScopes
     .map((scope) => renderOptionalScope(scope, granted, labels, locale))
@@ -103,7 +148,11 @@ export function renderConsentPage(input: ConsentPageInput, locale: PageLocale): 
     fillPage(
       'consent',
       {
-        client: intro(tHtml(locale, 'consent.heading', {}, { client: clientName }), input.tenant),
+        client: intro(
+          tHtml(locale, 'consent.heading', {}, { client: clientName }),
+          input.tenant,
+          sourceLines(input.clientPages.source ?? null, locale),
+        ),
         links: renderPageLinks(input.clientPages, clientName, locale),
         error: '',
         'form.open': `<form method="post" action="${action}">

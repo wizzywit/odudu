@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideConsent, type ConsentInput } from '#/service/consent';
+import { decideConsent, needsApproval, type ConsentInput } from '#/service/consent';
 
 function input(overrides: Partial<ConsentInput> = {}): ConsentInput {
   return {
@@ -9,6 +9,8 @@ function input(overrides: Partial<ConsentInput> = {}): ConsentInput {
     grantedScopes: [],
     prompt: new Set(),
     consentRequired: true,
+    approvalRequired: false,
+    approved: false,
     ...overrides,
   };
 }
@@ -112,5 +114,109 @@ describe('[OIDC-CORE-3.1.2.1-13] decideConsent', () => {
       }),
     );
     expect(decision).toEqual({ kind: 'not_required' });
+  });
+});
+
+describe('a client the person has not approved', () => {
+  const dynamic = { approvalRequired: true, approved: false };
+
+  it('asks even when the client does not require consent', () => {
+    expect(decideConsent(input({ ...dynamic, consentRequired: false })).kind).toBe('ask');
+  });
+
+  it('asks when the request names nothing a grant could cover', () => {
+    const decision = decideConsent(input({ ...dynamic, requestedScopes: ['unlisted'] }));
+    expect(decision).toMatchObject({ kind: 'ask', defaultScopes: [], optionalScopes: [] });
+  });
+
+  it('refuses under prompt=none, where nothing can be asked', () => {
+    const decision = decideConsent(input({ ...dynamic, prompt: new Set(['none']) }));
+    expect(decision).toEqual({ kind: 'refuse', error: 'consent_required' });
+  });
+
+  it("follows the client's own rules once a grant of its exists", () => {
+    const approved = { approvalRequired: true, approved: true };
+    expect(
+      decideConsent(input({ ...approved, consentRequired: false, grantedScopes: ['openid'] })),
+    ).toEqual({ kind: 'not_required' });
+    expect(decideConsent(input({ ...approved, grantedScopes: ['openid'] })).kind).toBe('ask');
+  });
+
+  it('is not asked of a client registered by an administrator', () => {
+    expect(decideConsent(input({ consentRequired: false })).kind).toBe('not_required');
+  });
+});
+
+describe('needsApproval', () => {
+  it.each([
+    ['anonymous', true],
+    ['cimd', true],
+    ['seeded', false],
+    ['operator', false],
+    ['token', false],
+  ])('%s: %s', (origin, expected) => {
+    expect(needsApproval(origin)).toBe(expected);
+  });
+});
+
+describe('the write scope is approved afresh every time', () => {
+  const write = (overrides: Partial<ConsentInput> = {}) =>
+    input({
+      requestedScopes: ['openid', 'mcp:write'],
+      optionalScopes: ['mcp:write'],
+      consentRequired: false,
+      ...overrides,
+    });
+
+  it('asks for a client that does not require consent', () => {
+    expect(decideConsent(write())).toMatchObject({ kind: 'ask', optionalScopes: ['mcp:write'] });
+  });
+
+  it('asks again whatever grant is recorded, and does not tick the box for the person', () => {
+    const decision = decideConsent(
+      write({ consentRequired: true, grantedScopes: ['openid', 'mcp:write'] }),
+    );
+    expect(decision).toMatchObject({ kind: 'ask', alreadyGranted: [] });
+  });
+
+  it('asks for a client whose approval is already recorded', () => {
+    expect(decideConsent(write({ approvalRequired: true, approved: true })).kind).toBe('ask');
+  });
+
+  it('asks when the scope is one of the defaults, which has no box', () => {
+    const decision = decideConsent(
+      write({ defaultScopes: ['openid', 'mcp:write'], optionalScopes: [] }),
+    );
+    expect(decision).toMatchObject({ kind: 'ask', defaultScopes: ['openid', 'mcp:write'] });
+  });
+
+  it('refuses with consent_required under prompt=none instead of issuing', () => {
+    expect(decideConsent(write({ prompt: new Set(['none']) }))).toEqual({
+      kind: 'refuse',
+      error: 'consent_required',
+    });
+    expect(
+      decideConsent(
+        write({ consentRequired: true, grantedScopes: ['mcp:write'], prompt: new Set(['none']) }),
+      ),
+    ).toEqual({ kind: 'refuse', error: 'consent_required' });
+  });
+
+  it('leaves a request for mcp:read alone', () => {
+    expect(
+      decideConsent(
+        input({
+          requestedScopes: ['openid', 'mcp:read'],
+          optionalScopes: ['mcp:read'],
+          consentRequired: false,
+        }),
+      ),
+    ).toEqual({ kind: 'not_required' });
+  });
+
+  it('does not ask for a scope the client could never be granted', () => {
+    expect(decideConsent(write({ optionalScopes: [], defaultScopes: ['openid'] }))).toEqual({
+      kind: 'not_required',
+    });
   });
 });

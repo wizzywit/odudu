@@ -60,6 +60,21 @@ import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { loadClaimContextIn } from '#/usecase/evaluate-claims';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { dynamicClientRepository } from '#/repository/dynamic-clients';
+import {
+  fetchCimdDocument,
+  type CimdFetchDeps,
+  type CimdRequest,
+} from '#/adapter/client-metadata-fetch';
+import { cimdCacheRepository } from '#/repository/client-metadata-cache';
+import { type FetchLimiter } from '#/service/cimd-fetch-limiter';
+import { type McpPolicyGrant } from '#/service/mcp-registration-policy';
+import { CIMD_CLIENTS_PER_TENANT, persistCimdClient } from '#/usecase/persist-cimd-client';
+import { resolveCimdDocument } from '#/usecase/resolve-cimd-document';
+import { refreshCimdClient } from '#/usecase/resolve-cimd-client';
+import { type RegistrationLimiter } from '#/service/registration-throttle';
+import { needsApproval } from '#/service/consent';
+import { clientSourceOf } from '#/service/client-source';
 import { isRegisteredRedirectUri } from '#/service/redirect-uri';
 import { tokenGrantRepository } from '#/repository/grants';
 import { tenantLookupRepository } from '#/repository/tenant-lookup';
@@ -82,7 +97,9 @@ import {
   type CompleteLoginOutcome,
 } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
+import { type DiscoveryUsecaseDeps } from '#/usecase/discovery';
 import { endSession } from '#/usecase/end-session';
+import { registerAsMetadataRoutes } from '#/view/routes/as-metadata';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
 import { registerClientRegistrationRoute } from '#/view/routes/client-registration';
 import { registerConsentRoute } from '#/view/routes/consent';
@@ -138,6 +155,10 @@ export interface OidcRoutesDeps {
   // (#/repository/client-keys.ts). `apps/server/src/app.ts` supplies the
   // real one, wired to `node:https` and `node:dns`.
   clientKeySet: ClientKeySet;
+  // The budget of the `mcp` registration policy. Optional because it is the
+  // one policy that is open to anybody: without it a tenant on that policy
+  // answers 404 rather than registering without limit.
+  mcpRegistrationLimiter?: RegistrationLimiter;
   // Whether a refusal at /token, /revoke or /introspect naming a registered
   // client is an audit row or a log line (ADR 0037). Required
   // for the same reason `clientSecretLimiter` is; a caller with no opinion
@@ -169,6 +190,18 @@ export interface OidcRoutesDeps {
   // The tenant's own wording for the language a page is shown in; the server
   // wires the reader here. None means every page reads the catalogue alone.
   resolveOverrides?: OverridesResolver;
+  // How a Client ID Metadata Document is fetched, for the tenants that turn
+  // them on. Absent, no document can be fetched and a URL client_id is refused
+  // like any unknown one. The limiter is shared by every request, so the
+  // composition root builds exactly one.
+  cimd?: CimdWiring;
+}
+
+export interface CimdWiring {
+  readonly lookup: CimdFetchDeps['lookup'];
+  readonly request: CimdRequest;
+  readonly limiter: FetchLimiter;
+  readonly warn: (message: string, context: Record<string, string>) => void;
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
@@ -269,6 +302,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             enc: config.userinfoEncryptedResponseEnc ?? USERINFO_ENCRYPTION_ENC_DEFAULT,
             jwks: config.jwks,
             jwksUri: config.jwksUri,
+            publicKeysOnly: client.registrationOrigin === 'cimd',
           },
         } as const;
       });
@@ -369,7 +403,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // assignment — named, not just counted, so the page can list them and
     // the POST can turn a ticked name back into the id consent_scopes
     // stores.
-    const consentContext = (tenantId: string, clientId: string) =>
+    const consentContext = (tenantId: string, clientId: string, redirectUri?: string) =>
       withTenant(deps.database.db, tenantId, async (tx) => {
         const [client, config, assignments] = await Promise.all([
           clientRepository(tx).byId(clientId),
@@ -409,10 +443,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             clientUri: config?.clientUri ?? null,
             policyUri: config?.policyUri ?? null,
             tosUri: config?.tosUri ?? null,
+            source:
+              client === null
+                ? null
+                : clientSourceOf(client, config?.redirectUris ?? [], redirectUri),
           },
           scopeLabels,
           i18n,
           consentRequired: config?.consentRequired ?? false,
+          approvalRequired: client !== null && needsApproval(client.registrationOrigin),
           defaultScopes,
           optionalScopes,
           scopeIdByName,
@@ -503,7 +542,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         input.request,
       );
 
-    registerDiscoveryRoute(app, {
+    const discoveryDeps: DiscoveryUsecaseDeps = {
       findTenant,
       claimNames: async (tenantId) => {
         const scopes = await scopesForTenant(tenantId);
@@ -517,7 +556,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
       userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
       trustProxy: deps.trustProxy ?? false,
-    });
+    };
+    registerDiscoveryRoute(app, discoveryDeps);
+    registerAsMetadataRoutes(app, { ...discoveryDeps, cimdFetchable: deps.cimd !== undefined });
+
     registerJwksRoute(app, { findTenant, listPublishableKeys });
     // Introspection's two grant/session reads, resolved here rather than in
     // the route — a route never imports a repository (dependency-cruiser's
@@ -596,6 +638,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       hashClientSecret: hashPassword,
       now: () => clock.now(),
       tlsClientAuthEnabled: deps.trustProxy ?? false,
+      ...(deps.mcpRegistrationLimiter === undefined
+        ? {}
+        : { mcpRegistrationLimiter: deps.mcpRegistrationLimiter }),
     });
     // One definition for both doors onto the enrolment page: the login
     // submission that discovers the action is owed, and the enrolment
@@ -697,10 +742,51 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         if (!client?.enabled) return false;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-        return config !== null && isRegisteredRedirectUri(redirectUri, config.redirectUris);
+        return (
+          config !== null &&
+          isRegisteredRedirectUri(
+            redirectUri,
+            config.redirectUris,
+            client.type,
+            client.registrationOrigin,
+          )
+        );
       });
 
+    const cimd = deps.cimd;
+    const refreshCimd =
+      cimd === undefined
+        ? undefined
+        : (tenantId: string, url: string, policy: McpPolicyGrant) =>
+            refreshCimdClient(
+              tenantId,
+              url,
+              {
+                resolveDocument: (id, target) =>
+                  resolveCimdDocument(id, target, {
+                    cache: cimdCacheRepository(deps.database),
+                    fetch: (address) =>
+                      fetchCimdDocument(address, {
+                        lookup: cimd.lookup,
+                        request: cimd.request,
+                        now: () => clock.now(),
+                      }),
+                    limiter: cimd.limiter,
+                    now: () => clock.now(),
+                    warn: cimd.warn,
+                  }),
+                persist: (id, document, now, grant) =>
+                  withTenant(deps.database.db, id, (tx) =>
+                    persistCimdClient(tx, id, document, now, CIMD_CLIENTS_PER_TENANT, grant),
+                  ),
+                now: () => clock.now(),
+                warn: cimd.warn,
+              },
+              policy,
+            );
+
     registerAuthorizeRoute(app, {
+      ...(refreshCimd === undefined ? {} : { refreshCimdClient: refreshCimd }),
       findTenant,
       acceptedIssuers: acceptedIssuersFor,
       recoverPendingRequest,
@@ -721,9 +807,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           return { client, config, scopes: assigned.map((scope) => scope.name) };
         }),
       startAuthentication: (tenantId, request) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          startAuthentication(tx, tenantId, request, clock),
-        ),
+        withTenant(deps.database.db, tenantId, async (tx) => {
+          // A self-registered client nobody has used may be evicted; the hold
+          // keeps it until this sign-in is written.
+          if (!(await dynamicClientRepository(tx).holdForSignIn(tenantId, request.clientId))) {
+            throw new Error('the client was removed while its authorization request began');
+          }
+          return startAuthentication(tx, tenantId, request, clock);
+        }),
       initialChallenge: (tenantId) =>
         withTenant(deps.database.db, tenantId, (tx) => initialChallenge(tx, tenantId)),
       now: () => clock.now(),
@@ -1031,11 +1122,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 // does (packages/protocol-admin/src/usecase/authenticate-admin.ts).
 export { acceptedIssuersLookup } from '#/repository/accepted-issuers';
 export { acceptedIssuers, tenantIssuer, type AcceptedIssuersLookup } from '#/service/issuer';
+export { extractBearerToken } from '#/service/bearer-token';
 export { restartAuthorizeLocation } from '#/service/restart-request';
 export { sendThrottledPage } from '#/view/routes/throttled';
 export { sendPreviousAddressPage } from '#/view/routes/previous-address';
 export { answerNotFound, answerServerError, type UnroutedDeps } from '#/view/routes/unrouted';
 export { isApiPath, wantsHtmlPage } from '#/service/page-negotiation';
+export { AS_METADATA_PATH_FORM } from '#/view/routes/as-metadata';
+export { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
 export {
   configureIssuerBase,
   configureTenantAddress,
@@ -1058,6 +1152,7 @@ export {
   type ClientJwks,
   type ProvisionAdminClientOptions,
 } from '#/usecase/provision-admin-client';
+export { provisionMcpClient } from '#/usecase/provision-mcp-client';
 export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 export {
   parseClientMetadata,
@@ -1102,7 +1197,79 @@ export {
   type ResolvedExchangeToken,
   type ResolveOutcome,
 } from '#/usecase/token-exchange-subject';
-export { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
+export { narrowActClaim, TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
+export {
+  AgentTokenRefused,
+  mintAgentToken,
+  type MintAgentTokenDeps,
+  type MintAgentTokenInput,
+} from '#/usecase/mint-agent-token';
+export { type AgentTokenRefusal } from '#/service/agent-token-rules';
+export { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
+export { cimdClientRepository } from '#/repository/cimd-clients';
+export { dynamicClientRepository } from '#/repository/dynamic-clients';
+export { WIRE_CLIENTS_PER_TENANT } from '@odudu/domain-tenant';
+export {
+  IDLE_ACCOUNT_COUNT_CAP,
+  IDLE_ACCOUNT_SAMPLE_LIMIT,
+  idleServiceAccounts,
+  type IdleAccountFinding,
+} from '#/repository/service-account-upgrade';
+export {
+  CLIENT_CREDENTIALS_GRANT,
+  canHoldServiceAccount,
+  discardsServiceAccountRoles,
+  mayRetireServiceAccount,
+  needsServiceAccount,
+  retiresServiceAccount,
+} from '#/service/service-account';
+export { ensureServiceAccount, retireServiceAccount } from '#/usecase/service-account';
+export {
+  EXCHANGE_UPGRADE_COUNT_CAP,
+  EXCHANGE_UPGRADE_SAMPLE_LIMIT,
+  publicExchangeClientsAtRisk,
+  type ExchangeUpgradeFinding,
+} from '#/repository/exchange-upgrade';
+export {
+  CIMD_DEADLINE_MS,
+  CIMD_MAX_BODY_BYTES,
+  fetchCimdDocument,
+  ResponseTimedOut,
+  ResponseTooLarge,
+  type CimdFetchDeps,
+  type CimdRequest,
+  type CimdResponse,
+} from '#/adapter/client-metadata-fetch';
+export type { CimdFetchOutcome, CimdFetchRefusal } from '#/service/cimd-fetch-outcome';
+export {
+  CIMD_CACHE_MAX_ROWS,
+  cimdCacheRepository,
+  type CachedCimdDocument,
+} from '#/repository/client-metadata-cache';
+export {
+  CIMD_FETCHES_PER_HOST_PER_MINUTE,
+  CIMD_FETCHES_PER_TENANT_PER_MINUTE,
+  CIMD_LIMITER_MAX_HOSTS,
+  CIMD_LIMITER_MAX_TENANTS,
+  createFetchLimiter,
+  type FetchLimiter,
+} from '#/service/cimd-fetch-limiter';
+export {
+  CIMD_CLIENT_UNUSED_SECONDS,
+  CIMD_CLIENTS_PER_TENANT,
+  persistCimdClient,
+  type PersistCimdOutcome,
+} from '#/usecase/persist-cimd-client';
+export { holdsLiveRefreshToken } from '#/repository/cimd-clients';
+export { tenantCimdRepository } from '#/repository/tenant-cimd';
+export { type RegistrationLimiter } from '#/service/registration-throttle';
+export { UNUSED_DYNAMIC_CLIENT_SECONDS } from '#/service/dynamic-client-retention';
+export { parseCimdDocument, type CimdClient } from '#/service/client-id-metadata';
+export {
+  resolveCimdDocument,
+  type ResolveCimdDeps,
+  type ResolveCimdOutcome,
+} from '#/usecase/resolve-cimd-document';
 export {
   assertFetchableUrl,
   assertPublicAddresses,

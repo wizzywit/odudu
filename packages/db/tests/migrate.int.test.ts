@@ -48,6 +48,7 @@ describe('migrations', () => {
       'brute_force_lockout_seconds',
       'brute_force_max_failures',
       'brute_force_max_lockout_seconds',
+      'cimd_enabled',
       'client_registration_policy',
       'created_at',
       'default_locale',

@@ -3,6 +3,7 @@ import { noBidiControls } from '#/bidi';
 import {
   createdAtSchema,
   cursorQuerySchema,
+  DISPLAY_NAME_MAX,
   enabledFilterSchema,
   idSchema,
   searchPrefixSchema,
@@ -10,7 +11,7 @@ import {
 
 export const createTenantRequestSchema = z.object({
   name: z.string().min(1),
-  display_name: noBidiControls(z.string().min(1)).optional(),
+  display_name: noBidiControls(z.string().min(1).max(DISPLAY_NAME_MAX)).optional(),
 });
 export type CreateTenantRequest = z.infer<typeof createTenantRequestSchema>;
 

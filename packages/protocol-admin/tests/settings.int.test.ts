@@ -160,7 +160,7 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
     });
   });
 
-  it('refuses a registration policy the database CHECK would also refuse, naming the three it allows', async () => {
+  it('refuses a registration policy the database CHECK would also refuse, naming the four it allows', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);
     const res = await fixture.http.inject({
@@ -170,7 +170,86 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
       payload: { client_registration_policy: 'sometimes' },
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json<{ detail: string }>().detail).toContain('disabled, open, token');
+    expect(res.json<{ detail: string }>().detail).toContain('disabled, open, token, mcp');
+  });
+
+  it('round-trips the mcp registration policy and the metadata document switch under If-Match', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-audit']);
+    const url = `/admin/tenants/${t.name}/settings`;
+    const headers = { authorization: `Bearer ${token}` };
+    const read = await fixture.http.inject({ method: 'GET', url, headers });
+    const etag = read.headers.etag;
+    if (typeof etag !== 'string') throw new Error('expected GET to answer an etag');
+    expect(read.json()).toMatchObject({
+      client_registration_policy: 'disabled',
+      cimd_enabled: false,
+    });
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url,
+      headers: { ...headers, 'if-match': etag },
+      payload: { client_registration_policy: 'mcp', cimd_enabled: true },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ client_registration_policy: 'mcp', cimd_enabled: true });
+    const next = res.headers.etag;
+    expect(next).not.toBe(etag);
+    const again = await fixture.http.inject({ method: 'GET', url, headers });
+    expect(again.headers.etag).toBe(next);
+    expect(again.json()).toMatchObject({ client_registration_policy: 'mcp', cimd_enabled: true });
+    const stale = await fixture.http.inject({
+      method: 'PATCH',
+      url,
+      headers: { ...headers, 'if-match': etag },
+      payload: { cimd_enabled: false },
+    });
+    expect(stale.statusCode).toBe(412);
+  });
+
+  it('records the registration policy and the metadata document switch in the audit row, as values', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-audit']);
+    const headers = { authorization: `Bearer ${token}` };
+    const patch = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers,
+      payload: { client_registration_policy: 'mcp', cimd_enabled: true, verify_email: true },
+    });
+    expect(patch.statusCode).toBe(200);
+
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit?action=tenant.amend_settings`,
+      headers,
+    });
+
+    const items = audit.json<{ items: { detail: unknown }[] }>().items;
+    expect(items).toHaveLength(1);
+    expect(items[0]?.detail).toEqual({
+      client_registration_policy: { before: 'disabled', after: 'mcp' },
+      cimd_enabled: { before: false, after: true },
+    });
+  });
+
+  it('leaves another tenant with the defaults when one is amended', async () => {
+    const a = await fixture.createTenant(`acme-${newId()}`);
+    const b = await fixture.createTenant(`acme-${newId()}`);
+    const res = await patchSettings(a.name, {
+      client_registration_policy: 'mcp',
+      cimd_enabled: true,
+    });
+    expect(res.statusCode).toBe(200);
+    await withTenant(fixture.app.db, b.id, async (tx) => {
+      expect(await tenantSettingsRepository(tx).byId(a.id)).toBeNull();
+      expect(await tenantSettingsRepository(tx).byId(b.id)).toMatchObject({
+        client_registration_policy: 'disabled',
+        cimd_enabled: false,
+      });
+    });
   });
 
   it('answers 412 when If-Match is stale', async () => {
@@ -460,5 +539,81 @@ describe('the language settings', () => {
     const res = await patch({ supported_locales: 'en,fr' });
     expect(res.statusCode).toBe(400);
     expect(res.json<{ detail: string }>().detail).toContain('list');
+  });
+});
+
+describe('the wording settings', () => {
+  async function setup() {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-audit']);
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const patch = (payload: Record<string, unknown>) =>
+      fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}/settings`,
+        headers,
+        payload,
+      });
+    return { t, patch, headers };
+  }
+
+  it('records the display name and the languages in the audit row, before and after', async () => {
+    const { t, patch, headers } = await setup();
+    await patch({ display_name: 'Acme', supported_locales: ['en', 'fr'], default_locale: 'fr' });
+    await patch({ display_name: 'Acme Inc', verify_email: true });
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit?action=tenant.amend_settings`,
+      headers,
+    });
+    const details = audit.json<{ items: { detail: unknown }[] }>().items.map((i) => i.detail);
+    expect(details).toContainEqual({
+      display_name: { before: null, after: 'Acme' },
+      supported_locales: { before: ['en'], after: ['en', 'fr'] },
+      default_locale: { before: null, after: 'fr' },
+    });
+    expect(details).toContainEqual({ display_name: { before: 'Acme', after: 'Acme Inc' } });
+  });
+
+  it('refuses a display name past 256 characters, naming it, and keeps the one held', async () => {
+    const { t, patch } = await setup();
+    await patch({ display_name: 'Acme' });
+    const res = await patch({ display_name: 'x'.repeat(257) });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ errors: { path: string }[] }>().errors.map((e) => e.path)).toEqual([
+      'display_name',
+    ]);
+    expect((await patch({ display_name: 'x'.repeat(256) })).statusCode).toBe(200);
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      expect((await tenantSettingsRepository(tx).byId(t.id))?.display_name).toBe('x'.repeat(256));
+    });
+  });
+
+  it('counts the length after the trim, so padding does not use it up', async () => {
+    const { patch } = await setup();
+    const res = await patch({ display_name: `  ${'x'.repeat(256)}  ` });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('leaves a message override of a language the tenant no longer offers where it is', async () => {
+    const { t, patch, headers } = await setup();
+    await patch({ supported_locales: ['en', 'fr'], default_locale: 'fr' });
+    const base = `/admin/tenants/${t.name}/message-overrides`;
+    const key = 'login.title';
+    const put = await fixture.http.inject({
+      method: 'PUT',
+      url: `${base}/fr/${key}`,
+      headers: { ...headers, 'if-none-match': '*' },
+      payload: { message: 'Connexion' },
+    });
+    expect(put.statusCode).toBe(200);
+    const shrunk = await patch({ supported_locales: ['en'], default_locale: '' });
+    expect(shrunk.statusCode).toBe(200);
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: `${base}?locale=fr`,
+      headers,
+    });
+    expect(listed.json<{ items: { key: string }[] }>().items.map((i) => i.key)).toEqual([key]);
   });
 });

@@ -49,6 +49,173 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
+The MCP endpoint's page, `the-mcp-endpoint.md`, was captured again, end to end, on 2026-11-06 on a freshly built compose project,
+`odudu-p5a-i11c` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `77b0c85d4`). The
+project's volume was removed and the stack started again from the same image before the one pass the page records (the tenant `demo`
+seeded as the page shows, then its commands in order), so the audit rows the page lists are all the tenant had. Every output block
+was written by a replay of the page's own commands in one shell, in order, not by hand: the only steps between two blocks are the
+ones the page does not show, reading `CID` from the registration's answer and `CODE` from the consent's redirect. The two `GET` and
+`DELETE` requests are separated by `-w '\n\n'` so their outputs do not run together. The budget section's counts are that pass's: the
+first sixty requests of the minute are served, and the ones before the loop had already spent eleven. The stack was removed afterwards.
+
+Every connection began to name its tenant on 2026-11-06 (`serverInfo`, `instructions` and the start of each tool description), and
+`whoami` to answer `issuerTenantName`, so the blocks that show those were run again on a freshly built compose project, `odudu-p5a-tn`
+(port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `e3fc80b17` plus the change). The
+stack's volume was emptied between pages, so each page's world is the one it says. `the-mcp-endpoint.md` and `odudu-mcp-over-stdio.md`
+were replayed end to end, every output block written by the replay of the page's own commands in one shell, in order, so every id and
+time on them is that run's. The consent page's block on the first is the page as served now, which has gained three lines since the
+earlier capture. The `initialize` and `whoami` blocks of `protect-an-mcp-server.md` were run on the guide's own steps with a person
+holding `view-users` alone. The `GET /whoami` block, the final probe of `getting-the-token.md` and the block of `the-shape-of-it.md`
+that disables `vera` were run again on the same project as `ada-whoami` holding `tenant-admin` and as `vera` of a tenant `policy-demo`,
+so their ids belong to nothing around them. `GET /admin/openapi.json` was fetched again (request id, date and size, 806,104 bytes) because
+the document grew by 188 bytes. The stack and its image were removed afterwards.
+
+The protected resource metadata page, `protected-resource-metadata.md`, and the authorization server metadata page, `authorization-server-metadata.md`, were each replayed the same way on the same project and day,
+from an empty volume, with `demo`, `demo-spa` and `ada` seeded as Bootstrap seeds them and `odudu` defined as the shell function the
+other pages define. Nothing but ids, request ids and dates changed from their first captures. The `odudu mcp` entry for Claude Desktop in the guides was checked on the same project: an `initialize` sent through `docker compose exec -T -e ODUDU_MCP_KEY` was answered by the stdio server with the key in the environment only.
+
+The MCP write tools' page, `the-mcp-write-tools.md`, was captured on 2026-11-06 on a freshly built compose project,
+`odudu-p5a-i9b` (port `3000`, Postgres published on `5462`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
+commit `945baca17` plus the change). It replaces a first capture on `odudu-p5a-i9a`, which showed a write token issued with no consent
+page. The stack started from an empty volume and was driven once, in the order the page shows: the tenant `demo` seeded with `ada`
+holding `view-users`, `manage-clients` and `manage-tenant`, a client made through the admin API, four sign-ins, the calls. The audit rows
+the page lists are all the tenant had of those actions. The psql blocks are shown without the trailing spaces the tool pads a column
+with, as Prettier leaves them. The scope update was the last call of the run (its JSON-RPC ids, 12 to 14, follow the read token's call, 11, and the audit listings order by row id), so its section comes after the refusals and before the audit listings, and the page's order is the run's. The stack and its image were removed afterwards.
+
+`GET /admin/openapi.json`'s block was fetched again on 2026-11-06 on a freshly built compose project, `odudu-p5a-i9c` (port `3091`,
+built from the branch commit `5b55907c4` plus the change that made a NUL in a group's, a role's or a subject's text a refused field in the
+contracts), because the document grew by 226 bytes. Its request id, date and size are that fetch's; the stack and its image were
+removed afterwards. It was fetched once more on the same day on the compose project `odudu-p5a-ffa` (port `3091`, built from the
+branch commit `83a96ae16`), because the description of `max_clients` changed and the document grew by 122 bytes; the block's request
+id, date and size are that fetch's, and the stack and its image were removed afterwards. It was fetched a third time on 2026-11-07 on the compose project `odudu-p5a-i16` (port `3000`, built from the branch commit `98448c967`), because a group name's pattern joined the create contract and the document grew by 22 bytes (806,774 in all); it was fetched a fourth time the same day, on a freshly built `odudu-p5a-i16` from the branch commit `b5f49718c`, because the descriptions of `POST /roles` and `POST /groups` now name their limits and it grew to 806,948 bytes. The page's three blocks are that run's, and the stack and its image were removed afterwards. The default group page, `put-groupsiddefault.md`, was replayed whole on that project (published on port `3082`, as the page's commands say), built from the branch commit `b5f49718c` plus the changes after it: the tenant `defaults-demo`, `ada-t8c2` holding every admin capability and a token for the administration client, the `staff` group with its `description` and its child `everyone`, the ETag of `staff`'s roles, then the page's two blocks, with the page's ids replaced by that run's. Every block and id on the page is that run's, and the stack and its image were removed afterwards.
+
+The `mcp` policy section of `bootstrap.md` was captured again, whole, on 2026-11-06 on the compose project `odudu-p5a-ffd` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `540b9809e`, a freshly built stack with nothing done to it before the section). Every block is one pass of the section's own commands in order on that stack, so the client ids in the queries are the ones the registrations returned and the port is the one the audience names. The counts block added to the counts page (`?counts_toward_max_clients=`) and the `GET /admin/openapi.json` block were run on the same stack straight after it, the second because the new parameter grew the document by 648 bytes; the stack and its image were removed afterwards.
+
+The two MCP pages, `the-mcp-endpoint.md` and `odudu-mcp-over-stdio.md`, and the write tools' page, `the-mcp-write-tools.md`, were captured again,
+each whole, on 2026-11-07 when the wording tools (`update_tenant_text_settings`, `set_message_override`, `clear_message_override`) joined the
+catalogue: the endpoint page's count of write tools is now ten, the stdio page's `--allow-writes` listing is the five tools that amend
+(the display name and languages included) and none of the five that create, set or clear, and the write tools' page has a section for the
+wording tools and the audit rows they leave. The compose project was `odudu-p5a-i17` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at
+`10000`, built from the branch commit `56075d46d` plus the documentation), started from an empty volume before each page, one page per run.
+Each page's bash blocks were run in order by one script in a single shell, with only the project name and the compose file's path changed, and
+every output block was written from what that run printed (standard output and error together, carriage returns and trailing spaces
+removed). The only glue between two blocks, on the endpoint page, is `CID` from the registration's answer and `CODE` from the consent's
+redirect, which the script read from the two responses the page shows. Every id, key, time and request id on the three pages is that run's.
+The endpoint page's budget counts came out as before and its `Retry-After` was 36 seconds. The stdio page's two reads are the only calls
+its audit rows hold. The write tools' page (the tenant `demo` seeded with `ada` holding `view-users`, `manage-clients` and `manage-tenant`, a
+client made through the admin API, four sign-ins, the calls in the order the page shows) keeps its psql blocks without the trailing spaces the
+tool pads a column with, as Prettier leaves them; its audit listings now hold the `tenant.amend_settings`, `message_override.set` and
+`message_override.delete` rows and the `set_`, `clear_` and `update_tenant_text_settings` calls the new section made, all the tenant had of
+those actions, and the French sign-in page it fetches shows the text the agent set. A set, clear or settings change sent past the tool, by an
+agent token the endpoint did not sign, is not on these pages: `packages/protocol-admin/tests/agent-door-wording.int.test.ts` runs it against
+the real door, and the stdio page shows that `odudu mcp --allow-writes` does not offer the five. No transcript shows a system-tenant agent,
+for the reason the earlier capture gave. The stack was removed afterwards, and its image with it.
+
+The two MCP pages, `the-mcp-endpoint.md` and `odudu-mcp-over-stdio.md`, and the write tools' page, `the-mcp-write-tools.md`, were captured again,
+each whole, on 2026-11-07 when the theme draft tools (`update_theme_draft`, `update_client_theme_draft`) joined the catalogue: the endpoint page's
+count of write tools is now twelve, the stdio page's listing is the endpoint's minus the twelve (its `--allow-writes` listing is the same five
+that amend, the two theme tools being the endpoint's alone), and the write tools' page has a section for the theme drafts and the
+`theme.draft_saved` rows they leave. The compose project was `odudu-p5a-i18` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built
+from the branch commit `77b5c7bc6`, built after the last change to the code, with nothing uncommitted), started from an empty volume before each page, one page per run. Each page's `bash` blocks
+were run in order by one script in a single shell (each block a brace group, so a function or a variable made in one is there in the next), with
+only the project name and the compose file's path changed, and every output block was written from what that run printed (standard output and
+error together, carriage returns and trailing spaces removed). The endpoint page's glue between two blocks, `CID` from the registration's answer and `CODE` from the consent's redirect, was read from those two responses by the script. An earlier pass over the
+write tools' page showed a token holding only `mcp:read` told to name an etag by a theme tool that had read first; the tool now makes its read with
+the write bearer, the image was built again and all three pages were replayed on it, and they were replayed once more on the committed head named above when the audit row of a draft save began to carry digests, so no page mixes captures. Every id, key, time and request id on
+the three pages is that run's. `055acb929` (a first draft's `warning`, and the etag beside a too-large refusal) landed after that commit and was reviewed against the three pages: none of their blocks shows either, so none was captured again. The whole-branch review's code changes (an agent held to its own tenant and off built-in scopes, a fail-closed budget root, locks and limits for role and group creation) change no response that a block on these pages shows, which was read, not run again. A theme draft sent past the tool, by an agent token the endpoint did not sign, or for a built-in client, is not on
+the pages: `packages/protocol-admin/tests/agent-door-theme.int.test.ts` runs it against the real door. The theme API page,
+`get-theme-put-theme-and-the-theme-routes.md`, was not replayed: nothing it shows changed (the routes the tools use answer as they did), it needs `ada`'s
+administration token from another page, and it uploads `logo.png` and `background.png`, which no block of the page makes. The stack was removed afterwards, and its image with it.
+
+`GET /admin/openapi.json`'s block was fetched once more on the same stack, on 2026-11-07, because a display name is now at most 256 characters in
+the create and import contracts and the tenant document and a message override's key may hold no NUL, and the document grew by 152 bytes
+(807,100 in all); it was fetched again on a freshly built stack after the review of that change, and the block is that fetch's. The pages of the message
+overrides and of the settings were not replayed: no block on either shows an output the change alters (the audit rows they list are a
+registration policy change, whose detail is the same), and each changed one sentence about what the audit row holds.
+
+The stdio server's page, `odudu-mcp-over-stdio.md`, was captured, and re-captured after the admin API began recording a direct agent call, on 2026-11-06 on a freshly built compose project,
+`odudu-p5a-i10b` (port `3000`, Postgres published on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
+commit `2eeb90f9f` plus the change). The stack started from an empty volume and was driven once, in the order the page shows: the
+tenant `demo` seeded, a key made with `odudu mcp --keygen`, a client made with `odudu seed client` and registered with `psql`, then the
+commands. The key line is shortened where it is shown, since it is a private key and the one used is gone with the stack. The psql blocks
+are shown without the trailing spaces the tool pads a column with, as Prettier leaves them, and the tool names are wrapped by `fold`
+at 100 columns with the trailing spaces left off. The sign-in as a person is not on the page: it ends in a browser and a loopback
+listener on the machine that runs the command. `apps/server/tests/mcp-stdio.int.test.ts` runs it against the real app with a scripted
+browser instead. The stack and its image were removed afterwards.
+
+Token exchange gained two per-client limits on 2026-11-05, `token_exchange_allowed_for_public` and
+`token_exchange_actor_from_other_client`, and `odudu seed client` two flags for them. On a freshly built
+compose project, `odudu-p5a-i5d` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the
+branch commit `56c2bc43` plus the change), with `ada` and a token got as in Getting the token, Path D's `exdoc` setup was
+run again as the page now shows it (the delegation succeeds with the flag, `exdoc-exchange-restricted`'s refusal and its
+audit row, the public client's refusal, the admin API `PATCH` and the exchange afterwards) and so was the `disableddoc`
+setup with `token_exchange_allowed_for_public` on, whose public self-exchange answered `200` as before. The blocks of
+that last section that did not change were not recorded again, and the new section's ids and times are that run's. The
+`GET /admin/openapi.json` page was fetched again on it (request id, date and size, 697,119 bytes). The stack was removed afterwards.
+
+The twelve blocks of the admin paths that show a client or the export (`delete-scopesidclientsclientid`,
+`get-clients-post-clients-and-get-clientsid`, `get-export`, `getting-the-token`, `patch-clientsid` and
+`post-clientsidsecret`) were run again on a second freshly built compose project, `odudu-p5a-i5f` (port `3000`,
+`ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `cd22f623` plus the change),
+with `ada` and a token got as in Getting the token. Each page's own commands ran in order on a stack holding
+only the system tenant (the tenants earlier pages made were disabled and deleted between pages), and the output
+of the command before each of those blocks replaced it as it came back. Each says so under the block, because
+its ids, `ETag`s and times are that run's and not those of the blocks around it; the new members are `false`
+in each. The rest of those pages was not replaced. The stack was removed afterwards.
+
+The admin API's `Idempotency-Key` was added on 2026-11-05, and `odudu reap` reports `idempotency_keys` after `client_metadata_cache`. On
+a freshly built compose project, `odudu-p5a-i6a` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
+commit `5703082d` plus the change), the retention page's whole walkthrough was run again from an empty volume (the demo tenant seeded
+as Bootstrap seeds it, one login, one code redeemed and one refresh rotated, then its commands in order) and each `odudu reap` report on
+the page is the one that run printed, the unseeded-stack and refusal outputs excepted since the key is not in them. The ids in the seed and registration
+lines around those reports are those of an earlier run. With `ada` and a token got as in Getting the token, the roles page's new section
+"Retrying a create with an Idempotency-Key" and the retention page's `idempotency_keys` block ran on the same stack, in a tenant `idem-demo`, and
+`GET /admin/openapi.json` was fetched again (request id, date and size, fetched on the fourth stack below and once more on the stack the service-account paragraph below names). The read-a-refusal guide's step 8 excerpts the roles
+section. The stack was removed afterwards. After the review, a keyed `POST /admin/tenants` (refused) and the OpenAPI fetch were run again on a second
+freshly built project, `odudu-p5a-i6b`, which was removed afterwards; the roles blocks around them are the first run's. A keyed `POST …/smtp/test` (refused) and the OpenAPI fetch were run once more on a third freshly built project, `odudu-p5a-i6c`, removed afterwards. The roles page's key listing was read on the first stack, straight after the blocks above it, and now sits before the two refusals that ran on later stacks. The OpenAPI fetch was run a last time on a fourth freshly built project, `odudu-p5a-i6d` (port `3000`, built from the branch commit `a98b9573` plus the change that declares the key's refusals on the keyed operations), removed afterwards.
+
+A client has a service account only while it holds the `client_credentials` grant, and the audit detail of a client change gained
+`service_subject_id`. On a freshly built compose project, `odudu-p5a-i7a` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at
+`10000`, built from the branch commit `49085853` plus the documents), with `ada` and a token got as in Getting the token, the audit page's
+`audit-demo` and `resource-audit` setups and the four queries that show `client.create` rows were run again, and the `PATCH /clients/{id}` page's
+section on what a client answers about its service account was run again with `billing` made first with `authorization_code` alone, followed by the
+new section on a service account following the grant (`etl` and `ops`); each block shows what that run printed, and the ids and times in those blocks
+are that run's, so they refer to nothing around them. The other blocks of those pages were not replaced. The stack was removed afterwards. The OpenAPI page's capture (request id, date and
+size) was taken on a last freshly built project, `odudu-p5a-i7b` (port `3000`, built from the merge of the phase branch
+with this one, which carries both the problem responses and the longer descriptions), and removed afterwards. The page was fetched
+once more (request id, date and size, now 805,568 bytes) after the client `PATCH` description named the idle account it reuses, on the
+project `odudu-p5a-i7c` (port `3197`, built from the branch commit `ad4b2d47` plus the change), removed afterwards.
+
+The retention page's `odudu reap` reports gained the `client_metadata_cache` key on 2026-11-05, and `cimd_clients` after it later the same day. All seven were re-run on
+a freshly built compose project, `odudu-p5a-i3b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), driven
+only as far as Path A plus one refresh rotation and then through the page's own commands in order; each report was captured again and the page now shows it as it
+came back. The unseeded-stack and refusal outputs were not re-run, since the key is not in them.
+
+The `mcp` value of `client_registration_policy` was added on 2026-11-05, and the page's whole section "The `mcp` policy"
+(every block of it) was run again after the registration, reaping and consent changes that followed, on the compose project
+`odudu-p5a-i4g` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), freshly built from the branch plus the
+change, in the order the page shows, on a tenant made for it, `mcp-demo`. The retention page's section on `dynamic_clients`
+ran next on the same stack, with its own tenant `dyn-demo` and every query scoped to it; the page shows its commands,
+seeding included. Ids and instants are elided in the pages where they are long, and the stack was removed afterwards.
+The other registration pages predate the policy and were not run again, and no sign-in was re-run for the consent change,
+whose screen is unchanged.
+The settings API and `seed tenant --set` took `client_registration_policy=mcp` and `cimd_enabled` on 2026-11-05, and
+a settings change's audit event began to carry their values. On the compose project `odudu-p5a-i4e` (port `3000`,
+`ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `8df992d2` plus the change), freshly
+built with `ada` and a token got as in Getting the token, the new section "Who may register clients" of the settings
+page, the first block of the bootstrap page's "The `mcp` policy" (now `seed tenant --set`) and `GET /admin/openapi.json`
+(only its request id, date and size, 693,853 bytes, differ) were run. Nothing else on those pages was run again; the
+stack was removed afterwards.
+The retention page of the request paths gained the `dynamic_clients` key of `odudu reap` the same day, and its seven earlier reports were captured again on the project `odudu-p5a-i4c` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), freshly built and driven as the page says, as far as Path A plus one refresh rotation and then through the page's own commands in order. Its `dynamic_clients` section was captured on `odudu-p5a-i4g`, as the paragraph above says.
+
+`cimd_enabled`, the tenant setting for client ID metadata documents, was added on 2026-11-05. The
+authorization server metadata page gained a section that turns it on and off, and the settings page's
+`GET`, first `PATCH` and unknown-setting refusal, the first export of `get-export.md` and the OpenAPI
+page were re-run on the compose project `odudu-p5a-i3b` (port `3000`, `ODUDU_REAP_ENABLED=false`,
+throttles at `10000`) with an administrator token got as in Getting the token; the first two differ from
+their earlier captures only by the new member (and ids, times, `ETag`s and lengths). The rest of those
+pages, and the other pages that list a tenant's settings, predate the setting and were not run again.
+
 The custom-domain work of 2026-11-04 was captured on the compose project `odudu-p4j-tx`, built from the
 branch commit `cdde6fd8` plus the documentation, on port `3000` with `ODUDU_THROTTLE_LIMIT` and
 `ODUDU_LOGIN_THROTTLE_LIMIT` at `10000` and the three schedules off. The domains page of the admin
@@ -796,6 +963,29 @@ and the role `auditor` mapped to `roles` were the only other state. The OpenAPI
 section of [the admin API's OpenAPI page](../reference/transcripts/admin-paths/get-adminopenapijson.md) was run again on the
 same stack with nothing seeded.
 
+### The built-in MCP client
+
+The blocks about `odudu-mcp` on the pages for
+[`GET /clients`](../reference/transcripts/admin-paths/get-clients-post-clients-and-get-clientsid.md),
+[`DELETE /clients/{id}`](../reference/transcripts/admin-paths/delete-clientsid.md) and
+[`GET /export`](../reference/transcripts/admin-paths/get-export.md) were run on the project
+`odudu-p5a-i22` on `http://localhost:3092`, its `odudu` service built from the working tree
+of the commit that added the client, on an empty volume with a console key made for it.
+`seed admin --username ada` made the administrator, whose token was got as in
+[Getting the token](../reference/transcripts/admin-paths/getting-the-token.md), and the tenants
+`mcp-demo` and `mcp-demo-copy` were the only other state. The rest of those three pages,
+and every other transcript that lists a tenant's clients or exports one, predates the client
+and was not run again, except the three blocks below.
+
+The scope list that gained `mcp:read` and `mcp:write` was re-run on the project
+`odudu-p5a-i2c` on `http://localhost:3082`, built from the working tree on an empty volume
+with a console key made for it, the administrator and the token made as above: the
+[console's discovery block](../reference/transcripts/console-paths/get-consoleapitenantstenantdiscovery-get-consoleapitenantstenantjwks.md)
+for `system`, the [discovery block at a tenant's own address](../reference/transcripts/request-paths/custom-domains-a-domain-host-and-the-proxys-question.md#discovery)
+for `demo` registered at `login.acme-corp.dev` with `seed domain --assume-verified --canonical`, and the
+long export in [`GET /export`](../reference/transcripts/admin-paths/get-export.md), whose tenant `export-demo` was
+made with that page's setup and held nothing else.
+
 ### A value that changes with a build is not asserted
 
 A transcript may show a response that holds a hashed file name, a byte size, a path
@@ -952,3 +1142,12 @@ discovery read, [a refresh](../reference/transcripts/console-paths/a-refresh.md)
 lock](../reference/transcripts/console-paths/a-refresh-that-cannot-take-the-lock.md), [a refresh the server
 refuses](../reference/transcripts/console-paths/a-refresh-the-server-refuses.md), and the logout with the redirect it
 ends on. Their audit rows answer `actor_name` and `actor_origin`.
+
+A client that asks for more scope than the `mcp` policy lets it hold is now registered with the part it may hold, and the
+registration response gained a `scope` member. The bootstrap page's section "The `mcp` policy" was run again in full for that,
+on the compose project `odudu-p5a-i11b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
+plus the change), on a tenant made for it, `mcp-demo`, in the order the page shows; its second registration, the changed
+refusal and the budget's counts are that pass's. The MCP endpoint's page was not run again: its registration asked for
+`openid mcp:read`, which now comes back as a `scope` member, so the request no longer names a scope and its response is as
+it was. That changed command was run on the same project on a tenant of its own, `mcp-check`, and answered the page's
+response member for member, with another id, instant and tenant name. The stack was removed afterwards.

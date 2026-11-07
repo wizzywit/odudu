@@ -118,6 +118,21 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const failedYesterdayId = newId();
   const neverAttemptedId = newId();
   const abandonedId = newId();
+  const cimdStaleId = newId();
+  const cimdHeldId = newId();
+  const cimdFreshId = newId();
+  const cimdHeldGrantId = newId();
+  const cimdSlackId = newId();
+  const cimdDisabledId = newId();
+  const cimdRevokedId = newId();
+  const dynStaleId = newId();
+  const dynFreshId = newId();
+  const dynConsentedId = newId();
+  const dynDisabledId = newId();
+  const dynConfidentialId = newId();
+  const dynConsentRowId = newId();
+  const cimdSlackGrantId = newId();
+  const cimdRevokedGrantId = newId();
   const logoutDeliveredLongAgoId = newId();
   const logoutDeliveredYesterdayId = newId();
   const logoutAbandonedLongAgoId = newId();
@@ -149,6 +164,64 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
     VALUES (${clientId}, ${tenantId}, 'app', 'App', 'public')
   `);
 
+  // Clients from a metadata document: one unused past thirty days, one just as
+  // old but holding a refresh token that can still be used, one used lately.
+  await owner.db.execute(sql`
+    INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, metadata_used_at)
+    VALUES
+      (${cimdStaleId}, ${tenantId}, 'https://stale.example.com/c.json', 'Stale', 'public', 'cimd',
+       ${at(-31 * DAY)}::timestamptz),
+      (${cimdHeldId}, ${tenantId}, 'https://held.example.com/c.json', 'Held', 'public', 'cimd',
+       ${at(-90 * DAY)}::timestamptz),
+      (${cimdFreshId}, ${tenantId}, 'https://fresh.example.com/c.json', 'Fresh', 'public', 'cimd',
+       ${at(-1 * DAY)}::timestamptz),
+      (${cimdSlackId}, ${tenantId}, 'https://slack.example.com/c.json', 'Slack', 'public', 'cimd',
+       ${at(-90 * DAY)}::timestamptz),
+      (${cimdRevokedId}, ${tenantId}, 'https://revoked.example.com/c.json', 'Revoked', 'public', 'cimd',
+       ${at(-90 * DAY)}::timestamptz),
+      (${cimdDisabledId}, ${tenantId}, 'https://disabled.example.com/c.json', 'Disabled', 'public', 'cimd',
+       ${at(-90 * DAY)}::timestamptz)
+  `);
+  await owner.db.execute(sql`UPDATE clients SET enabled = false WHERE id = ${cimdDisabledId}`);
+  await owner.db.execute(sql`
+    INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id,
+                              revoked_at)
+    VALUES (${cimdHeldGrantId}, ${tenantId}, ${cimdHeldId}, ${subjectId}, 'openid',
+            ${at(-1 * HOUR)}::timestamptz, NULL, NULL),
+           (${cimdSlackGrantId}, ${tenantId}, ${cimdSlackId}, ${subjectId}, 'openid',
+            ${at(-2 * HOUR)}::timestamptz, NULL, NULL),
+           (${cimdRevokedGrantId}, ${tenantId}, ${cimdRevokedId}, ${subjectId}, 'openid',
+            ${at(-1 * HOUR)}::timestamptz, NULL, ${at(-30 * MINUTE)}::timestamptz)
+  `);
+  await owner.db.execute(sql`
+    INSERT INTO refresh_tokens (token_hash, tenant_id, grant_id, expires_at, used_at)
+    VALUES (${`rt-cimd-${tenantId}`}, ${tenantId}, ${cimdHeldGrantId}, ${at(5 * DAY)}::timestamptz, NULL),
+           (${`rt-slack-${tenantId}`}, ${tenantId}, ${cimdSlackGrantId}, ${at(-30 * MINUTE)}::timestamptz, NULL),
+           (${`rt-revoked-${tenantId}`}, ${tenantId}, ${cimdRevokedGrantId}, ${at(5 * DAY)}::timestamptz, NULL)
+  `);
+
+  // Public clients that registered themselves: one unused past a week, one
+  // young, one a person approved, one an administrator
+  // disabled, and a confidential one, which the rule leaves to its owner.
+  await owner.db.execute(sql`
+    INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, created_at)
+    VALUES
+      (${dynStaleId}, ${tenantId}, 'dyn-stale', 'Stale', 'public', 'anonymous',
+       ${at(-8 * DAY)}::timestamptz),
+      (${dynFreshId}, ${tenantId}, 'dyn-fresh', 'Fresh', 'public', 'anonymous',
+       ${at(-1 * DAY)}::timestamptz),
+      (${dynConsentedId}, ${tenantId}, 'dyn-consented', 'Consented', 'public', 'anonymous',
+       ${at(-8 * DAY)}::timestamptz),
+      (${dynDisabledId}, ${tenantId}, 'dyn-disabled', 'Disabled', 'public', 'anonymous',
+       ${at(-8 * DAY)}::timestamptz),
+      (${dynConfidentialId}, ${tenantId}, 'dyn-confidential', 'Confidential', 'confidential',
+       'anonymous', ${at(-8 * DAY)}::timestamptz)
+  `);
+  await owner.db.execute(sql`UPDATE clients SET enabled = false WHERE id = ${dynDisabledId}`);
+  await owner.db.execute(sql`
+    INSERT INTO consents (id, tenant_id, subject_id, client_id)
+    VALUES (${dynConsentRowId}, ${tenantId}, ${subjectId}, ${dynConsentedId})
+  `);
   // The session the young grant is bound to is itself long past its grace:
   // what keeps it is the grant, not its own expiry.
   await owner.db.execute(sql`
@@ -341,6 +414,25 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
       (${tenantId}, 'https://live.example.com', ${at(1 * HOUR)}::timestamptz)
   `);
 
+  await owner.db.execute(sql`
+    INSERT INTO client_metadata_cache (tenant_id, url, body, fetched_at, expires_at)
+    VALUES
+      (${tenantId}, 'https://stale.example.com/c.json', '{}'::jsonb, ${at(-2 * HOUR)}::timestamptz,
+       ${at(-1 * SECOND)}::timestamptz),
+      (${tenantId}, 'https://live.example.com/c.json', '{}'::jsonb, ${at(-1 * MINUTE)}::timestamptz,
+       ${at(1 * HOUR)}::timestamptz)
+  `);
+
+  await owner.db.execute(sql`
+    INSERT INTO idempotency_keys (tenant_id, key, route, fingerprint, status, response_status,
+                                  response_body, created_at, expires_at)
+    VALUES
+      (${tenantId}, 'lapsed', 'POST /r', ${'0'.repeat(64)}, 'completed', 201, '{}',
+       ${at(-25 * HOUR)}::timestamptz, ${at(-1 * HOUR)}::timestamptz),
+      (${tenantId}, 'live', 'POST /r', ${'0'.repeat(64)}, 'completed', 201, '{}',
+       ${at(-1 * HOUR)}::timestamptz, ${at(23 * HOUR)}::timestamptz)
+  `);
+
   return {
     tenant,
     tenantId,
@@ -385,6 +477,12 @@ const RELATIONS: Record<TableName, SQL> = {
   console_sessions: sql.raw('console_sessions'),
   console_logins: sql.raw('console_logins'),
   tenant_issuer_retirements: sql.raw('tenant_issuer_retirements'),
+  client_metadata_cache: sql.raw('client_metadata_cache'),
+  idempotency_keys: sql.raw('idempotency_keys'),
+  cimd_clients: sql.raw("(SELECT * FROM clients WHERE registration_origin = 'cimd') AS cimd"),
+  dynamic_clients: sql.raw(
+    "(SELECT * FROM clients WHERE registration_origin = 'anonymous' AND type = 'public') AS dynamic",
+  ),
   tenant_domains: sql.raw('tenant_domains'),
   sessions: sql.raw('sessions'),
   audit_events: sql.raw('audit_events'),
@@ -553,6 +651,10 @@ describe('odudu reap', () => {
       console_sessions: 2,
       console_logins: 1,
       tenant_issuer_retirements: 1,
+      client_metadata_cache: 1,
+      idempotency_keys: 1,
+      cimd_clients: 2,
+      dynamic_clients: 1,
       tenant_domains: 1,
       sessions: 1,
       audit_events: 0,
@@ -562,9 +664,9 @@ describe('odudu reap', () => {
     // token_grants: a cascade would have emptied refresh_tokens while the
     // report claimed nothing had happened there.
     expect(await counts(fixture.tenantId)).toEqual({
-      refresh_tokens: 1,
+      refresh_tokens: 3,
       authorization_codes: 1,
-      token_grants: 1,
+      token_grants: 3,
       authentication_sessions: 1,
       action_tokens: 1,
       pending_registrations: 1,
@@ -576,6 +678,10 @@ describe('odudu reap', () => {
       console_sessions: 1,
       console_logins: 1,
       tenant_issuer_retirements: 1,
+      client_metadata_cache: 1,
+      idempotency_keys: 1,
+      cimd_clients: 4,
+      dynamic_clients: 3,
       tenant_domains: 3,
       sessions: 1,
       audit_events: 0,
@@ -596,6 +702,10 @@ describe('odudu reap', () => {
       console_sessions: 0,
       console_logins: 0,
       tenant_issuer_retirements: 0,
+      client_metadata_cache: 0,
+      idempotency_keys: 0,
+      cimd_clients: 0,
+      dynamic_clients: 0,
       tenant_domains: 0,
       sessions: 0,
       audit_events: 0,
@@ -614,6 +724,138 @@ describe('odudu reap', () => {
       sql`SELECT jti FROM client_assertion_jti WHERE tenant_id = ${fixture.tenantId}`,
     );
     expect(rows.map((row) => row.jti)).toEqual([fixture.assertionJtiLive]);
+  });
+
+  it('removes the metadata document client nobody used, and keeps one in use or with a live refresh token', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients
+           WHERE tenant_id = ${fixture.tenantId} AND registration_origin = 'cimd'
+           ORDER BY client_id`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual([
+      'https://disabled.example.com/c.json',
+      'https://fresh.example.com/c.json',
+      'https://held.example.com/c.json',
+      'https://slack.example.com/c.json',
+    ]);
+    expect(await countRows(fixture.tenantId, 'refresh_tokens')).toBeGreaterThan(0);
+  });
+
+  it('removes the self-registered public client nobody used, and keeps one approved, young or disabled', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients
+           WHERE tenant_id = ${fixture.tenantId} AND registration_origin = 'anonymous'
+           ORDER BY client_id`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual([
+      'dyn-confidential',
+      'dyn-consented',
+      'dyn-disabled',
+      'dyn-fresh',
+    ]);
+  });
+
+  it('keeps an old self-registered client a person once approved, though the approval was withdrawn', async () => {
+    const fixture = await seedFixture();
+    const clientId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, created_at,
+                           approved_at)
+      VALUES (${clientId}, ${fixture.tenantId}, 'dyn-withdrawn', 'Withdrawn', 'public',
+              'anonymous', ${at(-30 * DAY)}::timestamptz, ${at(-20 * DAY)}::timestamptz)
+    `);
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients WHERE id = ${clientId}`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual(['dyn-withdrawn']);
+  });
+
+  it('keeps an old self-registered client whose first sign-in is still pending, and not one whose sign-in lapsed', async () => {
+    const fixture = await seedFixture();
+    const pending = (clientKey: string, expiresAt: string) =>
+      owner.db.execute(sql`
+        INSERT INTO authentication_sessions (id, tenant_id, pending_request, expires_at)
+        VALUES (${newId()}, ${fixture.tenantId},
+                ${JSON.stringify({ clientId: clientKey })}::jsonb, ${expiresAt}::timestamptz)
+      `);
+    for (const key of ['dyn-signing-in', 'dyn-lapsed']) {
+      await owner.db.execute(sql`
+        INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, created_at)
+        VALUES (${newId()}, ${fixture.tenantId}, ${key}, ${key}, 'public', 'anonymous',
+                ${at(-30 * DAY)}::timestamptz)
+      `);
+    }
+    await pending('dyn-signing-in', at(20 * MINUTE));
+    await pending('dyn-lapsed', at(-20 * MINUTE));
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients
+           WHERE tenant_id = ${fixture.tenantId} AND client_id LIKE 'dyn-%' ORDER BY client_id`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual(
+      ['dyn-consented', 'dyn-confidential', 'dyn-disabled', 'dyn-fresh', 'dyn-signing-in'].sort(),
+    );
+  });
+
+  it('keeps an old self-registered client that holds a grant, however spent', async () => {
+    const fixture = await seedFixture();
+    const clientId = newId();
+    const [subject] = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM subjects WHERE tenant_id = ${fixture.tenantId} LIMIT 1`,
+    );
+    await owner.db.execute(sql`
+      INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, created_at)
+      VALUES (${clientId}, ${fixture.tenantId}, 'dyn-granted', 'Granted', 'public', 'anonymous',
+              ${at(-8 * DAY)}::timestamptz)
+    `);
+    await owner.db.execute(sql`
+      INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id,
+                                revoked_at)
+      VALUES (${newId()}, ${fixture.tenantId}, ${clientId}, ${subject?.id ?? ''}, 'openid',
+              ${at(-1 * HOUR)}::timestamptz, NULL, ${at(-30 * MINUTE)}::timestamptz)
+    `);
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients WHERE id = ${clientId}`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual(['dyn-granted']);
+  });
+
+  it('keeps the cached metadata document that is still fresh', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ url: string }>(
+      sql`SELECT url FROM client_metadata_cache WHERE tenant_id = ${fixture.tenantId}`,
+    );
+    expect(rows.map((row) => row.url)).toEqual(['https://live.example.com/c.json']);
+  });
+
+  it('keeps the idempotency key that is still live and deletes the one past its window', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ key: string }>(
+      sql`SELECT key FROM idempotency_keys WHERE tenant_id = ${fixture.tenantId}`,
+    );
+    expect(rows.map((row) => row.key)).toEqual(['live']);
   });
 
   it('keeps the console session and pending login that are still live', async () => {
@@ -706,6 +948,10 @@ describe('odudu reap', () => {
     'console_sessions',
     'console_logins',
     'tenant_issuer_retirements',
+    'client_metadata_cache',
+    'idempotency_keys',
+    'cimd_clients',
+    'dynamic_clients',
     'tenant_domains',
   ] as const)('scopes the %s delete to one tenant by row-level security alone', async (table) => {
     const mine = await seedFixture();
@@ -979,7 +1225,7 @@ describe('odudu reap', () => {
     const fixture = await seedFixture();
 
     await runPass(NOW, patient);
-    expect(await countRows(fixture.tenantId, 'token_grants')).toBe(1);
+    expect(await countRows(fixture.tenantId, 'token_grants')).toBe(3);
     expect(await codeExists(fixture.tenantId)).toBe(true);
 
     // Its own window has elapsed too now, and the family it named is long

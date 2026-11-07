@@ -56,6 +56,17 @@ export function subjectRepository(tx: TenantScopedDatabase) {
       return toRecord(row);
     },
 
+    // Removes the subject and, by the foreign keys that cascade from it, every
+    // grant, session, consent, role and group membership it holds. False when
+    // there was none to remove, which includes another tenant's.
+    async delete(id: string): Promise<boolean> {
+      const rows = await tx
+        .delete(subjects)
+        .where(eq(subjects.id, id))
+        .returning({ id: subjects.id });
+      return rows.length > 0;
+    },
+
     // Enabling and disabling both go through `disabled_at`, never a second
     // boolean column: a timestamp answers "since when" for free, which a
     // caller reading `enabled: false` back from the admin API has no other

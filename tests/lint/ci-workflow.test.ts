@@ -138,7 +138,7 @@ describe('the CI workflow', () => {
     it('is one action every job that runs the image uses, with one writer of the cache', async () => {
       const workflow = await read('.github/workflows/verify.yml');
       const uses = workflow.match(/uses: \.\/\.github\/actions\/image/gu) ?? [];
-      expect(uses).toHaveLength(5);
+      expect(uses).toHaveLength(6);
       expect(workflow).toContain(
         "save-cache: ${{ strategy.job-index == 0 && github.event_name == 'push' }}",
       );
@@ -334,6 +334,39 @@ describe('the CI workflow', () => {
       for (const name of directories) {
         await read(`examples/${name}/test.ts`);
       }
+    });
+  });
+
+  describe('the MCP clients job', () => {
+    async function job(): Promise<string> {
+      const workflow = await read('.github/workflows/verify.yml');
+      const from = workflow.slice(workflow.indexOf('\n  mcp:\n') + 1);
+      const next = /\n {2}[a-z][\w-]*:\n/u.exec(from.slice(1));
+      return next === null ? from : from.slice(0, next.index + 1);
+    }
+
+    it('runs when the server can have changed, is bounded, and the gate waits for it', async () => {
+      const block = await job();
+      expect(block).toContain('needs: changes');
+      expect(block).toMatch(/^ {4}if: needs\.changes\.outputs\.server == 'true'$/mu);
+      expect(block).toMatch(/^ {4}timeout-minutes: \d+$/mu);
+      const workflow = await read('.github/workflows/verify.yml');
+      expect(gateNeeds(workflow)).toContain('mcp');
+    });
+
+    it('runs the script on the image built from this commit, named as its compose file names it', async () => {
+      const block = await job();
+      expect(block).toContain('uses: ./.github/actions/image');
+      expect(block).toContain('docker tag odudu-smoke-odudu odudu-mcp-odudu');
+      expect(block).toContain('./infra/conformance/run-mcp.sh');
+      expect(block).toContain("MCP_PREBUILT: '1'");
+      expect(await read('infra/conformance/run-mcp.sh')).toContain('PROJECT=odudu-mcp\n');
+    });
+
+    it('pins both clients to an exact version', async () => {
+      const script = await read('infra/conformance/run-mcp.sh');
+      expect(script).toMatch(/^INSPECTOR_VERSION=\d+\.\d+\.\d+$/mu);
+      expect(script).toMatch(/^SDK_CLIENT_VERSION=\d+\.\d+\.\d+$/mu);
     });
   });
 

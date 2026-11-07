@@ -28,8 +28,10 @@ const ENTRY_GZIP_BUDGET = 153_000;
 // imports statically. Set at 229,800 B, plus 5%, rounded up to a whole kB;
 // reset to 244,911 B (the failure screens: the root fallback, the panel and the
 // copy button must load first, since the fallback draws with nothing else
-// loaded) plus 5%, rounded up. Lazy chunks are not budgeted.
-const FIRST_LOAD_GZIP_BUDGET = 258_000;
+// loaded) plus 5%, rounded up; raised by 1 kB when the contracts' free-text
+// fields gained a pattern that refuses a NUL character, which the console's
+// forms share (258,018 B measured). Lazy chunks are not budgeted.
+const FIRST_LOAD_GZIP_BUDGET = 259_000;
 
 interface Chunk {
   readonly name: string;

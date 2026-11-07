@@ -486,6 +486,13 @@ export const OUTSIDE_LOADER_ENV = {
     'The password `odudu init` gives the first administrator in place of a generated one. It is ' +
     'an environment variable and never an option, so it does not appear in a process listing. ' +
     'A blank value counts as unset.',
+  ODUDU_MCP_KEY:
+    'The service account key `odudu mcp` signs in with, the one line `odudu mcp --keygen` prints. ' +
+    'An environment variable rather than an option so it is not in a process listing; `--key-file` ' +
+    'names a file holding the same value instead, and the two are not both given.',
+  ODUDU_MCP_CLIENT_ID:
+    'The `client_id` of the service account `ODUDU_MCP_KEY` belongs to, when `odudu mcp` is not ' +
+    'given `--client-id`.',
   ODUDU_VERSION:
     'The version `odudu --version` prints. The release image sets it; elsewhere it is `dev`.',
 } as const;

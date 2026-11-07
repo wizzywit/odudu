@@ -1,5 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { readCount, readJwks, readLatestAudit } from '#/pages/overview/adapter/overview';
+import {
+  readCount,
+  readJwks,
+  readLatestAudit,
+  readOperatorClientCount,
+} from '#/pages/overview/adapter/overview';
 import { readKeys } from '#/entities/signing-key';
 import { overviewKey } from '#/shared/lib/repository/queryKeys';
 import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
@@ -71,6 +76,13 @@ export function useOverviewReads(
       roles: useTenantRead(tenant, 'roles', asks.roles, count('roles'), onAnswer),
       scopes: useTenantRead(tenant, 'scopes', asks.scopes, count('scopes'), onAnswer),
     },
+    operatorClients: useTenantRead(
+      tenant,
+      'operatorClients',
+      asks.operatorClients,
+      (g) => readOperatorClientCount(g, tenant),
+      onAnswer,
+    ),
     settings: useTenantRead(
       tenant,
       'settings',

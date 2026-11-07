@@ -13,6 +13,7 @@ const NOTHING: OverviewAsks = {
   discovery: false,
   subjects: false,
   clients: false,
+  operatorClients: false,
   groups: false,
   roles: false,
   scopes: false,
@@ -66,6 +67,26 @@ it('reads discovery and the JWKS together, and each count it is asked for', asyn
     '/console/api/tenants/acme/discovery',
     '/console/api/tenants/acme/jwks',
   ]);
+});
+
+it('reads the clients max_clients counts apart from every client', async () => {
+  const { hook } = mount(
+    {
+      [`GET ${ACME_ADMIN}/clients/count`]: (request) =>
+        json(
+          request.search.get('counts_toward_max_clients') === 'true'
+            ? { count: 2, capped: false }
+            : { count: 900, capped: false },
+        )(request),
+    },
+    { ...NOTHING, clients: true, operatorClients: true },
+  );
+  await waitFor(() => {
+    expect(hook.result.current.operatorClients.status).toBe('ready');
+    expect(hook.result.current.counts.clients.status).toBe('ready');
+  });
+  expect(hook.result.current.operatorClients).toMatchObject({ data: { count: 2 } });
+  expect(hook.result.current.counts.clients).toMatchObject({ data: { count: 900 } });
 });
 
 it('shows a read waiting, then refused or failed, and reads it again on retry', async () => {

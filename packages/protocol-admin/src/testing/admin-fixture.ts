@@ -33,6 +33,7 @@ import { hashPassword, subjectRepository, userRepository } from '@odudu/domain-i
 import {
   ADMIN_API_AUDIENCE,
   ADMIN_CLIENT_ID,
+  MCP_CLIENT_ID,
   clientRepository,
   clients,
   provisionClientDefaults,
@@ -42,15 +43,25 @@ import {
   type ClientRecord,
   type ResolveTxt,
 } from '@odudu/domain-tenant';
-import { DEFAULT_OUTBOX_MAX_ATTEMPTS, FakeClock, newId, type PageKind } from '@odudu/kernel';
+import {
+  DEFAULT_OUTBOX_MAX_ATTEMPTS,
+  FakeClock,
+  mcpAudienceOfIssuer,
+  newId,
+  type PageKind,
+} from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
+  ensureServiceAccount,
   isOidcMessageKey,
+  mintAgentToken,
+  needsServiceAccount,
   OIDC_PAGE_MESSAGES,
   OIDC_PREVIEW_PAGES,
   NO_CLIENT_KEY_FETCHER,
   oidcRoutes,
   provisionAdminClient,
+  provisionMcpClient,
   standardClaimMappers,
   configureIssuerBase,
   tenantIssuerFor,
@@ -113,6 +124,33 @@ export interface AdminFixture {
   // presenting the resulting token needs to inject with the same `host`
   // header to be accepted, and a different one to be refused.
   adminTokenAt(tenantName: string, capabilities: readonly string[], host: string): Promise<string>;
+  // An admin-audience token of a subject holding `capabilities`, carrying
+  // `scope` and, when given, `act` and the `via` marker the MCP endpoint signs; minted through the tenant's built-in MCP
+  // client when `viaMcpClient` is set, its admin client otherwise.
+  agentToken(
+    tenantName: string,
+    capabilities: readonly string[],
+    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
+  ): Promise<string>;
+  // `agentToken` for a subject of the system tenant, which is not created by `createTenant`.
+  systemAgentToken(
+    capabilities: readonly string[],
+    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
+  ): Promise<string>;
+  // The owner's grant behind an MCP token held by `agentClientId` (the
+  // built-in MCP client by default), and the admin-audience token
+  // `mintAgentToken` mints from it, so a test reaches the admin API with a
+  // token the server itself would sign rather than one built by hand.
+  mintAgentTokenForOwner(
+    tenantName: string,
+    capabilities: readonly string[],
+    options: {
+      scope: readonly string[];
+      grantScope?: string;
+      agentClientId?: string;
+      notAfter?: Date;
+    },
+  ): Promise<{ token: string; grantId: string; sessionId: string; subjectId: string }>;
   // Signs arbitrary claims with the tenant's own active key, `iss` included,
   // so a test can present a genuine signature over an issuer it chose.
   // `typ` defaults to `at+jwt`.
@@ -246,6 +284,10 @@ export interface AdminFixtureOptions {
   readonly domainsTls?: boolean;
   /** Replaces the verify throttle, for a test that needs it loose or tight. */
   readonly verifyThrottle?: VerifyThrottle;
+  /** The serving pool's size; a test of what a request holds while it waits for a connection sets it small. */
+  readonly poolMax?: number;
+  /** Opens the serving pool, where a test needs to watch what it sends. */
+  readonly openApp?: (url: string) => DatabaseHandle;
 }
 
 function noRecord(): Error {
@@ -259,7 +301,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   const owner = createDatabase(container.adminUrl);
   await runMigrations(owner.db, MIGRATIONS_DIR);
   const appUrl = await createAppRole(container.adminUrl);
-  const app = createDatabase(appUrl, { max: 5 });
+  const app = options.openApp?.(appUrl) ?? createDatabase(appUrl, { max: options.poolMax ?? 5 });
 
   const clock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
   // A code expires at `clock` plus its lifetime but is redeemed against the
@@ -424,6 +466,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
       await tx.insert(tenants).values({ id, name });
       await provisionTenant(tx, id);
       await provisionAdminClient(tx, id, options);
+      await provisionMcpClient(tx, id);
       const generated = await generateSigningKey('ES256', KEK);
       await signingKeyRepository(tx).create({
         id: newId(),
@@ -459,6 +502,8 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
       sessionId: string | null;
       audience: string[];
       scope?: string;
+      act?: unknown;
+      via?: 'mcp';
     },
   ): Promise<string> {
     const key: SigningKeyRecord = await signingKeyRepository(tx).active();
@@ -487,6 +532,8 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         jti: newId(),
         grant_id: grantId,
         ...(input.sessionId !== null ? { sid: input.sessionId } : {}),
+        ...(input.act === undefined ? {} : { act: input.act }),
+        ...(input.via === undefined ? {} : { via: input.via }),
       },
       { key, kek: KEK, typ: 'at+jwt' },
     );
@@ -515,6 +562,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     ctx: TenantContext,
     capabilities: readonly string[],
     audience: string[],
+    extra: { scope?: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' } = {},
   ): Promise<string> {
     return withTenant(app.db, ctx.id, async (tx) => {
       const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
@@ -532,12 +580,111 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         authenticators: ['pwd'],
         secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
+      const signingClient =
+        extra.viaMcpClient === true
+          ? await clientRepository(tx).byClientId(MCP_CLIENT_ID)
+          : adminClient;
+      if (signingClient === null) {
+        throw new Error(`fixture: ${ctx.name} has no built-in MCP client`);
+      }
       return mintTokenInTx(tx, ctx, {
         subjectId: subject.id,
-        client: adminClient,
+        client: signingClient,
         sessionId,
         audience,
+        ...(extra.scope === undefined ? {} : { scope: extra.scope }),
+        ...(extra.act === undefined ? {} : { act: extra.act }),
+        ...(extra.via === undefined ? {} : { via: extra.via }),
       });
+    });
+  }
+
+  async function agentToken(
+    tenantName: string,
+    capabilities: readonly string[],
+    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
+  ): Promise<string> {
+    return mintAdminLikeToken(
+      requireTenant(tenantName),
+      capabilities,
+      [ADMIN_API_AUDIENCE],
+      options,
+    );
+  }
+
+  async function systemAgentToken(
+    capabilities: readonly string[],
+    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
+  ): Promise<string> {
+    return mintAdminLikeToken(systemTenant, capabilities, [ADMIN_API_AUDIENCE], options);
+  }
+
+  async function mintAgentTokenForOwner(
+    tenantName: string,
+    capabilities: readonly string[],
+    options: {
+      scope: readonly string[];
+      grantScope?: string;
+      agentClientId?: string;
+      notAfter?: Date;
+    },
+  ): Promise<{ token: string; grantId: string; sessionId: string; subjectId: string }> {
+    const ctx = requireTenant(tenantName);
+    const agentClientId = options.agentClientId ?? MCP_CLIENT_ID;
+    return withTenant(app.db, ctx.id, async (tx) => {
+      const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      const agent = await clientRepository(tx).byClientId(agentClientId);
+      if (adminClient === null || agent === null) {
+        throw new Error(`fixture: ${ctx.name} has no client ${agentClientId}`);
+      }
+      const subject = await subjectRepository(tx).create({ tenantId: ctx.id, type: 'user' });
+      await assignCapabilities(tx, adminClient.id, subject.id, capabilities);
+      const sessionId = newId();
+      await sessionRepository(tx).create({
+        id: sessionId,
+        tenantId: ctx.id,
+        subjectId: subject.id,
+        expiresAt: new Date(clock.now().getTime() + 24 * 3600 * 1000),
+        authenticators: ['pwd'],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
+      });
+      const grantId = newId();
+      await tokenGrantRepository(tx).create({
+        id: grantId,
+        tenantId: ctx.id,
+        clientId: agent.id,
+        subjectId: subject.id,
+        scope: options.grantScope ?? options.scope.join(' '),
+        audience: [mcpAudienceOfIssuer(ctx.issuer)],
+        sessionId,
+      });
+      recordGrant(ctx.id, grantId);
+      const now = clock.now();
+      const minted = await mintAgentToken(
+        tx,
+        {
+          tenantId: ctx.id,
+          issuer: ctx.issuer,
+          kek: KEK,
+          claimMappers,
+          lifespans: {
+            ssoSessionIdleSeconds: 24 * 3600,
+            ssoSessionMaxSeconds: 24 * 3600,
+            rememberMeIdleSeconds: 24 * 3600,
+            rememberMeMaxSeconds: 24 * 3600,
+          },
+        },
+        {
+          subjectGrantId: grantId,
+          expectedSubjectId: subject.id,
+          agentClientId,
+          audience: ADMIN_API_AUDIENCE,
+          scope: options.scope,
+          notAfter: options.notAfter ?? new Date(now.getTime() + 3600_000),
+          now,
+        },
+      );
+      return { token: minted.accessToken, grantId, sessionId, subjectId: subject.id };
     });
   }
 
@@ -575,17 +722,12 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   ): Promise<{ client: ClientRecord; secret: string }> {
     const secret = randomBytes(32).toString('base64url');
     const client = await withTenant(app.db, ctx.id, async (tx) => {
-      const serviceSubject = await subjectRepository(tx).create({
-        tenantId: ctx.id,
-        type: 'service',
-      });
       const created = await clientRepository(tx).create({
         tenantId: ctx.id,
         clientId: input.clientId,
         name: input.name,
         type: 'confidential',
         secretHash: await hashPassword(secret),
-        serviceSubjectId: serviceSubject.id,
       });
       await provisionClientDefaults(tx, created.id);
       await clientOidcConfigRepository(tx).create({
@@ -598,7 +740,9 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         accessTokenTtlSeconds: 300,
         refreshTokenTtlSeconds: 1_209_600,
       });
-      return created;
+      return needsServiceAccount('confidential', input.grantTypes)
+        ? ensureServiceAccount(tx, created)
+        : created;
     });
     return { client, secret };
   }
@@ -972,6 +1116,9 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     stop,
     adminToken,
     adminTokenAt,
+    agentToken,
+    systemAgentToken,
+    mintAgentTokenForOwner,
     signWithTenantKey,
     systemAdminToken,
     applicationToken,

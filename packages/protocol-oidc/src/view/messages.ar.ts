@@ -64,10 +64,20 @@ export const ar: Readonly<Record<string, string>> = {
 
   'consent.title': 'السماح بالوصول؟',
   'consent.heading': 'يطلب {client} الوصول',
+  'consent.source.host': 'هذا التطبيق منشور على {host}',
+  'consent.source.selfRegistered':
+    'سجّل هذا التطبيق نفسه. لم يُعدّه أحد في هذا المستأجر، واسمه ادعاء منه.',
+  'consent.source.more': '… و{count} أخرى',
+  'consent.source.sentTo': 'بعد قرارك تُعاد توجيهك إلى:',
+  'consent.source.otherRedirects': 'وسجّل أيضًا هذه العناوين:',
+  'consent.source.redirects': 'بعد قرارك تُعاد توجيهك إلى أحد هذه العناوين:',
   'consent.link.about': 'نبذة عن {client}',
   'consent.link.privacy': 'سياسة الخصوصية',
   'consent.link.terms': 'شروط الخدمة',
   'consent.scope.offlineAccess': '{label} — يمنح وصولًا مستمرًا حتى في غيابك',
+  'consent.scope.mcpRead':
+    '{label} — يتيح للتطبيق الاطلاع على إعدادات هذا المستأجر وسجلاته نيابةً عنك',
+  'consent.scope.mcpWrite': '{label} — يتيح للتطبيق تعديل إعدادات هذا المستأجر نيابةً عنك',
   'consent.allow': 'سماح',
   'consent.deny': 'رفض',
 

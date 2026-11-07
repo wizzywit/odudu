@@ -32,6 +32,7 @@
     "@odudu/i18n": "workspace:*",
     "@odudu/instrument": "workspace:*",
     "@odudu/kernel": "workspace:*",
+    "@odudu/mcp": "workspace:*",
     "@odudu/protocol-admin": "workspace:*",
     "@odudu/protocol-oidc": "workspace:*",
     "@odudu/web-assets": "workspace:*",
@@ -40,6 +41,7 @@
     "pino": "10.4.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@odudu/testkit": "workspace:*",
     "drizzle-orm": "0.45.4",
     "parse5": "8.0.1",

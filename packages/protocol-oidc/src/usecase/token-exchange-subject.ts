@@ -16,6 +16,9 @@ export interface ResolvedExchangeToken {
   scope: readonly string[];
   sessionId: string | null;
   grantId: string | null;
+  // The clients table's own id of the client the token was issued to: the
+  // grant's for an access or refresh token, the audience's for an ID token.
+  clientDbId: string;
   // The subject grant's own narrowing, inherited so an exchange never
   // widens what /userinfo returns (ADR 0036).
   requestedUserinfoClaims: readonly string[] | null;
@@ -56,6 +59,16 @@ async function grantClientIsLive(tx: TenantScopedDatabase, clientDbId: string): 
   return clientIsLive(await clientRepository(tx).byId(clientDbId));
 }
 
+// A grant can outlive a narrower token minted from it (a refresh that
+// narrowed, an agent token), and an exchange must not widen past the token it
+// was handed, so the scope is what the grant and the token both hold.
+function heldScope(grantScope: string, tokenScope: unknown): string[] {
+  const granted = grantScope.split(' ').filter((entry) => entry !== '');
+  if (typeof tokenScope !== 'string') return granted;
+  const presented = new Set(tokenScope.split(' '));
+  return granted.filter((entry) => presented.has(entry));
+}
+
 async function resolveAccessToken(
   tx: TenantScopedDatabase,
   deps: ResolveDeps,
@@ -86,9 +99,10 @@ async function resolveAccessToken(
     kind: 'ok',
     token: {
       subjectId: grant.subjectId,
-      scope: grant.scope.split(' ').filter((entry) => entry !== ''),
+      scope: heldScope(grant.scope, payload.scope),
       sessionId: grant.sessionId,
       grantId: grant.id,
+      clientDbId: grant.clientId,
       requestedUserinfoClaims: grant.requestedUserinfoClaims,
       act: payload.act,
       mayAct: payload.may_act,
@@ -123,8 +137,9 @@ async function resolveRefreshToken(
       scope: grant.scope.split(' ').filter((entry) => entry !== ''),
       sessionId: grant.sessionId,
       grantId: grant.id,
+      clientDbId: grant.clientId,
       requestedUserinfoClaims: grant.requestedUserinfoClaims,
-      act: undefined,
+      act: grant.actChain ?? undefined,
       mayAct: undefined,
       expiresAt: record.expiresAt,
     },
@@ -154,7 +169,7 @@ async function resolveIdToken(
   // `deps.requestingClientId` — the only client this branch could ever
   // check, since an id_token names no grant to read one from.
   const client = await clientRepository(tx).byClientId(deps.requestingClientId);
-  if (!clientIsLive(client)) return { kind: 'refused' };
+  if (client === null || !clientIsLive(client)) return { kind: 'refused' };
   if (claims.sid !== null && !(await sessionIsLive(tx, deps, claims.sid))) {
     return { kind: 'refused' };
   }
@@ -169,6 +184,7 @@ async function resolveIdToken(
       scope: [],
       sessionId: claims.sid,
       grantId: null,
+      clientDbId: client.id,
       requestedUserinfoClaims: null,
       act: undefined,
       mayAct: claims.mayAct,

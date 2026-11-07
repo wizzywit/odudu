@@ -1,7 +1,7 @@
 import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { renderConsentPage } from '#/view/consent-html';
-import { en, t } from '#/view/messages';
+import { ar, en, t } from '#/view/messages';
 import { ARABIC, FRENCH } from '@odudu/testkit/i18n';
 
 vi.mock('#/view/messages', async (importOriginal) => {
@@ -29,6 +29,91 @@ const BASE = {
 };
 
 describe('renderConsentPage', () => {
+  describe('a client that came from its metadata document', () => {
+    const source = {
+      kind: 'metadata' as const,
+      host: 'app.example.com:8443',
+      redirectUris: ['https://app.example.com:8443/cb', 'http://127.0.0.1/callback'],
+    };
+    const withSource = { ...BASE, clientPages: { ...BASE.clientPages, source } };
+
+    it('shows the host with its port and every redirect address beside the name', () => {
+      const body = renderConsentPage(withSource, DEFAULT_PAGE_LOCALE).body;
+      expect(body).toContain('app.example.com:8443');
+      expect(body).toContain('https://app.example.com:8443/cb');
+      expect(body).toContain('http://127.0.0.1/callback');
+      expect(body).toContain(
+        en['consent.source.host'].replace('{host}', '<bdi>app.example.com:8443</bdi>'),
+      );
+    });
+
+    it('escapes a hostile host and redirect address', () => {
+      const body = renderConsentPage(
+        {
+          ...BASE,
+          clientPages: {
+            ...BASE.clientPages,
+            source: {
+              kind: 'metadata' as const,
+              host: '<i>h</i>',
+              redirectUris: ['https://a.example/?q="><script>'],
+            },
+          },
+        },
+        DEFAULT_PAGE_LOCALE,
+      ).body;
+      expect(body).not.toContain('<i>h</i>');
+      expect(body).not.toContain('"><script>');
+      expect(body).toContain('&lt;i&gt;h&lt;/i&gt;');
+    });
+
+    it('shows nothing of the kind for a client registered by hand', () => {
+      const body = renderConsentPage(BASE, DEFAULT_PAGE_LOCALE).body;
+      expect(body).not.toContain(en['consent.source.redirects']);
+    });
+  });
+
+  describe('a client that registered itself', () => {
+    const source = {
+      kind: 'self-registered' as const,
+      sentTo: 'https://sent.example',
+      origins: ['https://evil.example', 'http://127.0.0.1:8123'],
+      more: 3,
+    };
+    const body = renderConsentPage(
+      { ...BASE, clientPages: { ...BASE.clientPages, source } },
+      DEFAULT_PAGE_LOCALE,
+    ).body;
+
+    it('says nobody set it up, names each redirect origin and counts the rest', () => {
+      expect(body).toContain(en['consent.source.selfRegistered']);
+      expect(body).toContain(en['consent.source.otherRedirects']);
+      expect(body).toContain('<bdi>https://evil.example</bdi>');
+      expect(body).toContain('<bdi>http://127.0.0.1:8123</bdi>');
+      expect(body).toContain(en['consent.source.more'].replace('{count}', '3'));
+    });
+
+    it('names where this request sends the person before the other registered origins', () => {
+      const sent = body.indexOf('<bdi>https://sent.example</bdi>');
+      expect(sent).toBeGreaterThan(-1);
+      expect(body).toContain(en['consent.source.sentTo']);
+      expect(sent).toBeLessThan(body.indexOf('<bdi>https://evil.example</bdi>'));
+      expect(body).toContain(en['consent.source.otherRedirects']);
+      expect(ar['consent.source.sentTo']).not.toBe('');
+      expect(ar['consent.source.otherRedirects']).not.toBe('');
+    });
+
+    it('says it in Arabic too, and says no more when no origin is left over', () => {
+      expect(ar['consent.source.selfRegistered']).not.toBe('');
+      expect(ar['consent.source.more']).toContain('{count}');
+      const none = renderConsentPage(
+        { ...BASE, clientPages: { ...BASE.clientPages, source: { ...source, more: 0 } } },
+        DEFAULT_PAGE_LOCALE,
+      ).body;
+      expect(none).not.toContain(en['consent.source.more'].replace('{count}', '0'));
+    });
+  });
+
   it('[ODUDU-THEME-CLIENTNAME-01] names the client in the heading of the page', () => {
     const page = renderConsentPage(BASE, DEFAULT_PAGE_LOCALE);
     expect(page.body).toContain('<header class="intro">');
@@ -105,6 +190,34 @@ describe('renderConsentPage', () => {
     // A scope with no such note (email) proves the distinction is drawn
     // deliberately, not emitted for every optional scope alike.
     expect(page.body).not.toMatch(/email[^<]*ongoing access/);
+  });
+
+  it('says in plain words what mcp:read and mcp:write let the application do', () => {
+    const input = {
+      ...BASE,
+      defaultScopes: ['openid', 'mcp:read'],
+      optionalScopes: ['mcp:write'],
+      alreadyGranted: [],
+    };
+    const page = renderConsentPage(input, DEFAULT_PAGE_LOCALE);
+    expect(page.body).toMatch(/<li><bdi>mcp:read<\/bdi> — [^<]*read[^<]*settings and records/u);
+    expect(page.body).toMatch(/<bdi>mcp:write<\/bdi> — [^<]*change[^<]*settings/u);
+    expect(page.body).not.toMatch(/<bdi>openid<\/bdi> —/u);
+  });
+
+  it("shows an administrator's own wording for an MCP scope in place of the sentence", () => {
+    const page = renderConsentPage(
+      { ...BASE, defaultScopes: ['mcp:read'], scopeLabels: { 'mcp:read': 'Look around' } },
+      DEFAULT_PAGE_LOCALE,
+    );
+    expect(page.body).toContain('<bdi>Look around</bdi> — ');
+  });
+
+  it('has the MCP sentences in the Arabic catalogue, each keeping its label slot', () => {
+    for (const id of ['consent.scope.mcpRead', 'consent.scope.mcpWrite'] as const) {
+      expect(ar[id]).toMatch(/^\{label\} — \p{Script=Arabic}/u);
+      expect(ar[id]).not.toBe(en[id]);
+    }
   });
 
   it('gives Allow and Deny distinguishable submitted values', () => {

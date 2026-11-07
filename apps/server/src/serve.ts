@@ -1,5 +1,6 @@
 import { createDatabase } from '@odudu/db';
 import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
+import { idleServiceAccounts, publicExchangeClientsAtRisk } from '@odudu/protocol-oidc';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
 import { appDepsFromConfig } from '#/app-deps';
@@ -15,7 +16,9 @@ import {
 } from '#/config-guard';
 import { buildEmailSender, resolveSender, smtpDestinationPolicyFor } from '#/email';
 import { loadConsoleKeys } from '#/console-key';
+import { warnOfStrandedPublicClients } from '#/exchange-upgrade-warning';
 import { createLogger } from '#/logger';
+import { warnOfIdleServiceAccounts } from '#/service-account-warning';
 import { createLogoutDeliveryTransport } from '#/logout-delivery-transport';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
@@ -53,6 +56,9 @@ if (runtime === owner) {
       'row-level security off and escapes it outright where that role is a superuser',
   );
 }
+
+await warnOfStrandedPublicClients(() => publicExchangeClientsAtRisk(owner.db), logger);
+await warnOfIdleServiceAccounts(() => idleServiceAccounts(owner.db), logger);
 
 const emailFallback = buildEmailSender(config, logger);
 

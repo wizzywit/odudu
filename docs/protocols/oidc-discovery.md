@@ -51,7 +51,8 @@ values that make later conformance testing predictable:
 - `subject_types_supported: ["public"]` — pairwise subject identifiers are
   not part of this phase's scope; only `public` is offered.
 - `registration_endpoint` is published once a tenant's
-  `client_registration_policy` is not `disabled`, and omitted entirely for
+  `client_registration_policy` is not `disabled` (`open`, `token` or
+  `mcp`), and omitted entirely for
   a tenant where it is — never published pointing at an endpoint that would
   answer 404 (`packages/protocol-oidc/src/usecase/discovery.ts`, ADR 0026).
 - `scopes_supported` always lists `openid`, per §3's unconditional

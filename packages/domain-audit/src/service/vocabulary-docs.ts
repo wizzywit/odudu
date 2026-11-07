@@ -28,7 +28,14 @@ export const AUDIT_EVENT_TYPE_DOCS: Record<AuditEventType, string> = {
 
 export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'capability.refused':
-    'An authenticated admin caller lacked the capability a route needs. `detail` names it.',
+    'An authenticated admin caller lacked the capability a route needs, or an agent token ' +
+    'lacked the scope: `detail` names the capability or the reason.',
+  'agent.tool_call':
+    'An AI agent called one MCP tool for its owner, reads included: one row per call, naming ' +
+    'the agent client, the owner, the tool and the admin route it reached, never its arguments. ' +
+    'The MCP endpoint writes it for a call it serves; for a call made straight to the admin API ' +
+    'with a token the endpoint did not sign (`odudu mcp`, or an exchanged token), the admin API writes it before the call runs, ' +
+    'and the tool is the route (`admin.get.clients`).',
   'token.foreign_issuer':
     'A genuine token issued by another tenant was presented to the admin API.',
   'login.password': 'A password was checked at sign-in.',
@@ -78,7 +85,13 @@ export const AUDIT_REASON_DOCS: Record<AuditReason, string> = {
   rate_limited: 'The request was over its budget.',
   foreign_issuer: 'The token was issued by another tenant.',
   missing_capability: 'The caller lacks the admin capability the route requires.',
+  agent_without_mcp_scope: 'An agent token reached the admin API holding no MCP scope.',
+  insufficient_scope: 'An agent token holds an MCP scope that does not admit the request.',
   already_registered: 'The email address already belongs to an account.',
+  timeout_outcome_unknown:
+    'An agent write ran past its deadline, so whether it changed anything is not known.',
+  write_budget:
+    'An agent had made as many changes as one sign-in allows, so the call was not made.',
 };
 
 export const AUDIT_OUTCOME_DOCS: Record<AuditOutcome, string> = {

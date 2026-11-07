@@ -31,6 +31,7 @@ export function whoamiHandler(deps: WhoamiRouteDeps): AdminRouteHandler {
     return reply.code(200).send({
       subjectId: principal.subjectId,
       issuerTenantId: principal.issuerTenantId,
+      issuerTenantName: principal.issuerTenantName,
       capabilities: [...capabilities].filter((c) => ADMIN_CAPABILITY_VOCABULARY.has(c)).sort(),
       crossTenant: principal.issuerTenantId !== targetTenantId,
     });

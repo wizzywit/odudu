@@ -491,6 +491,7 @@ function operationBody(operation: Json, ctx: Context): string {
   for (const [place, label] of [
     ['path', 'Path parameters'],
     ['query', 'Query parameters'],
+    ['header', 'Header parameters'],
   ] as const) {
     const ofPlace = parameters.filter((parameter) => parameter.in === place);
     if (ofPlace.length > 0) {

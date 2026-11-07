@@ -212,6 +212,38 @@ describe('subjectRepository', () => {
       },
     });
   });
+
+  it('deletes a subject and says whether there was one', async () => {
+    const tenantId = newId();
+    const subject = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      return subjectRepository(tx).create({ tenantId, type: 'service' });
+    });
+    await withTenant(app.db, tenantId, async (tx) => {
+      expect(await subjectRepository(tx).delete(subject.id)).toBe(true);
+      expect(await subjectRepository(tx).delete(subject.id)).toBe(false);
+      expect(await subjectRepository(tx).byId(subject.id)).toBeNull();
+    });
+  });
+
+  it('cannot delete a subject under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return subjectRepository(tx).create({ tenantId, type: 'service' });
+      },
+      verifySeeded: async (tx, subject) => {
+        expect(await subjectRepository(tx).byId(subject.id)).not.toBeNull();
+      },
+      attempt: (tx, subject) => subjectRepository(tx).delete(subject.id),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+      verifyTenantAUnaffected: async (tx, subject) => {
+        expect(await subjectRepository(tx).byId(subject.id)).not.toBeNull();
+      },
+    });
+  });
 });
 
 describe('userRepository', () => {

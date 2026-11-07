@@ -1,5 +1,11 @@
 import { type FastifyInstance, type FastifyRequest } from 'fastify';
-import { addressIssuer, pathAddress, routeAddress, type TenantAddress } from '@odudu/kernel';
+import {
+  addressIssuer,
+  isDomainAddress,
+  pathAddress,
+  routeAddress,
+  type TenantAddress,
+} from '@odudu/kernel';
 
 const DEFAULT_PORT: Record<string, string> = { http: '80', https: '443' };
 
@@ -104,6 +110,6 @@ export function tenantIssuerFor(
   tenant: string,
 ): string {
   const address = request.tenantAddress;
-  if (address?.prefix === '') return addressIssuer(address);
+  if (address !== undefined && isDomainAddress(address)) return addressIssuer(address);
   return addressIssuer(pathAddress(issuerBaseFor(request), tenant));
 }

@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import { exportedMessageOverrideSchema, MESSAGE_OVERRIDE_LIMIT } from '#/admin/message-overrides';
 import { noBidiControls } from '#/bidi';
-import { clientTypeSchema, registrationOriginSchema } from '#/admin/clients';
+import { clientTypeSchema } from '#/admin/clients';
 import { executionRequirementSchema } from '#/admin/flow';
 import { nameClaims, profileSchema } from '#/admin/profile';
 import { clientScopeAssignmentSchema } from '#/admin/scopes';
 import {
   ASSIGNMENT_LIMIT,
   CLIENT_LIST_LIMIT,
+  DISPLAY_NAME_MAX,
   fieldErrorSchema,
   listLimitMessage,
   localisedTextSchema,
@@ -51,7 +52,7 @@ const count = z.number().int();
 // map by tenant-document-settings-parity.test.ts in @odudu/protocol-admin,
 // since this package may not import it.
 export const tenantSettingsDocumentSchema = z.strictObject({
-  display_name: noBidiControls(z.string()).nullable(),
+  display_name: noBidiControls(z.string().max(DISPLAY_NAME_MAX)).nullable(),
   enabled: z.boolean(),
   reset_password_allowed: z.boolean(),
   sso_session_idle_seconds: count,
@@ -85,6 +86,9 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   verify_email_ttl_seconds: count,
   reset_password_ttl_seconds: count,
   login_with_email: z.boolean(),
+  // Absent from a document exported before the setting existed, which
+  // imports with it off.
+  cimd_enabled: z.boolean().default(false),
   audit_event_types: z.array(z.string()),
   // Absent from a document exported before tenants had languages, which
   // imports as English only with no default.
@@ -93,10 +97,16 @@ export const tenantSettingsDocumentSchema = z.strictObject({
 });
 export type TenantSettingsDocument = z.infer<typeof tenantSettingsDocumentSchema>;
 
+// What an export reads from the row: the display name is not held to the bound a
+// write has, since a name stored before it existed must still be exported.
+export const tenantSettingsExportSchema = tenantSettingsDocumentSchema.extend({
+  display_name: noBidiControls(z.string()).nullable(),
+});
+
 export const registrationPolicySchema = z.strictObject({
   registration_allowed: z.boolean(),
   verify_email: z.boolean(),
-  client_registration_policy: z.enum(['disabled', 'open', 'token']),
+  client_registration_policy: z.enum(['disabled', 'open', 'token', 'mcp']),
 });
 export type RegistrationPolicy = z.infer<typeof registrationPolicySchema>;
 
@@ -140,7 +150,8 @@ export const exportedClientSchema = z.strictObject({
   // Absent from a document exported before the setting existed, which
   // imports with it off.
   skip_logout_confirmation: z.boolean().default(false),
-  registration_origin: registrationOriginSchema,
+  // Never `cimd`: such a client is not exported, and an import refuses one.
+  registration_origin: z.enum(['seeded', 'anonymous', 'token', 'operator']),
   redirect_uris: clientList(),
   grant_types: z.array(z.string()),
   token_endpoint_auth_method: z.string(),
@@ -159,6 +170,10 @@ export const exportedClientSchema = z.strictObject({
   backchannel_logout_session_required: z.boolean(),
   consent_required: z.boolean(),
   token_exchange_impersonation_allowed: z.boolean(),
+  // Absent from a document exported before these limits existed, which
+  // imports with both off.
+  token_exchange_allowed_for_public: z.boolean().default(false),
+  token_exchange_actor_from_other_client: z.boolean().default(false),
   userinfo_signed_response_alg: z.string().nullable(),
   userinfo_encrypted_response_alg: z.string().nullable(),
   userinfo_encrypted_response_enc: z.string().nullable(),
@@ -170,7 +185,7 @@ export const exportedClientSchema = z.strictObject({
   default_max_age: z.number().int().nullable(),
   require_auth_time: z.boolean(),
   // The roles a confidential client's own service account holds, which
-  // its client_credentials tokens carry; empty for a public client.
+  // its client_credentials tokens carry; empty for a client without that grant.
   service_account_roles: assignmentSet(roleReferenceSchema),
 });
 export type ExportedClient = z.infer<typeof exportedClientSchema>;
@@ -273,7 +288,7 @@ export const TENANT_IMPORT_BODY_LIMIT = 16 * 1024 * 1024;
 // the first one a schema validator stops at.
 export const importTenantRequestSchema = z.object({
   name: z.string().min(1),
-  display_name: noBidiControls(z.string().min(1)).optional(),
+  display_name: noBidiControls(z.string().min(1).max(DISPLAY_NAME_MAX)).optional(),
   document: z
     .unknown()
     .describe('A tenant document, as GET /admin/tenants/{tenant}/export answers it.'),

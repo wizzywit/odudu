@@ -17,6 +17,7 @@ import { type TenantLookup } from '#/repository/tenant-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { EMPTY_CLAIMS_REQUEST, type ClaimsRequest } from '#/service/claims-request';
 import { decideConsent } from '#/service/consent';
+import { type ClientSource } from '#/service/client-source';
 import { type ConsentI18n } from '#/service/consent-i18n';
 import { type PromptValue } from '#/service/prompt';
 import { OAUTH_ERROR_DESCRIPTIONS, type AuthorizationErrorCode } from '#/service/oauth-errors';
@@ -236,6 +237,9 @@ export interface ClientPages {
   clientUri: string | null;
   policyUri: string | null;
   tosUri: string | null;
+  // Where the client's own description of itself was fetched from, for the
+  // clients that have none registered by hand.
+  source: ClientSource | null;
 }
 
 // The consent text of each scope that has one, by scope name; a scope with
@@ -254,13 +258,15 @@ export interface ConsentContext {
   scopeLabels: ScopeLabels;
   i18n: ConsentI18n;
   consentRequired: boolean;
+  // See ConsentInput.approvalRequired.
+  approvalRequired: boolean;
   defaultScopes: string[];
   optionalScopes: string[];
   scopeIdByName: ReadonlyMap<string, string>;
 }
 
 export interface ConsentGateDeps {
-  consentContext(tenantId: string, clientId: string): Promise<ConsentContext>;
+  consentContext(tenantId: string, clientId: string, redirectUri?: string): Promise<ConsentContext>;
   grantedScopeIds(
     tenantId: string,
     subjectId: string,
@@ -295,8 +301,9 @@ export async function decideConsentGate(
   subjectId: string,
   requestedScope: string,
   prompt: readonly string[] | undefined,
+  redirectUri?: string,
 ): Promise<ConsentGateOutcome> {
-  const context = await deps.consentContext(tenantId, clientId);
+  const context = await deps.consentContext(tenantId, clientId, redirectUri);
   const grantedIds = await deps.grantedScopeIds(tenantId, subjectId, clientId);
   const grantedScopes = [...context.scopeIdByName]
     .filter(([, id]) => grantedIds.has(id))
@@ -312,6 +319,9 @@ export async function decideConsentGate(
     // request, so the cast states an invariant rather than skipping a check.
     prompt: new Set((prompt ?? []) as PromptValue[]),
     consentRequired: context.consentRequired,
+    approvalRequired: context.approvalRequired,
+    // Any grant recorded for this exact client id, never one of another's.
+    approved: grantedIds.size > 0,
   });
 
   if (decision.kind === 'not_required') return { kind: 'not_required' };
@@ -705,6 +715,7 @@ export async function handleLoginSubmission(
     result.subjectId,
     pending.scope,
     pending.prompt,
+    pending.redirectUri,
   );
   if (gate.kind === 'refuse') {
     return {

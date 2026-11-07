@@ -61,6 +61,13 @@ describe('CLI_COMMANDS', () => {
     expect(option?.summary).toMatch(/client_credentials/);
   });
 
+  it('describes the audience flag of seed client', () => {
+    const seed = CLI_COMMANDS.find((command) => command.name === 'seed');
+    const client = seed?.subcommands.find((command) => command.name === 'client');
+    const option = client?.options.find((o) => o.name === 'audience');
+    expect(option?.summary).toMatch(/resource/);
+  });
+
   it('has an example that starts with odudu', () => {
     for (const command of everyCommand(CLI_COMMANDS)) {
       expect(command.example, command.name).toMatch(/^odudu /);
@@ -201,6 +208,7 @@ describe('main.ts before it dispatches', () => {
       'cli/help.ts',
       'cli/init-options.ts',
       'cli/init-plan.ts',
+      'cli/mcp-options.ts',
       'cli/registry.ts',
       'cli/seed-options.ts',
       'main.ts',

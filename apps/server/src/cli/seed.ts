@@ -23,7 +23,15 @@ import {
   seedDomainInTenant,
   type DomainCommandResult,
 } from '#/cli/seed-domain';
-import { CLIENT_LIST_LIMIT, listLimitProblem, scopeLimitMessage } from '@odudu/contracts/admin';
+import {
+  CLIENT_LIST_LIMIT,
+  GROUP_LIMIT,
+  groupLimitMessage,
+  listLimitProblem,
+  ROLE_LIMIT,
+  roleLimitMessage,
+  scopeLimitMessage,
+} from '@odudu/contracts/admin';
 import { tenantSettingsRepository, sendVerificationEmail } from '@odudu/account';
 import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
 import { grantNewSubjectDefaults, groupRepository, roleRepository } from '@odudu/domain-authz';
@@ -51,6 +59,7 @@ import {
 } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  MCP_CLIENT_ID,
   clientRegistrationTokenRepository,
   clientRepository,
   ClientScopeLimitError,
@@ -83,9 +92,13 @@ import {
 } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
+  ensureServiceAccount,
   GRANT_TYPES_PERMITTED,
+  TOKEN_EXCHANGE_GRANT,
   isWellFormedWebOrigin,
+  needsServiceAccount,
   provisionAdminClient,
+  provisionMcpClient,
   tenantLookupRepository,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
@@ -231,15 +244,16 @@ function assertAuthMethodPairedWithSecret(opts: SeedOptions): void {
   }
 }
 
-// `odudu-admin` is reserved for the built-in admin client every tenant is
-// provisioned with (createClient, @odudu/protocol-admin, `reserved_client_id`).
+// `odudu-admin` and `odudu-mcp` are reserved for the built-in clients every
+// tenant is provisioned with (createClient, @odudu/protocol-admin,
+// `reserved_client_id`).
 // Refused here, before resolveTenantId runs: on a new tenant name,
 // provisionAdminClient would create that public client first and only then
 // have assertMatchesExisting reject the confidential client requested here,
 // by which point the tenant row was already committed on the owner
 // connection and the provisioning transaction's rollback cannot undo that.
 function assertClientIdNotReserved(clientId: string): void {
-  if (clientId === ADMIN_CLIENT_ID) {
+  if (clientId === ADMIN_CLIENT_ID || clientId === MCP_CLIENT_ID) {
     throw new OduduError(
       'seed_invalid_options',
       `the client_id ${JSON.stringify(clientId)} is reserved`,
@@ -461,6 +475,7 @@ async function performSeed(
   return withTenant(runtimeDb, tenantId, async (tx) => {
     if (tenantCreated) {
       await provisionTenant(tx, tenantId);
+      await provisionMcpClient(tx, tenantId);
     }
     // Idempotent, so a tenant seeded before this client existed gains one
     // here rather than being left without — only the flow and signing key
@@ -483,12 +498,6 @@ async function performSeed(
 
     const type: ClientRecord['type'] = opts.clientSecret === undefined ? 'public' : 'confidential';
 
-    let serviceSubjectId: string | null = null;
-    if (type === 'confidential') {
-      const serviceSubject = await subjectRepository(tx).create({ tenantId, type: 'service' });
-      serviceSubjectId = serviceSubject.id;
-    }
-
     const secretHash =
       opts.clientSecret === undefined ? null : await hashPassword(opts.clientSecret);
 
@@ -501,7 +510,6 @@ async function performSeed(
           name: opts.clientId,
           type,
           secretHash,
-          serviceSubjectId,
         }),
     );
 
@@ -509,14 +517,17 @@ async function performSeed(
     // refuse `openid` on this client's very first request.
     await provisionClientDefaults(tx, client.id);
 
+    const quickGrantTypes =
+      type === 'confidential'
+        ? ['authorization_code', 'refresh_token', 'client_credentials']
+        : ['authorization_code', 'refresh_token'];
+    if (needsServiceAccount(type, quickGrantTypes)) await ensureServiceAccount(tx, client);
+
     await clientOidcConfigRepository(tx).create({
       clientId: client.id,
       tenantId,
       redirectUris: opts.redirectUris,
-      grantTypes:
-        type === 'confidential'
-          ? ['authorization_code', 'refresh_token', 'client_credentials']
-          : ['authorization_code', 'refresh_token'],
+      grantTypes: quickGrantTypes,
       tokenEndpointAuthMethod:
         type === 'confidential' ? (opts.tokenEndpointAuthMethod ?? 'client_secret_basic') : 'none',
       audiences: [],
@@ -751,6 +762,7 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
         // unconditionally, so a re-run would collide with
         // client_scopes_name_unique.
         await provisionTenant(tx, tenantId);
+        await provisionMcpClient(tx, tenantId);
       }
       const { clientDbId } = await provisionAdminClient(tx, tenantId, {
         crossTenant: true,
@@ -1159,7 +1171,10 @@ async function runTenantCommand(
   }
   // Idempotent, so a tenant this command finds rather than creates still
   // gets one if an earlier run predates the admin client's existence.
-  await withTenant(runtimeDb, tenantId, (tx) => provisionAdminClient(tx, tenantId, consoleOptions));
+  await withTenant(runtimeDb, tenantId, async (tx) => {
+    await provisionAdminClient(tx, tenantId, consoleOptions);
+    if (created) await provisionMcpClient(tx, tenantId);
+  });
 
   if (settings.length > 0) {
     // The CHECK constraints (migrations 0028, 0035, 0041) remain the
@@ -1308,11 +1323,13 @@ async function runClientCommand(
   const postLogoutRedirectUris = values['post-logout-redirect-uri'] ?? [];
   const webOrigins = values['web-origin'] ?? [];
   const clientCredentialsScopes = [...new Set(values['client-credentials-scope'] ?? [])];
+  const audiences = [...new Set(values.audience ?? [])];
   for (const [field, entries] of [
     ['redirect_uris', redirectUris],
     ['post_logout_redirect_uris', postLogoutRedirectUris],
     ['web_origins', webOrigins],
     ['client_credentials_scopes', clientCredentialsScopes],
+    ['audiences', audiences],
   ] as const) {
     if (entries.length > CLIENT_LIST_LIMIT) {
       throw new OduduError('seed_invalid_options', listLimitProblem(field, entries.length));
@@ -1328,6 +1345,13 @@ async function runClientCommand(
       'seed_invalid_options',
       `--web-origin names ${badOrigins.join(', ')}, which is not an origin: ` +
         'expected a scheme and host with no path, or "+" for every registered redirect URI\u2019s origin',
+    );
+  }
+
+  if (audiences.some((audience) => audience.trim() === '')) {
+    throw new OduduError(
+      'seed_invalid_options',
+      '--audience names an empty value; an audience is the resource indicator a client asks for',
     );
   }
 
@@ -1363,6 +1387,26 @@ async function runClientCommand(
     );
   }
 
+  const exchangeFlags = [
+    'token-exchange-allowed-for-public',
+    'token-exchange-actor-from-other-client',
+  ] as const;
+  for (const flag of exchangeFlags) {
+    if (values[flag] === true && !grantTypes.includes(TOKEN_EXCHANGE_GRANT)) {
+      throw new OduduError(
+        'seed_invalid_options',
+        `--${flag} needs a client that may use the token-exchange grant: ` +
+          `add --grant-type ${TOKEN_EXCHANGE_GRANT}`,
+      );
+    }
+  }
+  if (values['token-exchange-allowed-for-public'] === true && type !== 'public') {
+    throw new OduduError(
+      'seed_invalid_options',
+      '--token-exchange-allowed-for-public is for a public client; a confidential client needs no such permission',
+    );
+  }
+
   // client_oidc_config_redirect_uris_present: only a client whose grants are
   // exactly client_credentials may have none.
   const serviceOnly = grantTypes.length === 1 && grantTypes[0] === 'client_credentials';
@@ -1385,12 +1429,6 @@ async function runClientCommand(
       );
     }
 
-    let serviceSubjectId: string | null = null;
-    if (type === 'confidential') {
-      const serviceSubject = await subjectRepository(tx).create({ tenantId, type: 'service' });
-      serviceSubjectId = serviceSubject.id;
-    }
-
     const secretHash = clientSecret === undefined ? null : await hashPassword(clientSecret);
 
     const client = await refuseRepeat(
@@ -1402,7 +1440,6 @@ async function runClientCommand(
           name: clientId,
           type,
           secretHash,
-          serviceSubjectId,
         }),
     );
 
@@ -1417,8 +1454,10 @@ async function runClientCommand(
       grantTypes,
       tokenEndpointAuthMethod:
         type === 'confidential' ? (authMethod ?? 'client_secret_basic') : 'none',
-      audiences: [],
+      audiences,
       consentRequired: values['consent-required'] === true,
+      tokenExchangeAllowedForPublic: values['token-exchange-allowed-for-public'] === true,
+      tokenExchangeActorFromOtherClient: values['token-exchange-actor-from-other-client'] === true,
       // Null takes the tenant's lifetimes, as every other door's client does.
       accessTokenTtlSeconds: null,
       refreshTokenTtlSeconds: null,
@@ -1426,6 +1465,7 @@ async function runClientCommand(
       webOrigins,
       postLogoutRedirectUris,
     });
+    if (needsServiceAccount(type, grantTypes)) await ensureServiceAccount(tx, client);
 
     return {
       command: 'client',
@@ -1538,6 +1578,10 @@ async function runRoleCommand(
   return withTenant(runtimeDb, tenantId, async (tx) => {
     const clientDbId =
       ownerClientId === undefined ? null : await requireClientDbId(tx, ownerClientId);
+    await roleRepository(tx).lockCreation(tenantId);
+    if ((await roleRepository(tx).countUpTo(ROLE_LIMIT)) >= ROLE_LIMIT) {
+      throw new OduduError('seed_invalid_options', roleLimitMessage());
+    }
     const role = await refuseRepeat(
       `role ${JSON.stringify(roleName)} already exists in tenant ${JSON.stringify(tenantName)}`,
       () => roleRepository(tx).create({ tenantId, name: roleName, clientId: clientDbId }),
@@ -1575,6 +1619,10 @@ async function runGroupCommand(
 
   return withTenant(runtimeDb, tenantId, async (tx) => {
     const parentId = parentPath === undefined ? null : await requireGroupIdByPath(tx, parentPath);
+    await groupRepository(tx).lockCreation(tenantId);
+    if ((await groupRepository(tx).countUpTo(GROUP_LIMIT)) >= GROUP_LIMIT) {
+      throw new OduduError('seed_invalid_options', groupLimitMessage());
+    }
     const group = await refuseRepeat(
       `group ${JSON.stringify(`${parentPath ?? ''}/${name}`)} already exists in tenant ${JSON.stringify(tenantName)}`,
       () => groupRepository(tx).create({ tenantId, name, parentId }),

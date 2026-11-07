@@ -3,6 +3,7 @@ import { makePng } from '@odudu/testkit';
 import { type LightMyRequestResponse } from 'fastify';
 import { type AdminIds, type AdminTokens } from '#/testing/plan-admin-drives';
 import { type Capture } from '#/testing/plan-paths';
+import { NEAR_LIMIT_TENANT } from '#/testing/plan-volume';
 import { TARGET_TENANT, type PlanWorld } from '#/testing/plan-world';
 
 interface Call {
@@ -69,6 +70,14 @@ export async function driveAdminWrites(
     sql`select id from groups where tenant_id = ${t} and name ~ '^group-4[0-9]+$' order by name limit 1`,
     'group',
   );
+  const deepRoot = await pick(
+    sql`select id from groups where tenant_id = ${t} and name = 'deep-root'`,
+    'group with a subtree',
+  );
+  const deepTarget = await pick(
+    sql`select id from groups where tenant_id = ${t} and name = 'group-3'`,
+    'group to move a subtree under',
+  );
   const builtinVictim = await pick(
     sql`select id from client_scopes where tenant_id = ${t} and name = 'phone'`,
     'built-in scope',
@@ -112,15 +121,15 @@ export async function driveAdminWrites(
     one(sql`select id from roles where tenant_id = ${t} and name = ${name}`, name);
   const groupNamed = (name: string) =>
     one(sql`select id from groups where tenant_id = ${t} and name = ${name}`, name);
-  const nestedParent = await roleNamed('role-3001');
-  const nestedChild = await roleNamed('role-3002');
+  const nestedParent = await roleNamed('role-501');
+  const nestedChild = await roleNamed('role-502');
   const edgeChild = await one(
     sql`select child_role_id as id from role_composites where tenant_id = ${t} and parent_role_id = ${ids.role} limit 1`,
     'composite',
   );
-  const defaultRole = await roleNamed('role-3003');
+  const defaultRole = await roleNamed('role-503');
   const defaultGroup = await groupNamed('group-3003');
-  const patchedRole = await roleNamed('role-3004');
+  const patchedRole = await roleNamed('role-504');
   const patchedGroup = await groupNamed('group-3004');
   const mappedGroup = await groupNamed('group-3005');
   const patchedScope = await one(
@@ -218,9 +227,17 @@ export async function driveAdminWrites(
     ],
     ['revoke a client’s grants', { method: 'DELETE', url: `${T}/clients/${victimClient}/grants` }],
     ['delete a client', { method: 'DELETE', url: `${T}/clients/${victimClient}` }],
+    // In a tenant seeded five roles under ROLE_LIMIT, so the count the create
+    // takes reads as many rows as a create ever sees; the target tenant holds more
+    // than the limit, which refuses every create.
     [
-      'create a role',
-      { method: 'POST', url: `${T}/roles`, body: { name: `made-${newId().slice(-8)}` } },
+      'create a role in a tenant near the limit',
+      {
+        method: 'POST',
+        url: `/admin/tenants/${NEAR_LIMIT_TENANT}/roles`,
+        body: { name: `made-${newId().slice(-8)}` },
+        system: true,
+      },
     ],
     ['delete a role', { method: 'DELETE', url: `${T}/roles/${victimRole}` }],
     [
@@ -228,6 +245,15 @@ export async function driveAdminWrites(
       { method: 'POST', url: `${T}/groups`, body: { name: `made-${newId().slice(-8)}` } },
     ],
     ['delete a group', { method: 'DELETE', url: `${T}/groups/${victimGroup}` }],
+    [
+      'move a group with a three-level subtree under another',
+      {
+        method: 'PATCH',
+        url: `${T}/groups/${deepRoot}`,
+        body: { parent_id: deepTarget },
+        etagFrom: `${T}/groups/${deepRoot}`,
+      },
+    ],
     [
       'create a scope',
       { method: 'POST', url: `${T}/scopes`, body: { name: `made-${newId().slice(-8)}` } },

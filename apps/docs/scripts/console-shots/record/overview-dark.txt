@@ -56,14 +56,14 @@ Counts
 Subjects
 1 subject
 Clients
-2 clients
- of 200 allowed
+3 clients
+ (3 of 200 made by administrators or tokens)
 Groups
 0 groups
 Roles
 10 roles
 Scopes
-8 scopes
+10 scopes
 Discovery
 Issuer
 http://localhost:3000/tenants/demo
@@ -197,6 +197,8 @@ supported
 address
 email
 groups
+mcp:read
+mcp:write
 offline_access
 openid
 phone
@@ -375,6 +377,8 @@ Raw discovery document
     "address",
     "email",
     "groups",
+    "mcp:read",
+    "mcp:write",
     "offline_access",
     "openid",
     "phone",

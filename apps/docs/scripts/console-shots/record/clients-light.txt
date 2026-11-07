@@ -72,7 +72,7 @@ Any status
 Any status
 Enabled
 Disabled
-2 clients
+3 clients
 Client
 Type
 Status
@@ -82,6 +82,15 @@ Odudu administration
 odudu-admin
 Type
 Confidential
+Status
+enabled
+Created
+recently
+Client
+Odudu MCP
+odudu-mcp
+Type
+Public
 Status
 enabled
 Created

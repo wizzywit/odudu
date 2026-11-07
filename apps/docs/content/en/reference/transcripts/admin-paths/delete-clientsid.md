@@ -43,3 +43,26 @@ Date: Mon, 05 Oct 2026 01:39:24 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
+
+The built-in MCP client, `odudu-mcp`, that every tenant is provisioned with is
+guarded against deletion too, with its own reason: an administrator turns it
+off by disabling it, which `PATCH` allows. Run on the stack and tenant
+`mcp-demo` of [the client listing](./get-clients-post-clients-and-get-clientsid.md):
+
+```bash
+MID=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "http://localhost:3092/admin/tenants/mcp-demo/clients?client_id_exact=odudu-mcp" | jq -r '.items[0].id')
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3092/admin/tenants/mcp-demo/clients/$MID
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a1ac04-0e93-7ef9-bf55-8cab0d743972
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 204
+Date: Thu, 05 Nov 2026 14:01:49 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-mcp is this tenant's built-in MCP client and cannot be deleted; disable it instead","instance":"01a1ac04-0e93-7ef9-bf55-8cab0d743972"}
+```

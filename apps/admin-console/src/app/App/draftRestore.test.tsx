@@ -79,6 +79,7 @@ const SIGNED_IN = {
   [`GET ${ACME_ADMIN}/whoami`]: json({
     subjectId: 's1',
     issuerTenantId: 't1',
+    issuerTenantName: 'acme',
     capabilities: ['manage-clients'],
     crossTenant: false,
   }),
@@ -201,6 +202,7 @@ const ROOT_IN_ACME = {
   [`GET ${ACME_ADMIN}/whoami`]: json({
     subjectId: 's0',
     issuerTenantId: 't0',
+    issuerTenantName: 'acme',
     capabilities: ['manage-clients', 'manage-tenants'],
     crossTenant: true,
   }),
