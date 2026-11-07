@@ -108,23 +108,52 @@ describe('a theme draft saved by a token the MCP endpoint signed', () => {
     });
     expect(second.statusCode).toBe(200);
     expect((await draftOf(t.id, null))?.body.stylesheet).toBe('.page { color: blue; }');
-    expect((await rows(t.id, 'theme.draft_saved')).map((row) => row.detail)).toEqual([
-      { scope: 'tenant' },
-      { scope: 'tenant' },
-    ]);
+    const details = (await rows(t.id, 'theme.draft_saved')).map(
+      (row) => row.detail as { scope: string; changed: Record<string, { before: unknown }> },
+    );
+    expect(details.map((d) => d.scope)).toEqual(['tenant', 'tenant']);
+    // The first save has no earlier draft; the second names the stylesheet alone, with digests and no text.
+    expect(details[0]?.changed.stylesheet?.before).toBeNull();
+    expect(Object.keys(details[1]?.changed ?? {})).toEqual(['stylesheet']);
+    expect(details[1]?.changed.stylesheet?.before).toMatchObject({ bytes: 23 });
+    expect(JSON.stringify(details)).not.toContain('color');
     expect(await rows(t.id, 'agent.tool_call')).toEqual([]);
   });
 
-  it('records a bounded row, whatever the size of the stylesheet and the templates saved', async () => {
+  it('records a bounded row, whatever the size of the draft saved, and a second save over a draft of 500 KiB names what it replaced', async () => {
     const t = await fixture.createTenant(`theme-${newId()}`);
     const token = await viaEndpoint(t.name);
-    const big = `.page { color: red; }\n${'/* pad */\n'.repeat(11_000)}`;
-    const res = await send(t.name, 'PUT', '/theme', token, {
-      payload: { stylesheet: big, templates: { 'sign-in': SIGN_IN } },
+    const pad = 'x'.repeat(60 * 1024);
+    const page = (marker: string) =>
+      `<div class="${marker}"><p>${pad}</p>{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>`;
+    const message = `<div><p>${pad}</p>{{message}}</div>`;
+    const templates = {
+      'sign-in': page('a'),
+      reset: page('a'),
+      registration: page('a'),
+      'update-password': page('a'),
+      'required-action': message,
+      'authorize-error': message,
+      'email-unverified': message,
+      notice: message,
+    };
+    const big = `.page { color: red; }\n${'/* pad */\n'.repeat(1_000)}`;
+    const first = await send(t.name, 'PUT', '/theme', token, {
+      payload: { stylesheet: big, templates },
     });
-    expect(res.statusCode).toBe(200);
-    const [row] = await rows(t.id, 'theme.draft_saved');
-    expect(JSON.stringify(row?.detail).length).toBeLessThan(100);
+    expect(first.statusCode).toBe(200);
+    const second = await send(t.name, 'PUT', '/theme', token, {
+      payload: { stylesheet: big, templates: { ...templates, 'sign-in': page('b') } },
+      headers: { 'if-match': String(first.headers.etag) },
+    });
+    expect(second.statusCode).toBe(200);
+    const [one, two] = await rows(t.id, 'theme.draft_saved');
+    expect(JSON.stringify(one?.detail).length).toBeLessThan(2_000);
+    expect(JSON.stringify(two?.detail).length).toBeLessThan(2_000);
+    const change = (two?.detail as { changed: Record<string, { before: { bytes: number } }> })
+      .changed;
+    expect(Object.keys(change)).toEqual(['templates']);
+    expect(change.templates?.before.bytes).toBeGreaterThan(480 * 1024);
   });
 
   it('refuses a body naming anything but the four parts of a theme', async () => {
@@ -216,6 +245,22 @@ describe('the routes that make a theme live or take a draft away, for an agent',
     expect(await draftOf(t.id, null)).not.toBeNull();
     expect(await draftOf(t.id, client.id)).not.toBeNull();
     expect(await rows(t.id, 'capability.refused')).toHaveLength(8);
+  });
+
+  it('refuses an image upload and an image delete, with a token the endpoint signed', async () => {
+    const t = await fixture.createTenant(`theme-${newId()}`);
+    const token = await viaEndpoint(t.name);
+    const upload = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/theme/assets?kind=logo`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'image/png' },
+      payload: Buffer.from('not looked at'),
+    });
+    expect(upload.statusCode).toBe(403);
+    const remove = await send(t.name, 'DELETE', `/theme/assets/${newId()}`, token);
+    expect(remove.statusCode).toBe(403);
+    expect(await rows(t.id, 'capability.refused')).toHaveLength(2);
+    expect(await rows(t.id, 'theme.asset_uploaded')).toEqual([]);
   });
 
   it('is still done by a person’s own token, which only an agent is held from', async () => {

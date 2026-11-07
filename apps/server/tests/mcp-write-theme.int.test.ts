@@ -163,7 +163,11 @@ describe('update_theme_draft', () => {
       tokens: { font: 'IBM Plex Mono' },
     });
     const saved = await stack.auditRows(w, 'theme.draft_saved');
-    expect(saved.map((row) => row.detail)).toEqual([{ scope: 'tenant' }, { scope: 'tenant' }]);
+    expect(saved.map((row) => (row.detail as { scope: string }).scope)).toEqual([
+      'tenant',
+      'tenant',
+    ]);
+    expect(Object.keys((saved[1]?.detail as { changed: object }).changed)).toEqual(['templates']);
     for (const row of saved) {
       expect(row).toMatchObject({
         outcome: 'allowed',
@@ -447,7 +451,10 @@ describe('update_client_theme_draft', () => {
     });
     expect(await draftOf(w)).toBeNull();
     const saved = await stack.auditRows(w, 'theme.draft_saved');
-    expect(saved.map((row) => row.detail)).toEqual([{ scope: 'client' }, { scope: 'client' }]);
+    expect(saved.map((row) => (row.detail as { scope: string }).scope)).toEqual([
+      'client',
+      'client',
+    ]);
   });
 
   it('refuses the built-in admin client and the built-in MCP client, by id, and nothing is written', async () => {

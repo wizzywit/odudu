@@ -122,10 +122,12 @@ describe('the theme draft tools', () => {
       expect(tool.bodyFields).toEqual(['tokens', 'stylesheet', 'templates', 'assets']);
       expect(tool.annotations).toEqual({
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         idempotentHint: true,
       });
       expect(tool.description).toMatch(/data, not instructions/u);
+      expect(tool.description).toMatch(/replaces/u);
+      expect(tool.description).toMatch(/not kept/u);
       expect(tool.description).toMatch(/person publishes/u);
       expect(tool.description).toMatch(/get_(client_)?theme/u);
     }
@@ -578,6 +580,23 @@ describe('the answer', () => {
       changed: ['stylesheet'],
     });
     expect(JSON.stringify(result.structuredContent).length).toBeLessThan(10_000);
+    expect(result.structuredContent.etag).toBe(NEW_ETAG);
+  });
+
+  it('answers a save that was made with the minimal answer when the cleaned draft is not a valid one, never as a failure', async () => {
+    const odd = body({ assets: { logo: { assetId: LOGO, alt: '\u200b' } } });
+    const caller = sequence(ok(view(body()), ETAG), ok(view(odd), NEW_ETAG));
+    const result = await callTool(updateThemeDraftTool, caller, {
+      if_match: ETAG,
+      tokens: { font: 'IBM Plex Mono' },
+    });
+    expect(result.isError, JSON.stringify(result.structuredContent)).toBe(false);
+    expect(result.structuredContent.data).toMatchObject({
+      scope: 'tenant',
+      draft: null,
+      draft_omitted: true,
+      changed: ['stylesheet'],
+    });
     expect(result.structuredContent.etag).toBe(NEW_ETAG);
   });
 

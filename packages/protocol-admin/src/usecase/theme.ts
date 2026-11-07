@@ -1,3 +1,4 @@
+import { draftChange } from '#/service/theme-audit';
 import { type FieldError, type PutThemeRequest } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clientRepository } from '@odudu/domain-tenant';
@@ -276,7 +277,11 @@ export async function saveDraft(
     resourceId: target.clientRowId ?? target.tenantId,
     ...actor,
     outcome: 'allowed',
-    detail: { scope: target.clientRowId === null ? 'tenant' : 'client' },
+    detail: draftChange(
+      target.clientRowId === null ? 'tenant' : 'client',
+      current?.body ?? null,
+      parsed.body,
+    ),
   });
   return { kind: 'saved', view: await viewOf(tx, target) };
 }

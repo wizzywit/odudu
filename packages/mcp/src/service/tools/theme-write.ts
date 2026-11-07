@@ -87,7 +87,10 @@ function descriptionOf(cfg: ThemeDraftConfig): string {
     'this tool cannot publish, restore, discard or reset a theme. Name at least one of tokens, ' +
     'stylesheet (null removes it) and templates; each named part replaces that part whole, and ' +
     'a part left out stays as the draft holds it (as the published theme holds it when there is ' +
-    'no draft). Images are never changed here. The tool reads the draft itself and writes the ' +
+    'no draft). Images are never changed here. A draft that is replaced is not kept: the audit ' +
+    'row holds only the length and a digest of each part changed, so keep what you replace ' +
+    `(read it with ${cfg.read}) before you replace it, for a person may be working in it. The ` +
+    'tool reads the draft itself and writes the ' +
     `parts you did not name exactly as stored. Send as if_match the etag ${cfg.read} returned ` +
     'beside the draft; leave it out only when that read says draft is null, which creates the ' +
     'first draft and is refused (412) when one exists. A stylesheet or template that fails the ' +
@@ -185,18 +188,17 @@ async function readHeld(
 function answerOf(answer: unknown): { data: z.infer<typeof ANSWER>; truncated?: true } {
   const view = themeViewSchema.parse(answer);
   const stats: CleanStats = { truncated: false };
-  const cleaned = ANSWER.parse(
-    cleanData(
-      {
-        scope: view.scope,
-        draft: view.draft,
-        draft_sources: view.draft_sources,
-        changed: view.changed,
-      },
-      stats,
-      { longText: LONG_TEXT },
-    ),
-  );
+  const parts = {
+    scope: view.scope,
+    draft: view.draft,
+    draft_sources: view.draft_sources,
+    changed: view.changed,
+  };
+  // The draft is saved by now: an answer that cleaning leaves invalid is reported as
+  // saved, without the draft, and never as a failure.
+  const checked = ANSWER.safeParse(cleanData(parts, stats, { longText: LONG_TEXT }));
+  if (!checked.success) return { data: { ...parts, draft: null, draft_omitted: true } };
+  const cleaned = checked.data;
   const fits = Buffer.byteLength(JSON.stringify(cleaned)) <= ANSWER_BUDGET_BYTES;
   return {
     data: fits ? cleaned : { ...cleaned, draft: null, draft_omitted: true },
@@ -236,7 +238,7 @@ function themeDraftTool(cfg: ThemeDraftConfig): RegisteredTool {
     createsWhen: (value: unknown): boolean =>
       typeof Reflect.get(value as object, 'if_match') !== 'string',
     bodyFields: ['tokens', 'stylesheet', 'templates', 'assets'],
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     input,
     response: themeViewSchema,
     output: z.object({
