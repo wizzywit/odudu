@@ -259,15 +259,21 @@ export function groupRepository(tx: TenantScopedDatabase) {
 
       await tx.update(groups).set({ parentId: newParentId }).where(eq(groups.id, groupId));
 
-      // The position argument must be cast to an integer: an untyped
-      // parameter here resolves to the two-argument, POSIX-regex overload
-      // of substring() instead of the FROM/integer one, and silently
-      // returns NULL when the "pattern" (the stringified number) has no
-      // match, rather than a position offset.
+      // The subtree follows `parent_id` (index-served, as `descendantsOf` is) and never
+      // matches a path as a pattern: a name may hold `%`, `_` or a backslash. The
+      // position argument is cast to an integer, since an untyped parameter picks
+      // the POSIX-regex overload of substring() and returns NULL.
       await tx.execute(sql`
+        WITH RECURSIVE subtree(id) AS (
+          SELECT ${groupId}::uuid
+          UNION
+          SELECT g.id
+          FROM subtree s
+          CROSS JOIN LATERAL (SELECT id FROM groups WHERE parent_id = s.id OFFSET 0) g
+        )
         UPDATE groups
         SET path = ${newOwnPath} || substring(path FROM ${oldPath.length + 1}::int)
-        WHERE path = ${oldPath} OR path LIKE ${`${oldPath}/%`}
+        WHERE id IN (SELECT id FROM subtree)
       `);
     },
 

@@ -852,3 +852,41 @@ describe('countUpTo and lockCreation', () => {
     expect([mine, other]).toEqual([true, false]);
   });
 });
+
+describe('reparent, with names that mean something to a pattern', () => {
+  // A path is matched as text, so a name holding the characters LIKE reads as
+  // a wildcard must move its own subtree and nothing beside it.
+  it.each([
+    ['a%', 'ab'],
+    ['a_', 'ax'],
+    ['a\\', 'a'],
+  ])('moves the subtree of %s and leaves the unrelated group %s alone', async (odd, other) => {
+    const tenant = await tenantFixture();
+    const moved = await tenant.createGroup(odd, null);
+    await tenant.createGroup('kid', moved.id);
+    const unrelated = await tenant.createGroup(other, null);
+    await tenant.createGroup('child', unrelated.id);
+    const parent = await tenant.createGroup('p', null);
+
+    await tenant.reparent(moved.id, parent.id);
+
+    expect((await tenant.byPath(`/p/${odd}`))?.id).toBe(moved.id);
+    expect((await tenant.byPath(`/p/${odd}/kid`))?.name).toBe('kid');
+    expect((await tenant.byPath(`/${other}`))?.id).toBe(unrelated.id);
+    expect((await tenant.byPath(`/${other}/child`))?.name).toBe('child');
+    expect(await tenant.byPath(`/${odd}`)).toBeNull();
+  });
+
+  it('leaves another tenant’s groups of the same names alone', async () => {
+    const mine = await tenantFixture();
+    const theirs = await tenantFixture();
+    const theirMoved = await theirs.createGroup('a%', null);
+    await theirs.createGroup('kid', theirMoved.id);
+    const moved = await mine.createGroup('a%', null);
+    await mine.createGroup('kid', moved.id);
+    const parent = await mine.createGroup('p', null);
+    await mine.reparent(moved.id, parent.id);
+    expect((await theirs.byPath('/a%/kid'))?.name).toBe('kid');
+    expect(await theirs.byPath('/p/a%')).toBeNull();
+  });
+});
