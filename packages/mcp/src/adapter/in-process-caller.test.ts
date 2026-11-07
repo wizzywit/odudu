@@ -408,6 +408,27 @@ describe('the in-process admin caller', () => {
       }
     });
 
+    it('sends If-None-Match: * for a PUT that may only create, and no If-Match', async () => {
+      const h = harness();
+      await createInProcessCaller(h.deps, write()).call({
+        method: 'PUT',
+        pattern: PUT.pattern,
+        params: PUT.params,
+        query: {},
+        body: { message: 'Willkommen' },
+        createOnly: true,
+      });
+      expect(Object.keys(h.injected[0]?.headers ?? {}).sort()).toEqual([
+        'accept',
+        'authorization',
+        'content-type',
+        'host',
+        'if-none-match',
+        'x-request-id',
+      ]);
+      expect(h.injected[0]?.headers?.['if-none-match']).toBe('*');
+    });
+
     it('sends the key a POST names as Idempotency-Key, and a DELETE no body', async () => {
       const h = harness();
       const caller = createInProcessCaller(h.deps, write());

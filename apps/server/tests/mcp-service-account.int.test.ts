@@ -1,7 +1,7 @@
 import { withTenant } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
 import { groups, roles } from '@odudu/domain-authz';
-import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
+import { ADMIN_CLIENT_ID, clientRepository, messageOverrideRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { type ToolResult } from '@odudu/mcp';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
@@ -15,8 +15,8 @@ import type { World } from '#/testing/mcp-world';
 // A service account holding mcp:write and manage-tenant reaches the MCP endpoint
 // with a token of its own, and the endpoint exchanges it for an admin token that
 // carries the endpoint's marker. No person signed in to that grant, so nothing
-// counts a create for it against anybody's sign-in: the tools that create are
-// refused it, by name too, and the tools that amend are not.
+// counts a create for it against anybody's sign-in: the tools that create, set or
+// clear a row are refused it, by name too, and the tools that amend are not.
 
 let stack: McpStack;
 
@@ -132,5 +132,46 @@ describe('a service account at the MCP endpoint', () => {
     const names = (res.json().result as { tools: { name: string }[] }).tools.map((t) => t.name);
     expect(names.filter((n) => n.startsWith('create_'))).toEqual([]);
     expect(names).toContain('update_role_description');
+  });
+
+  it('is refused a message override set or cleared, by name, and nothing is stored', async () => {
+    const { w, token } = await serviceAccountToken();
+    const set = await stack.call(w as World, token, 'set_message_override', {
+      locale: 'fr',
+      key: 'login.title',
+      message: 'by the service account',
+    });
+    expect(errorOf(set).status).toBe(403);
+    const cleared = await stack.call(w as World, token, 'clear_message_override', {
+      locale: 'fr',
+      key: 'login.title',
+      if_match: `"${'0'.repeat(64)}"`,
+    });
+    expect(errorOf(cleared).status).toBe(403);
+    const stored = await withTenant(stack.appDb.db, w.tenantId, (tx) =>
+      messageOverrideRepository(tx, { isKnownKey: () => true }).all(w.tenantId),
+    );
+    expect(stored).toEqual([]);
+  });
+
+  it('is not offered the override tools, and is still offered the settings amendment, which it may make', async () => {
+    const { w, token } = await serviceAccountToken();
+    const res = await stack.send(w as World, token, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: {},
+    });
+    const names = (res.json().result as { tools: { name: string }[] }).tools.map((t) => t.name);
+    expect(names).not.toContain('set_message_override');
+    expect(names).not.toContain('clear_message_override');
+    expect(names).toContain('update_tenant_text_settings');
+    const read = (await stack.call(w as World, token, 'get_settings', {})).structuredContent;
+    const etag = (read as { etag: string }).etag;
+    const updated = await stack.call(w as World, token, 'update_tenant_text_settings', {
+      if_match: etag,
+      display_name: 'Set by a service account',
+    });
+    expect(updated.isError, JSON.stringify(updated.structuredContent)).toBe(false);
   });
 });

@@ -218,8 +218,20 @@ describe('a put', () => {
         query: {},
         body: { message: 'Hallo' },
         bodyCap: 200_000,
+        createOnly: true,
       },
     ]);
+  });
+
+  it('may only create when it names no etag, and replaces when it does, never both', async () => {
+    const create = respondingWith(ANSWER);
+    await callTool(put, create, { locale: 'de', key: 'k', message: 'm' });
+    expect(create.requests[0]).toMatchObject({ createOnly: true });
+    expect(create.requests[0]).not.toHaveProperty('ifMatch');
+    const replace = respondingWith(ANSWER);
+    await callTool(put, replace, { locale: 'de', key: 'k', message: 'm', if_match: ETAG });
+    expect(replace.requests[0]).toMatchObject({ ifMatch: ETAG });
+    expect(replace.requests[0]).not.toHaveProperty('createOnly');
   });
 
   it('sends the etag it was given, and none when there is none', async () => {
@@ -385,5 +397,28 @@ describe('the values a write tool sends', () => {
     const result = await callTool(rich, caller, { locale: 'de', key: 'k', ...body });
     expect(result.isError, JSON.stringify(result.structuredContent)).toBe(false);
     expect(caller.requests[0]?.body).toEqual(body);
+  });
+});
+
+describe('a tool that says its own 412', () => {
+  const custom = contentWriteTool({
+    name: 'put_other',
+    description: 'Replaces a thing.',
+    routeKey: 'PUT /admin/tenants/:tenant/message-overrides/:locale/:key',
+    capability: 'manage-tenant',
+    what: 'message override',
+    mode: 'put',
+    params: { locale: z.string().min(2).max(35), key: z.string().min(1).max(100) },
+    fields: { message: z.string().min(1).max(500) },
+    response: ROLE,
+    stale: 'Another override exists: list the overrides and send its etag as if_match.',
+  });
+
+  it('answers the advice it names in place of the one for a resource read before', async () => {
+    const caller = respondingWith({ type: 'about:blank', title: 'Precondition Failed' }, 412);
+    const result = await callTool(custom, caller, { locale: 'de', key: 'k', message: 'm' });
+    expect(result.structuredContent).toMatchObject({
+      error: { status: 412, detail: expect.stringMatching(/list the overrides/u) as unknown },
+    });
   });
 });

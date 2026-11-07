@@ -13,8 +13,9 @@ export type JsonObject = { readonly [K in string]: JsonValue };
 // One admin request, before it has an address. `pattern` is an ADMIN_ROUTES
 // pattern whose `:tenant` the caller fills from the principal, never from input;
 // `params` are the other path parameters, raw, for the caller to encode. There
-// is no header field: the only two inputs that become headers are `ifMatch`
-// (one strong etag, on a PATCH, PUT or DELETE) and `idempotencyKey` (on a POST).
+// is no header field: the only three inputs that become headers are `ifMatch`
+// (one strong etag, on a PATCH, PUT or DELETE), `createOnly` (a PUT that must not
+// replace, sent as `If-None-Match: *`) and `idempotencyKey` (on a POST).
 // A body is a record the tool built from validated arguments, on a PATCH, POST
 // or PUT; a tool never supplies bytes. `bodyCap` sets the body's byte limit.
 export interface AdminRequestSpec {
@@ -24,6 +25,7 @@ export interface AdminRequestSpec {
   readonly query: Readonly<Record<string, string>>;
   readonly body?: JsonObject;
   readonly ifMatch?: string;
+  readonly createOnly?: true;
   readonly idempotencyKey?: string;
   readonly bodyCap?: number;
 }

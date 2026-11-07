@@ -119,8 +119,11 @@ const run = (argv: string[], options: Parameters<typeof runMcp>[1] = {}): Promis
 // What a tenant's own agent is offered: the two reads that span tenants are the
 // system tenant's alone.
 const TENANT_TOOLS = TOOLS.filter((t) => t.routeKey.includes(':tenant'));
-// A create is counted by the MCP endpoint alone, so the command does not offer one.
-const OFFERED_TOOLS = TENANT_TOOLS.filter((t) => t.spends !== 'create');
+// What adds or removes a row (a create, a PUT, a DELETE) is counted by the MCP
+// endpoint alone, so the command offers a read and an amendment only.
+const OFFERED_TOOLS = TENANT_TOOLS.filter(
+  (t) => t.access === 'read' || t.routeKey.startsWith('PATCH '),
+);
 
 const KEY_ARGS = ['--base-url', BASE, '--tenant', 'acme', '--client-id', 'svc'];
 
@@ -388,10 +391,16 @@ describe('odudu mcp with a service account key', () => {
   });
 });
 
-describe('odudu mcp with --allow-writes and a create tool', () => {
-  const creates = ['create_role', 'create_group', 'create_scope'];
+describe('odudu mcp with --allow-writes and a tool only the endpoint counts', () => {
+  const creates = [
+    'create_role',
+    'create_group',
+    'create_scope',
+    'set_message_override',
+    'clear_message_override',
+  ];
 
-  it('does not list the tools that create, which only the MCP endpoint counts', async () => {
+  it('does not list the tools that create, set or clear, which only the MCP endpoint counts', async () => {
     const a = authority();
     const r = await run([...KEY_ARGS, '--allow-writes'], {
       env: { ODUDU_MCP_KEY: keyText },
@@ -402,6 +411,7 @@ describe('odudu mcp with --allow-writes and a create tool', () => {
     for (const name of creates) expect(names, name).not.toContain(name);
     expect(names).toContain('update_role_description');
     expect(names).toContain('update_scope_metadata');
+    expect(names).toContain('update_tenant_text_settings');
   });
 
   it('says in its instructions that the creates are the tenant endpoint’s, only when writes are allowed', async () => {
@@ -417,6 +427,7 @@ describe('odudu mcp with --allow-writes and a create tool', () => {
     const writes = await instructionsOf(['--allow-writes']);
     for (const name of creates) expect(writes, name).toContain(name);
     expect(writes).toMatch(/MCP endpoint, not by this command/u);
+    expect(writes).toMatch(/set or clear a message override/u);
     expect(await instructionsOf([])).not.toMatch(/create_role/u);
   });
 
@@ -432,7 +443,10 @@ describe('odudu mcp with --allow-writes and a create tool', () => {
           jsonrpc: '2.0',
           id: 10 + i,
           method: 'tools/call',
-          params: { name, arguments: { idempotency_key: 'k', name: 'auditors' } },
+          params: {
+            name,
+            arguments: { idempotency_key: 'k', name: 'auditors', locale: 'fr', key: 'login.title' },
+          },
         })),
       ],
     });

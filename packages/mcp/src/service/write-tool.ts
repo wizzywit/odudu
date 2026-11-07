@@ -25,11 +25,16 @@ const BODY_BUDGET_BYTES = 60_000;
 
 // Text a person reads: no bidirectional control and no NUL, which a text column
 // cannot hold. A pattern, so the schema a client lists carries it.
-function text(schema: z.ZodString): z.ZodString {
+export function text(schema: z.ZodString): z.ZodString {
   return noBidiControls(schema).regex(/^[^\u0000]*$/u, { error: `text ${NUL_REFUSED_MESSAGE}` });
 }
 
 const TAG_PATTERN = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8}){0,4}$/;
+
+export const languageTagField = z
+  .string()
+  .max(35)
+  .regex(TAG_PATTERN, { message: 'must be a language tag' });
 
 export const ifMatchField = z
   .string()
@@ -55,10 +60,7 @@ export const descriptionField = text(z.string().max(DESCRIPTION_MAX))
 // to the tenant's languages, which only it knows.
 export function localisedField(max: number, what: string): z.ZodType<Record<string, string>> {
   return z
-    .record(
-      z.string().max(35).regex(TAG_PATTERN, { message: 'must be a language tag' }),
-      text(z.string().min(1).max(max)),
-    )
+    .record(languageTagField, text(z.string().min(1).max(max)))
     .refine((map) => Object.keys(map).length <= LOCALISED_TEXT_ENTRIES_MAX, {
       message: `at most ${String(LOCALISED_TEXT_ENTRIES_MAX)} languages`,
     })
@@ -140,6 +142,9 @@ export interface ContentWriteConfig<F extends z.ZodRawShape> {
   readonly bodyCap?: number;
   // What a refusal by the door says, where the tool can say more than this.
   readonly refusal?: string;
+  // What a 412 says, where the resource was not necessarily read first: a put
+  // that creates is refused for a resource that exists.
+  readonly stale?: string;
 }
 
 const ETAG_REQUIRED: Record<ContentWriteMode, boolean> = {
@@ -205,6 +210,7 @@ function requestOf<F extends z.ZodRawShape>(
     query: {},
     ...(cfg.mode === 'delete' ? {} : { body: bodyOf(names, args) }),
     ...(typeof ifMatch === 'string' ? { ifMatch } : {}),
+    ...(cfg.mode === 'put' && typeof ifMatch !== 'string' ? { createOnly: true as const } : {}),
     ...(cfg.mode === 'create' ? { idempotencyKey: stringOf(args, 'idempotency_key') } : {}),
     ...(cfg.bodyCap === undefined ? {} : { bodyCap: cfg.bodyCap }),
   };
@@ -217,9 +223,9 @@ function methodOf(method: string): AdminMethod {
   throw new Error(`a content write tool is a PATCH, POST, PUT or DELETE, not ${method}`);
 }
 
-function refusedAs(result: AdminResult, advice: string): ToolProblem {
+function refusedAs(result: AdminResult, advice: string, stale: string): ToolProblem {
   const problem = problemOf(result);
-  if (result.status === 412) return new ToolProblem(problem.problemType, problem.title, 412, STALE);
+  if (result.status === 412) return new ToolProblem(problem.problemType, problem.title, 412, stale);
   if (result.status === 403 && problem.detail === 'insufficient_scope') {
     return new ToolProblem(problem.problemType, problem.title, 403, advice);
   }
@@ -229,7 +235,8 @@ function refusedAs(result: AdminResult, advice: string): ToolProblem {
 // A write of descriptive content, by one of four modes: the id and the etag of
 // the read it is based on and at least one field to amend; a key the client
 // chose and the fields to create; the parameters, an etag where there is one to
-// replace and the fields to put; or the parameters and the etag to delete. The
+// replace (none asks to create, and is refused for what exists) and the fields
+// to put; or the parameters and the etag to delete. The
 // schema is the second line behind the admin API's own allowlist, and a stale
 // etag is the admin API's 412, said as one.
 export function contentWriteTool<F extends z.ZodRawShape>(
@@ -269,7 +276,7 @@ export function contentWriteTool<F extends z.ZodRawShape>(
     run: async (caller: AdminCaller, args) => {
       const result = await caller.call(requestOf(cfg, names, pattern, args));
       if (result.status < 200 || result.status >= 300) {
-        throw refusedAs(result, cfg.refusal ?? REFUSED);
+        throw refusedAs(result, cfg.refusal ?? REFUSED, cfg.stale ?? STALE);
       }
       if (cfg.mode === 'delete') return { data: { deleted: true as const } };
       const stats: CleanStats = { truncated: false };

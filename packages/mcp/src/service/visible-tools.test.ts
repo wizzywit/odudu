@@ -157,18 +157,30 @@ describe('visibleTools', () => {
 });
 
 describe('directCallerTools', () => {
-  it('leaves out every tool that creates, which only the MCP endpoint counts', () => {
-    const creates = TOOLS.filter((t) => t.spends === 'create').map((t) => t.name);
-    expect(creates).toEqual(['create_group', 'create_role', 'create_scope']);
+  const writes = TOOLS.filter((t) => t.access === 'write');
+  const amends = (tool: { routeKey: string }) => tool.routeKey.startsWith('PATCH ');
+
+  it('leaves out every tool that creates, sets or clears, which only the MCP endpoint counts', () => {
+    const held = writes.filter((t) => !amends(t)).map((t) => t.name);
+    expect(held).toEqual([
+      'clear_message_override',
+      'create_group',
+      'create_role',
+      'create_scope',
+      'set_message_override',
+    ]);
     const direct = directCallerTools(TOOLS).map((t) => t.name);
-    for (const name of creates) expect(direct, name).not.toContain(name);
-    expect(direct).toEqual(TOOLS.filter((t) => t.spends !== 'create').map((t) => t.name));
+    for (const name of held) expect(direct, name).not.toContain(name);
+    expect(direct).toEqual(
+      TOOLS.filter((t) => t.access === 'read' || amends(t)).map((t) => t.name),
+    );
   });
 
-  it('keeps every read and every amendment, in the catalogue’s order', () => {
+  it('keeps every read and every amendment, the settings one included, in the catalogue’s order', () => {
     const direct = directCallerTools(TOOLS).map((t) => t.name);
     expect(direct).toContain('update_role_description');
     expect(direct).toContain('update_scope_metadata');
+    expect(direct).toContain('update_tenant_text_settings');
     expect(direct.filter((n) => n.startsWith('list_')).length).toBeGreaterThan(10);
     expect(direct).toEqual([...direct].sort());
   });
