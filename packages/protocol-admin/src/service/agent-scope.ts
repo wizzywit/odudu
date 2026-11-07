@@ -5,11 +5,10 @@ import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 // is, and what its body may hold. `fields` is a body of named members of the
 // resource; `whole` is a body that is the resource, as a theme draft is. Either
 // admits the named members and nothing else, and a DELETE admits no body. A
-// `client` target is a built-in client's name, guarded; a `client-content` one
-// is a resource no built-in client has written, whatever the body names; a
-// `scope` one is a PATCH refused for a built-in scope. A PATCH
-// entry must not add or remove a row: only the other methods are held to the
-// endpoint's budget.
+// `client` target guards a built-in client's name; `client-content` refuses a
+// built-in client whatever the body names; `scope` refuses a built-in scope the
+// same way. A PATCH entry must not add or remove a row: only the other methods
+// are held to the endpoint's budget.
 export interface AgentWriteRoute {
   readonly method: 'PATCH' | 'POST' | 'PUT' | 'DELETE';
   readonly pattern: string;
