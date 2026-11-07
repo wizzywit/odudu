@@ -261,14 +261,22 @@ The door and the owner's capability stay the control; nothing below is a tool-si
    a derived key would let the retry create a second role. A create without a key is refused before any call. `noIdempotency` routes (domains verify, smtp test)
    are not W1, so none is affected.
 3. **Preconditions.** `If-Match` is required by every tool that amends an existing resource (`if_match`, as the
-   two shipped tools); the theme tools take the draft's etag from their own read and send it, answering the
-   admin API's `428` for a first draft by sending none.
+   two shipped tools); the theme tools take it too, optional: it names the draft the caller read, and a call with none
+   asks for the first draft and is refused (`412`, nothing sent) where one exists. The tool reads the draft again for
+   the parts it was not given and for the etag it sends, which must equal the one named. The call's budget is decided
+   before it runs, and only the caller's argument says whether it creates, so a first draft spends a create (as an
+   override created without an etag does) and a replacement spends a mutating place.
 4. **Read-merge-write for the theme.** The draft PUT replaces the whole draft ("a part left out is absent"), and an
    agent reads text cut at 1,000 characters, so a tool that sent back what the agent read would destroy the
    draft. The tool takes only the parts it changes, reads the current draft in full inside the tool, merges and
    PUTs with `If-Match`; a draft over what the caller may send is refused with a plain problem ("use the console").
-   `REQUEST_BODY_CAP_BYTES` (65,536) is per-tool configurable, 512 KiB for the two theme tools (assumption: the
-   caller's 1 MiB read cap and `THEME_BODY_LIMIT` of 4 MiB leave room; Increment 18 measures).
+   `REQUEST_BODY_CAP_BYTES` (65,536) is per-tool configurable, 512 KiB for the two theme tools. Measured in Increment 18:
+   the room is not what the assumption said, because a theme read answers the draft and the published theme together,
+   so a draft near 512 KiB beside a published theme near it passes the caller's 1 MiB read cap. The tool then refuses,
+   before anything is written (`mcp:theme_too_large`, `413`); and an answer to the write past the cap is reported as an
+   unknown outcome, the draft having been sent. The tool never puts what it read for the model into the body: the body is
+   built from the raw answer and the caller's own parts (`theme-draft.ts`, which imports nothing that cleans text), and
+   the answer the model gets is cleaned and left out (`draft_omitted`) when it would pass 200,000 bytes.
 5. **Write budget.** The limiter has a request budget (60 a minute a principal). A write token lives at most 600 s
    and is never refreshed, so a per-token budget of **20 mutating calls and 10 creates** (a create spends both) is
    two counters on the token's grant, `token_grants.agent_writes` and `agent_creates`, spent before the call runs by
