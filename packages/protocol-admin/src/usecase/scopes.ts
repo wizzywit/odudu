@@ -41,7 +41,7 @@ import {
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { readKeyedPage } from '#/service/in-order';
-import { redactedDiff } from '#/service/audit-detail';
+import { createdDetail, redactedDiff } from '#/service/audit-detail';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { builtinScopeConfirmationDetail } from '#/service/scope-delete';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
@@ -365,6 +365,7 @@ export async function createScope(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: createdDetail('scope', scopeWireShape(created)),
   });
 
   return scopeWireShape(created);

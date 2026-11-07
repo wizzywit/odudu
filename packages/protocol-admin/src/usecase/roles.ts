@@ -4,7 +4,7 @@ import { roleRepository, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
 import { isUuid, OduduError } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm';
-import { redactedDiff } from '#/service/audit-detail';
+import { createdDetail, redactedDiff } from '#/service/audit-detail';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { checkDescription } from '#/service/description';
 import { defaultReachRoleIds, lockDefaultReach } from '#/usecase/default-reach';
@@ -293,6 +293,7 @@ export async function createRole(
     defaultForNewSubjects: input.defaultForNewSubjects,
   });
 
+  const role = await roleWire(tx, created);
   await deps.audit(tx, {
     action: 'role.create',
     resourceType: 'role',
@@ -301,9 +302,10 @@ export async function createRole(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: createdDetail('role', role),
   });
 
-  return { kind: 'ok', role: await roleWire(tx, created) };
+  return { kind: 'ok', role };
 }
 
 export interface AmendRoleInput {
@@ -363,8 +365,8 @@ export async function amendRole(
   const locked = await lockRoleForAmend(tx, input.roleId);
   if (locked === null) return { kind: 'not_found' };
 
-  const currentEtag = etagOf(await roleWire(tx, locked));
-  if (matches(input.ifMatch, currentEtag) === 'mismatch') {
+  const current = await roleWire(tx, locked);
+  if (matches(input.ifMatch, etagOf(current)) === 'mismatch') {
     return { kind: 'precondition_failed' };
   }
 
@@ -385,6 +387,10 @@ export async function amendRole(
     await roleRepository(tx).amend(input.roleId, { description: patch.description.value });
   }
 
+  const after = await readRole(tx, input.roleId);
+  if (after.kind !== 'ok') {
+    throw new Error(`role ${input.roleId} not found immediately after its own amendment`);
+  }
   await deps.audit(tx, {
     action: 'role.amend',
     resourceType: 'role',
@@ -393,12 +399,8 @@ export async function amendRole(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff('role', current, after.role),
   });
-
-  const after = await readRole(tx, input.roleId);
-  if (after.kind !== 'ok') {
-    throw new Error(`role ${input.roleId} not found immediately after its own amendment`);
-  }
   return { kind: 'ok', role: after.role, etag: etagOf(after.role) };
 }
 

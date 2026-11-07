@@ -17,7 +17,7 @@ import { checkDescription } from '#/service/description';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { groupWireShape } from '#/service/group-wire';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
-import { redactedDiff } from '#/service/audit-detail';
+import { createdDetail, redactedDiff } from '#/service/audit-detail';
 import { holdsDefaultGroup, lockDefaultReach } from '#/usecase/default-reach';
 import {
   guardLastAdministrator,
@@ -236,6 +236,7 @@ export async function createGroup(
     description: input.description,
   });
 
+  const group = groupWireShape(created);
   await deps.audit(tx, {
     action: 'group.create',
     resourceType: 'group',
@@ -244,9 +245,10 @@ export async function createGroup(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: createdDetail('group', group),
   });
 
-  return { kind: 'ok', group: groupWireShape(created) };
+  return { kind: 'ok', group };
 }
 
 export interface AmendGroupInput {
@@ -453,6 +455,10 @@ async function amendGroupUnguarded(
     throw error;
   }
 
+  const after = await readGroup(tx, input.groupId);
+  if (after.kind !== 'ok') {
+    throw new Error(`group ${input.groupId} not found immediately after its own amendment`);
+  }
   await deps.audit(tx, {
     action: 'group.amend',
     resourceType: 'group',
@@ -461,12 +467,8 @@ async function amendGroupUnguarded(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff('group', groupWireShape(locked), after.group),
   });
-
-  const after = await readGroup(tx, input.groupId);
-  if (after.kind !== 'ok') {
-    throw new Error(`group ${input.groupId} not found immediately after its own amendment`);
-  }
   return { kind: 'ok', group: after.group, etag: etagOf(after.group) };
 }
 

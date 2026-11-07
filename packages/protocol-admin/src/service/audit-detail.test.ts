@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { redactedDiff } from '#/service/audit-detail';
+import { createdDetail, redactedDiff } from '#/service/audit-detail';
 
 describe('redactedDiff', () => {
   it('records only the fields that changed', () => {
@@ -60,6 +60,74 @@ describe('redactedDiff', () => {
     ).toEqual({
       client_registration_policy: { before: 'disabled', after: 'mcp' },
       cimd_enabled: { before: false, after: true },
+    });
+  });
+});
+
+describe('createdDetail', () => {
+  const role = { id: 'r1', name: 'auditors', description: null, default_for_new_subjects: false };
+
+  it('records the fields a create set, with what they became and no earlier value', () => {
+    expect(createdDetail('role', { ...role, description: 'Reads the audit trail' })).toEqual({
+      name: { after: 'auditors' },
+      description: { after: 'Reads the audit trail' },
+    });
+  });
+
+  it('leaves out a field that holds what an empty row holds, so a create names what it chose', () => {
+    expect(createdDetail('role', role)).toEqual({ name: { after: 'auditors' } });
+    expect(
+      createdDetail('group', {
+        name: 'staff',
+        description: null,
+        parent_id: null,
+        default_for_new_subjects: false,
+      }),
+    ).toEqual({ name: { after: 'staff' } });
+  });
+
+  it('records a field that is not at its default, whoever set it', () => {
+    expect(createdDetail('role', { ...role, default_for_new_subjects: true })).toEqual({
+      name: { after: 'auditors' },
+      default_for_new_subjects: { after: true },
+    });
+    expect(createdDetail('group', { name: 'staff', parent_id: 'p1' })).toEqual({
+      name: { after: 'staff' },
+      parent_id: { after: 'p1' },
+    });
+  });
+
+  it('holds a scope to its own defaults, a language text and the display order included', () => {
+    const scope = {
+      name: 'orders',
+      description: null,
+      include_in_id_token: true,
+      include_in_access_token: true,
+      default_client_assignment: null,
+      consent_text: null,
+      description_i18n: {},
+      consent_text_i18n: {},
+      display_order: 0,
+    };
+    expect(createdDetail('scope', scope)).toEqual({ name: { after: 'orders' } });
+    expect(
+      createdDetail('scope', {
+        ...scope,
+        description_i18n: { de: 'Bestellungen' },
+        display_order: 4,
+        include_in_id_token: false,
+      }),
+    ).toEqual({
+      name: { after: 'orders' },
+      description_i18n: { after: { de: 'Bestellungen' } },
+      display_order: { after: 4 },
+      include_in_id_token: { after: false },
+    });
+  });
+
+  it('never records a field the allowlist does not name', () => {
+    expect(createdDetail('role', { ...role, created_at: 'x', admin_reach: ['a'] })).toEqual({
+      name: { after: 'auditors' },
     });
   });
 });
