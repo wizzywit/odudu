@@ -1,6 +1,6 @@
 import { withTenant } from '@odudu/db';
 import { auditEvents } from '@odudu/domain-audit';
-import { clientRepository } from '@odudu/domain-tenant';
+import { clientRepository, clientScopeRepository } from '@odudu/domain-tenant';
 import type { ToolResult } from '@odudu/mcp';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -240,15 +240,39 @@ describe('update_client_metadata', () => {
   });
 });
 
+// A scope a person made: the door keeps an agent off the built-in ones.
+async function madeScope(w: World, name = 'reports'): Promise<{ id: string; name: string }> {
+  return withTenant(stack.appDb.db, w.tenantId, (tx) =>
+    clientScopeRepository(tx).create({ tenantId: w.tenantId, name }),
+  );
+}
+
 describe('update_scope_metadata', () => {
-  it('amends a scope description, and the audit row shows that field alone', async () => {
+  it('refuses a built-in scope, in the door’s words, and changes nothing', async () => {
     const w = await stack.world(OWNER_CAPS, WRITE);
     const token = await stack.sign(w, WRITE);
     const listed = recOf(await stack.call(w, token, 'list_scopes', { limit: 50 }));
-    const scope = (listed.data as unknown as { id: string; name: string }[]).find(
+    const builtin = (listed.data as unknown as { id: string; name: string }[]).find(
       (s) => s.name === 'profile',
     );
-    if (scope === undefined) throw new Error('no profile scope');
+    if (builtin === undefined) throw new Error('no profile scope');
+    const read = recOf(await stack.call(w, token, 'get_scope', { id: builtin.id }));
+    const refused = errorOf(
+      await stack.call(w, token, 'update_scope_metadata', {
+        id: builtin.id,
+        if_match: read.etag,
+        display_order: 9,
+      }),
+    );
+    expect(refused).toMatchObject({ status: 403 });
+    expect(refused.detail).toMatch(/built-in scope/u);
+    expect(await actionRows(w, 'scope.amend')).toHaveLength(0);
+  });
+
+  it('amends a scope description, and the audit row shows that field alone', async () => {
+    const w = await stack.world(OWNER_CAPS, WRITE);
+    const token = await stack.sign(w, WRITE);
+    const scope = await madeScope(w);
     const read = recOf(await stack.call(w, token, 'get_scope', { id: scope.id }));
     const unsupported = errorOf(
       await stack.call(w, token, 'update_scope_metadata', {
@@ -415,16 +439,7 @@ describe('text the database cannot hold', () => {
     const w = await stack.world(OWNER_CAPS, WRITE);
     const caller = stack.unguardedCaller(w, ['mcp:read', 'mcp:write']);
     const id = (await portal(w)).id;
-    const scopes = await caller.call({
-      method: 'GET',
-      pattern: '/admin/tenants/:tenant/scopes',
-      params: {},
-      query: { limit: '50' },
-    });
-    const scopeId = (scopes.body as { items: { id: string; name: string }[] }).items.find(
-      (s) => s.name === 'profile',
-    )?.id;
-    if (scopeId === undefined) throw new Error('no profile scope');
+    const scopeId = (await madeScope(w)).id;
     const before = await clientRow(w, id);
     for (const [pattern, target, body] of [
       ['/admin/tenants/:tenant/clients/:id', id, { description: 'a\u0000b' }],
