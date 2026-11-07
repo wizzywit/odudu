@@ -26,7 +26,7 @@ fields, and the admin door admits the write by field, so a body that names anyth
 
 | Class | Meaning                                                                                                                                                                                                      | Placement                                                                    |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| R     | read; no secret, no credential metadata, and personal data only as the console shows it: a subject's record and the audit trail's actor names and client addresses                                           | a tool                                                                       |
+| R     | read; no secret, no credential metadata, and personal data only as the console shows it: a subject's record and the audit trail's actor names and the IP address a request came from                         | a tool                                                                       |
 | RS    | sensitive read: personal data, credential metadata, secrets, whole-tenant or byte downloads                                                                                                                  | refused at the tool layer and at the admin door (`AGENT_DENIED_READS`)       |
 | W1    | content write: wording, descriptions, drafts, structure that grants nothing                                                                                                                                  | a tool, behind `mcp:write`, admitted by field                                |
 | W2    | access-changing write, reversible by another call: grants, mappings, redirect and grant settings, security settings, identity fields, anything that goes live on a credential page, anything that sends mail | P5b, with human confirmation                                                 |
@@ -276,7 +276,7 @@ the door admits; it is shipped as W1 by the owner's decision, with both tools hi
 call asks first. Keeping the replaced draft as an archived history row, which a person could restore, is left to the owner and placed with
 P5b (`docs/NEXT.md`, "What P5b inherits").
 
-On scopes an agent may create one (a name that is one token, a description and a display order) and amend the description and display order of
+On scopes an agent may create one (a name that is one token and not a built-in scope's, a description and a display order) and amend the description and display order of
 a scope a person made. It cannot amend a built-in scope, change what a scope releases, assign it or write its consent text.
 
 ## Where it is held

@@ -2,7 +2,7 @@ import { withTenant } from '@odudu/db';
 import { auditEvents } from '@odudu/domain-audit';
 import { clientScopeRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
@@ -103,6 +103,33 @@ describe.each(Object.entries(MINTS))('an agent holding %s', (_label, mint) => {
     expect(res.statusCode).toBe(200);
   });
 });
+
+describe.each(Object.entries(MINTS))(
+  'an agent holding %s, after a person deleted a built-in scope',
+  (_l, mint) => {
+    it('cannot create a scope under that name, but can under another', async () => {
+      const t = await fixture.createTenant(`scope-${newId()}`);
+      await fixture.owner.db.execute(
+        sql`delete from client_scopes where tenant_id = ${t.id}::uuid and name = 'offline_access'`,
+      );
+      const token = await mint(t.name);
+      const create = (name: string) =>
+        fixture.http.inject({
+          method: 'POST',
+          url: `/admin/tenants/${t.name}/scopes`,
+          headers: {
+            authorization: `Bearer ${token}`,
+            'content-type': 'application/json',
+            'idempotency-key': `k-${newId()}`,
+          },
+          payload: { name },
+        });
+      const refused = await create('offline_access');
+      expect(refused.statusCode).toBe(403);
+      expect(refused.json()).toMatchObject({ detail: 'insufficient_scope' });
+    });
+  },
+);
 
 describe('a person', () => {
   it('still amends a built-in scope with their own token', async () => {

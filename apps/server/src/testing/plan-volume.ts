@@ -526,7 +526,9 @@ async function assertVolume(connection: {
            (select count(*) from group_roles) group_roles,
            (select count(*) from client_scope_roles) client_scope_roles,
            (select max(parents) from (
-              select count(*) parents from role_composites group by child_role_id) x) fan_in`);
+              select count(*) parents from role_composites group by child_role_id) x) fan_in,
+           (select count(*) from roles r join tenants t on t.id = r.tenant_id
+             where t.name = '${NEAR_LIMIT_TENANT}') near_limit_roles`);
   const row = rows[0];
   if (row === undefined) throw new Error('the volume check read nothing');
   for (const table of ['role_composites', 'group_roles', 'client_scope_roles']) {
@@ -535,6 +537,11 @@ async function assertVolume(connection: {
         `${table} holds ${String(row[table])} rows, under the ${String(LARGE_TABLE_ROWS)} a scan of it is judged at`,
       );
     }
+  }
+  if (Number(row.near_limit_roles) !== PLAN_VOLUME.rolesNearLimit) {
+    throw new Error(
+      `${NEAR_LIMIT_TENANT} holds ${String(row.near_limit_roles)} roles, not the ${String(PLAN_VOLUME.rolesNearLimit)} its role create is driven against`,
+    );
   }
   if (Number(row.fan_in) <= ROWS_PER_READ) {
     throw new Error(

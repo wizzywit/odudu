@@ -77,10 +77,11 @@ export interface FrontChannelTarget {
 }
 
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
-  // The grant whose counters this one spends: its own when no exchange made it,
-  // else the root named on it. A grant that was exchanged and names no root
-  // (made before the column existed) has none, and neither has one whose root is
-  // gone: both are refused, so a budget is never renewed by an error path.
+  // The grant whose counters this one spends: the root named on it, or its own
+  // when no exchange made it. A grant that was exchanged and names no root has
+  // none and is refused, as is one whose id matches no grant. An exchanged grant
+  // from before the column whose parent was deleted before the backfill cannot be
+  // told from a sign-in's own grant and keeps a budget of its own.
   async function budgetGrant(id: string): Promise<string | null> {
     const rows = await tx
       .select({ root: tokenGrants.budgetGrantId, parent: tokenGrants.exchangedFromGrantId })

@@ -42,11 +42,9 @@ import { driveAdminWrites } from '#/testing/plan-admin-writes';
 import { BRANDING_PATHS, driveBranding } from '#/testing/plan-branding-drives';
 import { driveOidc } from '#/testing/plan-oidc-drives';
 import { pathLog, type PathRun } from '#/testing/plan-paths';
+import { LARGE_TABLE_ROWS, ROWS_PER_READ } from '#/testing/plan-volume';
 import { startPlanWorld, type PlanWorld } from '#/testing/plan-world';
 
-const LARGE_TABLE_ROWS = 5_000;
-// A page of MAX_LIMIT rows with up to ten rows each of what hangs off it.
-const ROWS_PER_READ = 10 * MAX_LIMIT;
 // A listing's batched lookups (a page's clients' names, say) are skipped by a
 // page whose rows need none, so the two sizes may differ by a few; a query per
 // row would differ by the page size.

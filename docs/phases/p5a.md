@@ -2082,9 +2082,9 @@ where it was fixed.
   (`agent-door-tenant.int.test.ts`, read, PATCH, POST, PUT and DELETE, for a direct, an exchanged and an endpoint token).
 - **`target: 'scope'` was dead metadata.** Nothing read it, so a built-in scope's description and display order could be
   rewritten by an agent. The door now refuses a PATCH of a built-in scope for an agent whatever the body names, and
-  `update_scope_metadata` says so in its description and its refusal (`agent-door-scope.int.test.ts`). A create with a
-  built-in scope's name is not guarded: the name exists, so a create is a `409`, and one deleted by a person was
-  deleted on purpose.
+  `update_scope_metadata` says so in its description and its refusal (`agent-door-scope.int.test.ts`). A create under a
+  built-in scope's name is refused to an agent too (found by the re-review): a scope a person deleted on purpose is
+  not made again as a plain one.
 - **The write budget failed open.** The 16-hop walk returned its last grant, which had a fresh allowance, and a root
   the reaper deleted turned its child into a root. A grant made by an exchange now carries `budget_grant_id`, copied
   from its parent's root when it is made (no foreign key, on purpose); a grant that was exchanged and names none, or

@@ -574,7 +574,9 @@ describe('an mcp:read token', () => {
     }
     const calls = await stack.auditRows(f.w, 'agent.tool_call');
     const refused = calls.filter(
-      (c) => (c.detail as { tool: string }).tool.startsWith('update_') && c.outcome === 'refused',
+      (c) =>
+        TOOLS.find((tool) => tool.name === (c.detail as { tool: string }).tool)?.access ===
+          'write' && c.outcome === 'refused',
     );
     expect(refused.length).toBe(atWriteTools(agent.attempts).length);
     for (const row of refused) {

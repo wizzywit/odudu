@@ -1,13 +1,12 @@
 import { holdsMcpScope, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 
-// One mutation an agent token may make: the method and route, what its target
-// is, and what its body may hold. `fields` is a body of named members of the
-// resource; `whole` is a body that is the resource, as a theme draft is. Either
-// admits the named members and nothing else, and a DELETE admits no body. A
-// `client` target guards a built-in client's name; `client-content` refuses a
-// built-in client whatever the body names; `scope` refuses a built-in scope the
-// same way. A PATCH entry must not add or remove a row: only the other methods
+// One mutation an agent token may make: the method and route, its target, and
+// what its body may hold. `fields` names members of the resource, `whole` is the
+// resource itself (a theme draft); either admits those members and nothing else,
+// and a DELETE admits no body. `client` guards a built-in client's name,
+// `client-content` refuses a built-in client, `scope` a built-in scope's PATCH and
+// its name at create. Only a non-PATCH entry adds or removes a row, so only those
 // are held to the endpoint's budget.
 export interface AgentWriteRoute {
   readonly method: 'PATCH' | 'POST' | 'PUT' | 'DELETE';
@@ -104,7 +103,7 @@ export const AGENT_WRITE_ROUTES: readonly AgentWriteRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/scopes',
-    target: 'none',
+    target: 'scope',
     body: 'fields',
     fields: ['name', 'description', 'description_i18n', 'display_order'],
   },
@@ -227,7 +226,18 @@ export function agentGuardsBuiltinScope(
   route: AdminRoute,
   routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
 ): boolean {
-  return writeEntry(route, routes)?.target === 'scope';
+  const entry = writeEntry(route, routes);
+  return entry?.target === 'scope' && entry.method === 'PATCH';
+}
+
+// Whether a create is refused when its body names a built-in scope, so that a
+// scope a person deleted is not made again by an agent as a plain one.
+export function agentGuardsBuiltinScopeName(
+  route: AdminRoute,
+  routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
+): boolean {
+  const entry = writeEntry(route, routes);
+  return entry?.target === 'scope' && entry.method === 'POST';
 }
 
 export function agentBodyNamesGuardedField(body: unknown): boolean {

@@ -1,5 +1,5 @@
 import { type Database, type TenantScopedDatabase } from '@odudu/db';
-import { isSystemTenantId, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
+import { isBuiltinScopeName, isSystemTenantId, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { type Clock } from '@odudu/kernel';
 import { issuerBaseFor, tenantIssuerFor } from '@odudu/protocol-oidc';
 import { Transform } from 'node:stream';
@@ -9,6 +9,7 @@ import {
   doorToolName,
   agentBodyNamesGuardedField,
   agentGuardsBuiltinScope,
+  agentGuardsBuiltinScopeName,
   agentGuardsWholeClient,
   agentWriteNeedsEndpoint,
   agentWritesClient,
@@ -240,6 +241,10 @@ async function agentMayWrite(
   granted: Granted,
 ): Promise<boolean> {
   if (!agentBodyAdmitted(route, request.body)) return false;
+  if (agentGuardsBuiltinScopeName(route)) {
+    const named = (request.body as { name?: unknown }).name;
+    return !(typeof named === 'string' && isBuiltinScopeName(named));
+  }
   if (agentGuardsBuiltinScope(route)) {
     const scopeId = request.params.id;
     if (scopeId === undefined) return true;
