@@ -90,6 +90,8 @@ export const AUDIT_REASON_DOCS: Record<AuditReason, string> = {
   already_registered: 'The email address already belongs to an account.',
   timeout_outcome_unknown:
     'An agent write ran past its deadline, so whether it changed anything is not known.',
+  write_budget:
+    'An agent had made as many changes as one sign-in allows, so the call was not made.',
 };
 
 export const AUDIT_OUTCOME_DOCS: Record<AuditOutcome, string> = {

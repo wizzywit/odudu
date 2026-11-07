@@ -4,8 +4,10 @@ import { accessOf } from '#/service/admin-access';
 import { expandPattern } from '#/service/admin-path';
 import {
   ADMIN_BODY_CAP_BYTES,
+  idempotencyKeyOf,
   jsonBodyOf,
   payloadOf,
+  preflight,
   preconditionOf,
   returnedHeaders,
 } from '#/service/admin-request';
@@ -59,9 +61,12 @@ export function createHttpCaller(
   const newRequestId = options.requestId ?? randomUUID;
   return {
     async call(req: AdminRequestSpec): Promise<AdminResult> {
-      const path = expandPattern(req.pattern, options.tenant, req.params);
-      const payload = payloadOf(req);
-      const ifMatch = preconditionOf(req);
+      const { path, payload, ifMatch, idempotencyKey } = preflight(() => ({
+        path: expandPattern(req.pattern, options.tenant, req.params),
+        payload: payloadOf(req),
+        ifMatch: preconditionOf(req),
+        idempotencyKey: idempotencyKeyOf(req),
+      }));
       const url = new URL(target.adminUrl(path));
       for (const [name, value] of Object.entries(req.query)) url.searchParams.append(name, value);
       const attempt = async (): Promise<{ res: Response; bearer: string }> => {
@@ -75,6 +80,7 @@ export function createHttpCaller(
               'x-request-id': newRequestId(),
               ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
               ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
+              ...(idempotencyKey === undefined ? {} : { 'idempotency-key': idempotencyKey }),
             },
             ...(payload === undefined ? {} : { body: payload }),
             redirect: 'manual',

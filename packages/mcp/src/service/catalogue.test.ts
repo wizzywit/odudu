@@ -41,6 +41,12 @@ describe('the catalogue', () => {
     ).toBe(true);
   });
 
+  it('gives every tool that writes a budget to spend, and no read one', () => {
+    for (const tool of TOOLS) {
+      expect(tool.spends !== undefined, tool.name).toBe(tool.access === 'write');
+    }
+  });
+
   it('takes the tenant from no tool input', () => {
     for (const tool of TOOLS) {
       const schema = z.toJSONSchema(tool.input, { io: 'input', unrepresentable: 'any' });

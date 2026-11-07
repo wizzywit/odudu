@@ -1,10 +1,16 @@
 import { holdsMcpScope, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 
-interface AgentWriteRoute {
-  readonly method: 'PATCH';
+// One mutation an agent token may make: the method and route, what its target
+// is (a built-in client is guarded), and what its body may hold. `fields` is
+// a body of named members of the resource; `whole` is a body that is the
+// resource, as a theme draft is. Either admits the named members and nothing
+// else, and a DELETE admits no body at all.
+export interface AgentWriteRoute {
+  readonly method: 'PATCH' | 'POST' | 'PUT' | 'DELETE';
   readonly pattern: string;
-  readonly target: 'client' | 'scope';
+  readonly target: 'client' | 'scope' | 'none';
+  readonly body: 'fields' | 'whole';
   readonly fields: readonly string[];
 }
 
@@ -46,26 +52,30 @@ export const AGENT_WRITE_ROUTES: readonly AgentWriteRoute[] = [
     method: 'PATCH',
     pattern: '/admin/tenants/:tenant/clients/:id',
     target: 'client',
+    body: 'fields',
     fields: ['name', 'description', 'name_i18n', 'description_i18n'],
   },
   {
     method: 'PATCH',
     pattern: '/admin/tenants/:tenant/scopes/:id',
     target: 'scope',
+    body: 'fields',
     fields: ['description', 'description_i18n'],
   },
 ];
 
-function writeEntry(route: Pick<AdminRoute, 'method' | 'pattern'>): AgentWriteRoute | undefined {
-  return AGENT_WRITE_ROUTES.find(
-    (entry) => entry.method === route.method && entry.pattern === route.pattern,
-  );
+function writeEntry(
+  route: Pick<AdminRoute, 'method' | 'pattern'>,
+  routes: readonly AgentWriteRoute[],
+): AgentWriteRoute | undefined {
+  return routes.find((entry) => entry.method === route.method && entry.pattern === route.pattern);
 }
 
 export function scopeAdmits(
   scopes: readonly string[],
   route: AdminRoute,
   tenantIsSystem: boolean,
+  routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
 ): boolean {
   if (route.method === 'GET') {
     const key = `${route.method} ${route.pattern}`;
@@ -73,23 +83,38 @@ export function scopeAdmits(
     if (INSTANCE_READS.includes(key) && !tenantIsSystem) return false;
     return holdsMcpScope(scopes);
   }
-  return scopes.includes(MCP_WRITE_SCOPE) && writeEntry(route) !== undefined;
+  return scopes.includes(MCP_WRITE_SCOPE) && writeEntry(route, routes) !== undefined;
 }
 
-export function agentWritableFields(route: AdminRoute): readonly string[] {
-  return writeEntry(route)?.fields ?? [];
+export function agentWritableFields(
+  route: AdminRoute,
+  routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
+): readonly string[] {
+  return writeEntry(route, routes)?.fields ?? [];
 }
 
 // Reads the body the handler will read, as parsed: a duplicate key is already
-// its last value and `__proto__` an own key no allowlist names.
-export function agentBodyAdmitted(route: AdminRoute, body: unknown): boolean {
+// its last value and `__proto__` an own key no allowlist names. A route
+// outside the list admits nothing, and a DELETE admits no body.
+export function agentBodyAdmitted(
+  route: AdminRoute,
+  body: unknown,
+  routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
+): boolean {
+  const entry = writeEntry(route, routes);
+  if (entry === undefined) return false;
+  if (entry.method === 'DELETE') return body === undefined;
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return false;
-  const writable = agentWritableFields(route);
-  return Reflect.ownKeys(body).every((key) => typeof key === 'string' && writable.includes(key));
+  return Reflect.ownKeys(body).every(
+    (member) => typeof member === 'string' && entry.fields.includes(member),
+  );
 }
 
-export function agentWritesClient(route: AdminRoute): boolean {
-  return writeEntry(route)?.target === 'client';
+export function agentWritesClient(
+  route: AdminRoute,
+  routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
+): boolean {
+  return writeEntry(route, routes)?.target === 'client';
 }
 
 export function agentBodyNamesGuardedField(body: unknown): boolean {

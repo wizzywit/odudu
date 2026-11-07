@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-tenant';
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { tokenGrants, type TokenGrantRecord } from '#/schema/token-grants';
 
@@ -76,7 +76,27 @@ export interface FrontChannelTarget {
   frontchannelLogoutSessionRequired: boolean;
 }
 
+// How far up the grants exchanged from one another a budget is looked for.
+const EXCHANGE_DEPTH = 16;
+
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
+  // A grant exchanged from another has that grant's agent write budget, so
+  // exchanging an exhausted token does not renew it: only a new sign-in does,
+  // and that makes a grant with no parent.
+  async function budgetGrant(id: string): Promise<string> {
+    let current = id;
+    for (let hop = 0; hop < EXCHANGE_DEPTH; hop += 1) {
+      const rows = await tx
+        .select({ parent: tokenGrants.exchangedFromGrantId })
+        .from(tokenGrants)
+        .where(eq(tokenGrants.id, current));
+      const parent = rows[0]?.parent;
+      if (parent === null || parent === undefined) return current;
+      current = parent;
+    }
+    return current;
+  }
+
   // One read behind both ways of asking for a session's clients, so the
   // join and the `enabled` filter cannot differ between them.
   async function sessionClients(
@@ -145,6 +165,58 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         .where(and(eq(tokenGrants.id, id), isNull(tokenGrants.revokedAt)))
         .returning({ id: tokenGrants.id });
       return rows.length > 0;
+    },
+
+    // Spends one call of the grant's write budget: true when the grant was
+    // within `limits`, and the count is raised by the same statement, which the
+    // row lock serialises, so of any number of calls made at once no more than
+    // the limit are told yes. A grant that is missing, revoked or in another
+    // tenant is false. A create is also a mutating call.
+    async reserveAgentWrite(
+      id: string,
+      kind: 'mutating' | 'create',
+      limits: { readonly mutating: number; readonly creates: number },
+    ): Promise<boolean> {
+      const create = kind === 'create';
+      const root = await budgetGrant(id);
+      const rows = await tx
+        .update(tokenGrants)
+        .set({
+          agentWrites: sql`${tokenGrants.agentWrites} + 1`,
+          agentCreates: sql`${tokenGrants.agentCreates} + ${create ? 1 : 0}`,
+        })
+        .where(
+          and(
+            eq(tokenGrants.id, root),
+            isNull(tokenGrants.revokedAt),
+            lt(tokenGrants.agentWrites, limits.mutating),
+            create ? lt(tokenGrants.agentCreates, limits.creates) : undefined,
+          ),
+        )
+        .returning({ id: tokenGrants.id });
+      return rows.length > 0;
+    },
+
+    // Whether the grant exists in this tenant and has not been revoked, which
+    // tells a spent budget from a sign-in that has ended.
+    async isLive(id: string): Promise<boolean> {
+      const [own, root] = [id, await budgetGrant(id)];
+      const rows = await tx
+        .select({ id: tokenGrants.id })
+        .from(tokenGrants)
+        .where(and(inArray(tokenGrants.id, [own, root]), isNull(tokenGrants.revokedAt)));
+      return rows.length === new Set([own, root]).size;
+    },
+
+    // Gives back a call known to have changed nothing, never below none.
+    async releaseAgentWrite(id: string, kind: 'mutating' | 'create'): Promise<void> {
+      await tx
+        .update(tokenGrants)
+        .set({
+          agentWrites: sql`greatest(${tokenGrants.agentWrites} - 1, 0)`,
+          agentCreates: sql`greatest(${tokenGrants.agentCreates} - ${kind === 'create' ? 1 : 0}, 0)`,
+        })
+        .where(eq(tokenGrants.id, await budgetGrant(id)));
     },
 
     async byId(id: string): Promise<TokenGrantRecord | null> {

@@ -32,10 +32,19 @@ export type { McpExchange, McpPrincipal, McpRequestInfo, OpenExchange } from '#/
 export { validateMcpToken } from '#/usecase/validate-mcp-token';
 export type { ValidateMcpTokenDeps } from '#/usecase/validate-mcp-token';
 export { callMcpTool } from '#/usecase/call-mcp-tool';
+export {
+  memoryWriteBudget,
+  renewableWriteBudget,
+  WRITE_BUDGET,
+  type BudgetKind,
+  type BudgetLimits,
+  type WriteBudget,
+} from '#/service/write-budget';
 export type { CallMcpToolDeps, RecordedToolCall } from '#/usecase/call-mcp-tool';
 export { createToolLimiter, DEFAULT_TOOL_LIMITS } from '#/service/rate-limit';
 export type { ToolLimiter, ToolLimiterOptions } from '#/service/rate-limit';
 export { TOOLS } from '#/service/catalogue';
+export { contentWriteTool, descriptionField, nameField } from '#/service/write-tool';
 export { visibleTools, toolVisible } from '#/service/visible-tools';
 export { createHttpCaller, type HttpCallerOptions } from '#/adapter/http-caller';
 export { createOauthClient, type OauthClientDeps } from '#/adapter/oauth-client';

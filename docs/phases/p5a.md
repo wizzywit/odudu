@@ -1571,3 +1571,81 @@ read tools, the system tenant's 61. The previews and the asset bytes stay withhe
   versions as `{ items }` under `data`, with no cursor, like `list_builtin_scopes`.
 - **Volume.** `list_message_overrides` is paged under `MAX_LIMIT` (a tenant holds at most 500
   overrides across every locale); the catalogue and the hooks are fixed by the build and under 100 KB and 4 KB.
+
+## The write door, generalised, and the route classes (parity extension, Increment 15)
+
+No tool was added. The admin door and the caller can now carry a POST, PUT or DELETE under a
+field gate, an `Idempotency-Key` and a per-grant write budget, and the class of every admin
+route is a durable document, [MCP route classes](../protocols/mcp-route-classes.md).
+
+- **The allowlist names method, route and body mode.** `AgentWriteRoute` is
+  `{ method: 'PATCH' | 'POST' | 'PUT' | 'DELETE'; pattern; target; body: 'fields' | 'whole'; fields }`.
+  The four door functions take the list as a last argument defaulting to `AGENT_WRITE_ROUTES`,
+  which still holds the two shipped PATCH entries, so a synthetic list is what the tests hold
+  every `ADMIN_ROUTES` entry to. An entry is matched on method and pattern, so a PATCH of a
+  route listed for POST is refused `insufficient_scope`. A DELETE admits `body === undefined`
+  and nothing else. Both body modes read the parsed object: `__proto__` is an own key no entry
+  names and an array or a scalar is refused; **a duplicate key cannot be told from a single one
+  at that point**, since `JSON.parse` has already kept the last, so the test pins what the
+  handler would read rather than a refusal of the duplicate.
+- **The caller adds one header.** `Idempotency-Key`, on a POST, checked against the admin API's
+  own pattern (`[A-Za-z0-9_.:-]{1,255}`, which is narrower than "visible ASCII": no quote,
+  slash or space). A POST with no key is refused by the caller itself, not only by a tool's
+  schema. `If-Match` now rides a PUT and a DELETE as well as a PATCH. A body is allowed on
+  PATCH, POST and PUT; `bodyCap` raises or lowers it per tool and a value above the 1 MiB read
+  cap, or not a whole number, is refused before any request, whether or not a body is sent.
+  `If-None-Match` is not carried, so a message override cannot yet be _created_ by a PUT.
+- **The budget is on the grant, not a count of audit rows.** The plan counted `agent.tool_call`
+  rows read in the transaction that records the call. That cannot work: the row is written after
+  the call, so thirty calls made at once all read a count of nothing and all run. The budget is
+  two columns on `token_grants` (`agent_writes`, `agent_creates`, migration 0124), spent before
+  the call by one `UPDATE ... WHERE agent_writes < 20 [AND agent_creates < 10] RETURNING id`; the
+  row lock makes it atomic, no connection is held across the admin call, and a create spends
+  both counters. `callMcpTool` reserves after the arguments pass their schema, and gives the
+  place back only when the admin API answered `4xx` (nothing changed); a timeout, an unreachable
+  admin API and an answer too large to read keep it, because the change may have been made. A
+  call over the limit is `mcp:write_budget` (`429`) with a `refused` row whose reason is the new
+  `write_budget`; a budget that cannot be read is `mcp:write_budget_unavailable` (`503`) and the
+  call is not made. The plan's `verified:` and `assumption:` lines: `idempotencyKeyOf` and
+  the `PATCH`-typed interface were as stated; the audit index assumption was not needed.
+- **Verified by parallel calls.** `grant-write-budget.int.test.ts` fires forty reservations from
+  separate transactions and sees exactly twenty admitted, and a mixed forty never passes ten
+  creates; `mcp-write-budget.int.test.ts` does the same through `callMcpTool`, the server's
+  wiring and the audit row, and drives the shipped `update_client_metadata` twenty times and
+  sees the twenty-first refused.
+- **Volume.** One single-row `UPDATE` by primary key per mutating call, and one more for a call
+  that is given back; `query-plans` holds it (`grants: an agent write is spent and given back`).
+  The prompt-injection snapshot leaves the two counters out, as it leaves the audit trail out,
+  because every write spends them.
+- **The stdio server keeps its budget in memory.** `odudu mcp --allow-writes` is one process,
+  which is the whole of what a budget there has to cover; it has no database. An agent that
+  reaches the admin API directly with its own token is not counted: the door's field gate holds
+  it, not the budget, and only the MCP endpoint counts.
+- **A create never derives its key.** `contentWriteTool` in `create` mode requires a client
+  supplied `idempotency_key`; the integration test sends the same create under two request ids
+  with one key and gets the stored answer and one row, and a different body under the same key is
+  the admin API's `422`. That test uses the owner's own admin token, because the door's allowlist
+  holds no create yet; what it reaches is the route and its keys.
+- **`NotToolKind`** is `denied`, `sensitive`, `not-useful`, `content`, `access-changing`,
+  `credential` and `destructive`. `content` is a W1 write no tool serves yet. The reason of the
+  three class kinds begins with its class word and names no phase. `POST /keys` is a credential,
+  not a destructive route as it was filed.
+- **The classes.** Rows 41 and 42, the tenant create and import, are W2 and C, not a class of their own;
+  I is the two reads. The counts are R 59, RS 8, W1 13, W2 32, C 7, D 27, I 2 and N 4.
+
+### Left for the confirmation step
+
+The class table and its tests; the door's method and body-mode vocabulary, which a W2 entry
+would need `target` and a confirmation step added to; and the budget, which a confirmation step
+should not share with W1, since a confirmed call is one a person looked at.
+
+### Review round on the pull request
+
+A grant exchanged from another has the root grant's budget (the repository follows
+`exchanged_from_grant_id`, at most 16 hops), so exchanging an exhausted token does not renew it. The stdio
+budget is renewed by each browser sign-in and kept across a service account's key fetches. A write tool with
+no `spends` is refused (`mcp:write_budget_unavailable`); a reservation or give-back waits at most five seconds,
+the reservation also sets `lock_timeout` to three, and a place granted after the wait ended is given back
+and never starts a write. `jsonOf` serialises every JSON value, and a throwing schema is a failed row, not an
+escape from `callMcpTool`. The route-class page marks planned tools and shows, beside each classed W1 field,
+what the door admits now.

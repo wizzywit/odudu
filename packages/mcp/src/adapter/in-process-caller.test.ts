@@ -333,4 +333,145 @@ describe('the in-process admin caller', () => {
       expect(accesses).toEqual(['write']);
     });
   });
+
+  describe('a request refused before it is sent', () => {
+    it('is a 400 problem naming the argument, so nothing is counted against a budget', async () => {
+      const h = harness();
+      const caller = createInProcessCaller(
+        h.deps,
+        unverifiedTokenForTests({ scope: ['mcp:write'] }),
+      );
+      const put = {
+        method: 'PUT',
+        pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+        params: { locale: 'de', key: 'k' },
+        query: {},
+        body: { message: 'x' },
+      } as const;
+      const refusals: AdminRequestSpec[] = [
+        { ...put, params: { locale: 'de', key: '..' } },
+        { ...put, body: { message: 'x'.repeat(70_000) } },
+        { ...put, bodyCap: 2_000_000 },
+        { ...put, method: 'POST', idempotencyKey: 'a b' },
+      ];
+      for (const request of refusals) {
+        const error = await caller.call(request).catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(ToolProblem);
+        expect(error).toMatchObject({ status: 400, problemType: 'mcp:invalid_arguments' });
+      }
+      expect(h.injected).toHaveLength(0);
+    });
+  });
+
+  describe('a write of any method', () => {
+    const etag = `"${'b'.repeat(64)}"`;
+    const write = (scope: string[] = ['mcp:write']) => unverifiedTokenForTests({ scope });
+    const POST: AdminRequestSpec = {
+      method: 'POST',
+      pattern: '/admin/tenants/:tenant/roles',
+      params: {},
+      query: {},
+      body: { name: 'auditors' },
+      idempotencyKey: 'create-auditors-1',
+    };
+    const PUT: AdminRequestSpec = {
+      method: 'PUT',
+      pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+      params: { locale: 'de', key: 'login.title' },
+      query: {},
+      body: { message: 'Willkommen' },
+      ifMatch: etag,
+    };
+    const DELETE: AdminRequestSpec = {
+      method: 'DELETE',
+      pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+      params: { locale: 'de', key: 'login.title' },
+      query: {},
+      ifMatch: etag,
+    };
+
+    it('is built from fixed parts, with only the headers its method names', async () => {
+      const cases: [AdminRequestSpec, string[]][] = [
+        [
+          POST,
+          ['accept', 'authorization', 'content-type', 'host', 'idempotency-key', 'x-request-id'],
+        ],
+        [PUT, ['accept', 'authorization', 'content-type', 'host', 'if-match', 'x-request-id']],
+        [DELETE, ['accept', 'authorization', 'host', 'if-match', 'x-request-id']],
+      ];
+      for (const [request, headers] of cases) {
+        const h = harness();
+        await createInProcessCaller(h.deps, write()).call(request);
+        const sent = h.injected[0];
+        expect(sent?.method, request.method).toBe(request.method);
+        expect(Object.keys(sent?.headers ?? {}).sort(), request.method).toEqual(headers);
+      }
+    });
+
+    it('sends the key a POST names as Idempotency-Key, and a DELETE no body', async () => {
+      const h = harness();
+      const caller = createInProcessCaller(h.deps, write());
+      await caller.call(POST);
+      await caller.call(DELETE);
+      expect(h.injected[0]?.headers?.['idempotency-key']).toBe('create-auditors-1');
+      expect(h.injected[0]?.payload).toBe('{"name":"auditors"}');
+      expect(h.injected[1]?.payload).toBeUndefined();
+      expect(h.injected[1]?.headers?.['content-type']).toBeUndefined();
+      expect(h.injected[1]?.url).toBe('/admin/tenants/acme/message-overrides/de/login.title');
+    });
+
+    it('asks for a write bearer for every method but GET', async () => {
+      const accesses: string[] = [];
+      const h = harness(
+        {},
+        { adminBearer: (access) => (accesses.push(access), Promise.resolve('b')) },
+      );
+      const caller = createInProcessCaller(h.deps, write());
+      for (const request of [POST, PUT, DELETE]) await caller.call(request);
+      expect(accesses).toEqual(['write', 'write', 'write']);
+    });
+
+    it('refuses a key with a space, a newline or 256 characters before any call', async () => {
+      for (const idempotencyKey of ['a b', 'a\nb', 'a\r\nx-evil: 1', 'k'.repeat(256), '']) {
+        const h = harness();
+        await expect(
+          createInProcessCaller(h.deps, write()).call({ ...POST, idempotencyKey }),
+          idempotencyKey,
+        ).rejects.toThrow(/key/u);
+        expect(h.injected).toHaveLength(0);
+      }
+    });
+
+    it('refuses a POST with no key, a key on any other method and a body on a DELETE or GET', async () => {
+      const unkeyed: AdminRequestSpec = {
+        method: 'POST',
+        pattern: POST.pattern,
+        params: {},
+        query: {},
+        body: { name: 'auditors' },
+      };
+      const refusals: AdminRequestSpec[] = [
+        unkeyed,
+        { ...PUT, idempotencyKey: 'k' },
+        { ...DELETE, body: { a: 'b' } },
+        { ...GET_CLIENT, body: { a: 'b' } },
+        { ...POST, ifMatch: etag },
+      ];
+      for (const request of refusals) {
+        const h = harness();
+        await expect(createInProcessCaller(h.deps, write()).call(request)).rejects.toThrow();
+        expect(h.injected).toHaveLength(0);
+      }
+    });
+
+    it('holds a body to the cap its tool names, which is never above the read cap', async () => {
+      const big = { message: 'x'.repeat(100_000) };
+      const h = harness();
+      const caller = createInProcessCaller(h.deps, write());
+      await expect(caller.call({ ...PUT, body: big })).rejects.toThrow(/too large/u);
+      await caller.call({ ...PUT, body: big, bodyCap: 200_000 });
+      await expect(caller.call({ ...PUT, body: big, bodyCap: 1_048_577 })).rejects.toThrow(/cap/u);
+      expect(h.injected).toHaveLength(1);
+    });
+  });
 });

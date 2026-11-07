@@ -56,88 +56,23 @@ function route(method: string, suffix: string): string {
 
 const R = route;
 
-// A reason is shared only by routes of one family or by the writes the one
-// agent-write allowlist covers; every other withheld read says why itself.
-//
-// `kind` says why the route is withheld: `denied` and `sensitive` reads are
-// also refused by the admin API's agent door (`AGENT_DENIED_READS`), because
-// they return a whole tenant, bytes, personal data or credential metadata and a
-// holder of the bearer could otherwise call them directly; `not-useful` reads
-// were simply not worth a tool, and the door admits them.
-export type NotToolKind = 'denied' | 'sensitive' | 'not-useful' | 'destructive' | 'write';
+// `kind` is the route's class in `docs/protocols/mcp-route-classes.md`, and says
+// why it is withheld. `denied` and `sensitive` reads are also refused by the
+// admin door (`AGENT_DENIED_READS`), as a holder of the bearer could otherwise
+// call them; `not-useful` reads the door admits; `content` writes grant nothing
+// and have no tool yet; `access-changing`, `credential` and `destructive`
+// writes are not offered, and their reason begins with the class.
+export type NotToolKind =
+  | 'denied'
+  | 'sensitive'
+  | 'not-useful'
+  | 'content'
+  | 'access-changing'
+  | 'credential'
+  | 'destructive';
 type Entry = readonly [reason: string, routes: readonly string[], kind: NotToolKind];
 
-const OTHER_WRITES: readonly string[] = [
-  route('POST', '/subjects'),
-  route('POST', '/subjects/bulk'),
-  route('PATCH', '/subjects/:id'),
-  route('DELETE', '/subjects/:id'),
-  route('PATCH', '/subjects/:id/profile'),
-  route('DELETE', '/subjects/:id/credentials/:credentialId'),
-  route('DELETE', '/subjects/:id/consents/:clientId'),
-  route('POST', '/subjects/:id/password'),
-  route('POST', '/subjects/:id/password-reset'),
-  route('POST', '/subjects/:id/verification'),
-  route('POST', '/subjects/:id/actions-email'),
-  route('DELETE', '/subjects/:id/recovery-codes'),
-  route('PUT', '/subjects/:id/required-actions'),
-  route('PUT', '/subjects/:id/roles'),
-  route('PUT', '/subjects/:id/groups'),
-  route('DELETE', '/subjects/:id/sessions'),
-  route('DELETE', '/subjects/:id/sessions/:sid'),
-  route('DELETE', '/subjects/:id/grants/:clientId'),
-  'POST /admin/tenants',
-  'POST /admin/tenant-imports',
-  route('PATCH', ''),
-  route('PATCH', '/settings'),
-  route('PUT', '/theme'),
-  route('POST', '/theme/publish'),
-  route('POST', '/theme/versions/:versionId/restore'),
-  route('DELETE', '/theme/draft'),
-  route('DELETE', '/theme'),
-  route('PUT', '/message-overrides/:locale/:key'),
-  route('DELETE', '/message-overrides/:locale/:key'),
-  route('POST', '/theme/assets'),
-  route('DELETE', '/theme/assets/:assetId'),
-  route('POST', '/clients'),
-  route('DELETE', '/clients/:id'),
-  route('POST', '/clients/:id/secret'),
-  route('PUT', '/clients/:id/theme'),
-  route('POST', '/clients/:id/theme/publish'),
-  route('POST', '/clients/:id/theme/versions/:versionId/restore'),
-  route('DELETE', '/clients/:id/theme/draft'),
-  route('DELETE', '/clients/:id/theme'),
-  route('DELETE', '/clients/:id/grants'),
-  route('POST', '/registration-tokens'),
-  route('DELETE', '/registration-tokens/:id'),
-  route('POST', '/domains'),
-  route('POST', '/domains/:id/verify'),
-  route('POST', '/domains/:id/activate'),
-  route('POST', '/domains/:id/deactivate'),
-  route('DELETE', '/domains/:id'),
-  route('POST', '/roles'),
-  route('PATCH', '/roles/:id'),
-  route('DELETE', '/roles/:id'),
-  route('POST', '/roles/:id/composites'),
-  route('DELETE', '/roles/:id/composites/:childId'),
-  route('PUT', '/roles/:id/default'),
-  route('POST', '/groups'),
-  route('PATCH', '/groups/:id'),
-  route('DELETE', '/groups/:id'),
-  route('PUT', '/groups/:id/roles'),
-  route('PUT', '/groups/:id/default'),
-  route('POST', '/scopes'),
-  route('DELETE', '/scopes/:id'),
-  route('POST', '/scopes/restore-builtins'),
-  route('PUT', '/scopes/:id/roles'),
-  route('PUT', '/scopes/:id/mappers'),
-  route('PUT', '/scopes/:id/clients/:clientId'),
-  route('DELETE', '/scopes/:id/clients/:clientId'),
-  route('PUT', '/smtp'),
-  route('DELETE', '/smtp'),
-  route('POST', '/smtp/test'),
-  route('PUT', '/flow/executions'),
-];
+const OWNER_APPROVAL = 'not offered to an agent until the owner can approve each call separately';
 
 const WITHHELD: readonly Entry[] = [
   [
@@ -156,13 +91,111 @@ const WITHHELD: readonly Entry[] = [
     'denied',
   ],
   [
-    'Destructive or wide in effect (tenant delete, end every session, clear a lockout, change a signing key): not offered to an agent until the owner can approve each call separately.',
+    'Content write with no tool yet: it changes only wording, a description or a draft and grants nothing, so the admin door admits it field by field once a tool names those fields.',
+    [
+      R('PATCH', '/settings'),
+      R('PUT', '/theme'),
+      R('PUT', '/clients/:id/theme'),
+      R('PUT', '/message-overrides/:locale/:key'),
+      R('DELETE', '/message-overrides/:locale/:key'),
+      R('POST', '/roles'),
+      R('PATCH', '/roles/:id'),
+      R('POST', '/groups'),
+      R('PATCH', '/groups/:id'),
+      R('POST', '/scopes'),
+    ],
+    'content',
+  ],
+  [
+    'Content write that needs a binary payload and answers nothing an agent can read, so it is not offered; a person uploads a theme image in the console.',
+    [R('POST', '/theme/assets')],
+    'content',
+  ],
+  [
+    `Access-changing: it creates or changes a person who can sign in, or what is recorded about them (username, email, whether the account is on, profile claims, required actions), which relying parties trust; ${OWNER_APPROVAL}.`,
+    [
+      R('POST', '/subjects'),
+      R('POST', '/subjects/bulk'),
+      R('PATCH', '/subjects/:id'),
+      R('PATCH', '/subjects/:id/profile'),
+      R('PUT', '/subjects/:id/required-actions'),
+    ],
+    'access-changing',
+  ],
+  [
+    `Access-changing: it sends mail that lets a person prove an address, reset a password or act on their account, so a person who reads it may sign in; ${OWNER_APPROVAL}.`,
+    [
+      R('POST', '/subjects/:id/password-reset'),
+      R('POST', '/subjects/:id/verification'),
+      R('POST', '/subjects/:id/actions-email'),
+      R('POST', '/smtp/test'),
+    ],
+    'access-changing',
+  ],
+  [
+    `Access-changing: it grants or removes roles, group membership, defaults, scope mappings or client assignments, which decide what a token carries and who may do what; ${OWNER_APPROVAL}.`,
+    [
+      R('PUT', '/subjects/:id/roles'),
+      R('PUT', '/subjects/:id/groups'),
+      R('POST', '/roles/:id/composites'),
+      R('DELETE', '/roles/:id/composites/:childId'),
+      R('PUT', '/roles/:id/default'),
+      R('PUT', '/groups/:id/roles'),
+      R('PUT', '/groups/:id/default'),
+      R('POST', '/scopes/restore-builtins'),
+      R('PUT', '/scopes/:id/roles'),
+      R('PUT', '/scopes/:id/mappers'),
+      R('PUT', '/scopes/:id/clients/:clientId'),
+      R('DELETE', '/scopes/:id/clients/:clientId'),
+    ],
+    'access-changing',
+  ],
+  [
+    `Access-changing: it changes whether and how people sign in to the tenant (the tenant itself, the sign-in flow, the domains it answers on) or creates another tenant with its own administrators; ${OWNER_APPROVAL}.`,
+    [
+      R('PATCH', ''),
+      R('PUT', '/flow/executions'),
+      R('POST', '/domains'),
+      R('POST', '/domains/:id/verify'),
+      R('POST', '/domains/:id/activate'),
+      R('POST', '/domains/:id/deactivate'),
+      'POST /admin/tenants',
+    ],
+    'access-changing',
+  ],
+  [
+    `Access-changing: it puts a theme live on the pages where a person types a password or approves an application; ${OWNER_APPROVAL}.`,
+    [
+      R('POST', '/theme/publish'),
+      R('POST', '/theme/versions/:versionId/restore'),
+      R('POST', '/clients/:id/theme/publish'),
+      R('POST', '/clients/:id/theme/versions/:versionId/restore'),
+    ],
+    'access-changing',
+  ],
+  [
+    `Credential: it sets a password, or makes a secret, a registration token or key material that is shown once or lets its holder in; ${OWNER_APPROVAL}.`,
+    [
+      R('POST', '/subjects/:id/password'),
+      R('POST', '/clients'),
+      R('POST', '/clients/:id/secret'),
+      R('POST', '/registration-tokens'),
+      R('POST', '/keys'),
+    ],
+    'credential',
+  ],
+  [
+    `Credential: it sets the mail relay login, or imports a tenant together with secrets; ${OWNER_APPROVAL}.`,
+    [R('PUT', '/smtp'), 'POST /admin/tenant-imports'],
+    'credential',
+  ],
+  [
+    `Destructive or wide in effect (tenant delete, end every session, clear a lockout, change a signing key): ${OWNER_APPROVAL}.`,
     [
       R('DELETE', ''),
       R('DELETE', '/sessions'),
       R('DELETE', '/subjects/:id/lockout'),
       R('DELETE', '/lockouts'),
-      R('POST', '/keys'),
       R('POST', '/keys/:id/promote'),
       R('POST', '/keys/:id/retire'),
       R('DELETE', '/keys/:id'),
@@ -170,9 +203,30 @@ const WITHHELD: readonly Entry[] = [
     'destructive',
   ],
   [
-    'Not an agent write: mcp:write admits only the descriptive fields of a client and a scope, and nothing else writes.',
-    OTHER_WRITES,
-    'write',
+    `Destructive: it deletes or ends a record, a draft, a grant, a session or a credential, which another call cannot bring back as it was; ${OWNER_APPROVAL}.`,
+    [
+      R('DELETE', '/subjects/:id'),
+      R('DELETE', '/subjects/:id/credentials/:credentialId'),
+      R('DELETE', '/subjects/:id/consents/:clientId'),
+      R('DELETE', '/subjects/:id/recovery-codes'),
+      R('DELETE', '/subjects/:id/sessions'),
+      R('DELETE', '/subjects/:id/sessions/:sid'),
+      R('DELETE', '/subjects/:id/grants/:clientId'),
+      R('DELETE', '/theme/draft'),
+      R('DELETE', '/theme'),
+      R('DELETE', '/theme/assets/:assetId'),
+      R('DELETE', '/clients/:id'),
+      R('DELETE', '/clients/:id/theme/draft'),
+      R('DELETE', '/clients/:id/theme'),
+      R('DELETE', '/clients/:id/grants'),
+      R('DELETE', '/registration-tokens/:id'),
+      R('DELETE', '/domains/:id'),
+      R('DELETE', '/roles/:id'),
+      R('DELETE', '/groups/:id'),
+      R('DELETE', '/scopes/:id'),
+      R('DELETE', '/smtp'),
+    ],
+    'destructive',
   ],
   [
     'Renders the theme as a page for a browser frame, not data an agent reads.',

@@ -157,7 +157,8 @@ async function fixture(capabilities: readonly string[]): Promise<Fixture> {
 // Everything a write could touch, as the database holds it: every table of the
 // tenant that the serving role may read and that carries a tenant_id, whatever
 // it is called, so a table a future route reaches is held too. The audit trail
-// is left out because every call writes to it by design.
+// is left out because every call writes to it by design, and so are the two
+// counters of a grant's write budget, which every write call spends.
 async function snapshot(f: Fixture): Promise<Record<string, unknown[]>> {
   return withTenant(stack.appDb.db, f.w.tenantId, async (tx) => {
     const listed = await tx.execute(
@@ -172,7 +173,10 @@ async function snapshot(f: Fixture): Promise<Record<string, unknown[]>> {
     const tables: Record<string, unknown[]> = {};
     for (const name of names) {
       const read = await tx.execute(
-        sql.raw(`select to_jsonb(t) as r from "${name}" t order by to_jsonb(t)::text`),
+        sql.raw(
+          `select to_jsonb(t) - 'agent_writes' - 'agent_creates' as r from "${name}" t ` +
+            `order by (to_jsonb(t) - 'agent_writes' - 'agent_creates')::text`,
+        ),
       );
       tables[name] = rowsOf(read).map((row) => row.r);
     }

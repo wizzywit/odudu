@@ -4,12 +4,16 @@ import type { AdminCapability } from '@odudu/protocol-admin';
 import { z } from 'zod';
 import { problemOf } from '#/service/call-tool';
 import { defineTool } from '#/service/define-tool';
+import { IDEMPOTENCY_KEY_PATTERN } from '#/service/admin-request';
 import { ETAG_MAX_LENGTH, ETAG_PATTERN, isEtag } from '#/service/etag-shape';
 import { cleanData, type CleanStats } from '#/service/sanitize';
 import { DATA_NOTICE, idField } from '#/service/read-tool';
 import {
   ToolProblem,
   type AdminCaller,
+  type AdminMethod,
+  type AdminRequestSpec,
+  type AdminResult,
   type JsonObject,
   type JsonValue,
   type RegisteredTool,
@@ -61,20 +65,16 @@ export function localisedField(max: number, what: string): z.ZodType<Record<stri
     .describe(`The ${what} by language tag, replacing every language held now.`);
 }
 
-const WRITE_ANNOTATIONS = {
-  readOnlyHint: false,
-  destructiveHint: false,
-  idempotentHint: true,
-} as const;
-
 function jsonOf(value: unknown): JsonValue {
-  if (value === null || typeof value === 'string') return value;
-  if (typeof value === 'object' && !Array.isArray(value)) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (Array.isArray(value)) return value.map((item): JsonValue => jsonOf(item));
+  if (typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]): [string, JsonValue] => [key, jsonOf(item)]),
     );
   }
-  throw new Error('a write tool sends strings, null and records of them');
+  throw new Error('a write tool sends JSON values only');
 }
 
 function bodyOf(fields: readonly string[], input: object): JsonObject {
@@ -95,21 +95,194 @@ function stringOf(input: object, field: string): string {
 // Why the tools are hinted as not destructive though they overwrite: what is
 // replaced is a line of text, kept in the audit row, and putting it back is the
 // same call. A client that asks before every write can still ask.
-const CLEARS =
-  'Sending null for a description, or an empty map for a language text, clears what was there; ' +
-  'the audit row keeps the earlier text, so it can be put back.';
-
 const UNKNOWN =
   'An mcp:outcome_unknown answer means the call ran out of time and the change may still have been ' +
   'made: read the resource with the get tool before sending it again.';
 
 const REFUSED =
-  'insufficient_scope: a token holding mcp:write may change only the descriptive fields of a client ' +
-  'or a scope, never the name of a built-in client; check the target and the fields.';
+  'insufficient_scope: a token holding mcp:write may change only what this tool names; ' +
+  'check the target and the fields.';
 
 const STALE =
   'The resource changed since it was read. Read it again with the matching get tool, ' +
   'then send the etag that read returned as if_match.';
+
+const KEY_ADVICE =
+  'Choose a key of your own for this change, up to 255 letters, digits and _ . : -, and send ' +
+  'the same key if you send the change again, so that it is made once.';
+
+export const idempotencyKeyField = z
+  .string()
+  .max(255)
+  .regex(IDEMPOTENCY_KEY_PATTERN, { message: 'must be 1 to 255 letters, digits and _ . : -' })
+  .describe(KEY_ADVICE);
+
+const RESERVED_ARGUMENTS = ['id', 'if_match', 'idempotency_key'];
+
+export type ContentWriteMode = 'amend' | 'create' | 'put' | 'delete';
+
+export interface ContentWriteConfig<F extends z.ZodRawShape> {
+  readonly name: string;
+  readonly description: string;
+  readonly routeKey: string;
+  readonly capability: AdminCapability;
+  readonly what: string;
+  // What the call does to the resource: amend its named fields under an etag,
+  // create one under a key the client chose, replace one wholesale, or delete one.
+  readonly mode: ContentWriteMode;
+  // The admitted body fields, as the admin API's agent allowlist names them.
+  readonly fields: F;
+  readonly response: z.ZodType;
+  // Path parameters other than the id an amend takes: a put and a delete name
+  // the resource by these.
+  readonly params?: z.ZodRawShape;
+  // The bytes the body may take, when more than a line of text.
+  readonly bodyCap?: number;
+  // What a refusal by the door says, where the tool can say more than this.
+  readonly refusal?: string;
+}
+
+const ETAG_REQUIRED: Record<ContentWriteMode, boolean> = {
+  amend: true,
+  create: false,
+  put: false,
+  delete: true,
+};
+
+function annotationsOf(mode: ContentWriteMode) {
+  return {
+    readOnlyHint: false,
+    destructiveHint: mode === 'delete',
+    idempotentHint: mode !== 'create',
+  } as const;
+}
+
+function pathParams(mode: ContentWriteMode, what: string, params?: z.ZodRawShape): z.ZodRawShape {
+  if (mode === 'create') return {};
+  if (params !== undefined) return params;
+  return { id: idField(what) };
+}
+
+function inputShape<F extends z.ZodRawShape>(cfg: ContentWriteConfig<F>): z.ZodRawShape {
+  const etag = ETAG_REQUIRED[cfg.mode] ? ifMatchField : ifMatchField.optional();
+  return {
+    ...(cfg.mode === 'create' ? { idempotency_key: idempotencyKeyField } : {}),
+    ...pathParams(cfg.mode, cfg.what, cfg.params),
+    ...(cfg.mode === 'create' ? {} : { if_match: etag }),
+    ...cfg.fields,
+  };
+}
+
+function checked(names: readonly string[], mode: ContentWriteMode, cap: number) {
+  return (value: object, ctx: z.RefinementCtx): void => {
+    const body = bodyOf(names, value);
+    if (mode === 'amend' && Object.keys(body).length === 0) {
+      ctx.addIssue({ code: 'custom', message: `name at least one of ${names.join(', ')}` });
+    } else if (Buffer.byteLength(JSON.stringify(body)) > cap) {
+      ctx.addIssue({ code: 'custom', message: 'the text is too long in all' });
+    }
+  };
+}
+
+function requestOf<F extends z.ZodRawShape>(
+  cfg: ContentWriteConfig<F>,
+  names: readonly string[],
+  pattern: string,
+  args: object,
+): AdminRequestSpec {
+  const method = cfg.routeKey.slice(0, cfg.routeKey.indexOf(' '));
+  const params = Object.fromEntries(
+    Object.keys(pathParams(cfg.mode, cfg.what, cfg.params)).map((name) => [
+      name,
+      stringOf(args, name),
+    ]),
+  );
+  const ifMatch: unknown = Reflect.get(args, 'if_match');
+  return {
+    method: methodOf(method),
+    pattern,
+    params,
+    query: {},
+    ...(cfg.mode === 'delete' ? {} : { body: bodyOf(names, args) }),
+    ...(typeof ifMatch === 'string' ? { ifMatch } : {}),
+    ...(cfg.mode === 'create' ? { idempotencyKey: stringOf(args, 'idempotency_key') } : {}),
+    ...(cfg.bodyCap === undefined ? {} : { bodyCap: cfg.bodyCap }),
+  };
+}
+
+function methodOf(method: string): AdminMethod {
+  if (method === 'PATCH' || method === 'POST' || method === 'PUT' || method === 'DELETE') {
+    return method;
+  }
+  throw new Error(`a content write tool is a PATCH, POST, PUT or DELETE, not ${method}`);
+}
+
+function refusedAs(result: AdminResult, advice: string): ToolProblem {
+  const problem = problemOf(result);
+  if (result.status === 412) return new ToolProblem(problem.problemType, problem.title, 412, STALE);
+  if (result.status === 403 && problem.detail === 'insufficient_scope') {
+    return new ToolProblem(problem.problemType, problem.title, 403, advice);
+  }
+  return problem;
+}
+
+// A write of descriptive content, by one of four modes: the id and the etag of
+// the read it is based on and at least one field to amend; a key the client
+// chose and the fields to create; the parameters, an etag where there is one to
+// replace and the fields to put; or the parameters and the etag to delete. The
+// schema is the second line behind the admin API's own allowlist, and a stale
+// etag is the admin API's 412, said as one.
+export function contentWriteTool<F extends z.ZodRawShape>(
+  cfg: ContentWriteConfig<F>,
+): RegisteredTool {
+  const names = Object.keys(cfg.fields);
+  if (names.some((name) => RESERVED_ARGUMENTS.includes(name))) {
+    throw new Error(`a field is named as a reserved argument (${RESERVED_ARGUMENTS.join(', ')})`);
+  }
+  const shared = Object.keys(cfg.params ?? {}).filter(
+    (name) => names.includes(name) || (RESERVED_ARGUMENTS.includes(name) && name !== 'id'),
+  );
+  if (shared.length > 0) {
+    throw new Error(`an argument is named twice or as a reserved one: ${shared.join(', ')}`);
+  }
+  const pattern = cfg.routeKey.slice(cfg.routeKey.indexOf(' ') + 1);
+  const input = z
+    .strictObject(inputShape(cfg))
+    .superRefine(checked(names, cfg.mode, cfg.bodyCap ?? BODY_BUDGET_BYTES));
+  const output = z.object({
+    data: cfg.mode === 'delete' ? z.object({ deleted: z.literal(true) }) : cfg.response,
+    etag: z.string().regex(ETAG_PATTERN).optional(),
+    truncated: z.literal(true).optional(),
+  });
+  return defineTool({
+    name: cfg.name,
+    description: `${cfg.description} ${UNKNOWN} ${DATA_NOTICE}`,
+    routeKey: cfg.routeKey,
+    capability: cfg.capability,
+    access: 'write',
+    spends: cfg.mode === 'create' ? 'create' : 'mutating',
+    bodyFields: names,
+    annotations: annotationsOf(cfg.mode),
+    input,
+    response: cfg.response,
+    output,
+    run: async (caller: AdminCaller, args) => {
+      const result = await caller.call(requestOf(cfg, names, pattern, args));
+      if (result.status < 200 || result.status >= 300) {
+        throw refusedAs(result, cfg.refusal ?? REFUSED);
+      }
+      if (cfg.mode === 'delete') return { data: { deleted: true as const } };
+      const stats: CleanStats = { truncated: false };
+      const data = cfg.response.parse(cleanData(cfg.response.parse(result.body), stats));
+      const etag = result.headers.etag;
+      return {
+        data,
+        ...(isEtag(etag) ? { etag } : {}),
+        ...(stats.truncated ? { truncated: true as const } : {}),
+      };
+    },
+  });
+}
 
 export interface MetadataToolConfig<F extends z.ZodRawShape> {
   readonly name: string;
@@ -122,67 +295,21 @@ export interface MetadataToolConfig<F extends z.ZodRawShape> {
   readonly response: z.ZodType;
 }
 
+const CLEARS =
+  'Sending null for a description, or an empty map for a language text, clears what was there; ' +
+  'the audit row keeps the earlier text, so it can be put back.';
+
+const METADATA_REFUSED =
+  'insufficient_scope: a token holding mcp:write may change only the descriptive fields of a client ' +
+  'or a scope, never the name of a built-in client; check the target and the fields.';
+
 // A PATCH of descriptive fields under the optimistic lock: the id, the etag of
-// the read it is based on, and at least one of the fields. Nothing else is
-// accepted, so the schema is the second line behind the admin API's own
-// allowlist, and a stale etag is the admin API's 412, said as one.
+// the read it is based on, and at least one of the fields.
 export function metadataTool<F extends z.ZodRawShape>(cfg: MetadataToolConfig<F>): RegisteredTool {
-  const names = Object.keys(cfg.fields);
-  const pattern = cfg.routeKey.slice(cfg.routeKey.indexOf(' ') + 1);
-  const input = z
-    .strictObject({ id: idField(cfg.what), if_match: ifMatchField, ...cfg.fields })
-    .superRefine((value, ctx) => {
-      const body = bodyOf(names, value);
-      if (Object.keys(body).length === 0) {
-        ctx.addIssue({ code: 'custom', message: `name at least one of ${names.join(', ')}` });
-      } else if (Buffer.byteLength(JSON.stringify(body)) > BODY_BUDGET_BYTES) {
-        ctx.addIssue({ code: 'custom', message: 'the text is too long in all' });
-      }
-    });
-  return defineTool({
-    name: cfg.name,
-    description: `${cfg.description} ${CLEARS} ${UNKNOWN} ${DATA_NOTICE}`,
-    routeKey: cfg.routeKey,
-    capability: cfg.capability,
-    access: 'write',
-    bodyFields: names,
-    annotations: WRITE_ANNOTATIONS,
-    input,
-    response: cfg.response,
-    output: z.object({
-      data: cfg.response,
-      etag: z.string().regex(ETAG_PATTERN).optional(),
-      truncated: z.literal(true).optional(),
-    }),
-    run: async (caller: AdminCaller, args) => {
-      const id = stringOf(args, 'id');
-      const ifMatch = stringOf(args, 'if_match');
-      const result = await caller.call({
-        method: 'PATCH',
-        pattern,
-        params: { id },
-        query: {},
-        body: bodyOf(names, args),
-        ifMatch,
-      });
-      if (result.status === 412) {
-        const problem = problemOf(result);
-        throw new ToolProblem(problem.problemType, problem.title, 412, STALE);
-      }
-      if (result.status === 403) {
-        const problem = problemOf(result);
-        if (problem.detail !== 'insufficient_scope') throw problem;
-        throw new ToolProblem(problem.problemType, problem.title, 403, REFUSED);
-      }
-      if (result.status < 200 || result.status >= 300) throw problemOf(result);
-      const stats: CleanStats = { truncated: false };
-      const data = cfg.response.parse(cleanData(cfg.response.parse(result.body), stats));
-      const etag = result.headers.etag;
-      return {
-        data,
-        ...(isEtag(etag) ? { etag } : {}),
-        ...(stats.truncated ? { truncated: true as const } : {}),
-      };
-    },
+  return contentWriteTool({
+    ...cfg,
+    description: `${cfg.description} ${CLEARS}`,
+    mode: 'amend',
+    refusal: METADATA_REFUSED,
   });
 }
