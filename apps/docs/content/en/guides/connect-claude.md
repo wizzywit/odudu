@@ -88,7 +88,7 @@ As a person, `odudu mcp` opens your browser to sign in, listens for the answer o
 }
 ```
 
-That is read-only. `odudu mcp --help` lists the flags; `--allow-writes` asks for `mcp:write` instead and offers the two write tools as well.
+That is read-only. `odudu mcp --help` lists the flags; `--allow-writes` asks for `mcp:write` instead and offers the write tools that change a description or a name as well (not the three that create something, which only the endpoint offers, because only the endpoint counts them).
 
 For a service account, which needs no browser, run the command in the container. The key is passed from the environment, so it is not in the arguments:
 
@@ -125,20 +125,24 @@ None of this was run against Anthropic's servers by the authors, who had no publ
 
 With `mcp:read`, which any of the routes above gives, Claude can read what the person who signed in can read: users, clients, scopes, groups, roles, sessions, settings and audit events, subject to that person's capabilities in the [admin API](../concepts/roles-and-groups.mdx). The tools it is offered are the ones the person could use, and a call to one they could not is refused and recorded.
 
-With `mcp:write`, the endpoint offers two more tools, and only to a person who holds the capability for each:
+With `mcp:write`, the endpoint offers seven more tools, and only to a person who holds the capability for each:
 
 - `update_client_metadata` changes a client's name and description and their texts in other languages (`manage-clients`).
-- `update_scope_metadata` changes a scope's description and its texts in other languages (`manage-tenant`).
+- `update_scope_metadata` changes a scope's description, its texts in other languages and its display order (`manage-tenant`).
+- `update_role_description` and `update_group_description` change the description of a role or a group (`manage-tenant`).
+- `create_role`, `create_group` and `create_scope` make a role, a group or a scope that grants nothing (`manage-tenant`). A new role is held by nobody and is a default for no one; a new group has no roles, no members and no parent; a new scope is assigned to no client, maps no role and has no consent text. The agent chooses a key for each create and sends the same one if it tries again, so one is made however often the call is repeated, and each sign-in allows ten creates and twenty changes in all.
 
-It cannot change a redirect address, a secret, a grant, a role, a user, a key or any setting, and it cannot change a built-in client's name. Each change is an audit event with the agent's client, the person, and the text before and after, so a change is undone by sending the earlier text back. The agent reads a resource first and sends the entity tag it read, so an edit over a change made meanwhile is refused.
+It cannot change a redirect address, a secret, a grant, a user, a key or any setting, it cannot give a role to anyone, nest one in another, make a role or a group a default for new people, put a group under another, change what a scope asks a person to agree to or which tokens it appears in, and it cannot change a built-in client's name.
+
+Each change is an audit event with the agent's client, the person, and what it set: the text before and after for an edit, so an edit is undone by sending the earlier text back, and the name and text of a role, group or scope it made. It cannot delete what it made, so a person removes it in the console. The agent reads a resource first and sends the entity tag it read, so an edit over a change made meanwhile is refused.
 
 `mcp:write` is asked about at **every** sign-in, even for a client you made and even when the person agreed before, and the box is not ticked for them. The token lasts ten minutes at most and has no refresh token, so after ten minutes the person signs in again and is asked again.
 
 ### The risk that stays
 
-An agent reads text, and text can carry instructions. A client's name, a scope's description, a username or an audit event is written by someone, and an agent that reads it may follow what it says. With `mcp:write` for a person who may edit clients or scopes, such an instruction can make it edit the **descriptive text** of clients and scopes, and it will. That text is shown to people, on the consent screen for one, so it can mislead them. It cannot change what a client or scope may do, who may sign in, or any secret.
+An agent reads text, and text can carry instructions. A client's name, a scope's description, a username or an audit event is written by someone, and an agent that reads it may follow what it says. With `mcp:write` for a person who may edit clients or scopes, such an instruction can make it edit the **descriptive text** of clients, scopes, roles and groups and add roles, groups and scopes that grant nothing, and it will. That text is shown to people, on the consent screen for one, so it can mislead them. It cannot change what a client, scope, role or group may do, who holds what, who may sign in, or any secret.
 
-What limits it is real and is not a guarantee: the scope is asked about every time and lasts ten minutes, only those two tools write, the admin API refuses everything else whatever a tool says, and every change is recorded and reversible. What stops it before the first edit is Claude asking you to approve each tool call, and that approval is **Claude's, not Odudu's**. Leave it on for the write tools, and read what a call is about to change. A client that is never assigned `mcp:write` cannot write at all, so give it only to a client that needs it.
+What limits it is real and is not a guarantee: the scope is asked about every time and lasts ten minutes, only those seven tools write, the admin API refuses everything else whatever a tool says, and every change is recorded and reversible. What stops it before the first edit is Claude asking you to approve each tool call, and that approval is **Claude's, not Odudu's**. Leave it on for the write tools, and read what a call is about to change. A client that is never assigned `mcp:write` cannot write at all, so give it only to a client that needs it.
 
 ## Check it works
 

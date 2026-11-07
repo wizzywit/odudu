@@ -747,7 +747,7 @@ scope="mcp:read"`; the protected resource metadata it names states the MCP
   endpoint and the `none` method; `GET` answers 405 with `Allow: POST`.
 - **The Inspector** (`mcp/inspector.mjs`) discovers the sign-in itself,
   registers itself by DCR under the `mcp` policy, runs the code flow with PKCE
-  S256 and `resource`, and lists 59 tools (a tenant administrator's) and calls `whoami` and `list_clients`
+  S256 and `resource`, and lists 59 tools (a tenant administrator's, none of them a `create_` or `update_` tool) and calls `whoami` and `list_clients`
   with `--protocol-era` `modern`, `legacy` and `auto`. It cannot call a write
   tool a read token was not listed: it checks the list first and exits 5.
 - **The SDK** (`mcp/sdk.mjs`) runs its own OAuth (the challenge's scope,

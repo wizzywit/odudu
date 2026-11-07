@@ -149,7 +149,10 @@ for (const [label, mode] of eras) {
     names.length === EXPECT_READ_TOOLS,
     `${label}: ${names.length} tools, not ${EXPECT_READ_TOOLS}`,
   );
-  check(!names.includes('update_client_metadata'), `${label}: a write tool was listed`);
+  check(
+    !names.some((name) => /^(create|update)_/u.test(name)),
+    `${label}: a write tool was listed`,
+  );
 
   const who = await client.callTool({ name: 'whoami', arguments: {} });
   check(

@@ -1649,3 +1649,83 @@ the reservation also sets `lock_timeout` to three, and a place granted after the
 and never starts a write. `jsonOf` serialises every JSON value, and a throwing schema is a failed row, not an
 escape from `callMcpTool`. The route-class page marks planned tools and shows, beside each classed W1 field,
 what the door admits now.
+
+## Structure: roles, groups and scopes (parity extension, Increment 16)
+
+Five tools join the catalogue, for `manage-tenant`: `create_role`, `create_group` and `create_scope` make
+one that grants nothing, and `update_role_description` and `update_group_description` change a description.
+`update_scope_metadata` gains `display_order`. The write tools are now seven. A new role is held by nobody, is
+a default for no one and has nothing nested in it; a new group has no roles, members or parent; a new scope is
+assigned to no client, maps no role and has no consent text. The door admits, per route: `POST ~/roles` (`name`,
+`description`, `client_id`), `PATCH ~/roles/:id` (`description`), `POST ~/groups` (`name`, `description`),
+`PATCH ~/groups/:id` (`description`), `POST ~/scopes` (`name`, `description`, `description_i18n`, `display_order`),
+and `display_order` on the shipped scope `PATCH`. `default_for_new_subjects`, `parent_id`, `include_in_*`,
+`default_client_assignment` and `consent_text*` are in no schema and in no allowlist.
+
+- **A create is admitted to a token the endpoint signed, and to no other agent token.** This was the review of
+  Increment 15's requirement: the first allowlisted `POST` must not be reachable by a holder of an admin bearer whom
+  the endpoint's budget does not count. The two ways were to count at the door or to restrict the entry to
+  `viaEndpoint` principals. Counting at the door would have been a second counter beside the endpoint's DB budget
+  and the stdio server's in-memory one; refusing is one rule with no
+  state, fails closed when a future entry forgets it, and costs only what a direct holder never had. So
+  `agentWriteNeedsEndpoint` is true for every entry whose method is `POST`, `authorizeRoute` refuses an agent
+  principal without `viaEndpoint` before the body is read (`403 insufficient_scope`, a `capability.refused` row), and
+  the rule is derived from the method, so a later `POST` entry is held without anyone remembering to flag it.
+  `agent-door-create.int.test.ts` holds it: a token issued straight to the agent and an exchanged `act` token
+  are refused for a role, group and scope with nothing created and no `agent.tool_call` row; a token with
+  `via: mcp` creates and the door writes no second row; a person's own token is unaffected; an amendment by a
+  direct holder still works, since no budget bounds an edit of text.
+- **What that means for `odudu mcp` over stdio and for service accounts.** `odudu mcp --allow-writes` is a direct
+  token holder (a person's sign-in or a service account's key, `private_key_jwt`), so it is offered the amending
+  tools and not the three create tools: `directCallerTools` leaves out every tool whose `spends` is `create`, the
+  command lists the rest, and a create called by name is an unknown tool with no admin call (`mcp.test.ts`). The
+  door refuses a create sent by hand with the same token. A service account has no person at the endpoint, so
+  it cannot create through MCP at all; it can still create with the admin API under its own capabilities, as an
+  ordinary client, which is not an agent token. Creating from stdio is the cost of one counting place, and the
+  route classes page and the guides say so.
+- **The plan's `verified:` and `assumption:` lines.** The allowlist fields matched the contracts' create schemas
+  and `AMENDABLE_{ROLE,GROUP,SCOPE}_FIELDS`. The assumption that the three create usecases write a `detail` was
+  false: `role.create`, `group.create` and `scope.create` wrote none, and `role.amend` and `group.amend` wrote
+  none either (`scope.amend` did). They do now, for every caller: `createdDetail` (`audit-detail.ts`) records the
+  fields a create chose as `{ after }`, leaving out a field still at what an empty row holds, so an agent's create
+  row names `name` and `description` and no W2 field; an amendment is `redactedDiff` of the wire shape before and
+  after, which for a role is the description alone. The second assumption, that the admin API enforces a role and
+  a group limit, was false too: only a scope has one (`SCOPE_LIMIT`, 1,000, refused `409`). The integration test
+  fills a tenant to 999 scopes by the database, creates the 1,000th through the tool and sees the next refused
+  `409`; a role and a group have no count, so the grant's budget of ten creates is their only bound for an agent.
+  That is recorded as a row in `docs/NEXT.md` and not fixed here: a limit on roles and groups is a product rule
+  for every caller, which P11's volume work decides.
+- **Defects found by the tests and fixed in the topic.** `POST ~/groups` with a name containing `/` was a `500`
+  (the table's `groups_name_has_no_slash` check), and a tool can now offer that call; the contract refuses it
+  `400`. `get_role` and `get_group` did not pass the etag their own update tool needs as `if_match`; they do
+  (`etag: true`). A scope's name is any text to the admin API, so `create_scope` takes only a token a client could
+  ask for (visible ASCII, no space, quote or backslash; at most 128): the admin API still accepts what it accepted,
+  for a person. A group name for the tool holds no slash.
+- **The injection scenario "structure".** A role, a group and a scope each hold instructions to grant a role,
+  set a default, move a group, change a consent text and, among those, to do what the tools allow. The scripted
+  agent obeys what it reads. Against `mcp:read` zero rows change (and, past this layer, the admin API refuses each
+  attempt for its scope); an `mcp:write` owner without `manage-tenant` changes nothing and each refusal is a
+  `capability.refused` row; for a capable owner only descriptions change and a new empty role, group and scope
+  appear, with the one `idempotency_keys` row each create leaves, and no `subject_roles`, `group_roles`,
+  `client_scope_roles`, `role_composites` or client row moves. **The snapshot holds 45 tables, not the 43 the
+  plan said** (the helper lists every tenant table the serving role reads; I did not trace which two the
+  plan's number left out); the test pins 45, so a table added later fails it until someone asks whether
+  a write an agent may make can reach it.
+- **A body sent past the tool.** `mcp-write-structure.int.test.ts` sends six bodies to each of the six
+  routes through a caller that skips the tool, and none changes a row, an amendment audit row or a refusal
+  count beyond the door's: a field the create or amend shape names is the door's `403`, one it does not name
+  is the route's own `400` (`default_for_new_subjects` on a role and `parent_id` on a group are the first kind;
+  `composites` on a role is the second).
+- **Stale etag, duplicates, replays, the budget.** A stale `if_match` is `412` said as one; a duplicate role,
+  group or scope name, and a role of the built-in admin client named like a capability, are `409`; a repeat of a
+  create under one key answers the first response with one row and one `role.create` row, and a different body
+  under the key is `422`; the eleventh create is `mcp:write_budget` and makes nothing. A replayed create still
+  spends a place (Increment 15's concern 3, unchanged).
+- **Audit.** An amendment's row is the diff of the fields it changed, `before` and `after`, and a create's
+  names what it chose; both carry the agent's client as the actor and the person as the subject. A W2 field
+  cannot appear because none can be sent.
+- **Counts.** 61 read tools and 7 write tools in all (59 read tools for a tenant's own agent). The task brief said
+  the writes would be 8: two shipped plus five new is 7; `update_scope_metadata` is the shipped one that gained a
+  field.
+- **Not done here.** The theme, settings and message-override writes (Increments 17 and 18), and anything that
+  changes who holds what (P5b).

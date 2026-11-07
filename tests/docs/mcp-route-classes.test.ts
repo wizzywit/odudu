@@ -160,6 +160,14 @@ describe('the route classes document against the tool catalogue', () => {
     expect(document.lines.join('\n')).toContain(`**${String(today)} of them have a tool today**`);
   });
 
+  it('says that a create is admitted to a token the MCP endpoint signed, and why', () => {
+    const text = document.lines.join('\n');
+    expect(text).toContain('agentWriteNeedsEndpoint');
+    for (const tool of TOOLS.filter((t) => t.spends === 'create')) {
+      expect(text, tool.name).toContain(`\`${tool.name}\``);
+    }
+  });
+
   it('lists a tool once, and lists every tool that exists', () => {
     const named = ROWS.flatMap((row) => (row.tool === undefined ? [] : [row.tool]));
     expect(new Set(named).size).toBe(named.length);

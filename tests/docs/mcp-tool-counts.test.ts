@@ -18,20 +18,20 @@ const PAGES = [
   'apps/docs/src/features/landing/services/capabilityCards.ts',
 ];
 
-const WORDS: Record<string, number> = { two: 2 };
+const WORDS: Record<string, number> = { two: 2, seven: 7 };
 const number = (word: string): number => WORDS[word] ?? Number(word);
 
 describe('the MCP tool counts the documents state', () => {
-  it('are the catalogue’s: 61 read tools and 2 write tools', () => {
+  it('are the catalogue’s: 61 read tools and 7 write tools', () => {
     expect(READ).toBe(61);
-    expect(WRITE).toBe(2);
+    expect(WRITE).toBe(7);
     expect(TOOLS).toHaveLength(READ + WRITE);
   });
 
   it.each(PAGES)('%s names no other count', (file) => {
     const text = readFileSync(path.join(REPO_ROOT, file), 'utf8');
     const reads = [...text.matchAll(/\b(\d+)\s+(?:read\s+tools|tools\s+that\s+read)/gu)];
-    const writes = [...text.matchAll(/\b(\d+|two)\s+write\s+tools/gu)];
+    const writes = [...text.matchAll(/\b(\d+|two|seven)\s+write\s+tools/gu)];
     for (const m of reads) expect(number(m[1] ?? ''), m[0]).toBe(READ);
     for (const m of writes) expect(number(m[1] ?? ''), m[0]).toBe(WRITE);
   });
