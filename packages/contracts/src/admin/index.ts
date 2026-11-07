@@ -445,6 +445,7 @@ export {
   registrationPolicySchema,
   type RegistrationPolicy,
   tenantSettingsDocumentSchema,
+  tenantSettingsExportSchema,
   type TenantSettingsDocument,
   exportedFlowStepSchema,
   exportedClientSchema,

@@ -7,7 +7,7 @@ import {
   profileSchema,
   REGISTRATION_POLICY_SETTINGS,
   registrationPolicySchema,
-  tenantSettingsDocumentSchema,
+  tenantSettingsExportSchema,
   type ExportedClient,
   type ExportedGroup,
   type ExportedRole,
@@ -710,7 +710,7 @@ export async function exportTenant(
   const record = await tenantSettingsRepository(tx).byId(tenantId);
   if (record === null) throw new Error(`tenant ${tenantId} has no settings row`);
   const policyNames = new Set(REGISTRATION_POLICY_SETTINGS);
-  const settings = tenantSettingsDocumentSchema.parse(
+  const settings = tenantSettingsExportSchema.parse(
     Object.fromEntries(Object.entries(record).filter(([name]) => !policyNames.has(name))),
   );
   const registrationPolicy = registrationPolicySchema.parse(

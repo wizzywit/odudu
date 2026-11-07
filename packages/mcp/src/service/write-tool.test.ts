@@ -218,18 +218,36 @@ describe('a put', () => {
         query: {},
         body: { message: 'Hallo' },
         bodyCap: 200_000,
-        createOnly: true,
       },
     ]);
   });
 
-  it('may only create when it names no etag, and replaces when it does, never both', async () => {
+  it('sends no If-None-Match for a put that does not say it creates without an etag', async () => {
+    const caller = respondingWith(ANSWER);
+    await callTool(put, caller, { locale: 'de', key: 'k', message: 'm' });
+    expect(caller.requests[0]).not.toHaveProperty('createOnly');
+    expect(caller.requests[0]).not.toHaveProperty('ifMatch');
+  });
+
+  it('may only create when it says so and names no etag, and replaces when it does, never both', async () => {
+    const creating = contentWriteTool({
+      name: 'put_creating',
+      description: 'Replaces or creates a thing.',
+      routeKey: 'PUT /admin/tenants/:tenant/message-overrides/:locale/:key',
+      capability: 'manage-tenant',
+      what: 'message override',
+      mode: 'put',
+      createsWithoutEtag: true,
+      params: { locale: z.string().min(2).max(35), key: z.string().min(1).max(100) },
+      fields: { message: z.string().min(1).max(500) },
+      response: ROLE,
+    });
     const create = respondingWith(ANSWER);
-    await callTool(put, create, { locale: 'de', key: 'k', message: 'm' });
+    await callTool(creating, create, { locale: 'de', key: 'k', message: 'm' });
     expect(create.requests[0]).toMatchObject({ createOnly: true });
     expect(create.requests[0]).not.toHaveProperty('ifMatch');
     const replace = respondingWith(ANSWER);
-    await callTool(put, replace, { locale: 'de', key: 'k', message: 'm', if_match: ETAG });
+    await callTool(creating, replace, { locale: 'de', key: 'k', message: 'm', if_match: ETAG });
     expect(replace.requests[0]).toMatchObject({ ifMatch: ETAG });
     expect(replace.requests[0]).not.toHaveProperty('createOnly');
   });
@@ -420,5 +438,46 @@ describe('a tool that says its own 412', () => {
     expect(result.structuredContent).toMatchObject({
       error: { status: 412, detail: expect.stringMatching(/list the overrides/u) as unknown },
     });
+  });
+});
+
+describe('text a person reads', () => {
+  const INVISIBLE = [
+    '\r',
+    '\u001b',
+    '\u007f',
+    '\u0085',
+    '\u009f',
+    '­',
+    '​',
+    '‍',
+    ' ',
+    ' ',
+    '⁠',
+    '﻿',
+  ];
+
+  it.each(INVISIBLE)('refuses %j in a name and a description', async (bad) => {
+    const caller = respondingWith(ANSWER, 201);
+    for (const args of [
+      { idempotency_key: 'k', name: `a${bad}b` },
+      { idempotency_key: 'k', name: 'ok', description: `a${bad}b` },
+    ]) {
+      expect((await callTool(create, caller, args)).isError, JSON.stringify(args)).toBe(true);
+    }
+    expect(caller.requests).toHaveLength(0);
+  });
+
+  it('takes a line break and a tab in a description, never in a name', async () => {
+    const caller = respondingWith(ANSWER, 201);
+    const description = await callTool(create, caller, {
+      idempotency_key: 'k',
+      name: 'ok',
+      description: 'one\ntwo\tthree',
+    });
+    expect(description.isError).toBe(false);
+    for (const name of ['a\nb', 'a\tb']) {
+      expect((await callTool(create, caller, { idempotency_key: 'k', name })).isError).toBe(true);
+    }
   });
 });

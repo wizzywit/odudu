@@ -197,12 +197,13 @@ describe('an override set and cleared by a token the MCP endpoint signed', () =>
       payload: { message: 'x', locale: 'de' },
       headers: { 'if-match': etag },
     });
-    expect([400, 403]).toContain(extra.statusCode);
+    // The route's own strict shape names `message` alone, so another member is its 400.
+    expect(extra.statusCode).toBe(400);
     const withBody = await send(t.name, 'DELETE', `/message-overrides/fr/${OVERRIDE}`, token, {
       payload: { message: 'x' },
       headers: { 'if-match': etag },
     });
-    expect([400, 403]).toContain(withBody.statusCode);
+    expect(withBody.statusCode).toBe(403);
     expect((await overridesOf(t.id)).map((row) => row.message)).toEqual(['Connexion']);
   });
 });

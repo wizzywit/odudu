@@ -1,4 +1,4 @@
-import { LOCALISED_TEXT_ENTRIES_MAX, noBidiControls, NUL_REFUSED_MESSAGE } from '@odudu/contracts';
+import { LOCALISED_TEXT_ENTRIES_MAX, noBidiControls } from '@odudu/contracts';
 import { CLIENT_NAME_MAX, DESCRIPTION_MAX } from '@odudu/contracts/admin';
 import type { AdminCapability } from '@odudu/protocol-admin';
 import { z } from 'zod';
@@ -23,10 +23,27 @@ import {
 // each within bounds is refused as an argument and never as a failure.
 const BODY_BUDGET_BYTES = 60_000;
 
-// Text a person reads: no bidirectional control and no NUL, which a text column
-// cannot hold. A pattern, so the schema a client lists carries it.
+// Characters nobody can see or that move the line: C0 and C1 controls but tab and
+// line feed, DEL, soft hyphen, zero-width characters, the word joiner, the byte
+// order mark and the line and paragraph separators.
+const UNSEEN =
+  '\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u200b-\\u200d\\u2028\\u2029\\u2060\\ufeff';
+const NO_UNSEEN = new RegExp(`^[^${UNSEEN}]*$`, 'u');
+const NO_UNSEEN_OR_BREAK = new RegExp(`^[^${UNSEEN}\\t\\n]*$`, 'u');
+const UNSEEN_REFUSED = 'holds a control or an invisible character';
+
+// Text a person reads, which may run over lines: no bidirectional control, no NUL
+// (a text column cannot hold one) and nothing unseen. A pattern, so the schema a
+// client lists carries it.
 export function text(schema: z.ZodString): z.ZodString {
-  return noBidiControls(schema).regex(/^[^\u0000]*$/u, { error: `text ${NUL_REFUSED_MESSAGE}` });
+  return noBidiControls(schema).regex(NO_UNSEEN, { error: `text ${UNSEEN_REFUSED}` });
+}
+
+// The same for one line, such as a name: no tab or line feed either.
+export function line(schema: z.ZodString): z.ZodString {
+  return noBidiControls(schema).regex(NO_UNSEEN_OR_BREAK, {
+    error: `text ${UNSEEN_REFUSED}, or a line break`,
+  });
 }
 
 const TAG_PATTERN = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8}){0,4}$/;
@@ -42,7 +59,7 @@ export const ifMatchField = z
   .regex(ETAG_PATTERN, { message: 'must be one quoted ETag, as the read returned it' })
   .describe('The etag of the previous read of this resource, with its quotes.');
 
-export const nameField = text(z.string().min(1).max(CLIENT_NAME_MAX)).describe(
+export const nameField = line(z.string().min(1).max(CLIENT_NAME_MAX)).describe(
   `The display name, at most ${String(CLIENT_NAME_MAX)} characters.`,
 );
 
@@ -142,6 +159,9 @@ export interface ContentWriteConfig<F extends z.ZodRawShape> {
   readonly bodyCap?: number;
   // What a refusal by the door says, where the tool can say more than this.
   readonly refusal?: string;
+  // A put with no etag asks to create and is refused for what exists (sent as
+  // If-None-Match: *). Left out, a put without an etag sends no precondition.
+  readonly createsWithoutEtag?: true;
   // What a 412 says, where the resource was not necessarily read first: a put
   // that creates is refused for a resource that exists.
   readonly stale?: string;
@@ -210,7 +230,9 @@ function requestOf<F extends z.ZodRawShape>(
     query: {},
     ...(cfg.mode === 'delete' ? {} : { body: bodyOf(names, args) }),
     ...(typeof ifMatch === 'string' ? { ifMatch } : {}),
-    ...(cfg.mode === 'put' && typeof ifMatch !== 'string' ? { createOnly: true as const } : {}),
+    ...(cfg.mode === 'put' && cfg.createsWithoutEtag === true && typeof ifMatch !== 'string'
+      ? { createOnly: true as const }
+      : {}),
     ...(cfg.mode === 'create' ? { idempotencyKey: stringOf(args, 'idempotency_key') } : {}),
     ...(cfg.bodyCap === undefined ? {} : { bodyCap: cfg.bodyCap }),
   };

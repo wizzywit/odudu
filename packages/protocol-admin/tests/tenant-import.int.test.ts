@@ -255,6 +255,58 @@ describe('POST /admin/tenant-imports', () => {
     expect((await exportOf(token, viaDocument)).settings.display_name).toBeNull();
   });
 
+  it('exports a tenant whose stored display name is longer than the bound a write now has', async () => {
+    const source = await fixture.createTenant(`legacy-src-${newId()}`);
+    await fixture.owner
+      .sql`update tenants set display_name = ${'x'.repeat(300)} where id = ${source.id}`;
+    const token = await operatorToken();
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${source.name}/export`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(res.json<{ settings: { display_name: string } }>().settings.display_name).toBe(
+      'x'.repeat(300),
+    );
+  });
+
+  it('refuses a document display name of 257 characters, naming it, and takes 256', async () => {
+    const source = await fixture.createTenant(`bound-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const withName = (display_name: string) => ({
+      ...original,
+      settings: { ...original.settings, display_name },
+    });
+    const refused = await postImport(token, {
+      name: `bound-a-${newId()}`,
+      document: withName('x'.repeat(257)),
+    });
+    expect(refused.statusCode).toBe(400);
+    expect((refused.json<ImportRefusal>().errors ?? []).map((error) => error.path)).toEqual([
+      'document.settings.display_name',
+    ]);
+    const name = `bound-b-${newId()}`;
+    const taken = await postImport(token, { name, document: withName('x'.repeat(256)) });
+    expect(taken.statusCode, taken.payload).toBe(201);
+    expect((await exportOf(token, name)).settings.display_name).toBe('x'.repeat(256));
+  });
+
+  it('refuses a request display name of 257 characters, and makes no tenant', async () => {
+    const source = await fixture.createTenant(`bound-req-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const name = `bound-c-${newId()}`;
+    const refused = await postImport(token, {
+      name,
+      display_name: 'x'.repeat(257),
+      document: original,
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
   it('re-exports what it imported, apart from the name and what cannot travel', async () => {
     const source = await seededSource();
     const token = await operatorToken();

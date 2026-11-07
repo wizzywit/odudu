@@ -37,6 +37,7 @@ export const setMessageOverrideTool = contentWriteTool({
   capability: 'manage-tenant',
   what: 'message override',
   mode: 'put',
+  createsWithoutEtag: true,
   params: PARAMS,
   fields: {
     message: text(z.string().min(1).max(MESSAGE_OVERRIDE_MAX_LENGTH)).describe(

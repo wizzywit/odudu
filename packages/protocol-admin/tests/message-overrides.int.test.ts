@@ -490,6 +490,22 @@ describe('audit of a delete', () => {
   });
 });
 
+describe('a key with a NUL in it', () => {
+  it('is a 400 for a delete and a put, never a 500, and changes nothing', async () => {
+    const ctx = await tenantCtx();
+    const gone = await call(ctx, 'DELETE', '/fr/login.title%00x', {
+      headers: { 'if-match': '"none"' },
+    });
+    expect(gone.statusCode).toBe(400);
+    const set = await call(ctx, 'PUT', '/fr/login.title%00x', {
+      body: { message: 'x' },
+      headers: { 'if-none-match': '*' },
+    });
+    expect(set.statusCode).toBe(400);
+    expect((await list(ctx, 'locale=fr')).items).toEqual([]);
+  });
+});
+
 describe('audit', () => {
   const rowsOf = async (ctx: Ctx) =>
     (

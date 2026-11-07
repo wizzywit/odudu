@@ -99,6 +99,7 @@ describe('set_message_override', () => {
     ['a locale that is not a tag', { ...SET, locale: 'en_US' }],
     ['a locale that is a path', { ...SET, locale: '../fr' }],
     ['a key that is empty', { ...SET, key: '' }],
+    ['a key with a NUL', { ...SET, key: 'login.\u0000title' }],
     ['a key past 128 characters', { ...SET, key: 'k'.repeat(129) }],
     ['an etag that is a wildcard', { ...SET, if_match: '*' }],
     ['a weak etag', { ...SET, if_match: `W/${ETAG}` }],
@@ -191,6 +192,7 @@ describe('clear_message_override', () => {
     ['a message', { ...CLEAR, message: 'x' }],
     ['a locale that is a path', { ...CLEAR, locale: '../fr' }],
     ['a key that is empty', { ...CLEAR, key: '' }],
+    ['a key with a NUL', { ...CLEAR, key: 'login.\u0000title' }],
     ['an own __proto__ member', { ...CLEAR, ...(JSON.parse('{"__proto__":{"a":1}}') as object) }],
   ])('refuses %s before any admin call', async (_label, args) => {
     const caller = respondingWith(null, 204);
@@ -216,5 +218,26 @@ describe('clear_message_override', () => {
     const result = await callTool(clearMessageOverrideTool, caller, CLEAR);
     expect(result.isError).toBe(true);
     expect(result.structuredContent).toMatchObject({ error: { status } });
+  });
+});
+
+describe('set_message_override, the text as people see it', () => {
+  it.each(['\r', '\u001b', '\u007f', '\u0085', '­', '​', ' ', '⁠', '﻿'])(
+    'refuses %j before any admin call',
+    async (bad) => {
+      const caller = respondingWith(ANSWER);
+      const result = await callTool(setMessageOverrideTool, caller, {
+        ...SET,
+        message: `a${bad}b`,
+      });
+      expect(result.isError).toBe(true);
+      expect(caller.requests).toHaveLength(0);
+    },
+  );
+
+  it('takes a line break and a tab, which a message may hold', async () => {
+    const caller = respondingWith(ANSWER);
+    const result = await callTool(setMessageOverrideTool, caller, { ...SET, message: 'a\nb\tc' });
+    expect(result.isError).toBe(false);
   });
 });

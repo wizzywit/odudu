@@ -5,7 +5,8 @@ import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 // is (a built-in client is guarded), and what its body may hold. `fields` is
 // a body of named members of the resource; `whole` is a body that is the
 // resource, as a theme draft is. Either admits the named members and nothing
-// else, and a DELETE admits no body at all.
+// else, and a DELETE admits no body at all. A PATCH entry must not add or
+// remove a row: only the other methods are held to the endpoint's budget.
 export interface AgentWriteRoute {
   readonly method: 'PATCH' | 'POST' | 'PUT' | 'DELETE';
   readonly pattern: string;

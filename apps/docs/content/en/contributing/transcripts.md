@@ -112,7 +112,8 @@ the real door, and the stdio page shows that `odudu mcp --allow-writes` does not
 for the reason the earlier capture gave. The stack was removed afterwards, and its image with it.
 
 `GET /admin/openapi.json`'s block was fetched once more on the same stack, on 2026-11-07, because a display name is now at most 256 characters in
-the create and import contracts and the tenant document, and the document grew by 48 bytes (806,996 in all). The pages of the message
+the create and import contracts and the tenant document and a message override's key may hold no NUL, and the document grew by 152 bytes
+(807,100 in all); it was fetched again on a freshly built stack after the review of that change, and the block is that fetch's. The pages of the message
 overrides and of the settings were not replayed: no block on either shows an output the change alters (the audit rows they list are a
 registration policy change, whose detail is the same), and each changed one sentence about what the audit row holds.
 

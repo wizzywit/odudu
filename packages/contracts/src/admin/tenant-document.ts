@@ -97,6 +97,12 @@ export const tenantSettingsDocumentSchema = z.strictObject({
 });
 export type TenantSettingsDocument = z.infer<typeof tenantSettingsDocumentSchema>;
 
+// What an export reads from the row: the display name is not held to the bound a
+// write has, since a name stored before it existed must still be exported.
+export const tenantSettingsExportSchema = tenantSettingsDocumentSchema.extend({
+  display_name: noBidiControls(z.string()).nullable(),
+});
+
 export const registrationPolicySchema = z.strictObject({
   registration_allowed: z.boolean(),
   verify_email: z.boolean(),

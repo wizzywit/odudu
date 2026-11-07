@@ -1846,3 +1846,18 @@ whole, as is any other of the 41 setting names, generated over `TENANT_SETTING_N
   valid attempts, a generated column `display_name_search`), corrected.
 - The transcripts were replayed by a script over each page's own commands (the endpoint page needing the two glue
   assignments `CID` and `CODE`), not typed.
+
+### Review of Increment 17
+
+- The export reads the stored display name through `tenantSettingsExportSchema`, which carries no length bound, so a name stored before the
+  256 bound (300 characters in the test, written by SQL) still exports; the bound stays on every write, on an import request and on an imported
+  document, each with a test (257 refused naming `document.settings.display_name`, 256 accepted).
+- `createOnly` is a per-tool flag (`createsWithoutEtag`), set on `set_message_override` alone; a put tool without it sends no `If-None-Match`.
+- A key with a NUL is refused by `messageOverrideKeySchema`: the delete (and the put) answered `500` from the database and now answer `400`, and
+  the tools refuse it as an argument.
+- Wording text refuses C0 and C1 controls other than tab and line feed, DEL, soft hyphen, zero-width characters, the word joiner, the byte order
+  mark and the line and paragraph separators (`text`); a name and the display name also refuse tab and line feed (`line`).
+- `clear_message_override` keeps `destructiveHint: true`; `tests/lint/mcp-tool-coverage.test.ts` names it in an explicit list, and spec section 2 names
+  the exception (a reversible W1 delete whose text the audit row keeps).
+- Residual, stated: a direct holder's settings PATCH is uncounted and the admin API takes it without `If-Match`; the audit `before` of a legacy long name
+  is copied as stored.

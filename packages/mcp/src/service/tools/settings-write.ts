@@ -1,7 +1,7 @@
 import { LOCALISED_TEXT_ENTRIES_MAX } from '@odudu/contracts';
 import { DISPLAY_NAME_MAX, settingsSchema } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import { contentWriteTool, languageTagField, text } from '#/service/write-tool';
+import { contentWriteTool, languageTagField, line } from '#/service/write-tool';
 
 export const updateTenantTextSettingsTool = contentWriteTool({
   name: 'update_tenant_text_settings',
@@ -22,7 +22,7 @@ export const updateTenantTextSettingsTool = contentWriteTool({
   mode: 'amend',
   params: {},
   fields: {
-    display_name: text(z.string().max(DISPLAY_NAME_MAX))
+    display_name: line(z.string().max(DISPLAY_NAME_MAX))
       .optional()
       .describe(
         `The name shown to people, at most ${String(DISPLAY_NAME_MAX)} characters after the trim; ` +

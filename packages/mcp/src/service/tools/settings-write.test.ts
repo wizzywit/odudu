@@ -226,3 +226,15 @@ describe('update_tenant_text_settings', () => {
     expect(settingsSchema.safeParse(['leaked-text']).success).toBe(false);
   });
 });
+
+describe('update_tenant_text_settings, the display name as one visible line', () => {
+  it.each(['\r', '\n', '\t', '\u001b', '\u0085', '​', ' ', '﻿'])(
+    'refuses %j before any admin call',
+    async (bad) => {
+      const caller = respondingWith(ANSWER);
+      const result = await callTool(tool, caller, { if_match: ETAG, display_name: `a${bad}b` });
+      expect(result.isError).toBe(true);
+      expect(caller.requests).toHaveLength(0);
+    },
+  );
+});
