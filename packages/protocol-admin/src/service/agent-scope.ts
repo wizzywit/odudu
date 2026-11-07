@@ -43,10 +43,13 @@ export const INSTANCE_READS: readonly string[] = ['GET /admin/tenants', 'GET /ad
 // on the consent screen, so an agent never rewrites it.
 const BUILTIN_CLIENT_GUARDED_FIELDS: readonly string[] = ['name', 'name_i18n'];
 
-// What `mcp:write` adds to the reads: amending the wording a person reads,
-// never what a client or scope may do. Admission is by field because the
-// same PATCH carries `enabled`, `redirect_uris` and the rest for an ordinary
-// caller. `consent_text` is left out on purpose: it is what a user agrees to.
+// What `mcp:write` adds to the reads: amending the wording a person reads and
+// creating a role, group or scope that grants nothing, never what a client,
+// role, group or scope may do. Admission is by field because the same PATCH
+// carries `enabled`, `redirect_uris` and the rest for an ordinary caller.
+// `consent_text` is left out on purpose: it is what a user agrees to.
+// `default_for_new_subjects`, `parent_id` and a scope's token and assignment
+// settings are left out because each decides who holds what.
 export const AGENT_WRITE_ROUTES: readonly AgentWriteRoute[] = [
   {
     method: 'PATCH',
@@ -60,7 +63,42 @@ export const AGENT_WRITE_ROUTES: readonly AgentWriteRoute[] = [
     pattern: '/admin/tenants/:tenant/scopes/:id',
     target: 'scope',
     body: 'fields',
-    fields: ['description', 'description_i18n'],
+    fields: ['description', 'description_i18n', 'display_order'],
+  },
+  {
+    method: 'PATCH',
+    pattern: '/admin/tenants/:tenant/roles/:id',
+    target: 'none',
+    body: 'fields',
+    fields: ['description'],
+  },
+  {
+    method: 'PATCH',
+    pattern: '/admin/tenants/:tenant/groups/:id',
+    target: 'none',
+    body: 'fields',
+    fields: ['description'],
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/roles',
+    target: 'none',
+    body: 'fields',
+    fields: ['name', 'description', 'client_id'],
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/groups',
+    target: 'none',
+    body: 'fields',
+    fields: ['name', 'description'],
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/scopes',
+    target: 'none',
+    body: 'fields',
+    fields: ['name', 'description', 'description_i18n', 'display_order'],
   },
 ];
 
@@ -108,6 +146,18 @@ export function agentBodyAdmitted(
   return Reflect.ownKeys(body).every(
     (member) => typeof member === 'string' && entry.fields.includes(member),
   );
+}
+
+// A POST creates a row, and the budget that bounds creates is spent by the MCP
+// endpoint, which counts what it forwards. A token the endpoint did not sign
+// (one issued to an agent that calls the admin API itself, as `odudu mcp` does)
+// would create without a count, so the door admits a POST to an endpoint token
+// alone.
+export function agentWriteNeedsEndpoint(
+  route: AdminRoute,
+  routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
+): boolean {
+  return writeEntry(route, routes)?.method === 'POST';
 }
 
 export function agentWritesClient(
