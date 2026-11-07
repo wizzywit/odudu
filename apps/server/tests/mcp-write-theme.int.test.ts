@@ -288,6 +288,37 @@ describe('update_theme_draft', () => {
     expect(after?.body.tokens).toEqual({ light: PALETTE });
   });
 
+  it('can still be updated when the theme is too large for get_theme to return: the etag comes beside that refusal', async () => {
+    const { w, token } = await sessionOf();
+    const pad = 'x'.repeat(60 * 1024);
+    const some = (marker: string) => ({
+      'sign-in': SIGN_IN(marker, pad),
+      reset: SIGN_IN(marker, pad),
+      registration: SIGN_IN(marker, pad),
+      'update-password': SIGN_IN(marker, pad),
+      'required-action': MESSAGE(pad),
+    });
+    await consoleSave(
+      w,
+      { tokens: {}, stylesheet: null, templates: some('published'), assets: {} },
+      { publish: true },
+    );
+    await consoleSave(w, { tokens: {}, stylesheet: null, templates: some('draft'), assets: {} });
+    const read = await stack.call(w, token, 'get_theme', {});
+    expect(errorOf(read).type).toBe('mcp:result_too_large');
+    const etag = (read.structuredContent as { etag?: string }).etag;
+    expect(etag).toBe(await etagOf(w));
+    const updated = recOf(
+      await stack.call(w, token, 'update_theme_draft', {
+        if_match: etag,
+        tokens: { light: PALETTE },
+      }),
+    );
+    expect(updated.data).toMatchObject({ scope: 'tenant', draft_omitted: true });
+    expect((await draftOf(w))?.body.templates).toEqual(some('draft'));
+    expect((await draftOf(w))?.body.tokens).toEqual({ light: PALETTE });
+  });
+
   it('answers a stale etag, a console edit made since the read, as a 412 that says to read again, and keeps the edit', async () => {
     const { w, token } = await sessionOf();
     const first = recOf(

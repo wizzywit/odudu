@@ -160,6 +160,34 @@ describe('tenant branding tools', () => {
       });
     });
 
+    it('gives the draft’s etag beside the refusal of a theme too large to return, so an update can still name it', async () => {
+      const templates = Object.fromEntries(
+        [
+          'sign-in',
+          'consent',
+          'select-account',
+          'logout-confirm',
+          'notice',
+          'reset',
+          'registration',
+          'verification',
+        ].map((kind) => [kind, 'x'.repeat(60 * KIB)]),
+      );
+      const etag = `"${'c'.repeat(64)}"`;
+      const body = themeWith('y'.repeat(128 * KIB), templates);
+      const result = await callTool(named('get_theme'), respondingWith(body, 200, { etag }), {});
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent.etag).toBe(etag);
+      expect(JSON.parse(result.content[0]?.text ?? '{}')).toMatchObject({ etag });
+      expect((result.structuredContent.error as { detail: string }).detail).toMatch(/if_match/u);
+      const none = await callTool(
+        named('get_theme'),
+        respondingWith(body, 200, { etag: 'not an etag' }),
+        {},
+      );
+      expect(none.structuredContent).not.toHaveProperty('etag');
+    });
+
     it('cuts a text beside the stylesheet at the ordinary cap', async () => {
       const body = themeWith(null, {});
       Reflect.set(body as object, 'sources', { ['k'.repeat(5_000)]: 'client' });

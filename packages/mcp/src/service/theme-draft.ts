@@ -15,6 +15,13 @@ export interface HeldTheme {
   // The draft's etag, or null where there is no draft.
   readonly etag: string | null;
   readonly base: ThemeBodyWire;
+  // Which published version a first draft was made from, to be compared with the one
+  // the save answers with: nothing locks the published theme while there is no draft.
+  readonly publishedAs: string | null;
+}
+
+export function publishedMarker(view: { published: { id: string; version: number } | null }) {
+  return view.published === null ? null : `${view.published.id}:${String(view.published.version)}`;
 }
 
 export interface NamedParts {
@@ -37,9 +44,12 @@ function unreadable(): ToolProblem {
 // of the draft the write will have to name. The body is the raw answer.
 export function heldOf(answer: unknown, etag: string | undefined): HeldTheme {
   const view = themeViewSchema.parse(answer);
-  if (view.draft === null) return { etag: null, base: view.published?.body ?? EMPTY };
+  const publishedAs = publishedMarker(view);
+  if (view.draft === null) {
+    return { etag: null, base: view.published?.body ?? EMPTY, publishedAs };
+  }
   if (!isEtag(etag)) throw unreadable();
-  return { etag, base: view.draft };
+  return { etag, base: view.draft, publishedAs };
 }
 
 // The body of the write: each part the caller named as they sent it, every

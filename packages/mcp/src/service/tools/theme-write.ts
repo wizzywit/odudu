@@ -13,7 +13,13 @@ import { defineTool } from '#/service/define-tool';
 import { ETAG_PATTERN, isEtag } from '#/service/etag-shape';
 import { DATA_NOTICE, idField } from '#/service/read-tool';
 import { cleanData, type CleanStats } from '#/service/sanitize';
-import { heldOf, mergedBody, THEME_WRITE_CAP_BYTES } from '#/service/theme-draft';
+import {
+  heldOf,
+  mergedBody,
+  publishedMarker,
+  THEME_WRITE_CAP_BYTES,
+  type HeldTheme,
+} from '#/service/theme-draft';
 import {
   ToolProblem,
   type AdminCaller,
@@ -206,6 +212,21 @@ function answerOf(answer: unknown): { data: z.infer<typeof ANSWER>; truncated?: 
   };
 }
 
+// A first draft takes the parts it was not given from the published theme it read,
+// and nothing locks that theme while there is no draft: a restore or a reset in
+// between leaves the draft built on the older one. The save answers with the published
+// version, so the change is seen, and said, though it cannot be prevented.
+function warningOf(held: HeldTheme, answer: unknown, cfg: ThemeDraftConfig) {
+  if (held.etag !== null) return {};
+  const now = publishedMarker(themeViewSchema.parse(answer));
+  if (now === held.publishedAs) return {};
+  return {
+    warning:
+      'The published theme changed while this first draft was being saved, so the parts you did ' +
+      `not name may come from the older one. Read the draft with ${cfg.read} and check them.`,
+  };
+}
+
 function themeDraftTool(cfg: ThemeDraftConfig): RegisteredTool {
   const shape = {
     ...(cfg.client ? { id: idField('client') } : {}),
@@ -245,6 +266,7 @@ function themeDraftTool(cfg: ThemeDraftConfig): RegisteredTool {
       data: ANSWER,
       etag: z.string().regex(ETAG_PATTERN).optional(),
       truncated: z.literal(true).optional(),
+      warning: z.string().optional(),
     }),
     run: async (caller, args) => {
       const params = paramsOf(cfg, args);
@@ -270,7 +292,11 @@ function themeDraftTool(cfg: ThemeDraftConfig): RegisteredTool {
       if (result.status === 412 || result.status === 428) throw staleOf(cfg);
       if (result.status < 200 || result.status >= 300) throw failed(result, cfg);
       const etag = result.headers.etag;
-      return { ...answerOf(result.body), ...(isEtag(etag) ? { etag } : {}) };
+      return {
+        ...answerOf(result.body),
+        ...(isEtag(etag) ? { etag } : {}),
+        ...warningOf(held, result.body, cfg),
+      };
     },
   });
 }

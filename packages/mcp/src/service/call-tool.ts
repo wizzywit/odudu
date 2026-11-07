@@ -1,3 +1,4 @@
+import { isEtag } from '#/service/etag-shape';
 import {
   cleanText,
   PROBLEM_DETAIL_CAP,
@@ -72,6 +73,19 @@ export function errorResult(problem: ToolProblem): ToolResult {
   };
 }
 
+// A result too large to return still names the etag of what it was about, when it
+// had one, so that a write which needs it as a precondition can be made without
+// the read that cannot be sent.
+function withEtag(result: ToolResult, etag: unknown): ToolResult {
+  if (!isEtag(etag)) return result;
+  const error = result.structuredContent.error;
+  return {
+    ...result,
+    content: [{ type: 'text', text: JSON.stringify({ error, etag }) }],
+    structuredContent: { ...result.structuredContent, etag },
+  };
+}
+
 export interface ToolRun {
   readonly result: ToolResult;
   // The refusal behind an error result, for a reader that classifies it; the
@@ -108,7 +122,7 @@ export async function runTool(
         null,
         tool.tooLargeDetail ?? 'Ask for fewer rows with a smaller limit, or narrow the filters.',
       );
-      return { result: errorResult(problem), problem };
+      return { result: withEtag(errorResult(problem), output.etag), problem };
     }
     return {
       result: { isError: false, content: [{ type: 'text', text }], structuredContent: output },

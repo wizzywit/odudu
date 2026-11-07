@@ -218,6 +218,44 @@ describe('update_theme_draft, reading and merging', () => {
   });
 });
 
+describe('a first draft made from a published theme that changes meanwhile', () => {
+  const published = body({ stylesheet: '.page { color: green; }' });
+  const later = {
+    ...(view(body(), published) as object),
+    published: { id: 'p2', version: 4, published_at: null, body: published },
+  };
+
+  it('is saved and answered with a warning that says to read it again, since only a restore or a reset can change the published theme with no draft there to lock', async () => {
+    const caller = sequence(ok(view(null, published)), ok(later, NEW_ETAG));
+    const result = await callTool(updateThemeDraftTool, caller, { tokens: { light: PALETTE } });
+    expect(result.isError, JSON.stringify(result.structuredContent)).toBe(false);
+    expect(String(result.structuredContent.warning)).toMatch(/published theme changed while/u);
+    expect(String(result.structuredContent.warning)).toMatch(/get_theme/u);
+    expect(result.structuredContent.etag).toBe(NEW_ETAG);
+  });
+
+  it('is warned too when nothing was published at the read and something is at the save', async () => {
+    const caller = sequence(ok(view(null)), ok(view(body(), published), NEW_ETAG));
+    const result = await callTool(updateThemeDraftTool, caller, { tokens: { light: PALETTE } });
+    expect(result.structuredContent).toHaveProperty('warning');
+  });
+
+  it('carries no warning when the published theme is the one the draft was made from', async () => {
+    const caller = sequence(ok(view(null, published)), ok(view(body(), published), NEW_ETAG));
+    const result = await callTool(updateThemeDraftTool, caller, { tokens: { light: PALETTE } });
+    expect(result.structuredContent).not.toHaveProperty('warning');
+  });
+
+  it('carries none for a replacement, whose unnamed parts come from the draft and not from the published theme', async () => {
+    const caller = sequence(ok(view(body(), published), ETAG), ok(later, NEW_ETAG));
+    const result = await callTool(updateThemeDraftTool, caller, {
+      if_match: ETAG,
+      tokens: { light: PALETTE },
+    });
+    expect(result.structuredContent).not.toHaveProperty('warning');
+  });
+});
+
 describe('never writing back a read', () => {
   const HELD_STYLE = `.page { color: red; }\r\n/* a​b ‮ c */\n${'/* p */\n'.repeat(10_000)}`;
 
