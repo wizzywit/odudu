@@ -1415,6 +1415,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: roleSchema,
     successStatus: 201,
     bodySchema: createRoleRequestSchema,
+    description: 'A tenant defines at most 1,000 roles; one more is refused with `409`.',
   },
   {
     method: 'GET',
@@ -1505,6 +1506,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: groupSchema,
     successStatus: 201,
     bodySchema: createGroupRequestSchema,
+    description: 'A tenant defines at most 10,000 groups; one more is refused with `409`.',
   },
   {
     method: 'GET',

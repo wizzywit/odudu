@@ -119,7 +119,7 @@ Register a client the way this guide does, with the `client_credentials` grant, 
 ODUDU_MCP_KEY=… odudu mcp --base-url https://id.example.com --tenant acme --client-id my-agent
 ```
 
-It offers the read tools only. `--allow-writes` asks for `mcp:write` as well and offers the two tools that change a name or a description. Without a key the command opens your browser instead and you sign in as yourself, and the sign-in is kept in your operating system's credential store, or in a file only you can read. [The transcript](../reference/transcripts/request-paths/odudu-mcp-over-stdio.md) runs a handshake and a call.
+It offers the read tools only. `--allow-writes` asks for `mcp:write` as well and offers the tools that change a name or a description (not those that create a role, group or scope, which only the MCP endpoint offers). Without a key the command opens your browser instead and you sign in as yourself, and the sign-in is kept in your operating system's credential store, or in a file only you can read. [The transcript](../reference/transcripts/request-paths/odudu-mcp-over-stdio.md) runs a handshake and a call.
 
 ## Where to go next
 

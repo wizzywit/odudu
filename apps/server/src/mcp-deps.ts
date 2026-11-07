@@ -1,10 +1,11 @@
 import { type DatabaseHandle, type RequestContext, withTenant } from '@odudu/db';
 import { effectiveRoles } from '@odudu/domain-authz';
-import { ADMIN_API_AUDIENCE, isSystemTenantId } from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, clientRepository, isSystemTenantId } from '@odudu/domain-tenant';
 import {
   callMcpTool,
   createInProcessCaller,
   createMcpExchange,
+  directCallerTools,
   exchangeForAdmin,
   newRequestScope,
   scopeFor,
@@ -205,6 +206,11 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
         held ??= heldCapabilities(roles, token.tenant.id, token.subjectId);
         return held;
       };
+      const ownerIsServiceAccount = (): Promise<boolean> =>
+        withTenant(parts.database.db, token.tenant.id, async (tx) => {
+          const client = await clientRepository(tx).byId(clientDbId);
+          return client?.serviceSubjectId === token.subjectId;
+        });
       return createMcpExchange({
         tenant: token.tenant.name,
         // A listing leaves out what the token or its owner could not use; a call
@@ -213,7 +219,8 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
         tools: async (purpose) =>
           purpose === 'list'
             ? visibleTools(
-                TOOLS,
+                // A service account has no sign-in to count a create against.
+                (await ownerIsServiceAccount()) ? directCallerTools(TOOLS) : TOOLS,
                 token.scope,
                 await capabilities(),
                 isSystemTenantId(token.tenant.id),

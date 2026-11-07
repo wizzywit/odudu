@@ -90,7 +90,7 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   'POST /tenants/:tenant/mcp': {
     auth: 'Access token',
     purpose:
-      'The tenant’s MCP endpoint (Streamable HTTP, stateless; revisions 2026-07-28 and 2025-11-25): JSON-RPC requests for the tools that read the admin API as the signed-in person and, for a token holding `mcp:write`, the two that change the descriptive text of a client or a scope. Takes a bearer token whose audience is this URL and whose scope holds `mcp:read` or `mcp:write`; `401` with a `WWW-Authenticate` challenge naming the protected resource metadata for no usable token, `403` for a foreign `Origin` or `Host`, `429` with `Retry-After` past the per-principal budget. At a tenant’s own domain it is `/mcp` there; `404` at the path address of a tenant that has a domain.',
+      'The tenant’s MCP endpoint (Streamable HTTP, stateless; revisions 2026-07-28 and 2025-11-25): JSON-RPC requests for the tools that read the admin API as the signed-in person and, for a token holding `mcp:write`, the seven that change the descriptive text of a client, scope, role or group or create a role, group or scope that grants nothing. Takes a bearer token whose audience is this URL and whose scope holds `mcp:read` or `mcp:write`; `401` with a `WWW-Authenticate` challenge naming the protected resource metadata for no usable token, `403` for a foreign `Origin` or `Host`, `429` with `Retry-After` past the per-principal budget. At a tenant’s own domain it is `/mcp` there; `404` at the path address of a tenant that has a domain.',
   },
   'GET /tenants/:tenant/mcp': {
     auth: 'None',

@@ -1,6 +1,6 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError, refuseBidiControls } from '@odudu/kernel';
-import { asc, eq, sql } from 'drizzle-orm';
+import { asc, count, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { groupRoles, groups, subjectGroups, type GroupRecord } from '#/schema/groups';
 
@@ -149,6 +149,29 @@ export function groupRepository(tx: TenantScopedDatabase) {
       }
     },
 
+    // Takes the tenant row's lock for the rest of the transaction, so a count
+    // against the limit and the insert after it are one decision. True when the
+    // tenant row was there to lock.
+    async lockCreation(tenantId: string): Promise<boolean> {
+      const rows = await tx
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .for('no key update');
+      return rows.length > 0;
+    },
+
+    // How many groups the tenant defines, at every depth, counted no further than `limit`.
+    async countUpTo(limit: number): Promise<number> {
+      const held = tx
+        .select({ one: sql<number>`1`.as('one') })
+        .from(groups)
+        .limit(limit)
+        .as('held');
+      const rows = await tx.select({ count: count() }).from(held);
+      return rows[0]?.count ?? 0;
+    },
+
     // `path` is this repository's only writer: a root group's path is
     // `/${name}`, and a child's path is its parent's path with `/${name}`
     // appended, computed here rather than trusted from the caller.
@@ -236,15 +259,21 @@ export function groupRepository(tx: TenantScopedDatabase) {
 
       await tx.update(groups).set({ parentId: newParentId }).where(eq(groups.id, groupId));
 
-      // The position argument must be cast to an integer: an untyped
-      // parameter here resolves to the two-argument, POSIX-regex overload
-      // of substring() instead of the FROM/integer one, and silently
-      // returns NULL when the "pattern" (the stringified number) has no
-      // match, rather than a position offset.
+      // The subtree follows `parent_id` (index-served, as `descendantsOf` is) and never
+      // matches a path as a pattern: a name may hold `%`, `_` or a backslash. The
+      // position argument is cast to an integer, since an untyped parameter picks
+      // the POSIX-regex overload of substring() and returns NULL.
       await tx.execute(sql`
+        WITH RECURSIVE subtree(id) AS (
+          SELECT ${groupId}::uuid
+          UNION
+          SELECT g.id
+          FROM subtree s
+          CROSS JOIN LATERAL (SELECT id FROM groups WHERE parent_id = s.id OFFSET 0) g
+        )
         UPDATE groups
         SET path = ${newOwnPath} || substring(path FROM ${oldPath.length + 1}::int)
-        WHERE path = ${oldPath} OR path LIKE ${`${oldPath}/%`}
+        WHERE id IN (SELECT id FROM subtree)
       `);
     },
 

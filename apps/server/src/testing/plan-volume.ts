@@ -1,4 +1,4 @@
-import { ASSIGNMENT_LIMIT, SCOPE_LIMIT } from '@odudu/contracts/admin';
+import { ASSIGNMENT_LIMIT, ROLE_LIMIT, SCOPE_LIMIT } from '@odudu/contracts/admin';
 import { type DatabaseHandle } from '@odudu/db';
 
 // The volume the plan check seeds, in SQL, around a tenant the seed command
@@ -17,8 +17,10 @@ export const PLAN_VOLUME = {
   subjects: 200_000,
   clients: 10_000,
   confidentialClients: 1_000,
-  roles: 5_000,
-  clientRoles: 10_000,
+  // A tenant defines at most ROLE_LIMIT roles, a client's own included, and the
+  // check drives a create in this tenant, so the two kinds together stay under it.
+  roles: 600,
+  clientRoles: 300,
   groups: 5_000,
   scopes: SCOPE_LIMIT - 20,
   sessions: 200_000,
@@ -483,4 +485,8 @@ export async function seedPlanVolume(owner: DatabaseHandle, target: VolumeTarget
     await connection.unsafe('reset session_replication_role');
     connection.release();
   }
+}
+
+if (PLAN_VOLUME.roles + PLAN_VOLUME.clientRoles >= ROLE_LIMIT - 50) {
+  throw new Error('the plan volume leaves no room under ROLE_LIMIT for the role it creates');
 }

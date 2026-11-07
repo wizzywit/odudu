@@ -8,12 +8,15 @@ import { domainTools } from '#/service/tools/domains';
 import { flowTools } from '#/service/tools/flow';
 import { grantTools } from '#/service/tools/grants';
 import { groupTools } from '#/service/tools/groups';
+import { groupWriteTools } from '#/service/tools/groups-write';
 import { keyTools } from '#/service/tools/keys';
 import { mailTools } from '#/service/tools/mail';
 import { roleTools } from '#/service/tools/roles';
+import { roleWriteTools } from '#/service/tools/roles-write';
 import { scopeMetadataTool } from '#/service/tools/scope-metadata';
 import { scopeCheckTools } from '#/service/tools/scope-checks';
 import { scopeTools } from '#/service/tools/scopes';
+import { createScopeTool } from '#/service/tools/scopes-write';
 import { sessionTools } from '#/service/tools/sessions';
 import { settingsTools } from '#/service/tools/settings';
 import { subjectTools } from '#/service/tools/subjects';
@@ -33,9 +36,11 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...flowTools,
   ...grantTools,
   ...groupTools,
+  ...groupWriteTools,
   ...keyTools,
   ...mailTools,
   ...roleTools,
+  ...roleWriteTools,
   ...scopeCheckTools,
   ...scopeTools,
   ...sessionTools,
@@ -44,6 +49,7 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...instanceTenantTools,
   ...whoamiTools,
   clientMetadataTool,
+  createScopeTool,
   scopeMetadataTool,
   ownTenantTool,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
@@ -98,11 +104,6 @@ const WITHHELD: readonly Entry[] = [
       R('PUT', '/clients/:id/theme'),
       R('PUT', '/message-overrides/:locale/:key'),
       R('DELETE', '/message-overrides/:locale/:key'),
-      R('POST', '/roles'),
-      R('PATCH', '/roles/:id'),
-      R('POST', '/groups'),
-      R('PATCH', '/groups/:id'),
-      R('POST', '/scopes'),
     ],
     'content',
   ],

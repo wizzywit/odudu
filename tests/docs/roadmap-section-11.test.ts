@@ -384,6 +384,11 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ["The admin API's OpenAPI document grew", ['P4i'], ['the published openapi document']],
     ['The injection suite drives a scripted agent', ['P5b'], ["the owner's separate approval"]],
     [
+      'The admin API accepts a scope name with a space',
+      ['P5b'],
+      'one validation pattern on the scope contract, owed to whichever phase next changes it, no product behaviour',
+    ],
+    [
       'The cleanup P4k left in branding and clients',
       ['P4h'],
       'console source cleanup left by the closed P4k, no product behaviour',

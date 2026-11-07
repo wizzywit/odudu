@@ -23,7 +23,15 @@ import {
   seedDomainInTenant,
   type DomainCommandResult,
 } from '#/cli/seed-domain';
-import { CLIENT_LIST_LIMIT, listLimitProblem, scopeLimitMessage } from '@odudu/contracts/admin';
+import {
+  CLIENT_LIST_LIMIT,
+  GROUP_LIMIT,
+  groupLimitMessage,
+  listLimitProblem,
+  ROLE_LIMIT,
+  roleLimitMessage,
+  scopeLimitMessage,
+} from '@odudu/contracts/admin';
 import { tenantSettingsRepository, sendVerificationEmail } from '@odudu/account';
 import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
 import { grantNewSubjectDefaults, groupRepository, roleRepository } from '@odudu/domain-authz';
@@ -1570,6 +1578,10 @@ async function runRoleCommand(
   return withTenant(runtimeDb, tenantId, async (tx) => {
     const clientDbId =
       ownerClientId === undefined ? null : await requireClientDbId(tx, ownerClientId);
+    await roleRepository(tx).lockCreation(tenantId);
+    if ((await roleRepository(tx).countUpTo(ROLE_LIMIT)) >= ROLE_LIMIT) {
+      throw new OduduError('seed_invalid_options', roleLimitMessage());
+    }
     const role = await refuseRepeat(
       `role ${JSON.stringify(roleName)} already exists in tenant ${JSON.stringify(tenantName)}`,
       () => roleRepository(tx).create({ tenantId, name: roleName, clientId: clientDbId }),
@@ -1607,6 +1619,10 @@ async function runGroupCommand(
 
   return withTenant(runtimeDb, tenantId, async (tx) => {
     const parentId = parentPath === undefined ? null : await requireGroupIdByPath(tx, parentPath);
+    await groupRepository(tx).lockCreation(tenantId);
+    if ((await groupRepository(tx).countUpTo(GROUP_LIMIT)) >= GROUP_LIMIT) {
+      throw new OduduError('seed_invalid_options', groupLimitMessage());
+    }
     const group = await refuseRepeat(
       `group ${JSON.stringify(`${parentPath ?? ''}/${name}`)} already exists in tenant ${JSON.stringify(tenantName)}`,
       () => groupRepository(tx).create({ tenantId, name, parentId }),

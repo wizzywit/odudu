@@ -1,4 +1,10 @@
-import { CLIENT_SCOPE_LIMIT } from '@odudu/contracts/admin';
+import {
+  CLIENT_SCOPE_LIMIT,
+  GROUP_LIMIT,
+  groupLimitMessage,
+  ROLE_LIMIT,
+  roleLimitMessage,
+} from '@odudu/contracts/admin';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
 import { users } from '@odudu/domain-identity';
 import { clientScopes } from '@odudu/domain-tenant';
@@ -478,6 +484,36 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     ).rejects.toMatchObject({
       code: 'seed_conflict',
       message: `group "/engineering/backend" already exists in tenant "${tenantName}"`,
+    });
+  });
+
+  it('refuses a role and a group past what a tenant may define, in the limits’ words', async () => {
+    const tenantName = `demo-${newId()}`;
+    await seed(['tenant', '--name', tenantName]);
+    await owner.sql`
+      insert into roles (id, tenant_id, name)
+      select gen_random_uuid(), t.id, 'filler-' || g
+        from tenants t, generate_series(1, ${ROLE_LIMIT} - 1 - (select count(*) from roles r where r.tenant_id = t.id)) g
+       where t.name = ${tenantName}`;
+    await owner.sql`
+      insert into groups (id, tenant_id, name, path)
+      select gen_random_uuid(), t.id, 'filler-' || g, '/filler-' || g
+        from tenants t, generate_series(1, ${GROUP_LIMIT} - 1) g where t.name = ${tenantName}`;
+    await seed(['role', '--tenant', tenantName, '--name', 'the-last-role']);
+    await seed(['group', '--tenant', tenantName, '--name', 'the-last-group']);
+    await expect(
+      seed(['role', '--tenant', tenantName, '--name', 'one-too-many']),
+    ).rejects.toMatchObject({
+      name: 'OduduError',
+      code: 'seed_invalid_options',
+      message: roleLimitMessage(),
+    });
+    await expect(
+      seed(['group', '--tenant', tenantName, '--name', 'one-too-many']),
+    ).rejects.toMatchObject({
+      name: 'OduduError',
+      code: 'seed_invalid_options',
+      message: groupLimitMessage(),
     });
   });
 

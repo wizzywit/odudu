@@ -28,12 +28,15 @@ export const groupTools = [
   }),
   valueTool({
     name: 'get_group',
-    description: 'Reads one group: its name, description and parent.',
+    description:
+      'Reads one group: its name, description and parent. The etag beside data is the if_match ' +
+      'of update_group_description.',
     routeKey: tenantGet('/groups/:id'),
     capability: 'manage-tenant',
     shape: { id: idField('group') },
     pathParams: ['id'],
     response: groupSchema,
+    etag: true,
   }),
   valueTool({
     name: 'get_group_roles',

@@ -427,6 +427,7 @@ export function adminAuthDeps(deps: AdminAuthParts): AuthenticateAdminDeps {
               enabled: client.enabled,
               builtinMcp: client.builtinMcp,
               builtinAdmin: client.builtinAdmin,
+              serviceSubjectId: client.serviceSubjectId,
             };
       }),
     isSubjectEnabled: (tenantId, subjectId) =>

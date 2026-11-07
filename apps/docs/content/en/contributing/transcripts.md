@@ -87,20 +87,29 @@ built from the branch commit `5b55907c4` plus the change that made a NUL in a gr
 contracts), because the document grew by 226 bytes. Its request id, date and size are that fetch's; the stack and its image were
 removed afterwards. It was fetched once more on the same day on the compose project `odudu-p5a-ffa` (port `3091`, built from the
 branch commit `83a96ae16`), because the description of `max_clients` changed and the document grew by 122 bytes; the block's request
-id, date and size are that fetch's, and the stack and its image were removed afterwards.
+id, date and size are that fetch's, and the stack and its image were removed afterwards. It was fetched a third time on 2026-11-07 on the compose project `odudu-p5a-i16` (port `3000`, built from the branch commit `98448c967`), because a group name's pattern joined the create contract and the document grew by 22 bytes (806,774 in all); it was fetched a fourth time the same day, on a freshly built `odudu-p5a-i16` from the branch commit `b5f49718c`, because the descriptions of `POST /roles` and `POST /groups` now name their limits and it grew to 806,948 bytes. The page's three blocks are that run's, and the stack and its image were removed afterwards. The default group page, `put-groupsiddefault.md`, was replayed whole on that project (published on port `3082`, as the page's commands say), built from the branch commit `b5f49718c` plus the changes after it: the tenant `defaults-demo`, `ada-t8c2` holding every admin capability and a token for the administration client, the `staff` group with its `description` and its child `everyone`, the ETag of `staff`'s roles, then the page's two blocks, with the page's ids replaced by that run's. Every block and id on the page is that run's, and the stack and its image were removed afterwards.
 
 The `mcp` policy section of `bootstrap.md` was captured again, whole, on 2026-11-06 on the compose project `odudu-p5a-ffd` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `540b9809e`, a freshly built stack with nothing done to it before the section). Every block is one pass of the section's own commands in order on that stack, so the client ids in the queries are the ones the registrations returned and the port is the one the audience names. The counts block added to the counts page (`?counts_toward_max_clients=`) and the `GET /admin/openapi.json` block were run on the same stack straight after it, the second because the new parameter grew the document by 648 bytes; the stack and its image were removed afterwards.
 
-The two MCP pages, `the-mcp-endpoint.md` and `odudu-mcp-over-stdio.md`, were captured again, each end to end, on 2026-11-06 when eleven branding reads
-joined the catalogue (their tool listings and counts changed: the stdio page's 59 names and the endpoint page's 24 for `ada`, who holds
-`manage-clients`, so is offered the client theme tools and `get_stylesheet_hooks`). The compose project was `odudu-p5a-i14` (port `3000`,
-`ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the working tree on branch commit `38fb7ad5d` plus the change), started from an
-empty volume before each page. Each page's bash blocks were run in order by one script in a single shell, with only the project name and
-the compose file's path changed, and every output block was written from what that run printed (standard output and error together,
-carriage returns and trailing spaces removed). The only glue between two blocks is `CID` from the registration and `CODE` from the
-consent's redirect. Every id, key, time and request id on the two pages is that run's. The endpoint page's budget counts (49 served, 21
-refused) came out as before and its `Retry-After` was 59 seconds. No transcript shows a system-tenant agent, for the reason the earlier
-capture gave. The stack and its image were removed afterwards.
+The two MCP pages, `the-mcp-endpoint.md` and `odudu-mcp-over-stdio.md`, were captured again, each end to end, on 2026-11-07 when the
+structure tools joined the catalogue (the endpoint page's count of write tools, which is seven, and the stdio page's `--allow-writes` listing,
+which is the four tools that amend text and none of the three that create). The compose project was `odudu-p5a-i16` (port `3000`,
+`ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `98448c967` plus the pages), started from an empty volume
+before each page. Each page's bash blocks were run in order by one script in a single shell, with only the project name and the compose
+file's path changed, and every output block was written from what that run printed (standard output and error together, carriage returns
+and trailing spaces removed). The only glue between two blocks is `CID` from the registration and `CODE` from the consent's redirect.
+Every id, key, time and request id on the two pages is that run's. The endpoint page's budget counts (49 served, 21 refused) came out as
+before and its `Retry-After` was 38 seconds. The stdio page's two reads are the only calls its audit rows hold. No transcript shows a
+system-tenant agent, for the reason the earlier capture gave. The stack and its image were removed afterwards.
+
+The MCP write tools' page, `the-mcp-write-tools.md`, was captured again, whole, on the same project and day, from an empty volume (the
+tenant `demo` seeded with `ada` holding `view-users`, `manage-clients` and `manage-tenant`, a client made through the admin API, four
+sign-ins, the calls in the order the page shows, then a last section that creates a role, a group and a scope and amends the role's
+description). The earlier capture, on `odudu-p5a-i9b`, is replaced; its psql blocks are still shown without the trailing spaces the tool pads a
+column with, as Prettier leaves them. The page's tool listing now holds seven names, and its audit listings hold the `role.create`,
+`group.create`, `scope.create` and `role.amend` rows and the `create_` calls the section made, all the tenant had of those actions. A create
+sent past the tool, by an agent token the endpoint did not sign, is not on this page: `packages/protocol-admin/tests/agent-door-create.int.test.ts`
+runs it against the real door, and the stdio page shows that `odudu mcp --allow-writes` does not offer the three creates.
 
 The stdio server's page, `odudu-mcp-over-stdio.md`, was captured, and re-captured after the admin API began recording a direct agent call, on 2026-11-06 on a freshly built compose project,
 `odudu-p5a-i10b` (port `3000`, Postgres published on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch

@@ -120,7 +120,7 @@ Phase note: `docs/phases/p4d.md`, "Performance".
 **Fixed in size by the model.** A set the API replaces whole (a subject's
 roles and groups, a group's or scope's roles, a role's composites, the
 default roles and groups) holds at most `ASSIGNMENT_LIMIT` (200), a tenant at
-most `SCOPE_LIMIT` (1,000) scopes, and a bulk write or a count at most
+most `SCOPE_LIMIT` (1,000) scopes, `ROLE_LIMIT` (1,000) roles and `GROUP_LIMIT` (10,000) groups, and a bulk write or a count at most
 `BULK_WRITE_LIMIT` (10,000). Each is enforced where the rows are written, under
 a lock where two writers could both pass the check, and refused with a status
 that names the limit; an export or import past one says so with the count.

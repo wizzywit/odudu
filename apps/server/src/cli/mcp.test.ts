@@ -119,6 +119,8 @@ const run = (argv: string[], options: Parameters<typeof runMcp>[1] = {}): Promis
 // What a tenant's own agent is offered: the two reads that span tenants are the
 // system tenant's alone.
 const TENANT_TOOLS = TOOLS.filter((t) => t.routeKey.includes(':tenant'));
+// A create is counted by the MCP endpoint alone, so the command does not offer one.
+const OFFERED_TOOLS = TENANT_TOOLS.filter((t) => t.spends !== 'create');
 
 const KEY_ARGS = ['--base-url', BASE, '--tenant', 'acme', '--client-id', 'svc'];
 
@@ -318,7 +320,7 @@ describe('odudu mcp with a service account key', () => {
       input: SESSION,
       fetch: a.fetch,
     });
-    expect(toolNames(write.lines)).toEqual(TENANT_TOOLS.map((t) => t.name));
+    expect(toolNames(write.lines)).toEqual(OFFERED_TOOLS.map((t) => t.name));
     expect(a.state.tokenForms[0]?.scope).toBe('mcp:write');
   });
 
@@ -382,6 +384,61 @@ describe('odudu mcp with a service account key', () => {
     const answer = byId(r.lines, 4);
     const text = JSON.stringify(answer);
     expect(text).toMatch(/not found|unknown|isError/iu);
+    expect(a.state.seen.filter((s) => s.url.includes('/admin/'))).toEqual([]);
+  });
+});
+
+describe('odudu mcp with --allow-writes and a create tool', () => {
+  const creates = ['create_role', 'create_group', 'create_scope'];
+
+  it('does not list the tools that create, which only the MCP endpoint counts', async () => {
+    const a = authority();
+    const r = await run([...KEY_ARGS, '--allow-writes'], {
+      env: { ODUDU_MCP_KEY: keyText },
+      input: SESSION,
+      fetch: a.fetch,
+    });
+    const names = toolNames(r.lines);
+    for (const name of creates) expect(names, name).not.toContain(name);
+    expect(names).toContain('update_role_description');
+    expect(names).toContain('update_scope_metadata');
+  });
+
+  it('says in its instructions that the creates are the tenant endpoint’s, only when writes are allowed', async () => {
+    const instructionsOf = async (extra: string[]) => {
+      const r = await run([...KEY_ARGS, ...extra], {
+        env: { ODUDU_MCP_KEY: keyText },
+        input: SESSION,
+        fetch: authority().fetch,
+      });
+      const result = byId(r.lines, 1).result as { instructions: string };
+      return result.instructions;
+    };
+    const writes = await instructionsOf(['--allow-writes']);
+    for (const name of creates) expect(writes, name).toContain(name);
+    expect(writes).toMatch(/MCP endpoint, not by this command/u);
+    expect(await instructionsOf([])).not.toMatch(/create_role/u);
+  });
+
+  it('answers a create called by name as an unknown tool, and makes no admin call', async () => {
+    const a = authority();
+    const r = await run([...KEY_ARGS, '--allow-writes'], {
+      env: { ODUDU_MCP_KEY: keyText },
+      fetch: a.fetch,
+      input: [
+        INITIALIZE,
+        INITIALIZED,
+        ...creates.map((name, i) => ({
+          jsonrpc: '2.0',
+          id: 10 + i,
+          method: 'tools/call',
+          params: { name, arguments: { idempotency_key: 'k', name: 'auditors' } },
+        })),
+      ],
+    });
+    for (const [i, name] of creates.entries()) {
+      expect(JSON.stringify(byId(r.lines, 10 + i)), name).toMatch(/not found|unknown/iu);
+    }
     expect(a.state.seen.filter((s) => s.url.includes('/admin/'))).toEqual([]);
   });
 });
@@ -543,7 +600,7 @@ describe('odudu mcp with a browser sign-in', () => {
     expect(r.code).toBe(0);
     expect(scope).toBe('mcp:write');
     expect(await readdir(configDir)).toEqual([]);
-    expect(toolNames(r.lines)).toEqual(TENANT_TOOLS.map((t) => t.name));
+    expect(toolNames(r.lines)).toEqual(OFFERED_TOOLS.map((t) => t.name));
   });
 
   it('does not use a stored refresh token for a run that allows writes', async () => {

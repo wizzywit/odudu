@@ -28,12 +28,15 @@ export const roleTools = [
   }),
   valueTool({
     name: 'get_role',
-    description: 'Reads one role: its name, description and owner.',
+    description:
+      'Reads one role: its name, description and owner. The etag beside data is the if_match of ' +
+      'update_role_description.',
     routeKey: tenantGet('/roles/:id'),
     capability: 'manage-tenant',
     shape: { id: idField('role') },
     pathParams: ['id'],
     response: roleSchema,
+    etag: true,
   }),
   valueTool({
     name: 'get_role_composites',

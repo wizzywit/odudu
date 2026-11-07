@@ -56,8 +56,12 @@ export const listGroupsResponseSchema = z.object({
 });
 export type ListGroupsResponse = z.infer<typeof listGroupsResponseSchema>;
 
+// A group's path is its names joined by slashes, and the table refuses a name
+// that holds one (`groups_name_has_no_slash`), which would otherwise be a 500.
 export const createGroupRequestSchema = z.object({
-  name: noNul(noBidiControls(z.string().min(1))),
+  name: noNul(noBidiControls(z.string().min(1))).regex(/^[^/]+$/u, {
+    error: 'name must not contain a slash',
+  }),
   description: descriptionSchema.nullable().optional(),
   parent_id: idSchema.nullable().optional(),
 });

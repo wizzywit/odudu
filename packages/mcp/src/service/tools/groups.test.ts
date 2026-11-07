@@ -34,6 +34,7 @@ describe('groups tools', () => {
     input: { id: '0192a0a0-0000-7000-8000-000000000001' },
     params: { id: '0192a0a0-0000-7000-8000-000000000001' },
     text: ['name'],
+    etag: true,
   });
   describeReadTool({
     tool: named('get_group_roles'),

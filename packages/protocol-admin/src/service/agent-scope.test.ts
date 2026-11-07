@@ -8,6 +8,7 @@ import {
   agentBodyAdmitted,
   agentBodyNamesGuardedField,
   agentWritableFields,
+  agentWriteNeedsEndpoint,
   agentWritesClient,
   doorToolName,
   isAdminRouteKey,
@@ -19,6 +20,16 @@ const key = (route: Pick<AdminRoute, 'method' | 'pattern'>) => `${route.method} 
 const allowed = new Set(AGENT_WRITE_ROUTES.map(key));
 const denied = new Set(AGENT_DENIED_READS);
 const instance = new Set(INSTANCE_READS);
+
+const STRUCTURE_ROUTES = [
+  'PATCH /admin/tenants/:tenant/clients/:id',
+  'PATCH /admin/tenants/:tenant/groups/:id',
+  'PATCH /admin/tenants/:tenant/roles/:id',
+  'PATCH /admin/tenants/:tenant/scopes/:id',
+  'POST /admin/tenants/:tenant/groups',
+  'POST /admin/tenants/:tenant/roles',
+  'POST /admin/tenants/:tenant/scopes',
+];
 
 function route(method: string, pattern: string): AdminRoute {
   const found = ADMIN_ROUTES.find((r) => r.method === method && r.pattern === pattern);
@@ -83,15 +94,12 @@ describe('scopeAdmits over every admin route', () => {
     expect(scopeAdmits([MCP_READ_SCOPE], one, false)).toBe(true);
   });
 
-  it('lists only routes that exist, and only PATCHes', () => {
+  it('lists only routes that exist, and only PATCHes and POSTs', () => {
     for (const entry of AGENT_WRITE_ROUTES) {
-      expect(entry.method).toBe('PATCH');
+      expect(['PATCH', 'POST']).toContain(entry.method);
       expect(route(entry.method, entry.pattern)).toBeDefined();
     }
-    expect(AGENT_WRITE_ROUTES.map(key).sort()).toEqual([
-      'PATCH /admin/tenants/:tenant/clients/:id',
-      'PATCH /admin/tenants/:tenant/scopes/:id',
-    ]);
+    expect(AGENT_WRITE_ROUTES.map(key).sort()).toEqual(STRUCTURE_ROUTES);
   });
 });
 
@@ -106,7 +114,30 @@ describe('agentWritableFields', () => {
     expect(agentWritableFields(route('PATCH', '/admin/tenants/:tenant/scopes/:id'))).toEqual([
       'description',
       'description_i18n',
+      'display_order',
     ]);
+  });
+
+  it('names the structure fields of a role, a group and a scope, and never a field that grants', () => {
+    const fields = (method: string, pattern: string) =>
+      agentWritableFields(route(method, `/admin/tenants/:tenant/${pattern}`));
+    expect(fields('POST', 'roles')).toEqual(['name', 'description', 'client_id']);
+    expect(fields('PATCH', 'roles/:id')).toEqual(['description']);
+    expect(fields('POST', 'groups')).toEqual(['name', 'description']);
+    expect(fields('PATCH', 'groups/:id')).toEqual(['description']);
+    expect(fields('POST', 'scopes')).toEqual([
+      'name',
+      'description',
+      'description_i18n',
+      'display_order',
+    ]);
+    for (const entry of AGENT_WRITE_ROUTES) {
+      for (const field of entry.fields) {
+        expect(field, key(entry)).not.toMatch(
+          /^(default_for_new_subjects|parent_id|include_in_|default_client_assignment|consent_text)/u,
+        );
+      }
+    }
   });
 
   it('is empty for every route outside the allowlist', () => {
@@ -265,15 +296,17 @@ describe('an allowlist of every method and body mode', () => {
     expect(scopeAdmits([MCP_WRITE_SCOPE], post, true, synthetic)).toBe(false);
   });
 
-  it('keeps the shipped allowlist to its two PATCH entries', () => {
-    expect(AGENT_WRITE_ROUTES.map(key).sort()).toEqual([
+  it('keeps the shipped allowlist to its seven entries, every body a set of named fields', () => {
+    expect(AGENT_WRITE_ROUTES.map(key).sort()).toEqual(STRUCTURE_ROUTES);
+    for (const entry of AGENT_WRITE_ROUTES) expect(entry.body).toBe('fields');
+    expect(
+      AGENT_WRITE_ROUTES.filter((entry) => entry.target !== 'none')
+        .map(key)
+        .sort(),
+    ).toEqual([
       'PATCH /admin/tenants/:tenant/clients/:id',
       'PATCH /admin/tenants/:tenant/scopes/:id',
     ]);
-    for (const entry of AGENT_WRITE_ROUTES) {
-      expect(entry.body).toBe('fields');
-      expect(entry.target).not.toBe('none');
-    }
   });
 
   const create = route('POST', '/admin/tenants/:tenant/roles');
@@ -336,5 +369,115 @@ describe('an allowlist of every method and body mode', () => {
     expect(agentWritesClient(route('PATCH', '/admin/tenants/:tenant/clients/:id'), synthetic)).toBe(
       true,
     );
+  });
+});
+
+describe('the W2 fields of each structure route', () => {
+  const W2: Record<string, Record<string, unknown>[]> = {
+    'POST /admin/tenants/:tenant/roles': [
+      { name: 'r', default_for_new_subjects: true },
+      { name: 'r', composites: ['x'] },
+      { name: 'r', admin_reach: ['manage-tenant'] },
+      { name: 'r', description: 'd', id: 'x' },
+      { name: 'r', client_key: 'portal' },
+      { name: 'r', parent_id: 'x' },
+    ],
+    'PATCH /admin/tenants/:tenant/roles/:id': [
+      { name: 'renamed' },
+      { default_for_new_subjects: true },
+      { description: 'd', client_id: 'x' },
+      { description: 'd', default: true },
+      { composites: ['x'] },
+      { description: 'd', parent_id: 'x' },
+    ],
+    'POST /admin/tenants/:tenant/groups': [
+      { name: 'g', parent_id: 'x' },
+      { name: 'g', default_for_new_subjects: true },
+      { name: 'g', role_ids: ['x'] },
+      { name: 'g', path: '/g' },
+      { name: 'g', client_id: 'x' },
+      { name: 'g', admin_reach: ['manage-tenant'] },
+    ],
+    'PATCH /admin/tenants/:tenant/groups/:id': [
+      { parent_id: 'x' },
+      { parent_id: null },
+      { name: 'renamed' },
+      { default_for_new_subjects: true },
+      { description: 'd', path: '/x' },
+      { role_ids: ['x'] },
+    ],
+    'POST /admin/tenants/:tenant/scopes': [
+      { name: 's', consent_text: 'agree to all' },
+      { name: 's', consent_text_i18n: { en: 'x' } },
+      { name: 's', include_in_id_token: true },
+      { name: 's', include_in_access_token: true },
+      { name: 's', default_client_assignment: 'default' },
+      { name: 's', role_ids: ['x'] },
+    ],
+    'PATCH /admin/tenants/:tenant/scopes/:id': [
+      { consent_text: 'agree' },
+      { consent_text_i18n: { en: 'x' } },
+      { include_in_id_token: false },
+      { include_in_access_token: false },
+      { default_client_assignment: 'default' },
+      { name: 'renamed' },
+    ],
+  };
+
+  it('names every structure route', () => {
+    expect(Object.keys(W2).sort()).toEqual(STRUCTURE_ROUTES.filter((k) => !k.includes('clients')));
+  });
+
+  it.each(Object.entries(W2).flatMap(([k, bodies]) => bodies.map((body) => [k, body] as const)))(
+    '%s refuses %j',
+    (k, body) => {
+      const [method = '', pattern = ''] = k.split(' ');
+      expect(agentBodyAdmitted(route(method, pattern), body)).toBe(false);
+    },
+  );
+
+  it('refuses a W2 field beside a W1 one, and a body with a prototype member', () => {
+    const create = route('POST', '/admin/tenants/:tenant/roles');
+    const hostile: unknown = JSON.parse(
+      '{"name":"r","__proto__":{"default_for_new_subjects":true}}',
+    );
+    expect(agentBodyAdmitted(create, hostile)).toBe(false);
+    expect(agentBodyAdmitted(create, { name: 'r', description: 'd', client_id: 'c' })).toBe(true);
+    expect(
+      agentBodyAdmitted(route('PATCH', '/admin/tenants/:tenant/scopes/:id'), {
+        description: 'd',
+        display_order: 3,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('agentWriteNeedsEndpoint', () => {
+  it('is true for every POST of the allowlist and false for every amendment', () => {
+    for (const entry of AGENT_WRITE_ROUTES) {
+      expect(agentWriteNeedsEndpoint(route(entry.method, entry.pattern)), key(entry)).toBe(
+        entry.method === 'POST',
+      );
+    }
+  });
+
+  it('is false for a route outside the list, which the scope check refuses anyway', () => {
+    expect(agentWriteNeedsEndpoint(route('GET', '/admin/tenants/:tenant/roles'))).toBe(false);
+    expect(agentWriteNeedsEndpoint(route('POST', '/admin/tenants/:tenant/subjects'))).toBe(false);
+  });
+
+  it('follows a synthetic list, so a POST added there is held the same way', () => {
+    const synthetic: readonly AgentWriteRoute[] = [
+      {
+        method: 'POST',
+        pattern: '/admin/tenants/:tenant/subjects',
+        target: 'none',
+        body: 'fields',
+        fields: ['username'],
+      },
+    ];
+    expect(
+      agentWriteNeedsEndpoint(route('POST', '/admin/tenants/:tenant/subjects'), synthetic),
+    ).toBe(true);
   });
 });

@@ -277,8 +277,13 @@ The door and the owner's capability stay the control; nothing below is a tool-si
    before any row existed. Over budget: `429` `mcp:write_budget`, and a `refused` row with the reason
    `write_budget`. The count applies only to calls made through the MCP endpoint: a principal that reaches the admin
    API directly (`odudu mcp` over stdio, which keeps a budget in memory per process) is held by the field gate alone.
-   An allowlist entry that creates something must therefore be counted at the door, or restricted to principals that
-   came through the endpoint (`viaEndpoint`), before it is added to `AGENT_WRITE_ROUTES`.
+   An allowlist entry that creates something is therefore restricted to principals that came through the endpoint
+   (`viaEndpoint`): the door admits every `POST` entry to a token the endpoint signed and to no other agent token
+   (`agentWriteNeedsEndpoint`), by the method, so a later `POST` entry is held without a flag. A token issued to an agent
+   that calls the admin API itself, which is what `odudu mcp` over stdio does for a person's sign-in and for a service
+   account's key, may amend a description and may not create: the command does not list the create tools and the door
+   refuses a create sent by hand. Counting at the door instead would have set a second counter beside the endpoint's and
+   the command's in-memory one.
 6. **Audit.** Each write already records `agent.tool_call` and the mutation's own event with before and after
    (`redactedDiff`). The mutation actions exist (verified: `git grep -n "message_override.set\|theme.draft_saved\|role.create"
 -- packages/domain-audit/src/service/admin-mutation-actions.ts`); the scope amendment once wrote no `detail`, so
@@ -331,6 +336,13 @@ The allowance, and nothing wider:
 5. Volume: 10,000 tenants, listed by cursor under `MAX_LIMIT`; the route is served by its existing name index
    (assumption: the `query-plans` job, `.github/workflows/verify.yml` line 346, already has an entry for the tenant
    list; Increment 12 greps the plan inventory for it and adds one if absent).
+
+Volume of the structure creates (Increment 16): a tenant defines at most `ROLE_LIMIT` = 1,000 roles (a client's own
+among them) and `GROUP_LIMIT` = 10,000 groups, as it defines at most `SCOPE_LIMIT` = 1,000 scopes. `createRole` and
+`createGroup` take the tenant row's lock, count no further than the limit and refuse the create `409`
+(`a tenant defines at most N roles`), for every caller; a tenant that holds more keeps what it has. The constants are
+in `@odudu/contracts` and are meant to be retuned in that one place. The count is a bounded `select count(*)` over a
+`limit` subquery, held by the query-plans job as the scope count is.
 
 ## 7. Console parity after this phase
 

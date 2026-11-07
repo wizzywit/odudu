@@ -1,6 +1,6 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError, refuseBidiControls } from '@odudu/kernel';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   clientScopeRoles,
@@ -116,6 +116,29 @@ export function roleRepository(tx: TenantScopedDatabase) {
         const tenantId = await tenantOfRole(tx, roleId);
         await tx.insert(clientScopeRoles).values({ tenantId, clientScopeId, roleId });
       }
+    },
+
+    // Takes the tenant row's lock for the rest of the transaction, so a count
+    // against the limit and the insert after it are one decision. True when the
+    // tenant row was there to lock.
+    async lockCreation(tenantId: string): Promise<boolean> {
+      const rows = await tx
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .for('no key update');
+      return rows.length > 0;
+    },
+
+    // How many roles the tenant defines, counted no further than `limit`.
+    async countUpTo(limit: number): Promise<number> {
+      const held = tx
+        .select({ one: sql<number>`1`.as('one') })
+        .from(roles)
+        .limit(limit)
+        .as('held');
+      const rows = await tx.select({ count: count() }).from(held);
+      return rows[0]?.count ?? 0;
     },
 
     async create(input: NewRole): Promise<RoleRecord> {

@@ -29,6 +29,9 @@ export interface AdminAgent {
   // `mcp`, beside `act`): the endpoint records the call itself. `act` alone is
   // not it, since a token exchange makes act tokens too.
   readonly viaEndpoint?: true;
+  // Set when the owner is the client's own service account: no person signed in to
+  // that grant, so nothing counts what it creates against anybody's sign-in.
+  readonly ownerIsServiceAccount?: true;
 }
 
 // A genuine token from another tenant of this deployment, presented at a
@@ -59,6 +62,8 @@ export interface ClientState {
   readonly enabled: boolean;
   readonly builtinMcp: boolean;
   readonly builtinAdmin: boolean;
+  // The client's service account, when it has one.
+  readonly serviceSubjectId?: string | null;
 }
 
 export interface AuthenticateAdminDeps {
@@ -409,6 +414,9 @@ export async function authenticateAdmin(
         clientId,
         ownerSubjectId: payload.sub,
         ...(claims.endpointMinted ? { viaEndpoint: true as const } : {}),
+        ...(client.serviceSubjectId === payload.sub
+          ? { ownerIsServiceAccount: true as const }
+          : {}),
       },
     },
   };

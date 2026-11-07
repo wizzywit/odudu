@@ -41,12 +41,14 @@ export function toolServer(
   tools: readonly RegisteredTool[],
   run: (tool: RegisteredTool, args: unknown) => Promise<ToolResult>,
   cacheHints?: CacheHints,
+  note?: string,
 ): McpServer {
   const announcement = announceTenant(tenant);
   const server = new McpServer(
     { name: announcement.name, title: announcement.title, version: SERVER_VERSION },
     {
-      instructions: announcement.instructions,
+      instructions:
+        note === undefined ? announcement.instructions : `${announcement.instructions} ${note}`,
       capabilities: { tools: { listChanged: false } },
       ...(cacheHints === undefined ? {} : { cacheHints }),
     },

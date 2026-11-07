@@ -4,6 +4,7 @@ import {
   amendRoleRequestSchema,
   createRoleRequestSchema,
   listRolesQuerySchema,
+  roleLimitMessage,
   setRoleDefaultRequestSchema,
 } from '@odudu/contracts/admin';
 import { isUniqueViolation, type Database } from '@odudu/db';
@@ -202,6 +203,13 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
           'Forbidden',
           `a role of ${outcome.adminClient}, this tenant's built-in admin client, is an admin capability and cannot be handed to every new subject`,
         ),
+      );
+    }
+    if (outcome.kind === 'role_limit') {
+      return sendProblem(
+        reply,
+        request,
+        problem(409, 'about:blank', 'Conflict', roleLimitMessage()),
       );
     }
     if (outcome.kind === 'too_many_defaults') return sendProblem(reply, request, tooManyDefaults());

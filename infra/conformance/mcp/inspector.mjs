@@ -125,7 +125,8 @@ function record(era, what) {
 const EXPECT_READ_TOOLS = Number(process.env.EXPECT_READ_TOOLS);
 if (names.length !== EXPECT_READ_TOOLS)
   fail(`tools/list gave ${names.length} tools, not ${EXPECT_READ_TOOLS}`);
-if (names.includes('update_client_metadata')) fail('a read token was offered a write tool');
+if (names.some((name) => /^(create|update)_/u.test(name)))
+  fail('a read token was offered a write tool');
 record('modern', `signed in (scope ${sent.get('scope')}), tools/list ${names.length} tools`);
 
 for (const era of ['modern', 'legacy', 'auto']) {

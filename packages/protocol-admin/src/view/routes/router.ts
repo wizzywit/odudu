@@ -8,6 +8,7 @@ import {
   agentBodyAdmitted,
   doorToolName,
   agentBodyNamesGuardedField,
+  agentWriteNeedsEndpoint,
   agentWritesClient,
   scopeAdmits,
 } from '#/service/agent-scope';
@@ -198,7 +199,9 @@ async function authorizeRoute(
   const { principal } = outcome;
   if (
     principal.agent !== undefined &&
-    !scopeAdmits(principal.scopes, route, isSystemTenantId(principal.issuerTenantId))
+    (!scopeAdmits(principal.scopes, route, isSystemTenantId(principal.issuerTenantId)) ||
+      (agentWriteNeedsEndpoint(route) &&
+        (principal.agent.viaEndpoint !== true || principal.agent.ownerIsServiceAccount === true)))
   ) {
     await refuseScope(deps, request, reply, targetTenant.id, principal);
     return null;

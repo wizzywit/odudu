@@ -35,3 +35,11 @@ export function visibleTools(
 ): RegisteredTool[] {
   return tools.filter((tool) => toolVisible(tool, scope, capabilities, inSystemTenant));
 }
+
+// What a caller that reaches the admin API with its own token may be offered.
+// A create is bounded by the write budget the MCP endpoint spends on the grant
+// behind each call, and the admin door admits a create to a token the endpoint
+// signed alone, so a tool that creates is not listed, or served, here.
+export function directCallerTools(tools: readonly RegisteredTool[]): RegisteredTool[] {
+  return tools.filter((tool) => tool.spends !== 'create');
+}

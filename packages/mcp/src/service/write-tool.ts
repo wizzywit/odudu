@@ -293,11 +293,17 @@ export interface MetadataToolConfig<F extends z.ZodRawShape> {
   // The admitted body fields, as the admin API's agent allowlist names them.
   readonly fields: F;
   readonly response: z.ZodType;
+  // What a refusal by the door says, where the tool can say more than the default.
+  readonly refusal?: string;
 }
 
 const CLEARS =
   'Sending null for a description, or an empty map for a language text, clears what was there; ' +
   'the audit row keeps the earlier text, so it can be put back.';
+
+const CLEARS_TEXT =
+  'Sending null for the description clears it; the audit row keeps the earlier text, ' +
+  'so it can be put back.';
 
 const METADATA_REFUSED =
   'insufficient_scope: a token holding mcp:write may change only the descriptive fields of a client ' +
@@ -306,10 +312,11 @@ const METADATA_REFUSED =
 // A PATCH of descriptive fields under the optimistic lock: the id, the etag of
 // the read it is based on, and at least one of the fields.
 export function metadataTool<F extends z.ZodRawShape>(cfg: MetadataToolConfig<F>): RegisteredTool {
+  const localised = Object.keys(cfg.fields).some((field) => field.endsWith('_i18n'));
   return contentWriteTool({
     ...cfg,
-    description: `${cfg.description} ${CLEARS}`,
+    description: `${cfg.description} ${localised ? CLEARS : CLEARS_TEXT}`,
     mode: 'amend',
-    refusal: METADATA_REFUSED,
+    refusal: cfg.refusal ?? METADATA_REFUSED,
   });
 }

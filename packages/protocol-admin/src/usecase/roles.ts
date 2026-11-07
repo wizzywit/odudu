@@ -1,10 +1,15 @@
-import { ASSIGNMENT_LIMIT, type ListRolesQuery, type RoleFields } from '@odudu/contracts/admin';
+import {
+  ASSIGNMENT_LIMIT,
+  ROLE_LIMIT,
+  type ListRolesQuery,
+  type RoleFields,
+} from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
 import { isUuid, OduduError } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm';
-import { redactedDiff } from '#/service/audit-detail';
+import { createdDetail, redactedDiff } from '#/service/audit-detail';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { checkDescription } from '#/service/description';
 import { defaultReachRoleIds, lockDefaultReach } from '#/usecase/default-reach';
@@ -237,6 +242,7 @@ export type CreateRoleOutcome =
   | { kind: 'unknown_client' }
   | { kind: 'default_on_admin_client'; adminClient: string }
   | { kind: 'too_many_defaults' }
+  | { kind: 'role_limit' }
   | { kind: 'ok'; role: RoleFields };
 
 // Every new subject is handed all the default roles, so the set holds no more
@@ -250,6 +256,11 @@ export async function createRole(
   deps: CreateRoleDeps,
   input: CreateRoleInput,
 ): Promise<CreateRoleOutcome> {
+  // The count and the insert are one decision, as the scope limit's are: a
+  // tenant that already holds more keeps what it has and only a create is refused.
+  await roleRepository(tx).lockCreation(input.tenantId);
+  if ((await roleRepository(tx).countUpTo(ROLE_LIMIT)) >= ROLE_LIMIT) return { kind: 'role_limit' };
+
   // `roles_client_fk` would refuse this too, but as a foreign-key
   // violation rather than the unique violation the route knows how to turn
   // into a 409 — and a `client_id` that is not a uuid at all fails in the
@@ -293,6 +304,7 @@ export async function createRole(
     defaultForNewSubjects: input.defaultForNewSubjects,
   });
 
+  const role = await roleWire(tx, created);
   await deps.audit(tx, {
     action: 'role.create',
     resourceType: 'role',
@@ -301,9 +313,10 @@ export async function createRole(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: createdDetail('role', role),
   });
 
-  return { kind: 'ok', role: await roleWire(tx, created) };
+  return { kind: 'ok', role };
 }
 
 export interface AmendRoleInput {
@@ -363,8 +376,8 @@ export async function amendRole(
   const locked = await lockRoleForAmend(tx, input.roleId);
   if (locked === null) return { kind: 'not_found' };
 
-  const currentEtag = etagOf(await roleWire(tx, locked));
-  if (matches(input.ifMatch, currentEtag) === 'mismatch') {
+  const current = await roleWire(tx, locked);
+  if (matches(input.ifMatch, etagOf(current)) === 'mismatch') {
     return { kind: 'precondition_failed' };
   }
 
@@ -385,6 +398,10 @@ export async function amendRole(
     await roleRepository(tx).amend(input.roleId, { description: patch.description.value });
   }
 
+  const after = await readRole(tx, input.roleId);
+  if (after.kind !== 'ok') {
+    throw new Error(`role ${input.roleId} not found immediately after its own amendment`);
+  }
   await deps.audit(tx, {
     action: 'role.amend',
     resourceType: 'role',
@@ -393,12 +410,8 @@ export async function amendRole(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff('role', current, after.role),
   });
-
-  const after = await readRole(tx, input.roleId);
-  if (after.kind !== 'ok') {
-    throw new Error(`role ${input.roleId} not found immediately after its own amendment`);
-  }
   return { kind: 'ok', role: after.role, etag: etagOf(after.role) };
 }
 

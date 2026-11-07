@@ -25,6 +25,7 @@ import {
   stdioTarget,
   toolServer,
   TOOLS,
+  directCallerTools,
   visibleTools,
   type CredentialStore,
   type Credential,
@@ -278,12 +279,19 @@ async function keygen(io: McpIo): Promise<void> {
 // How long a call still running at end of input is waited for.
 const DRAIN_MS = 25_000;
 
+// Said in the connection's instructions, so a model told elsewhere that these
+// tools exist knows why they are absent here.
+const CREATES_NOTE =
+  'The tools that create a role, a group or a scope (create_role, create_group, create_scope) ' +
+  "are offered by the tenant's MCP endpoint, not by this command.";
+
 async function serve(
   tenant: string,
   tools: readonly RegisteredTool[],
   caller: Parameters<typeof callMcpTool>[2],
   budget: WriteBudget,
   io: McpIo,
+  note?: string,
 ): Promise<void> {
   const inFlight = new Set<Promise<ToolResult>>();
   const run = (tool: RegisteredTool, args: unknown): Promise<ToolResult> => {
@@ -314,7 +322,7 @@ async function serve(
   const connection = serveMcpStdio({
     stdin: io.stdin,
     stdout: io.stdout,
-    server: () => toolServer(tenant, tools, run),
+    server: () => toolServer(tenant, tools, run, undefined, note),
     onerror: (error) => {
       io.stderr(failureLine('protocol error', 'transport', error));
     },
@@ -384,7 +392,14 @@ async function start(values: Values, io: McpIo): Promise<void> {
   });
   const caller = createHttpCaller(baseUrl, tokens, { tenant, fetch: io.fetch });
   const inSystemTenant = await signsInAtSystemTenant(target, discover);
-  await serve(tenant, visibleTools(TOOLS, [scope], null, inSystemTenant), caller, budget, io);
+  await serve(
+    tenant,
+    visibleTools(directCallerTools(TOOLS), [scope], null, inSystemTenant),
+    caller,
+    budget,
+    io,
+    scope === 'mcp:write' ? CREATES_NOTE : undefined,
+  );
 }
 
 // Whether the sign-in is at the system tenant's own address, which its metadata
