@@ -11,13 +11,13 @@ A paid, hosted service beside the open-source server is planned and has no date
 ([ADR 0042](https://github.com/wizzywit/odudu/blob/main/docs/adr/0042-distribution-licensing-and-the-paid-boundary.md));
 nothing on this page depends on it.
 
-| Today                                                                                                                                                   | Next, in this order                                                 | Later                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Sign-in and tokens, many tenants, passwords, passkeys and recovery codes, theming and branding, an admin API and console, an audit trail, an MCP server | The stable release, self-service, a localized console, agent access | Brokering, LDAP and SCIM, SAML, authorization services, extensibility, many instances, FAPI |
+| Today                                                                                                                                                   | Next, in this order                             | Later                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Sign-in and tokens, many tenants, passwords, passkeys and recovery codes, theming and branding, an admin API and console, an audit trail, an MCP server | Self-service, a localized console, agent access | Brokering, LDAP and SCIM, SAML, authorization services, extensibility, many instances, FAPI |
 
 ## Shipped
 
-Everything here works in the latest release candidate, which the quick start installs. Where a change is on `main` and not in a candidate yet, the changelog says so.
+Everything here works in the latest stable release, which the quick start installs. Where a change is on `main` and not in a release yet, the changelog says so.
 
 ### Sign-in and tokens
 
@@ -70,13 +70,12 @@ Everything here works in the latest release candidate, which the quick start ins
 ### Running it
 
 - Postgres with migrations applied at boot, health endpoints, one instance with TLS ended in front, with the issuer and every cookie taken from your configuration.
-- The container image and the Docker Compose quick start are published with each release candidate. The image is signed, lists its contents, and pulls without signing in.
+- The container image and the Docker Compose quick start are published with each release, and 0.1.0 is the first stable one. The image is signed, lists its contents, and pulls without signing in.
 
 ## Next
 
 These are the phases being built, in the order the design spec gives. Each one says what it brings you.
 
-- **P4g, the stable release.** Release candidates are out: a signed container image with its contents listed and its base images pinned, the one-file Docker Compose quick start that pulls it, a written release process, this documentation site, a landing page and worked examples. The stable `0.1.0` follows once the candidates have had a real run.
 - **P4f, self-service.** A "me" API through which an application lets a person read and change their own profile, credentials, sessions and consents, and application-initiated actions such as changing a password or enrolling an authenticator. It also brings fresh recovery codes before the old set runs out, a notice mail when someone enrols a factor, and the offer to end other sessions after a password change. It also reconciles accounts whose addresses differ only by case, so none can share an address, and makes confirming a registration take more than one click. A person can ask for a new verification email, see each session against its device, and a tenant sets its own authenticator rules. A link an administrator mailed gets somewhere to return to.
 - **P4h, a localized console.** Every string in the admin console read from a catalogue, a language switch, and right-to-left layouts. Lists sort by the person's language, and error messages are translated. It also sends the failure screen's Error ID to the server, so an operator can find it in the logs. A client's base name and a scope's base text get a language of their own, so a page can mark them.
 - **P4i, SDKs for signing in and for the admin API.** Official libraries, so an app does not hand-roll the protocol: a framework-neutral JavaScript core, a React package with a provider and hooks, a Next.js package for server-side sessions, and Node middleware that verifies Odudu's access tokens. A single-page app can run through a backend-for-frontend, the pattern RFC 10017 recommends for browser apps. A typed admin API client is generated from the published OpenAPI document, in TypeScript and Python. Each ships with a guide and a runnable example in CI, and is versioned apart from the server. They wrap what exists: discovery, authorization code with PKCE, refresh, `prompt=create`, logout and the "me" API. The `odudu mcp` command, which runs only from the container image or a checkout today, is published as a package of its own, so a desktop AI tool installs it directly.

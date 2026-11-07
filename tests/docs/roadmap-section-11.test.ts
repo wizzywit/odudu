@@ -85,18 +85,6 @@ function roadmapFor(phase: string): string {
 // A sentence of a roadmap bullet, the phrases of its phase's criterion that
 // carry it, or none where the sentence states a status and places nothing.
 const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion: string[]])[] = [
-  [
-    'P4g',
-    'Release candidates are out',
-    'signed, with an sbom',
-    'pinned by digest',
-    'one-file `compose.yaml`',
-    'release process and changelog written down',
-    'a documentation site built with docusaurus',
-    'a landing page;',
-    'example applications',
-  ],
-  ['P4g', 'The stable `0.1.0` follows'],
   ['P4f', 'A "me" API', '"me" api', 'application-initiated actions'],
   [
     'P4f',

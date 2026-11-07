@@ -3,15 +3,14 @@
 ## Start here
 
 **P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d, P4e, P4j, P4k and P5a are complete, and the
-tenant rename is done. P4g has closed as release candidates, and only its
-stable tag is left.** Phases are section 11 of
+tenant rename is done. P4g has closed, and `0.1.0` is released.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
 "P4 became four phases, then five" subsection has the reasoning.
 
-**P4g, the public release, shipped as `0.1.0-rc.1` to `rc.3`.** The stable
-`0.1.0` is an owner step in `RELEASING.md` (the quick start run by hand on a
-Mac, on Windows and on arm64, and the CLA tested from a second account), not
-more phase work. What it built, and what the whole-phase review found, is in
+**P4g, the public release, shipped as `0.1.0-rc.1` to `rc.3`, then `0.1.0`.**
+The owner accepted `0.1.0` without three checks in `RELEASING.md` (the quick
+start run by hand on a Mac, on Windows and on arm64, the CLA tested from a
+second account, and a reader of Arabic); they stay outstanding, not phase work. What it built, and what the whole-phase review found, is in
 [`docs/phases/p4g.md`](phases/p4g.md); the licences are in `LICENSING.md`.
 What it placed on later phases is on
 [the roadmap page](../apps/docs/content/en/roadmap.md).
@@ -32,7 +31,7 @@ note's "Hand run (owner)" has the record).
 wears a tenant's theme and a client's over it; the tenant chooses its languages
 and wording, Arabic ships as the right-to-left language, and sign-out asks
 first. What it found is in [`docs/phases/p4b.md`](phases/p4b.md). Its one owner
-step is a reader of Arabic, in `RELEASING.md` before the stable tag.
+step is a reader of Arabic, in `RELEASING.md`, still outstanding.
 
 **P4k, the frontend architecture, is built.** Both frontends use the segments
 `ui`, `use-cases`, `repository`, `services`, `adapter` and `types`, the console

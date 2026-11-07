@@ -141,6 +141,9 @@ These are settings only the owner can change. They are done:
 
 ## Before the stable release
 
+`0.1.0` was released without these three checks, at the owner's decision. They
+stay outstanding: do them next, and record the result.
+
 1. **Run the quick start by hand** once on a Mac and once on Windows, with
    Docker Desktop, and once on an arm64 machine. CI proves the full run on
    linux/amd64 only: its macOS and Windows runners cannot run Linux containers.
@@ -154,8 +157,8 @@ These are settings only the owner can change. They are done:
    text was drafted without one. Every `messages.ar.ts` (account, authn-flows,
    console-gateway, protocol-oidc and the email one) is read in a rendered
    page and mail of each kind, and the owner records who read it and when in
-   `docs/phases/p4b.md`. This gates a stable release only; a release
-   candidate may go ahead without it.
+   `docs/phases/p4b.md`. It gates a stable release; `0.1.0` went ahead
+   without it, so do it before `0.1.1` or `0.2.0`.
 
 ## Moving the site to a domain
 

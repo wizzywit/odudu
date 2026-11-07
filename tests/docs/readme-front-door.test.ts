@@ -277,7 +277,7 @@ describe('the quick start in the README is the quick start page', () => {
   it('gives the PowerShell form of the first command, as the page does', () => {
     const [, windows = ''] = codeBlocks(section('Quick start'));
     expect(windows.trim()).toBe(
-      `curl.exe -fsSLO ${REPOSITORY_URL}/${RELEASE_ASSET}\ndocker compose up -d`,
+      `curl.exe -fsSLO ${REPOSITORY_URL}/${RELEASE_ASSET}; if ($?) { docker compose up -d }`,
     );
     for (const line of windows.trim().split('\n')) expect(onPage.has(line), line).toBe(true);
   });

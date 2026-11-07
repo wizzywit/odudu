@@ -7,8 +7,8 @@ const RELEASE = 'P4g';
 // Closed after the release row in the table, which is in execution order.
 const SHIPPED_AFTER_RELEASE = ['P4b', 'P4k', 'P4j', 'P5a'];
 
-// What the roadmap table orders: every phase before the release is closed, the
-// release is this one, and the rest are ahead.
+// What the roadmap table orders: the release and every phase before it are
+// closed, and the rest are ahead, except those shipped after it.
 function phases(): { closed: string[]; ahead: string[] } {
   const table = tableWithHeadings(loadSource(SPEC), ['#', 'Phase', 'Effort', 'Exit criterion']);
   const all = table.rows.map((row) => row[0] ?? '').filter((cell) => /^P\d+[a-z]?$/u.test(cell));
@@ -17,7 +17,7 @@ function phases(): { closed: string[]; ahead: string[] } {
   const after = all.slice(at + 1);
   return {
     closed: [
-      ...all.slice(0, at),
+      ...all.slice(0, at + 1),
       ...after.filter((phase) => SHIPPED_AFTER_RELEASE.includes(phase)),
     ],
     ahead: after.filter((phase) => !SHIPPED_AFTER_RELEASE.includes(phase)),
@@ -57,8 +57,8 @@ describe('the roadmap page', () => {
     const named = items('## Next').flatMap(
       (item) => /^- \*\*(P\d+[a-z]?)\b/u.exec(item)?.[1] ?? [],
     );
-    // From this release to the last phase before the breadth phases begin.
-    expect(named).toEqual([RELEASE, ...ahead.slice(0, ahead.indexOf('P5b') + 1)]);
+    // From the first phase ahead to the last before the breadth phases begin.
+    expect(named).toEqual(ahead.slice(0, ahead.indexOf('P5b') + 1));
   });
 
   it('says in Shipped that the image and quick start are published', () => {
@@ -153,7 +153,6 @@ describe('the roadmap page', () => {
     ['TLS is ended in front', 'ADR 0020'],
     ['One instance only', 'P11'],
     ['deadline', 'P11'],
-    ['signed container image', 'P4g'],
     ['Secrets read from somewhere', 'P12'],
     ['backup and restore', 'P12'],
     ['Expired state', 'ADR 0024'],

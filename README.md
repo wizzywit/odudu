@@ -80,8 +80,7 @@ docker compose logs setup
 In Windows PowerShell, `curl` is another command, so start it like this:
 
 ```powershell
-curl.exe -fsSLO https://github.com/wizzywit/odudu/releases/latest/download/compose.yaml
-docker compose up -d
+curl.exe -fsSLO https://github.com/wizzywit/odudu/releases/latest/download/compose.yaml; if ($?) { docker compose up -d }
 ```
 
 The second command prints the console address, the administrator's email and a
