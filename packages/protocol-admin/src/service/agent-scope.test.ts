@@ -1,4 +1,4 @@
-import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
+import { MCP_READ_SCOPE, MCP_WRITE_SCOPE, TENANT_SETTING_NAMES } from '@odudu/domain-tenant';
 import { describe, expect, it } from 'vitest';
 import {
   AGENT_DENIED_READS,
@@ -30,6 +30,12 @@ const STRUCTURE_ROUTES = [
   'POST /admin/tenants/:tenant/roles',
   'POST /admin/tenants/:tenant/scopes',
 ];
+
+const SETTINGS = 'PATCH /admin/tenants/:tenant/settings';
+const OVERRIDE = '/admin/tenants/:tenant/message-overrides/:locale/:key';
+const WORDING_ROUTES = [SETTINGS, `PUT ${OVERRIDE}`, `DELETE ${OVERRIDE}`];
+const ALLOWED_ROUTES = [...STRUCTURE_ROUTES, ...WORDING_ROUTES].sort();
+const WORDING_FIELDS = ['display_name', 'supported_locales', 'default_locale'];
 
 function route(method: string, pattern: string): AdminRoute {
   const found = ADMIN_ROUTES.find((r) => r.method === method && r.pattern === pattern);
@@ -94,12 +100,12 @@ describe('scopeAdmits over every admin route', () => {
     expect(scopeAdmits([MCP_READ_SCOPE], one, false)).toBe(true);
   });
 
-  it('lists only routes that exist, and only PATCHes and POSTs', () => {
+  it('lists only routes that exist, with the four methods a write may use', () => {
     for (const entry of AGENT_WRITE_ROUTES) {
-      expect(['PATCH', 'POST']).toContain(entry.method);
+      expect(['PATCH', 'POST', 'PUT', 'DELETE']).toContain(entry.method);
       expect(route(entry.method, entry.pattern)).toBeDefined();
     }
-    expect(AGENT_WRITE_ROUTES.map(key).sort()).toEqual(STRUCTURE_ROUTES);
+    expect(AGENT_WRITE_ROUTES.map(key).sort()).toEqual(ALLOWED_ROUTES);
   });
 });
 
@@ -296,8 +302,8 @@ describe('an allowlist of every method and body mode', () => {
     expect(scopeAdmits([MCP_WRITE_SCOPE], post, true, synthetic)).toBe(false);
   });
 
-  it('keeps the shipped allowlist to its seven entries, every body a set of named fields', () => {
-    expect(AGENT_WRITE_ROUTES.map(key).sort()).toEqual(STRUCTURE_ROUTES);
+  it('keeps the shipped allowlist to its ten entries, every body a set of named fields', () => {
+    expect(AGENT_WRITE_ROUTES.map(key).sort()).toEqual(ALLOWED_ROUTES);
     for (const entry of AGENT_WRITE_ROUTES) expect(entry.body).toBe('fields');
     expect(
       AGENT_WRITE_ROUTES.filter((entry) => entry.target !== 'none')
@@ -453,12 +459,18 @@ describe('the W2 fields of each structure route', () => {
 });
 
 describe('agentWriteNeedsEndpoint', () => {
-  it('is true for every POST of the allowlist and false for every amendment', () => {
+  it('is false for an amendment alone: a PATCH changes fields of what exists, and POST, PUT and DELETE add or remove a row', () => {
     for (const entry of AGENT_WRITE_ROUTES) {
       expect(agentWriteNeedsEndpoint(route(entry.method, entry.pattern)), key(entry)).toBe(
-        entry.method === 'POST',
+        entry.method !== 'PATCH',
       );
     }
+  });
+
+  it('holds the override PUT and DELETE to the endpoint, and leaves the settings PATCH to a direct holder', () => {
+    expect(agentWriteNeedsEndpoint(route('PUT', OVERRIDE))).toBe(true);
+    expect(agentWriteNeedsEndpoint(route('DELETE', OVERRIDE))).toBe(true);
+    expect(agentWriteNeedsEndpoint(route('PATCH', '/admin/tenants/:tenant/settings'))).toBe(false);
   });
 
   it('is false for a route outside the list, which the scope check refuses anyway', () => {
@@ -466,18 +478,85 @@ describe('agentWriteNeedsEndpoint', () => {
     expect(agentWriteNeedsEndpoint(route('POST', '/admin/tenants/:tenant/subjects'))).toBe(false);
   });
 
-  it('follows a synthetic list, so a POST added there is held the same way', () => {
-    const synthetic: readonly AgentWriteRoute[] = [
-      {
-        method: 'POST',
-        pattern: '/admin/tenants/:tenant/subjects',
-        target: 'none',
-        body: 'fields',
-        fields: ['username'],
-      },
+  it('follows a synthetic list, so a POST, PUT or DELETE added there is held the same way', () => {
+    const entry = (method: AgentWriteRoute['method'], pattern: string): AgentWriteRoute => ({
+      method,
+      pattern,
+      target: 'none',
+      body: 'fields',
+      fields: [],
+    });
+    const synthetic = [
+      entry('POST', '/admin/tenants/:tenant/subjects'),
+      entry('PUT', OVERRIDE),
+      entry('DELETE', OVERRIDE),
+      entry('PATCH', '/admin/tenants/:tenant/roles/:id'),
     ];
+    const held = (method: string, pattern: string) =>
+      agentWriteNeedsEndpoint(route(method, pattern), synthetic);
+    expect(held('POST', '/admin/tenants/:tenant/subjects')).toBe(true);
+    expect(held('PUT', OVERRIDE)).toBe(true);
+    expect(held('DELETE', OVERRIDE)).toBe(true);
+    expect(held('PATCH', '/admin/tenants/:tenant/roles/:id')).toBe(false);
+  });
+});
+
+describe('the wording routes', () => {
+  const settings = route('PATCH', '/admin/tenants/:tenant/settings');
+  const put = route('PUT', OVERRIDE);
+  const remove = route('DELETE', OVERRIDE);
+
+  it('name the three W1 settings, the one message field and no body for a DELETE', () => {
+    expect(agentWritableFields(settings)).toEqual(WORDING_FIELDS);
+    expect(agentWritableFields(put)).toEqual(['message']);
+    expect(agentWritableFields(remove)).toEqual([]);
+  });
+
+  it('admit the W1 settings alone and in any combination', () => {
+    expect(agentBodyAdmitted(settings, { display_name: 'Acme' })).toBe(true);
+    expect(agentBodyAdmitted(settings, { display_name: null, default_locale: 'de' })).toBe(true);
     expect(
-      agentWriteNeedsEndpoint(route('POST', '/admin/tenants/:tenant/subjects'), synthetic),
+      agentBodyAdmitted(settings, {
+        display_name: 'Acme',
+        supported_locales: ['en', 'de'],
+        default_locale: 'en',
+      }),
     ).toBe(true);
+    expect(agentBodyAdmitted(put, { message: 'Hello' })).toBe(true);
+    expect(agentBodyAdmitted(remove, undefined)).toBe(true);
+  });
+
+  const others = TENANT_SETTING_NAMES.filter((name) => !WORDING_FIELDS.includes(name));
+
+  it('refuse each of the other settings, one by one, and every one beside a W1 name', () => {
+    expect(others).toHaveLength(TENANT_SETTING_NAMES.length - WORDING_FIELDS.length);
+    expect(others.length).toBeGreaterThan(30);
+    for (const name of others) {
+      expect(agentBodyAdmitted(settings, { [name]: 'x' }), name).toBe(false);
+      expect(agentBodyAdmitted(settings, { display_name: 'Acme', [name]: 'x' }), `+${name}`).toBe(
+        false,
+      );
+      expect(agentBodyAdmitted(settings, { [name]: false, default_locale: 'en' }), `${name}+`).toBe(
+        false,
+      );
+    }
+  });
+
+  it('refuse a name that is not a setting, a casing of one, and a body that is not a record', () => {
+    for (const body of [
+      { Display_Name: 'x' },
+      { 'display_name ': 'x' },
+      { displayName: 'x' },
+      { locale: 'de' },
+      JSON.parse('{"display_name":"x","__proto__":{"otp_required":false}}') as unknown,
+      [],
+      null,
+      'display_name',
+      undefined,
+    ]) {
+      expect(agentBodyAdmitted(settings, body), JSON.stringify(body)).toBe(false);
+    }
+    expect(agentBodyAdmitted(put, { message: 'x', locale: 'de' })).toBe(false);
+    expect(agentBodyAdmitted(remove, {})).toBe(false);
   });
 });

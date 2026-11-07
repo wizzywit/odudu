@@ -11,6 +11,7 @@ import { groupTools } from '#/service/tools/groups';
 import { groupWriteTools } from '#/service/tools/groups-write';
 import { keyTools } from '#/service/tools/keys';
 import { mailTools } from '#/service/tools/mail';
+import { messageOverrideWriteTools } from '#/service/tools/message-overrides-write';
 import { roleTools } from '#/service/tools/roles';
 import { roleWriteTools } from '#/service/tools/roles-write';
 import { scopeMetadataTool } from '#/service/tools/scope-metadata';
@@ -19,6 +20,7 @@ import { scopeTools } from '#/service/tools/scopes';
 import { createScopeTool } from '#/service/tools/scopes-write';
 import { sessionTools } from '#/service/tools/sessions';
 import { settingsTools } from '#/service/tools/settings';
+import { settingsWriteTools } from '#/service/tools/settings-write';
 import { subjectTools } from '#/service/tools/subjects';
 import { ownTenantTool } from '#/service/tools/tenant';
 import { instanceTenantTools } from '#/service/tools/tenants';
@@ -39,12 +41,14 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...groupWriteTools,
   ...keyTools,
   ...mailTools,
+  ...messageOverrideWriteTools,
   ...roleTools,
   ...roleWriteTools,
   ...scopeCheckTools,
   ...scopeTools,
   ...sessionTools,
   ...settingsTools,
+  ...settingsWriteTools,
   ...subjectTools,
   ...instanceTenantTools,
   ...whoamiTools,
@@ -98,13 +102,7 @@ const WITHHELD: readonly Entry[] = [
   ],
   [
     'Content write with no tool yet: it changes only wording, a description or a draft and grants nothing, so the admin door admits it field by field once a tool names those fields.',
-    [
-      R('PATCH', '/settings'),
-      R('PUT', '/theme'),
-      R('PUT', '/clients/:id/theme'),
-      R('PUT', '/message-overrides/:locale/:key'),
-      R('DELETE', '/message-overrides/:locale/:key'),
-    ],
+    [R('PUT', '/theme'), R('PUT', '/clients/:id/theme')],
     'content',
   ],
   [

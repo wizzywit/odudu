@@ -16,6 +16,11 @@ const ROUTE_KEYS = ADMIN_ROUTES.map(key);
 const TOOL_ROUTE_KEYS = TOOLS.map((tool) => tool.routeKey);
 const NAME = /^[A-Za-z0-9_.-]{1,128}$/u;
 
+// The write tools that remove something. A clear of wording is W1 because the audit
+// row keeps the text, and it is hinted as destructive so a client asks first; a new
+// removing tool is added here by a person, in the same diff as its allowlist entry.
+const REMOVES = ['clear_message_override'];
+
 describe('the MCP tool catalogue against the admin routes', () => {
   it('places every admin route as a tool or a NOT_TOOLS entry, never both', () => {
     const unplaced = ROUTE_KEYS.filter(
@@ -62,7 +67,7 @@ describe('the MCP tool catalogue against the admin routes', () => {
     const writable = AGENT_WRITE_ROUTES.map((route) => `${route.method} ${route.pattern}`);
     for (const tool of TOOLS.filter((candidate) => candidate.access === 'write')) {
       expect(writable, tool.name).toContain(tool.routeKey);
-      expect(tool.annotations.destructiveHint, tool.name).toBe(false);
+      expect(tool.annotations.destructiveHint, tool.name).toBe(REMOVES.includes(tool.name));
       const route = AGENT_WRITE_ROUTES.find(
         (entry) => `${entry.method} ${entry.pattern}` === tool.routeKey,
       );

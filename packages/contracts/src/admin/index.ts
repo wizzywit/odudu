@@ -24,6 +24,7 @@ export {
   createdAtSchema,
   etagSchema,
   CLIENT_NAME_MAX,
+  DISPLAY_NAME_MAX,
   localisedTextSchema,
   DESCRIPTION_MAX,
 } from '#/admin/shared';
@@ -444,6 +445,7 @@ export {
   registrationPolicySchema,
   type RegistrationPolicy,
   tenantSettingsDocumentSchema,
+  tenantSettingsExportSchema,
   type TenantSettingsDocument,
   exportedFlowStepSchema,
   exportedClientSchema,

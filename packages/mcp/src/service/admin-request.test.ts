@@ -6,6 +6,7 @@ import {
   REQUEST_BODY_CAP_BYTES,
   idempotencyKeyOf,
   jsonBodyOf,
+  createOnlyOf,
   payloadOf,
   preconditionOf,
 } from '#/service/admin-request';
@@ -138,5 +139,22 @@ describe('the idempotency key pattern', () => {
         adminKeyOf(sample).kind === 'valid',
       );
     }
+  });
+});
+
+describe('a PUT that may only create', () => {
+  const etag = `"${'a'.repeat(64)}"`;
+
+  it('is a PUT with no etag, and says so as the wildcard If-None-Match', () => {
+    expect(createOnlyOf(spec('PUT', { createOnly: true }))).toBe(true);
+    expect(createOnlyOf(spec('PUT'))).toBe(false);
+  });
+
+  it.each<AdminMethod>(['GET', 'PATCH', 'POST', 'DELETE'])('is refused on a %s', (method) => {
+    expect(() => createOnlyOf(spec(method, { createOnly: true }))).toThrow(/only a PUT/u);
+  });
+
+  it('is refused beside an etag, since one asks to replace and the other to create', () => {
+    expect(() => createOnlyOf(spec('PUT', { createOnly: true, ifMatch: etag }))).toThrow(/either/u);
   });
 });

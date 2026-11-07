@@ -74,7 +74,9 @@ function spendOf(tool: RegisteredTool, input: unknown): BudgetKind | 'undeclared
   if (tool.access !== 'write') return undefined;
   if (tool.spends === undefined) return 'undeclared';
   try {
-    return tool.input.safeParse(input).success ? tool.spends : undefined;
+    const parsed = tool.input.safeParse(input);
+    if (!parsed.success) return undefined;
+    return tool.createsWhen?.(parsed.data) === true ? 'create' : tool.spends;
   } catch {
     return undefined;
   }

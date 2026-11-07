@@ -1,17 +1,17 @@
 ---
 title: 'The MCP write tools'
-description: 'The MCP write tools: consent for mcp:write, an update under an etag, a role, group or scope created under a key, and what each refusal leaves behind.'
+description: 'The MCP write tools: consent for mcp:write, an update under an etag, a role, group or scope under a key, sign-in wording, and what a refusal leaves.'
 ---
 
 # The MCP write tools
 
-An agent that holds `mcp:write` is offered seven tools beyond the reads. Two change a client or a scope:
+An agent that holds `mcp:write` is offered ten tools beyond the reads. Two change a client or a scope:
 `update_client_metadata` changes a client's name, description and their per-language texts, and `update_scope_metadata`
 changes a scope's description, its per-language texts and its display order. They send nothing else: not a redirect URI,
 a grant, a secret, whether a client is enabled, a role or a scope's consent text, and a name that is not in the tool's
 schema is refused before the admin API is asked. Two more, `update_role_description` and `update_group_description`, change
 a description, and three, `create_role`, `create_group` and `create_scope`, make a role, a group or a scope that grants
-nothing, under a key the agent chooses; [the last section](#a-role-a-group-and-a-scope-that-grant-nothing) shows them. Asking for `mcp:write` is itself put to the person at every sign-in. Each tool that changes something that exists takes the `etag` of a read as `if_match`, so a change made in the meantime is a `412` and not an
+nothing, under a key the agent chooses; [a section](#a-role-a-group-and-a-scope-that-grant-nothing) shows them. The last three are the wording people read on the sign-in pages: `update_tenant_text_settings` changes the tenant's display name and languages, and `set_message_override` and `clear_message_override` set and remove the tenant's own text for one message; [the last section](#the-wording-people-read) shows them. Asking for `mcp:write` is itself put to the person at every sign-in. Each tool that changes something that exists takes the `etag` of a read as `if_match`, so a change made in the meantime is a `412` and not an
 overwrite. The admin API decides what the token and its owner may do, as it does for a read; the
 [endpoint's page](./the-mcp-endpoint.md) shows the sign-in, the headers and the budget this page does not repeat.
 
@@ -31,7 +31,7 @@ endpoint's page in one place: the authorization request, the sign-in form, and t
 prints it before the function allows it).
 
 ```bash
-odudu() { docker compose -p odudu-p5a-i16 -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
+odudu() { docker compose -p odudu-p5a-i17 -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
 odudu seed --tenant demo --client demo-spa --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
 odudu seed grant-role --tenant demo --username ada --role odudu-admin:view-users
@@ -40,10 +40,10 @@ odudu seed grant-role --tenant demo --username ada --role odudu-admin:manage-ten
 ```
 
 ```
-{"created":true,"tenant":"demo","tenantId":"01a1b3a9-99b3-7ab1-9cd2-01b9041ca978","clientId":"demo-spa","userSubjectId":"01a1b3a9-9a59-7de9-a0c5-2d2041b1ae39"}
-{"command":"grant-role","tenant":"demo","tenantId":"01a1b3a9-99b3-7ab1-9cd2-01b9041ca978","username":"ada","role":"odudu-admin:view-users"}
-{"command":"grant-role","tenant":"demo","tenantId":"01a1b3a9-99b3-7ab1-9cd2-01b9041ca978","username":"ada","role":"odudu-admin:manage-clients"}
-{"command":"grant-role","tenant":"demo","tenantId":"01a1b3a9-99b3-7ab1-9cd2-01b9041ca978","username":"ada","role":"odudu-admin:manage-tenant"}
+{"created":true,"tenant":"demo","tenantId":"01a1b42b-0cbd-723e-b2d6-b0a0a676e5af","clientId":"demo-spa","userSubjectId":"01a1b42b-0d55-7767-8d82-6872224b5726"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a1b42b-0cbd-723e-b2d6-b0a0a676e5af","username":"ada","role":"odudu-admin:view-users"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a1b42b-0cbd-723e-b2d6-b0a0a676e5af","username":"ada","role":"odudu-admin:manage-clients"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a1b42b-0cbd-723e-b2d6-b0a0a676e5af","username":"ada","role":"odudu-admin:manage-tenant"}
 ```
 
 ```bash
@@ -100,8 +100,8 @@ for s in mcp:read mcp:write; do odudu seed assign-scope --tenant demo --client-i
 
 ```
 {"client_id":"agent-writer","name":"Transcript agent","type":"public","audiences":["http://localhost:3000/tenants/demo/mcp"],"consent_required":false}
-{"command":"assign-scope","tenant":"demo","tenantId":"01a1b3a9-99b3-7ab1-9cd2-01b9041ca978","clientId":"agent-writer","scope":"mcp:read","assignment":"optional"}
-{"command":"assign-scope","tenant":"demo","tenantId":"01a1b3a9-99b3-7ab1-9cd2-01b9041ca978","clientId":"agent-writer","scope":"mcp:write","assignment":"optional"}
+{"command":"assign-scope","tenant":"demo","tenantId":"01a1b42b-0cbd-723e-b2d6-b0a0a676e5af","clientId":"agent-writer","scope":"mcp:read","assignment":"optional"}
+{"command":"assign-scope","tenant":"demo","tenantId":"01a1b42b-0cbd-723e-b2d6-b0a0a676e5af","clientId":"agent-writer","scope":"mcp:write","assignment":"optional"}
 ```
 
 ## Two tokens, one of them able to write
@@ -137,7 +137,7 @@ SHOW=
 <p class="tenant"><bdi>demo</bdi></p>
 </header>
 <form method="post" action="/tenants/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a1b3a9-a5b9-791c-8527-6829b2d97c5e">
+  <input type="hidden" name="auth_session_id" value="01a1b42b-1976-7e0d-967f-166a923726c4">
   <ul>
   <li><bdi>openid</bdi></li>
   </ul>
@@ -182,7 +182,7 @@ SHOW=
 <p class="tenant"><bdi>demo</bdi></p>
 </header>
 <form method="post" action="/tenants/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a1b3a9-a680-788b-a7d9-1d3f47858d2b">
+  <input type="hidden" name="auth_session_id" value="01a1b42b-1a43-7b2a-b75d-121e597f0175">
   <ul>
   <li><bdi>openid</bdi></li>
   </ul>
@@ -219,14 +219,14 @@ for the first and `manage-tenant` for the rest. `update_client_metadata` is hint
 two required arguments and the four fields it may send, and no others:
 
 ```bash
-rpc "$READ" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq -c '[.result.tools[].name | select(test("^(update|create)_"))]'
-rpc "$WRITE" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq -c '[.result.tools[].name | select(test("^(update|create)_"))]'
+rpc "$READ" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq -c '[.result.tools[].name | select(test("^(update|create|set|clear)_"))]'
+rpc "$WRITE" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq -c '[.result.tools[].name | select(test("^(update|create|set|clear)_"))]'
 rpc "$WRITE" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq '.result.tools[] | select(.name == "update_client_metadata") | {name, annotations, required: .inputSchema.required, fields: (.inputSchema.properties | keys)}'
 ```
 
 ```
 []
-["create_group","create_role","create_scope","update_client_metadata","update_group_description","update_role_description","update_scope_metadata"]
+["clear_message_override","create_group","create_role","create_scope","set_message_override","update_client_metadata","update_group_description","update_role_description","update_scope_metadata","update_tenant_text_settings"]
 {
   "name": "update_client_metadata",
   "annotations": {
@@ -264,11 +264,11 @@ ETAG=$(jq -c '.result.structuredContent.etag' get.json)
 ```
 
 ```
-{"id":"01a1b3a9-99d7-770a-b91a-2684d806cf7f","client_id":"odudu-mcp","name":"Odudu MCP"}
-{"id":"01a1b3a9-99f6-791b-abdf-2798a6ae266c","client_id":"odudu-admin","name":"Odudu administration"}
-{"id":"01a1b3a9-9a2e-7fb4-8cf3-d8a23258afb0","client_id":"demo-spa","name":"demo-spa"}
-{"id":"01a1b3a9-a1b6-78b0-a568-8ea43b09546d","client_id":"agent-writer","name":"Transcript agent"}
-{"name":"demo-spa","description":null,"etag":"\"6912c211c89522bbc68d7876c15f29df36497769908384b67f5c8b895a4d51b8\""}
+{"id":"01a1b42b-0ce7-7899-a317-d7d1d756c63a","client_id":"odudu-mcp","name":"Odudu MCP"}
+{"id":"01a1b42b-0d00-7610-a7b5-c15a1374dca4","client_id":"odudu-admin","name":"Odudu administration"}
+{"id":"01a1b42b-0d30-769b-8983-3500ccb6124f","client_id":"demo-spa","name":"demo-spa"}
+{"id":"01a1b42b-1582-707a-80b7-029506cc502e","client_id":"agent-writer","name":"Transcript agent"}
+{"name":"demo-spa","description":null,"etag":"\"c78ebb5d6e6c5695f0cd190f0b5e138a71cce631d0968cab7486f020d63f56e2\""}
 ```
 
 The update answers the client as it is now and its new etag, which is not the one it was sent:
@@ -279,7 +279,7 @@ jq -c '.result | {isError, name: .structuredContent.data.name, description: .str
 ```
 
 ```
-{"isError":false,"name":"Customer portal","description":"Where customers pay their invoices","etag":"\"030b6a668aa8538ddf4e9385a4270eedb3b7a1d6306fd8e7aee4a23d2466deba\""}
+{"isError":false,"name":"Customer portal","description":"Where customers pay their invoices","etag":"\"4b5e1623c066f799e26dc64a3ef3bd1d505b965b11f897b85e09a27087cd6dd6\""}
 ```
 
 Sending the etag of the earlier read again is the case the etag is for: somebody changed the client since, and the
@@ -412,9 +412,9 @@ call "$WRITE" 14 update_scope_metadata "{\"id\":\"$SCOPE\",\"if_match\":$(jq -c 
 ```
 
 ```
-{"id":"01a1b3a9-99c6-7d42-85ed-5b9acf7ba890","name":"profile","description":null}
-{"name":"profile","description":null,"etag":"\"3c016fdc23bd292bbf2e3f4060ef6c3a57a17ed208049e7c614b3e7170f68f7a\""}
-{"isError":false,"description":"Your name, picture and birthday","etag":"\"edb2ee2f466efadd950fe37cf0444384290b81d9a3649a2e1c90eb053e3f52ae\""}
+{"id":"01a1b42b-0cd4-73ea-9317-eb6f099a3721","name":"profile","description":null}
+{"name":"profile","description":null,"etag":"\"c6d0913ada1083b137b0c45ac2e0050e4f817e0910faa78c402d8ad1dd81238c\""}
+{"isError":false,"description":"Your name, picture and birthday","etag":"\"7f24df7522d515f75d55d1c30f13b1794cc537ff6bf1e6a859ccbeb141e026be\""}
 ```
 
 ## A role, a group and a scope that grant nothing
@@ -507,6 +507,91 @@ call "$WRITE" 24 create_role '{"idempotency_key":"transcript-role-4","name":"aud
 {"title":"Conflict","status":409,"detail":"the name \"auditors\" is already in use"}
 ```
 
+## The wording people read
+
+Three tools change the words on the sign-in pages: the tenant's display name and languages, and its own text for a message in
+one language. They are `manage-tenant` tools like the structure ones, and the display name and the overrides are shown to people on those
+pages, where they type a password, as soon as they are saved. `update_tenant_text_settings` takes the etag of `get_settings` as
+`if_match` and names three settings; every other of the tenant's settings is refused before the admin API is asked, and the admin API
+refuses it again if a tool is bypassed.
+
+```bash
+call "$WRITE" 25 get_settings '{}' > settings.json
+jq -c '.result.structuredContent.data | {display_name, supported_locales, default_locale}' settings.json
+call "$WRITE" 26 update_tenant_text_settings "{\"if_match\":$(jq -c .result.structuredContent.etag settings.json),\"display_name\":\"Demo Inc\",\"supported_locales\":[\"en\",\"fr\"],\"default_locale\":\"fr\"}" > text.json
+jq -c '.result | {isError, display_name: .structuredContent.data.display_name, supported_locales: .structuredContent.data.supported_locales, default_locale: .structuredContent.data.default_locale}' text.json
+call "$WRITE" 27 update_tenant_text_settings "{\"if_match\":$(jq -c .result.structuredContent.etag text.json),\"otp_required\":false}" | jq '.result.structuredContent'
+call "$WRITE" 28 update_tenant_text_settings "{\"if_match\":$(jq -c .result.structuredContent.etag text.json),\"display_name\":\"Hijacked\",\"registration_allowed\":true}" | jq -c '.result.structuredContent.error | {type, status, detail}'
+```
+
+```
+{"display_name":null,"supported_locales":["en"],"default_locale":null}
+{"isError":false,"display_name":"Demo Inc","supported_locales":["en","fr"],"default_locale":"fr"}
+{
+  "error": {
+    "type": "mcp:invalid_arguments",
+    "title": "The arguments are not valid",
+    "status": 400,
+    "detail": "arguments: Unrecognized key: \"otp_required\"; arguments: name at least one of display_name, supported_locales, default_locale"
+  }
+}
+{"type":"mcp:invalid_arguments","status":400,"detail":"arguments: Unrecognized key: \"registration_allowed\""}
+```
+
+An override is created without an etag and replaced or removed with the etag that `list_message_overrides` gave. A create for a key
+that already has an override is the admin API's `412`, said with the way on, and a key that is no message is its `400`. The sign-in page
+shows the text at once, in the language it is written in:
+
+```bash
+call "$WRITE" 29 set_message_override '{"locale":"fr","key":"login.title","message":"Connexion à Demo"}' > override.json
+jq -c '.result | {isError, message: .structuredContent.data.message, etag: (.structuredContent.etag != null)}' override.json
+call "$WRITE" 30 set_message_override '{"locale":"fr","key":"login.title","message":"Autre texte"}' | jq -c '.result.structuredContent.error | {title, status}'
+call "$WRITE" 31 set_message_override '{"locale":"fr","key":"login.nonesuch","message":"x"}' | jq -c '.result.structuredContent.error | {title, status, detail}'
+curl -sS -H 'accept-language: fr' --get --data-urlencode response_type=code --data-urlencode client_id=demo-spa \
+  --data-urlencode redirect_uri=http://localhost:8080/callback --data-urlencode scope=openid --data-urlencode state=s \
+  --data-urlencode code_challenge=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --data-urlencode code_challenge_method=S256 \
+  $BASE/tenants/demo/protocol/openid-connect/auth | grep -o '<h1[^>]*>[^<]*</h1>'
+```
+
+```
+{"isError":false,"message":"Connexion à Demo","etag":true}
+{"title":"Precondition Failed","status":412}
+{"title":"Bad Request","status":400,"detail":"key: is not the key of any page or mail message"}
+<h1>Connexion à Demo</h1>
+```
+
+Replacing it needs the etag of the listing, and a stale one is a `412`. Clearing puts the default text back, and the audit row keeps the
+text that was removed:
+
+```bash
+call "$WRITE" 32 list_message_overrides '{"locale":"fr"}' > listed.json
+jq -c '.result.structuredContent.data | map({key, message})' listed.json
+OETAG=$(jq -c '.result.structuredContent.data[0].etag' listed.json)
+call "$WRITE" 33 set_message_override "{\"locale\":\"fr\",\"key\":\"login.title\",\"message\":\"Se connecter à Demo\",\"if_match\":$OETAG}" | jq -c '.result | {isError, message: .structuredContent.data.message}'
+call "$WRITE" 34 clear_message_override "{\"locale\":\"fr\",\"key\":\"login.title\",\"if_match\":$OETAG}" | jq -c '.result.structuredContent.error | {title, status}'
+OETAG=$(call "$WRITE" 35 list_message_overrides '{"locale":"fr"}' | jq -c '.result.structuredContent.data[0].etag')
+call "$WRITE" 36 clear_message_override "{\"locale\":\"fr\",\"key\":\"login.title\",\"if_match\":$OETAG}" | jq -c '.result | {isError, data: .structuredContent.data}'
+call "$WRITE" 37 list_message_overrides '{"locale":"fr"}' | jq -c '.result.structuredContent.data'
+```
+
+```
+[{"key":"login.title","message":"Connexion à Demo"}]
+{"isError":false,"message":"Se connecter à Demo"}
+{"title":"Precondition Failed","status":412}
+{"isError":false,"data":{"deleted":true}}
+[]
+```
+
+A token that holds only `mcp:read` is not offered these tools, and one called by name is refused for its scope:
+
+```bash
+call "$READ" 38 set_message_override '{"locale":"fr","key":"login.title","message":"x"}' | jq -c '.result.structuredContent.error | {type, status}'
+```
+
+```
+{"type":"mcp:insufficient_scope","status":403}
+```
+
 ## What was recorded
 
 The changes are a `client.amend` and a `scope.amend` row, each with the agent client as the actor client, `ada` as the
@@ -516,44 +601,63 @@ that holds what an empty row holds, and the role's description is a `role.amend`
 was refused, never what it was called with. The `failed` rows are the stale etag, the arguments the schema refused (two for
 the client, two for the role and the group) and the name that was already in use; the refused rows are the built-in client's
 rename and the two calls of the read token. The second `create_role` of the key `transcript-role-1` is an `allowed` row
-too, since the call was made, though it made no second role (and it spends a place of the sign-in's ten creates). The tenant is new, so these are all its rows of these actions:
+too, since the call was made, though it made no second role (and it spends a place of the sign-in's ten creates). The wording
+tools leave a `tenant.amend_settings` row that names the display name and the two languages with what each was and became, and a
+`message_override.set` or `message_override.delete` row that holds the text before and after (a create's `before` is `null`, a
+clear's row holds the text it removed), so a change to what people read on a sign-in page is read, and undone, from the trail. Their
+`failed` rows are the two settings calls the schema refused, the override that already existed, the key that is no message, and the
+clear under a stale etag; the one refused row is the read token's. The tenant is new, so these are all its rows of these actions:
 
 ```bash
-docker compose -p odudu-p5a-i16 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
-  "select a.action, a.outcome, (a.actor_client_id = (select id from clients where client_id='agent-writer')) as by_agent, (a.actor_subject_id is not null) as has_owner, a.detail from audit_events a join tenants t on t.id=a.tenant_id where t.name='demo' and a.action in ('client.amend','scope.amend','capability.refused','role.create','group.create','scope.create','role.amend') order by a.id;"
-docker compose -p odudu-p5a-i16 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
-  "select a.outcome, a.detail->>'tool' as tool, a.detail->>'reason' as reason from audit_events a join tenants t on t.id=a.tenant_id where t.name='demo' and a.action='agent.tool_call' and (a.detail->>'tool' like 'update_%' or a.detail->>'tool' like 'create_%') order by a.id;"
+docker compose -p odudu-p5a-i17 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+  "select a.action, a.outcome, (a.actor_client_id = (select id from clients where client_id='agent-writer')) as by_agent, (a.actor_subject_id is not null) as has_owner, a.detail from audit_events a join tenants t on t.id=a.tenant_id where t.name='demo' and a.action in ('client.amend','scope.amend','capability.refused','role.create','group.create','scope.create','role.amend','tenant.amend_settings','message_override.set','message_override.delete') order by a.id;"
+docker compose -p odudu-p5a-i17 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+  "select a.outcome, a.detail->>'tool' as tool, a.detail->>'reason' as reason from audit_events a join tenants t on t.id=a.tenant_id where t.name='demo' and a.action='agent.tool_call' and (a.detail->>'tool' like 'update_%' or a.detail->>'tool' like 'create_%' or a.detail->>'tool' like 'set_%' or a.detail->>'tool' like 'clear_%') order by a.id;"
 ```
 
 ```
-       action       | outcome | by_agent | has_owner |                                                                    detail
---------------------+---------+----------+-----------+----------------------------------------------------------------------------------------------------------------------------------------------
- client.amend       | allowed | t        | t         | {"name": {"after": "Customer portal", "before": "demo-spa"}, "description": {"after": "Where customers pay their invoices", "before": null}}
- capability.refused | refused | t        | t         | {"reason": "insufficient_scope"}
- scope.amend        | allowed | t        | t         | {"description": {"after": "Your name, picture and birthday", "before": null}}
- role.create        | allowed | t        | t         | {"name": {"after": "auditors"}, "description": {"after": "Reads the audit trail"}}
- group.create       | allowed | t        | t         | {"name": {"after": "staff"}, "description": {"after": "Employees"}}
- scope.create       | allowed | t        | t         | {"name": {"after": "orders:read"}, "description": {"after": "Read the orders of the person"}, "display_order": {"after": 7}}
- role.amend         | allowed | t        | t         | {"description": {"after": "Reads the audit trail and nothing else", "before": "Reads the audit trail"}}
-(7 rows)
+         action          | outcome | by_agent | has_owner |                                                                                   detail
+-------------------------+---------+----------+-----------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ client.amend            | allowed | t        | t         | {"name": {"after": "Customer portal", "before": "demo-spa"}, "description": {"after": "Where customers pay their invoices", "before": null}}
+ capability.refused      | refused | t        | t         | {"reason": "insufficient_scope"}
+ scope.amend             | allowed | t        | t         | {"description": {"after": "Your name, picture and birthday", "before": null}}
+ role.create             | allowed | t        | t         | {"name": {"after": "auditors"}, "description": {"after": "Reads the audit trail"}}
+ group.create            | allowed | t        | t         | {"name": {"after": "staff"}, "description": {"after": "Employees"}}
+ scope.create            | allowed | t        | t         | {"name": {"after": "orders:read"}, "description": {"after": "Read the orders of the person"}, "display_order": {"after": 7}}
+ role.amend              | allowed | t        | t         | {"description": {"after": "Reads the audit trail and nothing else", "before": "Reads the audit trail"}}
+ tenant.amend_settings   | allowed | t        | t         | {"display_name": {"after": "Demo Inc", "before": null}, "default_locale": {"after": "fr", "before": null}, "supported_locales": {"after": ["en", "fr"], "before": ["en"]}}
+ message_override.set    | allowed | t        | t         | {"key": "login.title", "after": "Connexion à Demo", "before": null, "locale": "fr"}
+ message_override.set    | allowed | t        | t         | {"key": "login.title", "after": "Se connecter à Demo", "before": "Connexion à Demo", "locale": "fr"}
+ message_override.delete | allowed | t        | t         | {"key": "login.title", "before": "Se connecter à Demo", "locale": "fr"}
+(11 rows)
 
- outcome |          tool           |       reason
----------+-------------------------+--------------------
- allowed | update_client_metadata  |
- failed  | update_client_metadata  |
- failed  | update_client_metadata  |
- failed  | update_client_metadata  |
- refused | update_client_metadata  | insufficient_scope
- refused | update_client_metadata  | insufficient_scope
- allowed | update_scope_metadata   |
- allowed | create_role             |
- allowed | create_role             |
- failed  | create_role             |
- failed  | create_group            |
- allowed | create_group            |
- allowed | create_scope            |
- allowed | update_role_description |
- refused | create_role             | insufficient_scope
- failed  | create_role             |
-(16 rows)
+ outcome |            tool             |       reason
+---------+-----------------------------+--------------------
+ allowed | update_client_metadata      |
+ failed  | update_client_metadata      |
+ failed  | update_client_metadata      |
+ failed  | update_client_metadata      |
+ refused | update_client_metadata      | insufficient_scope
+ refused | update_client_metadata      | insufficient_scope
+ allowed | update_scope_metadata       |
+ allowed | create_role                 |
+ allowed | create_role                 |
+ failed  | create_role                 |
+ failed  | create_group                |
+ allowed | create_group                |
+ allowed | create_scope                |
+ allowed | update_role_description     |
+ refused | create_role                 | insufficient_scope
+ failed  | create_role                 |
+ allowed | update_tenant_text_settings |
+ failed  | update_tenant_text_settings |
+ failed  | update_tenant_text_settings |
+ allowed | set_message_override        |
+ failed  | set_message_override        |
+ failed  | set_message_override        |
+ allowed | set_message_override        |
+ failed  | clear_message_override      |
+ allowed | clear_message_override      |
+ refused | set_message_override        | insufficient_scope
+(26 rows)
 ```

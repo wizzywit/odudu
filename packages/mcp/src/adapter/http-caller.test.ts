@@ -188,6 +188,20 @@ describe('the stdio caller of the admin API', () => {
     expect(h.asked).toEqual(['write', 'write', 'write']);
   });
 
+  it('sends If-None-Match: * for a PUT that may only create, and no If-Match', async () => {
+    const h = harness();
+    await h.caller.call({
+      method: 'PUT',
+      pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+      params: { locale: 'de', key: 'login.title' },
+      query: {},
+      body: { message: 'x' },
+      createOnly: true,
+    });
+    expect(h.sent[0]?.init.headers).toMatchObject({ 'if-none-match': '*' });
+    expect(Object.keys(h.sent[0]?.init.headers ?? {})).not.toContain('if-match');
+  });
+
   it('refuses a bad key, a body on a DELETE and a cap above the read cap before any request', async () => {
     const h = harness();
     const post = {

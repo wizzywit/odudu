@@ -283,7 +283,8 @@ const DRAIN_MS = 25_000;
 // tools exist knows why they are absent here.
 const CREATES_NOTE =
   'The tools that create a role, a group or a scope (create_role, create_group, create_scope) ' +
-  "are offered by the tenant's MCP endpoint, not by this command.";
+  'and those that set or clear a message override (set_message_override, ' +
+  "clear_message_override) are offered by the tenant's MCP endpoint, not by this command.";
 
 async function serve(
   tenant: string,

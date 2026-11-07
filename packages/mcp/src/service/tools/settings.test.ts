@@ -14,5 +14,7 @@ describe('settings tools', () => {
     tool: named('get_settings'),
     response: settingsSchema,
     pattern: '/admin/tenants/:tenant/settings',
+    text: ['display_name'],
+    etag: true,
   });
 });

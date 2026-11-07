@@ -27,22 +27,30 @@ describe('the catalogue', () => {
     }
   });
 
-  it('has exactly seven tools that write, each a PATCH of descriptive fields or a POST that creates', () => {
+  it('has exactly ten tools that write: PATCHes of descriptive fields, POSTs that create, and a PUT and a DELETE of wording', () => {
     const writes = TOOLS.filter((tool) => tool.access === 'write');
     expect(writes.map((tool) => tool.name)).toEqual([
+      'clear_message_override',
       'create_group',
       'create_role',
       'create_scope',
+      'set_message_override',
       'update_client_metadata',
       'update_group_description',
       'update_role_description',
       'update_scope_metadata',
+      'update_tenant_text_settings',
     ]);
+    const prefixes: Record<string, string> = {
+      POST: 'create_',
+      PATCH: 'update_',
+      PUT: 'set_',
+      DELETE: 'clear_',
+    };
     for (const tool of writes) {
-      const creates = tool.routeKey.startsWith('POST ');
-      expect(creates || tool.routeKey.startsWith('PATCH '), tool.name).toBe(true);
-      expect(tool.spends, tool.name).toBe(creates ? 'create' : 'mutating');
-      expect(tool.name.startsWith(creates ? 'create_' : 'update_'), tool.name).toBe(true);
+      const method = tool.routeKey.slice(0, tool.routeKey.indexOf(' '));
+      expect(tool.spends, tool.name).toBe(method === 'POST' ? 'create' : 'mutating');
+      expect(tool.name.startsWith(prefixes[method] ?? '?'), tool.name).toBe(true);
     }
     expect(
       TOOLS.filter((tool) => tool.access === 'read').every((tool) =>
@@ -129,7 +137,12 @@ describe('the catalogue', () => {
       const route = ADMIN_ROUTES.find(
         (candidate) => `${candidate.method} ${candidate.pattern}` === tool.routeKey,
       );
-      expect(tool.response, tool.name).toBe(route?.responseSchema);
+      // A route that answers 204 declares a void of its own, one per route.
+      if (route?.responseSchema instanceof z.ZodVoid) {
+        expect(tool.response, tool.name).toBeInstanceOf(z.ZodVoid);
+      } else {
+        expect(tool.response, tool.name).toBe(route?.responseSchema);
+      }
     }
   });
 });

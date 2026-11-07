@@ -24,9 +24,16 @@ const UNPAGED = ['list_builtin_scopes', 'list_theme_versions', 'list_client_them
 
 function inputFor(tool: RegisteredTool): Record<string, unknown> {
   if (tool.spends === 'create') return { idempotency_key: 'create-1', name: 'x' };
+  if (tool.routeKey.includes(':locale')) {
+    const named = { locale: 'en', key: 'login.title' };
+    return tool.routeKey.startsWith('DELETE ')
+      ? { ...named, if_match: ETAG }
+      : { ...named, message: 'x' };
+  }
   if (tool.access === 'write') {
     const [field] = tool.bodyFields ?? [];
-    return { id: UUID, if_match: ETAG, [field ?? 'description']: 'x' };
+    const id = tool.routeKey.includes(':id') ? { id: UUID } : {};
+    return { ...id, if_match: ETAG, [field ?? 'description']: 'x' };
   }
   const schema = z.toJSONSchema(tool.input, { io: 'input', unrepresentable: 'any' });
   const input: Record<string, unknown> = {};
@@ -53,6 +60,8 @@ function put(root: unknown, path: readonly (string | number)[], value: unknown):
 // The route's own example with as much of its text as its schema allows
 // replaced by `poison`, in values and in the keys of open records.
 function poisoned(tool: RegisteredTool, poison: string): unknown {
+  // A route that answers 204 has no text to poison.
+  if (tool.response instanceof z.ZodVoid) return null;
   const body = exampleOf(tool.response);
   for (const path of leaves(body)) {
     if (path.at(-1) === 'next') continue;
@@ -87,8 +96,8 @@ function answer(body: unknown, status = 200): ReturnType<typeof respondingWith> 
 
 describe('the label on text a model reads', () => {
   it('covers every tool of the catalogue, the writes among them', () => {
-    expect(TOOLS.length).toBeGreaterThanOrEqual(68);
-    expect(TOOLS.filter((tool) => tool.access === 'write')).toHaveLength(7);
+    expect(TOOLS.length).toBeGreaterThanOrEqual(71);
+    expect(TOOLS.filter((tool) => tool.access === 'write')).toHaveLength(10);
     const names = TOOLS.map((tool) => tool.name);
     expect(names).toContain('list_tenants');
     expect(names).toContain('count_tenants');

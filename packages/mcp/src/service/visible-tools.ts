@@ -37,9 +37,11 @@ export function visibleTools(
 }
 
 // What a caller that reaches the admin API with its own token may be offered.
-// A create is bounded by the write budget the MCP endpoint spends on the grant
-// behind each call, and the admin door admits a create to a token the endpoint
-// signed alone, so a tool that creates is not listed, or served, here.
+// A write that is not an amendment adds or removes a row (a create, a PUT that
+// may create, a DELETE), and the write budget that bounds those is spent by the
+// MCP endpoint on the grant behind each call. The admin door admits such a write
+// to a token the endpoint signed alone, so a tool that makes one is not listed,
+// or served, here.
 export function directCallerTools(tools: readonly RegisteredTool[]): RegisteredTool[] {
-  return tools.filter((tool) => tool.spends !== 'create');
+  return tools.filter((tool) => tool.access === 'read' || tool.routeKey.startsWith('PATCH '));
 }

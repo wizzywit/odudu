@@ -4,6 +4,7 @@ import { accessOf } from '#/service/admin-access';
 import { expandPattern } from '#/service/admin-path';
 import {
   ADMIN_BODY_CAP_BYTES,
+  createOnlyOf,
   idempotencyKeyOf,
   jsonBodyOf,
   payloadOf,
@@ -61,10 +62,11 @@ export function createHttpCaller(
   const newRequestId = options.requestId ?? randomUUID;
   return {
     async call(req: AdminRequestSpec): Promise<AdminResult> {
-      const { path, payload, ifMatch, idempotencyKey } = preflight(() => ({
+      const { path, payload, ifMatch, createOnly, idempotencyKey } = preflight(() => ({
         path: expandPattern(req.pattern, options.tenant, req.params),
         payload: payloadOf(req),
         ifMatch: preconditionOf(req),
+        createOnly: createOnlyOf(req),
         idempotencyKey: idempotencyKeyOf(req),
       }));
       const url = new URL(target.adminUrl(path));
@@ -80,6 +82,7 @@ export function createHttpCaller(
               'x-request-id': newRequestId(),
               ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
               ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
+              ...(createOnly ? { 'if-none-match': '*' } : {}),
               ...(idempotencyKey === undefined ? {} : { 'idempotency-key': idempotencyKey }),
             },
             ...(payload === undefined ? {} : { body: payload }),

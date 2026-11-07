@@ -150,7 +150,7 @@ for (const [label, mode] of eras) {
     `${label}: ${names.length} tools, not ${EXPECT_READ_TOOLS}`,
   );
   check(
-    !names.some((name) => /^(create|update)_/u.test(name)),
+    !names.some((name) => /^(create|update|set|clear)_/u.test(name)),
     `${label}: a write tool was listed`,
   );
 

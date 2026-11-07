@@ -204,7 +204,8 @@ OduduError: tenant setting password_max_age_days must be between 0 and 3650; ten
 `cimd_enabled` switches on [client ID metadata
 documents](../request-paths/authorization-server-metadata.md). Both are read and
 amended like any other setting, `seed tenant --set` takes them too, and a change
-to either is the only thing the audit event of a settings change names: the
+to either, like a change to `display_name`, `supported_locales` or
+`default_locale`, is all the audit event of a settings change names: the
 value before and after, never another setting. In a new tenant, `policy-doc`,
 a patch carrying the `ETag` it was read with, the same patch again with that
 now-stale tag, a spelling outside the four, and the audit row:

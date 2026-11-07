@@ -64,6 +64,17 @@ export function preconditionOf(req: AdminRequestSpec): string | undefined {
   return req.ifMatch;
 }
 
+// Whether a PUT asks to create and no more: it names no etag, and the admin API
+// answers 412 for a resource that exists. One or the other asks, never both.
+export function createOnlyOf(req: AdminRequestSpec): boolean {
+  if (req.createOnly !== true) return false;
+  if (req.method !== 'PUT') throw new Error('only a PUT may ask to create and no more');
+  if (req.ifMatch !== undefined) {
+    throw new Error('a PUT names either an etag to replace or none to create, not both');
+  }
+  return true;
+}
+
 // The key a POST is sent with, so that a retry of it makes one thing and not
 // two. A POST names one and no other method does.
 export function idempotencyKeyOf(req: AdminRequestSpec): string | undefined {

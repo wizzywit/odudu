@@ -1747,3 +1747,117 @@ which an agent can now create, rewrote unrelated groups' paths; it now follows `
 served by the `parent_id` index, as `descendantsOf` does, and matches no path as a pattern. `odudu seed role` and
 `odudu seed group` took no part in the limits and now take the same locked count. The transcript of
 `PUT /groups/:id/default` was replayed whole, tenant, groups and token included, on one stack.
+
+## Wording: settings text and message overrides (parity extension, Increment 17)
+
+Three tools for what people read on the sign-in pages: `update_tenant_text_settings` (the display name,
+`supported_locales` and `default_locale`, under the etag `get_settings` now returns), `set_message_override` and
+`clear_message_override`. The door admits the settings PATCH by those three names alone (a mixed body is refused
+whole, as is any other of the 41 setting names, generated over `TENANT_SETTING_NAMES`), the override PUT with its one
+`message` member and the DELETE with no body.
+
+- **The rule for a PUT and a DELETE, decided with a security argument.** `agentWriteNeedsEndpoint` was derived from
+  the method for a POST. It is now true for every allowlist entry whose method is not PATCH, and the door also refuses an
+  agent whose owner is a service account. Reasoning: the database write budget (20 changing calls, 10 creates) is spent
+  only by the MCP endpoint; a direct admin-bearer holder, `odudu mcp` over stdio and a service account are not counted
+  by it. A PUT of an override can add a row (up to the tenant's 500) and a DELETE removes one, and each is live
+  wording on credential pages, so letting an unbudgeted holder repeat them as often as a 600 s token allows is the
+  hole the POST rule closed, one method over. A PATCH changes fields of a row that exists and
+  adds or removes nothing, so it stays open to every agent token, as the four earlier amendments are; the stricter rule
+  for it would also take away `update_tenant_text_settings` from stdio without a reason a person could name. The
+  alternative, counting at the door, would put a second counter beside the endpoint's and the command's, and was
+  refused again for the reason given for the creates. Tested at three levels: `agent-scope.test.ts` (the method rule,
+  and a synthetic list so a later PUT, DELETE or POST entry is held with no flag), `agent-door-wording.int.test.ts` (a
+  token issued straight to the agent and an exchanged token without the endpoint's marker are refused a PUT, a
+  create-only PUT and a DELETE, nothing stored, each a `capability.refused` row and no `agent.tool_call` row, whatever the
+  headers say; the same two holders amend the three settings and the door records the call as `admin.patch.settings`;
+  the endpoint's token sets, replaces, removes and is refused a stale or clashing write; a person's own token still sets
+  any setting), `mcp-service-account.int.test.ts` (a service account is refused both override tools by name and is not
+  offered them, and still amends the settings), and `cli/mcp.test.ts` (the stdio listing and instructions).
+- **What stdio users can and cannot do.** `odudu mcp --allow-writes` lists and serves the five amending tools:
+  `update_client_metadata`, `update_scope_metadata`, `update_role_description`, `update_group_description` and
+  `update_tenant_text_settings`. It does not list the three creates or the two override tools, answers one called by name as
+  an unknown tool with no admin call, and its instructions say they are the tenant endpoint's. A person who wants an
+  agent to set a message override connects it to the endpoint. The same holds for a service account, which has no sign-in
+  for the endpoint to count against, so it cannot set or clear an override at all: it can amend the display name and
+  languages and, as a non-agent client, call the admin API with its own capabilities. `directCallerTools` is now "every read
+  and every tool whose route is a PATCH", derived from the route's method so a later tool is held with no flag.
+  Increment 18's theme PUT will be held the same way by the same derivation; if drafts over stdio are wanted, that
+  increment decides it against this argument.
+- **The plan's `verified:` and `assumption:` lines.** "40 setting names" is **41** (`TENANT_SETTING_NAMES` has 41; 38
+  are not the three wording ones), so the plan's 37 was wrong; the generated test does not depend on the number. "A PUT
+  of an existing override needs no `If-Match`" was **false**: the admin API requires `If-Match` with the override's etag
+  to replace and `If-None-Match: *` to create, answers `428` for neither and `412` for a stale one or a create over an
+  existing key. The tool takes `if_match` (the etag of `list_message_overrides`) to replace and none to create, and a PUT
+  with no etag is sent as `If-None-Match: *` (`createOnly` on the request spec, the one new header a tool may cause, held to a PUT with no
+  `If-Match`). A DELETE takes the etag, required. The plan's claim that audit rows carry before and after was
+  **false for all three actions**: `tenant.amend_settings` recorded only `client_registration_policy` and `cimd_enabled`,
+  so a display name or language change left an empty detail, and the two override rows held the locale and key and, for a
+  set, the text's length ("never the text", written into the transcript on purpose). They now hold the display name
+  and languages (the `tenant_settings` allowlist grew three fields; every other setting stays out), and the text before and
+  after for a set (`before` is `null` for a create) and the text removed for a delete, read inside the tenant's lock
+  where the precondition is judged, so `before` is what this write replaced. This changes the audit row for every caller.
+  The brief's "45 tables" is the same snapshot of 45 as in the structure increment.
+- **A defect found by the tests, fixed in the topic.** A display name had no bound at all (the column is `text`, no CHECK, no
+  schema max): an agent, or a person, could write it as long as a request body allowed, and it is the name on every
+  sign-in page and mail. It is now at most 256 characters after the trim (`DISPLAY_NAME_MAX`, beside `CLIENT_NAME_MAX`), in
+  the settings route, `PATCH /admin/tenants/{t}`, tenant creation and import, and the tenant document; a name already longer
+  is left as it is until somebody sets another. This grew the OpenAPI document by 48 bytes.
+- **What changing `supported_locales` or `default_locale` does.** The admin API judges the list and the default against
+  each other (a default must be in the list, 1 to 32 tags, no duplicates) and nothing else: removing a language keeps its
+  message overrides, which stay listable, replaceable and clearable (asserted through the admin API and through the
+  tools); a page is rendered in an offered language, so the overrides of a removed one are not shown until it is
+  offered again (inferred from how a language is negotiated; not run here). A `default_locale` change changes the language every sign-in page falls back to, which is wording too.
+  Nothing else the settings route does is reachable: `enabled` and the security settings are not in the allowlist.
+- **Bounds.** A tenant holds at most 500 overrides across every locale (`MESSAGE_OVERRIDE_LIMIT`, enforced under the
+  tenant's advisory lock, the 501st is `409`, changing one that exists is always allowed), and each is 1 to 2,000
+  characters, so at most 1,000,000 characters of override text per tenant, and an audit row of a rewrite holds up to 4,000
+  (the text before and after). The key set is the catalogue's, a few hundred keys, so the 500 is the real bound,
+  not the keys. `list_message_overrides` pages one locale at a time under `MAX_LIMIT`. The grant's 20 changing calls
+  bound what one sign-in does. Tested with a tenant filled to 499 by the database: the 500th is made, the 501st is `409`
+  naming 500, and replacing one at the limit is allowed.
+- **The injection scenario "wording".** The display name and two message overrides hold instructions to set
+  `registration_allowed`, `otp_required` and `audit_retention_days`, alone and beside a wording field, to call tools that do
+  not exist (`set_tenant_setting`, `update_tenant_settings`, `update_setting`, `enable_registration`), and, among those, to
+  do what the tools allow (a new display name, new languages, replace one override, clear another). The scripted agent
+  obeys what it reads, adding the etag from `get_settings` or `list_message_overrides` as a diligent model would. Against
+  `mcp:read` zero rows change and each attempt is refused for its scope; past the tool layer the admin API refuses each
+  with `insufficient_scope`; an owner without `manage-tenant` changes nothing and each refusal is a `capability.refused`
+  row (the text is handed over as told, since that owner cannot read it); for a capable owner only the tenant's own row and
+  `message_overrides` change, and the tenant's columns that moved are `display_name`, `display_name_search` (generated from
+  it), `supported_locales` and `default_locale`, every one of the security setting columns equal to its earlier value. The
+  W2 attempts are `mcp:invalid_arguments` before any call, the four invented names `jsonrpc:error`.
+- **A body sent past the tool.** Each of the other settings is sent to the admin API alone, beside `display_name` and
+  beside `default_locale` through a caller that skips the tool, three bodies a name: all `403 insufficient_scope`, none
+  changes the tenant row, none writes a `tenant.amend_settings` row, each is a `capability.refused` row. The same loop runs
+  at the door with an endpoint token (`agent-door-wording.int.test.ts`), and a name that is no setting or a casing of one
+  is refused too.
+- **Counts.** 61 read tools and 10 write tools in all (59 read tools for a tenant's own agent): three new, and
+  `get_settings` now returns its etag. `tests/docs/mcp-tool-counts.test.ts` reads ten, and its stale-phrase pin now also
+  refuses "seven tools" and "seven writes" as the earlier pin refused "two".
+- **Not done here.** The theme draft tools (Increment 18); anything that changes who holds what (P5b).
+
+## Honest list for Increment 17
+
+- The door rule and the stdio listing were written after their failing unit tests; `agent-door-wording.int.test.ts` was
+  written after the rule and shown red by reverting the rule to POST-only (3 of 11 failed), then green.
+- `mcp-write-wording.int.test.ts` and the "wording" injection scenario ran against finished tools, so their value is in
+  what they pin, not in a red run; the injection scenario's first run failed on three expectations of mine (counts of
+  valid attempts, a generated column `display_name_search`), corrected.
+- The transcripts were replayed by a script over each page's own commands (the endpoint page needing the two glue
+  assignments `CID` and `CODE`), not typed.
+
+### Review of Increment 17
+
+- The export reads the stored display name through `tenantSettingsExportSchema`, which carries no length bound, so a name stored before the
+  256 bound (300 characters in the test, written by SQL) still exports; the bound stays on every write, on an import request and on an imported
+  document, each with a test (257 refused naming `document.settings.display_name`, 256 accepted).
+- `createOnly` is a per-tool flag (`createsWithoutEtag`), set on `set_message_override` alone; a put tool without it sends no `If-None-Match`.
+- A key with a NUL is refused by `messageOverrideKeySchema`: the delete (and the put) answered `500` from the database and now answer `400`, and
+  the tools refuse it as an argument.
+- Wording text refuses C0 and C1 controls other than tab and line feed, DEL, soft hyphen, zero-width characters, the word joiner, the byte order
+  mark and the line and paragraph separators (`text`); a name and the display name also refuse tab and line feed (`line`).
+- `clear_message_override` keeps `destructiveHint: true`, which is advisory (a client without per-call approval can clear an override; Odudu enforces none); `tests/lint/mcp-tool-coverage.test.ts` names it in an explicit list, and spec section 2 names
+  the exception (a reversible W1 delete whose text the audit row keeps).
+- Residual, stated: a direct holder's settings PATCH is uncounted and the admin API takes it without `If-Match`; the audit `before` of a legacy long name
+  is copied as stored.

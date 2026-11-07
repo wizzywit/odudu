@@ -541,3 +541,79 @@ describe('the language settings', () => {
     expect(res.json<{ detail: string }>().detail).toContain('list');
   });
 });
+
+describe('the wording settings', () => {
+  async function setup() {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-audit']);
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const patch = (payload: Record<string, unknown>) =>
+      fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}/settings`,
+        headers,
+        payload,
+      });
+    return { t, patch, headers };
+  }
+
+  it('records the display name and the languages in the audit row, before and after', async () => {
+    const { t, patch, headers } = await setup();
+    await patch({ display_name: 'Acme', supported_locales: ['en', 'fr'], default_locale: 'fr' });
+    await patch({ display_name: 'Acme Inc', verify_email: true });
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit?action=tenant.amend_settings`,
+      headers,
+    });
+    const details = audit.json<{ items: { detail: unknown }[] }>().items.map((i) => i.detail);
+    expect(details).toContainEqual({
+      display_name: { before: null, after: 'Acme' },
+      supported_locales: { before: ['en'], after: ['en', 'fr'] },
+      default_locale: { before: null, after: 'fr' },
+    });
+    expect(details).toContainEqual({ display_name: { before: 'Acme', after: 'Acme Inc' } });
+  });
+
+  it('refuses a display name past 256 characters, naming it, and keeps the one held', async () => {
+    const { t, patch } = await setup();
+    await patch({ display_name: 'Acme' });
+    const res = await patch({ display_name: 'x'.repeat(257) });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ errors: { path: string }[] }>().errors.map((e) => e.path)).toEqual([
+      'display_name',
+    ]);
+    expect((await patch({ display_name: 'x'.repeat(256) })).statusCode).toBe(200);
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      expect((await tenantSettingsRepository(tx).byId(t.id))?.display_name).toBe('x'.repeat(256));
+    });
+  });
+
+  it('counts the length after the trim, so padding does not use it up', async () => {
+    const { patch } = await setup();
+    const res = await patch({ display_name: `  ${'x'.repeat(256)}  ` });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('leaves a message override of a language the tenant no longer offers where it is', async () => {
+    const { t, patch, headers } = await setup();
+    await patch({ supported_locales: ['en', 'fr'], default_locale: 'fr' });
+    const base = `/admin/tenants/${t.name}/message-overrides`;
+    const key = 'login.title';
+    const put = await fixture.http.inject({
+      method: 'PUT',
+      url: `${base}/fr/${key}`,
+      headers: { ...headers, 'if-none-match': '*' },
+      payload: { message: 'Connexion' },
+    });
+    expect(put.statusCode).toBe(200);
+    const shrunk = await patch({ supported_locales: ['en'], default_locale: '' });
+    expect(shrunk.statusCode).toBe(200);
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: `${base}?locale=fr`,
+      headers,
+    });
+    expect(listed.json<{ items: { key: string }[] }>().items.map((i) => i.key)).toEqual([key]);
+  });
+});
