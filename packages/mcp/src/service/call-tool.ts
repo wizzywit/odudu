@@ -1,12 +1,15 @@
 import {
   cleanText,
   PROBLEM_DETAIL_CAP,
+  PROBLEM_ERROR_TEXT_CAP,
+  PROBLEM_ERRORS_MAX,
   PROBLEM_TITLE_CAP,
   PROBLEM_TYPE_CAP,
 } from '#/service/sanitize';
 import {
   ToolProblem,
   type AdminResult,
+  type ProblemError,
   type RegisteredTool,
   type ToolResult,
 } from '#/service/tool';
@@ -38,6 +41,18 @@ export function problemOf(result: AdminResult): ToolProblem {
   );
 }
 
+function errorEntry(entry: ProblemError) {
+  const text = (value: string) => cleanText(value, PROBLEM_ERROR_TEXT_CAP);
+  return {
+    path: text(entry.path),
+    message: text(entry.message),
+    ...(entry.code === undefined ? {} : { code: text(entry.code) }),
+    ...(entry.detail === undefined ? {} : { detail: text(entry.detail) }),
+    ...(entry.line === undefined ? {} : { line: entry.line }),
+    ...(entry.column === undefined ? {} : { column: entry.column }),
+  };
+}
+
 export function errorResult(problem: ToolProblem): ToolResult {
   const error = {
     type: cleanText(problem.problemType, PROBLEM_TYPE_CAP),
@@ -46,6 +61,9 @@ export function errorResult(problem: ToolProblem): ToolResult {
     ...(problem.detail === undefined
       ? {}
       : { detail: cleanText(problem.detail, PROBLEM_DETAIL_CAP) }),
+    ...(problem.errors === undefined || problem.errors.length === 0
+      ? {}
+      : { errors: problem.errors.slice(0, PROBLEM_ERRORS_MAX).map(errorEntry) }),
   };
   return {
     isError: true,

@@ -22,6 +22,7 @@ import { sessionTools } from '#/service/tools/sessions';
 import { settingsTools } from '#/service/tools/settings';
 import { settingsWriteTools } from '#/service/tools/settings-write';
 import { subjectTools } from '#/service/tools/subjects';
+import { themeWriteTools } from '#/service/tools/theme-write';
 import { ownTenantTool } from '#/service/tools/tenant';
 import { instanceTenantTools } from '#/service/tools/tenants';
 import { whoamiTools } from '#/service/tools/whoami';
@@ -50,6 +51,7 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...settingsTools,
   ...settingsWriteTools,
   ...subjectTools,
+  ...themeWriteTools,
   ...instanceTenantTools,
   ...whoamiTools,
   clientMetadataTool,
@@ -99,11 +101,6 @@ const WITHHELD: readonly Entry[] = [
     'An agent is refused this read: the bytes of an uploaded theme image, which a person fetches with their own token.',
     [R('GET', '/theme/assets/:assetId/content')],
     'denied',
-  ],
-  [
-    'Content write with no tool yet: it changes only wording, a description or a draft and grants nothing, so the admin door admits it field by field once a tool names those fields.',
-    [R('PUT', '/theme'), R('PUT', '/clients/:id/theme')],
-    'content',
   ],
   [
     'Content write that needs a binary payload and answers nothing an agent can read, so it is not offered; a person uploads a theme image in the console.',

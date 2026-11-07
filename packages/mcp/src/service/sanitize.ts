@@ -11,6 +11,9 @@ export const LONG_TEXT_CAP = 128 * 1024;
 export const PROBLEM_TYPE_CAP = 200;
 export const PROBLEM_TITLE_CAP = 200;
 export const PROBLEM_DETAIL_CAP = 500;
+// How many fields at fault a refusal lists, and how long each of their texts may be.
+export const PROBLEM_ERRORS_MAX = 10;
+export const PROBLEM_ERROR_TEXT_CAP = 200;
 
 const MAX_DEPTH = 32;
 const TRUNCATED = '…';

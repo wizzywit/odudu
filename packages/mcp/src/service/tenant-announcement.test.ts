@@ -47,8 +47,8 @@ describe('announceTenant', () => {
     expect(announceTenant('\u0000').name).toBe('odudu:_');
   });
 
-  it('prefixes all 71 tools without touching the wording after the prefix', () => {
-    expect(TOOLS).toHaveLength(71);
+  it('prefixes all 73 tools without touching the wording after the prefix', () => {
+    expect(TOOLS).toHaveLength(73);
     const a = announceTenant('acme');
     for (const tool of TOOLS) {
       const described = a.describe(tool.description);

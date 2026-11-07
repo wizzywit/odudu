@@ -111,6 +111,12 @@ describe('the stdio caller of the admin API', () => {
     expect(h.asked).toEqual(['read', 'write']);
   });
 
+  it('asks for a write bearer for a GET that asks to be made as a writer', async () => {
+    const h = harness();
+    await h.caller.call({ ...GET_CLIENT, asWriter: true });
+    expect(h.asked).toEqual(['write']);
+  });
+
   it('adds a fixed content type, the body and the precondition for a PATCH only', async () => {
     const h = harness();
     await h.caller.call({
