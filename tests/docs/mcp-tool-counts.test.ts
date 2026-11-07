@@ -60,6 +60,25 @@ describe('the MCP tool counts the documents state', () => {
   });
 });
 
+describe('a worded count of tools that write', () => {
+  const COUNTS: Record<string, number> = {
+    ten: 10,
+    eleven: 11,
+    twelve: 12,
+    thirteen: 13,
+    fourteen: 14,
+  };
+
+  it.each(PROSE)('%s counts them as the catalogue does, capitalised or not', (file) => {
+    const text = readFileSync(path.join(REPO_ROOT, file), 'utf8');
+    for (const m of text.matchAll(
+      /\b(ten|eleven|twelve|thirteen|fourteen)\s+(?:more\s+|write\s+)?tools\b/giu,
+    )) {
+      expect(COUNTS[(m[1] ?? '').toLowerCase()], `${file}: ${m[0]}`).toBe(WRITE);
+    }
+  });
+});
+
 describe('the words that say what the write tools are', () => {
   it.each(PROSE)('%s never says the writes are two or seven, or only descriptive text', (file) => {
     const text = readFileSync(path.join(REPO_ROOT, file), 'utf8');

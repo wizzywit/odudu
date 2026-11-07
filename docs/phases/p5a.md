@@ -1888,10 +1888,19 @@ the parts that differ from the published theme and the new etag.
   `428` or `412` and is said as the same advice.
 - **What the PUT does** (read from `saveDraft`, not assumed): no `If-Match` is accepted only when there is no draft (a first draft);
   one with a draft is `428`; an `If-Match` naming a draft that is gone is `412`; a stale one is `412`. The parts are checked as on
-  publish except contrast, a refusal is `400` with `errors`, and the audit row is `theme.draft_saved` with `{scope}` and nothing else.
-- **Audit, bounded already.** The row carries the scope alone, so a stylesheet of 128 KiB or templates of 1 MiB leave a row under 100 bytes
-  (tested at the door, `agent-door-theme.int.test.ts`); the shape is unchanged for people. The tool's own row (`agent.tool_call`) names the tool and
-  the route, never what it was called with.
+  publish except contrast, a refusal is `400` with `errors`, and the audit row is `theme.draft_saved` (digests of the parts changed, see below).
+- **Audit: digests, not text, and a replaced draft is not kept (review finding, fixed).** The row first carried the scope alone, so the draft
+  before a save was unrecoverable and unrecorded while the guide promised otherwise. `theme.draft_saved` now holds, for every caller, the parts that
+  changed with the length and SHA-256 of each before and after (`draftChange`, over a canonical JSON so key order is not a change), never the text,
+  so a 512 KiB draft stays under 2,000 bytes of row (tested at the door with a draft of about 500 KiB replaced). It proves what changed and does
+  not restore it, so both tools are hinted `destructiveHint: true` and named in `DESTRUCTIVE_WRITES` of `tests/lint/mcp-tool-coverage.test.ts`; their
+  descriptions tell the agent to keep what it replaces. Keeping the replaced draft as an archived `theme_versions` row is the owner's decision, one row
+  in `docs/NEXT.md` against P5b. The guide, CHANGELOG and spec sections 3, 6 and 10 now say digests, not text, for drafts. The tool's own row
+  (`agent.tool_call`) names the tool and the route, never what it was called with.
+- **A saved draft is always answered as saved.** An answer that cleaning leaves invalid (a logo alt of invisible characters only) is returned as
+  `draft: null, draft_omitted: true` with the etag, not as an internal error after the write.
+- **Size, as the docs say it.** The tool reads the draft and the published theme together, which must come to under 1 MiB; what it writes is at most
+  512 KiB.
 - **The door.** `PUT ~/theme` and `PUT ~/clients/:id/theme` are allowlist entries with `body: 'whole'` and the four parts of a theme
   body as fields (`tokens`, `stylesheet`, `templates`, `assets`); `assets` is admitted because the tool writes back the images a draft
   already names, and never lets the caller name one (the argument schema has no such member). By the rule of the previous increment
@@ -1939,8 +1948,9 @@ the parts that differ from the published theme and the new etag.
   the error list, a missing module for the tools). The door's integration test was written after the door and shown red by changing the new
   target to `client` (1 of 9 failed), then restored.
 - `mcp-write-theme.int.test.ts` and the "theme" injection scenario ran against finished tools, so their value is in what they pin. The scenario's first
-  run failed twice on expectations of mine (the base fixture's own planted text moved clients, and a nested `}}` in a planted template is a malformed slot
-  that the admin API refuses, which the scenario now uses and no longer asserts a font for).
+  run failed on an expectation of mine (the base fixture's own planted text moved clients, so the theme fixture plants nothing else). The planted template
+  passes today's checks, so the tool's save carries it through the admin API's whole-body check and the scenario asserts the font and the stylesheet the
+  text asked for.
 - The route-class page and the counts were edited after the pins went red (8 failed), then green.
 - `asWriter` was found by reading the replayed transcript, and its unit tests were written first and shown red (`4 failed | 105 passed`); the
   integration assertion for it was written after the change.

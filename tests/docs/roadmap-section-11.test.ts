@@ -383,6 +383,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ['`odudu mcp` runs only from', ['P4i'], ['`odudu mcp` command']],
     ["The admin API's OpenAPI document grew", ['P4i'], ['the published openapi document']],
     ['The injection suite drives a scripted agent', ['P5b'], ["the owner's separate approval"]],
+    ['A theme draft an agent replaces', ['P5b'], ['a theme draft an agent replaces']],
     [
       'The admin API accepts a scope name with a space',
       ['P5b'],
