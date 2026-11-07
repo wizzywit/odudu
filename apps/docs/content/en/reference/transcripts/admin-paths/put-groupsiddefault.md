@@ -103,6 +103,8 @@ answered just before:
 {"type":"about:blank","title":"Forbidden","status":403,"detail":"a group every new subject joins may reach no admin capability, and this one would reach: view-users","instance":"01a10bd5-e2e8-73aa-b8ac-cdf90e56e3b0"}
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"default_for_new_subjects: default_for_new_subjects changes who joins a group silently at signup; set it with PUT /admin/tenants/{tenant}/groups/{id}/default, not a general amendment","errors":[{"path":"default_for_new_subjects","message":"default_for_new_subjects changes who joins a group silently at signup; set it with PUT /admin/tenants/{tenant}/groups/{id}/default, not a general amendment"}],"instance":"01a10bd5-e308-7ac6-bb78-c61ceede78c0"}
 {"action":"group.default_set","outcome":"allowed","detail":{"default_for_new_subjects":{"after":true,"before":false}}}
-{"action":"group.create","outcome":"allowed","detail":{}}
+{"action":"group.create","outcome":"allowed","detail":{"name":{"after":"everyone"},"parent_id":{"after":"01a1b3cf-d48c-7a32-af8b-177ff077d691"}}}
 {"action":"group.roles_set","outcome":"refused","detail":{"denied":["view-users"]}}
 ```
+
+The `group.create` row names what the create set: the `name` and, where there is one, the `parent_id`. Its `parent_id` is that of a `staff` group made with the same requests on another stack, so it is not the id above.
