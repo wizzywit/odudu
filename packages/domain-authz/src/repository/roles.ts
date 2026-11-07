@@ -125,7 +125,7 @@ export function roleRepository(tx: TenantScopedDatabase) {
     // each sign-in in the tenant would queue behind it.
     async lockCreation(tenantId: string): Promise<void> {
       await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtextextended(${`roles:${tenantId}`}, 0))`,
+        sql`select pg_advisory_xact_lock(hashtextextended(${`roles:${tenantId.toLowerCase()}`}, 0))`,
       );
     },
 

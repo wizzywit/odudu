@@ -864,16 +864,22 @@ describe('countUpTo and lockCreation', () => {
         await tx.execute(sql`select set_config('lock_timeout', '1000', true)`);
         await work(tx);
       });
-    await quickly(tenantId, (tx) =>
-      tx.execute(sql`select 1 from tenants where id = ${tenantId} for no key update`),
-    );
-    await quickly(tenantId, (tx) => roleRepository(tx).lockCreation(tenantId));
-    await quickly(elsewhere, (tx) => groupRepository(tx).lockCreation(elsewhere));
-    await expect(
-      quickly(tenantId, (tx) => groupRepository(tx).lockCreation(tenantId)),
-    ).rejects.toThrow();
-    release();
-    await holder;
+    try {
+      await quickly(tenantId, (tx) =>
+        tx.execute(sql`select 1 from tenants where id = ${tenantId} for no key update`),
+      );
+      await quickly(tenantId, (tx) => roleRepository(tx).lockCreation(tenantId));
+      await quickly(elsewhere, (tx) => groupRepository(tx).lockCreation(elsewhere));
+      await expect(
+        quickly(tenantId, (tx) => groupRepository(tx).lockCreation(tenantId)),
+      ).rejects.toThrow();
+      await expect(
+        quickly(tenantId, (tx) => groupRepository(tx).lockCreation(tenantId.toUpperCase())),
+      ).rejects.toThrow();
+    } finally {
+      release();
+      await holder;
+    }
   });
 });
 

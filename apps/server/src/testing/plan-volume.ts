@@ -311,7 +311,8 @@ select gen_random_uuid(), ${t}, p.id, 'deep-b-' || i || '-' || j, p.path || '/de
   from groups p cross join generate_series(1, 20) i cross join generate_series(1, 20) j
  where p.tenant_id = ${t} and p.name = 'deep-a-' || i;
 insert into groups (id, tenant_id, parent_id, name, path)
-select gen_random_uuid(), ${t}, p.id, 'deep-c-' || p.name || '-' || k, p.path || '/deep-c-' || k
+select gen_random_uuid(), ${t}, p.id, 'deep-c-' || substring(p.name from 8) || '-' || k,
+       p.path || '/deep-c-' || substring(p.name from 8) || '-' || k
   from groups p cross join generate_series(1, 3) k
  where p.tenant_id = ${t} and p.name like 'deep-b-%';
 insert into group_roles (tenant_id, group_id, role_id)
@@ -527,6 +528,8 @@ async function assertVolume(connection: {
            (select count(*) from client_scope_roles) client_scope_roles,
            (select max(parents) from (
               select count(*) parents from role_composites group by child_role_id) x) fan_in,
+           (select count(*) from groups g join groups p on p.id = g.parent_id
+             where g.path <> p.path || '/' || g.name) broken_paths,
            (select count(*) from roles r join tenants t on t.id = r.tenant_id
              where t.name = '${NEAR_LIMIT_TENANT}') near_limit_roles`);
   const row = rows[0];
@@ -537,6 +540,11 @@ async function assertVolume(connection: {
         `${table} holds ${String(row[table])} rows, under the ${String(LARGE_TABLE_ROWS)} a scan of it is judged at`,
       );
     }
+  }
+  if (Number(row.broken_paths) !== 0) {
+    throw new Error(
+      `${String(row.broken_paths)} seeded groups have a path that is not their parent's and their name`,
+    );
   }
   if (Number(row.near_limit_roles) !== PLAN_VOLUME.rolesNearLimit) {
     throw new Error(

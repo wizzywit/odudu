@@ -1150,6 +1150,56 @@ describe('POST /admin/tenant-imports', () => {
     expect(named?.message).toContain(roleLimitMessage());
   });
 
+  it('counts the capability roles every tenant is provisioned with: exactly the limit in custom roles is too many', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const broken: TenantDocument = {
+      ...document,
+      roles: Array.from({ length: ROLE_LIMIT }, (_, n) => ({
+        name: `custom-${String(n)}`,
+        client: null,
+        description: null,
+        default_for_new_subjects: false,
+        builtin: false,
+        composites: [],
+      })),
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    expect(errors.find((error) => error.path === 'document.roles')?.message).toContain(
+      roleLimitMessage(),
+    );
+  });
+
+  it('counts a capability role the document carries once, so the limit is reached and not passed', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const custom = ROLE_LIMIT - document.roles.length;
+    const atTheLimit: TenantDocument = {
+      ...document,
+      roles: [
+        ...document.roles,
+        ...Array.from({ length: custom }, (_, n) => ({
+          name: `custom-${String(n)}`,
+          client: null,
+          description: null,
+          default_for_new_subjects: false,
+          builtin: false,
+          composites: [],
+        })),
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: atTheLimit });
+
+    expect(res.statusCode, res.payload.slice(0, 300)).toBe(201);
+  });
+
   it('refuses a document that defines more groups than a tenant may, in the same words', async () => {
     const source = await seededSource();
     const token = await operatorToken();

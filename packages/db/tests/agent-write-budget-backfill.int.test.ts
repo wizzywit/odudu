@@ -73,6 +73,9 @@ describe('the write budget migration', () => {
       { scope: 'other', root_scope: null },
       { scope: 'root', root_scope: null },
     ]);
+    const counters = await admin.sql<{ writes: number; creates: number }[]>`
+      select agent_writes as writes, agent_creates as creates from token_grants where scope = 'root'`;
+    expect(counters).toEqual([{ writes: 0, creates: 0 }]);
     const notForced = await admin.sql<{ relname: string }[]>`
       select relname from pg_class where relname = 'token_grants' and not relforcerowsecurity`;
     expect(notForced).toEqual([]);

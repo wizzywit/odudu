@@ -2114,6 +2114,20 @@ key update`, and a create held it over a count of up to 10,000 index entries. Bo
   in the target tenant, which a create has never been bounded below), the role create is driven in a tenant seeded five
   under the limit, the seed fails if one of the tables or the fan-in falls under its threshold, and a reparent of a group
   with a 1,620-descendant subtree is driven: its recursive update is an index scan on `groups_by_parent` and `groups_pkey`.
+- **Migration `0124` is edited, not followed by another.** It is on no tag and not on `main`
+  (`git tag --contains` and `git log main --` name nothing), as `0113` and `0114` were edited before
+  their release, so no database that matters has applied the old text. It now also backfills
+  `budget_grant_id` for grants an earlier exchange made, by following the chain down from each grant no
+  exchange made (`agent-write-budget-backfill.int.test.ts`, as a plain owner); a grant whose parent was
+  already deleted cannot be told from a sign-in's own and keeps a budget of its own. The counters begin
+  at 0 on every grant, so there is nothing else to carry over.
+- **The docs image served no search.** The search index (10.5 MB) had passed the server's 10 MiB limit
+  for one file, which leaves the file out, so the built site answered 404 for it and the browser test
+  failed. The limit is 16 MiB, and `image-fits-server.test.ts` fails the build when a file or the tree
+  is within a quarter of a limit. The seed's reparent subtree now has each path as its parent's path
+  and its own name, and the seed fails when one does not. A role or group lock key is lower-cased, so
+  two spellings of one tenant id share a lock, and a tenant import counts the capability roles every
+  tenant is provisioned with, once each, against `ROLE_LIMIT`.
 - **Documents.** The budget's refusal, renewal and what is given back are in the guides; the owner's real-client run is
   scoped to the first release's reads and two writes; the P5a row of section 11, the console's audit page and NEXT's
   "budgets are absent" say what shipped; the changelog no longer says the tenant list is refused to agents; a message
