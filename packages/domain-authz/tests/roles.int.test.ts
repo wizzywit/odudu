@@ -763,3 +763,44 @@ describe('setDefaultForNewSubjects', () => {
     });
   });
 });
+
+describe('countUpTo and lockCreation', () => {
+  it('counts the tenant’s roles no further than the limit', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    for (const name of ['a', 'b', 'c']) await create({ name, tenantId });
+    const counted = (limit: number) =>
+      withTenant(app.db, tenantId, (tx) => roleRepository(tx).countUpTo(limit));
+    expect(await counted(10)).toBe(3);
+    expect(await counted(3)).toBe(3);
+    expect(await counted(2)).toBe(2);
+  });
+
+  it('does not count another tenant’s roles', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await roleRepository(tx).create({ tenantId, name: 'admin' });
+      },
+      verifySeeded: async (tx) => {
+        expect(await roleRepository(tx).countUpTo(10)).toBe(1);
+      },
+      attempt: async (tx) => roleRepository(tx).countUpTo(10),
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+    });
+  });
+
+  it('locks the tenant’s own row, and finds no row to lock for another tenant’s id', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const mine = await withTenant(app.db, tenantId, (tx) =>
+      roleRepository(tx).lockCreation(tenantId),
+    );
+    const other = await withTenant(app.db, tenantId, (tx) =>
+      roleRepository(tx).lockCreation(newId()),
+    );
+    expect([mine, other]).toEqual([true, false]);
+  });
+});

@@ -807,3 +807,48 @@ describe('grantNewSubjectDefaults', () => {
     });
   });
 });
+
+describe('countUpTo and lockCreation', () => {
+  it('counts the tenant’s groups at every depth, no further than the limit', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await withTenant(app.db, tenantId, async (tx) => {
+      const root = await groupRepository(tx).create({ tenantId, name: 'a', parentId: null });
+      await groupRepository(tx).create({ tenantId, name: 'b', parentId: root.id });
+      await groupRepository(tx).create({ tenantId, name: 'c', parentId: null });
+    });
+    const counted = (limit: number) =>
+      withTenant(app.db, tenantId, (tx) => groupRepository(tx).countUpTo(limit));
+    expect(await counted(10)).toBe(3);
+    expect(await counted(3)).toBe(3);
+    expect(await counted(2)).toBe(2);
+  });
+
+  it('does not count another tenant’s groups', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await groupRepository(tx).create({ tenantId, name: 'engineering', parentId: null });
+      },
+      verifySeeded: async (tx) => {
+        expect(await groupRepository(tx).countUpTo(10)).toBe(1);
+      },
+      attempt: async (tx) => groupRepository(tx).countUpTo(10),
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+    });
+  });
+
+  it('locks the tenant’s own row, and finds no row to lock for another tenant’s id', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const mine = await withTenant(app.db, tenantId, (tx) =>
+      groupRepository(tx).lockCreation(tenantId),
+    );
+    const other = await withTenant(app.db, tenantId, (tx) =>
+      groupRepository(tx).lockCreation(newId()),
+    );
+    expect([mine, other]).toEqual([true, false]);
+  });
+});

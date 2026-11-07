@@ -1,6 +1,6 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError, refuseBidiControls } from '@odudu/kernel';
-import { asc, eq, sql } from 'drizzle-orm';
+import { asc, count, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { groupRoles, groups, subjectGroups, type GroupRecord } from '#/schema/groups';
 
@@ -147,6 +147,29 @@ export function groupRepository(tx: TenantScopedDatabase) {
       for (const roleId of roleIds) {
         await tx.insert(groupRoles).values({ tenantId: group.tenantId, groupId, roleId });
       }
+    },
+
+    // Takes the tenant row's lock for the rest of the transaction, so a count
+    // against the limit and the insert after it are one decision. True when the
+    // tenant row was there to lock.
+    async lockCreation(tenantId: string): Promise<boolean> {
+      const rows = await tx
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .for('no key update');
+      return rows.length > 0;
+    },
+
+    // How many groups the tenant defines, at every depth, counted no further than `limit`.
+    async countUpTo(limit: number): Promise<number> {
+      const held = tx
+        .select({ one: sql<number>`1`.as('one') })
+        .from(groups)
+        .limit(limit)
+        .as('held');
+      const rows = await tx.select({ count: count() }).from(held);
+      return rows[0]?.count ?? 0;
     },
 
     // `path` is this repository's only writer: a root group's path is

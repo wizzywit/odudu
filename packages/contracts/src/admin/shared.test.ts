@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   cursorQuerySchema,
+  GROUP_LIMIT,
+  groupLimitMessage,
   listLimitMessage,
   listLimitProblem,
   MAX_LIMIT,
   problemDetailsSchema,
+  ROLE_LIMIT,
+  roleLimitMessage,
+  SCOPE_LIMIT,
 } from '#/admin/shared';
 
 describe('cursorQuerySchema', () => {
@@ -54,5 +59,13 @@ describe('the sentence a bounded client list is refused with', () => {
   it('says how many it holds and how many it may, with and without its field', () => {
     expect(listLimitMessage(201)).toBe('holds 201 entries, at most 200');
     expect(listLimitProblem('web_origins', 201)).toBe('web_origins holds 201 entries, at most 200');
+  });
+});
+
+describe('the most a tenant defines of each kind', () => {
+  it('is 1,000 roles, 10,000 groups and 1,000 scopes, each said in the refusal', () => {
+    expect([ROLE_LIMIT, GROUP_LIMIT, SCOPE_LIMIT]).toEqual([1_000, 10_000, 1_000]);
+    expect(roleLimitMessage()).toBe('a tenant defines at most 1000 roles');
+    expect(groupLimitMessage()).toBe('a tenant defines at most 10000 groups');
   });
 });

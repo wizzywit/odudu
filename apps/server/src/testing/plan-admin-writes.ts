@@ -112,15 +112,15 @@ export async function driveAdminWrites(
     one(sql`select id from roles where tenant_id = ${t} and name = ${name}`, name);
   const groupNamed = (name: string) =>
     one(sql`select id from groups where tenant_id = ${t} and name = ${name}`, name);
-  const nestedParent = await roleNamed('role-3001');
-  const nestedChild = await roleNamed('role-3002');
+  const nestedParent = await roleNamed('role-501');
+  const nestedChild = await roleNamed('role-502');
   const edgeChild = await one(
     sql`select child_role_id as id from role_composites where tenant_id = ${t} and parent_role_id = ${ids.role} limit 1`,
     'composite',
   );
-  const defaultRole = await roleNamed('role-3003');
+  const defaultRole = await roleNamed('role-503');
   const defaultGroup = await groupNamed('group-3003');
-  const patchedRole = await roleNamed('role-3004');
+  const patchedRole = await roleNamed('role-504');
   const patchedGroup = await groupNamed('group-3004');
   const mappedGroup = await groupNamed('group-3005');
   const patchedScope = await one(

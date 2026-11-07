@@ -1,4 +1,9 @@
-import { ASSIGNMENT_LIMIT, type ListRolesQuery, type RoleFields } from '@odudu/contracts/admin';
+import {
+  ASSIGNMENT_LIMIT,
+  ROLE_LIMIT,
+  type ListRolesQuery,
+  type RoleFields,
+} from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
@@ -237,6 +242,7 @@ export type CreateRoleOutcome =
   | { kind: 'unknown_client' }
   | { kind: 'default_on_admin_client'; adminClient: string }
   | { kind: 'too_many_defaults' }
+  | { kind: 'role_limit' }
   | { kind: 'ok'; role: RoleFields };
 
 // Every new subject is handed all the default roles, so the set holds no more
@@ -250,6 +256,11 @@ export async function createRole(
   deps: CreateRoleDeps,
   input: CreateRoleInput,
 ): Promise<CreateRoleOutcome> {
+  // The count and the insert are one decision, as the scope limit's are: a
+  // tenant that already holds more keeps what it has and only a create is refused.
+  await roleRepository(tx).lockCreation(input.tenantId);
+  if ((await roleRepository(tx).countUpTo(ROLE_LIMIT)) >= ROLE_LIMIT) return { kind: 'role_limit' };
+
   // `roles_client_fk` would refuse this too, but as a foreign-key
   // violation rather than the unique violation the route knows how to turn
   // into a 409 — and a `client_id` that is not a uuid at all fails in the

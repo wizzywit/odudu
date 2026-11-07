@@ -58,6 +58,23 @@ export function scopeLimitMessage(): string {
   return `a tenant defines at most ${String(SCOPE_LIMIT)} scopes`;
 }
 
+/**
+ * The most roles a tenant defines, a client's own among them, and the most groups.
+ * A create past either is a 409; a tenant that holds more keeps them. The numbers
+ * are a bound on what one tenant can grow by hand or through an agent, and are
+ * meant to be retuned here, in one place, if a deployment needs more.
+ */
+export const ROLE_LIMIT = 1_000;
+export const GROUP_LIMIT = 10_000;
+
+export function roleLimitMessage(): string {
+  return `a tenant defines at most ${String(ROLE_LIMIT)} roles`;
+}
+
+export function groupLimitMessage(): string {
+  return `a tenant defines at most ${String(GROUP_LIMIT)} groups`;
+}
+
 // A shape check, not a policy check: an over-large `limit` is a page size
 // to coerce down, never a request to refuse (design spec §9, citing
 // AIP-158) — `MAX_LIMIT` is enforced exactly once, by
