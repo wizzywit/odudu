@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { memoryWriteBudget, WRITE_BUDGET } from '#/service/write-budget';
+import { memoryWriteBudget, renewableWriteBudget, WRITE_BUDGET } from '#/service/write-budget';
 
 describe('the write budget of one grant', () => {
   it('is 20 mutating calls and 10 creates', () => {
@@ -48,5 +48,16 @@ describe('the write budget of one grant', () => {
     for (let i = 0; i < 20; i += 1) await first.reserve('mutating');
     expect(await first.reserve('mutating')).toBe(false);
     expect(await second.reserve('mutating')).toBe(true);
+  });
+});
+
+describe('a budget renewed by a new sign-in', () => {
+  it('starts afresh when renewed, and only then', async () => {
+    const { budget, renew } = renewableWriteBudget();
+    for (let i = 0; i < 20; i += 1) expect(await budget.reserve('mutating')).toBe(true);
+    expect(await budget.reserve('mutating')).toBe(false);
+    expect(await budget.reserve('mutating')).toBe(false);
+    renew();
+    expect(await budget.reserve('mutating')).toBe(true);
   });
 });

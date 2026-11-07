@@ -13,7 +13,8 @@ import {
   type ToolResult,
 } from '@odudu/mcp';
 import { recordAgentToolCall } from '@odudu/protocol-admin';
-import { tokenGrantRepository } from '@odudu/protocol-oidc';
+import { tokenGrantRepository, tokenGrants } from '@odudu/protocol-oidc';
+import { eq, sql } from 'drizzle-orm';
 import { roleSchema } from '@odudu/contracts/admin';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { grantWriteBudget } from '#/mcp-deps';
@@ -176,6 +177,62 @@ function callAs(w: World) {
 }
 
 const ETAG = `"${'a'.repeat(64)}"`;
+
+describe('a grant exchanged from an exhausted one', () => {
+  it('has the same budget, so an exchange does not renew it', async () => {
+    const w = await stack.world(OWNER_CAPS, WRITE);
+    for (let i = 0; i < 20; i += 1) expect(await budgetOf(w).reserve('mutating')).toBe(true);
+    const childId = newId();
+    await withTenant(stack.appDb.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).create({
+        id: childId,
+        tenantId: w.tenantId,
+        clientId: w.agentDbId,
+        subjectId: w.subjectId,
+        scope: 'mcp:write',
+        audience: [],
+        exchangedFromGrantId: w.grantId,
+      }),
+    );
+    const child = { ...w, grantId: childId };
+    const result = await callAs(child)(amend, { id: newId(), if_match: ETAG, description: 'd' });
+    expect(errorOf(result)).toMatchObject({ type: 'mcp:write_budget', status: 429 });
+  });
+});
+
+describe('a grant row that is locked', () => {
+  it('is answered within the wait, not made, and leaves nothing spent', async () => {
+    const w = await stack.world(OWNER_CAPS, WRITE);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => undefined;
+    const lockTaken = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const holder = stack.owner.db.transaction(async (tx) => {
+      await tx.execute(sql`select 1 from token_grants where id = ${w.grantId} for update`);
+      locked();
+      await held;
+    });
+    await lockTaken;
+    const started = Date.now();
+    const result = await callAs(w)(amend, { id: newId(), if_match: ETAG, description: 'd' });
+    release();
+    await holder;
+    expect(Date.now() - started).toBeLessThan(8_000);
+    expect(errorOf(result)).toMatchObject({ type: 'mcp:write_budget_unavailable', status: 503 });
+    expect(await budgetOf(w).reserve('mutating')).toBe(true);
+    const rows = await withTenant(stack.appDb.db, w.tenantId, (tx) =>
+      tx
+        .select({ n: tokenGrants.agentWrites })
+        .from(tokenGrants)
+        .where(eq(tokenGrants.id, w.grantId)),
+    );
+    expect(rows[0]?.n).toBe(1);
+  });
+});
 
 describe('a grant that has ended', () => {
   it('is its own problem, not a spent budget, and nothing is called', async () => {

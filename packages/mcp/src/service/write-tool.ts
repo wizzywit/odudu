@@ -66,13 +66,15 @@ export function localisedField(max: number, what: string): z.ZodType<Record<stri
 }
 
 function jsonOf(value: unknown): JsonValue {
-  if (value === null || typeof value === 'string') return value;
-  if (typeof value === 'object' && !Array.isArray(value)) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (Array.isArray(value)) return value.map((item): JsonValue => jsonOf(item));
+  if (typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]): [string, JsonValue] => [key, jsonOf(item)]),
     );
   }
-  throw new Error('a write tool sends strings, null and records of them');
+  throw new Error('a write tool sends JSON values only');
 }
 
 function bodyOf(fields: readonly string[], input: object): JsonObject {

@@ -30,6 +30,7 @@ import {
 } from '@odudu/protocol-admin';
 import { mintAgentToken, tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type FastifyInstance } from 'fastify';
+import { sql } from 'drizzle-orm';
 import { type Logger as PinoLogger } from 'pino';
 
 // A tool that has not answered by now is given up on; the admin call it made
@@ -110,6 +111,9 @@ export function adminCallerFor(deps: McpCallDeps, token: ValidatedMcpToken): Adm
 // The write budget of the grant behind a token, spent in the database: one
 // statement per reservation, so calls made at once between them cannot pass
 // the limit, in this process or another.
+// A reservation waits for the grant's row no longer than the caller waits for it.
+const LOCK_WAIT_MS = '3000';
+
 const ENDED =
   'The grant behind this token is gone or was revoked: ask the person to sign in again.';
 
@@ -124,6 +128,7 @@ export function grantWriteBudget(
         database.db,
         token.tenant.id,
         async (tx) => {
+          await tx.execute(sql`select set_config('lock_timeout', ${LOCK_WAIT_MS}, true)`);
           const grants = tokenGrantRepository(tx);
           if (await grants.reserveAgentWrite(token.grantId, kind, WRITE_BUDGET)) return true;
           if (await grants.isLive(token.grantId)) return false;

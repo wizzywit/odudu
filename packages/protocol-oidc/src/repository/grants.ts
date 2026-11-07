@@ -76,7 +76,27 @@ export interface FrontChannelTarget {
   frontchannelLogoutSessionRequired: boolean;
 }
 
+// How far up the grants exchanged from one another a budget is looked for.
+const EXCHANGE_DEPTH = 16;
+
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
+  // A grant exchanged from another has that grant's agent write budget, so
+  // exchanging an exhausted token does not renew it: only a new sign-in does,
+  // and that makes a grant with no parent.
+  async function budgetGrant(id: string): Promise<string> {
+    let current = id;
+    for (let hop = 0; hop < EXCHANGE_DEPTH; hop += 1) {
+      const rows = await tx
+        .select({ parent: tokenGrants.exchangedFromGrantId })
+        .from(tokenGrants)
+        .where(eq(tokenGrants.id, current));
+      const parent = rows[0]?.parent;
+      if (parent === null || parent === undefined) return current;
+      current = parent;
+    }
+    return current;
+  }
+
   // One read behind both ways of asking for a session's clients, so the
   // join and the `enabled` filter cannot differ between them.
   async function sessionClients(
@@ -158,6 +178,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       limits: { readonly mutating: number; readonly creates: number },
     ): Promise<boolean> {
       const create = kind === 'create';
+      const root = await budgetGrant(id);
       const rows = await tx
         .update(tokenGrants)
         .set({
@@ -166,7 +187,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         })
         .where(
           and(
-            eq(tokenGrants.id, id),
+            eq(tokenGrants.id, root),
             isNull(tokenGrants.revokedAt),
             lt(tokenGrants.agentWrites, limits.mutating),
             create ? lt(tokenGrants.agentCreates, limits.creates) : undefined,
@@ -179,11 +200,12 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // Whether the grant exists in this tenant and has not been revoked, which
     // tells a spent budget from a sign-in that has ended.
     async isLive(id: string): Promise<boolean> {
+      const [own, root] = [id, await budgetGrant(id)];
       const rows = await tx
         .select({ id: tokenGrants.id })
         .from(tokenGrants)
-        .where(and(eq(tokenGrants.id, id), isNull(tokenGrants.revokedAt)));
-      return rows.length > 0;
+        .where(and(inArray(tokenGrants.id, [own, root]), isNull(tokenGrants.revokedAt)));
+      return rows.length === new Set([own, root]).size;
     },
 
     // Gives back a call known to have changed nothing, never below none.
@@ -194,7 +216,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
           agentWrites: sql`greatest(${tokenGrants.agentWrites} - 1, 0)`,
           agentCreates: sql`greatest(${tokenGrants.agentCreates} - ${kind === 'create' ? 1 : 0}, 0)`,
         })
-        .where(eq(tokenGrants.id, id));
+        .where(eq(tokenGrants.id, await budgetGrant(id)));
     },
 
     async byId(id: string): Promise<TokenGrantRecord | null> {

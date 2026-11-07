@@ -353,3 +353,37 @@ describe('a definition that names one argument twice', () => {
     }
   });
 });
+
+describe('the values a write tool sends', () => {
+  const rich = contentWriteTool({
+    name: 'put_rich',
+    description: 'Replaces a rich thing.',
+    routeKey: 'PUT /admin/tenants/:tenant/message-overrides/:locale/:key',
+    capability: 'manage-tenant',
+    what: 'message override',
+    mode: 'put',
+    params: { locale: z.string(), key: z.string() },
+    fields: {
+      count: z.number().int(),
+      on: z.boolean(),
+      list: z.array(z.string()),
+      nested: z.object({ a: z.number(), b: z.array(z.boolean()), c: z.null() }),
+      gone: z.string().nullable(),
+    },
+    response: ROLE,
+  });
+
+  it('are every JSON value: numbers, booleans, arrays, nested records and null', async () => {
+    const caller = respondingWith(ANSWER);
+    const body = {
+      count: 3,
+      on: false,
+      list: ['a', 'b'],
+      nested: { a: 1.5, b: [true, false], c: null },
+      gone: null,
+    };
+    const result = await callTool(rich, caller, { locale: 'de', key: 'k', ...body });
+    expect(result.isError, JSON.stringify(result.structuredContent)).toBe(false);
+    expect(caller.requests[0]?.body).toEqual(body);
+  });
+});

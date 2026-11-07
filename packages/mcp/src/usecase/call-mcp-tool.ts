@@ -68,21 +68,64 @@ function changedNothing(problem: ToolProblem | null): boolean {
 }
 
 // What a call spends, when it spends anything: a write whose arguments the
-// schema accepts. One it refuses is never sent, so it costs nothing.
-function spendOf(tool: RegisteredTool, input: unknown): BudgetKind | undefined {
-  if (tool.access !== 'write' || tool.spends === undefined) return undefined;
-  return tool.input.safeParse(input).success ? tool.spends : undefined;
+// schema accepts. One it refuses is never sent, so it costs nothing. A write
+// that declares no budget has no place in one, so it is not made.
+function spendOf(tool: RegisteredTool, input: unknown): BudgetKind | 'undeclared' | undefined {
+  if (tool.access !== 'write') return undefined;
+  if (tool.spends === undefined) return 'undeclared';
+  try {
+    return tool.input.safeParse(input).success ? tool.spends : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const BUDGET_WAIT_MS = 5_000;
+
+// Waits for the budget no longer than a slice of the tool's own deadline.
+function within<T>(wait: Promise<T>): Promise<T | 'late'> {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<'late'>((resolve) => {
+    timer = setTimeout(() => {
+      resolve('late');
+    }, BUDGET_WAIT_MS);
+  });
+  return Promise.race([wait, late]).finally(() => {
+    clearTimeout(timer);
+  });
 }
 
 // Reserves the call's place in the grant's budget, or says why it has none. A
-// budget that cannot be read is not guessed at: the call is not made.
+// budget that cannot be read in time is not guessed at: the call is not made,
+// and a place that arrives after the wait ended is given back at once.
 async function reserved(
   deps: CallMcpToolDeps,
   tool: RegisteredTool,
-  kind: BudgetKind,
+  kind: BudgetKind | 'undeclared',
 ): Promise<ToolProblem | null> {
+  const unavailable = (detail: string): ToolProblem =>
+    new ToolProblem(
+      'mcp:write_budget_unavailable',
+      'The call was not made because the allowance for changes could not be read',
+      503,
+      detail,
+    );
+  if (kind === 'undeclared') {
+    deps.logger.error({ requestId: deps.requestId, tool: tool.name }, 'write tool has no budget');
+    return unavailable(`Quote the correlation id ${deps.requestId} to the operator.`);
+  }
+  const asking = deps.budget.reserve(kind);
   try {
-    return (await deps.budget.reserve(kind))
+    const answer = await within(asking);
+    if (answer === 'late') {
+      asking.then(
+        (admitted) => (admitted ? released(deps, tool, kind) : undefined),
+        () => undefined,
+      );
+      deps.logger.error({ requestId: deps.requestId, tool: tool.name }, 'write budget too slow');
+      return unavailable(`Quote the correlation id ${deps.requestId} to the operator.`);
+    }
+    return answer
       ? null
       : new ToolProblem('mcp:write_budget', 'Too many changes in this sign-in', 429, BUDGET_SPENT);
   } catch (error) {
@@ -91,12 +134,7 @@ async function reserved(
       { err: error, requestId: deps.requestId, tool: tool.name },
       'write budget not read',
     );
-    return new ToolProblem(
-      'mcp:write_budget_unavailable',
-      'The call was not made because the allowance for changes could not be read',
-      503,
-      `Quote the correlation id ${deps.requestId} to the operator.`,
-    );
+    return unavailable(`Quote the correlation id ${deps.requestId} to the operator.`);
   }
 }
 
@@ -106,7 +144,12 @@ async function released(
   kind: BudgetKind,
 ): Promise<void> {
   try {
-    await deps.budget.release(kind);
+    if ((await within(deps.budget.release(kind))) === 'late') {
+      deps.logger.error(
+        { requestId: deps.requestId, tool: tool.name },
+        'write budget not given back in time',
+      );
+    }
   } catch (error) {
     deps.logger.error(
       { err: error, requestId: deps.requestId, tool: tool.name },
@@ -183,7 +226,7 @@ export async function callMcpTool(
     refusal === null
       ? await execute(deps, tool, caller, input)
       : { result: errorResult(refusal), problem: refusal };
-  if (kind !== undefined && refusal === null && changedNothing(problem)) {
+  if (kind !== undefined && kind !== 'undeclared' && refusal === null && changedNothing(problem)) {
     await released(deps, tool, kind);
   }
   try {

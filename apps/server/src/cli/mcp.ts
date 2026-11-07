@@ -7,7 +7,7 @@ import {
 import { ADMIN_API_AUDIENCE, MCP_CLIENT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import {
   callMcpTool,
-  memoryWriteBudget,
+  renewableWriteBudget,
   createBrowserOpener,
   configDirectory,
   createCredentialStore,
@@ -33,6 +33,7 @@ import {
   type RunTool,
   type StdioTarget,
   type ToolResult,
+  type WriteBudget,
 } from '@odudu/mcp';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
@@ -227,13 +228,14 @@ function browserCredential(
   oauth: OauthClient,
   discover: OauthClient['discover'],
   store: CredentialStore | null,
+  signedIn: () => void,
   io: McpIo,
 ): Credential {
   return {
     kind: 'browser',
     store,
-    login: () =>
-      loopbackLogin({
+    login: async () => {
+      const set = await loopbackLogin({
         oauth: { discover, redeemCode: (server, input) => oauth.redeemCode(server, input) },
         listen: (state) =>
           listenOnLoopback({
@@ -247,7 +249,10 @@ function browserCredential(
         clientId: MCP_CLIENT_ID,
         resource: ADMIN_API_AUDIENCE,
         scope,
-      }),
+      });
+      signedIn();
+      return set;
+    },
     refresh: async (refreshToken) =>
       oauth.refresh(await discover(), { refreshToken, scope, resource: ADMIN_API_AUDIENCE }),
   };
@@ -277,11 +282,10 @@ async function serve(
   tenant: string,
   tools: readonly RegisteredTool[],
   caller: Parameters<typeof callMcpTool>[2],
+  budget: WriteBudget,
   io: McpIo,
 ): Promise<void> {
   const inFlight = new Set<Promise<ToolResult>>();
-  // One run is one process, which is the whole of what its budget has to cover.
-  const budget = memoryWriteBudget();
   const run = (tool: RegisteredTool, args: unknown): Promise<ToolResult> => {
     const requestId = randomUUID();
     // The admin API records a call made with a token issued to the agent, at its
@@ -353,9 +357,13 @@ async function start(values: Values, io: McpIo): Promise<void> {
   const store = account === undefined && scope === 'mcp:read' ? storeFor(target, io) : null;
   // A refused store is the person's to fix, and is found before a client waits on us.
   await store?.get();
+  // The allowance for changes belongs to a sign-in the person consented to: a
+  // new browser sign-in renews it, and a service account's key, which asks
+  // nobody, keeps the one it started the run with.
+  const { budget, renew } = renewableWriteBudget();
   const credential =
     account === undefined
-      ? browserCredential(scope, oauth, discover, store, io)
+      ? browserCredential(scope, oauth, discover, store, renew, io)
       : keyCredential(account, oauth, discover, scope, io);
   const tokens = createTokenSource({
     now: io.now,
@@ -376,7 +384,7 @@ async function start(values: Values, io: McpIo): Promise<void> {
   });
   const caller = createHttpCaller(baseUrl, tokens, { tenant, fetch: io.fetch });
   const inSystemTenant = await signsInAtSystemTenant(target, discover);
-  await serve(tenant, visibleTools(TOOLS, [scope], null, inSystemTenant), caller, io);
+  await serve(tenant, visibleTools(TOOLS, [scope], null, inSystemTenant), caller, budget, io);
 }
 
 // Whether the sign-in is at the system tenant's own address, which its metadata

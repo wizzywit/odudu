@@ -184,6 +184,7 @@ describe('the deadline of a write tool', () => {
       ...base,
       name: 'update_client_metadata',
       access: 'write',
+      spends: 'mutating',
       routeKey: route,
       run: async (c) => {
         await c.call({
@@ -287,6 +288,7 @@ describe('a write tool called with a read token', () => {
       ...base,
       name: 'rename_client',
       access: 'write',
+      spends: 'mutating',
       routeKey: 'PATCH /admin/tenants/:tenant/clients/:id',
       run: async (c) => {
         await c.call({
@@ -522,5 +524,119 @@ describe('the write budget', () => {
     const h = harness(true, countingBudget(true).budget);
     const result = await callMcpTool(h.deps, spender('mutating').tool, caller, {});
     expect(result.structuredContent).toMatchObject({ error: { type: 'mcp:audit_unavailable' } });
+  });
+});
+
+describe('a write tool the budget cannot account for', () => {
+  const route = 'POST /admin/tenants/:tenant/roles';
+  const run = () => Promise.resolve({ data: { ok: true } });
+
+  it('is refused when it declares no budget, and runs nothing', async () => {
+    const h = harness();
+    let ran = 0;
+    const tool = defineTool({
+      ...base,
+      name: 'unbudgeted',
+      access: 'write',
+      routeKey: route,
+      run: () => ((ran += 1), run()),
+    });
+    const result = await callMcpTool(h.deps, tool, caller, {});
+    expect(result.structuredContent).toMatchObject({
+      error: { type: 'mcp:write_budget_unavailable', status: 503 },
+    });
+    expect(ran).toBe(0);
+    expect(h.rows).toEqual([{ tool: 'unbudgeted', route, outcome: 'failed' }]);
+  });
+
+  it('is answered and recorded as a failure when its arguments cannot even be read', async () => {
+    const h = harness();
+    let sent = 0;
+    const tool = defineTool({
+      ...base,
+      name: 'exploding',
+      access: 'write',
+      spends: 'mutating',
+      routeKey: route,
+      input: z.strictObject({}).superRefine(() => {
+        throw new Error('cannot serialise');
+      }),
+      run: () => ((sent += 1), run()),
+    });
+    const result = await callMcpTool(h.deps, tool, caller, {});
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({ error: { type: 'mcp:internal_error' } });
+    expect(sent).toBe(0);
+    expect(h.rows).toEqual([{ tool: 'exploding', route, outcome: 'failed' }]);
+  });
+});
+
+describe('the wait for the budget', () => {
+  const route = 'POST /admin/tenants/:tenant/roles';
+
+  function writer() {
+    const ran: number[] = [];
+    const tool = defineTool({
+      ...base,
+      name: 'change_something',
+      access: 'write',
+      spends: 'mutating',
+      routeKey: route,
+      run: () => (ran.push(1), Promise.resolve({ data: { ok: true } })),
+    });
+    return { tool, ran };
+  }
+
+  it('gives up at five seconds, runs nothing, and gives back a place that arrives late', async () => {
+    vi.useFakeTimers();
+    try {
+      const events: string[] = [];
+      let grant: (admitted: boolean) => void = () => undefined;
+      const h = harness(false, {
+        reserve: () =>
+          new Promise<boolean>((resolve) => {
+            grant = resolve;
+          }),
+        release: () => (events.push('release'), Promise.resolve()),
+      });
+      const { tool, ran } = writer();
+      const pending = callMcpTool(h.deps, tool, caller, {});
+      await vi.advanceTimersByTimeAsync(5_000);
+      const result = await pending;
+      expect(result.structuredContent).toMatchObject({
+        error: { type: 'mcp:write_budget_unavailable', status: 503 },
+      });
+      grant(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ran).toHaveLength(0);
+      expect(events).toEqual(['release']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops waiting for a give-back that does not come, and answers the call as it was', async () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness(false, {
+        reserve: () => Promise.resolve(true),
+        release: () => new Promise<void>(() => undefined),
+      });
+      const tool = defineTool({
+        ...base,
+        name: 'change_something',
+        access: 'write',
+        spends: 'mutating',
+        routeKey: route,
+        run: () => Promise.reject(new ToolProblem('about:blank', 'Conflict', 409)),
+      });
+      const pending = callMcpTool(h.deps, tool, caller, {});
+      await vi.advanceTimersByTimeAsync(5_000);
+      const result = await pending;
+      expect(result.structuredContent).toMatchObject({ error: { status: 409 } });
+      expect(h.logged).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

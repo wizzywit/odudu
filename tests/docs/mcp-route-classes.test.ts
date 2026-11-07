@@ -146,6 +146,20 @@ describe('the route classes document against the tool catalogue', () => {
     }
   });
 
+  it('marks a tool as planned exactly when the catalogue does not have it yet', () => {
+    for (const [, cells] of routeTable.rows.entries()) {
+      const name = backticked(cells[4] ?? '')[0];
+      if (name === undefined) continue;
+      const planned = (cells[4] ?? '').includes('(planned)');
+      expect(planned, `${name} in row ${cells[0] ?? ''}`).toBe(!TOOLS.some((t) => t.name === name));
+    }
+  });
+
+  it('says how many W1 routes have a tool today, as the catalogue has them', () => {
+    const today = TOOLS.filter((tool) => tool.access === 'write').length;
+    expect(document.lines.join('\n')).toContain(`**${String(today)} of them have a tool today**`);
+  });
+
   it('lists a tool once, and lists every tool that exists', () => {
     const named = ROWS.flatMap((row) => (row.tool === undefined ? [] : [row.tool]));
     expect(new Set(named).size).toBe(named.length);
@@ -175,9 +189,12 @@ describe('the route classes document against the tool catalogue', () => {
 describe('the field table of the mixed routes', () => {
   const fields = tableWithHeadings(document, [
     'Route',
-    'W1 (agent-writable)',
+    'W1 (classed agent-writable)',
+    'Admitted by the door now',
     'W2 or refused, with the reason',
   ]);
+
+  const doorKeys = new Set(AGENT_WRITE_ROUTES.map((entry) => `${entry.method} ${entry.pattern}`));
 
   it('names, for each route an agent may write, every field the door admits', () => {
     for (const entry of AGENT_WRITE_ROUTES) {
@@ -187,6 +204,17 @@ describe('the field table of the mixed routes', () => {
       expect(row, entry.pattern).toBeDefined();
       const named = backticked(row?.[1] ?? '');
       for (const field of entry.fields) expect(named, `${entry.pattern} ${field}`).toContain(field);
+    }
+  });
+
+  it('states what the door admits now, exactly: the allowlist’s fields, or none yet', () => {
+    for (const cells of fields.rows) {
+      const key = keyOf(cells[0] ?? '');
+      const entry = AGENT_WRITE_ROUTES.find((e) => `${e.method} ${e.pattern}` === key);
+      const admitted = backticked(cells[2] ?? '');
+      expect([...admitted].sort(), key).toEqual([...(entry?.fields ?? [])].sort());
+      if (entry === undefined) expect(cells[2], key).toMatch(/^none/u);
+      expect(doorKeys.has(key) || admitted.length === 0, key).toBe(true);
     }
   });
 });

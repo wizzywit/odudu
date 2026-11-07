@@ -160,6 +160,50 @@ describe('the write budget of a grant', () => {
     expect(await reserve(tenantId, grantId, 'mutating')).toBe(false);
   });
 
+  async function exchangedFrom(tenantId: string, parentId: string): Promise<string> {
+    return withTenant(app.db, tenantId, async (tx) => {
+      const parent = await tokenGrantRepository(tx).byId(parentId);
+      if (parent === null) throw new Error('no parent grant');
+      const child = await tokenGrantRepository(tx).create({
+        id: newId(),
+        tenantId,
+        clientId: parent.clientId,
+        subjectId: parent.subjectId,
+        scope: 'mcp:write',
+        audience: parent.audience,
+        exchangedFromGrantId: parentId,
+        actorSubjectId: parent.subjectId,
+      });
+      return child.id;
+    });
+  }
+
+  it('is one budget for a grant and every grant exchanged from it, however deep', async () => {
+    const { tenantId, grantId } = await grantIn();
+    const child = await exchangedFrom(tenantId, grantId);
+    const grandchild = await exchangedFrom(tenantId, child);
+    for (let i = 0; i < 20; i += 1) expect(await reserve(tenantId, grantId, 'mutating')).toBe(true);
+    expect(await reserve(tenantId, child, 'mutating')).toBe(false);
+    expect(await reserve(tenantId, grandchild, 'mutating')).toBe(false);
+    await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).releaseAgentWrite(grandchild, 'mutating'),
+    );
+    expect(await reserve(tenantId, child, 'mutating')).toBe(true);
+    expect(await spent(tenantId, grantId)).toEqual({ writes: 20, creates: 0 });
+  });
+
+  it('ends with the grant it was exchanged from', async () => {
+    const { tenantId, grantId } = await grantIn();
+    const child = await exchangedFrom(tenantId, grantId);
+    await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(grantId, new Date()),
+    );
+    expect(await reserve(tenantId, child, 'mutating')).toBe(false);
+    expect(await withTenant(app.db, tenantId, (tx) => tokenGrantRepository(tx).isLive(child))).toBe(
+      false,
+    );
+  });
+
   it('says whether a grant is live, so a sign-in that ended is not read as a spent budget', async () => {
     const { tenantId, grantId } = await grantIn();
     const live = (id: string, tenant = tenantId) =>

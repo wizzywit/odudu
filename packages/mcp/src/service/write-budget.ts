@@ -40,3 +40,21 @@ export function memoryWriteBudget(limits: BudgetLimits = WRITE_BUDGET): WriteBud
     },
   };
 }
+
+// A budget that starts afresh when `renew` is called, for a run whose allowance
+// belongs to a sign-in: only a new sign-in the person consents to renews it.
+export function renewableWriteBudget(limits: BudgetLimits = WRITE_BUDGET): {
+  readonly budget: WriteBudget;
+  readonly renew: () => void;
+} {
+  let current = memoryWriteBudget(limits);
+  return {
+    budget: {
+      reserve: (kind) => current.reserve(kind),
+      release: (kind) => current.release(kind),
+    },
+    renew: () => {
+      current = memoryWriteBudget(limits);
+    },
+  };
+}

@@ -1638,3 +1638,14 @@ route is a durable document, [MCP route classes](../protocols/mcp-route-classes.
 The class table and its tests; the door's method and body-mode vocabulary, which a W2 entry
 would need `target` and a confirmation step added to; and the budget, which a confirmation step
 should not share with W1, since a confirmed call is one a person looked at.
+
+### Review round on the pull request
+
+A grant exchanged from another has the root grant's budget (the repository follows
+`exchanged_from_grant_id`, at most 16 hops), so exchanging an exhausted token does not renew it. The stdio
+budget is renewed by each browser sign-in and kept across a service account's key fetches. A write tool with
+no `spends` is refused (`mcp:write_budget_unavailable`); a reservation or give-back waits at most five seconds,
+the reservation also sets `lock_timeout` to three, and a place granted after the wait ended is given back
+and never starts a write. `jsonOf` serialises every JSON value, and a throwing schema is a failed row, not an
+escape from `callMcpTool`. The route-class page marks planned tools and shows, beside each classed W1 field,
+what the door admits now.
