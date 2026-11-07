@@ -1690,11 +1690,16 @@ and `display_order` on the shipped scope `PATCH`. `default_for_new_subjects`, `p
   fields a create chose as `{ after }`, leaving out a field still at what an empty row holds, so an agent's create
   row names `name` and `description` and no W2 field; an amendment is `redactedDiff` of the wire shape before and
   after, which for a role is the description alone. The second assumption, that the admin API enforces a role and
-  a group limit, was false too: only a scope has one (`SCOPE_LIMIT`, 1,000, refused `409`). The integration test
-  fills a tenant to 999 scopes by the database, creates the 1,000th through the tool and sees the next refused
-  `409`; a role and a group have no count, so the grant's budget of ten creates is their only bound for an agent.
-  That is recorded as a row in `docs/NEXT.md` and not fixed here: a limit on roles and groups is a product rule
-  for every caller, which P11's volume work decides.
+  a group limit, was false too: only a scope had one (`SCOPE_LIMIT`, 1,000). A bound on what an agent can add to
+  those two tables is this increment's topic, so it is built here, for every caller: `ROLE_LIMIT` (1,000, a
+  client's own roles counted) and `GROUP_LIMIT` (10,000, at every depth) in `@odudu/contracts`, enforced in
+  `createRole` and `createGroup` as `createScope` enforces its own (`lockCreation` on the tenant row, then
+  `countUpTo`), refused `409` with `a tenant defines at most N roles` (or `groups`). A tenant that already holds
+  more keeps what it has: only a create is refused. The numbers are one constant each and easy to retune. Tested
+  against the repositories (with a foreign-tenant probe), through the admin API (fill by the database, the last
+  create succeeds, the next is `409`, a tenant over the limit is left alone, another tenant is unaffected) and
+  through the tools. The scope limit's own test fills a tenant to 999 scopes and sees the next refused. The
+  grant's ten creates remain the agent's own bound beside them.
 - **Defects found by the tests and fixed in the topic.** `POST ~/groups` with a name containing `/` was a `500`
   (the table's `groups_name_has_no_slash` check), and a tool can now offer that call; the contract refuses it
   `400`. `get_role` and `get_group` did not pass the etag their own update tool needs as `if_match`; they do
@@ -1713,9 +1718,10 @@ and `display_order` on the shipped scope `PATCH`. `default_for_new_subjects`, `p
   a write an agent may make can reach it.
 - **A body sent past the tool.** `mcp-write-structure.int.test.ts` sends six bodies to each of the six
   routes through a caller that skips the tool, and none changes a row, an amendment audit row or a refusal
-  count beyond the door's: a field the create or amend shape names is the door's `403`, one it does not name
-  is the route's own `400` (`default_for_new_subjects` on a role and `parent_id` on a group are the first kind;
-  `composites` on a role is the second).
+  count beyond the door's. Each body has the status it is owed, asserted exactly: 30 are the door's `403`
+  (every member of a `PATCH`, which takes any, and every member a create's shape names, such as
+  `default_for_new_subjects` on a role or `parent_id` on a group), and 6 are the route's own `400` for a member
+  the create's shape does not name at all (`composites` on a role, `default_for_new_subjects` on a group).
 - **Stale etag, duplicates, replays, the budget.** A stale `if_match` is `412` said as one; a duplicate role,
   group or scope name, and a role of the built-in admin client named like a capability, are `409`; a repeat of a
   create under one key answers the first response with one row and one `role.create` row, and a different body

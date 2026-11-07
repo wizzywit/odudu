@@ -337,6 +337,13 @@ The allowance, and nothing wider:
    (assumption: the `query-plans` job, `.github/workflows/verify.yml` line 346, already has an entry for the tenant
    list; Increment 12 greps the plan inventory for it and adds one if absent).
 
+Volume of the structure creates (Increment 16): a tenant defines at most `ROLE_LIMIT` = 1,000 roles (a client's own
+among them) and `GROUP_LIMIT` = 10,000 groups, as it defines at most `SCOPE_LIMIT` = 1,000 scopes. `createRole` and
+`createGroup` take the tenant row's lock, count no further than the limit and refuse the create `409`
+(`a tenant defines at most N roles`), for every caller; a tenant that holds more keeps what it has. The constants are
+in `@odudu/contracts` and are meant to be retuned in that one place. The count is a bounded `select count(*)` over a
+`limit` subquery, held by the query-plans job as the scope count is.
+
 ## 7. Console parity after this phase
 
 | Console screen          | Actions                                                                                                     | After this phase                                                                                                                                                                                                   |

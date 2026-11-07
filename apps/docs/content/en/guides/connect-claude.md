@@ -34,7 +34,7 @@ Which one Claude Code uses is its choice. A tenant with only `cimd_enabled` on i
 
 ### To change descriptions: a client of your own
 
-A client that registered itself, or came from a metadata document, is never given `mcp:write`, however it asks. To let an agent change the descriptive text of clients and scopes, an administrator makes a client for Claude Code. It is public, its audience is the tenant's MCP address, and `mcp:read` and `mcp:write` are assigned to it as optional scopes. On the server's host, with the commands the other guides use:
+A client that registered itself, or came from a metadata document, is never given `mcp:write`, however it asks. To let an agent change the descriptive text of clients, scopes, roles and groups, and make roles, groups and scopes that grant nothing, an administrator makes a client for Claude Code. It is public, its audience is the tenant's MCP address, and `mcp:read` and `mcp:write` are assigned to it as optional scopes. On the server's host, with the commands the other guides use:
 
 A **redirect address** (also called the callback) is where Odudu sends the browser, with the sign-in's result, when you have signed in. A client has to say in advance which addresses it may use, and Odudu sends the browser nowhere else. For Claude Code it is a small web server on your own machine that waits for that one visit, so the address is `localhost` and a port number, as in the example below.
 
@@ -130,7 +130,7 @@ With `mcp:write`, the endpoint offers seven more tools, and only to a person who
 - `update_client_metadata` changes a client's name and description and their texts in other languages (`manage-clients`).
 - `update_scope_metadata` changes a scope's description, its texts in other languages and its display order (`manage-tenant`).
 - `update_role_description` and `update_group_description` change the description of a role or a group (`manage-tenant`).
-- `create_role`, `create_group` and `create_scope` make a role, a group or a scope that grants nothing (`manage-tenant`). A new role is held by nobody and is a default for no one; a new group has no roles, no members and no parent; a new scope is assigned to no client, maps no role and has no consent text. The agent chooses a key for each create and sends the same one if it tries again, so one is made however often the call is repeated, and each sign-in allows ten creates and twenty changes in all.
+- `create_role`, `create_group` and `create_scope` make a role, a group or a scope that grants nothing (`manage-tenant`). A new role is held by nobody and is a default for no one; a new group has no roles, no members and no parent; a new scope is assigned to no client, maps no role and has no consent text. The agent chooses a key for each create and sends the same one if it tries again, so one is made however often the call is repeated, and each sign-in allows ten creates and twenty changes in all. Only the endpoint counts them, so a service account, which has no person to sign in and so no endpoint call, cannot create through MCP at all, and `odudu mcp` does not offer them.
 
 It cannot change a redirect address, a secret, a grant, a user, a key or any setting, it cannot give a role to anyone, nest one in another, make a role or a group a default for new people, put a group under another, change what a scope asks a person to agree to or which tokens it appears in, and it cannot change a built-in client's name.
 

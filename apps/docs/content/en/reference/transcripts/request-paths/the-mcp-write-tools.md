@@ -11,7 +11,7 @@ changes a scope's description, its per-language texts and its display order. The
 a grant, a secret, whether a client is enabled, a role or a scope's consent text, and a name that is not in the tool's
 schema is refused before the admin API is asked. Two more, `update_role_description` and `update_group_description`, change
 a description, and three, `create_role`, `create_group` and `create_scope`, make a role, a group or a scope that grants
-nothing, under a key the agent chooses; [the last section](#a-role-a-group-and-a-scope-that-grant-nothing) shows them. Asking for `mcp:write` is itself put to the person at every sign-in. Each tool takes the `etag` of a read as `if_match`, so a change made in the meantime is a `412` and not an
+nothing, under a key the agent chooses; [the last section](#a-role-a-group-and-a-scope-that-grant-nothing) shows them. Asking for `mcp:write` is itself put to the person at every sign-in. Each tool that changes something that exists takes the `etag` of a read as `if_match`, so a change made in the meantime is a `412` and not an
 overwrite. The admin API decides what the token and its owner may do, as it does for a read; the
 [endpoint's page](./the-mcp-endpoint.md) shows the sign-in, the headers and the budget this page does not repeat.
 

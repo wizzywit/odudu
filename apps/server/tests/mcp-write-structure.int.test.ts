@@ -1,4 +1,11 @@
-import { SCOPE_LIMIT } from '@odudu/contracts/admin';
+import {
+  createGroupRequestSchema,
+  createRoleRequestSchema,
+  createScopeRequestSchema,
+  GROUP_LIMIT,
+  ROLE_LIMIT,
+  SCOPE_LIMIT,
+} from '@odudu/contracts/admin';
 import { withTenant } from '@odudu/db';
 import { groups, roles } from '@odudu/domain-authz';
 import { clientScopes } from '@odudu/domain-tenant';
@@ -62,6 +69,12 @@ async function counts(w: World) {
     scopes: (await tx.select({ id: clientScopes.id }).from(clientScopes)).length,
   }));
 }
+
+const SHAPES: Record<string, string[] | undefined> = {
+  '/admin/tenants/:tenant/roles': Object.keys(createRoleRequestSchema.shape),
+  '/admin/tenants/:tenant/groups': Object.keys(createGroupRequestSchema.shape),
+  '/admin/tenants/:tenant/scopes': Object.keys(createScopeRequestSchema.shape),
+};
 
 const key = () => `k-${newId()}`;
 
@@ -151,12 +164,13 @@ describe('create_role, create_group and create_scope', () => {
     const first = recOf(await stack.call(w, token, 'create_role', args));
     const again = recOf(await stack.call(w, token, 'create_role', args));
     expect(again.data.id).toBe(first.data.id);
+    const rolesAfterFirst = (await counts(w)).roles;
     expect(await rows(w, 'role.create')).toHaveLength(1);
     const other = errorOf(
       await stack.call(w, token, 'create_role', { ...args, name: 'something-else' }),
     );
     expect(other.status).toBe(422);
-    expect((await counts(w)).roles).toBe((await counts(w)).roles);
+    expect((await counts(w)).roles).toBe(rolesAfterFirst);
     expect(await rows(w, 'role.create')).toHaveLength(1);
   });
 
@@ -216,6 +230,25 @@ describe('create_role, create_group and create_scope', () => {
       'mcp:invalid_arguments',
     );
     expect(stack.adminSeen.slice(seen)).toEqual([]);
+  });
+});
+
+describe('create_role with a client', () => {
+  it('names the client in the audit row, since it is one of the fields the agent chose', async () => {
+    const { w, token } = await sessionOf();
+    const made = recOf(
+      await stack.call(w, token, 'create_role', {
+        idempotency_key: key(),
+        name: 'client-owned',
+        client_id: w.agentDbId,
+      }),
+    );
+    expect(made.data.client_id).toBe(w.agentDbId);
+    const [row] = await rows(w, 'role.create');
+    expect(row?.detail).toEqual({
+      name: { after: 'client-owned' },
+      client_id: { after: w.agentDbId },
+    });
   });
 });
 
@@ -434,8 +467,6 @@ describe('what the token and its owner decide', () => {
 });
 
 describe('a body sent past the tool', () => {
-  // A field the create or amend shape names is refused by the door; one it does
-  // not name is refused by the route's own validation. Nothing changes either way.
   it('is refused for every field outside the allowlist, six bodies to a route, and nothing changes', async () => {
     const { w, token } = await sessionOf();
     const role = recOf(
@@ -577,14 +608,19 @@ describe('a body sent past the tool', () => {
           ...(method === 'POST' ? { idempotencyKey: key() } : {}),
           ...(ifMatch === undefined ? {} : { ifMatch }),
         });
-        expect([400, 403], `${method} ${pattern} ${JSON.stringify(body)}`).toContain(res.status);
-        if (res.status === 403) {
-          door += 1;
+        // A create's route shape names some fields and refuses the rest with a 400
+        // before the door looks; every member it names, and every member of a
+        // PATCH, which takes any, is the door's 403.
+        const shape = SHAPES[pattern];
+        const named = shape === undefined || Object.keys(body).every((key) => shape.includes(key));
+        expect(res.status, `${method} ${pattern} ${JSON.stringify(body)}`).toBe(named ? 403 : 400);
+        if (named) {
           expect(res.body).toMatchObject({ detail: 'insufficient_scope' });
+          door += 1;
         }
       }
     }
-    expect(door).toBeGreaterThanOrEqual(28);
+    expect(door).toBe(30);
     expect(await counts(w)).toEqual(before.counts);
     expect(
       JSON.stringify([
@@ -658,5 +694,51 @@ describe('what bounds a create', () => {
         .where(eq(clientScopes.name, 'one-too-many')),
     );
     expect(total).toEqual([]);
+  });
+});
+
+describe('the limits of roles and groups', () => {
+  async function fill(w: World, table: 'roles' | 'groups', upTo: number): Promise<void> {
+    const have = (await counts(w))[table];
+    await withTenant(stack.appDb.db, w.tenantId, async (tx) => {
+      await tx.execute(
+        table === 'roles'
+          ? sql`insert into roles (id, tenant_id, name)
+                select gen_random_uuid(), ${w.tenantId}::uuid, 'filler-' || g from generate_series(1, ${upTo - have}) g`
+          : sql`insert into groups (id, tenant_id, name, path)
+                select gen_random_uuid(), ${w.tenantId}::uuid, 'filler-' || g, '/filler-' || g
+                  from generate_series(1, ${upTo - have}) g`,
+      );
+    });
+  }
+
+  it('refuse a role past ROLE_LIMIT with the admin API’s 409, and make the one before it', async () => {
+    const { w, token } = await sessionOf();
+    await fill(w, 'roles', ROLE_LIMIT - 1);
+    recOf(await stack.call(w, token, 'create_role', { idempotency_key: key(), name: 'the-last' }));
+    expect((await counts(w)).roles).toBe(ROLE_LIMIT);
+    const refused = errorOf(
+      await stack.call(w, token, 'create_role', { idempotency_key: key(), name: 'one-too-many' }),
+    );
+    expect(refused).toMatchObject({
+      status: 409,
+      detail: `a tenant defines at most ${String(ROLE_LIMIT)} roles`,
+    });
+    expect((await counts(w)).roles).toBe(ROLE_LIMIT);
+  });
+
+  it('refuse a group past GROUP_LIMIT with the admin API’s 409, and make the one before it', async () => {
+    const { w, token } = await sessionOf();
+    await fill(w, 'groups', GROUP_LIMIT - 1);
+    recOf(await stack.call(w, token, 'create_group', { idempotency_key: key(), name: 'the-last' }));
+    expect((await counts(w)).groups).toBe(GROUP_LIMIT);
+    const refused = errorOf(
+      await stack.call(w, token, 'create_group', { idempotency_key: key(), name: 'one-too-many' }),
+    );
+    expect(refused).toMatchObject({
+      status: 409,
+      detail: `a tenant defines at most ${String(GROUP_LIMIT)} groups`,
+    });
+    expect((await counts(w)).groups).toBe(GROUP_LIMIT);
   });
 });

@@ -125,6 +125,16 @@ describe('createdDetail', () => {
     });
   });
 
+  it('records the client a role belongs to, and leaves a tenant role without one unnamed', () => {
+    expect(createdDetail('role', { ...role, client_id: null })).toEqual({
+      name: { after: 'auditors' },
+    });
+    expect(createdDetail('role', { ...role, client_id: 'c1' })).toEqual({
+      name: { after: 'auditors' },
+      client_id: { after: 'c1' },
+    });
+  });
+
   it('never records a field the allowlist does not name', () => {
     expect(createdDetail('role', { ...role, created_at: 'x', admin_reach: ['a'] })).toEqual({
       name: { after: 'auditors' },

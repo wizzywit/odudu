@@ -404,6 +404,22 @@ describe('odudu mcp with --allow-writes and a create tool', () => {
     expect(names).toContain('update_scope_metadata');
   });
 
+  it('says in its instructions that the creates are the tenant endpoint’s, only when writes are allowed', async () => {
+    const instructionsOf = async (extra: string[]) => {
+      const r = await run([...KEY_ARGS, ...extra], {
+        env: { ODUDU_MCP_KEY: keyText },
+        input: SESSION,
+        fetch: authority().fetch,
+      });
+      const result = byId(r.lines, 1).result as { instructions: string };
+      return result.instructions;
+    };
+    const writes = await instructionsOf(['--allow-writes']);
+    for (const name of creates) expect(writes, name).toContain(name);
+    expect(writes).toMatch(/MCP endpoint, not by this command/u);
+    expect(await instructionsOf([])).not.toMatch(/create_role/u);
+  });
+
   it('answers a create called by name as an unknown tool, and makes no admin call', async () => {
     const a = authority();
     const r = await run([...KEY_ARGS, '--allow-writes'], {

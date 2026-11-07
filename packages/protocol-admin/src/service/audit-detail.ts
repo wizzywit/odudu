@@ -71,6 +71,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
   role: {
     name: 'value',
     description: 'value',
+    client_id: 'value',
     default_for_new_subjects: 'value',
   },
   scope: {
@@ -179,7 +180,7 @@ export function redactedDiff(
 // What a row holds before anything sets it, for the resources a create records
 // by what it chose: a field still at one of these is not named.
 const CREATED_DEFAULTS: Record<string, Record<string, unknown>> = {
-  role: { description: null, default_for_new_subjects: false },
+  role: { description: null, client_id: null, default_for_new_subjects: false },
   group: { description: null, parent_id: null, default_for_new_subjects: false },
   scope: {
     description: null,
