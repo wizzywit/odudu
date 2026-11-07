@@ -25,7 +25,7 @@ function section(file: string): string {
   const lines = loadDocument(file).lines;
   const from = lines.indexOf(HEADING);
   if (from === -1) throw new Error(`${file} has no "${HEADING}"`);
-  const length = lines.slice(from + 1).findIndex((text) => /^## /u.test(text));
+  const length = lines.slice(from + 1).findIndex((text) => text.startsWith('## '));
   return lines.slice(from, length === -1 ? undefined : from + 1 + length).join('\n');
 }
 
@@ -97,7 +97,7 @@ describe('what P5b inherits', () => {
 
   it('keeps no closed-phase argument about P5b outside the section', () => {
     const stray = loadDocument(NEXT).lines.filter(
-      (text) => /\bP5b\b/u.test(text) && /^\| /u.test(text),
+      (text) => /\bP5b\b/u.test(text) && text.startsWith('| '),
     );
     const inside = section(NEXT);
     expect(stray.filter((text) => !inside.includes(text))).toEqual([]);
