@@ -18,6 +18,7 @@ drifts from what the server serves.
 | [`media/`](media/)                                                                     | The console animation the README opens with, made by `pnpm docs:gif`    |
 | [`adr/`](adr/)                                                                         | Decisions and their rejected alternatives                               |
 | [`protocols/`](protocols/)                                                             | One reading note per RFC or specification, clause by clause             |
+| [`protocols/mcp-route-classes.md`](protocols/mcp-route-classes.md)                     | Which class each admin route is in, and so what an MCP agent may reach  |
 
 ## What records the past
 

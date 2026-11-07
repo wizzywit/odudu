@@ -115,14 +115,48 @@ describe('the MCP tool catalogue against the admin routes', () => {
       'DELETE /admin/tenants/:tenant/sessions',
       'DELETE /admin/tenants/:tenant/subjects/:id/lockout',
       'DELETE /admin/tenants/:tenant/lockouts',
-      'POST /admin/tenants/:tenant/keys',
       'POST /admin/tenants/:tenant/keys/:id/promote',
       'POST /admin/tenants/:tenant/keys/:id/retire',
       'DELETE /admin/tenants/:tenant/keys/:id',
     ];
     for (const route of destructive) {
       expect(ROUTE_KEYS, route).toContain(route);
+      expect(NOT_TOOL_KINDS[route], route).toBe('destructive');
       expect(NOT_TOOLS[route], route).toMatch(/^Destructive/u);
+    }
+  });
+
+  it('says, in the reason of every access-changing, credential and destructive route, which class it is', () => {
+    const word: Record<string, RegExp> = {
+      'access-changing': /^Access-changing: /u,
+      credential: /^Credential: /u,
+      destructive: /^Destructive/u,
+    };
+    for (const [route, kind] of Object.entries(NOT_TOOL_KINDS)) {
+      const expected = word[kind];
+      if (expected !== undefined) expect(NOT_TOOLS[route], `${route} (${kind})`).toMatch(expected);
+    }
+    const kinds = new Set(Object.values(NOT_TOOL_KINDS));
+    for (const kind of Object.keys(word)) expect(kinds, kind).toContain(kind);
+    expect(kinds).not.toContain('write');
+  });
+
+  it('gives a withheld DELETE the destructive kind and a withheld POST that returns a secret the credential kind', () => {
+    for (const [route, kind] of Object.entries(NOT_TOOL_KINDS)) {
+      if (route.startsWith('DELETE ') && !route.includes('/message-overrides/')) {
+        expect(['destructive', 'access-changing'], route).toContain(kind);
+      }
+    }
+    for (const route of [
+      'POST /admin/tenants/:tenant/keys',
+      'POST /admin/tenants/:tenant/clients',
+      'POST /admin/tenants/:tenant/clients/:id/secret',
+      'POST /admin/tenants/:tenant/registration-tokens',
+      'POST /admin/tenants/:tenant/subjects/:id/password',
+      'PUT /admin/tenants/:tenant/smtp',
+      'POST /admin/tenant-imports',
+    ]) {
+      expect(NOT_TOOL_KINDS[route], route).toBe('credential');
     }
   });
 
