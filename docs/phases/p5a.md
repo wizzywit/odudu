@@ -1964,3 +1964,101 @@ the parts that differ from the published theme and the new etag.
 - The route-class page and the counts were edited after the pins went red (8 failed), then green.
 - `asWriter` was found by reading the replayed transcript, and its unit tests were written first and shown red (`4 failed | 105 passed`); the
   integration assertion for it was written after the change.
+
+## What building the parity increments found
+
+Increments 12 to 18 widened the catalogue from the first release's tools to 61 read tools for a system
+tenant's agent (59 for a tenant's own) and 12 write tools. The plan said how each part would behave, and wrong
+statements about this repository and about the admin API were again the larger part of what the reviews and
+the tests found. Each is listed with where it was fixed; a defect in a topic the increment owned was fixed in
+that increment, for every caller, not for the tool alone.
+
+- **A tenant's own agent never reaches an instance read.** The plan expected `403 insufficient_scope` and a
+  `capability.refused` row; a route with no `:tenant` accepts only a token the system tenant signed, so it is
+  `401` with a `token.foreign_issuer` row. The door's own rule stays as a second line (Increment 12).
+- **Audit rows for the structure writes held no detail.** `role.create`, `group.create`, `scope.create`,
+  `role.amend` and `group.amend` wrote none, and the settings amendment listed two of the fields it could
+  change, so a display name or a language list left an empty row. Fixed in the admin API for every caller, with
+  `createdDetail` and the wider settings allowlist (Increments 16 and 17).
+- **The write budget could not be audit rows.** Counting `agent.tool_call` rows read in the transaction that
+  records the call lets thirty parallel calls all read a count of nothing. It is two counters on `token_grants`,
+  spent before the call by one `UPDATE` that the row lock makes atomic, and a 40-way race admits exactly 20
+  (Increment 15, migration `0124_agent_write_budget.sql`).
+- **A service account reached the endpoint with the endpoint's marker.** A review found it could create a
+  role by name; the door now refuses a non-PATCH write to an agent whose owner is a service account, and the
+  endpoint does not list those tools to one (Increment 16, widened from POST to every non-PATCH method in 17).
+- **The admin API had no role or group limit, and 43 tables was 45.** Only scopes were bounded. `ROLE_LIMIT`
+  (1,000) and `GROUP_LIMIT` (10,000) are enforced for every caller; the injection snapshot covers 45 tables
+  (Increment 16).
+- **A group's `reparent` matched its subtree by `path LIKE 'old/%'`**, so a name holding `%`, `_` or a
+  backslash, which an agent could now create, rewrote unrelated groups. It follows `parent_id` in a recursive
+  query. `odudu seed role` and `odudu seed group` bypassed the limits and now take the same locked count
+  (Increment 16, found on the pull request).
+- **Two names answered `500`.** A group name with `/` broke a table check and a message override key with a
+  NUL broke the database; both are `400` (Increments 16 and 17). A tenant's display name had no bound at all
+  and is now 256 characters wherever it enters.
+- **The plan counted 40 setting names; there are 41** (`TENANT_SETTING_NAMES`), and its claim that a PUT of an
+  override needs no `If-Match` was false: `If-Match` replaces, `If-None-Match: *` creates, and neither is
+  `428`. The caller carries both (Increment 17).
+- **The caller carried a body on PATCH only**, and its idempotency key pattern is narrower than the plan's
+  "visible ASCII" (`[A-Za-z0-9_.:-]{1,255}`). A duplicate JSON key cannot be told from a single one at the door,
+  because the parser has kept the last, so the test pins what the handler reads (Increment 15).
+- **A theme cannot be read whole.** The 128 KiB allowance for a stylesheet and its templates is not the bound;
+  the 256,000-byte result cap is, so only a modest theme reads back, and a draft written beside a published
+  theme can pass the caller's 1 MiB cap on the read-back. The theme tools refuse before writing, and leave
+  the draft out of an answer past 200,000 bytes so a result cap never reports a write as failed (Increments 14
+  and 18).
+- **`if_match` had to be a tool argument.** The budget is decided from the arguments alone, and a first draft
+  adds a row while a replacement does not (Increment 18).
+- **The documentation build rewrote text in a page.** The bundler's real-content-hash pass replaced a
+  transcript id's eight hex characters with a chunk's final hash for the one commit whose build had a chunk of
+  that provisional hash. Only CI found it, because the two builds differed; a plugin turns the pass off and
+  `apps/docs/tests/stable-text.test.ts` pins it (Increment 18).
+- **The process findings.** Several tools were written before their tests in an increment, and each report
+  says which, with the red obtained afterwards by reverting; a test written after the code proves less, and
+  the integration tests of a finished tool showed their worth in what they pin. The brief said the writes
+  would become eight; two shipped plus five new was seven, and the count in every page is the catalogue's.
+
+## What P5b inherits
+
+P5b is **MCP server: access-changing and destructive tools**. Its work list is
+[MCP route classes](../protocols/mcp-route-classes.md), which gives every one of the 152 admin routes a class
+and holds the table to the route table and the tool catalogue. The three classes below have no tool and are
+placed on P5b; the door admits an agent no field of a route it has no allowlist entry for.
+
+| Class | Routes | What waits                                                                                                                                  |
+| ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| W2    | 32     | access-changing writes: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail |
+| C     | 7      | credentials and secrets: passwords, client secrets, registration tokens, signing-key creation, relay credentials, imports                   |
+| D     | 27     | destructive: deletes, ending sessions, clearing lockouts, changing signing keys, discarding drafts                                          |
+
+- **The confirmation step is the first design question.** Three options, none built. MCP elicitation has the
+  server ask the client, which an injected agent could answer itself. CIBA through P5, the out-of-band approval
+  the umbrella row already names, is the only one the agent cannot answer, and its approval would count against
+  P5's agent budget; it needs P5 first. A step-up scope and consent asks again at sign-in, which is a person but
+  not a person looking at one call. P5a's recommendation was CIBA. The door's method and body-mode vocabulary
+  would need a `target` and a confirmation added for a W2 entry, and the write budget should not be shared with a
+  confirmed call, since a person looked at it.
+- **What an agent can change today**, for the confirmation design to start from: twelve write tools, which are
+  `update_client_metadata`, `update_scope_metadata`, `update_role_description` and `update_group_description`
+  (amendments, open to every agent token); `create_role`, `create_group` and `create_scope` (additive, a person's
+  token through the endpoint only, never a service account, never `odudu mcp`); `update_tenant_text_settings` (the
+  display name, supported locales and default locale); `set_message_override` and `clear_message_override`
+  (endpoint only); and `update_theme_draft` and `update_client_theme_draft` (endpoint only, a draft nothing shows
+  until a person publishes). A change costs one of 20 changing calls for each sign-in and a create one of 10,
+  counted on `token_grants` by the endpoint alone, and the admin API's own bounds apply: 1,000 scopes and roles
+  and 10,000 groups for a tenant, and 500 message overrides.
+- **Injection suite.** Each class needs a scenario beside the ones for structure, wording and themes, and a model measured, not the scripted agent that obeys every instruction. The measurement is the
+  existing row on `docs/NEXT.md`, moved to this section.
+- **Open decisions**, each a row in `docs/NEXT.md` with its trigger. The confirmation mechanism. Whether an
+  agent of the system tenant may ever name a `tenant` (it may not today: `list_tenants` and `count_tenants` are the
+  only instance reads, and they open no tenant's content). Bulk subject creation, which the owner decided is never
+  offered. Binary uploads, the theme image being the one W1 route without a tool. Mail sending. Whether a theme
+  draft an agent replaces is kept: both theme tools are `destructiveHint: true` because the replaced draft is not
+  kept, and the audit row holds digests of the parts changed, not the text, so a person's half-finished draft
+  cannot be brought back. The scope name rule: `create_scope` refuses a name with a space, quote or backslash and
+  the admin API does not. Tool-only constraints in general: the tools refuse control and zero-width characters in
+  wording and theme text, which the admin API takes from a person.
+- **Residual risk stated for the guides.** A message override or the display name is live wording on credential
+  pages. It is reversible, audited with before and after, bounded by the budget and by the owner's own
+  capability, and P5b re-examines it once a confirmation step exists.

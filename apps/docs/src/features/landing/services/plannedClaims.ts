@@ -13,11 +13,11 @@ export interface Planned {
 
 export const AGENT_ITEMS: Planned[] = [
   {
-    id: 'mcp-destructive-tools',
-    title: 'Destructive MCP tools',
+    id: 'mcp-access-changing-tools',
+    title: 'Access-changing and destructive MCP tools',
     claim:
-      "The irreversible tools the MCP server withholds today, each needing the owner's separate approval.",
-    quotes: ['The irreversible tools', "each needing the owner's separate approval"],
+      'Tools that change who can sign in, handle secrets or delete things, each waiting for a confirmation step the agent cannot answer for itself.',
+    quotes: ['who can sign in', 'a confirmation step the agent cannot answer for itself'],
   },
   {
     id: 'agent-identity',
