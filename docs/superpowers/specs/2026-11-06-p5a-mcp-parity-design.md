@@ -1,6 +1,6 @@
 # P5a — MCP console parity: design addendum
 
-Status: awaiting the owner's confirmation of section 10, 2026-11-06. Extends
+Status: confirmed by the owner, 2026-11-06 (section 10 records the decisions). Extends
 [the P5a design](../../archive/specs/2026-11-05-p5a-mcp-server-design.md) (section 6, "Tools and the
 ceiling") and [`docs/phases/p5a.md`](../../phases/p5a.md). The plan is
 [2026-11-06-p5a-mcp-parity.md](../plans/2026-11-06-p5a-mcp-parity.md).
@@ -33,7 +33,7 @@ fields (the admin door admits a write by field); section 4 classes every field o
 
 | Class | Meaning                                                                                                                                                                                                      | This phase                                                                   |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| R     | read; no secret, no personal data beyond the subject record, no credential metadata                                                                                                                          | a tool                                                                       |
+| R     | read; no secret, no credential metadata, and personal data only as the console shows it: a subject's record and the audit trail's actor names and the IP address a request came from                         | a tool                                                                       |
 | RS    | sensitive read: personal data, credential metadata, secrets, whole-tenant or byte downloads                                                                                                                  | stays refused at the tool layer and at the admin door (`AGENT_DENIED_READS`) |
 | W1    | content write: wording, descriptions, drafts, structure that grants nothing                                                                                                                                  | a tool, behind `mcp:write`, admitted by field                                |
 | W2    | access-changing write, reversible by another call: grants, mappings, redirect and grant settings, security settings, identity fields, anything that goes live on a credential page, anything that sends mail | P5b, with human confirmation                                                 |

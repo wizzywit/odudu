@@ -11,6 +11,10 @@ import {
   CLIENT_SCOPE_LIMIT,
   DESCRIPTION_MAX,
   EXPORT_SUBJECT_CAP,
+  GROUP_LIMIT,
+  groupLimitMessage,
+  ROLE_LIMIT,
+  roleLimitMessage,
   SCOPE_LIMIT,
   smtpPortSchema,
   tenantDocumentSchema,
@@ -643,6 +647,24 @@ function invariantProblems(
     problems.add(
       'document.scopes',
       `${String(document.scopes.length)} scopes, a tenant defines at most ${String(SCOPE_LIMIT)}`,
+    );
+  }
+  // Provisioning gives the tenant its capability roles whether or not the
+  // document names them, and one it names is the same role, counted once.
+  const roleKeys = new Set([
+    ...document.roles.map(roleKey),
+    ...capabilityRoleGraph().roles.map((name) => roleKey({ name, client: ADMIN_CLIENT_ID })),
+  ]);
+  if (roleKeys.size > ROLE_LIMIT) {
+    problems.add(
+      'document.roles',
+      `${roleLimitMessage()}, and the document with the roles every tenant is provisioned holds ${String(roleKeys.size)}`,
+    );
+  }
+  if (document.groups.length > GROUP_LIMIT) {
+    problems.add(
+      'document.groups',
+      `${groupLimitMessage()}, and the document holds ${String(document.groups.length)}`,
     );
   }
   const markedScopes = document.scopes.filter(

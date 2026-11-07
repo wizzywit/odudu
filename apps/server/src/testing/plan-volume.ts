@@ -1,4 +1,4 @@
-import { ASSIGNMENT_LIMIT, ROLE_LIMIT, SCOPE_LIMIT } from '@odudu/contracts/admin';
+import { ASSIGNMENT_LIMIT, MAX_LIMIT, ROLE_LIMIT, SCOPE_LIMIT } from '@odudu/contracts/admin';
 import { type DatabaseHandle } from '@odudu/db';
 
 // The volume the plan check seeds, in SQL, around a tenant the seed command
@@ -17,10 +17,12 @@ export const PLAN_VOLUME = {
   subjects: 200_000,
   clients: 10_000,
   confidentialClients: 1_000,
-  // A tenant defines at most ROLE_LIMIT roles, a client's own included, and the
-  // check drives a create in this tenant, so the two kinds together stay under it.
-  roles: 600,
-  clientRoles: 300,
+  // More roles than ROLE_LIMIT, which bounds a create and never what a tenant
+  // already holds, so the tables that hang off roles stay large. The role create
+  // is driven in a tenant seeded just under the limit instead.
+  roles: 5_000,
+  clientRoles: 10_000,
+  rolesNearLimit: ROLE_LIMIT - 5,
   groups: 5_000,
   scopes: SCOPE_LIMIT - 20,
   sessions: 200_000,
@@ -49,6 +51,12 @@ export const PLAN_VOLUME = {
   // The most rows a tenant may hold, less the one the domain drive adds.
   domains: 19,
 } as const;
+
+// A table holds at least this many rows for a plan to be judged on it, and a
+// read must touch no more than ROWS_PER_READ: a page and what hangs off it.
+export const LARGE_TABLE_ROWS = 5_000;
+export const ROWS_PER_READ = 10 * MAX_LIMIT;
+export const NEAR_LIMIT_TENANT = 'tn3';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
@@ -162,6 +170,11 @@ select tenant_id, client_id, 'https://app.example' from client_oidc_config
 insert into roles (id, tenant_id, name)
 select gen_random_uuid(), o.id, 'r' || g
   from vol_other o cross join generate_series(1, ${v.rolesPerOtherTenant}) g;
+insert into roles (id, tenant_id, name)
+select gen_random_uuid(), o.id, 'near-' || g
+  from vol_other o join tenants nt on nt.id = o.id
+ cross join generate_series(1, ${v.rolesNearLimit} - ${v.rolesPerOtherTenant}) g
+ where nt.name = '${NEAR_LIMIT_TENANT}';
 insert into groups (id, tenant_id, name, path)
 select gen_random_uuid(), o.id, 'g' || g, '/g' || g
   from vol_other o cross join generate_series(1, ${v.groupsPerOtherTenant}) g;
@@ -287,6 +300,21 @@ analyze vol_roles, vol_groups, vol_scopes;
 insert into groups (id, tenant_id, parent_id, name, path)
 select gen_random_uuid(), ${t}, p.id, 'child-' || g, '/group-' || p.n || '/child-' || g
   from vol_groups p cross join generate_series(1, ${v.fanOut}) g where p.n = 1;
+-- A subtree three levels deep, which a reparent of its root moves in one statement.
+insert into groups (id, tenant_id, name, path)
+select gen_random_uuid(), ${t}, 'deep-root', '/deep-root';
+insert into groups (id, tenant_id, parent_id, name, path)
+select gen_random_uuid(), ${t}, p.id, 'deep-a-' || i, '/deep-root/deep-a-' || i
+  from groups p cross join generate_series(1, 20) i where p.tenant_id = ${t} and p.name = 'deep-root';
+insert into groups (id, tenant_id, parent_id, name, path)
+select gen_random_uuid(), ${t}, p.id, 'deep-b-' || i || '-' || j, p.path || '/deep-b-' || i || '-' || j
+  from groups p cross join generate_series(1, 20) i cross join generate_series(1, 20) j
+ where p.tenant_id = ${t} and p.name = 'deep-a-' || i;
+insert into groups (id, tenant_id, parent_id, name, path)
+select gen_random_uuid(), ${t}, p.id, 'deep-c-' || substring(p.name from 8) || '-' || k,
+       p.path || '/deep-c-' || substring(p.name from 8) || '-' || k
+  from groups p cross join generate_series(1, 3) k
+ where p.tenant_id = ${t} and p.name like 'deep-b-%';
 insert into group_roles (tenant_id, group_id, role_id)
 select ${t}, g.id, r.id from vol_groups g join vol_roles r on r.n <= ${v.assignments} where g.n = 1;
 insert into role_composites (tenant_id, parent_role_id, child_role_id)
@@ -480,6 +508,7 @@ export async function seedPlanVolume(owner: DatabaseHandle, target: VolumeTarget
     // the visibility map an index-only scan relies on.
     await connection.unsafe('set default_statistics_target = 10000');
     await connection.unsafe('vacuum analyze');
+    await assertVolume(connection);
   } finally {
     await connection.unsafe('reset default_statistics_target');
     await connection.unsafe('reset session_replication_role');
@@ -487,6 +516,44 @@ export async function seedPlanVolume(owner: DatabaseHandle, target: VolumeTarget
   }
 }
 
-if (PLAN_VOLUME.roles + PLAN_VOLUME.clientRoles >= ROLE_LIMIT - 50) {
-  throw new Error('the plan volume leaves no room under ROLE_LIMIT for the role it creates');
+// What the role-keyed tables must hold for a scan of one, or a read of all of a
+// role's parents, to be a finding: a cut to the volume that brings one under
+// the threshold fails here, not by a plan check that silently stops looking.
+async function assertVolume(connection: {
+  unsafe: (query: string) => PromiseLike<readonly Record<string, unknown>[]>;
+}): Promise<void> {
+  const rows = await connection.unsafe(`
+    select (select count(*) from role_composites) role_composites,
+           (select count(*) from group_roles) group_roles,
+           (select count(*) from client_scope_roles) client_scope_roles,
+           (select max(parents) from (
+              select count(*) parents from role_composites group by child_role_id) x) fan_in,
+           (select count(*) from groups g join groups p on p.id = g.parent_id
+             where g.path <> p.path || '/' || g.name) broken_paths,
+           (select count(*) from roles r join tenants t on t.id = r.tenant_id
+             where t.name = '${NEAR_LIMIT_TENANT}') near_limit_roles`);
+  const row = rows[0];
+  if (row === undefined) throw new Error('the volume check read nothing');
+  for (const table of ['role_composites', 'group_roles', 'client_scope_roles']) {
+    if (Number(row[table]) <= LARGE_TABLE_ROWS) {
+      throw new Error(
+        `${table} holds ${String(row[table])} rows, under the ${String(LARGE_TABLE_ROWS)} a scan of it is judged at`,
+      );
+    }
+  }
+  if (Number(row.broken_paths) !== 0) {
+    throw new Error(
+      `${String(row.broken_paths)} seeded groups have a path that is not their parent's and their name`,
+    );
+  }
+  if (Number(row.near_limit_roles) !== PLAN_VOLUME.rolesNearLimit) {
+    throw new Error(
+      `${NEAR_LIMIT_TENANT} holds ${String(row.near_limit_roles)} roles, not the ${String(PLAN_VOLUME.rolesNearLimit)} its role create is driven against`,
+    );
+  }
+  if (Number(row.fan_in) <= ROWS_PER_READ) {
+    throw new Error(
+      `the effective-roles probe's fan-in is ${String(row.fan_in)}, not over ${String(ROWS_PER_READ)}`,
+    );
+  }
 }

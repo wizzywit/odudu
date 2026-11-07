@@ -11,8 +11,25 @@ ALTER TABLE client_oidc_config
 ALTER TABLE client_oidc_config
   ADD COLUMN IF NOT EXISTS is_public_client boolean NOT NULL DEFAULT false;
 
-UPDATE client_oidc_config o SET is_public_client = true
-  FROM clients c WHERE c.id = o.client_id AND c.type = 'public';
+-- Both tables force row security; see 0119 for the lift.
+DO $$
+DECLARE
+  plain_owner boolean;
+BEGIN
+  SELECT NOT (rolsuper OR rolbypassrls) INTO plain_owner FROM pg_roles WHERE rolname = current_user;
+  IF plain_owner THEN
+    ALTER TABLE clients NO FORCE ROW LEVEL SECURITY;
+    ALTER TABLE client_oidc_config NO FORCE ROW LEVEL SECURITY;
+  END IF;
+
+  UPDATE client_oidc_config o SET is_public_client = true
+    FROM clients c WHERE c.id = o.client_id AND c.type = 'public';
+
+  IF plain_owner THEN
+    ALTER TABLE clients FORCE ROW LEVEL SECURITY;
+    ALTER TABLE client_oidc_config FORCE ROW LEVEL SECURITY;
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION client_oidc_config_set_public() RETURNS trigger
   LANGUAGE plpgsql AS $$

@@ -1,4 +1,4 @@
-import { tenants, type TenantScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError, refuseBidiControls } from '@odudu/kernel';
 import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -118,16 +118,15 @@ export function roleRepository(tx: TenantScopedDatabase) {
       }
     },
 
-    // Takes the tenant row's lock for the rest of the transaction, so a count
-    // against the limit and the insert after it are one decision. True when the
-    // tenant row was there to lock.
-    async lockCreation(tenantId: string): Promise<boolean> {
-      const rows = await tx
-        .select({ id: tenants.id })
-        .from(tenants)
-        .where(eq(tenants.id, tenantId))
-        .for('no key update');
-      return rows.length > 0;
+    // Serialises the creators of roles in one tenant for the rest of the
+    // transaction, so a count against the limit and the insert after it are one
+    // decision. An advisory lock and not the tenant row's, which every sign-in
+    // takes too: a create that counts up to the limit would hold the row, and
+    // each sign-in in the tenant would queue behind it.
+    async lockCreation(tenantId: string): Promise<void> {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`roles:${tenantId.toLowerCase()}`}, 0))`,
+      );
     },
 
     // How many roles the tenant defines, counted no further than `limit`.

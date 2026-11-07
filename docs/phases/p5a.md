@@ -6,7 +6,7 @@ The running record of what building the phase found. The argument is in
 
 ## What the phase found, in short
 
-The phase ran as eleven increments, each reviewed for spec compliance and quality
+The phase ran as eleven increments for the first release and eight more (12 to 19) for console parity, each reviewed for spec compliance and quality
 and then answered on its pull request. What the reviews found is the record of
 where the plan was weakest:
 
@@ -38,6 +38,10 @@ where the plan was weakest:
   collected for the end.
 - **What only the owner can do** is the hand run at the end of this note: no CI job
   runs hosted Claude, Claude Code, Claude Desktop or Cursor.
+
+Counts and tool lists in the sections before "What the phase leaves" are as of the first
+release (42 reads, two writes); the parity sections near the end, and the final review,
+give what shipped: 61 reads (59 for a tenant's own agent) and 12 writes.
 
 ## The spike (Increment 0), 2026-11-05
 
@@ -626,10 +630,10 @@ exists when the phase closed:
 - Non-database effects (the test mail) are not undone when the late capacity
   check or the size cap rolls a call back.
 - **MCP and keys.** The design asked MCP tools that call POST routes to set a
-  key. No tool calls a POST route (the 42 reads are GET, the two writes PATCH and
-  carry an entity tag), so keys are not exercised through MCP, and nothing here
-  is untested for want of it. A tool that calls a POST route, as P5b's may,
-  has to send a key.
+  key. At this increment no tool called a POST route (the 42 reads were GET, the two writes PATCH and
+  carried an entity tag); the parity increments' creates are the first (`create_role`, `create_group`,
+  `create_scope`), and each sends a key, so a retry makes one row. A tool of P5b that calls a POST
+  route has to send one too.
 
 ## Service accounts follow the grant
 
@@ -1424,7 +1428,7 @@ none that exists.
 
 ## Hand run (owner)
 
-**Run by the owner on 2026-11-06**, against a local instance on
+**Run by the owner on 2026-11-06, before the parity increments (12 to 19)**, so what it covered is the first release's 42 reads and its two writes, `update_client_metadata` and `update_scope_metadata`; the other reads, the ten later write tools and the write budget have been run only against integration tests and replays. Against a local instance on
 `http://localhost:3090`, as reported by the owner: Claude Code 2.1.319 and
 Claude Desktop 3.6556.2.
 
@@ -1641,8 +1645,9 @@ should not share with W1, since a confirmed call is one a person looked at.
 
 ### Review round on the pull request
 
-A grant exchanged from another has the root grant's budget (the repository follows
-`exchanged_from_grant_id`, at most 16 hops), so exchanging an exhausted token does not renew it. The stdio
+A grant exchanged from another has the root grant's budget (it first followed
+`exchanged_from_grant_id` for at most 16 hops; the whole-branch review replaced that with a root named on
+the grant, below), so exchanging an exhausted token does not renew it. The stdio
 budget is renewed by each browser sign-in and kept across a service account's key fetches. A write tool with
 no `spends` is refused (`mcp:write_budget_unavailable`); a reservation or give-back waits at most five seconds,
 the reservation also sets `lock_timeout` to three, and a place granted after the wait ended is given back
@@ -1964,3 +1969,170 @@ the parts that differ from the published theme and the new etag.
 - The route-class page and the counts were edited after the pins went red (8 failed), then green.
 - `asWriter` was found by reading the replayed transcript, and its unit tests were written first and shown red (`4 failed | 105 passed`); the
   integration assertion for it was written after the change.
+
+## What building the parity increments found
+
+Increments 12 to 18 widened the catalogue from the first release's tools to 61 read tools for a system
+tenant's agent (59 for a tenant's own) and 12 write tools. The plan said how each part would behave, and wrong
+statements about this repository and about the admin API were again the larger part of what the reviews and
+the tests found. Each is listed with where it was fixed; a defect in a topic the increment owned was fixed in
+that increment, for every caller, not for the tool alone.
+
+- **A tenant's own agent never reaches an instance read.** The plan expected `403 insufficient_scope` and a
+  `capability.refused` row; a route with no `:tenant` accepts only a token the system tenant signed, so it is
+  `401` with a `token.foreign_issuer` row. The door's own rule stays as a second line (Increment 12).
+- **Audit rows for the structure writes held no detail.** `role.create`, `group.create`, `scope.create`,
+  `role.amend` and `group.amend` wrote none, and the settings amendment listed two of the fields it could
+  change, so a display name or a language list left an empty row. Fixed in the admin API for every caller, with
+  `createdDetail` and the wider settings allowlist (Increments 16 and 17).
+- **The write budget could not be audit rows.** Counting `agent.tool_call` rows read in the transaction that
+  records the call lets thirty parallel calls all read a count of nothing. It is two counters on `token_grants`,
+  spent before the call by one `UPDATE` that the row lock makes atomic, and a 40-way race admits exactly 20
+  (Increment 15, migration `0124_agent_write_budget.sql`).
+- **A service account reached the endpoint with the endpoint's marker.** A review found it could create a
+  role by name; the door now refuses a non-PATCH write to an agent whose owner is a service account, and the
+  endpoint does not list those tools to one (Increment 16, widened from POST to every non-PATCH method in 17).
+- **The admin API had no role or group limit, and 43 tables was 45.** Only scopes were bounded. `ROLE_LIMIT`
+  (1,000) and `GROUP_LIMIT` (10,000) are enforced for every caller; the injection snapshot covers 45 tables
+  (Increment 16).
+- **A group's `reparent` matched its subtree by `path LIKE 'old/%'`**, so a name holding `%`, `_` or a
+  backslash, which an agent could now create, rewrote unrelated groups. It follows `parent_id` in a recursive
+  query. `odudu seed role` and `odudu seed group` bypassed the limits and now take the same locked count
+  (Increment 16, found on the pull request).
+- **Two names answered `500`.** A group name with `/` broke a table check and a message override key with a
+  NUL broke the database; both are `400` (Increments 16 and 17). A tenant's display name had no bound at all
+  and is now 256 characters wherever it enters.
+- **The plan counted 40 setting names; there are 41** (`TENANT_SETTING_NAMES`), and its claim that a PUT of an
+  override needs no `If-Match` was false: `If-Match` replaces, `If-None-Match: *` creates, and neither is
+  `428`. The caller carries both (Increment 17).
+- **The caller carried a body on PATCH only**, and its idempotency key pattern is narrower than the plan's
+  "visible ASCII" (`[A-Za-z0-9_.:-]{1,255}`). A duplicate JSON key cannot be told from a single one at the door,
+  because the parser has kept the last, so the test pins what the handler reads (Increment 15).
+- **A theme cannot be read whole.** The 128 KiB allowance for a stylesheet and its templates is not the bound;
+  the 256,000-byte result cap is, so only a modest theme reads back, and a draft written beside a published
+  theme can pass the caller's 1 MiB cap on the read-back. The theme tools refuse before writing, and leave
+  the draft out of an answer past 200,000 bytes so a result cap never reports a write as failed (Increments 14
+  and 18).
+- **`if_match` had to be a tool argument.** The budget is decided from the arguments alone, and a first draft
+  adds a row while a replacement does not (Increment 18).
+- **The documentation build rewrote text in a page.** The bundler's real-content-hash pass replaced a
+  transcript id's eight hex characters with a chunk's final hash for the one commit whose build had a chunk of
+  that provisional hash. Only CI found it, because the two builds differed; a plugin turns the pass off and
+  `apps/docs/tests/stable-text.test.ts` pins it (Increment 18).
+- **The process findings.** Several tools were written before their tests in an increment, and each report
+  says which, with the red obtained afterwards by reverting; a test written after the code proves less, and
+  the integration tests of a finished tool showed their worth in what they pin. The brief said the writes
+  would become eight; two shipped plus five new was seven, and the count in every page is the catalogue's.
+
+## What P5b inherits
+
+P5b is **MCP server: access-changing and destructive tools**. Its work list is
+[MCP route classes](../protocols/mcp-route-classes.md), which gives every one of the 152 admin routes a class
+and holds the table to the route table and the tool catalogue. The three classes below have no tool and are
+placed on P5b; the door admits an agent no field of a route it has no allowlist entry for.
+
+| Class | Routes | What waits                                                                                                                                  |
+| ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| W2    | 32     | access-changing writes: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail |
+| C     | 7      | credentials and secrets: passwords, client secrets, registration tokens, signing-key creation, relay credentials, imports                   |
+| D     | 27     | destructive: deletes, ending sessions, clearing lockouts, changing signing keys, discarding drafts                                          |
+
+- **The confirmation step is the first design question.** Three options, none built. MCP elicitation has the
+  server ask the client, which an injected agent could answer itself. CIBA through P5, the out-of-band approval
+  the umbrella row already names, is the only one the agent cannot answer, and its approval would count against
+  P5's agent budget; it needs P5 first. A step-up scope and consent asks again at sign-in, which is a person but
+  not a person looking at one call. P5a's recommendation was CIBA. The door's method and body-mode vocabulary
+  would need a `target` and a confirmation added for a W2 entry, and the write budget should not be shared with a
+  confirmed call, since a person looked at it.
+- **What an agent can change today**, for the confirmation design to start from: twelve write tools, which are
+  `update_client_metadata`, `update_scope_metadata`, `update_role_description` and `update_group_description`
+  (amendments, open to every agent token); `create_role`, `create_group` and `create_scope` (additive, a person's
+  token through the endpoint only, never a service account, never `odudu mcp`); `update_tenant_text_settings` (the
+  display name, supported locales and default locale); `set_message_override` and `clear_message_override`
+  (endpoint only); and `update_theme_draft` and `update_client_theme_draft` (endpoint only, a draft nothing shows
+  until a person publishes). A change costs one of 20 changing calls for each sign-in and a create one of 10,
+  counted on `token_grants` by the endpoint alone, and the admin API's own bounds apply: 1,000 scopes and roles
+  and 10,000 groups for a tenant, and 500 message overrides.
+- **Injection suite.** Each class needs a scenario beside the ones for structure, wording and themes, and a model measured, not the scripted agent that obeys every instruction. The measurement is the
+  existing row on `docs/NEXT.md`, moved to this section.
+- **Open decisions**, each a row in `docs/NEXT.md` with its trigger. The confirmation mechanism. Whether an
+  agent of the system tenant may ever name a `tenant` (it may not today: `list_tenants` and `count_tenants` are the
+  only instance reads, and they open no tenant's content). Bulk subject creation, which the owner decided is never
+  offered. Binary uploads, the theme image being the one W1 route without a tool. Mail sending. Whether a theme
+  draft an agent replaces is kept: both theme tools are `destructiveHint: true` because the replaced draft is not
+  kept, and the audit row holds digests of the parts changed, not the text, so a person's half-finished draft
+  cannot be brought back. The scope name rule: `create_scope` refuses a name with a space, quote or backslash and
+  the admin API does not. Tool-only constraints in general: the tools refuse control and zero-width characters in
+  wording and theme text, which the admin API takes from a person.
+- **Residual risk stated for the guides.** A message override or the display name is live wording on credential
+  pages. It is reversible, audited with before and after, bounded by the budget and by the owner's own
+  capability, and P5b re-examines it once a confirmation step exists.
+
+## The whole-branch review of the parity increments
+
+Three reviews (security of the write path, scale and operations, spec and documentation truth) found no
+Critical defect. Each finding was checked in the code before anything changed; what was true is below, with
+where it was fixed.
+
+- **The door had no same-tenant rule for an agent.** A comment said an agent acts inside the one tenant its token
+  names, and nothing compared the two: a bearer of the system tenant whose owner held `manage-tenants` was accepted
+  at another tenant's routes, and every PATCH entry is open to every agent token. The router now refuses an agent
+  whose issuer tenant is not the path's tenant, for every route; `list_tenants` and `count_tenants` have no tenant in
+  their path and target the system tenant, so they are unaffected. A person's token carries no `act` and is unaffected
+  (`agent-door-tenant.int.test.ts`, read, PATCH, POST, PUT and DELETE, for a direct, an exchanged and an endpoint token).
+- **`target: 'scope'` was dead metadata.** Nothing read it, so a built-in scope's description and display order could be
+  rewritten by an agent. The door now refuses a PATCH of a built-in scope for an agent whatever the body names, and
+  `update_scope_metadata` says so in its description and its refusal (`agent-door-scope.int.test.ts`). A create under a
+  built-in scope's name is refused to an agent too (found by the re-review): a scope a person deleted on purpose is
+  not made again as a plain one.
+- **The write budget failed open.** The 16-hop walk returned its last grant, which had a fresh allowance, and a root
+  the reaper deleted turned its child into a root. A grant made by an exchange now carries `budget_grant_id`, copied
+  from its parent's root when it is made (no foreign key, on purpose); a grant that was exchanged and names none, or
+  whose root is gone, holds no budget and is refused as an ended sign-in, so a 17-deep chain spends the root's
+  allowance (`grant-write-budget.int.test.ts`). Migration `0124` was edited, since it has not been released.
+- **Migrations `0119` and `0120` updated nothing for an owner row security applies to**, because they read `clients`,
+  `consents` and `client_oidc_config` without the lift the later ones use. The deployment requirement of ADR 0009
+  means a supported install never takes that branch, but an unsupported owner got `approved_at` unset (so `odudu reap`
+  could delete an approved client) and `is_public_client` false. Both lift and restore, tested with the plain owner of
+  the earlier ones (`exchange-bounds-plain-owner.int.test.ts`).
+- **A write by name with a read token reserved budget first**, taking two row locks to be refused. `callMcpTool` refuses
+  it on the token's scope before the budget is read. The audit read carries `ip`, which the class page said class R
+  excluded; the console shows it, so the page now says personal data is as the console shows it.
+- **Role and group creation locked the row every sign-in locks.** `session-admission.ts` takes the tenant row `for no
+key update`, and a create held it over a count of up to 10,000 index entries. Both repositories now take an advisory
+  lock keyed by kind and tenant (the pattern of message overrides and domains), and a test makes eight creates at once at
+  the limit and sees exactly one admitted. Reasoned, not measured: the count is an index-only scan stopped at the limit
+  (the plan path shows 996 entries read in a tenant five under the limit). The scope limit keeps the tenant row, which
+  `clientRepository.lockCapacity` and provisioning take as well, and counts 1,000 entries at most; the hazard is a tenth
+  of the size and the same lock serves those two.
+- **A tenant import was not held to `ROLE_LIMIT` or `GROUP_LIMIT`**, so a document could create a tenant every create
+  then refused. It is refused with the create's words, and the test that pads a document past the body limit now pads to
+  the limits.
+- **The plan volume had been cut under its own tables.** Holding the roles under `ROLE_LIMIT` took `role_composites`,
+  `group_roles` and `client_scope_roles` under the large-table threshold and the nesting probe's fan-in under a page's
+  rows, so a scan of any of them was no longer a finding. The volume is restored (5,000 roles and 10,000 client roles
+  in the target tenant, which a create has never been bounded below), the role create is driven in a tenant seeded five
+  under the limit, the seed fails if one of the tables or the fan-in falls under its threshold, and a reparent of a group
+  with a 1,620-descendant subtree is driven: its recursive update is an index scan on `groups_by_parent` and `groups_pkey`.
+- **Migration `0124` is edited, not followed by another.** It is on no tag and not on `main`
+  (`git tag --contains` and `git log main --` name nothing), as `0113` and `0114` were edited before
+  their release, so no database that matters has applied the old text. It now also backfills
+  `budget_grant_id` for grants an earlier exchange made, by following the chain down from each grant no
+  exchange made (`agent-write-budget-backfill.int.test.ts`, as a plain owner); a grant whose parent was
+  already deleted cannot be told from a sign-in's own and keeps a budget of its own. The counters begin
+  at 0 on every grant, so there is nothing else to carry over.
+- **The docs image served no search.** The search index (10.5 MB) had passed the server's 10 MiB limit
+  for one file, which leaves the file out, so the built site answered 404 for it and the browser test
+  failed. The limit is 16 MiB, and `image-fits-server.test.ts` fails the build when a file or the tree
+  is within a quarter of a limit. The seed's reparent subtree now has each path as its parent's path
+  and its own name, and the seed fails when one does not. A role or group lock key is lower-cased, so
+  two spellings of one tenant id share a lock, and a tenant import counts the capability roles every
+  tenant is provisioned with, once each, against `ROLE_LIMIT`.
+- **Documents.** The budget's refusal, renewal and what is given back are in the guides; the owner's real-client run is
+  scoped to the first release's reads and two writes; the P5a row of section 11, the console's audit page and NEXT's
+  "budgets are absent" say what shipped; the changelog no longer says the tenant list is refused to agents; a message
+  override's live wording is stated as a risk and placed on P5b.
+- **Known, stated, not changed.** A replayed create spends a second place, and a `4xx` gives the place back, so refused
+  writes are bounded by the rate limiter alone. `get_theme` cannot read a theme the draft tool can write when the two
+  bodies together are between 256,000 bytes and 1 MiB. A live message override can carry a link or copied data: the
+  owner accepted the class, and P5b is asked whether confirmation or link restrictions apply to wording that goes live.

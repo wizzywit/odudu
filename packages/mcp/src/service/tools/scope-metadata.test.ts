@@ -16,6 +16,7 @@ describe('update_scope_metadata', () => {
       display_order: 4,
     },
     text: ['description'],
+    refusal: /built-in scope/u,
   });
 
   it.each([-1, 1.5, 2_147_483_648, '4', Number.NaN])(

@@ -7,6 +7,8 @@ import {
   type AgentWriteRoute,
   agentBodyAdmitted,
   agentBodyNamesGuardedField,
+  agentGuardsBuiltinScope,
+  agentGuardsBuiltinScopeName,
   agentGuardsWholeClient,
   agentWritableFields,
   agentWriteNeedsEndpoint,
@@ -319,6 +321,7 @@ describe('an allowlist of every method and body mode', () => {
     ).toEqual([
       'PATCH /admin/tenants/:tenant/clients/:id',
       'PATCH /admin/tenants/:tenant/scopes/:id',
+      'POST /admin/tenants/:tenant/scopes',
       `PUT ${CLIENT_THEME}`,
     ]);
   });
@@ -600,6 +603,16 @@ describe('the theme draft routes', () => {
     const patch = route('PATCH', '/admin/tenants/:tenant/clients/:id');
     expect(agentWritesClient(patch)).toBe(true);
     expect(agentGuardsWholeClient(patch)).toBe(false);
+  });
+
+  it('guard a built-in scope on the scope PATCH alone', () => {
+    expect(agentGuardsBuiltinScope(route('PATCH', '/admin/tenants/:tenant/scopes/:id'))).toBe(true);
+    expect(agentGuardsBuiltinScope(route('POST', '/admin/tenants/:tenant/scopes'))).toBe(false);
+    expect(agentGuardsBuiltinScopeName(route('POST', '/admin/tenants/:tenant/scopes'))).toBe(true);
+    expect(agentGuardsBuiltinScopeName(route('PATCH', '/admin/tenants/:tenant/scopes/:id'))).toBe(
+      false,
+    );
+    expect(agentGuardsBuiltinScope(route('PATCH', '/admin/tenants/:tenant/roles/:id'))).toBe(false);
   });
 
   it('admit no route that publishes, restores, discards or resets a theme', () => {

@@ -1,4 +1,5 @@
 import type { McpLogger } from '#/service/deps';
+import { insufficientScopeProblem } from '#/service/admin-access';
 import { errorResult, runTool, type ToolRun } from '#/service/call-tool';
 import {
   ToolProblem,
@@ -27,6 +28,11 @@ export interface CallMcpToolDeps {
   readonly deadlineMs: number;
   // The changes this token's grant may still make, shared by every call it makes.
   readonly budget: WriteBudget;
+  // False for a token that does not hold the write scope: a write is then
+  // refused before the budget is read, since nothing it could send would be
+  // admitted and a refusal should cost no row lock. Left out where the caller
+  // makes no such check.
+  readonly holdsWrite?: boolean;
   record(call: RecordedToolCall): Promise<void>;
   readonly logger: Pick<McpLogger, 'error'>;
 }
@@ -223,7 +229,9 @@ export async function callMcpTool(
   input: unknown,
 ): Promise<ToolResult> {
   const kind = spendOf(tool, input);
-  const refusal = kind === undefined ? null : await reserved(deps, tool, kind);
+  const unscoped =
+    tool.access === 'write' && deps.holdsWrite === false ? insufficientScopeProblem() : null;
+  const refusal = unscoped ?? (kind === undefined ? null : await reserved(deps, tool, kind));
   const { result, problem } =
     refusal === null
       ? await execute(deps, tool, caller, input)

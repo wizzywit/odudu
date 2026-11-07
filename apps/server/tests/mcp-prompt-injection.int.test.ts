@@ -7,6 +7,7 @@ import {
   clients,
   clientScopes,
   clientRepository,
+  clientScopeRepository,
   messageOverrideRepository,
   tenantSettingsRepository,
 } from '@odudu/domain-tenant';
@@ -113,9 +114,11 @@ async function fixture(capabilities: readonly string[]): Promise<Fixture> {
   const w = await stack.world(capabilities, GRANT);
   return withTenant(stack.appDb.db, w.tenantId, async (tx) => {
     const portal = await clientRepository(tx).byClientId('portal');
-    const scopes = await tx.select().from(clientScopes).where(eq(clientScopes.name, 'profile'));
-    const scope = scopes[0];
-    if (portal === null || scope === undefined) throw new Error('the tenant is not seeded');
+    const scope = await clientScopeRepository(tx).create({
+      tenantId: w.tenantId,
+      name: 'planted-scope',
+    });
+    if (portal === null) throw new Error('the tenant is not seeded');
     const text = fixtures({ portal: portal.id, scope: scope.id, admin: w.adminDbId });
     // Stored as legacy rows are, so text the write path now refuses is present.
     await tx
@@ -412,6 +415,14 @@ function validAgainstSchema(attempt: Attempt): boolean {
   return tool?.input.safeParse(attempt.args).success === true;
 }
 
+// A write sent by name with a token that holds no write scope is refused for its
+// scope whatever its arguments, before they are read.
+function atWriteTools(attempts: readonly Attempt[]): Attempt[] {
+  return attempts.filter(
+    (attempt) => TOOLS.find((candidate) => candidate.name === attempt.tool)?.access === 'write',
+  );
+}
+
 function errorOf(result: ToolResult | undefined) {
   return (
     result?.structuredContent as { error?: { type: string; status: number; detail?: string } }
@@ -563,9 +574,11 @@ describe('an mcp:read token', () => {
     }
     const calls = await stack.auditRows(f.w, 'agent.tool_call');
     const refused = calls.filter(
-      (c) => (c.detail as { tool: string }).tool.startsWith('update_') && c.outcome === 'refused',
+      (c) =>
+        TOOLS.find((tool) => tool.name === (c.detail as { tool: string }).tool)?.access ===
+          'write' && c.outcome === 'refused',
     );
-    expect(refused.length).toBe(agent.attempts.filter(validAgainstSchema).length);
+    expect(refused.length).toBe(atWriteTools(agent.attempts).length);
     for (const row of refused) {
       expect(row).toMatchObject({
         actorClientId: f.w.agentDbId,
@@ -856,9 +869,11 @@ async function structureFixture(capabilities: readonly string[]): Promise<Struct
   const w = await stack.world(capabilities, GRANT);
   return withTenant(stack.appDb.db, w.tenantId, async (tx) => {
     const portal = await clientRepository(tx).byClientId('portal');
-    const scopeRows = await tx.select().from(clientScopes).where(eq(clientScopes.name, 'profile'));
-    const scope = scopeRows[0];
-    if (portal === null || scope === undefined) throw new Error('the tenant is not seeded');
+    const scope = await clientScopeRepository(tx).create({
+      tenantId: w.tenantId,
+      name: 'planted-scope',
+    });
+    if (portal === null) throw new Error('the tenant is not seeded');
     const role = await roleRepository(tx).create({
       tenantId: w.tenantId,
       name: 'planted-role',
@@ -993,7 +1008,7 @@ describe('structure text that instructs', () => {
     const refused = (await stack.auditRows(f.w, 'agent.tool_call')).filter(
       (row) => row.outcome === 'refused',
     );
-    expect(refused.length).toBe(agent.attempts.filter(validAgainstSchema).length);
+    expect(refused.length).toBe(atWriteTools(agent.attempts).length);
     for (const row of refused) expect(row.detail).toMatchObject({ reason: 'insufficient_scope' });
   });
 
@@ -1306,7 +1321,7 @@ describe('wording text that instructs', () => {
     const refused = (await stack.auditRows(f.w, 'agent.tool_call')).filter(
       (row) => row.outcome === 'refused',
     );
-    expect(refused.length).toBe(agent.attempts.filter(validAgainstSchema).length);
+    expect(refused.length).toBe(atWriteTools(agent.attempts).length);
     for (const row of refused) expect(row.detail).toMatchObject({ reason: 'insufficient_scope' });
   });
 

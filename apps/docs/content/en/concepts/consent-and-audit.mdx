@@ -22,7 +22,7 @@ _In words: A client asks, the person decides and a grant is recorded, so the per
 
 When a client asks for scopes, Odudu can stop and show the person a **consent screen**. It lists what the client wants, in the words you wrote for each scope. The person allows or denies. Denying sends them back with `access_denied`.
 
-An allow is **recorded**: one grant for this person and this client, holding the scopes they ticked. The next time the same client asks for the same things, there is no screen. It appears again only if the client asks for more than was recorded.
+An allow is **recorded**: one grant for this person and this client, holding the scopes they ticked. The screen appears again only if the client asks for more than was recorded.
 
 ### When the screen appears
 
@@ -35,7 +35,7 @@ Odudu decides in this order:
 5. If something is missing and the request says `prompt=none`, refuse with `consent_required`, because `none` means the person must not be shown anything.
 6. Otherwise, ask.
 
-`consent_required` is a setting on each client. An administrator's clients leave it off by default; a client that registered itself has it on. `odudu seed client --consent-required` creates one that asks.
+`consent_required` is a setting on each client. An administrator's clients leave it off by default; a client that registered itself has it on.
 
 A client nobody at the tenant vetted is held to step 2 until the person approves it. The approval belongs to that client's id alone: allowing one app never allows another with the same name.
 
@@ -45,7 +45,7 @@ An administrator can list a person's grants with `GET /admin/tenants/{tenant}/su
 
 ### A client that names itself
 
-A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client meets step 2. For an app that identifies itself with an https address, the screen shows the host the document came from and every redirect address. An agent that registers itself says so, names where this request sends the person, and lists the other origins it registered. An agent that asks for `mcp:read mcp:write` is registered with `mcp:read` only, and one that asks only for scopes it may not hold is refused with `invalid_client_metadata`. Neither kind is ever offered `mcp:write`. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
+A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client meets step 2. For an app that identifies itself with an https address, the screen shows the host the document came from and every redirect address. An agent that registers itself says so, names where this request sends the person, and lists the other origins it registered. Neither kind is ever offered `mcp:write`. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
 
 ## Audit
 
@@ -67,7 +67,7 @@ Anybody can cause a refusal, and each is a row, so one is recorded only where so
 
 ### An agent in the trail
 
-When an AI agent acts through the MCP endpoint, each tool call, reads included, is an `agent.tool_call` event. The actor is the person who signed in and the actor client is the agent's client. The details name the tool and the admin route, never the arguments. A refused call is recorded too. A change made with `mcp:write` is also a `client.amend` or `scope.amend` event naming the agent's client and the person, with the text before and after.
+When an AI agent acts through the MCP endpoint, each tool call, reads included, is an `agent.tool_call` event. The actor is the person who signed in and the actor client is the agent's client. The details name the tool and the admin route, never the arguments. A refused call is recorded too. A change made with `mcp:write` is also the console's event for that change. Access-changing, credential and destructive operations are not available to an agent yet ([classes](../guides/protect-an-mcp-server.md#what-an-agent-can-and-cannot-do-and-why)). A message override and the display name are live on sign-in pages and mail the moment they are saved, with nothing checking them for links. A manipulated agent could publish text it read elsewhere. Review what an agent reads; overrides are audited with their text, and one tool clears them.
 
 ### How long it is kept
 

@@ -36,7 +36,7 @@ describe('useLandingPage', () => {
     expect(page.readers).toHaveLength(4);
     expect(page.examples.cards).toHaveLength(4);
     expect(page.agents.items.map((item) => item.id)).toEqual([
-      'mcp-destructive-tools',
+      'mcp-access-changing-tools',
       'agent-identity',
     ]);
     expect(page.agents.plannedLabel).toBe('Planned');

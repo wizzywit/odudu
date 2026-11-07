@@ -1,5 +1,5 @@
 import { type Database, type TenantScopedDatabase } from '@odudu/db';
-import { isSystemTenantId, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
+import { isBuiltinScopeName, isSystemTenantId, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { type Clock } from '@odudu/kernel';
 import { issuerBaseFor, tenantIssuerFor } from '@odudu/protocol-oidc';
 import { Transform } from 'node:stream';
@@ -8,6 +8,8 @@ import {
   agentBodyAdmitted,
   doorToolName,
   agentBodyNamesGuardedField,
+  agentGuardsBuiltinScope,
+  agentGuardsBuiltinScopeName,
   agentGuardsWholeClient,
   agentWriteNeedsEndpoint,
   agentWritesClient,
@@ -28,6 +30,7 @@ import {
   type AuthenticateAdminDeps,
 } from '#/usecase/authenticate-admin';
 import { authorizeAdmin, type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
+import { scopeIsBuiltin } from '#/usecase/scopes';
 import { idempotencyKeyOf, idempotentMethod } from '#/service/idempotency';
 import {
   idempotencyBusy,
@@ -200,7 +203,8 @@ async function authorizeRoute(
   const { principal } = outcome;
   if (
     principal.agent !== undefined &&
-    (!scopeAdmits(principal.scopes, route, isSystemTenantId(principal.issuerTenantId)) ||
+    (principal.issuerTenantId !== targetTenant.id ||
+      !scopeAdmits(principal.scopes, route, isSystemTenantId(principal.issuerTenantId)) ||
       (agentWriteNeedsEndpoint(route) &&
         (principal.agent.viaEndpoint !== true || principal.agent.ownerIsServiceAccount === true)))
   ) {
@@ -237,6 +241,17 @@ async function agentMayWrite(
   granted: Granted,
 ): Promise<boolean> {
   if (!agentBodyAdmitted(route, request.body)) return false;
+  if (agentGuardsBuiltinScopeName(route)) {
+    const named = (request.body as { name?: unknown }).name;
+    return !(typeof named === 'string' && isBuiltinScopeName(named));
+  }
+  if (agentGuardsBuiltinScope(route)) {
+    const scopeId = request.params.id;
+    if (scopeId === undefined) return true;
+    return !(await adminTx(deps.database, request, granted.tenantId, (tx) =>
+      scopeIsBuiltin(tx, scopeId),
+    ));
+  }
   if (!agentWritesClient(route)) return true;
   if (!agentGuardsWholeClient(route) && !agentBodyNamesGuardedField(request.body)) return true;
   const id = request.params.id;

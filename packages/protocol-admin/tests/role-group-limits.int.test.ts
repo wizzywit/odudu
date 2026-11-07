@@ -101,6 +101,26 @@ describe('roles', () => {
   });
 });
 
+describe('creates made all at once at the limit', () => {
+  it.each([
+    ['roles', ROLE_LIMIT, fillRoles],
+    ['groups', GROUP_LIMIT, fillGroups],
+  ] as const)('admit exactly the one place left in %s', async (route, limit, fill) => {
+    const t = await fixture.createTenant(`lim-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    await fill(t.id, limit - 1);
+    const answers = await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        post(t.name, route, token, { name: `race-${String(i)}` }),
+      ),
+    );
+    expect(answers.map((a) => a.statusCode).sort()).toEqual([
+      201, 409, 409, 409, 409, 409, 409, 409,
+    ]);
+    expect((await held(t.id))[route]).toBe(limit);
+  });
+});
+
 describe('groups', () => {
   it('are created up to the limit, and the next create is a 409 that names it', async () => {
     const t = await fixture.createTenant(`lim-${newId()}`);
