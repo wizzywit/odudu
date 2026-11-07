@@ -238,6 +238,23 @@ Open registration is a decision, so close it when you are done with the guide. T
 docker compose exec odudu odudu seed tenant --name demo --set client_registration_policy=disabled --set cimd_enabled=false
 ```
 
+## What an agent can and cannot do, and why
+
+An agent's reach follows one line, drawn at access and not at whether a call can be undone: a wrong call may put wrong text in front of a person, and it may not change who can sign in, what a token carries, a secret or a deletion. Every admin API route is in one class, and the counts are of its 152 routes.
+
+| Class | Routes | An agent today                               | Why, and what a person does instead                                                                                                                                                                                                                                            |
+| ----- | ------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| R     | 59     | Yes, with `mcp:read`                         | Reads that hold no secret and no personal data beyond a subject's record, so text an agent reads cannot make it leak one. Each call is an audit event.                                                                                                                         |
+| I     | 2      | Yes, for a system administrator's agent only | The tenant list and its count. They open no tenant's content, and the agent of any other tenant is refused.                                                                                                                                                                    |
+| W1    | 13     | Yes for 12, with `mcp:write`                 | Wording, descriptions, drafts and structure that grant nothing, so the worst a wrong call does is put wrong text in front of a person. Each sign-in allows 20 changing calls and 10 creates. The thirteenth, a theme image upload, needs a person: use the console.            |
+| W2    | 32     | Not yet                                      | Each changes who can sign in or what a token carries: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail. Use the console. A confirmation step the agent cannot answer for itself comes with a later release. |
+| C     | 7      | Not yet                                      | Each returns or sets a secret: passwords, client secrets, registration tokens, signing keys, relay credentials. Use the console. The same confirmation step comes first.                                                                                                       |
+| D     | 27     | Not yet                                      | Each deletes, ends sessions, clears a lockout, changes a signing key or discards a draft. Use the console. The same confirmation step comes first.                                                                                                                             |
+| RS    | 8      | Never                                        | Sensitive reads: personal data, credential metadata, secrets and whole-tenant downloads, which an injected agent could carry out. Read them in the console, or with your own token from the admin API.                                                                         |
+| N     | 4      | Never                                        | Pages drawn for a browser frame, such as mail previews, which are not data an agent can read. The console shows them, and `get_theme_preview_info` says what a draft's preview is made of.                                                                                     |
+
+Access-changing, credential and destructive operations are not available to an agent yet, so an agent that is told to make one is refused, and a person does it in the console.
+
 ## Protecting your own MCP server
 
 The endpoint above is Odudu's own. A server of yours takes the same shape, and Odudu is its authorization server:

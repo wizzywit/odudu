@@ -1,12 +1,12 @@
 ---
 title: Connect Cursor
-description: Connect Cursor to a tenant's MCP endpoint with dynamic registration or a client id in mcp.json, and what the agent can then read.
+description: Connect Cursor to a tenant's MCP endpoint with dynamic registration or a client id in mcp.json, and what the agent can then read and change.
 sidebar_position: 14
 ---
 
 # Connect Cursor
 
-Cursor takes an MCP server from an `mcp.json` file and signs in to it with OAuth. It registers itself as a public client when the server allows that, and it can be given a fixed client id when it does not. Both work with an Odudu tenant, and both end with the same read-only tools [Connect Claude](./connect-claude.md) describes. Cursor has no client metadata document, so the tenant's `cimd_enabled` setting does nothing for it.
+Cursor takes an MCP server from an `mcp.json` file and signs in to it with OAuth. It registers itself as a public client when the server allows that, and it can be given a fixed client id when it does not. Both work with an Odudu tenant, and both end with the same tools [Connect Claude](./connect-claude.md) describes: the reads, and with `mcp:write` the writes. Cursor has no client metadata document, so the tenant's `cimd_enabled` setting does nothing for it.
 
 You need the stack from the [quick start](../quick-start/index.mdx), with its `demo` tenant and its user `ada`, and a shell in the folder that holds `compose.yaml`. The examples use `http://localhost:3000`.
 
@@ -83,6 +83,23 @@ With `mcp:write` in `scopes`, the consent page asks about it at every sign-in, a
 ## Using the tools
 
 Once Cursor shows the server as connected, ask in plain language, for example "who am I signed in as?" or "list the clients in this tenant", and Cursor chooses the tool; it asks before running one unless you have told it not to, and that choice is Cursor's. A failed call comes back as an error Cursor reads to you, such as `mcp:invalid_arguments: id: must be a UUID`, and every call, refused ones included, is an `agent.tool_call` event in the console's audit trail. [Connect Claude](./connect-claude.md#using-the-tools) lists example requests, which work the same here. Claude Code and Claude Desktop were run by the owner on 6 November 2026 and Cursor was not, so what Cursor's menus call these things is its documentation's to say.
+
+## What an agent can and cannot do, and why
+
+An agent's reach follows one line, drawn at access and not at whether a call can be undone: a wrong call may put wrong text in front of a person, and it may not change who can sign in, what a token carries, a secret or a deletion. Every admin API route is in one class, and the counts are of its 152 routes.
+
+| Class | Routes | An agent today                               | Why, and what a person does instead                                                                                                                                                                                                                                            |
+| ----- | ------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| R     | 59     | Yes, with `mcp:read`                         | Reads that hold no secret and no personal data beyond a subject's record, so text an agent reads cannot make it leak one. Each call is an audit event.                                                                                                                         |
+| I     | 2      | Yes, for a system administrator's agent only | The tenant list and its count. They open no tenant's content, and the agent of any other tenant is refused.                                                                                                                                                                    |
+| W1    | 13     | Yes for 12, with `mcp:write`                 | Wording, descriptions, drafts and structure that grant nothing, so the worst a wrong call does is put wrong text in front of a person. Each sign-in allows 20 changing calls and 10 creates. The thirteenth, a theme image upload, needs a person: use the console.            |
+| W2    | 32     | Not yet                                      | Each changes who can sign in or what a token carries: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail. Use the console. A confirmation step the agent cannot answer for itself comes with a later release. |
+| C     | 7      | Not yet                                      | Each returns or sets a secret: passwords, client secrets, registration tokens, signing keys, relay credentials. Use the console. The same confirmation step comes first.                                                                                                       |
+| D     | 27     | Not yet                                      | Each deletes, ends sessions, clears a lockout, changes a signing key or discards a draft. Use the console. The same confirmation step comes first.                                                                                                                             |
+| RS    | 8      | Never                                        | Sensitive reads: personal data, credential metadata, secrets and whole-tenant downloads, which an injected agent could carry out. Read them in the console, or with your own token from the admin API.                                                                         |
+| N     | 4      | Never                                        | Pages drawn for a browser frame, such as mail previews, which are not data an agent can read. The console shows them, and `get_theme_preview_info` says what a draft's preview is made of.                                                                                     |
+
+Access-changing, credential and destructive operations are not available to an agent yet, so an agent that is told to make one is refused, and a person does it in the console.
 
 ## 5. Put it back
 
