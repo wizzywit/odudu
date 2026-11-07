@@ -18,7 +18,7 @@ What it placed on later phases is on
 
 **P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 61 read
 tools (two for the system tenant's agent alone) and 12 write tools (descriptive text, the display name, languages and message overrides, drafts of a theme that a person publishes, and roles, groups and scopes that grant nothing; the three creates, the two that set or clear an override and the two that save a theme draft only through that endpoint, not through `odudu mcp --allow-writes`), `odudu mcp` serves the rest over stdio,
-and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
+and nothing that changes who can sign in, handles a secret or deletes is offered to an agent (that is P5b's, below), and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
 client ID metadata documents, `mcp:read` and `mcp:write`) is in place. What it found
 is in [`docs/phases/p5a.md`](phases/p5a.md). Claude Code 2.1.319 and Claude Desktop 3.6556.2
 were run by the owner on 2026-11-06 (reads, writes, refusals and errors worked).
