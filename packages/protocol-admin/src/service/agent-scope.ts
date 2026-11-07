@@ -2,15 +2,17 @@ import { holdsMcpScope, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 
 // One mutation an agent token may make: the method and route, what its target
-// is (a built-in client is guarded), and what its body may hold. `fields` is
-// a body of named members of the resource; `whole` is a body that is the
-// resource, as a theme draft is. Either admits the named members and nothing
-// else, and a DELETE admits no body at all. A PATCH entry must not add or
-// remove a row: only the other methods are held to the endpoint's budget.
+// is, and what its body may hold. `fields` is a body of named members of the
+// resource; `whole` is a body that is the resource, as a theme draft is. Either
+// admits the named members and nothing else, and a DELETE admits no body. A
+// `client` target is a built-in client's name, guarded; a `client-content` one
+// is a resource no built-in client has written, whatever the body names. A PATCH
+// entry must not add or remove a row: only the other methods are held to the
+// endpoint's budget.
 export interface AgentWriteRoute {
   readonly method: 'PATCH' | 'POST' | 'PUT' | 'DELETE';
   readonly pattern: string;
-  readonly target: 'client' | 'scope' | 'none';
+  readonly target: 'client' | 'client-content' | 'scope' | 'none';
   readonly body: 'fields' | 'whole';
   readonly fields: readonly string[];
 }
@@ -43,6 +45,10 @@ export const INSTANCE_READS: readonly string[] = ['GET /admin/tenants', 'GET /ad
 // A built-in client's name is what an administrator or MCP user recognises
 // on the consent screen, so an agent never rewrites it.
 const BUILTIN_CLIENT_GUARDED_FIELDS: readonly string[] = ['name', 'name_i18n'];
+
+// The parts of a theme body. A draft saved this way changes nothing a person
+// sees until a person publishes it, which no entry here allows.
+const THEME_BODY_FIELDS: readonly string[] = ['tokens', 'stylesheet', 'templates', 'assets'];
 
 // What `mcp:write` adds to the reads: amending the wording a person reads,
 // creating a role, group or scope that grants nothing, and setting or clearing
@@ -123,6 +129,20 @@ export const AGENT_WRITE_ROUTES: readonly AgentWriteRoute[] = [
     body: 'fields',
     fields: [],
   },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/theme',
+    target: 'none',
+    body: 'whole',
+    fields: THEME_BODY_FIELDS,
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/clients/:id/theme',
+    target: 'client-content',
+    body: 'whole',
+    fields: THEME_BODY_FIELDS,
+  },
 ];
 
 function writeEntry(
@@ -190,7 +210,16 @@ export function agentWritesClient(
   route: AdminRoute,
   routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
 ): boolean {
-  return writeEntry(route, routes)?.target === 'client';
+  const target = writeEntry(route, routes)?.target;
+  return target === 'client' || target === 'client-content';
+}
+
+// Whether a built-in client is refused for this route whatever the body names.
+export function agentGuardsWholeClient(
+  route: AdminRoute,
+  routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
+): boolean {
+  return writeEntry(route, routes)?.target === 'client-content';
 }
 
 export function agentBodyNamesGuardedField(body: unknown): boolean {

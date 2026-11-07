@@ -8,6 +8,7 @@ import {
   agentBodyAdmitted,
   doorToolName,
   agentBodyNamesGuardedField,
+  agentGuardsWholeClient,
   agentWriteNeedsEndpoint,
   agentWritesClient,
   scopeAdmits,
@@ -236,7 +237,8 @@ async function agentMayWrite(
   granted: Granted,
 ): Promise<boolean> {
   if (!agentBodyAdmitted(route, request.body)) return false;
-  if (!agentWritesClient(route) || !agentBodyNamesGuardedField(request.body)) return true;
+  if (!agentWritesClient(route)) return true;
+  if (!agentGuardsWholeClient(route) && !agentBodyNamesGuardedField(request.body)) return true;
   const id = request.params.id;
   const target = id === undefined ? null : await deps.auth.loadClientState(granted.tenantId, id);
   return target === null || !(target.builtinAdmin || target.builtinMcp);
