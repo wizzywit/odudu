@@ -3,6 +3,10 @@ import {
   ASSIGNMENT_LIMIT,
   CLIENT_SCOPE_LIMIT,
   EXPORT_SUBJECT_CAP,
+  GROUP_LIMIT,
+  groupLimitMessage,
+  ROLE_LIMIT,
+  roleLimitMessage,
   SCOPE_LIMIT,
   TENANT_IMPORT_BODY_LIMIT,
   tenantDocumentSchema,
@@ -1119,6 +1123,58 @@ describe('POST /admin/tenant-imports', () => {
     expect(named?.message).toContain(String(ASSIGNMENT_LIMIT));
   });
 
+  it('refuses a document that defines more roles than a tenant may, in the words a create is refused with', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const broken: TenantDocument = {
+      ...document,
+      roles: [
+        ...document.roles,
+        ...Array.from({ length: ROLE_LIMIT }, (_, n) => ({
+          name: `bulk-${String(n)}`,
+          client: null,
+          description: null,
+          default_for_new_subjects: false,
+          builtin: false,
+          composites: [],
+        })),
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    const named = errors.find((error) => error.path === 'document.roles');
+    expect(named?.message).toContain(roleLimitMessage());
+  });
+
+  it('refuses a document that defines more groups than a tenant may, in the same words', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const broken: TenantDocument = {
+      ...document,
+      groups: [
+        ...document.groups,
+        ...Array.from({ length: GROUP_LIMIT }, (_, n) => ({
+          path: `/bulk-${String(n)}`,
+          description: null,
+          default_for_new_subjects: false,
+          roles: [],
+        })),
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    const named = errors.find((error) => error.path === 'document.groups');
+    expect(named?.message).toContain(groupLimitMessage());
+  });
+
   it('refuses a document that defines more scopes than a tenant may', async () => {
     const source = await seededSource();
     const token = await operatorToken();
@@ -1536,8 +1592,9 @@ describe('POST /admin/tenant-imports', () => {
     const source = await seededSource();
     const token = await operatorToken();
     const document = await exportOf(token, source.name);
-    // A description is bounded, so the bulk is many roles, each at the bound.
-    const padding = Array.from({ length: 1_100 }, (_, index) => ({
+    // A description is bounded, so the bulk is many roles and groups, each at the
+    // bound, and as many as a tenant may define.
+    const padding = Array.from({ length: ROLE_LIMIT - document.roles.length }, (_, index) => ({
       name: `padding-${String(index)}`,
       client: null,
       description: 'x'.repeat(1_000),
@@ -1545,7 +1602,17 @@ describe('POST /admin/tenant-imports', () => {
       builtin: false,
       composites: [],
     }));
-    const padded = { ...document, roles: [...document.roles, ...padding] };
+    const groupPadding = Array.from({ length: 1_000 }, (_, index) => ({
+      path: `/padding-${String(index)}`,
+      description: 'x'.repeat(1_000),
+      default_for_new_subjects: false,
+      roles: [],
+    }));
+    const padded = {
+      ...document,
+      roles: [...document.roles, ...padding],
+      groups: [...document.groups, ...groupPadding],
+    };
 
     const res = await postImport(token, { name: `import-${newId()}`, document: padded });
 

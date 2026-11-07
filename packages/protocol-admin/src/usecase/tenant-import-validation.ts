@@ -11,6 +11,10 @@ import {
   CLIENT_SCOPE_LIMIT,
   DESCRIPTION_MAX,
   EXPORT_SUBJECT_CAP,
+  GROUP_LIMIT,
+  groupLimitMessage,
+  ROLE_LIMIT,
+  roleLimitMessage,
   SCOPE_LIMIT,
   smtpPortSchema,
   tenantDocumentSchema,
@@ -643,6 +647,18 @@ function invariantProblems(
     problems.add(
       'document.scopes',
       `${String(document.scopes.length)} scopes, a tenant defines at most ${String(SCOPE_LIMIT)}`,
+    );
+  }
+  if (document.roles.length > ROLE_LIMIT) {
+    problems.add(
+      'document.roles',
+      `${roleLimitMessage()}, and the document holds ${String(document.roles.length)}`,
+    );
+  }
+  if (document.groups.length > GROUP_LIMIT) {
+    problems.add(
+      'document.groups',
+      `${groupLimitMessage()}, and the document holds ${String(document.groups.length)}`,
     );
   }
   const markedScopes = document.scopes.filter(
