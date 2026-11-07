@@ -62,7 +62,9 @@ describe('the MCP tool catalogue against the admin routes', () => {
     const writable = AGENT_WRITE_ROUTES.map((route) => `${route.method} ${route.pattern}`);
     for (const tool of TOOLS.filter((candidate) => candidate.access === 'write')) {
       expect(writable, tool.name).toContain(tool.routeKey);
-      expect(tool.annotations.destructiveHint, tool.name).toBe(false);
+      // A DELETE removes the override a person may have written, so it is hinted as
+      // destructive for a client that asks first; nothing else removes anything.
+      expect(tool.annotations.destructiveHint, tool.name).toBe(tool.routeKey.startsWith('DELETE '));
       const route = AGENT_WRITE_ROUTES.find(
         (entry) => `${entry.method} ${entry.pattern}` === tool.routeKey,
       );

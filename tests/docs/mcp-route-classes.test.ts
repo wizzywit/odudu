@@ -160,12 +160,18 @@ describe('the route classes document against the tool catalogue', () => {
     expect(document.lines.join('\n')).toContain(`**${String(today)} of them have a tool today**`);
   });
 
-  it('says that a create is admitted to a token the MCP endpoint signed, and why', () => {
+  it('says that a write that is no amendment is admitted to a token the MCP endpoint signed, and why', () => {
     const text = document.lines.join('\n');
     expect(text).toContain('agentWriteNeedsEndpoint');
-    for (const tool of TOOLS.filter((t) => t.spends === 'create')) {
-      expect(text, tool.name).toContain(`\`${tool.name}\``);
+    const start = text.indexOf('**Who may add or remove.**');
+    expect(start).toBeGreaterThan(-1);
+    const paragraph = text.slice(start, text.indexOf('\n\n', start));
+    for (const tool of TOOLS.filter(
+      (t) => t.access === 'write' && !t.routeKey.startsWith('PATCH '),
+    )) {
+      expect(paragraph, tool.name).toContain(`\`${tool.name}\``);
     }
+    expect(paragraph).toMatch(/service account/u);
   });
 
   it('lists a tool once, and lists every tool that exists', () => {

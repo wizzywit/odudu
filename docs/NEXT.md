@@ -17,7 +17,7 @@ What it placed on later phases is on
 [the roadmap page](../apps/docs/content/en/roadmap.md).
 
 **P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 61 read
-tools (two for the system tenant's agent alone) and seven write tools (descriptive text, and roles, groups and scopes that grant nothing; the three creates only through that endpoint, not through `odudu mcp --allow-writes`), `odudu mcp` serves the rest over stdio,
+tools (two for the system tenant's agent alone) and 10 write tools (descriptive text, the display name, languages and message overrides, and roles, groups and scopes that grant nothing; the three creates and the two that set or clear an override only through that endpoint, not through `odudu mcp --allow-writes`), `odudu mcp` serves the rest over stdio,
 and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
 client ID metadata documents, `mcp:read` and `mcp:write`) is in place. What it found
 is in [`docs/phases/p5a.md`](phases/p5a.md). Claude Code 2.1.319 and Claude Desktop 3.6556.2
