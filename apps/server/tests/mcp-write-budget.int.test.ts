@@ -177,6 +177,17 @@ function callAs(w: World) {
 
 const ETAG = `"${'a'.repeat(64)}"`;
 
+describe('a grant that has ended', () => {
+  it('is its own problem, not a spent budget, and nothing is called', async () => {
+    const w = await stack.world(OWNER_CAPS, WRITE);
+    await withTenant(stack.appDb.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(w.grantId, new Date()),
+    );
+    const result = await callAs(w)(amend, { id: newId(), if_match: ETAG, description: 'd' });
+    expect(errorOf(result)).toMatchObject({ type: 'mcp:access_ended', status: 401 });
+  });
+});
+
 describe('calls made all at once', () => {
   it('admit twenty of thirty mutating calls, and audit the other ten as refused', async () => {
     const w = await stack.world(OWNER_CAPS, WRITE);

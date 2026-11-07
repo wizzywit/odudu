@@ -160,6 +160,20 @@ describe('the write budget of a grant', () => {
     expect(await reserve(tenantId, grantId, 'mutating')).toBe(false);
   });
 
+  it('says whether a grant is live, so a sign-in that ended is not read as a spent budget', async () => {
+    const { tenantId, grantId } = await grantIn();
+    const live = (id: string, tenant = tenantId) =>
+      withTenant(app.db, tenant, (tx) => tokenGrantRepository(tx).isLive(id));
+    expect(await live(grantId)).toBe(true);
+    expect(await live(newId())).toBe(false);
+    const other = await grantIn();
+    expect(await live(other.grantId)).toBe(false);
+    await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(grantId, new Date()),
+    );
+    expect(await live(grantId)).toBe(false);
+  });
+
   it('cannot spend, or give back, a foreign tenant’s grant, even given its id', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {

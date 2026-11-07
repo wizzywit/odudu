@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { idempotencyKeyOf as adminKeyOf } from '@odudu/protocol-admin';
 import {
   ADMIN_BODY_CAP_BYTES,
+  IDEMPOTENCY_KEY_PATTERN,
   REQUEST_BODY_CAP_BYTES,
   idempotencyKeyOf,
   jsonBodyOf,
@@ -103,5 +105,38 @@ describe('a body read as JSON', () => {
   it('is nothing for an empty or malformed body', () => {
     expect(jsonBodyOf('application/json', '')).toBeNull();
     expect(jsonBodyOf('application/json', '{')).toBeNull();
+  });
+});
+
+describe('the idempotency key pattern', () => {
+  it('accepts exactly what the admin API accepts', () => {
+    const samples = [
+      'a',
+      'A_b.c:d-9',
+      'k'.repeat(255),
+      'k'.repeat(256),
+      '',
+      ' ',
+      'a b',
+      'a\n',
+      'a\r\nx',
+      'a/b',
+      'a"b',
+      'é',
+      'a\u0000',
+      'a~b',
+      'a,b',
+      'a;b',
+      '-',
+      '.',
+      ':',
+      '_',
+      '0',
+    ];
+    for (const sample of samples) {
+      expect(IDEMPOTENCY_KEY_PATTERN.test(sample), JSON.stringify(sample)).toBe(
+        adminKeyOf(sample).kind === 'valid',
+      );
+    }
   });
 });

@@ -275,7 +275,10 @@ The door and the owner's capability stay the control; nothing below is a tool-si
    large to read keeps it, since the change may have been made. A count of `agent.tool_call` rows was the first
    draft and cannot do this: a row is written after the call, so calls made at once would all pass the count
    before any row existed. Over budget: `429` `mcp:write_budget`, and a `refused` row with the reason
-   `write_budget`.
+   `write_budget`. The count applies only to calls made through the MCP endpoint: a principal that reaches the admin
+   API directly (`odudu mcp` over stdio, which keeps a budget in memory per process) is held by the field gate alone.
+   An allowlist entry that creates something must therefore be counted at the door, or restricted to principals that
+   came through the endpoint (`viaEndpoint`), before it is added to `AGENT_WRITE_ROUTES`.
 6. **Audit.** Each write already records `agent.tool_call` and the mutation's own event with before and after
    (`redactedDiff`). The mutation actions exist (verified: `git grep -n "message_override.set\|theme.draft_saved\|role.create"
 -- packages/domain-audit/src/service/admin-mutation-actions.ts`); the scope amendment once wrote no `detail`, so

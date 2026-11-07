@@ -290,3 +290,66 @@ describe('what every mode says of a refusal', () => {
     });
   });
 });
+
+describe('a tool that names its own body cap', () => {
+  const big = contentWriteTool({
+    name: 'put_big',
+    description: 'Replaces a big thing.',
+    routeKey: 'PUT /admin/tenants/:tenant/message-overrides/:locale/:key',
+    capability: 'manage-tenant',
+    what: 'message override',
+    mode: 'put',
+    params: { locale: z.string().min(2).max(35), key: z.string().min(1).max(100) },
+    fields: { message: z.string().min(1).max(400_000) },
+    response: ROLE,
+    bodyCap: 200_000,
+  });
+  const small = contentWriteTool({
+    name: 'put_small',
+    description: 'Replaces a small thing.',
+    routeKey: 'PUT /admin/tenants/:tenant/message-overrides/:locale/:key',
+    capability: 'manage-tenant',
+    what: 'message override',
+    mode: 'put',
+    params: { locale: z.string().min(2).max(35), key: z.string().min(1).max(100) },
+    fields: { message: z.string().min(1).max(400_000) },
+    response: ROLE,
+    bodyCap: 1_000,
+  });
+  const at = (message: string) => ({ locale: 'de', key: 'k', message });
+
+  it('accepts a body between 60,000 bytes and its cap, and refuses one above', async () => {
+    const caller = respondingWith(ANSWER);
+    expect((await callTool(big, caller, at('x'.repeat(100_000)))).isError).toBe(false);
+    const over = await callTool(big, caller, at('x'.repeat(200_000)));
+    expect(over.structuredContent).toMatchObject({ error: { type: 'mcp:invalid_arguments' } });
+    expect(caller.requests).toHaveLength(1);
+  });
+
+  it('refuses a body above a cap below 60,000 as an argument, before any call', async () => {
+    const caller = respondingWith(ANSWER);
+    const result = await callTool(small, caller, at('x'.repeat(2_000)));
+    expect(result.structuredContent).toMatchObject({ error: { type: 'mcp:invalid_arguments' } });
+    expect(caller.requests).toHaveLength(0);
+  });
+});
+
+describe('a definition that names one argument twice', () => {
+  it('throws when a path parameter has the name of a body field or a reserved argument', () => {
+    for (const name of ['locale', 'if_match', 'idempotency_key']) {
+      expect(() =>
+        contentWriteTool({
+          name: 'x',
+          description: 'x',
+          routeKey: 'PUT /admin/tenants/:tenant/message-overrides/:locale/:key',
+          capability: 'manage-tenant',
+          what: 'message override',
+          mode: 'put',
+          params: { [name]: z.string(), key: z.string() },
+          fields: name === 'locale' ? { locale: z.string() } : { message: z.string() },
+          response: ROLE,
+        }),
+      ).toThrow(/reserved|twice/u);
+    }
+  });
+});

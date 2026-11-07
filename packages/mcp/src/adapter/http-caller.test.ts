@@ -234,6 +234,21 @@ describe('the stdio caller of the admin API', () => {
     ).toEqual(['same-key', 'same-key']);
   });
 
+  it('refuses before sending with a 400 problem, which is not counted against a budget', async () => {
+    const h = harness();
+    const error = await h.caller
+      .call({
+        method: 'DELETE',
+        pattern: '/admin/tenants/:tenant/roles/:id',
+        params: { id: '..' },
+        query: {},
+      })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ToolProblem);
+    expect(error).toMatchObject({ status: 400, problemType: 'mcp:invalid_arguments' });
+    expect(h.sent).toHaveLength(0);
+  });
+
   it('does not follow a redirect and says so', async () => {
     const h = harness(
       () => new Response(null, { status: 302, headers: { location: 'https://evil.example/' } }),

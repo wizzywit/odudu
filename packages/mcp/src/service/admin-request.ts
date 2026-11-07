@@ -1,5 +1,5 @@
 import { isEtag } from '#/service/etag-shape';
-import type { AdminMethod, AdminRequestSpec } from '#/service/tool';
+import { ToolProblem, type AdminMethod, type AdminRequestSpec } from '#/service/tool';
 
 // What a call may read back: the admin API's own page size bounds rows, not
 // bytes, and a model reads whatever is returned.
@@ -10,6 +10,18 @@ export const ADMIN_BODY_CAP_BYTES = 1_048_576;
 export const REQUEST_BODY_CAP_BYTES = 65_536;
 
 export const RETURNED_HEADERS = ['content-type', 'etag', 'retry-after'] as const;
+
+// A request the caller refuses to build is a refusal of the arguments, said as
+// a 400 so that nothing was sent and a write's place in its budget is given back.
+export function preflight<T>(build: () => T): T {
+  try {
+    return build();
+  } catch (error) {
+    if (error instanceof ToolProblem) throw error;
+    const reason = error instanceof Error ? error.message : 'the request could not be built';
+    throw new ToolProblem('mcp:invalid_arguments', reason, 400);
+  }
+}
 
 // The same character set the admin API accepts for `Idempotency-Key`, which
 // is a subset of visible ASCII with no space, quote or separator.

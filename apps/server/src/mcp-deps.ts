@@ -110,6 +110,9 @@ export function adminCallerFor(deps: McpCallDeps, token: ValidatedMcpToken): Adm
 // The write budget of the grant behind a token, spent in the database: one
 // statement per reservation, so calls made at once between them cannot pass
 // the limit, in this process or another.
+const ENDED =
+  'The grant behind this token is gone or was revoked: ask the person to sign in again.';
+
 export function grantWriteBudget(
   database: DatabaseHandle,
   token: Pick<ValidatedMcpToken, 'tenant' | 'grantId'>,
@@ -120,7 +123,12 @@ export function grantWriteBudget(
       withTenant(
         database.db,
         token.tenant.id,
-        (tx) => tokenGrantRepository(tx).reserveAgentWrite(token.grantId, kind, WRITE_BUDGET),
+        async (tx) => {
+          const grants = tokenGrantRepository(tx);
+          if (await grants.reserveAgentWrite(token.grantId, kind, WRITE_BUDGET)) return true;
+          if (await grants.isLive(token.grantId)) return false;
+          throw new ToolProblem('mcp:access_ended', 'The sign-in has ended', 401, ENDED);
+        },
         request,
       ),
     release: (kind) =>

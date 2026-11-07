@@ -313,6 +313,41 @@ describe('a write tool called with a read token', () => {
   });
 });
 
+describe('the write budget, edge cases', () => {
+  const route = 'POST /admin/tenants/:tenant/roles';
+  const writing = defineTool({
+    ...base,
+    name: 'change_something',
+    access: 'write',
+    spends: 'mutating',
+    routeKey: route,
+    run: () => Promise.reject(new ToolProblem('mcp:invalid_arguments', 'bad', 400)),
+  });
+
+  it('gives a place back for a request the caller refused before sending it', async () => {
+    const events: string[] = [];
+    const h = harness(false, {
+      reserve: () => (events.push('reserve'), Promise.resolve(true)),
+      release: () => (events.push('release'), Promise.resolve()),
+    });
+    await callMcpTool(h.deps, writing, caller, {});
+    expect(events).toEqual(['reserve', 'release']);
+  });
+
+  it('reports a grant that has ended as its own problem, runs nothing, and is not a spent budget', async () => {
+    const h = harness(false, {
+      reserve: () =>
+        Promise.reject(new ToolProblem('mcp:access_ended', 'The sign-in has ended', 401)),
+      release: () => Promise.resolve(),
+    });
+    const result = await callMcpTool(h.deps, writing, caller, {});
+    expect(result.structuredContent).toMatchObject({
+      error: { type: 'mcp:access_ended', status: 401 },
+    });
+    expect(h.rows).toEqual([{ tool: 'change_something', route, outcome: 'failed' }]);
+  });
+});
+
 describe('the write budget', () => {
   const route = 'POST /admin/tenants/:tenant/roles';
   const ok = { data: { ok: true } };

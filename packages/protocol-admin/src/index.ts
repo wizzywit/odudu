@@ -289,6 +289,7 @@ export { COUNT_CAP } from '#/usecase/counts';
 export { idempotencyRepository } from '#/repository/idempotency';
 export {
   fingerprintOf,
+  idempotencyKeyOf,
   IDEMPOTENCY_MAX_BODY_BYTES,
   IDEMPOTENCY_MAX_LIVE_KEYS,
   IDEMPOTENCY_WINDOW_SECONDS,

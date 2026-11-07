@@ -176,6 +176,16 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       return rows.length > 0;
     },
 
+    // Whether the grant exists in this tenant and has not been revoked, which
+    // tells a spent budget from a sign-in that has ended.
+    async isLive(id: string): Promise<boolean> {
+      const rows = await tx
+        .select({ id: tokenGrants.id })
+        .from(tokenGrants)
+        .where(and(eq(tokenGrants.id, id), isNull(tokenGrants.revokedAt)));
+      return rows.length > 0;
+    },
+
     // Gives back a call known to have changed nothing, never below none.
     async releaseAgentWrite(id: string, kind: 'mutating' | 'create'): Promise<void> {
       await tx

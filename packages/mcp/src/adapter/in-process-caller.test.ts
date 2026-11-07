@@ -334,6 +334,35 @@ describe('the in-process admin caller', () => {
     });
   });
 
+  describe('a request refused before it is sent', () => {
+    it('is a 400 problem naming the argument, so nothing is counted against a budget', async () => {
+      const h = harness();
+      const caller = createInProcessCaller(
+        h.deps,
+        unverifiedTokenForTests({ scope: ['mcp:write'] }),
+      );
+      const put = {
+        method: 'PUT',
+        pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+        params: { locale: 'de', key: 'k' },
+        query: {},
+        body: { message: 'x' },
+      } as const;
+      const refusals: AdminRequestSpec[] = [
+        { ...put, params: { locale: 'de', key: '..' } },
+        { ...put, body: { message: 'x'.repeat(70_000) } },
+        { ...put, bodyCap: 2_000_000 },
+        { ...put, method: 'POST', idempotencyKey: 'a b' },
+      ];
+      for (const request of refusals) {
+        const error = await caller.call(request).catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(ToolProblem);
+        expect(error).toMatchObject({ status: 400, problemType: 'mcp:invalid_arguments' });
+      }
+      expect(h.injected).toHaveLength(0);
+    });
+  });
+
   describe('a write of any method', () => {
     const etag = `"${'b'.repeat(64)}"`;
     const write = (scope: string[] = ['mcp:write']) => unverifiedTokenForTests({ scope });

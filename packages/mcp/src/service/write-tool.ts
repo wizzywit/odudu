@@ -171,12 +171,12 @@ function inputShape<F extends z.ZodRawShape>(cfg: ContentWriteConfig<F>): z.ZodR
   };
 }
 
-function checked(names: readonly string[], mode: ContentWriteMode) {
+function checked(names: readonly string[], mode: ContentWriteMode, cap: number) {
   return (value: object, ctx: z.RefinementCtx): void => {
     const body = bodyOf(names, value);
     if (mode === 'amend' && Object.keys(body).length === 0) {
       ctx.addIssue({ code: 'custom', message: `name at least one of ${names.join(', ')}` });
-    } else if (Buffer.byteLength(JSON.stringify(body)) > BODY_BUDGET_BYTES) {
+    } else if (Buffer.byteLength(JSON.stringify(body)) > cap) {
       ctx.addIssue({ code: 'custom', message: 'the text is too long in all' });
     }
   };
@@ -237,8 +237,16 @@ export function contentWriteTool<F extends z.ZodRawShape>(
   if (names.some((name) => RESERVED_ARGUMENTS.includes(name))) {
     throw new Error(`a field is named as a reserved argument (${RESERVED_ARGUMENTS.join(', ')})`);
   }
+  const shared = Object.keys(cfg.params ?? {}).filter(
+    (name) => names.includes(name) || (RESERVED_ARGUMENTS.includes(name) && name !== 'id'),
+  );
+  if (shared.length > 0) {
+    throw new Error(`an argument is named twice or as a reserved one: ${shared.join(', ')}`);
+  }
   const pattern = cfg.routeKey.slice(cfg.routeKey.indexOf(' ') + 1);
-  const input = z.strictObject(inputShape(cfg)).superRefine(checked(names, cfg.mode));
+  const input = z
+    .strictObject(inputShape(cfg))
+    .superRefine(checked(names, cfg.mode, cfg.bodyCap ?? BODY_BUDGET_BYTES));
   const output = z.object({
     data: cfg.mode === 'delete' ? z.object({ deleted: z.literal(true) }) : cfg.response,
     etag: z.string().regex(ETAG_PATTERN).optional(),

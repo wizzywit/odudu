@@ -5,6 +5,7 @@ import {
   idempotencyKeyOf,
   jsonBodyOf,
   payloadOf,
+  preflight,
   preconditionOf,
   returnedHeaders,
 } from '#/service/admin-request';
@@ -42,10 +43,12 @@ export function createInProcessCaller(
 ): AdminCaller {
   return {
     async call(req: AdminRequestSpec): Promise<AdminResult> {
-      const url = expandPattern(req.pattern, token.tenant.name, req.params);
-      const payload = payloadOf(req);
-      const ifMatch = preconditionOf(req);
-      const idempotencyKey = idempotencyKeyOf(req);
+      const { url, payload, ifMatch, idempotencyKey } = preflight(() => ({
+        url: expandPattern(req.pattern, token.tenant.name, req.params),
+        payload: payloadOf(req),
+        ifMatch: preconditionOf(req),
+        idempotencyKey: idempotencyKeyOf(req),
+      }));
       const bearer = await deps.adminBearer(accessOf(req.method));
       const res = await deps.inject({
         method: req.method,

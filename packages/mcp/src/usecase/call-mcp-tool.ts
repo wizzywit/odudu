@@ -86,6 +86,7 @@ async function reserved(
       ? null
       : new ToolProblem('mcp:write_budget', 'Too many changes in this sign-in', 429, BUDGET_SPENT);
   } catch (error) {
+    if (error instanceof ToolProblem) return error;
     deps.logger.error(
       { err: error, requestId: deps.requestId, tool: tool.name },
       'write budget not read',
