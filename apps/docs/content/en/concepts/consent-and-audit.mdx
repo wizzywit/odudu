@@ -67,9 +67,7 @@ Anybody can cause a refusal, and each is a row, so one is recorded only where so
 
 ### An agent in the trail
 
-When an AI agent acts through the MCP endpoint, each tool call, reads included, is an `agent.tool_call` event. The actor is the person who signed in and the actor client is the agent's client. The details name the tool and the admin route, never the arguments. A refused call is recorded too. A change made with `mcp:write` is also the event the same change makes in the console, such as `client.amend`, `role.create` or `tenant.amend_settings`, naming the agent's client and the person. An edit records the text before and after, and a saved theme draft the length and a digest of each part it changed.
-
-An agent's reach is bounded by class, not by whether a call can be undone. It can read what holds no secret, and write wording, descriptions, drafts and structure that grants nothing, with at most 20 changing calls and 10 creates for each sign-in. Access-changing, credential and destructive operations are not available to an agent yet: they wait for a confirmation step the agent cannot answer for itself, and a person makes them in the console. [Protect an MCP server](../guides/protect-an-mcp-server.md#what-an-agent-can-and-cannot-do-and-why) lists every class.
+When an AI agent acts through the MCP endpoint, each tool call, reads included, is an `agent.tool_call` event. The actor is the person who signed in and the actor client is the agent's client. The details name the tool and the admin route, never the arguments. A refused call is recorded too. A change made with `mcp:write` is also the console's event for that change. Access-changing, credential and destructive operations are not available to an agent yet ([classes](../guides/protect-an-mcp-server.md#what-an-agent-can-and-cannot-do-and-why)).
 
 ### How long it is kept
 

@@ -69,10 +69,9 @@ describe.each(GUIDES)('%s', (file) => {
 });
 
 describe('the concept page and the landing page', () => {
-  it('tell the same thing in a paragraph and a sentence', () => {
+  it('tell the same thing in a sentence each', () => {
     const concept = squash(read(CONCEPT));
     expect(concept).toMatch(/access-changing[^.]*destructive[^.]*not available[^.]*yet/u);
-    expect(concept).toContain('20 changing calls and 10 creates');
     expect(squash(read(CARDS))).toMatch(/access-changing[^.']*destructive[^.']*not available yet/u);
   });
 });
