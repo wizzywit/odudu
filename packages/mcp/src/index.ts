@@ -45,7 +45,7 @@ export { createToolLimiter, DEFAULT_TOOL_LIMITS } from '#/service/rate-limit';
 export type { ToolLimiter, ToolLimiterOptions } from '#/service/rate-limit';
 export { TOOLS } from '#/service/catalogue';
 export { contentWriteTool, descriptionField, nameField } from '#/service/write-tool';
-export { visibleTools, toolVisible } from '#/service/visible-tools';
+export { directCallerTools, visibleTools, toolVisible } from '#/service/visible-tools';
 export { createHttpCaller, type HttpCallerOptions } from '#/adapter/http-caller';
 export { createOauthClient, type OauthClientDeps } from '#/adapter/oauth-client';
 export { listenOnLoopback, type LoopbackOptions } from '#/adapter/loopback-listener';

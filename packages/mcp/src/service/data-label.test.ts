@@ -23,6 +23,7 @@ const RESULT_KEYS = ['data', 'next_cursor', 'truncated', 'etag'];
 const UNPAGED = ['list_builtin_scopes', 'list_theme_versions', 'list_client_theme_versions'];
 
 function inputFor(tool: RegisteredTool): Record<string, unknown> {
+  if (tool.spends === 'create') return { idempotency_key: 'create-1', name: 'x' };
   if (tool.access === 'write') {
     const [field] = tool.bodyFields ?? [];
     return { id: UUID, if_match: ETAG, [field ?? 'description']: 'x' };
@@ -86,8 +87,8 @@ function answer(body: unknown, status = 200): ReturnType<typeof respondingWith> 
 
 describe('the label on text a model reads', () => {
   it('covers every tool of the catalogue, the writes among them', () => {
-    expect(TOOLS.length).toBeGreaterThanOrEqual(63);
-    expect(TOOLS.filter((tool) => tool.access === 'write')).toHaveLength(2);
+    expect(TOOLS.length).toBeGreaterThanOrEqual(68);
+    expect(TOOLS.filter((tool) => tool.access === 'write')).toHaveLength(7);
     const names = TOOLS.map((tool) => tool.name);
     expect(names).toContain('list_tenants');
     expect(names).toContain('count_tenants');

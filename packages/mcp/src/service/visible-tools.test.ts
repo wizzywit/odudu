@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TOOLS } from '#/service/catalogue';
-import { toolVisible, visibleTools } from '#/service/visible-tools';
+import { directCallerTools, toolVisible, visibleTools } from '#/service/visible-tools';
 
 const ALL = new Set([
   'manage-clients',
@@ -26,7 +26,9 @@ describe('visibleTools', () => {
     const names = (scope: string[]) => visibleTools(TOOLS, scope, ALL, true).map((t) => t.name);
     expect(names(['mcp:write'])).toContain('update_client_metadata');
     expect(names(['mcp:write'])).toContain('update_scope_metadata');
+    expect(names(['mcp:write'])).toContain('create_role');
     expect(names(['mcp:read', 'mcp:write'])).toContain('update_client_metadata');
+    expect(names(['mcp:read'])).not.toContain('create_role');
     expect(names(['mcp:read'])).not.toContain('update_client_metadata');
     expect(names(['mcp:read'])).not.toContain('update_scope_metadata');
     expect(names(['openid'])).toEqual([]);
@@ -36,7 +38,11 @@ describe('visibleTools', () => {
     const names = (held: string[]) =>
       visibleTools(TOOLS, ['mcp:write'], new Set(held), true).map((t) => t.name);
     expect(names(['manage-tenant'])).toContain('update_scope_metadata');
+    expect(names(['manage-tenant'])).toEqual(
+      expect.arrayContaining(['create_role', 'create_group', 'create_scope']),
+    );
     expect(names(['manage-tenant'])).not.toContain('update_client_metadata');
+    expect(names(['manage-clients'])).not.toContain('create_role');
     expect(names(['manage-clients'])).toContain('update_client_metadata');
     expect(names(['manage-clients'])).not.toContain('update_scope_metadata');
   });
@@ -147,5 +153,23 @@ describe('visibleTools', () => {
     expect(names).toContain('get_stylesheet_hooks');
     expect(names).toContain('get_client_theme');
     expect(names).not.toContain('get_theme');
+  });
+});
+
+describe('directCallerTools', () => {
+  it('leaves out every tool that creates, which only the MCP endpoint counts', () => {
+    const creates = TOOLS.filter((t) => t.spends === 'create').map((t) => t.name);
+    expect(creates).toEqual(['create_group', 'create_role', 'create_scope']);
+    const direct = directCallerTools(TOOLS).map((t) => t.name);
+    for (const name of creates) expect(direct, name).not.toContain(name);
+    expect(direct).toEqual(TOOLS.filter((t) => t.spends !== 'create').map((t) => t.name));
+  });
+
+  it('keeps every read and every amendment, in the catalogue’s order', () => {
+    const direct = directCallerTools(TOOLS).map((t) => t.name);
+    expect(direct).toContain('update_role_description');
+    expect(direct).toContain('update_scope_metadata');
+    expect(direct.filter((n) => n.startsWith('list_')).length).toBeGreaterThan(10);
+    expect(direct).toEqual([...direct].sort());
   });
 });

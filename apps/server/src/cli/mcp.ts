@@ -25,6 +25,7 @@ import {
   stdioTarget,
   toolServer,
   TOOLS,
+  directCallerTools,
   visibleTools,
   type CredentialStore,
   type Credential,
@@ -384,7 +385,13 @@ async function start(values: Values, io: McpIo): Promise<void> {
   });
   const caller = createHttpCaller(baseUrl, tokens, { tenant, fetch: io.fetch });
   const inSystemTenant = await signsInAtSystemTenant(target, discover);
-  await serve(tenant, visibleTools(TOOLS, [scope], null, inSystemTenant), caller, budget, io);
+  await serve(
+    tenant,
+    visibleTools(directCallerTools(TOOLS), [scope], null, inSystemTenant),
+    caller,
+    budget,
+    io,
+  );
 }
 
 // Whether the sign-in is at the system tenant's own address, which its metadata

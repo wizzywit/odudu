@@ -27,13 +27,23 @@ describe('the catalogue', () => {
     }
   });
 
-  it('has exactly two tools that write, each a PATCH of descriptive fields', () => {
+  it('has exactly seven tools that write, each a PATCH of descriptive fields or a POST that creates', () => {
     const writes = TOOLS.filter((tool) => tool.access === 'write');
     expect(writes.map((tool) => tool.name)).toEqual([
+      'create_group',
+      'create_role',
+      'create_scope',
       'update_client_metadata',
+      'update_group_description',
+      'update_role_description',
       'update_scope_metadata',
     ]);
-    for (const tool of writes) expect(tool.routeKey.startsWith('PATCH '), tool.name).toBe(true);
+    for (const tool of writes) {
+      const creates = tool.routeKey.startsWith('POST ');
+      expect(creates || tool.routeKey.startsWith('PATCH '), tool.name).toBe(true);
+      expect(tool.spends, tool.name).toBe(creates ? 'create' : 'mutating');
+      expect(tool.name.startsWith(creates ? 'create_' : 'update_'), tool.name).toBe(true);
+    }
     expect(
       TOOLS.filter((tool) => tool.access === 'read').every((tool) =>
         tool.routeKey.startsWith('GET '),
