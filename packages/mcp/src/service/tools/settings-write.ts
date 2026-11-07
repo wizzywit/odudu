@@ -3,6 +3,8 @@ import { DISPLAY_NAME_MAX, settingsSchema } from '@odudu/contracts/admin';
 import { z } from 'zod';
 import { contentWriteTool, languageTagField, line } from '#/service/write-tool';
 
+const DISPLAY_NAME_INPUT_MAX = 1_024;
+
 export const updateTenantTextSettingsTool = contentWriteTool({
   name: 'update_tenant_text_settings',
   description:
@@ -22,11 +24,16 @@ export const updateTenantTextSettingsTool = contentWriteTool({
   mode: 'amend',
   params: {},
   fields: {
-    display_name: line(z.string().max(DISPLAY_NAME_MAX))
+    // The admin API counts the limit after the trim, so the schema takes spaces around
+    // a name within its own, larger, cap and judges the trimmed length itself.
+    display_name: line(z.string().max(DISPLAY_NAME_INPUT_MAX))
+      .refine((name) => name.trim().length <= DISPLAY_NAME_MAX, {
+        error: `at most ${String(DISPLAY_NAME_MAX)} characters after the trim`,
+      })
       .optional()
       .describe(
-        `The name shown to people, at most ${String(DISPLAY_NAME_MAX)} characters after the trim; ` +
-          'empty clears it.',
+        `The name shown to people, at most ${String(DISPLAY_NAME_MAX)} characters after surrounding ` +
+          `spaces are trimmed (the input is at most ${String(DISPLAY_NAME_INPUT_MAX)}); empty clears it.`,
       ),
     supported_locales: z
       .array(languageTagField)

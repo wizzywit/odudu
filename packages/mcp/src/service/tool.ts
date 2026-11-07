@@ -55,6 +55,9 @@ export interface McpTool<I, O> {
   readonly access: 'read' | 'write';
   // For a write: which budget one call of it spends.
   readonly spends?: BudgetKind;
+  // For a tool that creates in one call and replaces in another: whether the
+  // validated arguments make this call a create, which spends the create budget.
+  readonly createsWhen?: (input: unknown) => boolean;
   // What to say when the answer passes the result cap, for a tool whose rows
   // cannot be narrowed with a limit or a filter.
   readonly tooLargeDetail?: string;

@@ -5,6 +5,10 @@ import { ToolProblem, type AdminCaller, type McpTool } from '#/service/tool';
 import { accessOf, scopeFor } from '#/service/admin-access';
 import { unverifiedTokenForTests } from '#/testing/token';
 import { memoryWriteBudget, type WriteBudget } from '#/service/write-budget';
+import {
+  clearMessageOverrideTool,
+  setMessageOverrideTool,
+} from '#/service/tools/message-overrides-write';
 import { callMcpTool, type RecordedToolCall } from '#/usecase/call-mcp-tool';
 
 const base: McpTool<Record<string, never>, { data: { ok: boolean } }> = {
@@ -638,5 +642,52 @@ describe('the wait for the budget', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('the write budget for a tool whose class depends on its arguments', () => {
+  const ANSWER = {
+    locale: 'fr',
+    key: 'login.title',
+    message: 'Connexion',
+    updated_at: '2026-11-07T10:00:00.000Z',
+    etag: `"${'b'.repeat(64)}"`,
+  };
+  const ETAG = `"${'a'.repeat(64)}"`;
+  const ok: AdminCaller = {
+    call: () => Promise.resolve({ status: 200, headers: {}, body: ANSWER }),
+  };
+  const create = { locale: 'fr', key: 'login.title', message: 'x' };
+  const replace = { ...create, if_match: ETAG };
+
+  it('charges a set without an etag, which creates, to the create allowance as well', async () => {
+    const events: string[] = [];
+    const budget: WriteBudget = {
+      reserve: (kind) => (events.push(`reserve ${kind}`), Promise.resolve(true)),
+      release: (kind) => (events.push(`release ${kind}`), Promise.resolve()),
+    };
+    const h = harness(false, budget);
+    await callMcpTool(h.deps, setMessageOverrideTool, ok, create);
+    await callMcpTool(h.deps, setMessageOverrideTool, ok, replace);
+    await callMcpTool(h.deps, clearMessageOverrideTool, ok, {
+      locale: 'fr',
+      key: 'login.title',
+      if_match: ETAG,
+    });
+    expect(events).toEqual(['reserve create', 'reserve mutating', 'reserve mutating']);
+  });
+
+  it('refuses the eleventh create among sets, and still allows replacements up to the twenty', async () => {
+    const h = harness();
+    for (let i = 0; i < 10; i += 1) {
+      expect((await callMcpTool(h.deps, setMessageOverrideTool, ok, create)).isError).toBe(false);
+    }
+    const refused = await callMcpTool(h.deps, setMessageOverrideTool, ok, create);
+    expect(refused.structuredContent).toMatchObject({ error: { type: 'mcp:write_budget' } });
+    for (let i = 0; i < 10; i += 1) {
+      expect((await callMcpTool(h.deps, setMessageOverrideTool, ok, replace)).isError).toBe(false);
+    }
+    const last = await callMcpTool(h.deps, setMessageOverrideTool, ok, replace);
+    expect(last.structuredContent).toMatchObject({ error: { type: 'mcp:write_budget' } });
   });
 });

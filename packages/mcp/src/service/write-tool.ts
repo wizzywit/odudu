@@ -254,6 +254,16 @@ function refusedAs(result: AdminResult, advice: string, stale: string): ToolProb
   return problem;
 }
 
+// A put that creates when it names no etag adds a row, so that call spends a place
+// of the create allowance too; one with an etag replaces.
+function createsWhenUnmatched<F extends z.ZodRawShape>(cfg: ContentWriteConfig<F>) {
+  if (cfg.mode !== 'put' || cfg.createsWithoutEtag !== true) return {};
+  return {
+    createsWhen: (input: unknown): boolean =>
+      typeof Reflect.get(input as object, 'if_match') !== 'string',
+  };
+}
+
 // A write of descriptive content, by one of four modes: the id and the etag of
 // the read it is based on and at least one field to amend; a key the client
 // chose and the fields to create; the parameters, an etag where there is one to
@@ -290,6 +300,7 @@ export function contentWriteTool<F extends z.ZodRawShape>(
     capability: cfg.capability,
     access: 'write',
     spends: cfg.mode === 'create' ? 'create' : 'mutating',
+    ...createsWhenUnmatched(cfg),
     bodyFields: names,
     annotations: annotationsOf(cfg.mode),
     input,

@@ -1,5 +1,6 @@
 import { settingsSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { callTool } from '#/service/call-tool';
 import { respondingWith } from '#/testing/fake-caller';
 import { ETAG, NEW_ETAG } from '#/testing/write-conformance';
@@ -118,7 +119,8 @@ describe('update_tenant_text_settings', () => {
   });
 
   it.each([
-    ['a name past 256 characters', { display_name: 'x'.repeat(257) }],
+    ['a name past 256 characters once trimmed', { display_name: `  ${'x'.repeat(257)} ` }],
+    ['an input past 1,024 characters, spaces included', { display_name: ' '.repeat(1_025) }],
     ['a NUL', { display_name: 'a\u0000b' }],
     ['a bidirectional control', { display_name: 'a‮b' }],
     ['an empty list of languages', { supported_locales: [] }],
@@ -237,4 +239,21 @@ describe('update_tenant_text_settings, the display name as one visible line', ()
       expect(caller.requests).toHaveLength(0);
     },
   );
+});
+
+describe('update_tenant_text_settings, the display name limit', () => {
+  it('counts the 256 characters after the trim, as the description says, and sends the name as given', async () => {
+    const caller = respondingWith(ANSWER);
+    const padded = `  ${'x'.repeat(256)}  `;
+    const result = await callTool(tool, caller, { if_match: ETAG, display_name: padded });
+    expect(result.isError).toBe(false);
+    expect(caller.requests[0]?.body).toEqual({ display_name: padded });
+  });
+
+  it('publishes a schema that does not claim 256 for an input that is accepted at 260', () => {
+    const schema = z.toJSONSchema(tool.input, { io: 'input', unrepresentable: 'any' });
+    const name = schema.properties?.display_name as { maxLength?: number; description?: string };
+    expect(name.maxLength).toBe(1_024);
+    expect(name.description).toMatch(/256 characters after/u);
+  });
 });

@@ -1857,7 +1857,7 @@ whole, as is any other of the 41 setting names, generated over `TENANT_SETTING_N
   the tools refuse it as an argument.
 - Wording text refuses C0 and C1 controls other than tab and line feed, DEL, soft hyphen, zero-width characters, the word joiner, the byte order
   mark and the line and paragraph separators (`text`); a name and the display name also refuse tab and line feed (`line`).
-- `clear_message_override` keeps `destructiveHint: true`; `tests/lint/mcp-tool-coverage.test.ts` names it in an explicit list, and spec section 2 names
+- `clear_message_override` keeps `destructiveHint: true`, which is advisory (a client without per-call approval can clear an override; Odudu enforces none); `tests/lint/mcp-tool-coverage.test.ts` names it in an explicit list, and spec section 2 names
   the exception (a reversible W1 delete whose text the audit row keeps).
 - Residual, stated: a direct holder's settings PATCH is uncounted and the admin API takes it without `If-Match`; the audit `before` of a legacy long name
   is copied as stored.
