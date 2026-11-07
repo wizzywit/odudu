@@ -470,6 +470,29 @@ describe('the scope and the agent a token carries', () => {
     });
   });
 
+  it('marks an agent whose owner is its client’s service account, and no other', async () => {
+    const serviceState = (serviceSubjectId: string | null) => ({
+      loadClientState: () =>
+        Promise.resolve({
+          enabled: true,
+          builtinMcp: false,
+          builtinAdmin: false,
+          serviceSubjectId,
+        }),
+    });
+    const claims = { scope: 'mcp:write', act: { sub: 'agent-client' } };
+    const own = await outcomeFor(claims, serviceState('owner-subject'));
+    expect(own).toMatchObject({
+      kind: 'authenticated',
+      principal: { agent: { ownerIsServiceAccount: true } },
+    });
+    for (const other of [null, 'another-subject']) {
+      const outcome = await outcomeFor(claims, serviceState(other));
+      if (outcome.kind !== 'authenticated') throw new Error('expected a principal');
+      expect(outcome.principal.agent?.ownerIsServiceAccount).toBeUndefined();
+    }
+  });
+
   it('names any client holding an MCP scope as an agent', async () => {
     const outcome = await outcomeFor({ scope: 'openid mcp:read', client_id: 'cimd-client' });
     expect(outcome).toMatchObject({
