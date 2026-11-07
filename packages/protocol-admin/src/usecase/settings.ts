@@ -1,4 +1,5 @@
 import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
+import { DISPLAY_NAME_MAX } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   isSystemTenantId,
@@ -194,6 +195,20 @@ export async function amendSettings(
     return {
       kind: 'out_of_range',
       problems: [{ name: 'display_name', message: BIDI_REFUSED_MESSAGE }],
+      ranged: false,
+    };
+  }
+
+  const longName = coerced.settings.some(
+    ({ column, value }) =>
+      column === 'displayName' && typeof value === 'string' && value.length > DISPLAY_NAME_MAX,
+  );
+  if (longName) {
+    return {
+      kind: 'out_of_range',
+      problems: [
+        { name: 'display_name', message: `at most ${String(DISPLAY_NAME_MAX)} characters` },
+      ],
       ranged: false,
     };
   }

@@ -56,11 +56,15 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     display_name: 'value',
     enabled: 'value',
   },
-  // Only the two settings that decide who may become a client of the tenant;
-  // every other setting stays out of the audit detail, as an unlisted field does.
+  // The two settings that decide who may become a client of the tenant and the
+  // three that are wording people read: the display name and the languages.
+  // Every other setting stays out of the audit detail, as an unlisted field does.
   tenant_settings: {
     client_registration_policy: 'value',
     cimd_enabled: 'value',
+    display_name: 'value',
+    supported_locales: 'value',
+    default_locale: 'value',
   },
   group: {
     name: 'value',

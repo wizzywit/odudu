@@ -146,6 +146,12 @@ export const DESCRIPTION_MAX = 1000;
 export const CLIENT_NAME_MAX = 256;
 
 /**
+ * The longest display name a tenant holds, after the trim. It is the name
+ * every sign-in page and mail shows people, so it is a line, not a document.
+ */
+export const DISPLAY_NAME_MAX = 256;
+
+/**
  * Text by language tag, as a read returns it. A write is checked by
  * `checkLocalisedText` against the tenant's languages, which a shape cannot know.
  */

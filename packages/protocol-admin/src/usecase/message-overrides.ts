@@ -123,6 +123,9 @@ export async function putMessageOverride(
   const problem = deps.messageProblem(input.key, input.message);
   if (problem !== null) return { kind: 'invalid_message', problem };
   const repository = messageOverrideRepository(tx, { isKnownKey: deps.isKnownKey });
+  // Read inside the tenant's lock, where the precondition is judged, so the text
+  // the audit row calls the earlier one is the text this write replaced.
+  let before: string | null = null;
   const outcome = await repository.put(
     {
       tenantId: input.tenantId,
@@ -130,7 +133,10 @@ export async function putMessageOverride(
       key: input.key,
       message: input.message,
     },
-    (stored) => overrideConditionHolds(input.condition, stored),
+    (stored) => {
+      before = stored?.message ?? null;
+      return overrideConditionHolds(input.condition, stored);
+    },
   );
   if (outcome === 'precondition_failed') return { kind: 'precondition_failed' };
   if (outcome === 'unknown_key') return { kind: 'unknown_key' };
@@ -147,7 +153,7 @@ export async function putMessageOverride(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
-    detail: { locale: stored.locale, key: stored.key, message_length: stored.message.length },
+    detail: { locale: stored.locale, key: stored.key, before, after: stored.message },
   });
   return { kind: 'put', override: messageOverrideWireShape(stored) };
 }
@@ -168,11 +174,15 @@ export async function deleteMessageOverride(
   input: DeleteMessageOverrideInput,
 ): Promise<DeleteMessageOverrideOutcome> {
   const locale = canonicalLocale(input.locale) ?? input.locale;
+  let before: string | null = null;
   const removed = await messageOverrideRepository(tx, { isKnownKey: deps.isKnownKey }).delete(
     input.tenantId,
     locale,
     input.key,
-    (stored) => overrideConditionHolds({ kind: 'replace', ifMatch: input.ifMatch }, stored),
+    (stored) => {
+      before = stored?.message ?? null;
+      return overrideConditionHolds({ kind: 'replace', ifMatch: input.ifMatch }, stored);
+    },
   );
   if (removed !== 'deleted') return { kind: removed };
   await deps.audit(tx, {
@@ -183,7 +193,7 @@ export async function deleteMessageOverride(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
-    detail: { locale, key: input.key },
+    detail: { locale, key: input.key, before },
   });
   return { kind: 'deleted' };
 }

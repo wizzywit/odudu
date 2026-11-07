@@ -491,29 +491,42 @@ describe('audit of a delete', () => {
 });
 
 describe('audit', () => {
-  it('records a set and a delete by locale and key, with no text', async () => {
+  const rowsOf = async (ctx: Ctx) =>
+    (
+      await withTenant(fixture.app.db, ctx.tenant.id, (tx) =>
+        tx.select().from(auditEvents).orderBy(auditEvents.id),
+      )
+    ).filter((row) => row.action.startsWith('message_override.'));
+
+  it('records a create, a replacement and a delete with the text before and after', async () => {
     const ctx = await tenantCtx();
-    await put(ctx, 'fr', 'login.title', 'a private sentence');
+    await put(ctx, 'fr', 'login.title', 'first wording');
+    await put(ctx, 'fr', 'login.title', 'second wording');
     await remove(ctx, 'fr', 'login.title');
     await put(ctx, 'fr', 'login.nonesuch', 'x');
 
-    const rows = await withTenant(fixture.app.db, ctx.tenant.id, (tx) =>
-      tx.select().from(auditEvents),
-    );
-    const mine = rows.filter((row) => row.action.startsWith('message_override.'));
-    expect(mine.map((row) => row.action).sort()).toEqual([
-      'message_override.delete',
-      'message_override.set',
-    ]);
+    const mine = await rowsOf(ctx);
+    const detail = (action: string) =>
+      mine.filter((row) => row.action === action).map((row) => row.detail);
     for (const row of mine) {
       expect(row.resourceType).toBe('message_override');
       expect(row.resourceId).toBe('fr/login.title');
-      expect(JSON.stringify(row)).not.toContain('private sentence');
     }
-    expect(mine.find((row) => row.action === 'message_override.set')?.detail).toMatchObject({
-      locale: 'fr',
-      key: 'login.title',
-      message_length: 18,
-    });
+    expect(detail('message_override.set')).toEqual([
+      { locale: 'fr', key: 'login.title', before: null, after: 'first wording' },
+      { locale: 'fr', key: 'login.title', before: 'first wording', after: 'second wording' },
+    ]);
+    expect(detail('message_override.delete')).toEqual([
+      { locale: 'fr', key: 'login.title', before: 'second wording' },
+    ]);
+  });
+
+  it('holds the longest text a tenant may set in a row, twice over', async () => {
+    const ctx = await tenantCtx();
+    await put(ctx, 'fr', 'login.title', 'a'.repeat(2000));
+    const res = await put(ctx, 'fr', 'login.title', 'b'.repeat(2000));
+    expect(res.statusCode).toBe(200);
+    const row = (await rowsOf(ctx)).at(-1);
+    expect(row?.detail).toMatchObject({ before: 'a'.repeat(2000), after: 'b'.repeat(2000) });
   });
 });

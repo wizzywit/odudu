@@ -43,13 +43,14 @@ export const INSTANCE_READS: readonly string[] = ['GET /admin/tenants', 'GET /ad
 // on the consent screen, so an agent never rewrites it.
 const BUILTIN_CLIENT_GUARDED_FIELDS: readonly string[] = ['name', 'name_i18n'];
 
-// What `mcp:write` adds to the reads: amending the wording a person reads and
-// creating a role, group or scope that grants nothing, never what a client,
-// role, group or scope may do. Admission is by field because the same PATCH
-// carries `enabled`, `redirect_uris` and the rest for an ordinary caller.
-// `consent_text` is left out on purpose: it is what a user agrees to.
-// `default_for_new_subjects`, `parent_id` and a scope's token and assignment
-// settings are left out because each decides who holds what.
+// What `mcp:write` adds to the reads: amending the wording a person reads,
+// creating a role, group or scope that grants nothing, and setting or clearing
+// a message override, never what a client, role, group or scope may do.
+// Admission is by field because the same PATCH carries `enabled`,
+// `redirect_uris` and the rest for an ordinary caller, and the settings PATCH
+// carries every setting there is. `consent_text` is left out on purpose: it is
+// what a user agrees to. `default_for_new_subjects`, `parent_id` and a scope's
+// token and assignment settings are left out because each decides who holds what.
 export const AGENT_WRITE_ROUTES: readonly AgentWriteRoute[] = [
   {
     method: 'PATCH',
@@ -100,6 +101,27 @@ export const AGENT_WRITE_ROUTES: readonly AgentWriteRoute[] = [
     body: 'fields',
     fields: ['name', 'description', 'description_i18n', 'display_order'],
   },
+  {
+    method: 'PATCH',
+    pattern: '/admin/tenants/:tenant/settings',
+    target: 'none',
+    body: 'fields',
+    fields: ['display_name', 'supported_locales', 'default_locale'],
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+    target: 'none',
+    body: 'fields',
+    fields: ['message'],
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+    target: 'none',
+    body: 'fields',
+    fields: [],
+  },
 ];
 
 function writeEntry(
@@ -148,16 +170,19 @@ export function agentBodyAdmitted(
   );
 }
 
-// A POST creates a row, and the budget that bounds creates is spent by the MCP
-// endpoint, which counts what it forwards. A token the endpoint did not sign
-// (one issued to an agent that calls the admin API itself, as `odudu mcp` does)
-// would create without a count, so the door admits a POST to an endpoint token
-// alone.
+// A write that is not an amendment adds or removes a row: a POST creates one,
+// a PUT can create one, a DELETE removes one. The budget that bounds those is
+// spent by the MCP endpoint, which counts what it forwards. A token the
+// endpoint did not sign (one issued to an agent that calls the admin API
+// itself, as `odudu mcp` does) would add or remove without a count, so the door
+// admits every entry but a PATCH to an endpoint token alone, derived from the
+// method so that a later entry is held with no flag.
 export function agentWriteNeedsEndpoint(
   route: AdminRoute,
   routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
 ): boolean {
-  return writeEntry(route, routes)?.method === 'POST';
+  const entry = writeEntry(route, routes);
+  return entry !== undefined && entry.method !== 'PATCH';
 }
 
 export function agentWritesClient(

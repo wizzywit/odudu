@@ -1,6 +1,6 @@
 import { liveSessionCondition, provisionTenant, sessions } from '@odudu/authn-flows';
 import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
-import { type ListTenantsQuery, type Tenant } from '@odudu/contracts/admin';
+import { DISPLAY_NAME_MAX, type ListTenantsQuery, type Tenant } from '@odudu/contracts/admin';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
   isUniqueViolation,
@@ -458,7 +458,15 @@ export async function amendTenant(
     if (refusesBidi(value, current.displayName)) {
       return { kind: 'invalid_value', field: 'display_name', description: BIDI_REFUSED_MESSAGE };
     }
-    patch.displayName = normalizeDisplayName(value);
+    const displayName = normalizeDisplayName(value);
+    if (displayName !== null && displayName.length > DISPLAY_NAME_MAX) {
+      return {
+        kind: 'invalid_value',
+        field: 'display_name',
+        description: `display_name is at most ${String(DISPLAY_NAME_MAX)} characters`,
+      };
+    }
+    patch.displayName = displayName;
   }
   if ('enabled' in input.values) {
     const value = input.values.enabled;

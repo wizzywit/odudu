@@ -64,6 +64,34 @@ describe('redactedDiff', () => {
   });
 });
 
+describe('the wording settings of a tenant', () => {
+  it('shows the display name and the languages by value, before and after, and no other setting', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        {
+          display_name: null,
+          supported_locales: ['en'],
+          default_locale: null,
+          otp_required: false,
+          registration_allowed: false,
+        },
+        {
+          display_name: 'Acme',
+          supported_locales: ['en', 'de'],
+          default_locale: 'de',
+          otp_required: true,
+          registration_allowed: true,
+        },
+      ),
+    ).toEqual({
+      display_name: { before: null, after: 'Acme' },
+      supported_locales: { before: ['en'], after: ['en', 'de'] },
+      default_locale: { before: null, after: 'de' },
+    });
+  });
+});
+
 describe('createdDetail', () => {
   const role = { id: 'r1', name: 'auditors', description: null, default_for_new_subjects: false };
 
