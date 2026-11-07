@@ -1,6 +1,6 @@
 # P5a — MCP console parity: design addendum
 
-Status: awaiting the owner's confirmation of section 10, 2026-11-06. Extends
+Status: confirmed by the owner, 2026-11-06 (section 10 records the decisions). Extends
 [the P5a design](../../archive/specs/2026-11-05-p5a-mcp-server-design.md) (section 6, "Tools and the
 ceiling") and [`docs/phases/p5a.md`](../../phases/p5a.md). The plan is
 [2026-11-06-p5a-mcp-parity.md](../plans/2026-11-06-p5a-mcp-parity.md).

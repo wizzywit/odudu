@@ -57,6 +57,19 @@ describe('P5b as the roadmap and section 11 place it', () => {
   });
 });
 
+describe('the P5a row of section 11', () => {
+  const row = line(SPEC, /^\| P5a +\|/u);
+
+  it('states the scope that shipped, not the first release’s', () => {
+    const words = squash(row);
+    for (const word of ['content writes', 'write budget', 'mcp-route-classes.md', '10 creates']) {
+      expect(words, word).toContain(word);
+    }
+    expect(words).not.toContain('a scope’s or client’s descriptive metadata');
+    expect(words).not.toContain("a scope's or client's descriptive metadata");
+  });
+});
+
 describe('what P5b inherits', () => {
   it.each([
     [NEXT, 'protocols/mcp-route-classes.md'],

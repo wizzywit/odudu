@@ -6,7 +6,7 @@ The running record of what building the phase found. The argument is in
 
 ## What the phase found, in short
 
-The phase ran as eleven increments, each reviewed for spec compliance and quality
+The phase ran as eleven increments for the first release and eight more (12 to 19) for console parity, each reviewed for spec compliance and quality
 and then answered on its pull request. What the reviews found is the record of
 where the plan was weakest:
 
@@ -38,6 +38,10 @@ where the plan was weakest:
   collected for the end.
 - **What only the owner can do** is the hand run at the end of this note: no CI job
   runs hosted Claude, Claude Code, Claude Desktop or Cursor.
+
+Counts and tool lists in the sections before "What the phase leaves" are as of the first
+release (42 reads, two writes); the parity sections near the end, and the final review,
+give what shipped: 61 reads (59 for a tenant's own agent) and 12 writes.
 
 ## The spike (Increment 0), 2026-11-05
 
@@ -626,10 +630,10 @@ exists when the phase closed:
 - Non-database effects (the test mail) are not undone when the late capacity
   check or the size cap rolls a call back.
 - **MCP and keys.** The design asked MCP tools that call POST routes to set a
-  key. No tool calls a POST route (the 42 reads are GET, the two writes PATCH and
-  carry an entity tag), so keys are not exercised through MCP, and nothing here
-  is untested for want of it. A tool that calls a POST route, as P5b's may,
-  has to send a key.
+  key. At this increment no tool called a POST route (the 42 reads were GET, the two writes PATCH and
+  carried an entity tag); the parity increments' creates are the first (`create_role`, `create_group`,
+  `create_scope`), and each sends a key, so a retry makes one row. A tool of P5b that calls a POST
+  route has to send one too.
 
 ## Service accounts follow the grant
 
@@ -1424,7 +1428,7 @@ none that exists.
 
 ## Hand run (owner)
 
-**Run by the owner on 2026-11-06**, against a local instance on
+**Run by the owner on 2026-11-06, before the parity increments (12 to 19)**, so what it covered is the first release's 42 reads and its two writes, `update_client_metadata` and `update_scope_metadata`; the other reads, the ten later write tools and the write budget have been run only against integration tests and replays. Against a local instance on
 `http://localhost:3090`, as reported by the owner: Claude Code 2.1.319 and
 Claude Desktop 3.6556.2.
 
@@ -1641,8 +1645,9 @@ should not share with W1, since a confirmed call is one a person looked at.
 
 ### Review round on the pull request
 
-A grant exchanged from another has the root grant's budget (the repository follows
-`exchanged_from_grant_id`, at most 16 hops), so exchanging an exhausted token does not renew it. The stdio
+A grant exchanged from another has the root grant's budget (it first followed
+`exchanged_from_grant_id` for at most 16 hops; the whole-branch review replaced that with a root named on
+the grant, below), so exchanging an exhausted token does not renew it. The stdio
 budget is renewed by each browser sign-in and kept across a service account's key fetches. A write tool with
 no `spends` is refused (`mcp:write_budget_unavailable`); a reservation or give-back waits at most five seconds,
 the reservation also sets `lock_timeout` to three, and a place granted after the wait ended is given back
@@ -2062,3 +2067,58 @@ placed on P5b; the door admits an agent no field of a route it has no allowlist 
 - **Residual risk stated for the guides.** A message override or the display name is live wording on credential
   pages. It is reversible, audited with before and after, bounded by the budget and by the owner's own
   capability, and P5b re-examines it once a confirmation step exists.
+
+## The whole-branch review of the parity increments
+
+Three reviews (security of the write path, scale and operations, spec and documentation truth) found no
+Critical defect. Each finding was checked in the code before anything changed; what was true is below, with
+where it was fixed.
+
+- **The door had no same-tenant rule for an agent.** A comment said an agent acts inside the one tenant its token
+  names, and nothing compared the two: a bearer of the system tenant whose owner held `manage-tenants` was accepted
+  at another tenant's routes, and every PATCH entry is open to every agent token. The router now refuses an agent
+  whose issuer tenant is not the path's tenant, for every route; `list_tenants` and `count_tenants` have no tenant in
+  their path and target the system tenant, so they are unaffected. A person's token carries no `act` and is unaffected
+  (`agent-door-tenant.int.test.ts`, read, PATCH, POST, PUT and DELETE, for a direct, an exchanged and an endpoint token).
+- **`target: 'scope'` was dead metadata.** Nothing read it, so a built-in scope's description and display order could be
+  rewritten by an agent. The door now refuses a PATCH of a built-in scope for an agent whatever the body names, and
+  `update_scope_metadata` says so in its description and its refusal (`agent-door-scope.int.test.ts`). A create with a
+  built-in scope's name is not guarded: the name exists, so a create is a `409`, and one deleted by a person was
+  deleted on purpose.
+- **The write budget failed open.** The 16-hop walk returned its last grant, which had a fresh allowance, and a root
+  the reaper deleted turned its child into a root. A grant made by an exchange now carries `budget_grant_id`, copied
+  from its parent's root when it is made (no foreign key, on purpose); a grant that was exchanged and names none, or
+  whose root is gone, holds no budget and is refused as an ended sign-in, so a 17-deep chain spends the root's
+  allowance (`grant-write-budget.int.test.ts`). Migration `0124` was edited, since it has not been released.
+- **Migrations `0119` and `0120` updated nothing for an owner row security applies to**, because they read `clients`,
+  `consents` and `client_oidc_config` without the lift the later ones use. The deployment requirement of ADR 0009
+  means a supported install never takes that branch, but an unsupported owner got `approved_at` unset (so `odudu reap`
+  could delete an approved client) and `is_public_client` false. Both lift and restore, tested with the plain owner of
+  the earlier ones (`exchange-bounds-plain-owner.int.test.ts`).
+- **A write by name with a read token reserved budget first**, taking two row locks to be refused. `callMcpTool` refuses
+  it on the token's scope before the budget is read. The audit read carries `ip`, which the class page said class R
+  excluded; the console shows it, so the page now says personal data is as the console shows it.
+- **Role and group creation locked the row every sign-in locks.** `session-admission.ts` takes the tenant row `for no
+key update`, and a create held it over a count of up to 10,000 index entries. Both repositories now take an advisory
+  lock keyed by kind and tenant (the pattern of message overrides and domains), and a test makes eight creates at once at
+  the limit and sees exactly one admitted. Reasoned, not measured: the count is an index-only scan stopped at the limit
+  (the plan path shows 996 entries read in a tenant five under the limit). The scope limit keeps the tenant row, which
+  `clientRepository.lockCapacity` and provisioning take as well, and counts 1,000 entries at most; the hazard is a tenth
+  of the size and the same lock serves those two.
+- **A tenant import was not held to `ROLE_LIMIT` or `GROUP_LIMIT`**, so a document could create a tenant every create
+  then refused. It is refused with the create's words, and the test that pads a document past the body limit now pads to
+  the limits.
+- **The plan volume had been cut under its own tables.** Holding the roles under `ROLE_LIMIT` took `role_composites`,
+  `group_roles` and `client_scope_roles` under the large-table threshold and the nesting probe's fan-in under a page's
+  rows, so a scan of any of them was no longer a finding. The volume is restored (5,000 roles and 10,000 client roles
+  in the target tenant, which a create has never been bounded below), the role create is driven in a tenant seeded five
+  under the limit, the seed fails if one of the tables or the fan-in falls under its threshold, and a reparent of a group
+  with a 1,620-descendant subtree is driven: its recursive update is an index scan on `groups_by_parent` and `groups_pkey`.
+- **Documents.** The budget's refusal, renewal and what is given back are in the guides; the owner's real-client run is
+  scoped to the first release's reads and two writes; the P5a row of section 11, the console's audit page and NEXT's
+  "budgets are absent" say what shipped; the changelog no longer says the tenant list is refused to agents; a message
+  override's live wording is stated as a risk and placed on P5b.
+- **Known, stated, not changed.** A replayed create spends a second place, and a `4xx` gives the place back, so refused
+  writes are bounded by the rate limiter alone. `get_theme` cannot read a theme the draft tool can write when the two
+  bodies together are between 256,000 bytes and 1 MiB. A live message override can carry a link or copied data: the
+  owner accepted the class, and P5b is asked whether confirmation or link restrictions apply to wording that goes live.

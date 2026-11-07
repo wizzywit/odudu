@@ -146,7 +146,7 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ['P4i', 'Each ships with a guide', 'a runnable example in ci', 'a version of its own'],
   ['P4i', 'They wrap what exists', 'the "me" api wrapped'],
   ['P4i', 'The `odudu mcp` command', '`odudu mcp` published as a package of its own'],
-  ['P5', 'Budgets, attenuation and approval', 'ciba approvals'],
+  ['P5', 'Budgets across a delegation, attenuation and approval', 'ciba approvals'],
   ['P5', 'Delegation depth becomes a setting', '`max_depth`'],
   [
     'P5',
@@ -419,6 +419,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       ['P5b'],
       'a standing owner decision that places no work',
     ],
+    ['Wording that goes live at once', ['P5b'], ['confirmation step']],
     ['Binary uploads', ['P5b'], ['a theme image']],
     ['Mail sending', ['P5b'], ['sending mail']],
     [

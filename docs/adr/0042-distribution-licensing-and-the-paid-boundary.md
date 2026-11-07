@@ -97,7 +97,7 @@ Dependabot's version bumps.
 An MCP server that exposes the admin API to a person's own assistant (Claude,
 Cursor and others) is part of the open product. It is a door onto the open
 admin API, held to the same capability ceiling, and the agent layer (P5)
-supplies the guardrails for its destructive tools; it ships in two phases, P5a (read tools and reversible writes) and P5b (the access-changing, credential and destructive tools). What stays paid is the hosted
+supplies the guardrails for its destructive tools; it ships in two phases, P5a (reads and content writes) and P5b (the access-changing, credential and destructive tools). What stays paid is the hosted
 service's own assistance: natural-language administration inside the console,
 configuration review, audit anomaly explanation and policy suggestions. The
 paid layer may use the MCP server's tools; the open server never depends on it.

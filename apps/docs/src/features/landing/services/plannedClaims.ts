@@ -22,7 +22,7 @@ export const AGENT_ITEMS: Planned[] = [
   {
     id: 'agent-identity',
     title: 'Agent identity',
-    claim: 'Budgets and approval for AI agents acting for a person.',
+    claim: 'Budgets across delegations, and approval for AI agents acting for a person.',
     quotes: ['Budgets', 'approval for AI agents acting for a person'],
   },
 ];
