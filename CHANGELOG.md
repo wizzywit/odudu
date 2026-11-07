@@ -66,6 +66,8 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Fixed
 
+- Moving a group under another rewrote the path of every group whose path began with the moved group's, read as a pattern, so a group named `a%`, `a_` or ending in a backslash could rewrite the paths of unrelated groups when it was moved. The moved group's own subtree is now found by following parents, and nothing else changes.
+- `odudu seed role` and `odudu seed group` now refuse to pass a tenant's limit of 1,000 roles and 10,000 groups, with the same words as the admin API.
 - A back-channel logout that is retried carries the time of the retry, with the lifetime it was minted with, so a receiver no longer refuses a retry for the age of the first attempt.
 - A client's name or description, a scope's description or consent text, or a text in another language, that contained a NUL character was answered with a server error (`500`); it is now refused with `400` naming the field. Creating a scope, a group, a role or a subject with a NUL in its name, description, username or email was the same server error and is now the same `400`.
 

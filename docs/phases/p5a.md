@@ -1679,8 +1679,12 @@ and `display_order` on the shipped scope `PATCH`. `default_for_new_subjects`, `p
   token holder (a person's sign-in or a service account's key, `private_key_jwt`), so it is offered the amending
   tools and not the three create tools: `directCallerTools` leaves out every tool whose `spends` is `create`, the
   command lists the rest, and a create called by name is an unknown tool with no admin call (`mcp.test.ts`). The
-  door refuses a create sent by hand with the same token. A service account has no person at the endpoint, so
-  it cannot create through MCP at all; it can still create with the admin API under its own capabilities, as an
+  door refuses a create sent by hand with the same token. A service account reaches the endpoint with a
+  token of its own, which is exchanged for an admin token carrying the endpoint's marker, so the marker alone
+  admitted it; a review found that and `mcp-service-account.int.test.ts` shows it (a service account holding
+  `mcp:write` and `manage-tenant` created a role by name). The door now also refuses a create to an agent whose
+  owner is its client's service account (`AdminAgent.ownerIsServiceAccount`, from `ClientState.serviceSubjectId`),
+  and the endpoint does not list the creates to one. A service account therefore cannot create through MCP at all; it can still create with the admin API under its own capabilities, as an
   ordinary client, which is not an agent token. Creating from stdio is the cost of one counting place, and the
   route classes page and the guides say so.
 - **The plan's `verified:` and `assumption:` lines.** The allowlist fields matched the contracts' create schemas
@@ -1735,3 +1739,11 @@ and `display_order` on the shipped scope `PATCH`. `default_for_new_subjects`, `p
   field.
 - **Not done here.** The theme, settings and message-override writes (Increments 17 and 18), and anything that
   changes who holds what (P5b).
+
+### Review of the pull request, structure tools
+
+A group's `reparent` matched the moved subtree by `path LIKE 'old/%'`, so a name holding `%`, `_` or a backslash,
+which an agent can now create, rewrote unrelated groups' paths; it now follows `parent_id` in a recursive query
+served by the `parent_id` index, as `descendantsOf` does, and matches no path as a pattern. `odudu seed role` and
+`odudu seed group` took no part in the limits and now take the same locked count. The transcript of
+`PUT /groups/:id/default` was replayed whole, tenant, groups and token included, on one stack.

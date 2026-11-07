@@ -1,6 +1,6 @@
 ---
 title: 'The MCP write tools'
-description: 'The MCP tools that change or create a client, scope, role or group: the consent for mcp:write, an update under an etag, a create under a key, and what each refusal says and leaves behind.'
+description: 'The MCP write tools: consent for mcp:write, an update under an etag, a role, group or scope created under a key, and what each refusal leaves behind.'
 ---
 
 # The MCP write tools
