@@ -132,6 +132,11 @@ export interface AdminFixture {
     capabilities: readonly string[],
     options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
   ): Promise<string>;
+  // `agentToken` for a subject of the system tenant, which is not created by `createTenant`.
+  systemAgentToken(
+    capabilities: readonly string[],
+    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
+  ): Promise<string>;
   // The owner's grant behind an MCP token held by `agentClientId` (the
   // built-in MCP client by default), and the admin-audience token
   // `mintAgentToken` mints from it, so a test reaches the admin API with a
@@ -605,6 +610,13 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
       [ADMIN_API_AUDIENCE],
       options,
     );
+  }
+
+  async function systemAgentToken(
+    capabilities: readonly string[],
+    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
+  ): Promise<string> {
+    return mintAdminLikeToken(systemTenant, capabilities, [ADMIN_API_AUDIENCE], options);
   }
 
   async function mintAgentTokenForOwner(
@@ -1105,6 +1117,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     adminToken,
     adminTokenAt,
     agentToken,
+    systemAgentToken,
     mintAgentTokenForOwner,
     signWithTenantKey,
     systemAdminToken,

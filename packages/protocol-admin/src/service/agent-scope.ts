@@ -6,7 +6,8 @@ import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 // resource; `whole` is a body that is the resource, as a theme draft is. Either
 // admits the named members and nothing else, and a DELETE admits no body. A
 // `client` target is a built-in client's name, guarded; a `client-content` one
-// is a resource no built-in client has written, whatever the body names. A PATCH
+// is a resource no built-in client has written, whatever the body names; a
+// `scope` one is a PATCH refused for a built-in scope. A PATCH
 // entry must not add or remove a row: only the other methods are held to the
 // endpoint's budget.
 export interface AgentWriteRoute {
@@ -36,10 +37,10 @@ export const AGENT_DENIED_READS: readonly string[] = [
 ];
 
 // The two reads that span tenants. An agent acts inside the one tenant its
-// token names, except that an agent of the system tenant, whose owner holds
-// `manage-tenants`, may list and count them: the door admits these to a token
-// of the system tenant alone, and `authorizeAdmin` then asks the owner for the
-// capability.
+// token names, which the router holds it to for every route, and these two
+// have no tenant in their path: they target the system tenant, so only an agent
+// of the system tenant reaches them, and `authorizeAdmin` then asks the owner
+// for `manage-tenants`.
 export const INSTANCE_READS: readonly string[] = ['GET /admin/tenants', 'GET /admin/tenants/count'];
 
 // A built-in client's name is what an administrator or MCP user recognises
@@ -220,6 +221,14 @@ export function agentGuardsWholeClient(
   routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
 ): boolean {
   return writeEntry(route, routes)?.target === 'client-content';
+}
+
+// Whether a built-in scope is refused for this route whatever the body names.
+export function agentGuardsBuiltinScope(
+  route: AdminRoute,
+  routes: readonly AgentWriteRoute[] = AGENT_WRITE_ROUTES,
+): boolean {
+  return writeEntry(route, routes)?.target === 'scope';
 }
 
 export function agentBodyNamesGuardedField(body: unknown): boolean {

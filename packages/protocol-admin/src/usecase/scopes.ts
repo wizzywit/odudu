@@ -1215,3 +1215,10 @@ export async function listScopeClients(
     next,
   };
 }
+
+// Whether the scope is one of the tenant's built-in ones, which the admin API's
+// door keeps an agent from amending. A scope that does not exist is not.
+export async function scopeIsBuiltin(tx: TenantScopedDatabase, scopeId: string): Promise<boolean> {
+  const scope = await clientScopeRepository(tx).byId(scopeId);
+  return scope !== null && isBuiltinScopeName(scope.name);
+}
