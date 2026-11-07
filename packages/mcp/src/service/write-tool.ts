@@ -7,6 +7,7 @@ import { defineTool } from '#/service/define-tool';
 import { IDEMPOTENCY_KEY_PATTERN } from '#/service/admin-request';
 import { ETAG_MAX_LENGTH, ETAG_PATTERN, isEtag } from '#/service/etag-shape';
 import { cleanData, type CleanStats } from '#/service/sanitize';
+import { jsonOf } from '#/service/json-value';
 import { DATA_NOTICE, idField } from '#/service/read-tool';
 import {
   ToolProblem,
@@ -84,18 +85,6 @@ export function localisedField(max: number, what: string): z.ZodType<Record<stri
     .describe(`The ${what} by language tag, replacing every language held now.`);
 }
 
-function jsonOf(value: unknown): JsonValue {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (Array.isArray(value)) return value.map((item): JsonValue => jsonOf(item));
-  if (typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]): [string, JsonValue] => [key, jsonOf(item)]),
-    );
-  }
-  throw new Error('a write tool sends JSON values only');
-}
-
 function bodyOf(fields: readonly string[], input: object): JsonObject {
   return Object.fromEntries(
     fields.flatMap((field): [string, JsonValue][] => {
@@ -114,7 +103,7 @@ function stringOf(input: object, field: string): string {
 // Why the tools are hinted as not destructive though they overwrite: what is
 // replaced is a line of text, kept in the audit row, and putting it back is the
 // same call. A client that asks before every write can still ask.
-const UNKNOWN =
+export const UNKNOWN =
   'An mcp:outcome_unknown answer means the call ran out of time and the change may still have been ' +
   'made: read the resource with the get tool before sending it again.';
 

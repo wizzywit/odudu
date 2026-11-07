@@ -7,6 +7,7 @@ import {
   type AgentWriteRoute,
   agentBodyAdmitted,
   agentBodyNamesGuardedField,
+  agentGuardsWholeClient,
   agentWritableFields,
   agentWriteNeedsEndpoint,
   agentWritesClient,
@@ -34,7 +35,11 @@ const STRUCTURE_ROUTES = [
 const SETTINGS = 'PATCH /admin/tenants/:tenant/settings';
 const OVERRIDE = '/admin/tenants/:tenant/message-overrides/:locale/:key';
 const WORDING_ROUTES = [SETTINGS, `PUT ${OVERRIDE}`, `DELETE ${OVERRIDE}`];
-const ALLOWED_ROUTES = [...STRUCTURE_ROUTES, ...WORDING_ROUTES].sort();
+const THEME = '/admin/tenants/:tenant/theme';
+const CLIENT_THEME = '/admin/tenants/:tenant/clients/:id/theme';
+const THEME_ROUTES = [`PUT ${THEME}`, `PUT ${CLIENT_THEME}`];
+const THEME_FIELDS = ['tokens', 'stylesheet', 'templates', 'assets'];
+const ALLOWED_ROUTES = [...STRUCTURE_ROUTES, ...WORDING_ROUTES, ...THEME_ROUTES].sort();
 const WORDING_FIELDS = ['display_name', 'supported_locales', 'default_locale'];
 
 function route(method: string, pattern: string): AdminRoute {
@@ -302,9 +307,11 @@ describe('an allowlist of every method and body mode', () => {
     expect(scopeAdmits([MCP_WRITE_SCOPE], post, true, synthetic)).toBe(false);
   });
 
-  it('keeps the shipped allowlist to its ten entries, every body a set of named fields', () => {
+  it('keeps the shipped allowlist to its twelve entries, a theme body the only whole one', () => {
     expect(AGENT_WRITE_ROUTES.map(key).sort()).toEqual(ALLOWED_ROUTES);
-    for (const entry of AGENT_WRITE_ROUTES) expect(entry.body).toBe('fields');
+    for (const entry of AGENT_WRITE_ROUTES) {
+      expect(entry.body, key(entry)).toBe(THEME_ROUTES.includes(key(entry)) ? 'whole' : 'fields');
+    }
     expect(
       AGENT_WRITE_ROUTES.filter((entry) => entry.target !== 'none')
         .map(key)
@@ -312,6 +319,7 @@ describe('an allowlist of every method and body mode', () => {
     ).toEqual([
       'PATCH /admin/tenants/:tenant/clients/:id',
       'PATCH /admin/tenants/:tenant/scopes/:id',
+      `PUT ${CLIENT_THEME}`,
     ]);
   });
 
@@ -558,5 +566,55 @@ describe('the wording routes', () => {
     }
     expect(agentBodyAdmitted(put, { message: 'x', locale: 'de' })).toBe(false);
     expect(agentBodyAdmitted(remove, {})).toBe(false);
+  });
+});
+
+describe('the theme draft routes', () => {
+  const tenantPut = route('PUT', THEME);
+  const clientPut = route('PUT', CLIENT_THEME);
+
+  it('admit the four parts of a theme body, whole, and no other member', () => {
+    for (const r of [tenantPut, clientPut]) {
+      expect(agentWritableFields(r)).toEqual(THEME_FIELDS);
+      expect(
+        agentBodyAdmitted(r, { tokens: {}, stylesheet: null, templates: {}, assets: {} }),
+      ).toBe(true);
+      expect(agentBodyAdmitted(r, { tokens: {} })).toBe(true);
+      expect(agentBodyAdmitted(r, { tokens: {}, enabled: false })).toBe(false);
+      expect(agentBodyAdmitted(r, { name: 'x' })).toBe(false);
+      expect(agentBodyAdmitted(r, [])).toBe(false);
+      expect(agentBodyAdmitted(r, JSON.parse('{"tokens":{},"__proto__":{"a":1}}'))).toBe(false);
+    }
+  });
+
+  it('are held to the endpoint, whose budget counts a draft that adds a row', () => {
+    expect(agentWriteNeedsEndpoint(tenantPut)).toBe(true);
+    expect(agentWriteNeedsEndpoint(clientPut)).toBe(true);
+  });
+
+  it('guard a built-in client whatever the body names, for the client route alone', () => {
+    expect(agentWritesClient(clientPut)).toBe(true);
+    expect(agentGuardsWholeClient(clientPut)).toBe(true);
+    expect(agentWritesClient(tenantPut)).toBe(false);
+    expect(agentGuardsWholeClient(tenantPut)).toBe(false);
+    const patch = route('PATCH', '/admin/tenants/:tenant/clients/:id');
+    expect(agentWritesClient(patch)).toBe(true);
+    expect(agentGuardsWholeClient(patch)).toBe(false);
+  });
+
+  it('admit no route that publishes, restores, discards or resets a theme', () => {
+    const base = ['/theme', '/clients/:id/theme'].map((s) => `/admin/tenants/:tenant${s}`);
+    const refused = [
+      ...base.map((b) => route('POST', `${b}/publish`)),
+      ...base.map((b) => route('POST', `${b}/versions/:versionId/restore`)),
+      ...base.map((b) => route('DELETE', `${b}/draft`)),
+      ...base.map((b) => route('DELETE', b)),
+    ];
+    expect(refused).toHaveLength(8);
+    for (const r of refused) {
+      expect(scopeAdmits([MCP_WRITE_SCOPE], r, true), key(r)).toBe(false);
+      expect(scopeAdmits([MCP_WRITE_SCOPE], r, false), key(r)).toBe(false);
+      expect(agentBodyAdmitted(r, {}), key(r)).toBe(false);
+    }
   });
 });

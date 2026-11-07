@@ -1861,3 +1861,106 @@ whole, as is any other of the 41 setting names, generated over `TENANT_SETTING_N
   the exception (a reversible W1 delete whose text the audit row keeps).
 - Residual, stated: a direct holder's settings PATCH is uncounted and the admin API takes it without `If-Match`; the audit `before` of a legacy long name
   is copied as stored.
+
+## Increment 18 — The theme draft tools
+
+`update_theme_draft` (`manage-tenant`) and `update_client_theme_draft` (`manage-clients`) save a draft of a theme: `tokens`,
+`stylesheet` and `templates`, each part named replacing that part whole, at least one named. A draft is not what people see:
+no tool publishes, restores, discards or resets a theme, and the door refuses each of those routes to an agent (asserted over
+the eight routes of the tenant's theme and a client's, `agent-door-theme.int.test.ts`). The tool answers the scope, the draft,
+the parts that differ from the published theme and the new etag.
+
+- **Read, merge, write; never write back a read.** `theme-draft.ts` holds the merge and imports nothing that cleans or cuts
+  text (a unit test reads its source for `sanitize`, `cleanData` and `LONG_TEXT_CAP`). The tool asks the admin API for the
+  theme through the caller, parses the raw answer and builds the body from that and from the caller's own parts; the one
+  place the model's copy is made is the answer, in one `cleanData` call that never touches the body (a second unit test
+  counts them). Tested with a draft holding a carriage return, a zero-width space and a bidirectional control in a stylesheet,
+  past the 1,000 characters an ordinary read keeps: named only `tokens`, the stylesheet and the templates come back byte-for-byte
+  on the stored form (`mcp-write-theme.int.test.ts`, against a real database and the real endpoint). `get_theme` shows that stylesheet
+  cleaned, so what the agent saw is not what is stored, which is the point.
+- **`if_match` is the caller's, which the brief did not say.** The brief had the tool send the etag of its own read. The budget
+  is decided before a tool runs, from its arguments alone, and a first draft adds a row while a replacement does not, so the
+  argument has to say which it is. `if_match` is optional: with one, the tool reads the draft again and requires its etag to be
+  the one named (`412`, nothing sent, "read it again with `get_theme`"); with none, it asks for the first draft and is refused
+  (`412`, nothing sent) where one exists. A first draft spends a create (`createsWhen`, as `set_message_override` does), a
+  replacement a mutating place, and a call refused with a 4xx gives its place back (`theme-write-budget.test.ts`, and the grant's
+  counters read after each call in the integration test). A draft made, or changed, between the read and the write is the route's
+  `428` or `412` and is said as the same advice.
+- **What the PUT does** (read from `saveDraft`, not assumed): no `If-Match` is accepted only when there is no draft (a first draft);
+  one with a draft is `428`; an `If-Match` naming a draft that is gone is `412`; a stale one is `412`. The parts are checked as on
+  publish except contrast, a refusal is `400` with `errors`, and the audit row is `theme.draft_saved` (digests of the parts changed, see below).
+- **Audit: digests, not text, and a replaced draft is not kept (review finding, fixed).** The row first carried the scope alone, so the draft
+  before a save was unrecoverable and unrecorded while the guide promised otherwise. `theme.draft_saved` now holds, for every caller, the parts that
+  changed with the length and SHA-256 of each before and after (`draftChange`, over a canonical JSON so key order is not a change), never the text,
+  so a 512 KiB draft stays under 2,000 bytes of row (tested at the door with a draft of about 500 KiB replaced). It proves what changed and does
+  not restore it, so both tools are hinted `destructiveHint: true` and named in `DESTRUCTIVE_WRITES` of `tests/lint/mcp-tool-coverage.test.ts`; their
+  descriptions tell the agent to keep what it replaces. Keeping the replaced draft as an archived `theme_versions` row is the owner's decision, one row
+  in `docs/NEXT.md` against P5b. The guide, CHANGELOG and spec sections 3, 6 and 10 now say digests, not text, for drafts. The tool's own row
+  (`agent.tool_call`) names the tool and the route, never what it was called with.
+- **A first draft and a published theme that changes (review finding).** A first draft takes the parts it was not given from the published theme
+  it read. Read from `saveDraft`: a first draft takes no `If-Match` (`412` if one is sent), publish needs a draft and locks it, and nothing checks the
+  published version, so only a restore or a reset, which need no draft, can change the published theme between the tool's read and its save, and no
+  precondition can be sent to prevent it. The tool therefore compares the published version (id and number) the save's answer carries with the one it
+  merged from, and a first draft where they differ is answered `warning: "The published theme changed while this first draft was being saved ..."`.
+  What remains: the draft is saved either way and may hold unnamed parts of the older published theme until the agent or a person reads it; it is
+  never live, so a person's Publish is still the gate. A replacement is not affected, its unnamed parts coming from the draft the etag names.
+- **A theme too large to return.** `get_theme` refuses a theme past 256,000 bytes as `mcp:result_too_large`, which left the agent with no etag for
+  `update_*`, whose write limit (512 KiB) is higher. A result too large to return now names the etag of what it was about beside the error
+  (`etag`, only when it is one), and the advice says a draft tool takes it as `if_match`; tested with a draft and a published theme of 300 KiB each. This holds only when the admin answer fits the caller's 1 MiB read cap and the MCP result is too large (over 256,000 bytes). When the admin answer itself is over 1 MiB the caller refuses it before any etag exists, `get_theme` has none to give, and the update tools refuse the same read (`mcp:theme_too_large`): that theme is edited in the console.
+- **A saved draft is always answered as saved.** An answer that cleaning leaves invalid (a logo alt of invisible characters only) is returned as
+  `draft: null, draft_omitted: true` with the etag, not as an internal error after the write.
+- **Size, as the docs say it.** The tool reads the draft and the published theme together, which must come to under 1 MiB; what it writes is at most
+  512 KiB.
+- **The door.** `PUT ~/theme` and `PUT ~/clients/:id/theme` are allowlist entries with `body: 'whole'` and the four parts of a theme
+  body as fields (`tokens`, `stylesheet`, `templates`, `assets`); `assets` is admitted because the tool writes back the images a draft
+  already names, and never lets the caller name one (the argument schema has no such member). By the rule of the previous increment
+  (`agentWriteNeedsEndpoint`, every entry whose method is not PATCH) both are endpoint-only and refused to a service account. The client entry has a
+  new target, `client-content`: where the `client` target refuses a built-in client only for a body that names its name, this one refuses the
+  built-in admin and MCP clients whatever the body names, since the whole resource is the client's appearance on the consent screen. A
+  client of another tenant is `404`, as for every client route. Both tested at the door with the admin client's and the MCP client's ids, and a
+  person's own token still saves either.
+- **stdio and service accounts: they cannot.** `odudu mcp --allow-writes` does not list the two tools, answers one called by name as an unknown tool and
+  names them in its instructions as the endpoint's (`cli/mcp.test.ts`); a service account at the endpoint is not offered them and is refused by
+  name (`mcp-service-account.int.test.ts`, `403`, nothing stored); `directCallerTools` is unchanged (every read and every PATCH).
+- **The plan's `assumption:`, measured, and false as stated.** "Reading the draft through the same caller is within the read cap for a draft near
+  512 KiB": a theme read answers the draft and the published theme together, so a draft near 512 KiB with a published theme near it passes the caller's
+  1 MiB cap. The tool then refuses before it writes (`mcp:theme_too_large`, `413`, "nothing was changed"); an answer to the PUT past the cap
+  is reported as `mcp:outcome_unknown` with the advice to read first, because the draft was sent. A draft of 500 KiB with no published theme is read and
+  written back in the integration test, which asserts the call finishes within the 20 s deadline. The answer to the model
+  leaves out the draft above 200,000 bytes (`draft: null`, `draft_omitted: true`): a result passes 256,000 bytes is `mcp:result_too_large`, and a write that
+  has been made must not be reported as that. The theme is never in the answer's `published` part.
+- **The read is made as a writer.** The first thing the tool does is a GET, which a token holding only `mcp:read` may make, so a read-only token
+  that named a draft already there was answered "name the etag" and never told it could not write (found in the transcript, not in a test).
+  `AdminRequestSpec` gained `asWriter`, which makes a GET take the write bearer, so a token that may not write is refused
+  `mcp:insufficient_scope` before anything is read (both callers; unit tests for each, and the integration test now has a draft in place).
+- **Errors the tool surfaces.** The admin API's `400` for a template or stylesheet lists each problem under `errors`, which the shipped tools drop (a
+  problem's `type`, `title` and `detail` only). Left out here, the detail ("listed under errors") is of no use to a model. `ToolProblem` now carries an
+  optional list, and `errorResult` emits at most ten entries with each text cut at 200 characters and cleaned; no other tool sets one, and a test holds
+  that a problem without one has no `errors` member.
+- **Text the caller supplies.** Stylesheet and template text goes through `text()` (no NUL, bidirectional control, C0 or C1 control but tab and line feed,
+  zero-width character, soft hyphen or separator, so no carriage return either), which is stricter than the admin API (it refuses a NUL in a stylesheet and
+  parses the rest by an allowlist). Tokens are enumerated by the contract's schema. The caller names no image. Nothing here widens what a stylesheet may do.
+- **The injection scenario "theme".** A stylesheet comment and a template hold instructions to publish, restore, discard and reset (no tool exists, `jsonrpc:error`),
+  to change a client's redirect addresses (`mcp:invalid_arguments`), to set a message (a wording tool, which is allowed), to change a setting
+  (`mcp:invalid_arguments`), and to save drafts, the tenant's, a client's and a built-in client's (`403`). Against `mcp:read` zero rows change; past the tool
+  layer the admin API refuses each write; an owner without the capabilities changes nothing; for a capable owner the only tables that change are
+  `theme_versions` and `message_overrides`, every row that is not a draft is as it was, no published version is added, and no row of `theme.published`,
+  `theme.restored`, `theme.draft_discarded` or `theme.reset` exists. The draft the agent edited through the tool keeps its planted template exactly as it was stored.
+- **Draft is never what users see.** An integration test publishes a theme through the repository, saves a different draft through the tool, and fetches the
+  authorization page: it shows the published theme's marker and none of the draft's.
+- **Counts.** 61 read tools and 12 write tools in all (59 read tools for a tenant's own agent). `tests/docs/mcp-tool-counts.test.ts` reads twelve; the door and
+  catalogue tests list twelve entries; the route-class page says twelve of the thirteen W1 routes have a tool.
+- **Not done here.** An image can be named by a person only; the closing pass and the parity statement (Increment 19); anything that publishes (P5b).
+
+## Honest list for Increment 18
+
+- The unit tests of the door, the error list and both tools were written first and shown red (`5 failed | 415 passed` for the door, `1 failed` for
+  the error list, a missing module for the tools). The door's integration test was written after the door and shown red by changing the new
+  target to `client` (1 of 9 failed), then restored.
+- `mcp-write-theme.int.test.ts` and the "theme" injection scenario ran against finished tools, so their value is in what they pin. The scenario's first
+  run failed on an expectation of mine (the base fixture's own planted text moved clients, so the theme fixture plants nothing else). The planted template
+  passes today's checks, so the tool's save carries it through the admin API's whole-body check and the scenario asserts the font and the stylesheet the
+  text asked for.
+- The route-class page and the counts were edited after the pins went red (8 failed), then green.
+- `asWriter` was found by reading the replayed transcript, and its unit tests were written first and shown red (`4 failed | 105 passed`); the
+  integration assertion for it was written after the change.

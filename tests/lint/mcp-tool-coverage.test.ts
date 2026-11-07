@@ -16,10 +16,15 @@ const ROUTE_KEYS = ADMIN_ROUTES.map(key);
 const TOOL_ROUTE_KEYS = TOOLS.map((tool) => tool.routeKey);
 const NAME = /^[A-Za-z0-9_.-]{1,128}$/u;
 
-// The write tools that remove something. A clear of wording is W1 because the audit
-// row keeps the text, and it is hinted as destructive so a client asks first; a new
-// removing tool is added here by a person, in the same diff as its allowlist entry.
-const REMOVES = ['clear_message_override'];
+// The write tools hinted as destructive, so a client asks first. A clear of wording
+// is W1 because the audit row keeps the text. A theme draft save replaces a person's
+// work that nothing keeps (the row holds digests), so it is hinted the same way. A new
+// tool of either kind is added here by a person, in the same diff as its allowlist entry.
+const DESTRUCTIVE_WRITES = [
+  'clear_message_override',
+  'update_client_theme_draft',
+  'update_theme_draft',
+];
 
 describe('the MCP tool catalogue against the admin routes', () => {
   it('places every admin route as a tool or a NOT_TOOLS entry, never both', () => {
@@ -67,7 +72,9 @@ describe('the MCP tool catalogue against the admin routes', () => {
     const writable = AGENT_WRITE_ROUTES.map((route) => `${route.method} ${route.pattern}`);
     for (const tool of TOOLS.filter((candidate) => candidate.access === 'write')) {
       expect(writable, tool.name).toContain(tool.routeKey);
-      expect(tool.annotations.destructiveHint, tool.name).toBe(REMOVES.includes(tool.name));
+      expect(tool.annotations.destructiveHint, tool.name).toBe(
+        DESTRUCTIVE_WRITES.includes(tool.name),
+      );
       const route = AGENT_WRITE_ROUTES.find(
         (entry) => `${entry.method} ${entry.pattern}` === tool.routeKey,
       );

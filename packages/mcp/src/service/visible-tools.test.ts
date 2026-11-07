@@ -168,6 +168,8 @@ describe('directCallerTools', () => {
       'create_role',
       'create_scope',
       'set_message_override',
+      'update_client_theme_draft',
+      'update_theme_draft',
     ]);
     const direct = directCallerTools(TOOLS).map((t) => t.name);
     for (const name of held) expect(direct, name).not.toContain(name);

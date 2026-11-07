@@ -27,7 +27,7 @@ describe('the catalogue', () => {
     }
   });
 
-  it('has exactly ten tools that write: PATCHes of descriptive fields, POSTs that create, and a PUT and a DELETE of wording', () => {
+  it('has exactly twelve tools that write: PATCHes of descriptive fields, POSTs that create, a PUT and a DELETE of wording, and two PUTs of a theme draft', () => {
     const writes = TOOLS.filter((tool) => tool.access === 'write');
     expect(writes.map((tool) => tool.name)).toEqual([
       'clear_message_override',
@@ -36,10 +36,12 @@ describe('the catalogue', () => {
       'create_scope',
       'set_message_override',
       'update_client_metadata',
+      'update_client_theme_draft',
       'update_group_description',
       'update_role_description',
       'update_scope_metadata',
       'update_tenant_text_settings',
+      'update_theme_draft',
     ]);
     const prefixes: Record<string, string> = {
       POST: 'create_',
@@ -50,7 +52,10 @@ describe('the catalogue', () => {
     for (const tool of writes) {
       const method = tool.routeKey.slice(0, tool.routeKey.indexOf(' '));
       expect(tool.spends, tool.name).toBe(method === 'POST' ? 'create' : 'mutating');
-      expect(tool.name.startsWith(prefixes[method] ?? '?'), tool.name).toBe(true);
+      const theme = tool.name.endsWith('_theme_draft');
+      expect(tool.name.startsWith(theme ? 'update_' : (prefixes[method] ?? '?')), tool.name).toBe(
+        true,
+      );
     }
     expect(
       TOOLS.filter((tool) => tool.access === 'read').every((tool) =>

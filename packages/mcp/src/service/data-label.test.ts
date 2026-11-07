@@ -30,6 +30,10 @@ function inputFor(tool: RegisteredTool): Record<string, unknown> {
       ? { ...named, if_match: ETAG }
       : { ...named, message: 'x' };
   }
+  if (tool.access === 'write' && tool.routeKey.endsWith('/theme')) {
+    const id = tool.routeKey.includes(':id') ? { id: UUID } : {};
+    return { ...id, if_match: ETAG, stylesheet: '.page { color: red; }' };
+  }
   if (tool.access === 'write') {
     const [field] = tool.bodyFields ?? [];
     const id = tool.routeKey.includes(':id') ? { id: UUID } : {};
@@ -96,8 +100,8 @@ function answer(body: unknown, status = 200): ReturnType<typeof respondingWith> 
 
 describe('the label on text a model reads', () => {
   it('covers every tool of the catalogue, the writes among them', () => {
-    expect(TOOLS.length).toBeGreaterThanOrEqual(71);
-    expect(TOOLS.filter((tool) => tool.access === 'write')).toHaveLength(10);
+    expect(TOOLS.length).toBeGreaterThanOrEqual(73);
+    expect(TOOLS.filter((tool) => tool.access === 'write')).toHaveLength(12);
     const names = TOOLS.map((tool) => tool.name);
     expect(names).toContain('list_tenants');
     expect(names).toContain('count_tenants');

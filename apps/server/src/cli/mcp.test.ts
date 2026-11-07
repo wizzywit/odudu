@@ -398,6 +398,8 @@ describe('odudu mcp with --allow-writes and a tool only the endpoint counts', ()
     'create_scope',
     'set_message_override',
     'clear_message_override',
+    'update_theme_draft',
+    'update_client_theme_draft',
   ];
 
   it('does not list the tools that create, set or clear, which only the MCP endpoint counts', async () => {
@@ -428,6 +430,7 @@ describe('odudu mcp with --allow-writes and a tool only the endpoint counts', ()
     for (const name of creates) expect(writes, name).toContain(name);
     expect(writes).toMatch(/MCP endpoint, not by this command/u);
     expect(writes).toMatch(/set or clear a message override/u);
+    expect(writes).toMatch(/save a theme draft/u);
     expect(await instructionsOf([])).not.toMatch(/create_role/u);
   });
 

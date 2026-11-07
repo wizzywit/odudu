@@ -101,6 +101,47 @@ describe('callTool', () => {
     expect(error.detail?.length).toBeLessThanOrEqual(500);
   });
 
+  it('reports the errors a tool chose to surface, at most ten, each field cut and cleaned', async () => {
+    const failing = defineTool({
+      ...base,
+      run: () =>
+        Promise.reject(
+          new ToolProblem('about:blank', 'Bad Request', 400, 'listed under errors', [
+            ...Array.from({ length: 14 }, (_, i) => ({
+              path: `templates.sign-in${'x'.repeat(400)}`,
+              message: `m${String(i)}\u0000‮ ${'y'.repeat(400)}`,
+              code: 'element-not-allowed',
+              detail: '<script>',
+              line: 3,
+              column: null,
+            })),
+          ]),
+        ),
+    });
+    const result = await callTool(failing, answering({ status: 200, headers: {}, body: {} }), {
+      n: 1,
+    });
+    const error = result.structuredContent.error as {
+      errors: { path: string; message: string; code: string; line: number; column: null }[];
+    };
+    expect(error.errors).toHaveLength(10);
+    for (const entry of error.errors) {
+      expect(entry.path.length).toBeLessThanOrEqual(200);
+      expect(entry.message.length).toBeLessThanOrEqual(200);
+      expect(entry.message).not.toMatch(/[\u0000‮]/u);
+      expect(entry).toMatchObject({ code: 'element-not-allowed', line: 3, column: null });
+    }
+  });
+
+  it('adds no errors member to a problem that carries none', async () => {
+    const result = await callTool(
+      tool,
+      answering({ status: 404, headers: {}, body: { type: 'about:blank', title: 'Not Found' } }),
+      { n: 1 },
+    );
+    expect(result.structuredContent.error).not.toHaveProperty('errors');
+  });
+
   it('says nothing of a body that is not a problem', async () => {
     const caller = answering({ status: 502, headers: {}, body: '<html>upstream secret</html>' });
     const result = await callTool(tool, caller, { n: 1 });

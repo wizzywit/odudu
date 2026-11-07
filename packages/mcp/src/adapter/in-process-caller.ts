@@ -52,7 +52,7 @@ export function createInProcessCaller(
         createOnly: createOnlyOf(req),
         idempotencyKey: idempotencyKeyOf(req),
       }));
-      const bearer = await deps.adminBearer(accessOf(req.method));
+      const bearer = await deps.adminBearer(accessOf(req.method, req.asWriter));
       const res = await deps.inject({
         method: req.method,
         url,

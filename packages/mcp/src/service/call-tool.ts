@@ -1,12 +1,16 @@
+import { isEtag } from '#/service/etag-shape';
 import {
   cleanText,
   PROBLEM_DETAIL_CAP,
+  PROBLEM_ERROR_TEXT_CAP,
+  PROBLEM_ERRORS_MAX,
   PROBLEM_TITLE_CAP,
   PROBLEM_TYPE_CAP,
 } from '#/service/sanitize';
 import {
   ToolProblem,
   type AdminResult,
+  type ProblemError,
   type RegisteredTool,
   type ToolResult,
 } from '#/service/tool';
@@ -38,6 +42,18 @@ export function problemOf(result: AdminResult): ToolProblem {
   );
 }
 
+function errorEntry(entry: ProblemError) {
+  const text = (value: string) => cleanText(value, PROBLEM_ERROR_TEXT_CAP);
+  return {
+    path: text(entry.path),
+    message: text(entry.message),
+    ...(entry.code === undefined ? {} : { code: text(entry.code) }),
+    ...(entry.detail === undefined ? {} : { detail: text(entry.detail) }),
+    ...(entry.line === undefined ? {} : { line: entry.line }),
+    ...(entry.column === undefined ? {} : { column: entry.column }),
+  };
+}
+
 export function errorResult(problem: ToolProblem): ToolResult {
   const error = {
     type: cleanText(problem.problemType, PROBLEM_TYPE_CAP),
@@ -46,11 +62,27 @@ export function errorResult(problem: ToolProblem): ToolResult {
     ...(problem.detail === undefined
       ? {}
       : { detail: cleanText(problem.detail, PROBLEM_DETAIL_CAP) }),
+    ...(problem.errors === undefined || problem.errors.length === 0
+      ? {}
+      : { errors: problem.errors.slice(0, PROBLEM_ERRORS_MAX).map(errorEntry) }),
   };
   return {
     isError: true,
     content: [{ type: 'text', text: JSON.stringify({ error }) }],
     structuredContent: { error },
+  };
+}
+
+// A result too large to return still names the etag of what it was about, when it
+// had one, so that a write which needs it as a precondition can be made without
+// the read that cannot be sent.
+function withEtag(result: ToolResult, etag: unknown): ToolResult {
+  if (!isEtag(etag)) return result;
+  const error = result.structuredContent.error;
+  return {
+    ...result,
+    content: [{ type: 'text', text: JSON.stringify({ error, etag }) }],
+    structuredContent: { ...result.structuredContent, etag },
   };
 }
 
@@ -90,7 +122,7 @@ export async function runTool(
         null,
         tool.tooLargeDetail ?? 'Ask for fewer rows with a smaller limit, or narrow the filters.',
       );
-      return { result: errorResult(problem), problem };
+      return { result: withEtag(errorResult(problem), output.etag), problem };
     }
     return {
       result: { isError: false, content: [{ type: 'text', text }], structuredContent: output },

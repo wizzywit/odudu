@@ -131,6 +131,25 @@ describe('the in-process admin caller', () => {
     expect(wanted).toEqual(['read', 'write']);
   });
 
+  it('asks for the write scope for a GET that asks to be made as a writer, so a token that may not write is refused before the read', async () => {
+    const wanted: string[] = [];
+    const h = harness({}, { adminBearer: (access) => (wanted.push(access), Promise.resolve('b')) });
+    const caller = createInProcessCaller(h.deps, unverifiedTokenForTests());
+    await caller.call({ ...GET_CLIENT, asWriter: true });
+    expect(wanted).toEqual(['write']);
+    const refusing = harness(
+      {},
+      { adminBearer: () => Promise.reject(new ToolProblem('mcp:insufficient_scope', 'no', 403)) },
+    );
+    await expect(
+      createInProcessCaller(refusing.deps, unverifiedTokenForTests()).call({
+        ...GET_CLIENT,
+        asWriter: true,
+      }),
+    ).rejects.toThrow('no');
+    expect(refusing.injected).toHaveLength(0);
+  });
+
   it('refuses a tool that names the tenant, before anything is sent', async () => {
     const h = harness();
     await expect(

@@ -26,6 +26,8 @@ export interface AdminRequestSpec {
   readonly body?: JsonObject;
   readonly ifMatch?: string;
   readonly createOnly?: true;
+  // A GET made with the access of the write that follows it.
+  readonly asWriter?: true;
   readonly idempotencyKey?: string;
   readonly bodyCap?: number;
 }
@@ -84,19 +86,39 @@ export interface ToolResult {
   readonly structuredContent: ToolData;
 }
 
+// One field a refusal names, as the admin API's own `errors` list does: the
+// path from the request body, why, and for a template or stylesheet where.
+export interface ProblemError {
+  readonly path: string;
+  readonly message: string;
+  readonly code?: string | undefined;
+  readonly detail?: string | undefined;
+  readonly line?: number | null | undefined;
+  readonly column?: number | null | undefined;
+}
+
 // A refusal a tool reports: the admin API's problem, or one of this layer's
 // own. Only these fields ever reach a client; the stack never does.
 export class ToolProblem extends Error {
   readonly problemType: string;
   readonly status: number | null;
   readonly detail: string | undefined;
+  // The fields at fault, for a tool whose refusal is useless without them.
+  readonly errors: readonly ProblemError[] | undefined;
 
-  constructor(problemType: string, title: string, status: number | null, detail?: string) {
+  constructor(
+    problemType: string,
+    title: string,
+    status: number | null,
+    detail?: string,
+    errors?: readonly ProblemError[],
+  ) {
     super(title);
     this.name = 'ToolProblem';
     this.problemType = problemType;
     this.status = status;
     this.detail = detail;
+    this.errors = errors;
   }
 
   get title(): string {

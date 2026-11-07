@@ -72,7 +72,7 @@ export function createHttpCaller(
       const url = new URL(target.adminUrl(path));
       for (const [name, value] of Object.entries(req.query)) url.searchParams.append(name, value);
       const attempt = async (): Promise<{ res: Response; bearer: string }> => {
-        const bearer = await tokens.bearer(accessOf(req.method));
+        const bearer = await tokens.bearer(accessOf(req.method, req.asWriter));
         try {
           const res = await send(url, {
             method: req.method,

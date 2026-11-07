@@ -111,6 +111,22 @@ agent token the endpoint did not sign, is not on these pages: `packages/protocol
 the real door, and the stdio page shows that `odudu mcp --allow-writes` does not offer the five. No transcript shows a system-tenant agent,
 for the reason the earlier capture gave. The stack was removed afterwards, and its image with it.
 
+The two MCP pages, `the-mcp-endpoint.md` and `odudu-mcp-over-stdio.md`, and the write tools' page, `the-mcp-write-tools.md`, were captured again,
+each whole, on 2026-11-07 when the theme draft tools (`update_theme_draft`, `update_client_theme_draft`) joined the catalogue: the endpoint page's
+count of write tools is now twelve, the stdio page's listing is the endpoint's minus the twelve (its `--allow-writes` listing is the same five
+that amend, the two theme tools being the endpoint's alone), and the write tools' page has a section for the theme drafts and the
+`theme.draft_saved` rows they leave. The compose project was `odudu-p5a-i18` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built
+from the branch commit `77b5c7bc6`, built after the last change to the code, with nothing uncommitted), started from an empty volume before each page, one page per run. Each page's `bash` blocks
+were run in order by one script in a single shell (each block a brace group, so a function or a variable made in one is there in the next), with
+only the project name and the compose file's path changed, and every output block was written from what that run printed (standard output and
+error together, carriage returns and trailing spaces removed). The endpoint page's glue between two blocks, `CID` from the registration's answer and `CODE` from the consent's redirect, was read from those two responses by the script. An earlier pass over the
+write tools' page showed a token holding only `mcp:read` told to name an etag by a theme tool that had read first; the tool now makes its read with
+the write bearer, the image was built again and all three pages were replayed on it, and they were replayed once more on the committed head named above when the audit row of a draft save began to carry digests, so no page mixes captures. Every id, key, time and request id on
+the three pages is that run's. A theme draft sent past the tool, by an agent token the endpoint did not sign, or for a built-in client, is not on
+the pages: `packages/protocol-admin/tests/agent-door-theme.int.test.ts` runs it against the real door. The theme API page,
+`get-theme-put-theme-and-the-theme-routes.md`, was not replayed: nothing it shows changed (the routes the tools use answer as they did), it needs `ada`'s
+administration token from another page, and it uploads `logo.png` and `background.png`, which no block of the page makes. The stack was removed afterwards, and its image with it.
+
 `GET /admin/openapi.json`'s block was fetched once more on the same stack, on 2026-11-07, because a display name is now at most 256 characters in
 the create and import contracts and the tenant document and a message override's key may hold no NUL, and the document grew by 152 bytes
 (807,100 in all); it was fetched again on a freshly built stack after the review of that change, and the block is that fetch's. The pages of the message

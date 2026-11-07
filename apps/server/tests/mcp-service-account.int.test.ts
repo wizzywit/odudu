@@ -4,6 +4,7 @@ import { groups, roles } from '@odudu/domain-authz';
 import { ADMIN_CLIENT_ID, clientRepository, messageOverrideRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { type ToolResult } from '@odudu/mcp';
+import { themeRepository } from '@odudu/domain-theme';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
 import { clientScopes } from '@odudu/domain-tenant';
 import { eq } from 'drizzle-orm';
@@ -152,6 +153,31 @@ describe('a service account at the MCP endpoint', () => {
       messageOverrideRepository(tx, { isKnownKey: () => true }).all(w.tenantId),
     );
     expect(stored).toEqual([]);
+  });
+
+  it('is refused a theme draft, by name, and not offered the tools that save one', async () => {
+    const { w, token } = await serviceAccountToken();
+    for (const [tool, args] of [
+      ['update_theme_draft', { stylesheet: '.page { color: red; }' }],
+      ['update_client_theme_draft', { id: newId(), stylesheet: '.page { color: red; }' }],
+    ] as const) {
+      const result = await stack.call(w as World, token, tool, args);
+      expect(errorOf(result).status, tool).toBe(403);
+    }
+    const stored = await withTenant(stack.appDb.db, w.tenantId, (tx) =>
+      themeRepository(tx).draft({ tenantId: w.tenantId, clientId: null }),
+    );
+    expect(stored).toBeNull();
+    const res = await stack.send(w as World, token, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: {},
+    });
+    const names = (res.json().result as { tools: { name: string }[] }).tools.map((t) => t.name);
+    expect(names).not.toContain('update_theme_draft');
+    expect(names).not.toContain('update_client_theme_draft');
+    expect(names).toContain('get_theme');
   });
 
   it('is not offered the override tools, and is still offered the settings amendment, which it may make', async () => {

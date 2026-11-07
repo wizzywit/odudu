@@ -224,7 +224,11 @@ const SHIPPED_CLAIMS: readonly (readonly [
   ...criterion: string[],
 ])[] = [
   ['P5a', '61 tools that read what the admin api reads', 'exposing the admin api as tools'],
-  ['P5a', 'the irreversible tools are not offered', 'the irreversible or wide-blast tools'],
+  [
+    'P5a',
+    'publishing, restoring, discarding and resetting a theme are not offered',
+    'the irreversible or wide-blast tools',
+  ],
   ['P5a', 'client id metadata documents', 'client id metadata documents'],
   ['P5a', "a tenant's `mcp` registration policy", 'narrow `mcp` client registration policy'],
   ['P5a', '`odudu mcp`', '`odudu mcp` signing a person in', 'built-in `odudu-mcp` public client'],
@@ -383,6 +387,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ['`odudu mcp` runs only from', ['P4i'], ['`odudu mcp` command']],
     ["The admin API's OpenAPI document grew", ['P4i'], ['the published openapi document']],
     ['The injection suite drives a scripted agent', ['P5b'], ["the owner's separate approval"]],
+    ['A theme draft an agent replaces', ['P5b'], ['a theme draft an agent replaces']],
     [
       'The admin API accepts a scope name with a space',
       ['P5b'],

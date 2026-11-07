@@ -9,6 +9,12 @@ describe('the access an admin call needs', () => {
     expect(accessOf('PATCH')).toBe('write');
   });
 
+  it('is write for a GET that asks to be made as the write that follows it', () => {
+    expect(accessOf('GET', true)).toBe('write');
+    expect(accessOf('PUT', true)).toBe('write');
+    expect(accessOf('GET', undefined)).toBe('read');
+  });
+
   it('narrows to the one scope the call needs', () => {
     const token = unverifiedTokenForTests({ scope: ['mcp:read', 'mcp:write'] });
     expect(scopeFor(token, 'read')).toEqual(['mcp:read']);

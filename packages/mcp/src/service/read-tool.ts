@@ -29,7 +29,8 @@ const LONG_NOTICE =
 
 export const TOO_LARGE_ADVICE =
   'This document is larger than one result can carry: read it in the console, or fetch it from ' +
-  'the admin API with your own token.';
+  'the admin API with your own token. The etag of its draft, where it has one, is returned beside ' +
+  'this error, and a draft tool takes it as if_match.';
 
 const PAGE_NOTICE =
   'Returns one page. When next_cursor is present, pass it as cursor to read the next page.';
