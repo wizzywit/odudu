@@ -1897,6 +1897,16 @@ the parts that differ from the published theme and the new etag.
   descriptions tell the agent to keep what it replaces. Keeping the replaced draft as an archived `theme_versions` row is the owner's decision, one row
   in `docs/NEXT.md` against P5b. The guide, CHANGELOG and spec sections 3, 6 and 10 now say digests, not text, for drafts. The tool's own row
   (`agent.tool_call`) names the tool and the route, never what it was called with.
+- **A first draft and a published theme that changes (review finding).** A first draft takes the parts it was not given from the published theme
+  it read. Read from `saveDraft`: a first draft takes no `If-Match` (`412` if one is sent), publish needs a draft and locks it, and nothing checks the
+  published version, so only a restore or a reset, which need no draft, can change the published theme between the tool's read and its save, and no
+  precondition can be sent to prevent it. The tool therefore compares the published version (id and number) the save's answer carries with the one it
+  merged from, and a first draft where they differ is answered `warning: "The published theme changed while this first draft was being saved ..."`.
+  What remains: the draft is saved either way and may hold unnamed parts of the older published theme until the agent or a person reads it; it is
+  never live, so a person's Publish is still the gate. A replacement is not affected, its unnamed parts coming from the draft the etag names.
+- **A theme too large to return.** `get_theme` refuses a theme past 256,000 bytes as `mcp:result_too_large`, which left the agent with no etag for
+  `update_*`, whose write limit (512 KiB) is higher. A result too large to return now names the etag of what it was about beside the error
+  (`etag`, only when it is one), and the advice says a draft tool takes it as `if_match`; tested with a draft and a published theme of 300 KiB each.
 - **A saved draft is always answered as saved.** An answer that cleaning leaves invalid (a logo alt of invisible characters only) is returned as
   `draft: null, draft_omitted: true` with the etag, not as an internal error after the write.
 - **Size, as the docs say it.** The tool reads the draft and the published theme together, which must come to under 1 MiB; what it writes is at most

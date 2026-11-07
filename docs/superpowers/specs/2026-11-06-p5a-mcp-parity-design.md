@@ -10,7 +10,10 @@ ceiling") and [`docs/phases/p5a.md`](../../phases/p5a.md). The plan is
 When P5a closes, an agent holding `mcp:read` can read everything the admin console can read that is not a
 secret, personal data or credential metadata, and an agent holding `mcp:write` can make every change the console
 offers that is **content**: it changes what a person reads, not who may do what. Everything that changes who can
-access what, returns a secret, or cannot be put back by a call waits for P5b, with a human-confirmation step.
+access what, returns a secret, or cannot be put back by a call waits for P5b, with a human-confirmation step, with
+one stated exception: a theme draft save replaces a draft that nothing keeps (the audit row holds digests), and it ships in
+P5a as W1 because a draft is never live, hinted `destructiveHint: true`, and with the keeping of the replaced draft left
+to the owner (`docs/NEXT.md`). It is not to be reclassified as P5b-only without that decision.
 
 Decisions the owner has made (2026-11-06):
 
