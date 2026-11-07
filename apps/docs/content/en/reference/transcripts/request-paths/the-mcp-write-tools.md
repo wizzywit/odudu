@@ -596,7 +596,7 @@ call "$READ" 38 set_message_override '{"locale":"fr","key":"login.title","messag
 
 `update_theme_draft` (for the tenant, `manage-tenant`) and `update_client_theme_draft` (for a client that is not built in,
 `manage-clients`) save a draft of a theme: colours and font, a stylesheet and page templates. A draft is not what people see: it
-waits until a person publishes it in the console, and no tool publishes, restores, discards or resets a theme. The tool reads the
+waits until a person publishes it in the console, and no tool publishes, restores, discards or resets a theme. A save does replace the draft before it, which nothing keeps. The tool reads the
 draft itself, which gives it the draft's etag too, and sends every part it was not given exactly as it is stored; a part
 it is given replaces that part whole. It takes the etag of `get_theme` as `if_match`, and none when that read says there is no
 draft, which makes the first one and is a place of the sign-in's ten creates.
@@ -676,10 +676,12 @@ tools leave a `tenant.amend_settings` row that names the display name and the tw
 `message_override.set` or `message_override.delete` row that holds the text before and after (a create's `before` is `null`, a
 clear's row holds the text it removed), so a change to what people read on a sign-in page is read, and undone, from the trail. Their
 `failed` rows are the two settings calls the schema refused, the override that already existed, the key that is no message, and the
-clear under a stale etag; the one refused row is the read token's. A theme draft leaves a `theme.draft_saved` row for each save, naming the scope (`tenant` or `client`) and nothing of the draft however large it is, so
-the trail shows that a draft was saved, by which client and for whom, and not what it says; the draft of a built-in client, refused at the door, is a
-`capability.refused` row. The `failed` rows of the theme tools are the stale etag and the stylesheet the admin API refused, and the refused row is the read
-token's. The tenant is new, so these are all its rows of these actions:
+clear under a stale etag; the one refused row is the read token's. A theme draft leaves a `theme.draft_saved` row for each save, naming the scope (`tenant` or `client`) and, for each part that changed
+(`tokens`, `stylesheet`, `templates`, `assets`), the length and the SHA-256 of its stored form before and after and never the text, however
+large the draft is. The row proves that a draft was saved, by which client and for whom, and which parts it changed, and it does not bring
+the draft before it back: a replaced draft is not kept, which is why both theme tools are hinted as destructive. The draft of a built-in
+client, refused at the door, is a `capability.refused` row. The `failed` rows of the theme tools are the stale etag and the stylesheet the
+admin API refused, and the refused row is the read token's. The tenant is new, so these are all its rows of these actions:
 
 ```bash
 docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
