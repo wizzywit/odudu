@@ -21,9 +21,6 @@ afterAll(async () => {
 });
 
 const OWNER = ['manage-tenant', 'manage-clients'];
-const SIGN_IN =
-  '<div class="card"><h1>{{t "login.title"}}</h1>{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>';
-
 const direct = (tenant: string) =>
   fixture.agentToken(tenant, OWNER, { scope: 'mcp:write', viaMcpClient: true });
 const exchanged = (tenant: string) =>

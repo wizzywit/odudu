@@ -11,7 +11,7 @@ function canonical(value: unknown): string {
     const entries = Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`;
   }
-  return JSON.stringify(value) ?? 'null';
+  return JSON.stringify(value);
 }
 
 function digestOf(text: string) {
