@@ -28,7 +28,7 @@ capability. Under the `mcp` policy a client registers itself with no token, as a
 only audience is the tenant's MCP address:
 
 ```bash
-odudu() { docker compose -p odudu-p5a-i14 -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
+odudu() { docker compose -p odudu-p5a-i16 -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
 odudu seed --tenant demo --client demo-spa --redirect-uri http://localhost:8080/callback \
   --user ada --password correct-horse-battery --email ada@example.com
 odudu seed grant-role --tenant demo --username ada --role odudu-admin:view-users
@@ -37,10 +37,10 @@ odudu seed tenant --name demo --set client_registration_policy=mcp
 ```
 
 ```
-{"created":true,"tenant":"demo","tenantId":"01a1b2d9-c042-7281-be83-864d0b95f1ae","clientId":"demo-spa","userSubjectId":"01a1b2d9-c13f-73ff-85eb-05c125c2dc31"}
-{"command":"grant-role","tenant":"demo","tenantId":"01a1b2d9-c042-7281-be83-864d0b95f1ae","username":"ada","role":"odudu-admin:view-users"}
-{"command":"grant-role","tenant":"demo","tenantId":"01a1b2d9-c042-7281-be83-864d0b95f1ae","username":"ada","role":"odudu-admin:manage-clients"}
-{"command":"tenant","created":false,"tenant":"demo","tenantId":"01a1b2d9-c042-7281-be83-864d0b95f1ae","settings":["client_registration_policy"]}
+{"created":true,"tenant":"demo","tenantId":"01a1b3a8-ffc1-77fc-9800-88b4047b1962","clientId":"demo-spa","userSubjectId":"01a1b3a9-0070-7f60-9daf-002f78affaff"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a1b3a8-ffc1-77fc-9800-88b4047b1962","username":"ada","role":"odudu-admin:view-users"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a1b3a8-ffc1-77fc-9800-88b4047b1962","username":"ada","role":"odudu-admin:manage-clients"}
+{"command":"tenant","created":false,"tenant":"demo","tenantId":"01a1b3a8-ffc1-77fc-9800-88b4047b1962","settings":["client_registration_policy"]}
 ```
 
 ```bash
@@ -51,7 +51,7 @@ curl -sS -X POST -H 'content-type: application/json' \
 ```
 
 ```
-{"client_id":"01a1b2d9-c882-754c-bc55-1fde8c11b6c4","client_id_issued_at":1794001979,"redirect_uris":["http://127.0.0.1:8080/callback"],"audience":["http://localhost:3000/tenants/demo/mcp"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"Transcript agent"}
+{"client_id":"01a1b3a9-05be-7112-8c00-96de5bf6a00f","client_id_issued_at":1794015561,"redirect_uris":["http://127.0.0.1:8080/callback"],"audience":["http://localhost:3000/tenants/demo/mcp"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"Transcript agent"}
 ```
 
 ## Getting a token
@@ -95,7 +95,7 @@ sed -n '/<header/,/<\/form>/p' login.html
 <p class="tenant"><bdi>demo</bdi></p>
 </header>
 <form method="post" action="/tenants/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a1b2d9-c8ef-70f5-a747-ff62fba49af0">
+  <input type="hidden" name="auth_session_id" value="01a1b3a9-061c-79a2-87d4-ea94894c625e">
   <ul>
   <li><bdi>openid</bdi></li>
   </ul>
@@ -117,13 +117,13 @@ curl -sS -c jar -b jar -D - -o /dev/null \
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1b2d9-c9e4-75cb-85fb-03e1d5c884fd
-set-cookie: demo-session=01a1b2d9-ca04-7259-9f79-9faf1d82da29:wXWZ0ofQPc7hY62fwvoHBskOEKZk1ayJu9VoO1lFFLo; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1b3a9-06b1-79e2-85ef-86712531f8de
+set-cookie: demo-session=01a1b3a9-06c5-744b-bc18-b78502f88846:jOzcFyFmfMruK8K-i9qQ84fi43YwNux1MRLaGkkZmVU; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/demo/; Max-Age=0
-location: http://127.0.0.1:8080/callback?code=EHQ8E9vSA5v0o0BiaLRfUeYV1xiAXMAesWUbgklDh3Q&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
+location: http://127.0.0.1:8080/callback?code=znxlpr8LauIkjtqIFTIC6OwpX7UqgWfAi_JgeTTnjHk&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
-Date: Fri, 06 Nov 2026 21:52:59 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -144,18 +144,18 @@ echo "$TOKEN" | cut -d. -f2 | python3 -c "import sys,base64;s=sys.stdin.read().s
 ```
 {
   "iss": "http://localhost:3000/tenants/demo",
-  "sub": "01a1b2d9-c13f-73ff-85eb-05c125c2dc31",
+  "sub": "01a1b3a9-0070-7f60-9daf-002f78affaff",
   "aud": [
     "http://localhost:3000/tenants/demo/mcp",
     "http://localhost:3000/tenants/demo"
   ],
-  "client_id": "01a1b2d9-c882-754c-bc55-1fde8c11b6c4",
+  "client_id": "01a1b3a9-05be-7112-8c00-96de5bf6a00f",
   "scope": "openid mcp:read",
-  "iat": 1794001979,
-  "exp": 1794002279,
-  "jti": "01a1b2d9-ca41-7fde-b3b5-3529f2fc28ed",
-  "sid": "01a1b2d9-ca04-7259-9f79-9faf1d82da29",
-  "grant_id": "01a1b2d9-ca41-7fde-b3b5-3528df19769a"
+  "iat": 1794015561,
+  "exp": 1794015861,
+  "jti": "01a1b3a9-06fa-7c68-9174-8168304433c8",
+  "sid": "01a1b3a9-06c5-744b-bc18-b78502f88846",
+  "grant_id": "01a1b3a9-06fa-7c68-9174-8167b92ada0b"
 }
 ```
 
@@ -182,11 +182,11 @@ curl -sS -D - -X POST "$MCP" -H 'content-type: application/json' \
 
 ```
 HTTP/1.1 401 Unauthorized
-x-request-id: 01a1b2d9-caa9-7840-9dcc-03a044550e64
+x-request-id: 01a1b3a9-0735-7945-9d39-91b55e09d69e
 cache-control: no-store
 www-authenticate: Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/tenants/demo/mcp", scope="mcp:read"
 content-length: 0
-Date: Fri, 06 Nov 2026 21:53:00 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -200,11 +200,11 @@ curl -sS -D - -X POST "$MCP" -H 'Authorization: Bearer not-a-token' -H 'content-
 
 ```
 HTTP/1.1 401 Unauthorized
-x-request-id: 01a1b2d9-cab7-7b55-ad59-d4a89da69927
+x-request-id: 01a1b3a9-0742-7121-a319-66d3dfbaf109
 cache-control: no-store
 www-authenticate: Bearer error="invalid_token", resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/tenants/demo/mcp", scope="mcp:read"
 content-length: 0
-Date: Fri, 06 Nov 2026 21:53:00 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -218,9 +218,9 @@ curl -sS -D - -X POST http://localhost:3000/tenants/nobody/mcp -H 'content-type:
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1b2d9-cac8-7aee-befb-7839c8801f3c
+x-request-id: 01a1b3a9-074b-7268-9899-61e669eea660
 content-length: 0
-Date: Fri, 06 Nov 2026 21:53:00 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -237,11 +237,11 @@ rpc -D - -H 'Host: evil.example' -d '{"jsonrpc":"2.0","id":1,"method":"tools/lis
 
 ```
 HTTP/1.1 403 Forbidden
-x-request-id: 01a1b2d9-cad8-76d1-af8b-7d56b0d714b2
+x-request-id: 01a1b3a9-0755-78d9-8d7a-1d9bf973281b
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 116
-Date: Fri, 06 Nov 2026 21:53:00 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -254,11 +254,11 @@ rpc -D - -H 'Origin: https://evil.example' -d '{"jsonrpc":"2.0","id":1,"method":
 
 ```
 HTTP/1.1 403 Forbidden
-x-request-id: 01a1b2d9-cae8-724c-985d-47892012d9b1
+x-request-id: 01a1b3a9-0761-7cde-9e7a-2580c31ad5a5
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 116
-Date: Fri, 06 Nov 2026 21:53:00 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -274,22 +274,22 @@ curl -sS -D - -X DELETE "$MCP"
 
 ```
 HTTP/1.1 405 Method Not Allowed
-x-request-id: 01a1b2d9-cafa-72d2-ad5a-397fc013ee9a
+x-request-id: 01a1b3a9-076a-72ad-8906-74bc2060c888
 allow: POST
 content-type: application/json; charset=utf-8
 content-length: 83
-Date: Fri, 06 Nov 2026 21:53:00 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"jsonrpc":"2.0","error":{"code":-32000,"message":"Method not allowed."},"id":null}
 
 HTTP/1.1 405 Method Not Allowed
-x-request-id: 01a1b2d9-cb0c-79ed-9e29-77542db40c1b
+x-request-id: 01a1b3a9-0773-7086-afd6-2b8044b0291e
 allow: POST
 content-type: application/json; charset=utf-8
 content-length: 83
-Date: Fri, 06 Nov 2026 21:53:00 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -312,19 +312,19 @@ rpc -D - -H 'mcp-protocol-version: 2025-11-25' \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1b2d9-cb19-72ab-aaa5-62f342d323c7
+x-request-id: 01a1b3a9-077f-71cd-950f-99c4935b0aaf
 cache-control: no-cache, no-transform
 connection: keep-alive
 content-type: text/event-stream
 x-accel-buffering: no
-Date: Fri, 06 Nov 2026 21:53:00 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Transfer-Encoding: chunked
 
 event: message
 data: {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"odudu:demo","title":"Odudu (demo)","version":"1.0.0"},"instructions":"This server acts in the Odudu tenant \"demo\" only, as the person signed in; every tool works on that tenant. If you also have other Odudu servers connected, check the tenant before using a tool."},"jsonrpc":"2.0","id":1}
 ```
 
-`tools/list` names the tools `ada` can use. The endpoint has 61 read tools, two of which (`list_tenants` and `count_tenants`) are offered only to an agent of the `system` tenant and so are not in this tenant's list, and two write tools that only a token holding `mcp:write` is offered (see
+`tools/list` names the tools `ada` can use. The endpoint has 61 read tools, two of which (`list_tenants` and `count_tenants`) are offered only to an agent of the `system` tenant and so are not in this tenant's list, and seven write tools that only a token holding `mcp:write` is offered (see
 [the write tools](./the-mcp-write-tools.md)); `list_audit` and the others whose capability she
 does not hold (`view-audit`, `manage-sessions`, `manage-keys`, `view-domains`, `manage-tenant`) are not in the list, so
 the model is not offered what would be refused. This page cannot show the two tenant tools being called: they need an agent signed in to the `system` tenant, which takes no `seed client` and signs its administrator in through a browser, so only the repository's integration tests run that case.
@@ -355,13 +355,13 @@ rpc -H 'mcp-protocol-version: 2025-11-25' \
     "content": [
       {
         "type": "text",
-        "text": "{\"data\":{\"subjectId\":\"01a1b2d9-c13f-73ff-85eb-05c125c2dc31\",\"issuerTenantId\":\"01a1b2d9-c042-7281-be83-864d0b95f1ae\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"
+        "text": "{\"data\":{\"subjectId\":\"01a1b3a9-0070-7f60-9daf-002f78affaff\",\"issuerTenantId\":\"01a1b3a8-ffc1-77fc-9800-88b4047b1962\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"
       }
     ],
     "structuredContent": {
       "data": {
-        "subjectId": "01a1b2d9-c13f-73ff-85eb-05c125c2dc31",
-        "issuerTenantId": "01a1b2d9-c042-7281-be83-864d0b95f1ae",
+        "subjectId": "01a1b3a9-0070-7f60-9daf-002f78affaff",
+        "issuerTenantId": "01a1b3a8-ffc1-77fc-9800-88b4047b1962",
         "issuerTenantName": "demo",
         "capabilities": [
           "manage-clients",
@@ -463,9 +463,9 @@ rpc -D - -H 'mcp-protocol-version: 2026-07-28' \
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a1b2d9-cc56-7726-9241-bc2e18929f49
+x-request-id: 01a1b3a9-0876-71e8-8521-6ebbe88e4d4f
 content-type: application/json
-Date: Fri, 06 Nov 2026 21:53:00 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 Transfer-Encoding: chunked
@@ -510,11 +510,11 @@ rpc -D - -H 'mcp-protocol-version: 2025-11-25' \
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a1b2d9-ccbe-7361-aa45-d5a97dadc2a7
+x-request-id: 01a1b3a9-08ca-7ce0-a53a-3ec321035afd
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 96
-Date: Fri, 06 Nov 2026 21:53:00 GMT
+Date: Sat, 07 Nov 2026 01:39:21 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -528,7 +528,7 @@ route it reached, the owner and the agent client, and never the arguments or the
 `initialize` are not tool calls and wrote nothing. The tenant is new, so these are all its rows:
 
 ```bash
-docker compose -p odudu-p5a-i14 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-p5a-i16 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
   "select a.action, a.outcome, a.detail->>'tool' as tool, a.detail->>'route' as route, a.detail->>'reason' as reason, (a.actor_subject_id is not null) as has_owner from audit_events a join tenants t on t.id = a.tenant_id where t.name = 'demo' and a.action = 'agent.tool_call' order by a.id;"
 ```
 
@@ -570,12 +570,12 @@ rpc -D - -H 'mcp-protocol-version: 2026-07-28' -H 'mcp-method: tools/list' \
 
 ```
 HTTP/1.1 429 Too Many Requests
-x-request-id: 01a1b2d9-d3f4-7caa-a2ce-805ec4ec8729
+x-request-id: 01a1b3a9-0f10-7e99-b53a-7b00ba9c6fdd
 cache-control: no-store
-retry-after: 59
+retry-after: 38
 content-type: application/json; charset=utf-8
 content-length: 81
-Date: Fri, 06 Nov 2026 21:53:02 GMT
+Date: Sat, 07 Nov 2026 01:39:23 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
