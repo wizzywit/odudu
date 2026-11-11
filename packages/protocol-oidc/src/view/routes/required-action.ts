@@ -1,9 +1,7 @@
 import {
-  renderPasskeyEnrolmentPage,
-  renderRecoveryCodesPage,
+  type ActionPageVariant,
+  type RequiredAction,
   renderRequiredActionPage,
-  renderTotpEnrolmentPage,
-  renderUpdatePasswordPage,
 } from '@odudu/authn-flows';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { PASSWORD_TOO_LONG, readPasswordField, tenantAddressOf } from '@odudu/kernel';
@@ -13,7 +11,8 @@ import {
   handleRequiredActionSubmission,
   type RequiredActionSubmissionDeps,
 } from '#/usecase/required-action-submission';
-import { sendSignInExpired } from '#/view/routes/expired-sign-in';
+import { actionPages } from '#/view/routes/action-pages';
+import { sendActionUnavailable, sendSignInExpired } from '#/view/routes/expired-sign-in';
 import { sendHtml } from '#/view/html-response';
 import { sendRequestError } from '#/view/routes/request-error';
 import { continuation, lookingUpTenantOnce } from '#/view/routes/continuation';
@@ -30,6 +29,22 @@ export interface RequiredActionRouteDeps
 
 function firstString(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+// The page of an action an application sent the person to may be left again,
+// which its own form says by this variant.
+function variantFor(
+  requestedAction: RequiredAction | null,
+  action: RequiredAction,
+): ActionPageVariant | undefined {
+  return requestedAction === action ? 'requested' : undefined;
+}
+
+// The password in force, as typed to prove it. One too long to be hashed is a
+// wrong answer, the same as an empty one, and is never passed on.
+function currentPasswordOf(value: string | string[] | undefined): string | undefined {
+  const read = readPasswordField(value);
+  return read.kind === 'present' ? read.password : '';
 }
 
 // Deliberately not under /protocol/openid-connect/, for the reason
@@ -62,18 +77,19 @@ export function registerRequiredActionRoute(
       const found = await deps.findTenant(tenantName);
       if (found === null)
         return sendRequestError(reply, deps, tenantName, 400, 'error.unknownTenant');
-      const { locale, continuing } = await continuation(
+      const { locale, continuing, requestedAction } = await continuation(
         deps,
         tenantName,
         authSessionId,
         reply,
         'authenticated',
       );
+      const pages = actionPages(variantFor(requestedAction, 'update-password'));
       return sendHtml(
         reply,
         400,
         continuing(
-          renderUpdatePasswordPage(
+          pages.updatePassword(
             tenantName,
             tenantAddressOf(request),
             authSessionId,
@@ -95,6 +111,8 @@ export function registerRequiredActionRoute(
         secret: firstString(body.secret),
         code: firstString(body.code),
         password: candidate.kind === 'present' ? candidate.password : undefined,
+        currentPassword: currentPasswordOf(body.current_password),
+        cancel: body.cancel !== undefined,
         credential: firstString(body.credential),
         label: firstString(body.label),
       },
@@ -122,18 +140,19 @@ export function registerRequiredActionRoute(
     // reason registration and reset redemption answer one: the submission
     // was refused, so a 200 would tell a client the password had changed.
     if (outcome.kind === 'password_rejected') {
-      const { locale, continuing } = await continuation(
+      const { locale, continuing, requestedAction } = await continuation(
         deps,
         tenantName,
         outcome.authSessionId,
         reply,
         'authenticated',
       );
+      const pages = actionPages(variantFor(requestedAction, 'update-password'));
       return sendHtml(
         reply,
         400,
         continuing(
-          renderUpdatePasswordPage(
+          pages.updatePassword(
             tenantName,
             tenantAddressOf(request),
             outcome.authSessionId,
@@ -164,18 +183,33 @@ export function registerRequiredActionRoute(
       return sendLoginOutcome(reply, deps, tenantName, resumed, authSessionId);
     }
 
-    const { locale, continuing, signInPath } = await continuation(
+    const { locale, continuing, signInPath, requestedAction } = await continuation(
       deps,
       tenantName,
       outcome.authSessionId,
       reply,
       { subject: outcome.subjectId },
     );
+    const variant = variantFor(requestedAction, outcome.action);
+    const pages = actionPages(variant);
 
     if (outcome.action === 'generate-recovery-codes') {
       const issued = await deps.beginRecoveryCodes(tenant.id, outcome.subjectId, context);
       // The last TOTP was removed after the gate read what is owed, and the
       // action went with it: the parked login goes on without it.
+      if (issued.kind === 'no_second_factor' && variant === 'requested') {
+        await deps.recordActionStep(
+          {
+            tenantId: tenant.id,
+            authSessionId: outcome.authSessionId,
+            subjectId: outcome.subjectId,
+            action: outcome.action,
+            step: 'error',
+          },
+          context,
+        );
+        return sendActionUnavailable(reply, deps, tenantName, outcome.authSessionId);
+      }
       if (issued.kind === 'no_second_factor') {
         const pending = await deps.loadPendingRequest(tenant.id, outcome.authSessionId);
         const resumed = await handleLoginSubmission(
@@ -194,7 +228,7 @@ export function registerRequiredActionRoute(
         reply,
         200,
         continuing(
-          renderRecoveryCodesPage(
+          pages.recoveryCodes(
             tenantName,
             tenantAddressOf(request),
             outcome.authSessionId,
@@ -217,7 +251,7 @@ export function registerRequiredActionRoute(
         reply,
         200,
         continuing(
-          renderPasskeyEnrolmentPage(
+          pages.passkey(
             tenantName,
             tenantAddressOf(request),
             outcome.authSessionId,
@@ -234,7 +268,7 @@ export function registerRequiredActionRoute(
       reply,
       200,
       continuing(
-        renderTotpEnrolmentPage(
+        pages.totp(
           tenantName,
           tenantAddressOf(request),
           outcome.authSessionId,

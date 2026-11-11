@@ -14,6 +14,7 @@ import { isUuid, addressIssuer, type TenantAddress } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tenantLifetimesRepository } from '#/repository/tenant-lifetimes';
 import { type TenantLookup } from '#/repository/tenant-lookup';
+import { actionStatusParameter, owedWithRequested } from '#/service/action-request';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { EMPTY_CLAIMS_REQUEST, type ClaimsRequest } from '#/service/claims-request';
 import { decideConsent } from '#/service/consent';
@@ -515,6 +516,10 @@ export async function completeAuthorizedLogin(
   location.searchParams.set('code', code);
   if (pending.state !== null) location.searchParams.set('state', pending.state);
   location.searchParams.set('iss', addressIssuer(address));
+  // A hint at how the credential action the client asked for ended; the
+  // client reads the outcome from the "me" API, not from this.
+  const actionStatus = actionStatusParameter(pending);
+  if (actionStatus !== null) location.searchParams.set('action_status', actionStatus);
 
   // The browser's other live sessions, joined with this one, split by the
   // cookie each already belongs to — not by which cookie the request
@@ -689,7 +694,9 @@ export async function handleLoginSubmission(
   // it. Nothing is established and nothing is issued until the action is
   // done, and the authentication session is deliberately left unconsumed
   // so the same parked request survives the detour.
-  const action = nextRequiredAction(await deps.pendingActions(tenant.id, result.subjectId));
+  const action = nextRequiredAction(
+    owedWithRequested(await deps.pendingActions(tenant.id, result.subjectId), pending),
+  );
   if (action !== null) {
     // Parked for the same reason the consent branch parks it: the login
     // resumes from the required-action route, whose form has no such field.

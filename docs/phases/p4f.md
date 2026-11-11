@@ -197,3 +197,24 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 - Dynamic Client Registration refuses `allowed_actions` as an operator-only
   field, as it does `skip_logout_confirmation`; say so where registration
   metadata is documented.
+
+### The action request owes at close
+
+- Transcripts re-run on a live stack: the authorization request with `action`
+  (the refusals at the redirect, the page, the way back with `action_status`),
+  the required-action pages with the cancel control and the current-password
+  field, and the credential list after a completed action.
+- The guide "Send a person to change a credential": `action_status` is a hint,
+  the "me" API's credential list is the authority; the page does not run when
+  the client may not start the action; a sign-in older than the tenant window
+  is asked for again; the person may cancel.
+- `CHANGELOG.md` under `## [Unreleased]`: the `action` parameter and
+  `action_status`, the audit actions `action.requested|completed|cancelled|failed`
+  (generated vocabulary reference), the current password asked for a requested
+  password change, a requested authenticator swapping a held one.
+- Placed, not built: an expired sign-in under an action returns the person to
+  the client with `action_status=error` only where the request cannot be
+  restarted (a hinted one); the restart link otherwise carries `action`. No
+  audit row is written for that return, which is a link, not a request.
+- The "me" write refusal for an agent token has no counterpart at `/authorize`:
+  no session or grant carries an agent marker, so there is nothing to refuse.

@@ -1,11 +1,9 @@
 import {
-  renderPasskeyEnrolmentPage,
-  renderRecoveryCodesPage,
   renderRequiredActionPage,
-  renderTotpEnrolmentPage,
-  renderUpdatePasswordPage,
   type PasskeyEnrolmentOffer,
+  type ActionPageVariant,
   type BeginRecoveryCodesOutcome,
+  type RecordActionStep,
   type RequiredAction,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
@@ -13,7 +11,8 @@ import { requestContextFrom, type RequestContext } from '@odudu/domain-audit';
 import { type PasswordRules, type RenderedPage, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { sendHtml } from '#/view/html-response';
-import { sendSignInExpired } from '#/view/routes/expired-sign-in';
+import { actionPages } from '#/view/routes/action-pages';
+import { sendActionUnavailable, sendSignInExpired } from '#/view/routes/expired-sign-in';
 import {
   continuation,
   type ContinuationDeps,
@@ -48,6 +47,12 @@ export interface RequiredActionResponseDeps extends ContinuationDeps {
     subjectId: string,
     request: RequestContext,
   ): Promise<BeginRecoveryCodesOutcome>;
+  // The step an action an application requested has reached: audited, and
+  // when it is an ending, parked for the response.
+  recordActionStep(
+    input: RecordActionStep & { tenantId: string },
+    request: RequestContext,
+  ): Promise<void>;
 }
 
 // The one place a 'required_action' outcome becomes a response, so login.ts,
@@ -63,13 +68,27 @@ export async function sendRequiredActionPage(
 ): Promise<FastifyReply> {
   // The first factor is verified by the time an action is owed, so the
   // subject's own locale may choose the page's language.
-  const { locale, continuing, signInPath } = await continuation(
+  const { locale, continuing, signInPath, requestedAction } = await continuation(
     deps,
     tenantName,
     authSessionId,
     reply,
     { subject: subjectId },
   );
+  // The page of an action an application sent the person to may be left; the
+  // page of one the tenant owes may not.
+  const variant: ActionPageVariant | undefined =
+    requestedAction === action ? 'requested' : undefined;
+  const pages = actionPages(variant);
+  const asked = variant === undefined ? null : await deps.findTenant(tenantName);
+  const record = (step: RecordActionStep['step']) =>
+    asked === null
+      ? Promise.resolve()
+      : deps.recordActionStep(
+          { tenantId: asked.id, authSessionId, subjectId, action, step },
+          requestContextFrom(reply.request),
+        );
+  await record('requested');
   const send = (page: RenderedPage) => sendHtml(reply, 200, continuing(page));
   const beginPasskey = deps.beginPasskeyEnrolment?.bind(deps);
   if (action === 'configure-passkey' && beginPasskey !== undefined) {
@@ -77,7 +96,7 @@ export async function sendRequiredActionPage(
     if (tenant !== null) {
       const offer = await beginPasskey(tenantName, tenant.id, subjectId, authSessionId);
       return send(
-        renderPasskeyEnrolmentPage(
+        pages.passkey(
           tenantName,
           tenantAddressOf(reply.request),
           authSessionId,
@@ -104,10 +123,12 @@ export async function sendRequiredActionPage(
       // The set was refused because no second factor is held any more, and the
       // action is cleared: signing in again goes on without it.
       if (issued.kind === 'no_second_factor') {
-        return sendSignInExpired(reply, deps, tenantName, authSessionId);
+        if (variant === undefined) return sendSignInExpired(reply, deps, tenantName, authSessionId);
+        await record('error');
+        return sendActionUnavailable(reply, deps, tenantName, authSessionId);
       }
       return send(
-        renderRecoveryCodesPage(
+        pages.recoveryCodes(
           tenantName,
           tenantAddressOf(reply.request),
           authSessionId,
@@ -122,7 +143,7 @@ export async function sendRequiredActionPage(
     const tenant = await deps.findTenant(tenantName);
     if (tenant !== null) {
       return send(
-        renderUpdatePasswordPage(
+        pages.updatePassword(
           tenantName,
           tenantAddressOf(reply.request),
           authSessionId,
@@ -143,13 +164,6 @@ export async function sendRequiredActionPage(
   }
   const offer = await deps.beginTotpEnrolment(tenantName, tenant.id, subjectId);
   return send(
-    renderTotpEnrolmentPage(
-      tenantName,
-      tenantAddressOf(reply.request),
-      authSessionId,
-      offer,
-      undefined,
-      locale,
-    ),
+    pages.totp(tenantName, tenantAddressOf(reply.request), authSessionId, offer, undefined, locale),
   );
 }

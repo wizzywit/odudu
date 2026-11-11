@@ -169,4 +169,7 @@ export const AUTHORIZE_REQUEST_DESCRIPTIONS = {
   maxAgeInvalid: 'max_age is not valid',
   claimsInvalid: 'claims is not valid',
   idTokenHintInvalid: 'id_token_hint is not valid',
+  actionInvalid: 'action is not valid',
+  actionNotAllowed: 'This client may not start that action',
+  actionNeedsPage: 'action cannot be sent with prompt=none or prompt=create',
 } as const;

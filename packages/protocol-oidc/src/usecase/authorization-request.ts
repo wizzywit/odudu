@@ -25,6 +25,12 @@ import {
 } from '#/service/mcp-registration-policy';
 import { scopesCoherentWithAudience } from '#/service/mcp-scopes';
 import { meAudienceRequestAllowed } from '#/service/me-scopes';
+import {
+  actionRefusal,
+  effectiveMaxAge,
+  owedWithRequested,
+  parseAction,
+} from '#/service/action-request';
 import { isUuid, mcpAudienceOfIssuer, meAudienceOfIssuer } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type TenantLookup } from '#/repository/tenant-lookup';
@@ -178,6 +184,9 @@ export interface ResolvedClient {
 const NO_CLIENT: ResolvedClient = { client: null, config: null, scopes: [] };
 
 export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
+  // Whether a passkey can be enrolled here: the deployment names a public
+  // address a relying party can be derived from.
+  passkeyLogin?: boolean;
   findTenant(name: string): Promise<TenantLookup | null>;
   // The tenant's own signing keys, which is the whole of "did this server
   // issue that ID Token?" (OIDC Core §3.1.2.2). The same set /jwks
@@ -444,9 +453,32 @@ export async function handleAuthorizationRequest(
     return reject('invalid_scope');
   }
 
+  // An action the client asks the person to take is refused here, below the
+  // §4.1.2.1 boundary, so the client hears of it at its own redirect_uri.
+  const actionParsed = parseAction(rawParams);
+  if (actionParsed.kind === 'invalid') {
+    return reject('invalid_request', AUTHORIZE_REQUEST_DESCRIPTIONS.actionInvalid);
+  }
+  const requestedAction = actionParsed.kind === 'action' ? actionParsed.action : null;
+  if (requestedAction !== null) {
+    const refused = actionRefusal({
+      action: requestedAction,
+      allowedActions: resolved.config?.allowedActions ?? [],
+      holdsMeRead: resolved.scopes.includes('me:read'),
+      prompts: outcome.prompts,
+      passkeyAvailable: deps.passkeyLogin ?? false,
+    });
+    if (refused !== null) return reject('invalid_request', refused);
+  }
+
   // OIDC Dynamic Client Registration §2: a request's own `max_age` wins,
-  // and the client's `default_max_age` stands in where it carries none.
-  const maxAge = outcome.maxAge ?? resolved.config?.defaultMaxAge ?? null;
+  // and the client's `default_max_age` stands in where it carries none. An
+  // action needs a sign-in no older than the tenant's freshness window too.
+  const maxAge = effectiveMaxAge(
+    outcome.maxAge ?? resolved.config?.defaultMaxAge ?? null,
+    tenant.sessionFreshnessSeconds,
+    requestedAction !== null,
+  );
 
   // OIDC Core §3.1.2.1: a preference, never an error, so nothing about it
   // can refuse the request; it is parked for the pages' language.
@@ -506,6 +538,7 @@ export async function handleAuthorizationRequest(
     ...(claimsSubject !== null ? { claimsSubject } : {}),
     resource: [...audience],
     claims,
+    ...(requestedAction !== null ? { action: requestedAction } : {}),
   };
 
   // Initiating User Registration §4.1: the person wants an account, not a
@@ -638,7 +671,9 @@ export async function handleAuthorizationRequest(
     // cookie must not buy a subject out of an action a password login
     // would still owe (an admin-forced reset, unacknowledged recovery
     // codes, pending enrolment).
-    const action = nextRequiredAction(await deps.pendingActions(tenant.id, decision.subjectId));
+    const action = nextRequiredAction(
+      owedWithRequested(await deps.pendingActions(tenant.id, decision.subjectId), parked),
+    );
     if (action !== null) {
       // §3.1.2.1: `prompt=none` MUST NOT display any UI, required-action
       // page included — refused before a session is parked, the same as
@@ -888,7 +923,9 @@ export async function handleSelectAccountSubmission(
     return startedLogin();
   }
 
-  const action = nextRequiredAction(await deps.pendingActions(tenant.id, chosen.subjectId));
+  const action = nextRequiredAction(
+    owedWithRequested(await deps.pendingActions(tenant.id, chosen.subjectId), pending),
+  );
   if (action !== null) {
     await deps.markAuthenticated(tenant.id, authSessionId, chosen.subjectId, chosen.authenticators);
     return { kind: 'required_action', authSessionId, subjectId: chosen.subjectId, action };
