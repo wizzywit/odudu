@@ -72,7 +72,7 @@ saw it. The door now accepts the issuer beside the me URL and still refuses any 
 (`validate-me-token.test.ts`, `me-reads.int.test.ts`). A request for the me URL with no me scope
 never gets a token, so a `403` `insufficient_scope` from a sign-in cannot be shown; the
 integration test is what runs it. The live run showed `profile` ignoring a query member and answering `200` with the token's own person; `profile` now refuses
-one with `400` like the three lists, and its block in the transcript is to be re-run at the close of increment 2.
+one with `400` like the three lists, and its block in the transcript was re-run at the close of increment 2, which shows the `400`.
 
 ### Open placements
 
@@ -87,6 +87,62 @@ None of these is argued in `docs/NEXT.md`; the row there points here.
 3. **`/me` is missing from the previous-address window.** After a tenant switches address, the
    old address serves the routes in `WINDOW_SERVES` (`host-rules.ts`) for an hour, and `/me`
    is not among them, as the MCP route is not either.
+
+## Increment 2: the "me" API writes
+
+### What shipped
+
+- Five routes behind `me:write`, each for the token's own subject and each in one tenant
+  transaction: `PATCH /me/profile` (claims; `username` where the tenant allows it; `email` alone
+  in its body), `DELETE /me/sessions/{id}` and `DELETE /me/sessions` (the others, a hundred at
+  most, `{ended, more}`), `DELETE /me/consents/{client_id}`, and `PATCH` and `DELETE
+/me/credentials/{id}`. A token that carries `act` is refused every write with
+  `agent_not_permitted`; a token without `me:write` with `insufficient_scope`.
+- The freshness gate: a new address, a new username, ending all the other sessions, withdrawing a
+  consent and removing an authenticator need a session signed in within the tenant's
+  `session_freshness_seconds` (default 300, 30 to 3600, migration `0126`; a field in the console's
+  Settings under Sessions). An older sign-in answers `401` with the RFC 9470 challenge, with
+  `acr_values="2"` for a removal by a person who holds a second factor. The claims, a rename and
+  ending one session are not gated. A session that is gone is `invalid_token`, no challenge.
+- The removal rule (`removal-rule.ts`): only a TOTP or a passkey can be removed; `409`
+  `last_sign_in_method` and `last_second_factor` are the refusals; removing the last TOTP revokes
+  the recovery codes that stood in for it.
+- A new address (`0127_pending_email_changes.sql`, see "Changing the address" below), the audit
+  actions `subject.credential_rename` and `email.changed`, and a session a person ends is
+  `session.ended` with `via: self`.
+- Documentation: the changes transcript
+  ([The me API: changes](../../apps/docs/content/en/reference/transcripts/request-paths/the-me-api-changes.md)),
+  a section of the protocol reference, the settings page, the audit concept page.
+
+### What the review found
+
+Three of the findings were real defects and each was fixed in the increment: the gate's answer
+for a session that had ended (signing in again is a new session, not an answer to a challenge,
+so a gone session is refused `invalid_token` and names none); a pending address survived an
+administrator changing the address, so an old link could swap it in (an administrator's change and
+a skipped request both clear it now, `e34a77bd9`); and the service-account migration test compared
+`pg_class` versions, which a later column change rewrites, and broke on the new migration (it
+stops comparing them).
+
+### What the live run found
+
+Nothing that needed a code change, three things the tests had not shown. A tenant with no mail
+relay answers an address change `503` `mail_unavailable`, which is the stack the other
+transcripts run on, so the page adds a relay that keeps what it is given. The gate answers before
+the removal rule, so a stale removal by a person with a second factor is a `401` and never a `409`.
+And a token whose session was ended by `DELETE /me/sessions` still reads and still makes an
+ungated write, which is open placement 1 below, observed.
+
+### Open placements
+
+1. **Liveness of a me token's session on reads and ungated writes** is still open (placement 1
+   of increment 1, observed in the transcript). Decide at phase close.
+2. **The notice to the old address** when a way to sign in is removed or the address changes
+   goes with the notice-mail increment (spec section 5.5), and must land before the phase closes.
+3. **The administrator's `updateEmail` holder check is case-sensitive** where the address the
+   verification link completes is not; the case-reconciliation increment places it.
+4. **Rate limit and CORS on the me routes**, as in increment 1, still open.
+5. **The gate and the write are separate transactions** (below), a limit recorded and not removed.
 
 ### Known limits of the gated writes
 
