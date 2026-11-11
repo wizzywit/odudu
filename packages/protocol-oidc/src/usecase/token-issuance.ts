@@ -10,7 +10,13 @@ import {
 import { auditRepository, type AuditReason, type RequestContext } from '@odudu/domain-audit';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
 import { ADMIN_API_AUDIENCE, clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
-import { type ClaimMapperRegistry, type Clock, mcpAudienceOfIssuer, newId } from '@odudu/kernel';
+import {
+  type ClaimMapperRegistry,
+  type Clock,
+  mcpAudienceOfIssuer,
+  meAudienceOfIssuer,
+  newId,
+} from '@odudu/kernel';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
@@ -490,6 +496,7 @@ async function mintAccessToken(
       input.audience.filter((audience) => audience !== deps.issuer),
       mcpAudienceOfIssuer(deps.issuer),
       ADMIN_API_AUDIENCE,
+      meAudienceOfIssuer(deps.issuer),
     )
   ) {
     throw invalidScope();

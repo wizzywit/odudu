@@ -9,6 +9,7 @@ import {
   isAddressLiteral,
   isDomainAddress,
   mcpAudienceOfIssuer,
+  meAudienceOfIssuer,
   pathAddress,
   routeAddress,
   tenantAddressOf,
@@ -126,6 +127,19 @@ describe('mcpAudienceOfIssuer', () => {
     const domain = domainAddress('login.acme.com', true);
     expect(mcpAudienceOfIssuer(addressIssuer(path))).toBe(addressUrl(path, '/mcp'));
     expect(mcpAudienceOfIssuer(addressIssuer(domain))).toBe('https://login.acme.com/mcp');
+  });
+});
+
+describe('meAudienceOfIssuer', () => {
+  it('is the "me" API under the tenant address', () => {
+    expect(meAudienceOfIssuer('https://a.test/t')).toBe('https://a.test/t/me');
+    const domain = domainAddress('login.acme.com', true);
+    expect(meAudienceOfIssuer(addressIssuer(domain))).toBe('https://login.acme.com/me');
+  });
+  it('differs from the MCP audience', () => {
+    expect(meAudienceOfIssuer('https://a.test/t')).not.toBe(
+      mcpAudienceOfIssuer('https://a.test/t'),
+    );
   });
 });
 

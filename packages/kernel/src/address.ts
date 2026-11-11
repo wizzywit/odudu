@@ -35,6 +35,13 @@ export function mcpAudienceOfIssuer(issuer: string): string {
   return `${issuer}${MCP_RESOURCE_PATH}`;
 }
 
+// The path of a tenant's "me" API, which is also the audience its tokens carry.
+export const ME_RESOURCE_PATH = '/me';
+
+export function meAudienceOfIssuer(issuer: string): string {
+  return `${issuer}${ME_RESOURCE_PATH}`;
+}
+
 export function addressUrl(a: TenantAddress, rest: string): string {
   return `${a.origin}${addressPath(a, rest)}`;
 }

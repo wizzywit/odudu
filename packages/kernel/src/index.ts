@@ -121,6 +121,8 @@ export {
   addressUrl,
   MCP_RESOURCE_PATH,
   mcpAudienceOfIssuer,
+  ME_RESOURCE_PATH,
+  meAudienceOfIssuer,
   baseRelyingPartyId,
   domainAddress,
   isDomainAddress,
