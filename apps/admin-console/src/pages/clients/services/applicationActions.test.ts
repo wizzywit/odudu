@@ -1,4 +1,5 @@
 import { requiredActionSchema } from '@odudu/contracts/admin';
+import { REQUIRED_ACTIONS } from '#/entities/subject';
 import { expect, it } from 'vitest';
 import {
   ACTIONS_NEED_ME_READ,
@@ -7,7 +8,7 @@ import {
 } from '#/pages/clients/services/applicationActions';
 
 it('offers each required action the server knows, in its own order, worded for the client', () => {
-  const options = actionOptions();
+  const options = actionOptions(REQUIRED_ACTIONS);
   expect(options.map((option) => option.id)).toEqual(requiredActionSchema.options);
   expect(options.map((option) => option.label)).toEqual([
     'Choose a new password',

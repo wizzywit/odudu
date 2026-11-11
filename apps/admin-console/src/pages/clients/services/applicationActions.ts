@@ -1,4 +1,4 @@
-import { REQUIRED_ACTIONS, type RequiredAction } from '#/entities/subject';
+import type { RequiredAction } from '#/entities/subject';
 
 export const ACTIONS_LABEL = 'Actions an application may start';
 
@@ -24,8 +24,11 @@ export interface ActionOption {
   unavailable: null;
 }
 
-export function actionOptions(): ActionOption[] {
-  return REQUIRED_ACTIONS.map(({ action, label }) => ({
+// The wording of each action is the subject entity's, handed in by the use case.
+export function actionOptions(
+  actions: readonly { action: RequiredAction; label: string }[],
+): ActionOption[] {
+  return actions.map(({ action, label }) => ({
     id: action,
     label,
     description: ACTION_NOTES[action],
