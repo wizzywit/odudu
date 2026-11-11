@@ -175,59 +175,58 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 
 ## Increment 3: which actions a client may start
 
-### Increment 3 owes at close
+### What shipped
 
-- Re-run the `get-adminopenapijson.md` admin-paths transcript on a live stack.
-  Its content length (810507) and size in KB (792) were edited by hand after
-  `allowed_actions` changed the OpenAPI document, so they are a claim until the
-  run replaces them.
-- Re-run the transcripts the new field and refusals touch: the client read,
-  create and amend pages, the export page, `delete-scopesidclientsclientid.md`
-  (the 409 with `allowed_actions_need_me_read`) and the scope delete page.
-- Console: the clients area page under `admin-console/` and `tour.mdx` describe
-  the "Application actions" section of the Advanced tab; then
-  `pnpm docs:screenshots` for the Advanced tab. No console e2e spec exists for
-  the section.
-- `CHANGELOG.md` under `## [Unreleased]`: `allowed_actions` on a client (admin
-  API, console, tenant document, `odudu seed client --allow-action`, which
-  assigns `me:read` itself), and the guards that keep `me:read` with a client
-  that may start an action or holds `me:write` (unassign and delete).
-- Concept or guide prose that names client settings, the CLI help and the
-  error `allowed_actions_need_me_read` page entries (generated from the kernel).
-- Dynamic Client Registration refuses `allowed_actions` as an operator-only
-  field, as it does `skip_logout_confirmation`; say so where registration
-  metadata is documented.
+- The client setting `allowed_actions` (`update-password`, `configure-totp`, `configure-passkey`,
+  `generate-recovery-codes`; empty by default): the admin API (create, amend with `If-Match`, read), the tenant
+  document (export and import), the console's Advanced tab under "Application actions", and
+  `odudu seed client --allow-action`, which assigns `me:read` itself. A database CHECK, a refusal on create and amend
+  and import, and the stable code `allowed_actions_need_me_read` hold the pairing with `me:read`. Unassigning `me:read`
+  from such a client and deleting the scope while one holds it are refused too. Dynamic registration refuses the field
+  as operator-only.
+- The `/authorize` parameter `action`: one value only; unknown, repeated, empty and not-allowed are `invalid_request` at the
+  redirect address; a session older than `session_freshness_seconds` signs in again first. The page is the one the tenant's
+  required action already uses, with a cancel control; recovery codes ask to confirm replacing a held set and the page
+  that shows the new codes has no cancel; `update-password` asks for the current password (a wrong one counts as a failed
+  sign-in against the lockout, a right one ends the run); a requested authenticator swaps a held one. The return carries
+  `action_status=success|cancelled|error` from state the server parked. The audit rows are `action.requested` (per page
+  shown), `action.completed`, `action.cancelled` and `action.failed`.
+- Documentation: the transcript
+  ([Sending a person to change a credential](../../apps/docs/content/en/reference/transcripts/request-paths/sending-a-person-to-change-a-credential.md)),
+  the guide ([Send a person to change a credential](../../apps/docs/content/en/guides/send-a-person-to-change-a-credential.md)),
+  the clients page of the console with a new picture, the `allowed_actions` sections of the client amend and the scope
+  pages, the registration refusal, the changelog.
 
-### The action request owes at close
+### What the review found
 
-- Transcripts re-run on a live stack: the authorization request with `action`
-  (the refusals at the redirect, the page, the way back with `action_status`),
-  the required-action pages with the cancel control and the current-password
-  field, and the credential list after a completed action.
-- The guide "Send a person to change a credential": `action_status` is a hint,
-  the "me" API's credential list is the authority; the page does not run when
-  the client may not start the action; a sign-in older than the tenant window
-  is asked for again; the person may cancel.
-- `CHANGELOG.md` under `## [Unreleased]`: the `action` parameter and
-  `action_status`, the audit actions `action.requested|completed|cancelled|failed`
-  (generated vocabulary reference), the current password asked for a requested
-  password change, a requested authenticator swapping a held one.
-- Placed, not built: an expired sign-in under an action returns the person to
-  the client with `action_status=error` only where the request cannot be
-  restarted (a hinted one); the restart link otherwise carries `action`. No
-  audit row is written for that return, which is a link, not a request.
-- The "me" write refusal for an agent token has no counterpart at `/authorize`:
-  no session or grant carries an agent marker, so there is nothing to refuse.
-- The guide's recovery-code step: a person who holds a set is asked to confirm
-  replacing it, and cancelling leaves it untouched; a person with none is
-  issued one at once. A reload of the confirmation page replaces nothing.
-- The guide's note on the current password: a wrong answer counts as a failed
-  sign-in against the tenant lockout (a person locked out this way is locked out
-  of sign-in), a right one ends the run of failures; a person who has no
-  password (passkey only) gets `action_status=error`.
-- The password page of a requested change says an application asked; an action
-  the tenant also owes is shown without a cancel control and ends as `success`.
-- `action.requested` is written each time the page is shown (the vocabulary
-  reference says so), not once per request.
-- The same four transcripts, the guide and the CHANGELOG line stay with the
-  increment close.
+- Deleting the `me:read` scope stripped it from clients that may start an action or hold `me:write`; unassigning it was
+  guarded and deleting was not. Fixed with a refusal and a test.
+- A requested `generate-recovery-codes` replaced the held set when the page rendered, so a reload or a cancel changed it.
+  The set is now replaced on a confirmation, and the question page is not a change.
+- The `update-password` intro said the tenant had asked, and the page took no current password. Both corrected.
+- A console slice reached across a boundary that two reviews missed: the clients service imported wording from another slice.
+  It now takes the wording from its use case.
+- Tests were written beside the code, not before, in several places; the review said so and the missing red runs were
+  not recreated.
+
+### What the close found
+
+- After a confirmed replacement the codes page offered cancel, which would have recorded `cancelled` for a changed set. A page
+  that shows a freshly issued set now never offers it. The rule "requested and not owed by the tenant" was written three times
+  and is one pure function, `requestedVariant`.
+- The refusal for removing or deleting `me:read` said to assign it, the opposite of what the caller was doing. It now says to
+  clear `allowed_actions` first.
+- The amend of `allowed_actions` needs `If-Match` like the six list fields, and answers `400` for a client without `me:read`
+  before it answers `428`.
+- The admin OpenAPI transcript had a hand-edited size; the real fetch gave the same 810,507 bytes.
+- The wrong-current-password lockout was shown live: one failure after a wrong answer, none after the right one.
+
+### Open placements
+
+- An expired sign-in under an action returns the person to the client with `action_status=error` only where the request cannot
+  be restarted; the restart link otherwise carries `action`. No audit row is written for that return, which is a link, not a
+  request.
+- The "me" write refusal for an agent token has no counterpart at `/authorize`: no session or grant carries an agent marker.
+- `update-password` for a person with no password, and the passkey ceremony, are covered by integration tests and not by a
+  transcript, which cannot reach them from a shell.
+- The close-of-phase pass (the roadmap, section 11 and `docs/NEXT.md` read against each other) still owns the P4f row.
