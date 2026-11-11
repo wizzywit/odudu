@@ -20,6 +20,7 @@ describe('planProfileAmend', () => {
       kind: 'change',
       profile: { name: 'Ada L', nickname: 'ada' },
       verification: null,
+      username: null,
       fields: ['name', 'nickname'],
     });
   });
@@ -42,6 +43,7 @@ describe('planProfileAmend', () => {
       kind: 'change',
       profile: { phoneNumber: '+2348099999999' },
       verification: { phoneNumberVerified: false },
+      username: null,
       fields: ['phone_number'],
     });
   });
@@ -79,6 +81,37 @@ describe('planProfileAmend', () => {
     expect(planProfileAmend(held, { name: 'Ad‮a', nickname: 'x' })).toMatchObject({
       kind: 'change',
       fields: ['nickname'],
+    });
+  });
+});
+
+describe('planProfileAmend, a username', () => {
+  it('writes a new one and names the field', () => {
+    expect(planProfileAmend(CURRENT, { username: 'ada2', name: 'B' })).toEqual({
+      kind: 'change',
+      profile: { name: 'B' },
+      verification: null,
+      username: 'ada2',
+      fields: ['username', 'name'],
+    });
+  });
+
+  it('writes nothing for the name already held', () => {
+    expect(planProfileAmend(CURRENT, { username: 'ada' })).toEqual({ kind: 'unchanged' });
+  });
+
+  it('has no claims to write when the rename is all there is', () => {
+    expect(planProfileAmend(CURRENT, { username: 'ada2' })).toMatchObject({
+      profile: null,
+      username: 'ada2',
+      fields: ['username'],
+    });
+  });
+
+  it('refuses a bidirectional control it would add', () => {
+    expect(planProfileAmend(CURRENT, { username: 'ad‮a' })).toMatchObject({
+      kind: 'invalid_value',
+      field: 'username',
     });
   });
 });

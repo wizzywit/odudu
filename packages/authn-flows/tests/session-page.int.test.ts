@@ -234,3 +234,72 @@ describe('sessionRepository.liveIdsFor with an exception', () => {
     });
   });
 });
+
+describe('sessionRepository.liveCreatedAt', () => {
+  it('is the sign-in time of the subject’s own live session, and null for any other', async () => {
+    const tenantId = newId();
+    const ids = await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
+      const other = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      return {
+        subject,
+        live: await open(tx, tenantId, subject, AHEAD),
+        ended: await open(tx, tenantId, subject, BEHIND),
+        foreign: await open(tx, tenantId, other.id, AHEAD),
+      };
+    });
+
+    const answers = await withTenant(app.db, tenantId, async (tx) => {
+      const sessions = sessionRepository(tx);
+      const find = (id: string) => sessions.liveCreatedAt(ids.subject, id, LIFESPANS, NOW);
+      return [
+        await find(ids.live),
+        await find(ids.ended),
+        await find(ids.foreign),
+        await find(newId()),
+      ];
+    });
+
+    const [signedIn] = answers;
+    if (!(signedIn instanceof Date)) throw new Error('expected the live session to be found');
+    expect(Math.abs(signedIn.getTime() - NOW.getTime())).toBeLessThan(60_000);
+    expect(answers.slice(1)).toEqual([null, null, null]);
+  });
+
+  it('is null for a session idle past its window', async () => {
+    const tenantId = newId();
+    const seeded = await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
+      return { subject, id: await open(tx, tenantId, subject, AHEAD) };
+    });
+    const later = new Date(NOW.getTime() + (LIFESPANS.ssoSessionIdleSeconds + 60) * 1000);
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      sessionRepository(tx).liveCreatedAt(seeded.subject, seeded.id, LIFESPANS, later),
+    );
+    expect(found).toBeNull();
+  });
+
+  it('finds nothing of another tenant’s session', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedSubject(tx, tenantId);
+        return { subjectId, sessionId: await open(tx, tenantId, subjectId, AHEAD) };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await sessionRepository(tx).liveCreatedAt(
+          seeded.subjectId,
+          seeded.sessionId,
+          LIFESPANS,
+          NOW,
+        );
+        expect(found).toBeInstanceOf(Date);
+      },
+      attempt: (tx, seeded) =>
+        sessionRepository(tx).liveCreatedAt(seeded.subjectId, seeded.sessionId, LIFESPANS, NOW),
+      expectBlocked: (found) => {
+        expect(found).toBeNull();
+      },
+    });
+  });
+});

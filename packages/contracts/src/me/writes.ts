@@ -2,12 +2,20 @@ import { z } from 'zod';
 import { noBidiControls } from '#/bidi';
 import { amendProfileRequestSchema } from '#/admin/profile';
 
-// What a person writes about themselves: the claims of their profile, and none
-// of the members that are not theirs to set. The verification flags are proved,
-// not stated, `email` and `username` are identity, and `profile_updated_at` is
-// stamped by the write. Any other member is refused, not ignored.
+// What a person writes about themselves: the claims of their profile, and a
+// username where the tenant lets one change. The verification flags are proved,
+// not stated, and `profile_updated_at` is stamped by the write. `email` is
+// typed only so the route can refuse it by name. Any other member is refused,
+// not ignored.
 export const meAmendProfileRequestSchema = amendProfileRequestSchema
-  .omit({ email: true, username: true, email_verified: true, phone_number_verified: true })
+  .omit({ username: true, email_verified: true, phone_number_verified: true })
+  .extend({
+    username: z
+      .string()
+      .min(1)
+      .regex(/^[^\u0000]*$/)
+      .optional(),
+  })
   .strict()
   .refine((body) => Object.keys(body).length > 0, { error: 'must name at least one member' });
 export type MeAmendProfileRequest = z.infer<typeof meAmendProfileRequestSchema>;

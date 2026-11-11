@@ -24,6 +24,8 @@ const CALLER: MeCaller = {
   sessionId: ID_B,
   clientId: 'app',
   issuer: 'https://id.example.com/tenants/acme',
+  freshnessSeconds: 300,
+  usernameEditable: false,
   lifespans: {
     ssoSessionIdleSeconds: 1800,
     ssoSessionMaxSeconds: 36_000,

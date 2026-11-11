@@ -37,7 +37,17 @@ function deps(
     acceptedIssuers: () => Promise.resolve([ISSUER]),
     verifyAccessToken: () => Promise.resolve(payload),
     findTenant: () =>
-      Promise.resolve(tenant === null ? null : { id: 'tenant-1', ...tenant, lifespans: LIFESPANS }),
+      Promise.resolve(
+        tenant === null
+          ? null
+          : {
+              id: 'tenant-1',
+              ...tenant,
+              lifespans: LIFESPANS,
+              freshnessSeconds: 300,
+              usernameEditable: false,
+            },
+      ),
     logger: { warn: () => undefined },
   };
 }
@@ -61,6 +71,8 @@ describe('admitMeRead', () => {
         lifespans: LIFESPANS,
         clientId: 'app',
         issuer: ISSUER,
+        freshnessSeconds: 300,
+        usernameEditable: false,
       },
     });
   });
@@ -118,6 +130,8 @@ describe('admitMeWrite', () => {
         lifespans: LIFESPANS,
         clientId: 'app',
         issuer: ISSUER,
+        freshnessSeconds: 300,
+        usernameEditable: false,
       },
     });
   });

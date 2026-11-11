@@ -2,6 +2,7 @@ import type { CredentialSummary, UserRecord } from '@odudu/domain-identity';
 import { describe, expect, it } from 'vitest';
 import type { MeWrites, MeWriteTx } from '#/repository/writes';
 import type { MeAuditEvent } from '#/service/audit';
+import { UsernameTakenError } from '#/service/errors';
 import { SESSION_END_LIMIT } from '#/service/session-end';
 import type { MeCaller } from '#/usecase/admit-me';
 import {
@@ -24,6 +25,8 @@ const CALLER: MeCaller = {
   sessionId: SESSION,
   clientId: 'app',
   issuer: 'https://id.example.com/tenants/acme',
+  freshnessSeconds: 300,
+  usernameEditable: true,
   lifespans: {
     ssoSessionIdleSeconds: 1800,
     ssoSessionMaxSeconds: 36_000,
@@ -64,6 +67,10 @@ function world(over: Partial<MeWriteTx> = {}): { deps: MeWriteDeps; log: Log } {
     updateProfile: (s, patch) => {
       log.calls.push(`updateProfile ${s} ${JSON.stringify(patch)}`);
       return Promise.resolve({ ...USER, ...patch });
+    },
+    renameUser: (s, username) => {
+      log.calls.push(`renameUser ${s} ${username}`);
+      return Promise.resolve({ ...USER, username });
     },
     setVerification: (s, patch) => {
       log.calls.push(`setVerification ${s} ${JSON.stringify(patch)}`);
@@ -148,6 +155,34 @@ describe('amendProfile', () => {
       field: 'birthdate',
     });
     expect(log.calls).toEqual(['lockProfile subject-1']);
+    expect(log.audits).toEqual([]);
+  });
+
+  it('renames the user after the claims and files the field, not the name', async () => {
+    const { deps, log } = world();
+    const outcome = await amendProfile(deps, CALLER, { username: 'ada2', name: 'Ada L' });
+    expect(outcome).toMatchObject({ kind: 'ok', profile: { name: 'Ada L' } });
+    expect(log.calls).toEqual([
+      'lockProfile subject-1',
+      'renameUser subject-1 ada2',
+      'updateProfile subject-1 {"name":"Ada L"}',
+    ]);
+    expect(log.audits[0]?.detail).toEqual({ via: 'me', fields: ['username', 'name'] });
+  });
+
+  it('writes only the rename when that is all that changes', async () => {
+    const { deps, log } = world();
+    await amendProfile(deps, CALLER, { username: 'ada2' });
+    expect(log.calls).toEqual(['lockProfile subject-1', 'renameUser subject-1 ada2']);
+  });
+
+  it('answers username_taken when another subject holds the name', async () => {
+    const { deps, log } = world({
+      renameUser: () => Promise.reject(new UsernameTakenError()),
+    });
+    expect(await amendProfile(deps, CALLER, { username: 'grace' })).toEqual({
+      kind: 'username_taken',
+    });
     expect(log.audits).toEqual([]);
   });
 

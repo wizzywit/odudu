@@ -13,6 +13,8 @@ export interface MeWriteTx {
   // The profile row, locked until the transaction ends, or null.
   lockProfile(subjectId: string): Promise<UserRecord | null>;
   updateProfile(subjectId: string, patch: ProfileUpdate): Promise<UserRecord>;
+  // Throws `UsernameTakenError` when another subject in the tenant holds the name.
+  renameUser(subjectId: string, username: string): Promise<UserRecord>;
   setVerification(subjectId: string, patch: VerificationUpdate): Promise<UserRecord>;
 
   // Whether the subject owns the session, locking its row.

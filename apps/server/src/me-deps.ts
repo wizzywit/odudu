@@ -1,9 +1,21 @@
 import { sessionRepository } from '@odudu/authn-flows';
-import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odudu/db';
+import {
+  type DatabaseHandle,
+  isUniqueViolation,
+  type TenantScopedDatabase,
+  withTenant,
+} from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { clientRepository, consentRepository } from '@odudu/domain-tenant';
-import { type MeDeps, type MeReads, type MeWrites, type MeWriteTx } from '@odudu/me';
+import {
+  type MeDeps,
+  type MeReads,
+  type MeSessionAuth,
+  type MeWrites,
+  type MeWriteTx,
+  UsernameTakenError,
+} from '@odudu/me';
 import { adminAuthDeps, verifyTenantAccessToken } from '@odudu/protocol-admin';
 import { endSessions, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type Logger as PinoLogger } from 'pino';
@@ -43,6 +55,15 @@ function writeTxFor(tx: TenantScopedDatabase, tenantId: string, kek: Uint8Array)
   return {
     lockProfile: (subjectId) => userRepository(tx).lockBySubjectId(subjectId),
     updateProfile: (subjectId, patch) => userRepository(tx).updateProfile(subjectId, patch),
+    // The only column the update sets that can collide is the username.
+    renameUser: async (subjectId, username) => {
+      try {
+        return await userRepository(tx).updateUsername(subjectId, username);
+      } catch (error) {
+        if (isUniqueViolation(error)) throw new UsernameTakenError();
+        throw error;
+      }
+    },
     setVerification: (subjectId, patch) => userRepository(tx).setVerification(subjectId, patch),
     lockOwnedSession: (subjectId, sessionId) =>
       sessionRepository(tx).lockOwnedId(subjectId, sessionId),
@@ -89,6 +110,16 @@ export function meWritesFor(database: DatabaseHandle, kek: Uint8Array): MeWrites
   };
 }
 
+// The gate's one read: the session a token names, in its own tenant.
+export function meSessionAuthFor(database: DatabaseHandle): MeSessionAuth {
+  return {
+    signedInAt: (tenantId, subjectId, sessionId, lifespans, now) =>
+      withTenant(database.db, tenantId, (tx) =>
+        sessionRepository(tx).liveCreatedAt(subjectId, sessionId, lifespans, now),
+      ),
+  };
+}
+
 // What the "me" routes need of this process: the reads the admin API's door
 // judges a token by, shared, and the person's own reads.
 export function meRouteDepsFor(parts: MeDepsParts): MeDeps {
@@ -113,9 +144,12 @@ export function meRouteDepsFor(parts: MeDepsParts): MeDeps {
           rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
           rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
         },
+        freshnessSeconds: tenant.sessionFreshnessSeconds,
+        usernameEditable: tenant.usernameEditable,
       };
     },
     reads: meReadsFor(parts.database),
+    sessionAuth: meSessionAuthFor(parts.database),
     writes: meWritesFor(parts.database, parts.kek),
     now: () => new Date(),
     logger: parts.logger,

@@ -295,11 +295,7 @@ describe('PATCH /me/profile', () => {
   it('refuses the members a person does not set, and changes nothing', async () => {
     const w = await world();
     const token = await sign(w);
-    for (const body of [
-      { email: 'x@example.com' },
-      { username: 'zed' },
-      { email_verified: true },
-    ]) {
+    for (const body of [{ email_verified: true }, { phone_number_verified: true }]) {
       expect((await call(w, 'PATCH', 'profile', token, body)).statusCode).toBe(400);
     }
     const user = await read(w, (tx) => userRepository(tx).bySubjectId(w.subjectId));

@@ -9,6 +9,7 @@ import {
   sessionEndedEvent,
   sessionsEndedEvent,
 } from '#/service/audit';
+import { UsernameTakenError } from '#/service/errors';
 import { credentialView, type CredentialView } from '#/service/credential-view';
 import { fetchLimit, splitPage } from '#/service/page';
 import { planProfileAmend } from '#/service/profile-amend';
@@ -28,9 +29,23 @@ const actorOf = (caller: MeCaller) => ({ subjectId: caller.subjectId, clientId: 
 export type AmendProfileOutcome =
   | typeof NOT_FOUND
   | { readonly kind: 'invalid_value'; readonly field: string; readonly description: string }
+  | { readonly kind: 'username_taken' }
   | { readonly kind: 'ok'; readonly profile: UserRecord };
 
-export function amendProfile(
+export async function amendProfile(
+  deps: MeWriteDeps,
+  caller: MeCaller,
+  values: MeAmendProfileRequest,
+): Promise<AmendProfileOutcome> {
+  try {
+    return await amendProfileInTransaction(deps, caller, values);
+  } catch (error) {
+    if (error instanceof UsernameTakenError) return { kind: 'username_taken' };
+    throw error;
+  }
+}
+
+function amendProfileInTransaction(
   deps: MeWriteDeps,
   caller: MeCaller,
   values: MeAmendProfileRequest,
@@ -44,7 +59,10 @@ export function amendProfile(
 
     // Unverified first: the row never holds a verified number it is changing.
     if (plan.verification !== null) await tx.setVerification(caller.subjectId, plan.verification);
-    const profile = await tx.updateProfile(caller.subjectId, plan.profile);
+    const renamed =
+      plan.username === null ? current : await tx.renameUser(caller.subjectId, plan.username);
+    const profile =
+      plan.profile === null ? renamed : await tx.updateProfile(caller.subjectId, plan.profile);
     await tx.audit(profileAmendedEvent(actorOf(caller), plan.fields));
     return { kind: 'ok', profile };
   });

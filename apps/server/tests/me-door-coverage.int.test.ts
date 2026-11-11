@@ -1,3 +1,4 @@
+import { SessionEntry, sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, withTenant } from '@odudu/db';
 import type { DatabaseHandle } from '@odudu/db';
@@ -71,6 +72,7 @@ async function tokenFor(
   audience: (issuer: string) => string | string[],
   scope: string,
   tenant: { name: string; id: string; subjectId: string },
+  sid?: string,
 ) {
   const issuer = `${BASE}/tenants/${tenant.name}`;
   const key = await withTenant(appDb.db, tenant.id, (tx) => signingKeyRepository(tx).active());
@@ -81,12 +83,30 @@ async function tokenFor(
       sub: tenant.subjectId,
       aud: [audience(issuer)].flat(),
       client_id: 'portal',
+      ...(sid === undefined ? {} : { sid }),
       scope,
       iat,
       exp: iat + 600,
     },
     { key, kek: KEK, typ: 'at+jwt' },
   );
+}
+
+// A live session of the tenant's person, for a token that names it: the gated
+// routes read it.
+async function openSession(t: { id: string; subjectId: string }): Promise<string> {
+  const entry = SessionEntry.issue(newId());
+  await withTenant(appDb.db, t.id, (tx) =>
+    sessionRepository(tx).create({
+      id: entry.id,
+      tenantId: t.id,
+      subjectId: t.subjectId,
+      expiresAt: new Date(Date.now() + 3_600_000),
+      authenticators: ['pwd'],
+      secretHash: entry.secretHash(),
+    }),
+  );
+  return entry.id;
 }
 
 async function tenant() {
@@ -180,7 +200,12 @@ describe('each door refuses the other’s token', () => {
 
   it('opens each door to its own token, so a refusal above is the audience’s', async () => {
     const t = await tenant();
-    const me = await tokenFor(meAudienceOfIssuer, 'openid me:read me:write', t);
+    const me = await tokenFor(
+      meAudienceOfIssuer,
+      'openid me:read me:write',
+      t,
+      await openSession(t),
+    );
     const own = tableOf('me').find((r) => r.method === 'GET');
     const mcpPost = tableOf('mcp').find((r) => r.method === 'POST');
     if (own === undefined || mcpPost === undefined) throw new Error('a table is empty');

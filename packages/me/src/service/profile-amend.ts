@@ -24,8 +24,11 @@ export type ProfileAmendPlan =
   | { readonly kind: 'unchanged' }
   | {
       readonly kind: 'change';
-      readonly profile: ProfileUpdate;
+      // The claims to write, null when only the username changes.
+      readonly profile: ProfileUpdate | null;
       readonly verification: VerificationUpdate | null;
+      // The new username, null when it is not being changed.
+      readonly username: string | null;
       // The wire names of the claims that change, in the order sent.
       readonly fields: readonly string[];
     };
@@ -39,9 +42,20 @@ export function planProfileAmend(
 ): ProfileAmendPlan {
   const profile: ProfileUpdate = {};
   const fields: string[] = [];
+  let username: string | null = null;
   for (const [field, raw] of Object.entries(values)) {
+    if (field === 'username') {
+      if (typeof raw !== 'string' || raw === current.username) continue;
+      if (refusesBidi(raw, current.username)) {
+        return { kind: 'invalid_value', field, description: BIDI_REFUSED_MESSAGE };
+      }
+      username = raw;
+      fields.push(field);
+      continue;
+    }
     const key = CLAIM_KEY[field];
     if (key === undefined || raw === undefined) continue;
+    if (raw !== null && typeof raw !== 'string') continue;
     if (raw === current[key]) continue;
     if (NAME_CLAIMS.has(field) && refusesBidi(raw, current[key])) {
       return { kind: 'invalid_value', field, description: BIDI_REFUSED_MESSAGE };
@@ -55,5 +69,11 @@ export function planProfileAmend(
 
   const verification: VerificationUpdate | null =
     'phoneNumber' in profile && current.phoneNumberVerified ? { phoneNumberVerified: false } : null;
-  return { kind: 'change', profile, verification, fields };
+  return {
+    kind: 'change',
+    profile: Object.keys(profile).length === 0 ? null : profile,
+    verification,
+    username,
+    fields,
+  };
 }

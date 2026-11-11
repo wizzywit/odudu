@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { agentNotPermitted, invalidBody, invalidRequest, notFound } from '#/service/errors';
+import {
+  agentNotPermitted,
+  conflict,
+  emailChangeUnsupported,
+  invalidBody,
+  invalidRequest,
+  notFound,
+  usernameNotEditable,
+} from '#/service/errors';
 
 describe('the refusals of the "me" API', () => {
   it('give an agent the stable code and a message of its own', () => {
@@ -11,6 +19,22 @@ describe('the refusals of the "me" API', () => {
 
   it('keep the OAuth error shape', () => {
     expect(notFound('gone')).toEqual({ error: 'not_found', error_description: 'gone' });
+  });
+});
+
+describe('the refusals of a username or email change', () => {
+  it('give an email change its stable code', () => {
+    expect(emailChangeUnsupported()).toMatchObject({ error: 'email_change_unsupported' });
+  });
+
+  it('refuse a rename the tenant has not turned on as an invalid request', () => {
+    const refusal = usernameNotEditable();
+    expect(refusal.error).toBe('invalid_request');
+    expect(refusal.error_description).toContain('username_editable');
+  });
+
+  it('answer a name already held as a conflict', () => {
+    expect(conflict('taken')).toEqual({ error: 'conflict', error_description: 'taken' });
   });
 });
 

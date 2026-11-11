@@ -6,7 +6,15 @@ import {
 } from '@odudu/contracts/me';
 import { tenantAddressOf } from '@odudu/kernel';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { agentNotPermitted, invalidBody, invalidRequest, notFound } from '#/service/errors';
+import {
+  agentNotPermitted,
+  conflict,
+  emailChangeUnsupported,
+  invalidBody,
+  invalidRequest,
+  notFound,
+  usernameNotEditable,
+} from '#/service/errors';
 import {
   consentsDto,
   credentialDto,
@@ -23,6 +31,7 @@ import {
   type MeAdmission,
   type MeCaller,
 } from '#/usecase/admit-me';
+import { requireFreshSignIn, type MeGateDeps } from '#/usecase/freshness-gate';
 import {
   listConsents,
   listCredentials,
@@ -40,7 +49,7 @@ import {
   type MeWriteDeps,
 } from '#/usecase/writes';
 
-export interface MeDeps extends AdmitMeDeps, MeReadDeps, MeWriteDeps {}
+export interface MeDeps extends AdmitMeDeps, MeReadDeps, MeWriteDeps, MeGateDeps {}
 
 type MeRequest = FastifyRequest<{ Params: { tenant: string } }>;
 
@@ -94,6 +103,20 @@ const admit = async (deps: MeDeps, request: MeRequest, reply: FastifyReply) =>
 const admitWrite = async (deps: MeDeps, request: MeRequest, reply: FastifyReply) =>
   callerOrAnswer(await admitMeWrite(deps, doorInput(deps, request)), reply);
 
+// Whether the sign-in behind the token is recent enough for a gated change;
+// when it is not, the refusal has been sent.
+async function signInIsFresh(
+  deps: MeDeps,
+  caller: MeCaller,
+  reply: FastifyReply,
+): Promise<boolean> {
+  const outcome = await requireFreshSignIn(deps, caller);
+  if (outcome.kind === 'fresh') return true;
+  reply.header('www-authenticate', outcome.challenge);
+  respond(reply, 401);
+  return false;
+}
+
 type Read<Ok> = (
   deps: MeReadDeps,
   caller: MeCaller,
@@ -126,9 +149,17 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
     if (caller === undefined) return reply;
     const body = meAmendProfileRequestSchema.safeParse(request.body);
     if (!body.success) return respond(reply, 400, invalidBody(body.error.issues));
+    if (body.data.email !== undefined) return respond(reply, 400, emailChangeUnsupported());
+    if (body.data.username !== undefined) {
+      if (!caller.usernameEditable) return respond(reply, 400, usernameNotEditable());
+      if (!(await signInIsFresh(deps, caller, reply))) return reply;
+    }
     const outcome = await amendProfile(deps, caller, body.data);
     if (outcome.kind === 'not_found') {
       return respond(reply, 404, notFound('There is no profile for this account'));
+    }
+    if (outcome.kind === 'username_taken') {
+      return respond(reply, 409, conflict('That username is already in use'));
     }
     if (outcome.kind === 'invalid_value') {
       return respond(reply, 400, invalidRequest(`${outcome.field}: ${outcome.description}`));
@@ -139,6 +170,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
   app.delete<{ Params: { tenant: string } }>(`${BASE}/sessions`, async (request, reply) => {
     const caller = await admitWrite(deps, request, reply);
     if (caller === undefined) return reply;
+    if (!(await signInIsFresh(deps, caller, reply))) return reply;
     const outcome = await endOtherSessions(deps, caller);
     return respond(reply, 200, sessionsEndedDto(outcome.ended, outcome.more));
   });
@@ -159,6 +191,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
     async (request, reply) => {
       const caller = await admitWrite(deps, request, reply);
       if (caller === undefined) return reply;
+      if (!(await signInIsFresh(deps, caller, reply))) return reply;
       const outcome = await revokeConsent(deps, caller, request.params.client_id);
       if (outcome.kind === 'not_found') return respond(reply, 404, notFound('No such consent'));
       return respond(reply, 204);

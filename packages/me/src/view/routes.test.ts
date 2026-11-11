@@ -5,6 +5,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MAX_LIMIT } from '@odudu/contracts/me';
 import type { MeAuditEvent, MeWriteTx } from '#/index';
+import { UsernameTakenError } from '#/service/errors';
 import { ME_ROUTES, registerMeRoutes, type MeDeps } from '#/view/routes';
 
 type MeReads = MeDeps['reads'];
@@ -12,6 +13,7 @@ type MeReads = MeDeps['reads'];
 const BASE = 'https://id.example.com';
 const ISSUER = addressIssuer(pathAddress(BASE, 'acme'));
 const AT = new Date('2026-01-01T00:00:00Z');
+const NOW = new Date('2026-11-11T10:00:00Z');
 const ID = '01a0a992-4657-7d89-8fbf-3385f54810d1';
 const TOKEN = [
   Buffer.from('{"alg":"ES256"}').toString('base64url'),
@@ -60,6 +62,9 @@ function build(
     claims?: Record<string, unknown>;
     tx?: Partial<MeWriteTx>;
     audits?: MeAuditEvent[];
+    // When the session behind the token was signed in to; null for one that is gone.
+    signedInAt?: Date | null;
+    usernameEditable?: boolean;
   } = {},
 ) {
   const app = Fastify();
@@ -107,15 +112,32 @@ function build(
       }),
     findTenant: (name) =>
       Promise.resolve(
-        name === 'acme' ? { id: 'tenant-1', enabled: true, lifespans: LIFESPANS } : null,
+        name === 'acme'
+          ? {
+              id: 'tenant-1',
+              enabled: true,
+              lifespans: LIFESPANS,
+              freshnessSeconds: 300,
+              usernameEditable: over.usernameEditable ?? true,
+            }
+          : null,
       ),
     reads,
+    sessionAuth: {
+      signedInAt: (t, s, sessionId) => {
+        note(`signedInAt ${t} ${s} ${sessionId}`);
+        return Promise.resolve(
+          over.signedInAt === undefined ? new Date(NOW.getTime() - 10_000) : over.signedInAt,
+        );
+      },
+    },
     writes: {
       transact: (tenantId, run) => {
         note(`transact ${tenantId}`);
         const tx: MeWriteTx = {
           lockProfile: () => Promise.resolve(USER),
           updateProfile: (_s, patch) => Promise.resolve({ ...USER, ...patch }),
+          renameUser: (_s, username) => Promise.resolve({ ...USER, username }),
           setVerification: () => Promise.resolve(USER),
           lockOwnedSession: () => Promise.resolve(true),
           liveSessionIds: () => Promise.resolve([OTHER_SESSION]),
@@ -134,7 +156,7 @@ function build(
         return run(tx);
       },
     },
-    now: () => new Date('2026-11-11T10:00:00Z'),
+    now: () => NOW,
     logger: { warn: () => undefined },
   };
   registerMeRoutes(app, deps);
@@ -381,18 +403,14 @@ describe('PATCH /me/profile', () => {
     expect(audits[0]?.detail).toEqual({ via: 'me', fields: ['name'] });
   });
 
-  it.each([
-    [{ email: 'x@example.com' }],
-    [{ username: 'grace' }],
-    [{ email_verified: true }],
-    [{ phone_number_verified: true }],
-    [{}],
-    [{ name: 4 }],
-  ])('refuses the body %j with 400', async (body) => {
-    const res = await send(build(), 'PATCH', 'profile', body);
-    expect(res.statusCode).toBe(400);
-    expect(res.json()).toMatchObject({ error: 'invalid_request' });
-  });
+  it.each([[{ email_verified: true }], [{ phone_number_verified: true }], [{}], [{ name: 4 }]])(
+    'refuses the body %j with 400',
+    async (body) => {
+      const res = await send(build(), 'PATCH', 'profile', body);
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject({ error: 'invalid_request' });
+    },
+  );
 
   it('refuses a value of the wrong shape, naming the field', async () => {
     const res = await send(build(), 'PATCH', 'profile', { birthdate: 'soon' });
@@ -485,5 +503,140 @@ describe('PATCH /me/credentials/:id', () => {
     expect((await send(app, 'PATCH', `credentials/${CRED_ID}`, { label: 'x' })).statusCode).toBe(
       404,
     );
+  });
+});
+
+const STALE = new Date(NOW.getTime() - 301_000);
+const CHALLENGE =
+  'Bearer error="insufficient_user_authentication", ' +
+  'error_description="A recent sign-in is required", max_age="300"';
+
+const GATED: readonly [string, 'PATCH' | 'DELETE', string, object | undefined][] = [
+  ['ending all other sessions', 'DELETE', 'sessions', undefined],
+  ['revoking a consent', 'DELETE', 'consents/portal', undefined],
+  ['changing the username', 'PATCH', 'profile', { username: 'grace' }],
+];
+
+const UNGATED: readonly [string, 'PATCH' | 'DELETE', string, object | undefined][] = [
+  ['ending one session', 'DELETE', `sessions/${OTHER_SESSION}`, undefined],
+  ['renaming an authenticator', 'PATCH', `credentials/${CRED_ID}`, { label: 'Work phone' }],
+  ['amending a claim', 'PATCH', 'profile', { name: 'Ada L' }],
+];
+
+describe('the freshness gate', () => {
+  it.each(GATED)('asks for a new sign-in before %s on an old one', async (_l, m, path, body) => {
+    const seen: string[] = [];
+    const audits: MeAuditEvent[] = [];
+    const res = await send(build({ signedInAt: STALE, seen, audits }), m, path, body);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toBe(CHALLENGE);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(seen).toEqual([`signedInAt tenant-1 subject-1 ${ID}`]);
+    expect(audits).toEqual([]);
+  });
+
+  it.each(GATED)(
+    'lets %s through on a recent sign-in, after one read',
+    async (_l, m, path, body) => {
+      const seen: string[] = [];
+      const res = await send(build({ seen }), m, path, body);
+      expect(res.statusCode).toBeLessThan(300);
+      expect(seen.filter((entry) => entry.startsWith('signedInAt'))).toEqual([
+        `signedInAt tenant-1 subject-1 ${ID}`,
+      ]);
+    },
+  );
+
+  it.each(GATED)('treats a sign-in exactly at the window as recent for %s', async (_l, m, p, b) => {
+    const at = new Date(NOW.getTime() - 300_000);
+    expect((await send(build({ signedInAt: at }), m, p, b)).statusCode).toBeLessThan(300);
+  });
+
+  it.each(GATED)('refuses %s with no challenge once the session has ended', async (_l, m, p, b) => {
+    const seen: string[] = [];
+    const res = await send(build({ signedInAt: null, seen }), m, p, b);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toBe('Bearer error="invalid_token"');
+    expect(res.headers['www-authenticate']).not.toContain('insufficient_user_authentication');
+    expect(seen).toEqual([`signedInAt tenant-1 subject-1 ${ID}`]);
+  });
+
+  it.each(GATED)(
+    'refuses %s with no challenge for a token with no session',
+    async (_l, m, p, b) => {
+      const seen: string[] = [];
+      const app = build({ claims: { sid: undefined }, seen });
+      const res = await send(app, m, p, b);
+      expect(res.statusCode).toBe(401);
+      expect(res.headers['www-authenticate']).toBe('Bearer error="invalid_token"');
+      expect(seen).toEqual([]);
+    },
+  );
+
+  it.each(UNGATED)('does not read the session for %s, however old it is', async (_l, m, p, b) => {
+    const seen: string[] = [];
+    const res = await send(build({ signedInAt: STALE, seen }), m, p, b);
+    expect(res.statusCode).toBeLessThan(300);
+    expect(seen.some((entry) => entry.startsWith('signedInAt'))).toBe(false);
+  });
+
+  it.each(['profile', 'credentials', 'sessions', 'consents'])(
+    'does not read the session to read %s',
+    async (path) => {
+      const seen: string[] = [];
+      await get(build({ signedInAt: STALE, seen }), path);
+      expect(seen.some((entry) => entry.startsWith('signedInAt'))).toBe(false);
+    },
+  );
+
+  it.each(GATED)('still refuses an agent token before %s is judged', async (_l, m, p, b) => {
+    const seen: string[] = [];
+    const app = build({
+      claims: { act: { sub: 'agent-1', client_id: 'agent' } },
+      signedInAt: STALE,
+      seen,
+    });
+    const res = await send(app, m, p, b);
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ error: 'agent_not_permitted' });
+    expect(seen).toEqual([]);
+  });
+});
+
+describe('PATCH /me/profile, a username or an email', () => {
+  it('renames the person on a recent sign-in', async () => {
+    const res = await send(build(), 'PATCH', 'profile', { username: 'grace' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ username: 'grace' });
+  });
+
+  it('refuses a rename in a tenant that has not turned it on, without reading the session', async () => {
+    const seen: string[] = [];
+    const res = await send(build({ usernameEditable: false, seen }), 'PATCH', 'profile', {
+      username: 'grace',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_request' });
+    expect(res.body).toContain('username_editable');
+    expect(seen).toEqual([]);
+  });
+
+  it('answers 409 for a name another subject holds', async () => {
+    const app = build({
+      tx: { renameUser: () => Promise.reject(new UsernameTakenError()) },
+    });
+    const res = await send(app, 'PATCH', 'profile', { username: 'grace' });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ error: 'conflict' });
+  });
+
+  it('refuses an email change by its stable code, without reading the session', async () => {
+    const seen: string[] = [];
+    const res = await send(build({ seen, signedInAt: STALE }), 'PATCH', 'profile', {
+      email: 'x@example.com',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'email_change_unsupported' });
+    expect(seen).toEqual([]);
   });
 });

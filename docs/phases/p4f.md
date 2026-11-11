@@ -20,6 +20,17 @@ audience (the admin API's, the accepted issuers), so a token with only the "me"
 audience already fails there; a token naming the "me" audience beside theirs
 passed, and each of the three now refuses it by name (`namesMeAudience`, kernel).
 
+### S1: `/authorize` forces a new sign-in against a live session
+
+Run through the real app (`apps/server/tests/me-gate.int.test.ts`, "`/authorize` against a
+session that is already live"). With a live session cookie, a plain request is answered with a
+code (the session is reused); `max_age=0` and `prompt=login` each render the login form instead;
+`max_age=300` reuses a session younger than that and renders the login form once the session's
+`created_at` is older, and the sign-in that follows opens a new session whose `created_at` is
+current. `auth_time` is the session's `created_at` (`authorization-request.ts`
+`authTime: session.createdAt`), and the access token names that session by `sid`: the gate reads
+the one row. A session that has ended or expired answers `401` with no challenge.
+
 ### S2: the `acr` a session earns
 
 `acrFor` (`packages/protocol-oidc/src/service/acr.ts`) returns `'2'` when the

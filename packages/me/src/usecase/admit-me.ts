@@ -8,6 +8,10 @@ export interface MeTenant {
   readonly id: string;
   readonly enabled: boolean;
   readonly lifespans: MeSessionLifespans;
+  // How recent a sign-in a gated change needs, in seconds.
+  readonly freshnessSeconds: number;
+  // Whether the tenant lets a person change their own username.
+  readonly usernameEditable: boolean;
 }
 
 export interface AdmitMeDeps extends ValidateMeTokenDeps {
@@ -34,6 +38,8 @@ export interface MeCaller {
   readonly clientId: string;
   // The tenant's current issuer, the one a logout token it queues names.
   readonly issuer: string;
+  readonly freshnessSeconds: number;
+  readonly usernameEditable: boolean;
 }
 
 export type MeAdmission =
@@ -85,6 +91,8 @@ async function admitMe(
       subjectId: outcome.subjectId,
       sessionId: outcome.sessionId,
       lifespans: tenant.lifespans,
+      freshnessSeconds: tenant.freshnessSeconds,
+      usernameEditable: tenant.usernameEditable,
       clientId: outcome.clientId,
       issuer: addressIssuer(input.address),
     },

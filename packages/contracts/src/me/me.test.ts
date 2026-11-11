@@ -91,17 +91,23 @@ describe('meAmendProfileRequestSchema', () => {
     expect(meAmendProfileRequestSchema.parse(body)).toEqual(body);
   });
 
-  it.each([
-    'email',
-    'username',
-    'email_verified',
-    'phone_number_verified',
-    'profile_updated_at',
-    'sub',
-    'enabled',
-  ])('refuses %s, which a person does not set here', (member) => {
-    expect(meAmendProfileRequestSchema.safeParse({ [member]: 'x' }).success).toBe(false);
+  it('takes a username, which the route gates, and an email, which it refuses by name', () => {
+    expect(meAmendProfileRequestSchema.parse({ username: 'ada2', email: 'a@b.example' })).toEqual({
+      username: 'ada2',
+      email: 'a@b.example',
+    });
   });
+
+  it.each(['', 'a\u0000b', 4])('refuses the username %j', (username) => {
+    expect(meAmendProfileRequestSchema.safeParse({ username }).success).toBe(false);
+  });
+
+  it.each(['email_verified', 'phone_number_verified', 'profile_updated_at', 'sub', 'enabled'])(
+    'refuses %s, which a person does not set here',
+    (member) => {
+      expect(meAmendProfileRequestSchema.safeParse({ [member]: 'x' }).success).toBe(false);
+    },
+  );
 
   it('refuses a body with no member at all', () => {
     expect(meAmendProfileRequestSchema.safeParse({}).success).toBe(false);
