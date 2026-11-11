@@ -51,13 +51,12 @@ Full transcript: [Changing an authenticator](../reference/transcripts/request-pa
 ## 3. Handle what comes back
 
 The browser returns to the redirect address with `code`, `state` and `iss` as for any sign-in, and `action_status`, which is
-`success`, `cancelled` or `error`. Here the person confirmed an authenticator and saved the recovery codes it owes, and left
-nothing undone:
+`success`, `cancelled` or `error`. Here the person confirmed an authenticator and saved the recovery codes it owes:
 
 ```
 page: Save your recovery codes
 cancel control: no
-location: http://127.0.0.1:8080/callback?code=IwXbXvAoqyYKGLPtFbPkmxcJR6acBKA3IAPrdy_bIPc&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+location: http://127.0.0.1:8080/callback?code=DiPd6RbLKYadpr1a2PblolafG2NdE2MCCzSpRwkpySw&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 ```
 
 A person who closes the tab sends nothing, so an application that waits for this redirect must be able to go on without it.
@@ -66,9 +65,17 @@ Full transcript: [Changing an authenticator](../reference/transcripts/request-pa
 
 ## 4. Check the result, and never trust the status alone
 
-`action_status` travels through the browser, and anyone can type it into an address. Use it to decide what to show, and read what
-happened from the me API with the token the code buys: the credential list says which credentials the person holds, and counts
-the recovery codes left.
+`action_status` is a hint. It travels through the browser, and anyone can type it into an address, and a person who closes the tab
+sends nothing at all. The authority is the me API: read `GET /me/credentials` with the token the code buys, and decide from that.
+What to read depends on the action:
+
+- `configure-totp` and `configure-passkey`: the credential list. The new authenticator is there by its type.
+- `generate-recovery-codes`: `recovery_codes_left` in the same answer.
+- `update-password`: the list shows the password by type either way, so it cannot show a change. Each credential lists when it was
+  made, and a new password is dated from the change, so compare the password's `created_at` from before the action with the one
+  after it. Section 5 shows it.
+
+For the authenticator, the list and the count look like this:
 
 ```bash
 GRACE=$(token)
@@ -89,19 +96,21 @@ shows the new codes has no way to cancel, because it would then say `cancelled` 
 ```
 answered: HTTP/1.1 200 OK
 This replaces your current recovery codes. The old ones stop working as soon as you confirm.
-location: http://127.0.0.1:8080/callback?code=ahZ89Pac1Rb4DSg5ZLZhO_SmReyazClP6vi2GTWXHgs&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=lQIoRIkD8ArS6vM17vKwylvG-wMKqo9NA08CWbhnANk&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 Full transcript: [Replacing the recovery codes](../reference/transcripts/request-paths/sending-a-person-to-change-a-credential.md#replacing-the-recovery-codes).
 
 A requested password change asks for the current password first. A wrong answer counts as a failed sign-in against the tenant's
 lockout, so a person who is asked for it can be locked out by guessing, as at the sign-in page. The right answer changes the
-password and ends the run of failures:
+password and ends the run of failures. The last line shows the check of section 4 for a password, the `created_at` of the
+password read before the action and after it:
 
 ```
-{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-11T21:36:45.677Z"}
-location: http://127.0.0.1:8080/callback?code=V3ixQkWqe6Rp0n3UjCxg6-kxUUNvRj8wJVed_sJ6X_M&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-11T22:09:56.650Z"}
+location: http://127.0.0.1:8080/callback?code=cBZPvpnOQI6zTdAoK3MlJ8U_2GkPpHb5ZinXvcqgGAo&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 {"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
+password made: before 2026-11-11T22:09:54.186Z, after 2026-11-11T22:09:56.728Z
 ```
 
 Full transcript: [Changing the password](../reference/transcripts/request-paths/sending-a-person-to-change-a-credential.md#changing-the-password).
@@ -110,7 +119,8 @@ Full transcript: [Changing the password](../reference/transcripts/request-paths/
 
 An action the client is not allowed, an unknown name, the parameter twice and the parameter empty are each refused with
 `invalid_request` at the redirect address, and no page is shown. An action the person's account cannot take, such as recovery codes
-for a person with no authenticator, shows a page at Odudu that says so and links back with `action_status=error`:
+for a person with no authenticator, shows a page at Odudu that says so and links back with `action_status=error`. That status is a
+hint too: the credential list is still where the application looks.
 
 ```
 HTTP/1.1 400 Bad Request

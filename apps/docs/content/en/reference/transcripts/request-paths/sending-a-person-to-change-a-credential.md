@@ -68,6 +68,7 @@ token() { # the access token for the code the last redirect carried
     $T/protocol/openid-connect/token | jq -r .access_token
 }
 credentials() { curl -sS -H "Authorization: Bearer $1" $ME/credentials | jq -c '{types: [.items[].type], recovery_codes_left}'; }
+made() { curl -sS -H "Authorization: Bearer $1" $ME/credentials | jq -r '.items[] | select(.type == "password") | .created_at'; }
 totp() { node --input-type=module -e "
 import { totpCode, totpCounter } from './packages/crypto/src/service/totp.ts';
 console.log(totpCode('$1', totpCounter(new Date())));
@@ -85,11 +86,11 @@ curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/cli
 ```
 
 ```
-{"created":true,"tenant":"actions-demo","tenantId":"01a1cc8a-ac86-700b-978f-7f168912986a","clientId":"demo-spa","userSubjectId":"01a1cc8a-ad20-73b6-880f-416df0bd55a1"}
-{"command":"user","tenant":"actions-demo","tenantId":"01a1cc8a-ac86-700b-978f-7f168912986a","username":"lin","userSubjectId":"01a1cc8a-aef9-7c14-b64c-fdf0f6c4489b"}
-{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cc8a-ac86-700b-978f-7f168912986a","clientId":"plain-app","clientDbId":"01a1cc8a-b099-73bc-b58a-881d0b2f7685"}
-{"command":"assign-scope","tenant":"actions-demo","tenantId":"01a1cc8a-ac86-700b-978f-7f168912986a","clientId":"plain-app","scope":"me:read","assignment":"optional"}
-{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cc8a-ac86-700b-978f-7f168912986a","clientId":"profile-app","clientDbId":"01a1cc8a-b3ab-7fa4-be1d-cfad90803710"}
+{"created":true,"tenant":"actions-demo","tenantId":"01a1cca9-0daf-74c3-b765-5e1e4c75d3f6","clientId":"demo-spa","userSubjectId":"01a1cca9-0e78-71cb-8fcd-b1be74d7aeff"}
+{"command":"user","tenant":"actions-demo","tenantId":"01a1cca9-0daf-74c3-b765-5e1e4c75d3f6","username":"lin","userSubjectId":"01a1cca9-100f-7a7b-b660-faa87b4a62c4"}
+{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cca9-0daf-74c3-b765-5e1e4c75d3f6","clientId":"plain-app","clientDbId":"01a1cca9-11ac-73b8-afb1-9f7a4bc25be2"}
+{"command":"assign-scope","tenant":"actions-demo","tenantId":"01a1cca9-0daf-74c3-b765-5e1e4c75d3f6","clientId":"plain-app","scope":"me:read","assignment":"optional"}
+{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cca9-0daf-74c3-b765-5e1e4c75d3f6","clientId":"profile-app","clientDbId":"01a1cca9-14bf-76c4-a2bb-315702b0e7f7"}
 {"client_id":"profile-app","type":"public","allowed_actions":["update-password","configure-totp","configure-passkey","generate-recovery-codes"],"scopes":["me:read"]}
 ```
 
@@ -159,7 +160,7 @@ back
 ```
 page: Save your recovery codes
 cancel control: no
-location: http://127.0.0.1:8080/callback?code=IwXbXvAoqyYKGLPtFbPkmxcJR6acBKA3IAPrdy_bIPc&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+location: http://127.0.0.1:8080/callback?code=DiPd6RbLKYadpr1a2PblolafG2NdE2MCCzSpRwkpySw&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 ```
 
 `action_status` is a hint that travelled through the browser, and anyone can type it into an address. The outcome is in the credential
@@ -190,7 +191,7 @@ back
 ```
 answered: HTTP/1.1 200 OK
 This replaces your current recovery codes. The old ones stop working as soon as you confirm.
-location: http://127.0.0.1:8080/callback?code=ahZ89Pac1Rb4DSg5ZLZhO_SmReyazClP6vi2GTWXHgs&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=lQIoRIkD8ArS6vM17vKwylvG-wMKqo9NA08CWbhnANk&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 Asked again, and this time confirmed, the page replaces the set and shows the new codes once. It has no control to leave, because
@@ -209,7 +210,7 @@ back
 page: Save your recovery codes
 cancel control: no
 codes shown: 10
-location: http://127.0.0.1:8080/callback?code=PmTQRK04qCWP0IR7K2Jjaev2pasWNOmQYWMSZ71ljXI&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+location: http://127.0.0.1:8080/callback?code=0bgzlc1oMRF8fpTwfMuu8c94o3rX_Lxd5b6Q8cJp3u8&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 ```
 
 ## Changing the password
@@ -217,15 +218,21 @@ location: http://127.0.0.1:8080/callback?code=PmTQRK04qCWP0IR7K2Jjaev2pasWNOmQYW
 The password page of a requested change says an application asked, and wants the password in force before it takes a new one. `lin`
 signs in for it. A wrong current password is refused on the page and counts as a failed sign-in against the tenant's lockout, so
 a person who is asked for it can be locked out by guessing, as at the sign-in page; the right one changes the password and ends the
-run of failures. The lockout is read through the admin API after each answer:
+run of failures. The lockout is read through the admin API after each answer.
+
+The credential list cannot show a password change, because it lists the password by type like any other. What it does list for
+each credential is when it was made, and a new password is dated from the change, so the application reads the password's
+`created_at` with a token from a sign-in before the change and with the token the redirect's code buys after it:
 
 ```bash
 rm -f jar
 LIN_ID=$(curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/subjects?username=lin" | jq -r '.items[0].id')
-authorize profile-app "action=update-password"
+authorize profile-app ""
 step authenticate --data-urlencode username=lin --data-urlencode password=correct-horse-battery
-shown
-grep -o 'name="current_password"' step.html
+BEFORE=$(made "$(token)")
+authorize profile-app "action=update-password"
+shown auth.html
+grep -o 'name="current_password"' auth.html
 step "required-action?action=update-password" --data-urlencode current_password=wrong --data-urlencode password=another-horse-battery-2
 head -1 step.headers | tr -d '\r'
 grep -o 'The current password is not correct.' step.html
@@ -234,6 +241,8 @@ step "required-action?action=update-password" --data-urlencode current_password=
   --data-urlencode password=another-horse-battery-2
 back
 curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/subjects/$LIN_ID/lockout"; echo
+AFTER=$(made "$(token)")
+echo "password made: before $BEFORE, after $AFTER"
 ```
 
 ```
@@ -242,9 +251,10 @@ cancel control: yes
 name="current_password"
 HTTP/1.1 400 Bad Request
 The current password is not correct.
-{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-11T21:36:45.677Z"}
-location: http://127.0.0.1:8080/callback?code=V3ixQkWqe6Rp0n3UjCxg6-kxUUNvRj8wJVed_sJ6X_M&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-11T22:09:56.650Z"}
+location: http://127.0.0.1:8080/callback?code=cBZPvpnOQI6zTdAoK3MlJ8U_2GkPpHb5ZinXvcqgGAo&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 {"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
+password made: before 2026-11-11T22:09:54.186Z, after 2026-11-11T22:09:56.728Z
 ```
 
 ## A sign-in older than the window
@@ -292,11 +302,11 @@ back
 ```
 
 ```
-location: http://127.0.0.1:8080/callback?code=B-3IOSmiuO9rtfXk3f5yF-MWZObmZG07RgCneHvECtw&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=aiS6wogZGnDqbsdofwHDysRVryBYQVkG_4bUZ80fU5Y&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 {"types":["password"],"recovery_codes_left":0}
 page: Add a passkey
 cancel control: yes
-location: http://127.0.0.1:8080/callback?code=q-Scqq8Q3Hzgr-BCZrwKmcskKh8B4Ke2Mgu0_k73x3o&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=0_97O8es2KpJBl7CAjK-Zq3NW6cFr3UvQPGHwT0OJQ0&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 ## An action the account cannot take

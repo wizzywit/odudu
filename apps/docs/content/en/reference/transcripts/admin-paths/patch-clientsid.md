@@ -81,10 +81,10 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: holds 201 entries, at most 200","errors":[{"path":"web_origins","message":"holds 201 entries, at most 200"}],"instance":"01a1cc86-7113-7e97-acd1-426225903f7a"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a1cc86-7129-7fb6-be51-11d488bb2b5f"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: web_origins entry \"https://app.example/\" is not an origin: expected a scheme and host with no path, or \"+\" for every registered redirect URI's origin","errors":[{"path":"web_origins","message":"web_origins entry \"https://app.example/\" is not an origin: expected a scheme and host with no path, or \"+\" for every registered redirect URI's origin"}],"instance":"01a1cc86-7140-727c-a2f0-32fc449d40bc"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris entry http://billing.example/cb is not valid","errors":[{"path":"redirect_uris","message":"redirect_uris entry http://billing.example/cb is not valid"}],"instance":"01a1cc86-7156-7739-af78-fa1c8ad9f667"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: holds 201 entries, at most 200","errors":[{"path":"web_origins","message":"holds 201 entries, at most 200"}],"instance":"01a1cca8-d50d-7665-ad0d-3bb6c9332452"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a1cca8-d529-7920-b384-db8f10086afe"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: web_origins entry \"https://app.example/\" is not an origin: expected a scheme and host with no path, or \"+\" for every registered redirect URI's origin","errors":[{"path":"web_origins","message":"web_origins entry \"https://app.example/\" is not an origin: expected a scheme and host with no path, or \"+\" for every registered redirect URI's origin"}],"instance":"01a1cca8-d540-79bb-ba1a-618dc8b86014"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris entry http://billing.example/cb is not valid","errors":[{"path":"redirect_uris","message":"redirect_uris entry http://billing.example/cb is not valid"}],"instance":"01a1cca8-d556-7f48-a05f-d8a82d3a53ff"}
 ```
 
 The same call with 200 origins, `at-origins.json`, answered `200`, and
@@ -114,8 +114,8 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a1cc86-7190-7982-98da-ae2df69aecfa"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: holds 201 entries, at most 200","errors":[{"path":"web_origins","message":"holds 201 entries, at most 200"}],"instance":"01a1cc86-71a3-704f-840d-97953e9bb8b4"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a1cca8-d5a3-7c84-ad75-5bab208ade8b"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: holds 201 entries, at most 200","errors":[{"path":"web_origins","message":"holds 201 entries, at most 200"}],"instance":"01a1cca8-d5b5-7dec-a2c6-d9c40c55b48d"}
 ```
 
 **A client stored over the limit** — registered before it existed — is not
@@ -138,7 +138,7 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 UPDATE 1
 200
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a1cc86-7245-77d7-ac8f-9cbf5c119342"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a1cca8-d65b-71d1-858b-c898c4f1640b"}
 ```
 
 The `PATCH` that left `redirect_uris` alone was `200`; one that sends a list
@@ -157,7 +157,7 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 [{"client_id":"billing","redirect_uris":1},{"client_id":"legacy","redirect_uris":201},{"client_id":"odudu-mcp","redirect_uris":2}]
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.clients[1].redirect_uris","message":"holds 201 entries, at most 200"}],"instance":"01a1cc86-728a-7a65-ab69-488f6f7a8fd6"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.clients[1].redirect_uris","message":"holds 201 entries, at most 200"}],"instance":"01a1cca8-d69e-767a-87e9-42cf0e6346c3"}
 ```
 
 `odudu seed client` refuses a list over the limit in the same words, before it
@@ -196,7 +196,7 @@ jq -c '{client_id, grant_types, service_subject_id, service_account_admin_reach}
 ```
 
 ```
-"7adc5f34008ea848b3d0d2c9511b85f459c585458abef4f4867195e116600a12"
+"06a3c6f5bbd22c36fc5490fa718841a6ae8cbd6fe79679df68809865b40253ab"
 {"client_id":"billing","grant_types":["authorization_code"],"service_subject_id":null,"service_account_admin_reach":[]}
 ```
 
@@ -213,10 +213,10 @@ jq -c '{client_id, service_account_admin_reach}' body.json
 
 ```
 HTTP/1.1 200 OK
-etag: "469330da80da934f0c4b0d5814569462d697b58096c54e550d1563083f733547"
+etag: "deab1de4384bd9105441e077f2001fcda4a817df85817c234a1017b8430621ea"
 {"client_id":"billing","grant_types":["authorization_code","client_credentials"],"has_service_account":true,"service_account_admin_reach":[]}
 INSERT 0 1
-etag: "469330da80da934f0c4b0d5814569462d697b58096c54e550d1563083f733547"
+etag: "deab1de4384bd9105441e077f2001fcda4a817df85817c234a1017b8430621ea"
 {"client_id":"billing","service_account_admin_reach":["view-users","manage-users"]}
 ```
 
@@ -233,7 +233,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients?client_id_exact=bil
 
 ```
 [{"client_id":"billing","service_account_admin_reach":["view-users","manage-users"]}]
-{"items":[]}{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id, client_id_exact or name, not more than one","errors":[{"path":"name","message":"search one field at a time: client_id, client_id_exact or name, not more than one"}],"instance":"01a1cc86-7592-79e7-a1e3-ac6a36b03e71"}
+{"items":[]}{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id, client_id_exact or name, not more than one","errors":[{"path":"name","message":"search one field at a time: client_id, client_id_exact or name, not more than one"}],"instance":"01a1cca8-d925-7fa4-8d50-75b00d8d93ab"}
 ```
 
 **A service account follows the grant.** Taking `client_credentials` out of a
@@ -329,7 +329,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$OID | jq -c '{grant
 
 ```
 INSERT 0 1
-{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a1cc86-7b96-7816-8c84-60e949559f69"}
+{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a1cca8-dd2b-775c-9d2e-5da75eaeb5ca"}
 {"grant_types":["authorization_code","client_credentials"],"has_service_account":true}
 ```
 
@@ -405,8 +405,8 @@ curl -sS -X PATCH \
 ```
 
 ```
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to amend redirect_uris","instance":"01a1cc86-7ceb-717e-b889-5f88ae162d9a"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"client_id: identity: changing it breaks every relying party and orphans the azp of every issued token","errors":[{"path":"client_id","message":"identity: changing it breaks every relying party and orphans the azp of every issued token"}],"instance":"01a1cc86-7d1b-7439-9772-c66abe8b5ef6"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to amend redirect_uris","instance":"01a1cca8-de87-7895-86d3-8a4b54299b1c"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"client_id: identity: changing it breaks every relying party and orphans the azp of every issued token","errors":[{"path":"client_id","message":"identity: changing it breaks every relying party and orphans the azp of every issued token"}],"instance":"01a1cca8-de9f-7c1b-b6f2-65d197c2e237"}
 ```
 
 The revalidation is not a formality. Widening `demo-operator`'s grants
@@ -423,7 +423,7 @@ curl -sS -X PATCH \
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris is required unless grant_types is exactly [\"client_credentials\"]","errors":[{"path":"redirect_uris","message":"redirect_uris is required unless grant_types is exactly [\"client_credentials\"]"}],"instance":"01a1cc86-7d47-71fa-8692-dd08488096f1"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris is required unless grant_types is exactly [\"client_credentials\"]","errors":[{"path":"redirect_uris","message":"redirect_uris is required unless grant_types is exactly [\"client_credentials\"]"}],"instance":"01a1cca8-deb4-7ab3-97a4-5e1352cf292f"}
 ```
 
 An amendment that does pass, with that same `ETag`, and the fresh one it
@@ -440,12 +440,12 @@ curl -sS -D - -o /dev/null -X PATCH \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1cc86-7d66-7ce4-8e55-a5d4dcb72933
+x-request-id: 01a1cca8-dec8-732b-b99b-06ce3f25244f
 cache-control: no-store
-etag: "96708797d80abf1b25377fce7183a10fceadbd3f1d2f0f49fc9e373fb6bd2e2a"
+etag: "ec4c747d29acc23f0c2ff2e45d5fc718eb26704603a62bb3609d7c88f4d5f535"
 content-type: application/json; charset=utf-8
 content-length: 2159
-Date: Wed, 11 Nov 2026 21:32:08 GMT
+Date: Wed, 11 Nov 2026 22:09:41 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -465,7 +465,7 @@ curl -sS -X PATCH \
 ```
 
 ```
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1cc86-7db0-77fc-86a5-90189e2cb260"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1cca8-df04-7eda-8794-9e6c9361da2f"}
 ```
 
 **The two `409`s that disabling produces are told apart by one column, and
@@ -510,7 +510,7 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"id":"01a1cc86-7e6f-79d3-8034-10d769746cce","client_id":"demo-backend","name":"demo-backend","description":null,"name_i18n":{},"description_i18n":{},"type":"confidential","enabled":false,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-11-11T21:32:08.657Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"allowed_actions":[],"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a1cc86-7e71-79dc-9ea5-d8252ecc5a8d","scopes":[{"id":"01a1cc86-7de2-7ec0-b608-7ce7169eafd9","name":"address","assignment":"default"},{"id":"01a1cc86-7de1-73aa-8b57-7e8002794228","name":"email","assignment":"default"},{"id":"01a1cc86-7ded-72c8-8aa9-47c1331ed31e","name":"groups","assignment":"default"},{"id":"01a1cc86-7df0-7f1c-b833-a826427f918c","name":"offline_access","assignment":"optional"},{"id":"01a1cc86-7dde-7390-9ed4-58b6d2563a63","name":"openid","assignment":"default"},{"id":"01a1cc86-7de5-75dd-94c9-de68647f9f6e","name":"phone","assignment":"default"},{"id":"01a1cc86-7ddf-70d3-bc1e-fb559250917d","name":"profile","assignment":"default"},{"id":"01a1cc86-7de9-7fff-bae8-3d4c8f6cb685","name":"roles","assignment":"default"}],"service_account_admin_reach":[],"supported_locales":["en"]}
+{"id":"01a1cca8-dfa6-7d14-bd8a-784154d7193b","client_id":"demo-backend","name":"demo-backend","description":null,"name_i18n":{},"description_i18n":{},"type":"confidential","enabled":false,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-11-11T22:09:41.771Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"allowed_actions":[],"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a1cca8-dfa8-7d12-9e0e-fa7dbe8a3ba3","scopes":[{"id":"01a1cca8-df3b-7149-a2ea-52f324c1098f","name":"address","assignment":"default"},{"id":"01a1cca8-df39-77d0-8e7e-88251a700d68","name":"email","assignment":"default"},{"id":"01a1cca8-df3e-702c-8a81-1af361b5edbb","name":"groups","assignment":"default"},{"id":"01a1cca8-df3f-71c0-b335-dab6c6231c50","name":"offline_access","assignment":"optional"},{"id":"01a1cca8-df37-7958-9600-dee16c1d75c6","name":"openid","assignment":"default"},{"id":"01a1cca8-df3c-7adf-aecd-79cfe962fb61","name":"phone","assignment":"default"},{"id":"01a1cca8-df38-750c-98f1-09f08e3b08b8","name":"profile","assignment":"default"},{"id":"01a1cca8-df3d-7747-be6e-451309efa938","name":"roles","assignment":"default"}],"service_account_admin_reach":[],"supported_locales":["en"]}
 ```
 
 This block was run again after the token exchange limits joined the client, so its ids and times are not those of the blocks around it.
@@ -525,7 +525,7 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be disabled","instance":"01a1cc86-7f87-73ec-ac3f-5381a52b295c"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be disabled","instance":"01a1cca8-e0a5-7633-8f27-5b828afd0390"}
 ```
 
 ## A client's pages and its ID token settings
@@ -555,7 +555,7 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"id":"01a1cc86-801a-7c64-9b82-1e69b3db48c7","client_id":"billing","name":"billing","description":"Invoices and payment runs","name_i18n":{},"description_i18n":{},"type":"confidential","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-11-11T21:32:09.083Z","redirect_uris":["https://billing.example/callback"],"grant_types":["authorization_code","client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":"https://billing.example/about","policy_uri":"https://billing.example/privacy","tos_uri":"https://billing.example/terms","id_token_signed_response_alg":"ES256","default_max_age":3600,"require_auth_time":true,"allowed_actions":[],"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a1cc86-801c-7daf-8be8-db07a50495cb","scopes":[{"id":"01a1cc86-7fac-7546-8d25-1a5cd274145a","name":"address","assignment":"default"},{"id":"01a1cc86-7fab-794f-ac24-94d7aba296b9","name":"email","assignment":"default"},{"id":"01a1cc86-7fb0-747d-bd36-887a6ad0089b","name":"groups","assignment":"default"},{"id":"01a1cc86-7fb1-78cf-b6d3-0def0d278d6e","name":"offline_access","assignment":"optional"},{"id":"01a1cc86-7fa9-7ffa-a35b-e12f5479be24","name":"openid","assignment":"default"},{"id":"01a1cc86-7fae-791f-8e13-2b4281964d35","name":"phone","assignment":"default"},{"id":"01a1cc86-7faa-7c70-969b-d866812827ac","name":"profile","assignment":"default"},{"id":"01a1cc86-7faf-791e-910d-faef62f6f050","name":"roles","assignment":"default"}],"service_account_admin_reach":[],"client_secret":"JK6S8S_GE51CzGvMvb4G1wdxsFjKCYQ9s5p-M4UmAx4"}
+{"id":"01a1cca8-e134-7e13-9fea-4f8edb4a9f6a","client_id":"billing","name":"billing","description":"Invoices and payment runs","name_i18n":{},"description_i18n":{},"type":"confidential","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-11-11T22:09:42.162Z","redirect_uris":["https://billing.example/callback"],"grant_types":["authorization_code","client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":"https://billing.example/about","policy_uri":"https://billing.example/privacy","tos_uri":"https://billing.example/terms","id_token_signed_response_alg":"ES256","default_max_age":3600,"require_auth_time":true,"allowed_actions":[],"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a1cca8-e136-755c-8b4a-5e3cd44d55e4","scopes":[{"id":"01a1cca8-e0c8-759d-8371-1317b9a01af1","name":"address","assignment":"default"},{"id":"01a1cca8-e0c7-7455-9029-c32358f25811","name":"email","assignment":"default"},{"id":"01a1cca8-e0cb-7090-8d16-309550d8cf7b","name":"groups","assignment":"default"},{"id":"01a1cca8-e0cd-777b-8e81-21d035f5f61a","name":"offline_access","assignment":"optional"},{"id":"01a1cca8-e0c4-7da0-afba-f9b05ff9fb07","name":"openid","assignment":"default"},{"id":"01a1cca8-e0c9-785f-a246-18bf5d38f79a","name":"phone","assignment":"default"},{"id":"01a1cca8-e0c6-7d92-ad77-41c6235be9ee","name":"profile","assignment":"default"},{"id":"01a1cca8-e0ca-7d03-8fe9-4c8eb289cb83","name":"roles","assignment":"default"}],"service_account_admin_reach":[],"client_secret":"A2kX2e2H_or0LzP3b8N5Xn37HjEu39M1uLLqhMiHLcE"}
 ```
 
 This block was run again after the token exchange limits joined the client, so its ids and times are not those of the blocks around it.
@@ -578,7 +578,7 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"policy_uri must be an absolute https URI, or http on a loopback host, with no fragment","errors":[{"path":"policy_uri","message":"policy_uri must be an absolute https URI, or http on a loopback host, with no fragment"}],"instance":"01a1cc86-8074-71a4-a446-193a64cc7d7c"}{"type":"about:blank","title":"Bad Request","status":400,"detail":"id_token_signed_response_alg: id_token_signed_response_alg RS256 is not produced by any of this tenant's signing keys (ES256)","errors":[{"path":"id_token_signed_response_alg","message":"id_token_signed_response_alg RS256 is not produced by any of this tenant's signing keys (ES256)"}],"instance":"01a1cc86-808e-7bcc-bfff-9820b98a53b2"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"policy_uri must be an absolute https URI, or http on a loopback host, with no fragment","errors":[{"path":"policy_uri","message":"policy_uri must be an absolute https URI, or http on a loopback host, with no fragment"}],"instance":"01a1cca8-e187-7835-b80d-0688d499c759"}{"type":"about:blank","title":"Bad Request","status":400,"detail":"id_token_signed_response_alg: id_token_signed_response_alg RS256 is not produced by any of this tenant's signing keys (ES256)","errors":[{"path":"id_token_signed_response_alg","message":"id_token_signed_response_alg RS256 is not produced by any of this tenant's signing keys (ES256)"}],"instance":"01a1cca8-e19d-7657-87d3-0ff40d8d4d67"}
 ```
 
 ## Turning the logout confirmation off for one client
@@ -626,19 +626,19 @@ grep -iE '^HTTP|^etag' patch.txt; grep -o '"skip_logout_confirmation":[a-z]*' pa
 
 ```
 HTTP/1.1 200 OK
-etag: "20c9c14c7f6413a4a79623b6cbba64d1611773ace8f294ed37735e322bd1f08a"
+etag: "105d31f9c9dc6959ec8b354e19fc25d25be2c1ccd95216c1afb979597a3860ca"
 content-length: 2114
 "skip_logout_confirmation":false
 # a stale If-Match
 HTTP/1.1 412 Precondition Failed
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1cc86-82e2-7cc3-a377-cd8eebc6adf5"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1cca8-e387-73b2-9044-ea20d106ba71"}
 # not a boolean
 HTTP/1.1 400 Bad Request
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"skip_logout_confirmation: skip_logout_confirmation must be a boolean","errors":[{"path":"skip_logout_confirmation","message":"skip_logout_confirmation must be a boolean"}],"instance":"01a1cc86-82f8-7396-859a-6e3c94f834f3"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"skip_logout_confirmation: skip_logout_confirmation must be a boolean","errors":[{"path":"skip_logout_confirmation","message":"skip_logout_confirmation must be a boolean"}],"instance":"01a1cca8-e39e-7aa1-a4bc-526e35f69715"}
 # the current If-Match
-"20c9c14c7f6413a4a79623b6cbba64d1611773ace8f294ed37735e322bd1f08a"
+"105d31f9c9dc6959ec8b354e19fc25d25be2c1ccd95216c1afb979597a3860ca"
 HTTP/1.1 200 OK
-etag: "31a867d39c40020ef1f0f003fb7995561030b94bade598b0e289e448001d2c26"
+etag: "ba44ce78021f153223155e167321e2d5f403f9eed1717af49ba9c2831e794acb"
 "skip_logout_confirmation":true
 ```
 
@@ -665,7 +665,7 @@ psql -c "select a.action, a.outcome, a.detail from audit_events a join tenants t
 `allowed_actions` lists the credential changes a client may send a person to through `/authorize`, with the `action` parameter
 ([the run](../request-paths/sending-a-person-to-change-a-credential.md)): `update-password`, `configure-totp`,
 `configure-passkey` and `generate-recovery-codes`. It is empty by default, a create takes it as well, and it is amended as a
-whole list like the six above, so an amend needs the `ETag` in `If-Match`, and one without it is refused with `428`. A client with any entry has to hold the scope `me:read`, which is how it reads the
+whole list like the six above, so an amend needs the `ETag` in `If-Match`, and one without it is refused with `428`, but only once the rest of the request is valid: a client without `me:read` is refused with `400` whether or not the header is sent. A client with any entry has to hold the scope `me:read`, which is how it reads the
 outcome from the me API, so a create or an amend that names an action for a client without it is refused with `400` and the
 code `allowed_actions_need_me_read`, in the `errors` entry. A name that is not one of the four is refused naming it. In the tenant
 `actions-fields-demo`, which this section makes, the client `profile-app`:
@@ -681,18 +681,22 @@ echo "# created without"
 curl -sS -X POST -H "$A" -H "$J" -d "$BODY}" $P/clients | jq -c '{client_id, allowed_actions}'
 ID=$(curl -sS -H "$A" "$P/clients?client_id_exact=profile-app" | jq -r '.items[0].id')
 etag() { curl -sS -D - -o /dev/null -H "$A" $P/clients/$ID | tr -d '\r' | sed -n 's/^etag: //p'; }
-echo "# amended with an action and no me:read"
+echo "# amended with no If-Match, and no me:read"
+curl -sS -D - -X PATCH -H "$A" -H "$J" -d '{"allowed_actions":["update-password"]}' $P/clients/$ID | sed -n '1p;/^{/p'
+echo "# amended with If-Match, and no me:read"
 curl -sS -D - -X PATCH -H "$A" -H "$J" -H "If-Match: $(etag)" -d '{"allowed_actions":["update-password"]}' $P/clients/$ID | sed -n '1p;/^{/p'
 ```
 
 ```
 # created with an action and no me:read
 HTTP/1.1 400 Bad Request
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1cc86-83f5-7cc5-a1be-a1c4efca464d"}# created without
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1cca8-e48d-7769-bfb0-c363f6a57bde"}# created without
 {"client_id":"profile-app","allowed_actions":[]}
-# amended with an action and no me:read
+# amended with no If-Match, and no me:read
 HTTP/1.1 400 Bad Request
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1cc86-844d-79d1-9a87-6158ebea33eb"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1cca8-e4d0-7038-ac1b-a6c04fdd2341"}# amended with If-Match, and no me:read
+HTTP/1.1 400 Bad Request
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1cca8-e4fb-7063-915d-73afcc1946f1"}
 ```
 
 Once `me:read` is assigned to the client, an amend with no `If-Match` is refused with `428`, and one with it is accepted, and the
@@ -710,7 +714,7 @@ curl -sS -X PATCH -H "$A" -H "$J" -H "If-Match: $(etag)" -d '{"allowed_actions":
 
 ```
 HTTP/1.1 428 Precondition Required
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to amend allowed_actions","instance":"01a1cc86-848f-7f81-ab4b-38ec34b635ac"}{"allowed_actions":["update-password","configure-totp"],"scopes":["me:read"]}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to amend allowed_actions","instance":"01a1cca8-e540-79ac-83db-9b763314ffe5"}{"allowed_actions":["update-password","configure-totp"],"scopes":["me:read"]}
 HTTP/1.1 400 Bad Request
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: allowed_actions entry \"delete-account\" is not an action a client may start: update-password, configure-totp, configure-passkey, generate-recovery-codes","errors":[{"path":"allowed_actions","message":"allowed_actions entry \"delete-account\" is not an action a client may start: update-password, configure-totp, configure-passkey, generate-recovery-codes"}],"instance":"01a1cc86-84f3-7df9-bead-e9acea710150"}{"allowed_actions":[]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: allowed_actions entry \"delete-account\" is not an action a client may start: update-password, configure-totp, configure-passkey, generate-recovery-codes","errors":[{"path":"allowed_actions","message":"allowed_actions entry \"delete-account\" is not an action a client may start: update-password, configure-totp, configure-passkey, generate-recovery-codes"}],"instance":"01a1cca8-e5a8-7de5-8343-1a130413d1e1"}{"allowed_actions":[]}
 ```
