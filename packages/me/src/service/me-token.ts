@@ -15,19 +15,11 @@ function nonEmpty(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-// The issuer a JWT names, read before its signature is checked and trusted for
-// nothing but choosing which of the tenant's issuers to verify against.
-export function unverifiedIssuer(token: string): string | undefined {
-  const segments = token.split('.');
-  const segment = segments[1];
-  if (segments.length !== 3 || segment === undefined || segment.length === 0) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
-    if (typeof parsed !== 'object' || parsed === null) return undefined;
-    return nonEmpty((parsed as Record<string, unknown>).iss);
-  } catch {
-    return undefined;
-  }
+// Whether `aud` is exactly `audience`: a string, or an array of that one
+// string. A token that names another audience as well is meant for another door.
+export function audienceIsOnly(aud: unknown, audience: string): boolean {
+  if (typeof aud === 'string') return aud === audience;
+  return Array.isArray(aud) && aud.length === 1 && aud[0] === audience;
 }
 
 // Null when a claim the door stands on is missing or unreadable. A present but

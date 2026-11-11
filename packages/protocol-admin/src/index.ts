@@ -258,12 +258,12 @@ import { type Audit as DomainAudit } from '#/usecase/domains';
 import { createVerifyThrottle, type VerifyThrottle } from '#/service/domain-throttle';
 import { type ResolveTxt } from '@odudu/domain-tenant';
 
+export { unverifiedIssuer } from '@odudu/protocol-oidc';
 export { ADMIN_ROUTES, type AdminCapability, type AdminRoute } from '#/service/capability';
 export {
   checkGrantLiveness,
   lifespansOf,
   resolveForeignIssuer,
-  unverifiedIssuer,
   verifyTenantAccessToken,
   type AdminAgent,
   type AdminPrincipal,

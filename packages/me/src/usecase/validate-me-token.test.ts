@@ -149,6 +149,21 @@ describe('a request the door refuses', () => {
     );
   });
 
+  it.each([
+    ['the MCP audience', [ME, mcpAudienceOfIssuer(ISSUER)]],
+    ['the admin audience', [ME, 'urn:odudu:admin-api']],
+    ['the issuer', [ME, ISSUER]],
+  ])('refuses a "me" token that also names %s', async (_l, aud) => {
+    expect(await validateMeToken(deps({ claims: { ...CLAIMS, aud } }), input())).toEqual(
+      refusal('invalid_token'),
+    );
+  });
+
+  it('accepts the "me" audience as a bare string', async () => {
+    const claims = { ...CLAIMS, aud: ME };
+    expect(await validateMeToken(deps({ claims }), input())).toMatchObject({ kind: 'ok' });
+  });
+
   it('refuses an expired token', async () => {
     const claims = { ...CLAIMS, exp: NOW_S - 1 };
     expect(await validateMeToken(deps({ claims }), input())).toEqual(refusal('invalid_token'));

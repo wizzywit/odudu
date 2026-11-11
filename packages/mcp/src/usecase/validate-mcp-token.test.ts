@@ -170,8 +170,9 @@ describe('a token that does not verify', () => {
     const me = meAudienceOfIssuer(ISSUER);
     for (const aud of [[me], [RESOURCE, me]]) {
       const claims = { ...CLAIMS, aud };
-      expect(await validateMcpToken(deps({ claims }), input())).toMatchObject({
+      expect(await validateMcpToken(deps({ claims }), input())).toEqual({
         kind: 'unauthenticated',
+        reason: 'me_audience',
       });
     }
   });

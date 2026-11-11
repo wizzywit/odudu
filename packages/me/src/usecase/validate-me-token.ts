@@ -1,6 +1,10 @@
 import { addressIssuer, addressUrl, ME_RESOURCE_PATH, type TenantAddress } from '@odudu/kernel';
-import { extractBearerToken, type AcceptedIssuersLookup } from '@odudu/protocol-oidc';
-import { meTokenClaims, unverifiedIssuer, type MeTokenClaims } from '#/service/me-token';
+import {
+  extractBearerToken,
+  unverifiedIssuer,
+  type AcceptedIssuersLookup,
+} from '@odudu/protocol-oidc';
+import { audienceIsOnly, meTokenClaims, type MeTokenClaims } from '#/service/me-token';
 
 export interface ValidateMeTokenDeps {
   // The issuers a token for this tenant may carry: its canonical address and
@@ -32,9 +36,8 @@ function refused(reason: string): MeAuthOutcome {
 }
 
 // The door of the "me" API: a JWT this tenant signed (`typ` `at+jwt`, an issuer
-// it accepts, unexpired) whose audience is the tenant's own "me" URL and no
-// other, so no token meant for another door is read as the person's own. What
-// the token's session and grant stand on is judged by the gate, not here.
+// it accepts, unexpired) whose audience is the tenant's own "me" URL alone.
+// Session and grant liveness are not checked here.
 export async function validateMeToken(
   deps: ValidateMeTokenDeps,
   input: ValidateMeTokenInput,
@@ -48,11 +51,13 @@ export async function validateMeToken(
   const accepted = await deps.acceptedIssuers(tenant, addressIssuer(input.address), input.now);
   if (!accepted.includes(iss)) return refused('issuer_mismatch');
 
+  const audience = addressUrl(input.address, ME_RESOURCE_PATH);
   const payload = await deps.verifyAccessToken(tenant.id, token, {
     issuers: accepted,
-    audience: addressUrl(input.address, ME_RESOURCE_PATH),
+    audience,
   });
   if (payload === null) return refused('invalid_token');
+  if (!audienceIsOnly(payload.aud, audience)) return refused('invalid_token');
 
   const claims = meTokenClaims(payload);
   if (claims === null) return refused('invalid_token');
