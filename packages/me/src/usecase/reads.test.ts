@@ -22,6 +22,8 @@ const CALLER: MeCaller = {
   tenantId: 'tenant-1',
   subjectId: 'subject-1',
   sessionId: ID_B,
+  clientId: 'app',
+  issuer: 'https://id.example.com/tenants/acme',
   lifespans: {
     ssoSessionIdleSeconds: 1800,
     ssoSessionMaxSeconds: 36_000,

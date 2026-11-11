@@ -26,6 +26,10 @@ export interface SessionView {
   readonly device: null;
 }
 
+export function isTokenSession(sessionId: string, tokenSessionId: string | null): boolean {
+  return tokenSessionId !== null && sessionId === tokenSessionId;
+}
+
 export function sessionView(record: MeSessionRecord, tokenSessionId: string | null): SessionView {
   return {
     id: record.id,
@@ -33,7 +37,7 @@ export function sessionView(record: MeSessionRecord, tokenSessionId: string | nu
     lastActiveAt: record.lastActiveAt,
     expiresAt: record.expiresAt,
     remembered: record.remembered,
-    current: tokenSessionId !== null && record.id === tokenSessionId,
+    current: isTokenSession(record.id, tokenSessionId),
     device: null,
   };
 }

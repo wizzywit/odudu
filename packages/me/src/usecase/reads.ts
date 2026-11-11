@@ -5,7 +5,7 @@ import { credentialViews, type CredentialView } from '#/service/credential-view'
 import { nextCursor, startAfter } from '#/service/cursor';
 import { fetchLimit, pageLimit, splitPage } from '#/service/page';
 import { sessionView, type SessionView } from '#/service/session-view';
-import type { MeCaller } from '#/usecase/admit-me-read';
+import type { MeCaller } from '#/usecase/admit-me';
 
 export type { MeCaller };
 

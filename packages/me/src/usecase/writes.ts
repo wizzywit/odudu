@@ -1,0 +1,142 @@
+import type { MeAmendProfileRequest } from '@odudu/contracts/me';
+import type { UserRecord } from '@odudu/domain-identity';
+import { isUuid } from '@odudu/kernel';
+import type { MeWrites } from '#/repository/writes';
+import {
+  consentRevokedEvent,
+  credentialRenamedEvent,
+  profileAmendedEvent,
+  sessionEndedEvent,
+  sessionsEndedEvent,
+} from '#/service/audit';
+import { credentialView, type CredentialView } from '#/service/credential-view';
+import { fetchLimit, splitPage } from '#/service/page';
+import { planProfileAmend } from '#/service/profile-amend';
+import { SESSION_END_LIMIT } from '#/service/session-end';
+import { isTokenSession } from '#/service/session-view';
+import type { MeCaller } from '#/usecase/admit-me';
+
+export interface MeWriteDeps {
+  readonly writes: MeWrites;
+  readonly now: () => Date;
+}
+
+const NOT_FOUND = { kind: 'not_found' } as const;
+
+const actorOf = (caller: MeCaller) => ({ subjectId: caller.subjectId, clientId: caller.clientId });
+
+export type AmendProfileOutcome =
+  | typeof NOT_FOUND
+  | { readonly kind: 'invalid_value'; readonly field: string; readonly description: string }
+  | { readonly kind: 'ok'; readonly profile: UserRecord };
+
+export function amendProfile(
+  deps: MeWriteDeps,
+  caller: MeCaller,
+  values: MeAmendProfileRequest,
+): Promise<AmendProfileOutcome> {
+  return deps.writes.transact(caller.tenantId, async (tx): Promise<AmendProfileOutcome> => {
+    const current = await tx.lockProfile(caller.subjectId);
+    if (current === null) return NOT_FOUND;
+    const plan = planProfileAmend(current, values);
+    if (plan.kind === 'invalid_value') return plan;
+    if (plan.kind === 'unchanged') return { kind: 'ok', profile: current };
+
+    // Unverified first: the row never holds a verified number it is changing.
+    if (plan.verification !== null) await tx.setVerification(caller.subjectId, plan.verification);
+    const profile = await tx.updateProfile(caller.subjectId, plan.profile);
+    await tx.audit(profileAmendedEvent(actorOf(caller), plan.fields));
+    return { kind: 'ok', profile };
+  });
+}
+
+export type EndSessionOutcome =
+  typeof NOT_FOUND | { readonly kind: 'ended'; readonly currentSessionEnded: boolean };
+
+export async function endSession(
+  deps: MeWriteDeps,
+  caller: MeCaller,
+  sessionId: string,
+): Promise<EndSessionOutcome> {
+  if (!isUuid(sessionId)) return NOT_FOUND;
+  return deps.writes.transact(caller.tenantId, async (tx): Promise<EndSessionOutcome> => {
+    if (!(await tx.lockOwnedSession(caller.subjectId, sessionId))) return NOT_FOUND;
+    await tx.endSessions({
+      subjectId: caller.subjectId,
+      sessionIds: [sessionId],
+      now: deps.now(),
+      issuer: caller.issuer,
+    });
+    const current = isTokenSession(sessionId, caller.sessionId);
+    await tx.audit(sessionEndedEvent(actorOf(caller), sessionId, current));
+    return { kind: 'ended', currentSessionEnded: current };
+  });
+}
+
+export interface EndOtherSessionsOutcome {
+  readonly kind: 'ended';
+  readonly ended: number;
+  readonly more: boolean;
+}
+
+// The sessions other than the token's own, a bounded number at a time.
+export function endOtherSessions(
+  deps: MeWriteDeps,
+  caller: MeCaller,
+): Promise<EndOtherSessionsOutcome> {
+  return deps.writes.transact(caller.tenantId, async (tx): Promise<EndOtherSessionsOutcome> => {
+    const now = deps.now();
+    const found = await tx.liveSessionIds(
+      caller.subjectId,
+      now,
+      fetchLimit(SESSION_END_LIMIT),
+      caller.sessionId,
+    );
+    const { items, hasMore } = splitPage(found, SESSION_END_LIMIT);
+    if (items.length === 0) return { kind: 'ended', ended: 0, more: false };
+    await tx.endSessions({
+      subjectId: caller.subjectId,
+      sessionIds: items,
+      now,
+      issuer: caller.issuer,
+    });
+    await tx.audit(sessionsEndedEvent(actorOf(caller), items.length, hasMore));
+    return { kind: 'ended', ended: items.length, more: hasMore };
+  });
+}
+
+export type RevokeConsentOutcome = typeof NOT_FOUND | { readonly kind: 'revoked' };
+
+export function revokeConsent(
+  deps: MeWriteDeps,
+  caller: MeCaller,
+  clientKey: string,
+): Promise<RevokeConsentOutcome> {
+  return deps.writes.transact(caller.tenantId, async (tx): Promise<RevokeConsentOutcome> => {
+    const revoked = await tx.revokeConsent(caller.subjectId, clientKey, deps.now());
+    if (revoked === null) return NOT_FOUND;
+    await tx.audit(
+      consentRevokedEvent(actorOf(caller), clientKey, revoked.scopeNames, revoked.grantsRevoked),
+    );
+    return { kind: 'revoked' };
+  });
+}
+
+export type RenameCredentialOutcome =
+  typeof NOT_FOUND | { readonly kind: 'renamed'; readonly credential: CredentialView };
+
+export async function renameCredential(
+  deps: MeWriteDeps,
+  caller: MeCaller,
+  credentialId: string,
+  label: string,
+): Promise<RenameCredentialOutcome> {
+  if (!isUuid(credentialId)) return NOT_FOUND;
+  return deps.writes.transact(caller.tenantId, async (tx): Promise<RenameCredentialOutcome> => {
+    const credential = await tx.renameCredential(caller.subjectId, credentialId, label);
+    const view = credential === null ? null : credentialView(credential);
+    if (view === null) return NOT_FOUND;
+    await tx.audit(credentialRenamedEvent(actorOf(caller), credentialId, view.type));
+    return { kind: 'renamed', credential: view };
+  });
+}

@@ -4,6 +4,8 @@ import type {
   MeCredentialsResponse,
   MeProfile,
   MeSession,
+  MeSessionEnded,
+  MeSessionsEnded,
 } from '@odudu/contracts/me';
 import type { UserRecord } from '@odudu/domain-identity';
 import type { SubjectConsent } from '@odudu/domain-tenant';
@@ -46,7 +48,7 @@ export function profileDto(user: UserRecord): MeProfile {
   };
 }
 
-function credentialDto(view: CredentialView): MeCredential {
+export function credentialDto(view: CredentialView): MeCredential {
   return {
     id: view.id,
     type: view.type,
@@ -97,4 +99,12 @@ export function consentsDto(
   next: string | null,
 ): Listed<MeConsent> {
   return { items: consents.map(consentDto), next_cursor: next };
+}
+
+export function sessionEndedDto(currentSessionEnded: boolean): MeSessionEnded {
+  return { current_session_ended: currentSessionEnded };
+}
+
+export function sessionsEndedDto(ended: number, more: boolean): MeSessionsEnded {
+  return { ended, more };
 }
