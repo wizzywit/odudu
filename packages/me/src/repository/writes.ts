@@ -64,6 +64,22 @@ export interface MeWriteTx {
   // answers how many went. Called once a TOTP or passkey has been deleted.
   afterSecondFactorRemoved(subjectId: string): Promise<number>;
 
+  // Whether the deployment can queue and send the mail a change of address needs.
+  mailIsAvailable(): Promise<boolean>;
+  // The subject that holds this address in the tenant, whatever its case.
+  holderOfEmail(email: string): Promise<string | null>;
+  // Whether `email` may be mailed once more now; asking uses up one mail.
+  mailBudgetAllows(email: string): boolean;
+  // Keeps `email` as the subject's one pending address, replacing any other.
+  setPendingEmail(subjectId: string, email: string): Promise<void>;
+  // Queues the mail that proves `email` to the person who asked for it, with
+  // the link that completes the change.
+  queueAddressProof(input: {
+    readonly subjectId: string;
+    readonly email: string;
+    readonly locale: string | null;
+  }): Promise<void>;
+
   audit(event: MeAuditEvent): Promise<void>;
 }
 

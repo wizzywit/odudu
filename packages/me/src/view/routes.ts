@@ -1,5 +1,6 @@
 import {
   meAmendProfileRequestSchema,
+  type MeAmendProfileRequest,
   meListQuerySchema,
   meNoQuerySchema,
   meRenameCredentialRequestSchema,
@@ -9,9 +10,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   agentNotPermitted,
   conflict,
-  emailChangeUnsupported,
   invalidBody,
   invalidRequest,
+  mailUnavailable,
   notFound,
   removalRefused,
   usernameNotEditable,
@@ -32,6 +33,7 @@ import {
   type MeAdmission,
   type MeCaller,
 } from '#/usecase/admit-me';
+import { checkEmailRequest } from '#/service/email-change';
 import { acrForRemoval, requireFreshSignIn, type MeGateDeps } from '#/usecase/freshness-gate';
 import {
   listConsents,
@@ -47,6 +49,7 @@ import {
   endSession,
   removeCredential,
   renameCredential,
+  requestEmailChange,
   revokeConsent,
   type MeWriteDeps,
 } from '#/usecase/writes';
@@ -149,13 +152,37 @@ function listRoute<Ok extends { readonly kind: 'ok' }>(
   });
 }
 
+// The address is changed by a request of its own: it is answered 202 and the
+// other members 200, and one answer cannot be both.
+async function changeEmail(
+  deps: MeDeps,
+  caller: MeCaller,
+  body: MeAmendProfileRequest,
+  reply: FastifyReply,
+): Promise<FastifyReply> {
+  if (Object.keys(body).length > 1) {
+    return respond(reply, 400, invalidRequest('email: change the address in a request of its own'));
+  }
+  const verdict = checkEmailRequest(body.email);
+  if (verdict.kind === 'invalid') {
+    return respond(reply, 400, invalidRequest(`email: ${verdict.description}`));
+  }
+  if (!(await signInIsFresh(deps, caller, reply))) return reply;
+  const outcome = await requestEmailChange(deps, caller, verdict.email);
+  if (outcome.kind === 'not_found') {
+    return respond(reply, 404, notFound('There is no profile for this account'));
+  }
+  if (outcome.kind === 'mail_unavailable') return respond(reply, 503, mailUnavailable());
+  return respond(reply, 202, { email_verification_sent: true });
+}
+
 function registerWrites(app: FastifyInstance, deps: MeDeps): void {
   app.patch<{ Params: { tenant: string } }>(`${BASE}/profile`, async (request, reply) => {
     const caller = await admitWrite(deps, request, reply);
     if (caller === undefined) return reply;
     const body = meAmendProfileRequestSchema.safeParse(request.body);
     if (!body.success) return respond(reply, 400, invalidBody(body.error.issues));
-    if (body.data.email !== undefined) return respond(reply, 400, emailChangeUnsupported());
+    if ('email' in body.data) return changeEmail(deps, caller, body.data, reply);
     if (body.data.username !== undefined) {
       if (!caller.usernameEditable) return respond(reply, 400, usernameNotEditable());
       if (!(await signInIsFresh(deps, caller, reply))) return reply;

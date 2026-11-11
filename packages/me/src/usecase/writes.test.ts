@@ -11,6 +11,7 @@ import {
   endSession,
   removeCredential,
   renameCredential,
+  requestEmailChange,
   revokeConsent,
   type MeWriteDeps,
 } from '#/usecase/writes';
@@ -126,6 +127,23 @@ function world(over: Partial<MeWriteTx> = {}): { deps: MeWriteDeps; log: Log } {
     afterSecondFactorRemoved: (s) => {
       log.calls.push(`afterSecondFactorRemoved ${s}`);
       return Promise.resolve(0);
+    },
+    mailIsAvailable: () => {
+      log.calls.push('mailIsAvailable');
+      return Promise.resolve(true);
+    },
+    mailBudgetAllows: () => true,
+    holderOfEmail: (email) => {
+      log.calls.push(`holderOfEmail ${email}`);
+      return Promise.resolve(null);
+    },
+    setPendingEmail: (s, email) => {
+      log.calls.push(`setPendingEmail ${s} ${email}`);
+      return Promise.resolve();
+    },
+    queueAddressProof: (input) => {
+      log.calls.push(`queueAddressProof ${input.subjectId} ${input.email} ${String(input.locale)}`);
+      return Promise.resolve();
     },
     audit: (event) => {
       log.audits.push(event);
@@ -431,5 +449,74 @@ describe('removeCredential', () => {
   it('answers not found where the subject has no profile row', async () => {
     const { deps } = world({ lockProfile: () => Promise.resolve(null) });
     expect(await removeCredential(deps, CALLER, CRED)).toEqual({ kind: 'not_found' });
+  });
+});
+
+describe('requestEmailChange', () => {
+  it('stores the pending address and queues one mail to it, changing no profile column', async () => {
+    const { deps, log } = world();
+    const outcome = await requestEmailChange(deps, CALLER, 'new@example.com');
+    expect(outcome).toEqual({ kind: 'accepted' });
+    expect(log.calls).toEqual([
+      'lockProfile subject-1',
+      'mailIsAvailable',
+      'holderOfEmail new@example.com',
+      'setPendingEmail subject-1 new@example.com',
+      'queueAddressProof subject-1 new@example.com null',
+    ]);
+    expect(log.audits).toHaveLength(1);
+    expect(log.audits[0]).toMatchObject({
+      action: 'subject.profile_amend',
+      detail: { via: 'me', fields: ['email'], pending: true },
+    });
+    expect(JSON.stringify(log.audits)).not.toContain('new@example.com');
+  });
+
+  it('answers the same for an address another account holds, queuing and storing nothing', async () => {
+    const { deps, log } = world({ holderOfEmail: () => Promise.resolve('someone-else') });
+    expect(await requestEmailChange(deps, CALLER, 'taken@example.com')).toEqual({
+      kind: 'accepted',
+    });
+    expect(log.calls.some((c) => c.startsWith('setPendingEmail'))).toBe(false);
+    expect(log.calls.some((c) => c.startsWith('queueAddressProof'))).toBe(false);
+    expect(log.audits[0]?.detail).toEqual({
+      via: 'me',
+      fields: ['email'],
+      skipped: 'address_in_use',
+    });
+  });
+
+  it('records an address the person already holds as unchanged', async () => {
+    const { deps, log } = world({ holderOfEmail: () => Promise.resolve('subject-1') });
+    expect(await requestEmailChange(deps, CALLER, 'ADA@example.com')).toEqual({
+      kind: 'accepted',
+    });
+    expect(log.audits[0]?.detail).toMatchObject({ skipped: 'unchanged' });
+    expect(log.calls.some((c) => c.startsWith('queueAddressProof'))).toBe(false);
+  });
+
+  it('queues nothing for an address that has been mailed too often, and answers the same', async () => {
+    const { deps, log } = world({ mailBudgetAllows: () => false });
+    expect(await requestEmailChange(deps, CALLER, 'new@example.com')).toEqual({
+      kind: 'accepted',
+    });
+    expect(log.calls.some((c) => c.startsWith('queueAddressProof'))).toBe(false);
+    expect(log.audits[0]?.detail).toMatchObject({ skipped: 'throttled' });
+  });
+
+  it('refuses before judging the address when the deployment cannot send mail', async () => {
+    const { deps, log } = world({ mailIsAvailable: () => Promise.resolve(false) });
+    expect(await requestEmailChange(deps, CALLER, 'new@example.com')).toEqual({
+      kind: 'mail_unavailable',
+    });
+    expect(log.calls.some((c) => c.startsWith('holderOfEmail'))).toBe(false);
+    expect(log.audits).toEqual([]);
+  });
+
+  it('answers not found for a subject with no profile', async () => {
+    const { deps } = world({ lockProfile: () => Promise.resolve(null) });
+    expect(await requestEmailChange(deps, CALLER, 'new@example.com')).toEqual({
+      kind: 'not_found',
+    });
   });
 });

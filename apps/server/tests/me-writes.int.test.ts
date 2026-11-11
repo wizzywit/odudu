@@ -598,9 +598,16 @@ describe('every write, asked in another tenant, finds nothing', () => {
   it('reaches no row of a tenant the transaction is not in', async () => {
     const w = await world();
     const stranger = await world();
-    const writes = meWritesFor(appDb, KEK);
+    const writes = meWritesFor(appDb, KEK, {
+      resolveMailLook: () => Promise.resolve({ branding: null, overrides: {} }),
+      mailGate: () => true,
+      deploymentSmtp: true,
+      publicBaseUrl: BASE,
+    });
     const now = new Date();
+    await owner.sql`update users set email = 'only-here@example.com' where subject_id = ${w.subjectId}`;
     const outcome = await writes.transact(stranger.tenantId, async (tx) => ({
+      holder: await tx.holderOfEmail('only-here@example.com'),
       profile: await tx.lockProfile(w.subjectId),
       owned: await tx.lockOwnedSession(w.subjectId, w.sessionIds[0] ?? ''),
       live: await tx.liveSessionIds(w.subjectId, now, 10, null),
@@ -620,6 +627,7 @@ describe('every write, asked in another tenant, finds nothing', () => {
         .catch(() => 'refused'),
     }));
     expect(outcome).toMatchObject({
+      holder: null,
       profile: null,
       owned: false,
       live: [],
@@ -628,6 +636,15 @@ describe('every write, asked in another tenant, finds nothing', () => {
       update: 'refused',
       verification: 'refused',
     });
+    // A database refusal aborts the transaction, so it is asked on its own.
+    await expect(
+      writes.transact(stranger.tenantId, (tx) =>
+        tx.setPendingEmail(w.subjectId, 'intruder@example.com'),
+      ),
+    ).rejects.toThrow();
+    expect(
+      await owner.sql`select 1 from pending_email_changes where subject_id = ${w.subjectId}`,
+    ).toHaveLength(0);
     await untouched(w);
     expect(await grantRevoked(w, w.grantIds[0] ?? '')).toBe(false);
   });

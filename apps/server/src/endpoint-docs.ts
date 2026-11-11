@@ -123,7 +123,7 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   'PATCH /tenants/:tenant/me/profile': {
     auth: 'Access token',
     purpose:
-      'Amends the person’s own profile claims: the members sent, `null` to clear one, and only the claims that differ are written. Takes a bearer token whose audience is the tenant’s `/me` URL and whose scope holds `me:write`; `403` `insufficient_scope` for a token without it and `403` `agent_not_permitted` for a token issued to an agent. `email`, `username` and the verification flags are refused with `400`; changing the phone number drops its verification. Answers the profile as `GET /me/profile` does.',
+      'Amends the person’s own profile claims: the members sent, `null` to clear one, and only the claims that differ are written. Takes a bearer token whose audience is the tenant’s `/me` URL and whose scope holds `me:write`; `403` `insufficient_scope` for a token without it and `403` `agent_not_permitted` for a token issued to an agent. The verification flags are refused with `400`; changing the phone number drops its verification. A `username` is accepted where the tenant has turned on username editing, and needs a recent sign-in (`401` with a challenge otherwise). An `email` is changed in a request of its own and needs a recent sign-in: it answers `202` with `email_verification_sent`, whether or not another account holds the address, keeps the current address until the person follows the link mailed to the new one, and replaces any earlier pending address; `503` `mail_unavailable` where the server cannot send mail. Any other change answers the profile as `GET /me/profile` does.',
   },
   'DELETE /tenants/:tenant/me/sessions': {
     auth: 'Access token',

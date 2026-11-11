@@ -98,3 +98,16 @@ None of these is argued in `docs/NEXT.md`; the row there points here.
 - **No notice mail goes to the old address** when a way to sign in is removed or the address
   is changed; the admin routes enqueue those mails, and the me routes' notices are placed on
   spec section 5.5 (the notice-mail increment).
+
+### Changing the address
+
+`PATCH /me/profile` with `email` (alone in its body, behind the freshness gate) stores one pending
+address per subject (`pending_email_changes`) and queues the existing verification mail to the new
+address; the current address and its verified flag stay until the link is used. The link is an
+ordinary `verify_email` action token: when its address is not the current one,
+`completeEmailVerification` takes the pending row for that address and swaps it in, verified, in
+the same transaction, refusing like an expired link when the row was replaced or cleared or another
+account holds the address by then. The answer is `202` whether or not the address is held; the
+audit row says `skipped` (`address_in_use`, `unchanged` or `throttled`, the last from a new
+per-address mail budget of its own kind). The pending row is never reaped (one per subject, deleted
+with the subject). The notice to the old address is placed on spec section 5.5.

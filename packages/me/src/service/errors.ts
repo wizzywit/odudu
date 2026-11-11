@@ -37,12 +37,12 @@ export function usernameNotEditable(): MeError {
   );
 }
 
-// Changing the address needs a mailed proof of the new one, which this API
-// does not offer.
-export function emailChangeUnsupported(): MeError {
+// The deployment has no way to send the mail a change of address needs. It
+// does not depend on the address asked for, so it tells nothing about it.
+export function mailUnavailable(): MeError {
   return {
-    error: 'email_change_unsupported',
-    error_description: 'The email address cannot be changed through this API',
+    error: 'mail_unavailable',
+    error_description: 'This server cannot send mail, so an address cannot be changed here',
   };
 }
 

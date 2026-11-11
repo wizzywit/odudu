@@ -1,3 +1,4 @@
+import { enqueueVerificationLink, type MailGate } from '@odudu/account';
 import {
   onSecondFactorRemoved,
   sessionRepository,
@@ -6,11 +7,17 @@ import {
 import {
   type DatabaseHandle,
   isUniqueViolation,
+  tenants,
   type TenantScopedDatabase,
   withTenant,
 } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
-import { credentialRepository, userRepository } from '@odudu/domain-identity';
+import { type MailLookResolver } from '@odudu/email';
+import {
+  credentialRepository,
+  pendingEmailRepository,
+  userRepository,
+} from '@odudu/domain-identity';
 import { clientRepository, consentRepository } from '@odudu/domain-tenant';
 import {
   type MeDeps,
@@ -20,8 +27,13 @@ import {
   type MeWriteTx,
   UsernameTakenError,
 } from '@odudu/me';
-import { adminAuthDeps, verifyTenantAccessToken } from '@odudu/protocol-admin';
+import {
+  adminAuthDeps,
+  tenantSmtpRepository,
+  verifyTenantAccessToken,
+} from '@odudu/protocol-admin';
 import { endSessions, tokenGrantRepository } from '@odudu/protocol-oidc';
+import { eq } from 'drizzle-orm';
 import { type Logger as PinoLogger } from 'pino';
 
 export interface MeDepsParts {
@@ -30,6 +42,15 @@ export interface MeDepsParts {
   readonly kek: Uint8Array;
   readonly logger: PinoLogger;
   readonly publicBaseUrl: string | undefined;
+  // What queuing the mail that proves a changed address needs of the process.
+  readonly mail: MeMailParts;
+}
+
+export interface MeMailParts {
+  readonly resolveMailLook: MailLookResolver;
+  readonly mailGate: MailGate;
+  // Whether the deployment itself has a relay, for a tenant with none of its own.
+  readonly deploymentSmtp: boolean;
 }
 
 // Each read runs in its own tenant-scoped transaction, so the tenant it names
@@ -55,7 +76,23 @@ export function meReadsFor(database: DatabaseHandle): MeReads {
   };
 }
 
-function writeTxFor(tx: TenantScopedDatabase, tenantId: string, kek: Uint8Array): MeWriteTx {
+// The tenant's own name and display name, for the mail that names it.
+async function tenantNames(tx: TenantScopedDatabase, tenantId: string) {
+  const rows = await tx
+    .select({ name: tenants.name, displayName: tenants.displayName })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId));
+  const row = rows[0];
+  if (row === undefined) throw new Error(`tenant ${tenantId} is not visible here`);
+  return row;
+}
+
+function writeTxFor(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  kek: Uint8Array,
+  mail: MeMailContext,
+): MeWriteTx {
   return {
     lockProfile: (subjectId) => userRepository(tx).lockBySubjectId(subjectId),
     updateProfile: (subjectId, patch) => userRepository(tx).updateProfile(subjectId, patch),
@@ -99,6 +136,29 @@ function writeTxFor(tx: TenantScopedDatabase, tenantId: string, kek: Uint8Array)
     afterSecondFactorRemoved: async (subjectId) =>
       (await onSecondFactorRemoved(tx, { subjectId }, () => Promise.resolve()))
         .recoveryCodesRevoked,
+    mailIsAvailable: async () =>
+      mail.publicBaseUrl !== undefined &&
+      (mail.deploymentSmtp || (await tenantSmtpRepository(tx).byTenantId(tenantId)) !== null),
+    holderOfEmail: (email) => userRepository(tx).holderOfEmail(email),
+    mailBudgetAllows: (email) => mail.mailGate('change', tenantId, email),
+    setPendingEmail: (subjectId, email) =>
+      pendingEmailRepository(tx).set(tenantId, subjectId, email),
+    queueAddressProof: async (input) => {
+      if (mail.publicBaseUrl === undefined) throw new Error('no public base URL to mail a link to');
+      const names = await tenantNames(tx, tenantId);
+      await enqueueVerificationLink(
+        tx,
+        {
+          tenantId,
+          tenantName: names.name,
+          tenantDisplayName: names.displayName ?? names.name,
+          issuerBase: mail.publicBaseUrl,
+          now: () => new Date(),
+          resolveMailLook: mail.resolveMailLook,
+        },
+        input,
+      );
+    },
     audit: async (event) => {
       const client = await clientRepository(tx).byClientId(event.actorClientKey);
       await auditRepository(tx).record({
@@ -115,12 +175,20 @@ function writeTxFor(tx: TenantScopedDatabase, tenantId: string, kek: Uint8Array)
   };
 }
 
+export interface MeMailContext extends MeMailParts {
+  readonly publicBaseUrl: string | undefined;
+}
+
 // Each change runs in one tenant-scoped transaction: the session cascade, the
 // change and its audit row commit together or not at all.
-export function meWritesFor(database: DatabaseHandle, kek: Uint8Array): MeWrites {
+export function meWritesFor(
+  database: DatabaseHandle,
+  kek: Uint8Array,
+  mail: MeMailContext,
+): MeWrites {
   return {
     transact: (tenantId, run) =>
-      withTenant(database.db, tenantId, (tx) => run(writeTxFor(tx, tenantId, kek))),
+      withTenant(database.db, tenantId, (tx) => run(writeTxFor(tx, tenantId, kek, mail))),
   };
 }
 
@@ -164,7 +232,10 @@ export function meRouteDepsFor(parts: MeDepsParts): MeDeps {
     },
     reads: meReadsFor(parts.database),
     sessionAuth: meSessionAuthFor(parts.database),
-    writes: meWritesFor(parts.database, parts.kek),
+    writes: meWritesFor(parts.database, parts.kek, {
+      ...parts.mail,
+      publicBaseUrl: parts.publicBaseUrl,
+    }),
     now: () => new Date(),
     logger: parts.logger,
   };

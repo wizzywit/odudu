@@ -4,6 +4,7 @@ import { isUuid } from '@odudu/kernel';
 import type { MeWrites } from '#/repository/writes';
 import {
   consentRevokedEvent,
+  emailChangeRequestedEvent,
   credentialRemovedEvent,
   credentialRenamedEvent,
   profileAmendedEvent,
@@ -11,6 +12,7 @@ import {
   sessionEndedEvent,
   sessionsEndedEvent,
 } from '#/service/audit';
+import { planEmailChange } from '#/service/email-change';
 import { UsernameTakenError } from '#/service/errors';
 import { credentialView, type CredentialView } from '#/service/credential-view';
 import { fetchLimit, splitPage } from '#/service/page';
@@ -191,5 +193,40 @@ export async function removeCredential(
     await tx.audit(credentialRemovedEvent(actorOf(caller), target.id, target.type));
     if (revoked > 0) await tx.audit(recoveryCodesRevokedEvent(actorOf(caller), revoked));
     return { kind: 'removed' };
+  });
+}
+
+export type RequestEmailChangeOutcome =
+  typeof NOT_FOUND | { readonly kind: 'mail_unavailable' } | { readonly kind: 'accepted' };
+
+// Every address that reaches the transaction is answered as accepted, so the
+// response says nothing about who holds it; the audit row does. Whether mail
+// can be sent at all is judged first, since it does not depend on the address.
+export function requestEmailChange(
+  deps: MeWriteDeps,
+  caller: MeCaller,
+  email: string,
+): Promise<RequestEmailChangeOutcome> {
+  return deps.writes.transact(caller.tenantId, async (tx): Promise<RequestEmailChangeOutcome> => {
+    const current = await tx.lockProfile(caller.subjectId);
+    if (current === null) return NOT_FOUND;
+    if (!(await tx.mailIsAvailable())) return { kind: 'mail_unavailable' };
+    const plan = planEmailChange({
+      holder: await tx.holderOfEmail(email),
+      subjectId: caller.subjectId,
+      withinBudget: tx.mailBudgetAllows(email),
+    });
+    if (plan.kind === 'send') {
+      await tx.setPendingEmail(caller.subjectId, email);
+      await tx.queueAddressProof({
+        subjectId: caller.subjectId,
+        email,
+        locale: current.locale ?? null,
+      });
+    }
+    await tx.audit(
+      emailChangeRequestedEvent(actorOf(caller), plan.kind === 'send' ? null : plan.reason),
+    );
+    return { kind: 'accepted' };
   });
 }

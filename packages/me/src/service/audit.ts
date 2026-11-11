@@ -106,3 +106,17 @@ export function recoveryCodesRevokedEvent(actor: Actor, revoked: number): MeAudi
     reason: 'last_factor_removed',
   });
 }
+
+// An address is asked for and not yet proved: the field is named and the
+// address never. `skipped` says why no mail went, for an address that cannot
+// be proved by mail to the person asking.
+export function emailChangeRequestedEvent(
+  actor: Actor,
+  skipped: 'address_in_use' | 'unchanged' | 'throttled' | null,
+): MeAuditEvent {
+  return onSubject(
+    actor,
+    'subject.profile_amend',
+    skipped === null ? { fields: ['email'], pending: true } : { fields: ['email'], skipped },
+  );
+}

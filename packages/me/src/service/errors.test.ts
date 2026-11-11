@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   agentNotPermitted,
   conflict,
-  emailChangeUnsupported,
+  mailUnavailable,
   invalidBody,
   invalidRequest,
   notFound,
@@ -25,8 +25,8 @@ describe('the refusals of the "me" API', () => {
 });
 
 describe('the refusals of a username or email change', () => {
-  it('give an email change its stable code', () => {
-    expect(emailChangeUnsupported()).toMatchObject({ error: 'email_change_unsupported' });
+  it('give a deployment that cannot send mail its stable code', () => {
+    expect(mailUnavailable()).toMatchObject({ error: 'mail_unavailable' });
   });
 
   it('refuse a rename the tenant has not turned on as an invalid request', () => {

@@ -163,6 +163,17 @@ function build(
             return Promise.resolve();
           },
           afterSecondFactorRemoved: () => Promise.resolve(0),
+          mailIsAvailable: () => Promise.resolve(true),
+          mailBudgetAllows: () => true,
+          holderOfEmail: () => Promise.resolve(null),
+          setPendingEmail: (_s, email) => {
+            note(`setPendingEmail ${email}`);
+            return Promise.resolve();
+          },
+          queueAddressProof: (input) => {
+            note(`queueAddressProof ${input.email}`);
+            return Promise.resolve();
+          },
           audit: (event) => {
             over.audits?.push(event);
             return Promise.resolve();
@@ -648,14 +659,70 @@ describe('PATCH /me/profile, a username or an email', () => {
     expect(res.json()).toMatchObject({ error: 'conflict' });
   });
 
-  it('refuses an email change by its stable code, without reading the session', async () => {
+  it('answers 202 for a new address, queuing one mail and leaving the profile as it is', async () => {
+    const seen: string[] = [];
+    const audits: MeAuditEvent[] = [];
+    const res = await send(build({ seen, audits }), 'PATCH', 'profile', {
+      email: 'new@example.com',
+    });
+    expect(res.statusCode).toBe(202);
+    expect(res.json()).toEqual({ email_verification_sent: true });
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(seen).toContain('setPendingEmail new@example.com');
+    expect(seen).toContain('queueAddressProof new@example.com');
+    expect(audits.map((a) => a.action)).toEqual(['subject.profile_amend']);
+  });
+
+  it('answers the same 202 for an address another account holds, and sends nothing', async () => {
+    const seen: string[] = [];
+    const tx = { holderOfEmail: () => Promise.resolve('someone-else') };
+    const res = await send(build({ seen, tx }), 'PATCH', 'profile', { email: 'taken@example.com' });
+    expect(res.statusCode).toBe(202);
+    expect(res.json()).toEqual({ email_verification_sent: true });
+    expect(seen.some((entry) => entry.startsWith('queueAddressProof'))).toBe(false);
+  });
+
+  it('asks for a new sign-in when the sign-in is old, before any write', async () => {
     const seen: string[] = [];
     const res = await send(build({ seen, signedInAt: STALE }), 'PATCH', 'profile', {
-      email: 'x@example.com',
+      email: 'new@example.com',
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toBe(CHALLENGE);
+    expect(seen.some((entry) => entry.startsWith('transact'))).toBe(false);
+  });
+
+  it('refuses an agent token before the session is read', async () => {
+    const seen: string[] = [];
+    const app = build({ seen, claims: { act: { sub: 'agent-1', client_id: 'agent' } } });
+    const res = await send(app, 'PATCH', 'profile', { email: 'new@example.com' });
+    expect(res.statusCode).toBe(403);
+    expect(seen).toEqual([]);
+  });
+
+  it.each([[null], ['not an address'], [4]])('answers 400 for the address %j', async (email) => {
+    const seen: string[] = [];
+    const res = await send(build({ seen }), 'PATCH', 'profile', { email });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_request' });
+    expect(res.body).toContain('email');
+    expect(seen).toEqual([]);
+  });
+
+  it('refuses an address sent beside other members, which would be answered two ways', async () => {
+    const res = await send(build(), 'PATCH', 'profile', {
+      email: 'new@example.com',
+      name: 'Ada L',
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json()).toMatchObject({ error: 'email_change_unsupported' });
-    expect(seen).toEqual([]);
+    expect(res.body).toContain('email');
+  });
+
+  it('answers 503 where the deployment cannot send mail', async () => {
+    const tx = { mailIsAvailable: () => Promise.resolve(false) };
+    const res = await send(build({ tx }), 'PATCH', 'profile', { email: 'new@example.com' });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toMatchObject({ error: 'mail_unavailable' });
   });
 });
 
