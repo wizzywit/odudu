@@ -978,17 +978,20 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/services/credentialAsk.ts',
     "label: 'Ask for a new set at next sign-in'",
   ),
-  'Choose a new password': page(
-    'subjects/services/requiredActions.ts',
+  'Choose a new password': entity(
+    'subject/services/requiredActions.ts',
     "label: 'Choose a new password'",
   ),
-  'Set up an authenticator app': page(
-    'subjects/services/requiredActions.ts',
+  'Set up an authenticator app': entity(
+    'subject/services/requiredActions.ts',
     "label: 'Set up an authenticator app'",
   ),
-  'Register a passkey': page('subjects/services/requiredActions.ts', "label: 'Register a passkey'"),
-  'Generate recovery codes': page(
-    'subjects/services/requiredActions.ts',
+  'Register a passkey': entity(
+    'subject/services/requiredActions.ts',
+    "label: 'Register a passkey'",
+  ),
+  'Generate recovery codes': entity(
+    'subject/services/requiredActions.ts',
     "label: 'Generate recovery codes'",
   ),
   'Required actions to email': page(

@@ -41,6 +41,7 @@
   "id_token_signed_response_alg": null,
   "default_max_age": null,
   "require_auth_time": false,
+  "allowed_actions": [],
   "previous_secret_expires_at": null,
   "builtin_admin": false,
   "service_subject_id": "01a1872d-c5c0-7f06-8ba9-0d74ae247824",
