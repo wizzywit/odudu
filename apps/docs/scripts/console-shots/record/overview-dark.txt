@@ -63,7 +63,7 @@ Groups
 Roles
 10 roles
 Scopes
-10 scopes
+12 scopes
 Discovery
 Issuer
 http://localhost:3000/tenants/demo
@@ -199,6 +199,8 @@ email
 groups
 mcp:read
 mcp:write
+me:read
+me:write
 offline_access
 openid
 phone
@@ -379,6 +381,8 @@ Raw discovery document
     "groups",
     "mcp:read",
     "mcp:write",
+    "me:read",
+    "me:write",
     "offline_access",
     "openid",
     "phone",

@@ -131,13 +131,14 @@ for every tenant — see
 reads them.
 
 `scopes_supported` is the tenant's own scope vocabulary, read from the
-database rather than compiled in: these ten are what `odudu seed` gives a
+database rather than compiled in: these twelve are what `odudu seed` gives a
 new tenant, and a tenant that is given another scope advertises it here the
 moment it exists. A scope is seeded only once a claim mapper can answer for
 it, or — `offline_access`'s own exception — once it asks for a grant shape
 rather than for data (see [offline access](./rp-initiated-logout.md#offline-access) below), so this
 list never promises claims nothing returns. `mcp:read` and `mcp:write` are the third kind: they ask to use
-the tenant's MCP endpoint, which carries no claims either.
+the tenant's MCP endpoint, which carries no claims either, and `me:read` and `me:write` are the same kind, asking to
+use the tenant's [me API](./the-me-api.md).
 
 Being advertised is only half of what `/authorize` needs, though — **a scope
 is granted only when the tenant defines it _and_ the client is assigned it**,
