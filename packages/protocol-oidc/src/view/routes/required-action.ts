@@ -32,12 +32,18 @@ function firstString(value: string | string[] | undefined): string | undefined {
 }
 
 // The page of an action an application sent the person to may be left again,
-// which its own form says by this variant.
-function variantFor(
+// unless the tenant owes it as well.
+async function variantFor(
+  deps: Pick<RequiredActionRouteDeps, 'authenticatedSubject' | 'pendingActions'>,
+  tenantId: string,
+  authSessionId: string,
   requestedAction: RequiredAction | null,
   action: RequiredAction,
-): ActionPageVariant | undefined {
-  return requestedAction === action ? 'requested' : undefined;
+): Promise<ActionPageVariant | undefined> {
+  if (requestedAction !== action) return undefined;
+  const subjectId = await deps.authenticatedSubject(tenantId, authSessionId);
+  const owed = subjectId === null ? [] : await deps.pendingActions(tenantId, subjectId);
+  return owed.includes(action) ? undefined : 'requested';
 }
 
 // The password in force, as typed to prove it. One too long to be hashed is a
@@ -84,7 +90,9 @@ export function registerRequiredActionRoute(
         reply,
         'authenticated',
       );
-      const pages = actionPages(variantFor(requestedAction, 'update-password'));
+      const pages = actionPages(
+        await variantFor(deps, found.id, authSessionId, requestedAction, 'update-password'),
+      );
       return sendHtml(
         reply,
         400,
@@ -113,6 +121,7 @@ export function registerRequiredActionRoute(
         password: candidate.kind === 'present' ? candidate.password : undefined,
         currentPassword: currentPasswordOf(body.current_password),
         cancel: body.cancel !== undefined,
+        confirm: body.confirm !== undefined,
         credential: firstString(body.credential),
         label: firstString(body.label),
       },
@@ -140,14 +149,14 @@ export function registerRequiredActionRoute(
     // reason registration and reset redemption answer one: the submission
     // was refused, so a 200 would tell a client the password had changed.
     if (outcome.kind === 'password_rejected') {
-      const { locale, continuing, requestedAction } = await continuation(
+      const { locale, continuing } = await continuation(
         deps,
         tenantName,
         outcome.authSessionId,
         reply,
         'authenticated',
       );
-      const pages = actionPages(variantFor(requestedAction, 'update-password'));
+      const pages = actionPages(outcome.requested === true ? 'requested' : undefined);
       return sendHtml(
         reply,
         400,
@@ -183,14 +192,50 @@ export function registerRequiredActionRoute(
       return sendLoginOutcome(reply, deps, tenantName, resumed, authSessionId);
     }
 
-    const { locale, continuing, signInPath, requestedAction } = await continuation(
+    // Confirmed: the set the person holds is replaced now, and shown once.
+    if (outcome.kind === 'confirmed') {
+      const issued = await deps.beginRecoveryCodes(tenant.id, outcome.subjectId, context);
+      if (issued.kind !== 'issued') {
+        await deps.recordActionStep(
+          {
+            tenantId: tenant.id,
+            authSessionId: outcome.authSessionId,
+            subjectId: outcome.subjectId,
+            action: 'generate-recovery-codes',
+            step: 'error',
+          },
+          context,
+        );
+        return sendActionUnavailable(reply, deps, tenantName, outcome.authSessionId);
+      }
+      const shown = await continuation(deps, tenantName, outcome.authSessionId, reply, {
+        subject: outcome.subjectId,
+      });
+      return sendHtml(
+        reply,
+        200,
+        shown.continuing(
+          actionPages('requested').recoveryCodes(
+            tenantName,
+            tenantAddressOf(request),
+            outcome.authSessionId,
+            issued.offer,
+            undefined,
+            shown.locale,
+          ),
+        ),
+      );
+    }
+
+    const { locale, continuing, signInPath } = await continuation(
       deps,
       tenantName,
       outcome.authSessionId,
       reply,
       { subject: outcome.subjectId },
     );
-    const variant = variantFor(requestedAction, outcome.action);
+    const variant: ActionPageVariant | undefined =
+      outcome.requested === true ? 'requested' : undefined;
     const pages = actionPages(variant);
 
     if (outcome.action === 'generate-recovery-codes') {
@@ -223,6 +268,9 @@ export function registerRequiredActionRoute(
           pending?.rememberMe ?? false,
         );
         return sendLoginOutcome(reply, deps, tenantName, resumed, authSessionId);
+      }
+      if (issued.kind !== 'issued') {
+        return sendSignInExpired(reply, deps, tenantName, outcome.authSessionId);
       }
       return sendHtml(
         reply,

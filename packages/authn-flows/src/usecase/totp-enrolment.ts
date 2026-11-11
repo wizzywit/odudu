@@ -1,7 +1,7 @@
 import { generateTotpSecret, verifyTotp } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
-import { credentialRepository, userRepository } from '@odudu/domain-identity';
+import { credentialRepository, subjectRepository, userRepository } from '@odudu/domain-identity';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
@@ -50,6 +50,9 @@ export async function completeTotpEnrolment(
   },
   clock: Clock = systemClock,
 ): Promise<TotpEnrolmentOutcome> {
+  // A swap reads what is held and then removes it, so it holds the row factor
+  // removal and recovery-code issue hold: two swaps cannot both win.
+  if (input.replace === true) await subjectRepository(tx).lock(input.subjectId);
   const existing = await credentialRepository(tx).listFor(input.subjectId, 'totp');
   if (existing.length > 0 && input.replace !== true) {
     return { kind: 'rejected', reason: 'already_enrolled' };

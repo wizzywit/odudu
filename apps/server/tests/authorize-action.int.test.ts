@@ -377,13 +377,12 @@ describe('an action requested after a fresh sign-in', () => {
     await owner.sql`insert into user_required_actions (tenant_id, subject_id, action)
                     values (${w.tenantId}, ${w.subjectId}, 'update-password')`;
     const page = await submitPassword(w, await authorize(w, { action: 'update-password' }));
-    expect(page.body).toContain('name="current_password"');
     const afterCancel = await form(w, 'required-action?action=update-password', {
       auth_session_id: field(page, 'auth_session_id'),
       cancel: '1',
     });
     // The owed page comes back, without a way to leave it.
-    expect(afterCancel.statusCode).toBe(200);
+    expect(afterCancel.statusCode).toBe(400);
     expect(afterCancel.body).not.toContain('name="cancel"');
   });
 
@@ -459,16 +458,7 @@ describe('an action requested against a session that is already live', () => {
 
   it('replaces an authenticator only once the new code has verified', async () => {
     const w = await world();
-    const first = await submitPassword(w, await authorize(w, { action: 'configure-totp' }));
-    const firstSecret = secretOf(first);
-    const enrolled = await form(w, 'required-action?action=configure-totp', {
-      auth_session_id: field(first, 'auth_session_id'),
-      secret: firstSecret,
-      code: totpCode(firstSecret, totpCounter(new Date())),
-    });
-    await form(w, 'required-action?action=generate-recovery-codes', {
-      auth_session_id: field(enrolled, 'auth_session_id'),
-    });
+    const firstSecret = await enrolAuthenticator(w);
 
     const cookie = await signInWithTotp(w, firstSecret);
     const page = await authorize(w, { action: 'configure-totp' }, cookie);
@@ -494,6 +484,22 @@ describe('an action requested against a session that is already live', () => {
     expect(await totpSecrets(w)).toEqual([secret]);
   });
 });
+
+// Enrols an authenticator through the action's own page, acknowledging the
+// recovery codes a new one owes, and returns its secret.
+async function enrolAuthenticator(w: World): Promise<string> {
+  const first = await submitPassword(w, await authorize(w, { action: 'configure-totp' }));
+  const secret = secretOf(first);
+  const enrolled = await form(w, 'required-action?action=configure-totp', {
+    auth_session_id: field(first, 'auth_session_id'),
+    secret,
+    code: totpCode(secret, totpCounter(new Date())),
+  });
+  await form(w, 'required-action?action=generate-recovery-codes', {
+    auth_session_id: field(enrolled, 'auth_session_id'),
+  });
+  return secret;
+}
 
 async function totpSecrets(w: World): Promise<string[]> {
   const rows = await owner.sql<{ secret_data: { secret: string } }[]>`
@@ -549,5 +555,155 @@ describe('an action that cannot run', () => {
     expect(res.statusCode).toBe(400);
     expect(res.body).toContain('action_status=error');
     expect(await auditActions(w)).toEqual(['action.requested', 'action.failed']);
+  });
+});
+
+const recoveryRows = async (w: World): Promise<string[]> =>
+  (
+    await owner.sql<{ id: string }[]>`
+      select id from user_credentials
+       where tenant_id = ${w.tenantId} and subject_id = ${w.subjectId} and type = 'recovery-code'
+       order by id`
+  ).map((row) => row.id);
+
+const issuedRows = async (w: World): Promise<number> =>
+  (
+    await owner.sql<{ n: number }[]>`
+      select count(*)::int as n from audit_events
+       where tenant_id = ${w.tenantId} and action = 'recovery_codes.issued'`
+  )[0]?.n ?? 0;
+
+const CONFIRM = 'This replaces your current recovery codes';
+
+describe('recovery codes requested by an application', () => {
+  it('asks before replacing a held set, and cancelling leaves it untouched', async () => {
+    const w = await world();
+    const secret = await enrolAuthenticator(w);
+    const before = await recoveryRows(w);
+    const issuedBefore = await issuedRows(w);
+    expect(before.length).toBeGreaterThan(0);
+
+    const cookie = await signInWithTotp(w, secret);
+    const page = await authorize(w, { action: 'generate-recovery-codes' }, cookie);
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain(CONFIRM);
+    expect(page.body).toContain('name="cancel"');
+    expect(page.body).not.toContain('<ol>');
+    // Showing the question is not asking for the change, a reload included.
+    await authorize(w, { action: 'generate-recovery-codes' }, cookie);
+    expect(await recoveryRows(w)).toEqual(before);
+
+    const done = await form(w, 'required-action?action=generate-recovery-codes', {
+      auth_session_id: field(page, 'auth_session_id'),
+      cancel: '1',
+    });
+    expect(locationOf(done).searchParams.get('action_status')).toBe('cancelled');
+    expect(await recoveryRows(w)).toEqual(before);
+    expect(await issuedRows(w)).toBe(issuedBefore);
+  });
+
+  it('replaces the set once, on confirmation, and shows the new codes', async () => {
+    const w = await world();
+    const secret = await enrolAuthenticator(w);
+    const before = await recoveryRows(w);
+    const issuedBefore = await issuedRows(w);
+
+    const cookie = await signInWithTotp(w, secret);
+    const page = await authorize(w, { action: 'generate-recovery-codes' }, cookie);
+    const shown = await form(w, 'required-action?action=generate-recovery-codes', {
+      auth_session_id: field(page, 'auth_session_id'),
+      confirm: '1',
+    });
+    expect(shown.statusCode).toBe(200);
+    expect(shown.body).toContain('<ol>');
+    expect(shown.body).toContain('name="cancel"');
+    const after = await recoveryRows(w);
+    expect(after).not.toEqual(before);
+    expect(await issuedRows(w)).toBe(issuedBefore + 1);
+
+    const done = await form(w, 'required-action?action=generate-recovery-codes', {
+      auth_session_id: field(shown, 'auth_session_id'),
+    });
+    expect(locationOf(done).searchParams.get('action_status')).toBe('success');
+    expect(await recoveryRows(w)).toEqual(after);
+  });
+
+  it('issues at render when no set is held, since nothing is lost', async () => {
+    const w = await world();
+    const secret = await enrolAuthenticator(w);
+    const cookie = await signInWithTotp(w, secret);
+    await owner.sql`delete from user_credentials
+                     where tenant_id = ${w.tenantId} and subject_id = ${w.subjectId}
+                       and type = 'recovery-code'`;
+    const page = await authorize(w, { action: 'generate-recovery-codes' }, cookie);
+    expect(page.body).toContain('<ol>');
+    expect((await recoveryRows(w)).length).toBeGreaterThan(0);
+  });
+});
+
+describe('an action the tenant also owes', () => {
+  it('is offered without a way out, and an ending does not read as cancelled', async () => {
+    const w = await world();
+    await owner.sql`insert into user_required_actions (tenant_id, subject_id, action)
+                    values (${w.tenantId}, ${w.subjectId}, 'update-password')`;
+    const page = await submitPassword(w, await authorize(w, { action: 'update-password' }));
+    expect(page.statusCode).toBe(200);
+    expect(page.body).not.toContain('name="cancel"');
+    expect(page.body).not.toContain('name="current_password"');
+    const done = await form(w, 'required-action?action=update-password', {
+      auth_session_id: field(page, 'auth_session_id'),
+      password: NEW_PASSWORD,
+    });
+    expect(done.statusCode).toBe(302);
+    expect(locationOf(done).searchParams.get('action_status')).toBe('success');
+  });
+});
+
+describe('a password change for a person with no password', () => {
+  it('ends as an error instead of asking for a password nobody holds', async () => {
+    const w = await world();
+    const cookie = await signIn(w);
+    await owner.sql`delete from user_credentials
+                     where tenant_id = ${w.tenantId} and subject_id = ${w.subjectId}
+                       and type = 'password'`;
+    const res = await authorize(w, { action: 'update-password' }, cookie);
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain('action_status=error');
+    expect(await auditActions(w)).toEqual(['action.requested', 'action.failed']);
+  });
+});
+
+describe('an action requested through the account chooser', () => {
+  it('shows the action after the account is chosen', async () => {
+    const w = await world();
+    const cookie = await signIn(w);
+    const chooser = await authorize(
+      w,
+      { action: 'update-password', prompt: 'select_account' },
+      cookie,
+    );
+    expect(chooser.statusCode).toBe(200);
+    const sessionId = /name="session_id" value="([^"]*)"/u.exec(chooser.body)?.[1];
+    expect(sessionId).toBeTruthy();
+    const page = await app.inject({
+      method: 'POST',
+      url: `/tenants/${w.name}/login-actions/select-account`,
+      headers: {
+        host: HOST,
+        cookie,
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      payload: new URLSearchParams({
+        auth_session_id: field(chooser, 'auth_session_id'),
+        session_id: String(sessionId),
+      }).toString(),
+    });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('name="current_password"');
+    const done = await form(w, 'required-action?action=update-password', {
+      auth_session_id: field(page, 'auth_session_id'),
+      cancel: '1',
+    });
+    expect(locationOf(done).searchParams.get('action_status')).toBe('cancelled');
   });
 });

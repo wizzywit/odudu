@@ -79,18 +79,24 @@ function updatePasswordPage(
       ? `<label>${tHtml(locale, 'updatePassword.currentPassword')} <input type="password" name="current_password" autocomplete="current-password"${invalidAttributes(problems, 'current_password')}${currentRefused ? ' autofocus' : ''}></label>\n`
       : '';
   const title = t(locale, 'updatePassword.title');
+  const parts = {
+    intro: intro(tHtml(locale, 'updatePassword.title'), tenant),
+    error: problemSummary(problems),
+    'form.open': `<form method="post" action="${target}">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
+    fields: `${current}${password.html}`,
+    submit: `<button type="submit">${tHtml(locale, 'updatePassword.submit')}</button>${cancelButton(variant, locale)}`,
+    'form.close': '</form>',
+  };
+  // The template's sentence says the account needs a new password before
+  // the sign-in can go on, which is not what an application asking is.
   const body = fillPage(
     'update-password',
-    {
-      intro: intro(tHtml(locale, 'updatePassword.title'), tenant),
-      error: problemSummary(problems),
-      'form.open': `<form method="post" action="${target}">
-  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
-      fields: `${current}${password.html}`,
-      submit: `<button type="submit">${tHtml(locale, 'updatePassword.submit')}</button>${cancelButton(variant, locale)}`,
-      'form.close': '</form>',
-    },
+    parts,
     locale,
+    variant === 'requested'
+      ? { from: 'updatePassword.intro', to: 'updatePassword.requestedIntro' }
+      : undefined,
   );
   return page(title, body, password.script, [], locale, 'update-password');
 }

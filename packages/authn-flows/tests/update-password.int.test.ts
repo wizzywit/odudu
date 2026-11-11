@@ -624,6 +624,16 @@ describe('a password change that must prove the current password', () => {
     expect(await signIn(account, PASSWORD)).toMatchObject({ kind: 'failure' });
   });
 
+  it('ends the run of failures once the current password is right', async () => {
+    const account = await seedAccount();
+    await owner.sql`update tenants set brute_force_max_failures = 3 where id = ${account.tenantId}`;
+    for (const wrong of ['one', 'two']) await changeProving(account, wrong);
+    expect(await changeProving(account, PASSWORD)).toEqual({ kind: 'updated' });
+    const rows =
+      await owner.sql`select 1 from login_failures where subject_id = ${account.subjectId}`;
+    expect(rows).toHaveLength(0);
+  });
+
   it('asks for no current password where the caller gives none', async () => {
     const account = await seedAccount();
     expect(await change(account, NEW)).toEqual({ kind: 'updated' });

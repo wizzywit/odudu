@@ -89,6 +89,7 @@ function deps(): LoginRouteDeps {
     beginTotpEnrolment: vi.fn(),
     beginRecoveryCodes: vi.fn(),
     recordActionStep: vi.fn().mockResolvedValue(undefined),
+    holdsPassword: vi.fn().mockResolvedValue(true),
   };
 }
 

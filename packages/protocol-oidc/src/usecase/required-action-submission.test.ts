@@ -29,6 +29,7 @@ const SUBMISSION = {
   password: undefined,
   currentPassword: undefined,
   cancel: false,
+  confirm: false,
 };
 
 interface Harness {
@@ -745,5 +746,64 @@ describe('handleRequiredActionSubmission — an action an application requested'
     await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
 
     expect(recordActionStep).not.toHaveBeenCalled();
+  });
+
+  it('offers no way out of an action the tenant also owes, and records a success', async () => {
+    const { deps, pendingActions, loadPendingRequest, recordActionStep, completeTotpEnrolment } =
+      harness();
+    pendingActions.mockResolvedValue(['configure-totp']);
+    loadPendingRequest.mockResolvedValue(ASKED);
+
+    const cancelled = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, cancel: true },
+      REQUEST,
+    );
+    expect(cancelled).toEqual({ kind: 'not_owed', action: 'configure-totp' });
+    expect(recordActionStep).not.toHaveBeenCalled();
+
+    await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
+    expect(completeTotpEnrolment.mock.calls[0]?.[0]).not.toHaveProperty('replace');
+    expect(recordActionStep).toHaveBeenCalledWith(
+      expect.objectContaining({ step: 'success' }),
+      REQUEST,
+    );
+  });
+
+  it('passes the confirmation of a recovery-code replacement on, issuing nothing itself', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeRecoveryCodes } = harness();
+    pendingActions.mockResolvedValue([]);
+    loadPendingRequest.mockResolvedValue({ action: 'generate-recovery-codes' });
+
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, action: 'generate-recovery-codes', confirm: true },
+      REQUEST,
+    );
+
+    expect(outcome).toEqual({
+      kind: 'confirmed',
+      authSessionId: AUTH_SESSION_ID,
+      subjectId: 'subject-1',
+      requested: true,
+    });
+    expect(completeRecoveryCodes).not.toHaveBeenCalled();
+  });
+
+  it('ignores a confirmation for a set the tenant owes', async () => {
+    const { deps, pendingActions, loadPendingRequest } = harness();
+    pendingActions.mockResolvedValue(['generate-recovery-codes']);
+    loadPendingRequest.mockResolvedValue({ action: 'generate-recovery-codes' });
+
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, action: 'generate-recovery-codes', confirm: true },
+      REQUEST,
+    );
+
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
   });
 });

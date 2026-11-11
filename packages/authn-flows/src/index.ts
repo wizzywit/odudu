@@ -88,6 +88,7 @@ export { recordActionStep, type ActionStep, type RecordActionStep } from '#/usec
 export { type ActionPageVariant } from '#/view/action-cancel';
 export {
   renderRecoveryCodesPage,
+  renderRequestedRecoveryCodesConfirmPage,
   renderRequestedRecoveryCodesPage,
   type RecoveryCodesOffer,
 } from '#/view/recovery-codes-html';
@@ -97,6 +98,7 @@ export {
 } from '#/view/update-password-html';
 export {
   CURRENT_PASSWORD_REFUSED,
+  holdsPassword,
   completeUpdatePassword,
   recordPasswordExpiryIfOwed,
   SUPERSEDED_PASSWORD,

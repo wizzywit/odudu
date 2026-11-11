@@ -7,6 +7,7 @@ import {
 } from '#/view/passkey-enrolment-html';
 import {
   renderRecoveryCodesPage,
+  renderRequestedRecoveryCodesConfirmPage,
   renderRequestedRecoveryCodesPage,
 } from '#/view/recovery-codes-html';
 import {
@@ -119,6 +120,30 @@ describe('a page an application sent the person to', () => {
     expect(page.body).toContain(en['updatePassword.rule.currentPassword']);
     expect(page.body).toMatch(/name="current_password"[^>]*aria-invalid="true"/u);
     expect(page.body).not.toMatch(/name="password"[^>]*aria-invalid/u);
+  });
+
+  it('says why the person is here, not that the account needs a new password', () => {
+    const owed = renderers['update-password']().body;
+    const requested = renderers['update-password']('requested').body;
+    expect(owed).toContain(en['updatePassword.intro']);
+    expect(requested).not.toContain(en['updatePassword.intro']);
+    expect(requested).toContain(en['updatePassword.requestedIntro']);
+    expect(ar['updatePassword.requestedIntro']).toBeTruthy();
+  });
+
+  it('the recovery-code confirmation names the replacement and carries a confirm and a cancel', () => {
+    const page = renderRequestedRecoveryCodesConfirmPage(
+      'acme',
+      ADDRESS,
+      's1',
+      DEFAULT_PAGE_LOCALE,
+    );
+    expect(page.body).toContain(en['recoveryCodes.confirmReplace']);
+    expect(page.body).toContain('name="confirm" value="1"');
+    expect(page.body).toMatch(CANCEL);
+    expect(page.body).not.toContain('<ol>');
+    expect(ar['recoveryCodes.confirmReplace']).toBeTruthy();
+    expect(ar['recoveryCodes.confirm']).toBeTruthy();
   });
 
   it('says cancel in Arabic too', () => {

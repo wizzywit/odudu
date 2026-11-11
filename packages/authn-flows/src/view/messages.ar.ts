@@ -62,4 +62,9 @@ export const ar: Readonly<Record<string, string>> = {
   'updatePassword.currentPassword': 'كلمة المرور الحالية',
   'updatePassword.rule.currentPassword': 'كلمة المرور الحالية غير صحيحة.',
   'action.cancel': 'إلغاء والعودة',
+  'updatePassword.requestedIntro':
+    'طلب منك أحد التطبيقات تغيير كلمة المرور. أدخل كلمة المرور الحالية أولًا.',
+  'recoveryCodes.confirmReplace':
+    'سيحل هذا محل رموز الاسترداد الحالية. تتوقف الرموز القديمة عن العمل بمجرد التأكيد.',
+  'recoveryCodes.confirm': 'استبدال رموز الاسترداد',
 };

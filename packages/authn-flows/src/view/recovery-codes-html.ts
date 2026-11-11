@@ -78,3 +78,33 @@ export function renderRequestedRecoveryCodesPage(
 ): RenderedPage {
   return recoveryCodesPage(tenant, address, authSessionId, offer, error, locale, 'requested');
 }
+
+// The question put to a person who already holds a set, before anything is
+// issued: the set is replaced by confirming, not by being shown this page.
+export function renderRequestedRecoveryCodesConfirmPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  locale: PageLocale,
+): RenderedPage {
+  const target = escapeHtml(
+    addressPath(address, '/login-actions/required-action?action=generate-recovery-codes'),
+  );
+  const body = fillPage(
+    'recovery-codes',
+    {
+      intro: intro(tHtml(locale, 'recoveryCodes.title'), tenant),
+      error: '',
+      instructions: `<p>${tHtml(locale, 'recoveryCodes.confirmReplace')}</p>`,
+      notice: '',
+      codes: '',
+      'form.open': `<form method="post" action="${target}">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
+  <input type="hidden" name="confirm" value="1">`,
+      submit: `<button type="submit">${tHtml(locale, 'recoveryCodes.confirm')}</button>${cancelButton('requested', locale)}`,
+      'form.close': '</form>',
+    },
+    locale,
+  );
+  return page(t(locale, 'recoveryCodes.title'), body, null, [], locale, 'recovery-codes');
+}

@@ -1,4 +1,5 @@
 import {
+  renderRequestedRecoveryCodesConfirmPage,
   renderRequiredActionPage,
   type PasskeyEnrolmentOffer,
   type ActionPageVariant,
@@ -42,11 +43,18 @@ export interface RequiredActionResponseDeps extends ContinuationDeps {
     subjectId: string,
     authSessionId: string,
   ): Promise<PasskeyEnrolmentOffer>;
+  // `keepHeld` leaves a set the subject already holds alone, answering `held`.
   beginRecoveryCodes(
     tenantId: string,
     subjectId: string,
     request: RequestContext,
+    keepHeld?: boolean,
   ): Promise<BeginRecoveryCodesOutcome>;
+  // What the tenant itself still owes the subject: an action it owes is never
+  // offered a way out, whoever else asked for it.
+  pendingActions(tenantId: string, subjectId: string): Promise<readonly RequiredAction[]>;
+  // Whether the subject has a password at all.
+  holdsPassword(tenantId: string, subjectId: string): Promise<boolean>;
   // The step an action an application requested has reached: audited, and
   // when it is an ending, parked for the response.
   recordActionStep(
@@ -77,10 +85,12 @@ export async function sendRequiredActionPage(
   );
   // The page of an action an application sent the person to may be left; the
   // page of one the tenant owes may not.
+  const isAsked = requestedAction === action;
+  const asked = isAsked ? await deps.findTenant(tenantName) : null;
+  const owedByTenant = asked === null ? [] : await deps.pendingActions(asked.id, subjectId);
   const variant: ActionPageVariant | undefined =
-    requestedAction === action ? 'requested' : undefined;
+    isAsked && !owedByTenant.includes(action) ? 'requested' : undefined;
   const pages = actionPages(variant);
-  const asked = variant === undefined ? null : await deps.findTenant(tenantName);
   const record = (step: RecordActionStep['step']) =>
     asked === null
       ? Promise.resolve()
@@ -119,6 +129,7 @@ export async function sendRequiredActionPage(
         tenant.id,
         subjectId,
         requestContextFrom(reply.request),
+        variant === 'requested',
       );
       // The set was refused because no second factor is held any more, and the
       // action is cleared: signing in again goes on without it.
@@ -126,6 +137,18 @@ export async function sendRequiredActionPage(
         if (variant === undefined) return sendSignInExpired(reply, deps, tenantName, authSessionId);
         await record('error');
         return sendActionUnavailable(reply, deps, tenantName, authSessionId);
+      }
+      // An application asked, and the person holds a set: nothing is replaced
+      // until they say so.
+      if (issued.kind === 'held') {
+        return send(
+          renderRequestedRecoveryCodesConfirmPage(
+            tenantName,
+            tenantAddressOf(reply.request),
+            authSessionId,
+            locale,
+          ),
+        );
       }
       return send(
         pages.recoveryCodes(
@@ -141,6 +164,15 @@ export async function sendRequiredActionPage(
   }
   if (action === 'update-password') {
     const tenant = await deps.findTenant(tenantName);
+    // A person who signs in without a password has none to prove or change.
+    if (
+      tenant !== null &&
+      variant === 'requested' &&
+      !(await deps.holdsPassword(tenant.id, subjectId))
+    ) {
+      await record('error');
+      return sendActionUnavailable(reply, deps, tenantName, authSessionId);
+    }
     if (tenant !== null) {
       return send(
         pages.updatePassword(

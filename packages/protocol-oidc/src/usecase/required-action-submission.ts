@@ -49,8 +49,16 @@ export type RequiredActionOutcome =
   // The candidate password did not satisfy the tenant's policy. Every rule
   // it broke is carried, not just the first, so the form it goes back to
   // can list them at once.
-  | { kind: 'password_rejected'; authSessionId: string; violations: readonly PasswordViolation[] }
-  | RejectedRequiredAction;
+  | {
+      kind: 'password_rejected';
+      authSessionId: string;
+      violations: readonly PasswordViolation[];
+      requested?: true;
+    }
+  // The person confirmed replacing the recovery codes they hold: the route
+  // issues the new set and shows it.
+  | { kind: 'confirmed'; authSessionId: string; subjectId: string; requested: true }
+  | (RejectedRequiredAction & { requested?: true });
 
 export interface RequiredActionSubmission {
   authSessionId: string | undefined;
@@ -65,6 +73,8 @@ export interface RequiredActionSubmission {
   currentPassword: string | undefined;
   // The page's cancel control was used.
   cancel: boolean;
+  // The confirm control of the recovery-code replacement page was used.
+  confirm: boolean;
   // The JSON navigator.credentials.create() produced, as the passkey page's
   // hidden field carried it back, and the name the user gave it.
   credential: string | undefined;
@@ -176,12 +186,16 @@ export async function handleRequiredActionSubmission(
   // an expired password from enrolling a second factor, and a submission
   // naming a later action would otherwise walk straight past it.
   const pending = await deps.loadPendingRequest(tenant.id, authSessionId);
-  const owed = owedWithRequested(await deps.pendingActions(tenant.id, subjectId), pending ?? {});
+  const tenantOwes = await deps.pendingActions(tenant.id, subjectId);
+  const owed = owedWithRequested(tenantOwes, pending ?? {});
   const next = nextRequiredAction(owed);
   if (next === null || action !== next) {
     return { kind: 'not_owed', action: action ?? '' };
   }
-  const requested = pending !== null && requestedActionOf(pending) === next;
+  // Asked for by the application, and ended by this submission either way. It
+  // may be left only where the tenant does not also owe it.
+  const asked = pending !== null && requestedActionOf(pending) === next;
+  const requested = asked && !tenantOwes.includes(next);
   const step = (kind: ActionStep) =>
     deps.recordActionStep(
       { tenantId: tenant.id, authSessionId, subjectId, action: next, step: kind },
@@ -195,6 +209,9 @@ export async function handleRequiredActionSubmission(
     return { kind: 'completed', authSessionId };
   }
   if (submission.cancel) return { kind: 'not_owed', action: next };
+  if (requested && next === 'generate-recovery-codes' && submission.confirm) {
+    return { kind: 'confirmed', authSessionId, subjectId, requested: true };
+  }
 
   const outcome = await performAction(
     deps,
@@ -206,8 +223,10 @@ export async function handleRequiredActionSubmission(
     request,
     requested,
   );
-  if (requested && outcome.kind === 'completed') await step('success');
-  return outcome;
+  if (asked && outcome.kind === 'completed') await step('success');
+  return requested && (outcome.kind === 'password_rejected' || outcome.kind === 'rejected')
+    ? { ...outcome, requested: true }
+    : outcome;
 }
 
 // Runs the executor the action is owed through. An action an application asked

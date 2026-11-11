@@ -100,7 +100,11 @@ async function currentPasswordProved(
     return false;
   }
   const current = await credentialRepository(tx).passwordFor(input.subjectId);
-  if (current !== null && (await verifyUserPassword(current, answer))) return true;
+  if (current !== null && (await verifyUserPassword(current, answer))) {
+    // As a completed sign-in with a password ends the run before it.
+    await failures.clear(input.subjectId);
+    return true;
+  }
   await failures.recordFailure(input.subjectId, lockout, now);
   return false;
 }
@@ -201,4 +205,10 @@ export async function recordPasswordExpiryIfOwed(
   const [credential] = await credentialRepository(tx).listFor(subjectId, 'password');
   if (credential === undefined || !passwordExpired(credential, maxAgeDays, clock.now())) return;
   await requiredActionRepository(tx).add(tenantId, subjectId, 'update-password');
+}
+
+// Whether the subject has a password to prove or change: one who signs in with
+// a passkey alone has none, and a password change cannot be asked of them.
+export async function holdsPassword(tx: TenantScopedDatabase, subjectId: string): Promise<boolean> {
+  return (await credentialRepository(tx).passwordFor(subjectId)) !== null;
 }

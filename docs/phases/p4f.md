@@ -218,3 +218,16 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
   audit row is written for that return, which is a link, not a request.
 - The "me" write refusal for an agent token has no counterpart at `/authorize`:
   no session or grant carries an agent marker, so there is nothing to refuse.
+- The guide's recovery-code step: a person who holds a set is asked to confirm
+  replacing it, and cancelling leaves it untouched; a person with none is
+  issued one at once. A reload of the confirmation page replaces nothing.
+- The guide's note on the current password: a wrong answer counts as a failed
+  sign-in against the tenant lockout (a person locked out this way is locked out
+  of sign-in), a right one ends the run of failures; a person who has no
+  password (passkey only) gets `action_status=error`.
+- The password page of a requested change says an application asked; an action
+  the tenant also owes is shown without a cancel control and ends as `success`.
+- `action.requested` is written each time the page is shown (the vocabulary
+  reference says so), not once per request.
+- The same four transcripts, the guide and the CHANGELOG line stay with the
+  increment close.

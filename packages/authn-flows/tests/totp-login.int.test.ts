@@ -1056,4 +1056,29 @@ describe('replacing the authenticator a subject already holds', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.secret).toMatchObject({ secret: first.secret });
   });
+
+  it('serialises two swaps for one subject, leaving one authenticator', async () => {
+    const { tenantId, subjectId } = await holder();
+    const offers = await Promise.all(
+      [0, 1].map(() =>
+        withTenant(app.db, tenantId, (tx) =>
+          beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+        ),
+      ),
+    );
+    const later = clockAt(120_000);
+    await Promise.all(
+      offers.map((offer) =>
+        replace(
+          tenantId,
+          subjectId,
+          newId(),
+          later,
+          offer.secret,
+          totpCode(offer.secret, totpCounter(later.now())),
+        ),
+      ),
+    );
+    expect(await held(tenantId, subjectId)).toHaveLength(1);
+  });
 });

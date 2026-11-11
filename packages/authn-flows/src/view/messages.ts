@@ -68,6 +68,11 @@ export const en = {
   'updatePassword.currentPassword': 'Current password',
   'updatePassword.rule.currentPassword': 'The current password is not correct.',
   'action.cancel': 'Cancel and go back',
+  'updatePassword.requestedIntro':
+    'An application asked you to change your password. Enter your current password first.',
+  'recoveryCodes.confirmReplace':
+    'This replaces your current recovery codes. The old ones stop working as soon as you confirm.',
+  'recoveryCodes.confirm': 'Replace my recovery codes',
 };
 
 // A Latin token (a secret, a key URI, a recovery code) keeps its own

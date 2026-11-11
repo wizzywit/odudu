@@ -74,7 +74,7 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'recovery_codes.issued': 'A user was issued a new set of recovery codes.',
   'action.requested':
     'An application sent a signed-in person to change a credential. `detail.action` names the ' +
-    'action and the actor client is the application. Written when the page is shown.',
+    'action and the actor client is the application. Written each time the page is shown, so a reload can add another.',
   'action.completed':
     'The person finished the action an application requested. The credential change has its own row.',
   'action.cancelled': 'The person used the page\u2019s cancel control and nothing was changed.',
