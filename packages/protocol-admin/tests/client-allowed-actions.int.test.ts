@@ -317,3 +317,52 @@ describe('allowed_actions in a tenant document', () => {
     expect(copy.clients.every((client) => client.allowed_actions.length === 0)).toBe(true);
   });
 });
+
+describe('deleting the me:read scope', () => {
+  const ME_WRITE_MESSAGE = 'the scope me:write is held only together with me:read';
+
+  async function remove(s: Awaited<ReturnType<typeof setup>>) {
+    return fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${s.t.name}/scopes/${s.scopeId.get('me:read') ?? ''}?confirm=me:read`,
+      headers: { authorization: `Bearer ${s.token}` },
+    });
+  }
+
+  it('is refused while a client holding it may start an action, and goes once that is cleared', async () => {
+    const s = await setup();
+    await s.assign('me:read');
+    await s.patch({ allowed_actions: ['update-password'] });
+    const refused = await remove(s);
+    expect(refused.statusCode, refused.body).toBe(409);
+    expect(codes(refused)).toEqual([CODE]);
+    expect((await s.read()).json()).toMatchObject({ allowed_actions: ['update-password'] });
+    await s.patch({ allowed_actions: [] });
+    expect((await remove(s)).statusCode).toBe(204);
+  });
+
+  it('is refused while a client holding it also holds me:write, and goes once that is removed', async () => {
+    const s = await setup();
+    await s.assign('me:read');
+    await s.assign('me:write');
+    const refused = await remove(s);
+    expect(refused.statusCode, refused.body).toBe(409);
+    expect(refused.json<Refusal>().detail).toBe(ME_WRITE_MESSAGE);
+    await s.unassign('me:write');
+    expect((await remove(s)).statusCode).toBe(204);
+  });
+
+  it('is not held up by another tenant’s clients', async () => {
+    const mine = await setup();
+    const theirs = await setup();
+    await theirs.assign('me:read');
+    await theirs.patch({ allowed_actions: ['update-password'] });
+    expect((await remove(mine)).statusCode).toBe(204);
+    const kept = (await theirs.read()).json<{
+      allowed_actions: string[];
+      scopes: { name: string }[];
+    }>();
+    expect(kept.allowed_actions).toEqual(['update-password']);
+    expect(kept.scopes.map((scope) => scope.name)).toContain('me:read');
+  });
+});

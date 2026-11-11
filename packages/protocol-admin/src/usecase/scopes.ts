@@ -29,6 +29,7 @@ import {
   restoreBuiltinScopes,
   ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
   ME_READ_SCOPE,
+  ME_WRITE_SCOPE,
   ME_WRITE_NEEDS_READ_MESSAGE,
   allowedActionsHaveMeRead,
   meWriteNeedsRead,
@@ -38,7 +39,7 @@ import {
 } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
-import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { COUNT_CAP, countAtMost } from '#/usecase/capped-count';
 import {
   capabilitiesReachableFrom,
@@ -617,9 +618,49 @@ export interface DeleteScopeDeps {
   readonly audit: Audit;
 }
 
+// One read of `client_scope_assignments_by_scope` each, stopping at the first
+// client found, so it is bounded by the scope's assignments and never scans
+// the tenant's clients.
+async function clientsStrandedWithoutMeRead(
+  tx: TenantScopedDatabase,
+  meReadId: string,
+): Promise<
+  | { kind: 'allowed_actions_need_me_read'; message: string }
+  | { kind: 'me_scope_incoherent'; message: string }
+  | null
+> {
+  const withActions = await tx.execute(sql`
+    SELECT 1
+    FROM client_scope_assignments a
+    JOIN client_oidc_config c ON c.client_id = a.client_id
+    WHERE a.client_scope_id = ${meReadId} AND c.allowed_actions <> '{}'
+    LIMIT 1
+  `);
+  if (withActions.length > 0) {
+    return { kind: 'allowed_actions_need_me_read', message: ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE };
+  }
+  const meWrite = await clientScopeRepository(tx).byName(ME_WRITE_SCOPE);
+  if (meWrite === null) return null;
+  const withWrite = await tx.execute(sql`
+    SELECT 1
+    FROM client_scope_assignments w
+    WHERE w.client_scope_id = ${meWrite.id}
+      AND EXISTS (
+        SELECT 1 FROM client_scope_assignments r
+        WHERE r.client_id = w.client_id AND r.client_scope_id = ${meReadId}
+      )
+    LIMIT 1
+  `);
+  return withWrite.length > 0
+    ? { kind: 'me_scope_incoherent', message: ME_WRITE_NEEDS_READ_MESSAGE }
+    : null;
+}
+
 export type DeleteScopeOutcome =
   | { kind: 'not_found' }
   | { kind: 'openid_guarded'; reason: string }
+  | { kind: 'me_scope_incoherent'; message: string }
+  | { kind: 'allowed_actions_need_me_read'; message: string }
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'builtin_confirmation_required'; reason: string }
   | { kind: 'deleted' };
@@ -700,6 +741,26 @@ export async function deleteScope(
       detail: { reason },
     });
     return { kind: 'openid_guarded', reason };
+  }
+
+  // The cascade takes `me:read` off every client that holds it, so a client
+  // that also holds `me:write` or may start an action would be left without
+  // the scope those need.
+  if (scope.name === ME_READ_SCOPE) {
+    const stranded = await clientsStrandedWithoutMeRead(tx, input.scopeId);
+    if (stranded !== null) {
+      await deps.audit(tx, {
+        action: 'scope.delete',
+        resourceType: 'scope',
+        resourceId: input.scopeId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { reason: stranded.message },
+      });
+      return stranded;
+    }
   }
 
   // Judged the way `setScopeRoles` judges a role it leaves out, since the
