@@ -59,6 +59,12 @@ A confidential client proves itself in one of the ways its record names: a secre
 - Revoke and introspect take `token` and the same client authentication as the token endpoint. `token_type_hint` is not read: both kinds of token are tried.
 - Sign out takes `id_token_hint`, `post_logout_redirect_uri`, `state` and `client_id`. The address must be registered for the client. A browser that holds a session is asked to confirm, whatever the hint, and the confirmation ends it. The one exception is a client whose `skip_logout_confirmation` setting is on: for a valid `id_token_hint` of its own that belongs to the session the browser holds, it is signed out at once. No hint, a hint for another client or session, and every client with the setting off still ask. When the session ends, each client that asked for it is told through its back-channel or front-channel logout address.
 
+## The me API
+
+A person's own application reads that person's account at `/tenants/<tenant>/me` (at `/me` on a tenant's own domain): `profile`, `credentials`, `sessions` and `consents`. It takes an access token whose audience is the tenant's issuer followed by `/me`, and whose scope holds `me:read`. `me:write` is held only together with `me:read`, so a request for it carries `me:read` along, and at any other audience both scopes are refused with `invalid_scope`. A client asks for the audience with `resource` and must be assigned the scope.
+
+No path or query names a person: the token's own subject is the only one read, so an application cannot ask for somebody else's account. The three lists take `limit` and `cursor`. Nothing secret crosses the API: a credential is listed by type, label and when it was used, never by a hash, key or seed, and a session by when it was last active. [The me API](./transcripts/request-paths/the-me-api.md) shows a sign-in, each read and each refusal.
+
 ## What is not served
 
 Implicit and hybrid flows, `form_post` and `fragment` responses, the password grant, request objects and pushed authorization requests are not served. The [roadmap](../roadmap.md) says which are decisions and which are planned.

@@ -49,6 +49,31 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
+The me API's page, `the-me-api.md`, was captured on 2026-11-11 on a freshly built compose project, `odudu-p4f-i15b` (port `3000`,
+`ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `9b43ed8e6` with nothing uncommitted), started from an
+empty volume. The stack was driven once, in the order the page shows: `seed admin`, a token for it got as in Getting the token,
+then the page's blocks as one replay, each block a file run in the same shell and its output written to the page as it came back
+(carriage returns and trailing spaces removed), so every id, time and request id on the page is that run's. The only block run
+again alone is the one that names a subject in a query and a path: it was run once more after the first pass, on a new sign-in,
+because an `echo` was added after its first command so its refusal does not run into the next output, and no other block depends on it. The earlier build of the same
+stack, from `019dd64be`, refused every token a real sign-in issues, because the door wanted the me URL as the only audience; the page is
+from the build that fixed it. `a refusal for a token holding me:write alone` is not on the page, because no sign-in can produce one;
+the integration test of the door runs it. The stack and its image were removed afterwards.
+
+The discovery document and authorization server metadata began to list `me:read` and `me:write` on 2026-11-11, and every tenant now
+starts with twelve scopes. On the compose project `odudu-p4f-i15` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`,
+built from the branch commit `019dd64be`), a freshly built stack with `demo`, `demo-spa` and `ada` seeded as Bootstrap seeds them, the
+authorization server metadata page's two header blocks, its domain block and the `404` after it were run again (the `jq` block was
+compared with its page and is identical, so it was not rewritten), and so were the discovery document at the domain in the custom
+domains page, the discovery document in Path A (compared member for member with the page's block, and identical), the console
+discovery block of `get-consoleapitenantstenantdiscovery-get-consoleapitenantstenantjwks.md` (on this stack's port `3000`, signed in
+as `ada` through the console's own login), the first export block of `get-export.md` on a tenant `export-demo` made as that page makes
+it, and the 988-scope fill of the scope limit section of `get-scopes-post-scopes-get-scopesid-patch-scopesid-and-delete-scopesid.md` (the
+count was 992 before the tenant began with twelve scopes; the loop was run with 988, and a 989th create answered `409`). The two console
+scope screenshots and the overview's, and the records they are checked against, were regenerated with `pnpm docs:screenshots`. The
+pages of `GET /scopes/builtins` and of the restore were not run again: no block on them shows a list of the built-ins, and their prose
+now names all twelve. The stack was removed afterwards.
+
 The MCP endpoint's page, `the-mcp-endpoint.md`, was captured again, end to end, on 2026-11-06 on a freshly built compose project,
 `odudu-p5a-i11c` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `77b0c85d4`). The
 project's volume was removed and the stack started again from the same image before the one pass the page records (the tenant `demo`
