@@ -346,6 +346,12 @@ describe('the door', () => {
     }
   });
 
+  it('allows the audiences a sign-in gives a token: the me URL and the issuer', async () => {
+    const w = await world();
+    const token = await sign(w, { aud: [meAudienceOfIssuer(w.issuer), w.issuer] });
+    expect((await get(w, 'profile', token)).statusCode).toBe(200);
+  });
+
   it('allows a token marked for an agent to read', async () => {
     const w = await world();
     const token = await sign(w, { act: { sub: 'agent-1' } });

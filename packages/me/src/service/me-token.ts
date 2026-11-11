@@ -15,11 +15,13 @@ function nonEmpty(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-// Whether `aud` is exactly `audience`: a string, or an array of that one
-// string. A token that names another audience as well is meant for another door.
-export function audienceIsOnly(aud: unknown, audience: string): boolean {
+// Whether `aud` names `audience` and nothing else but the issuer, which every
+// access token also names for the UserInfo endpoint. A token that names another
+// resource as well is meant for another door.
+export function audienceIsOnly(aud: unknown, audience: string, issuer: string): boolean {
   if (typeof aud === 'string') return aud === audience;
-  return Array.isArray(aud) && aud.length === 1 && aud[0] === audience;
+  if (!Array.isArray(aud) || !aud.includes(audience)) return false;
+  return aud.every((entry) => entry === audience || entry === issuer);
 }
 
 // Null when a claim the door stands on is missing or unreadable. A present but

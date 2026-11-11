@@ -36,7 +36,8 @@ function refused(reason: string): MeAuthOutcome {
 }
 
 // The door of the "me" API: a JWT this tenant signed (`typ` `at+jwt`, an issuer
-// it accepts, unexpired) whose audience is the tenant's own "me" URL alone.
+// it accepts, unexpired) whose audience is the tenant's own "me" URL, with at
+// most the issuer beside it.
 // Session and grant liveness are not checked here.
 export async function validateMeToken(
   deps: ValidateMeTokenDeps,
@@ -57,7 +58,7 @@ export async function validateMeToken(
     audience,
   });
   if (payload === null) return refused('invalid_token');
-  if (!audienceIsOnly(payload.aud, audience)) return refused('invalid_token');
+  if (!audienceIsOnly(payload.aud, audience, iss)) return refused('invalid_token');
 
   const claims = meTokenClaims(payload);
   if (claims === null) return refused('invalid_token');

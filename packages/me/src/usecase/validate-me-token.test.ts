@@ -152,11 +152,16 @@ describe('a request the door refuses', () => {
   it.each([
     ['the MCP audience', [ME, mcpAudienceOfIssuer(ISSUER)]],
     ['the admin audience', [ME, 'urn:odudu:admin-api']],
-    ['the issuer', [ME, ISSUER]],
+    ['another issuer', [ME, 'https://other.example/t/x']],
   ])('refuses a "me" token that also names %s', async (_l, aud) => {
     expect(await validateMeToken(deps({ claims: { ...CLAIMS, aud } }), input())).toEqual(
       refusal('invalid_token'),
     );
+  });
+
+  it('accepts the audiences a real sign-in gives it: the "me" URL and the issuer', async () => {
+    const claims = { ...CLAIMS, aud: [ME, ISSUER] };
+    expect(await validateMeToken(deps({ claims }), input())).toMatchObject({ kind: 'ok' });
   });
 
   it('accepts the "me" audience as a bare string', async () => {
