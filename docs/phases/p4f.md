@@ -208,6 +208,9 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
   It now takes the wording from its use case.
 - Tests were written beside the code, not before, in several places; the review said so and the missing red runs were
   not recreated.
+- This close repeated it: the assertions that the codes page offers no cancel after a confirm, and the test of the
+  corrected `me:read` message, were written together with their fixes and not run red first. A later assertion for the
+  re-render that issues a fresh set was shown red by reverting the fix.
 
 ### What the close found
 
@@ -217,7 +220,7 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 - The refusal for removing or deleting `me:read` said to assign it, the opposite of what the caller was doing. It now says to
   clear `allowed_actions` first.
 - The amend of `allowed_actions` needs `If-Match` like the six list fields, and answers `400` for a client without `me:read`
-  before it answers `428`.
+  before it answers `428`. The patch transcript shows both orders.
 - The admin OpenAPI transcript had a hand-edited size; the real fetch gave the same 810,507 bytes.
 - The wrong-current-password lockout was shown live: one failure after a wrong answer, none after the right one.
 
@@ -230,3 +233,7 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 - `update-password` for a person with no password, and the passkey ceremony, are covered by integration tests and not by a
   transcript, which cannot reach them from a shell.
 - The close-of-phase pass (the roadmap, section 11 and `docs/NEXT.md` read against each other) still owns the P4f row.
+- A requested `generate-recovery-codes` for a person who holds no set issues one when the page renders, so a reload shows the
+  confirmation page with a cancel control, and cancelling then records `cancelled` after the set changed. It is the remaining
+  case of the render-time change that the confirmation step removed for a held set. It is placed on Increment 5, the
+  recovery-code increment, which decides whether a first set also waits for a confirmation.
