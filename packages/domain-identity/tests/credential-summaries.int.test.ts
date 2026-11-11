@@ -236,3 +236,60 @@ describe('credentialRepository.renameLabel', () => {
     });
   });
 });
+
+describe('credentialRepository.summaryOf', () => {
+  it('answers the summary of a sign-in credential of the subject, and nothing else', async () => {
+    const tenantId = newId();
+    const { subjectId, strangerId, ids } = await withTenant(app.db, tenantId, async (tx) => {
+      const id = await seedSubject(tx, tenantId);
+      await holdEveryKind(tx, tenantId, id);
+      const other = (await subjectRepository(tx).create({ tenantId, type: 'user' })).id;
+      const rows = await credentialRepository(tx).summariesFor(id, { after: undefined, limit: 50 });
+      return { subjectId: id, strangerId: other, ids: rows.map((row) => row.id) };
+    });
+    const [first] = ids;
+    const answers = await withTenant(app.db, tenantId, async (tx) => ({
+      held: await credentialRepository(tx).summaryOf(subjectId, first ?? ''),
+      stranger: await credentialRepository(tx).summaryOf(strangerId, first ?? ''),
+      unknown: await credentialRepository(tx).summaryOf(subjectId, newId()),
+    }));
+    expect(answers.held?.id).toBe(first);
+    expect(answers.stranger).toBeNull();
+    expect(answers.unknown).toBeNull();
+  });
+
+  it('does not answer for a recovery code', async () => {
+    const tenantId = newId();
+    const answer = await withTenant(app.db, tenantId, async (tx) => {
+      const id = await seedSubject(tx, tenantId);
+      await holdEveryKind(tx, tenantId, id);
+      const codes = await credentialRepository(tx).listFor(id, 'recovery-code');
+      return credentialRepository(tx).summaryOf(id, codes[0]?.id ?? '');
+    });
+    expect(answer).toBeNull();
+  });
+
+  it('finds nothing of another tenant’s subject', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedSubject(tx, tenantId);
+        await holdEveryKind(tx, tenantId, subjectId);
+        const rows = await credentialRepository(tx).summariesFor(subjectId, {
+          after: undefined,
+          limit: 50,
+        });
+        return { subjectId, credentialId: rows[0]?.id ?? '' };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(
+          await credentialRepository(tx).summaryOf(seeded.subjectId, seeded.credentialId),
+        ).not.toBeNull();
+      },
+      attempt: (tx, seeded) =>
+        credentialRepository(tx).summaryOf(seeded.subjectId, seeded.credentialId),
+      expectBlocked: (found) => {
+        expect(found).toBeNull();
+      },
+    });
+  });
+});

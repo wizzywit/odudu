@@ -51,6 +51,19 @@ export interface MeWriteTx {
     label: string,
   ): Promise<CredentialSummary | null>;
 
+  // The sign-in credential of the subject with this id, of any kind a person is
+  // shown, or null where the subject holds none by that id.
+  credentialOf(subjectId: string, credentialId: string): Promise<CredentialSummary | null>;
+  // At most `limit` of the subject's sign-in credentials.
+  heldCredentials(subjectId: string, limit: number): Promise<CredentialSummary[]>;
+  // Whether the tenant expects a second factor of every subject.
+  tenantRequiresSecondFactor(): Promise<boolean>;
+  // Deletes a credential the caller has just read as the subject's own.
+  deleteCredential(credentialId: string): Promise<void>;
+  // Revokes the recovery codes a subject has no TOTP left to use them with, and
+  // answers how many went. Called once a TOTP or passkey has been deleted.
+  afterSecondFactorRemoved(subjectId: string): Promise<number>;
+
   audit(event: MeAuditEvent): Promise<void>;
 }
 

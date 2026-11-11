@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   consentRevokedEvent,
+  credentialRemovedEvent,
   credentialRenamedEvent,
   profileAmendedEvent,
+  recoveryCodesRevokedEvent,
   sessionEndedEvent,
   sessionsEndedEvent,
 } from '#/service/audit';
@@ -67,6 +69,28 @@ describe('the audit events of a person’s own changes', () => {
       actorSubjectId: 'subject-1',
       actorClientKey: 'app',
       detail: { via: 'me', credential_id: 'cred-1', type: 'totp' },
+    });
+  });
+
+  it('file a removed credential on the subject, naming its id and type', () => {
+    expect(credentialRemovedEvent(ACTOR, 'cred-1', 'webauthn')).toEqual({
+      action: 'subject.credential_delete',
+      resourceType: 'subject',
+      resourceId: 'subject-1',
+      actorSubjectId: 'subject-1',
+      actorClientKey: 'app',
+      detail: { via: 'me', credential_id: 'cred-1', type: 'webauthn' },
+    });
+  });
+
+  it('file the recovery codes a last TOTP took with it', () => {
+    expect(recoveryCodesRevokedEvent(ACTOR, 10)).toEqual({
+      action: 'subject.recovery_codes_revoke',
+      resourceType: 'subject',
+      resourceId: 'subject-1',
+      actorSubjectId: 'subject-1',
+      actorClientKey: 'app',
+      detail: { via: 'me', revoked: 10, reason: 'last_factor_removed' },
     });
   });
 });

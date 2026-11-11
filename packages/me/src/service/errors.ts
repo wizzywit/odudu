@@ -53,3 +53,19 @@ export class UsernameTakenError extends Error {
     this.name = 'UsernameTakenError';
   }
 }
+
+// What each refusal of a removal says, in the languages the catalogue carries.
+export const REMOVAL_REFUSAL_MESSAGES = {
+  last_sign_in_method: {
+    en: 'This is the last way this account can be signed in to; add another before removing it',
+    ar: 'هذه آخر وسيلة لتسجيل الدخول إلى هذا الحساب؛ أضف وسيلة أخرى قبل إزالتها',
+  },
+  last_second_factor: {
+    en: 'This tenant requires a second factor and this is the last one; add another before removing it',
+    ar: 'تشترط هذه الجهة عاملاً ثانياً وهذا آخر عامل؛ أضف عاملاً آخر قبل إزالته',
+  },
+} as const;
+
+export function removalRefused(code: keyof typeof REMOVAL_REFUSAL_MESSAGES): MeError {
+  return { error: code, error_description: REMOVAL_REFUSAL_MESSAGES[code].en };
+}

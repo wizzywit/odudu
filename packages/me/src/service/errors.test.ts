@@ -6,6 +6,8 @@ import {
   invalidBody,
   invalidRequest,
   notFound,
+  REMOVAL_REFUSAL_MESSAGES,
+  removalRefused,
   usernameNotEditable,
 } from '#/service/errors';
 
@@ -55,5 +57,24 @@ describe('invalidBody', () => {
     expect(
       invalidBody([{ path: [], message: 'must name at least one member' }]).error_description,
     ).toBe('The request body is not valid: must name at least one member');
+  });
+});
+
+describe('the removal refusals', () => {
+  it.each(['last_sign_in_method', 'last_second_factor'] as const)(
+    'carries %s as its stable code with its own message in both languages',
+    (code) => {
+      const refusal = removalRefused(code);
+      expect(refusal.error).toBe(code);
+      expect(refusal.error_description).toBe(REMOVAL_REFUSAL_MESSAGES[code].en);
+      expect(REMOVAL_REFUSAL_MESSAGES[code].en).not.toBe('');
+      expect(REMOVAL_REFUSAL_MESSAGES[code].ar).toMatch(/[؀-ۿ]/);
+    },
+  );
+
+  it('words the two refusals differently', () => {
+    expect(REMOVAL_REFUSAL_MESSAGES.last_sign_in_method.en).not.toBe(
+      REMOVAL_REFUSAL_MESSAGES.last_second_factor.en,
+    );
   });
 });

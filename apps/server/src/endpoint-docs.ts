@@ -145,6 +145,11 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     purpose:
       'Gives one of the person’s authenticator apps or passkeys a new `label` (1 to 100 characters) and answers the credential as the list shows it; `404` for an id that is not one of theirs, a password included. Needs `me:write`, with the same refusals as the profile edit.',
   },
+  'DELETE /tenants/:tenant/me/credentials/:id': {
+    auth: 'Access token',
+    purpose:
+      'Removes one of the person’s authenticator apps or passkeys; `204`, or `404` for an id that is not one of theirs, a password included. Refused with `409` `last_sign_in_method` when it is the last way to sign in, and with `409` `last_second_factor` when the tenant requires a second factor and it is the last one; removing the last authenticator app also revokes the recovery codes. Needs a recent sign-in: the `401` challenge names `acr_values="2"` for a person who holds a second factor. Needs `me:write`, with the same refusals as the profile edit.',
+  },
   [`GET ${OIDC}/certs`]: {
     auth: 'None',
     purpose: 'The JWKS: the tenant’s public signing keys.',

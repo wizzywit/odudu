@@ -5,7 +5,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MAX_LIMIT } from '@odudu/contracts/me';
 import type { MeAuditEvent, MeWriteTx } from '#/index';
-import { UsernameTakenError } from '#/service/errors';
+import { REMOVAL_REFUSAL_MESSAGES, UsernameTakenError } from '#/service/errors';
 import { ME_ROUTES, registerMeRoutes, type MeDeps } from '#/view/routes';
 
 type MeReads = MeDeps['reads'];
@@ -50,6 +50,14 @@ const SUMMARY: CredentialSummary = {
   id: CRED_ID,
   type: 'totp',
   label: 'Phone',
+  createdAt: AT,
+  lastUsedAt: null,
+};
+
+const PASSWORD: CredentialSummary = {
+  id: '01a0a992-4657-7d89-8fbf-3385f54810d8',
+  type: 'password',
+  label: null,
   createdAt: AT,
   lastUsedAt: null,
 };
@@ -147,6 +155,14 @@ function build(
           },
           revokeConsent: () => Promise.resolve({ scopeNames: ['openid'], grantsRevoked: 1 }),
           renameCredential: (_s, _id, label) => Promise.resolve({ ...SUMMARY, label }),
+          credentialOf: () => Promise.resolve(SUMMARY),
+          heldCredentials: () => Promise.resolve([PASSWORD, SUMMARY]),
+          tenantRequiresSecondFactor: () => Promise.resolve(false),
+          deleteCredential: (id) => {
+            note(`deleteCredential ${id}`);
+            return Promise.resolve();
+          },
+          afterSecondFactorRemoved: () => Promise.resolve(0),
           audit: (event) => {
             over.audits?.push(event);
             return Promise.resolve();
@@ -171,7 +187,7 @@ const get = (app: FastifyInstance, path: string, token: string | null = TOKEN) =
   });
 
 describe('the routes', () => {
-  it('are four reads and five writes, none naming a subject', () => {
+  it('are four reads and six writes, none naming a subject', () => {
     expect(ME_ROUTES.map((r) => `${r.method} ${r.url}`)).toEqual([
       'GET /tenants/:tenant/me/profile',
       'GET /tenants/:tenant/me/credentials',
@@ -182,6 +198,7 @@ describe('the routes', () => {
       'DELETE /tenants/:tenant/me/sessions/:id',
       'DELETE /tenants/:tenant/me/consents/:client_id',
       'PATCH /tenants/:tenant/me/credentials/:id',
+      'DELETE /tenants/:tenant/me/credentials/:id',
     ]);
     expect(ME_ROUTES.every((r) => !r.url.includes('subject'))).toBe(true);
   });
@@ -332,6 +349,7 @@ const WRITES: readonly [string, 'PATCH' | 'DELETE', string, object | undefined][
   ['one session', 'DELETE', `sessions/${OTHER_SESSION}`, undefined],
   ['a consent', 'DELETE', 'consents/portal', undefined],
   ['a credential', 'PATCH', `credentials/${CRED_ID}`, { label: 'Work phone' }],
+  ['removing a credential', 'DELETE', `credentials/${CRED_ID}`, undefined],
 ];
 
 describe('the door of the writes', () => {
@@ -637,6 +655,94 @@ describe('PATCH /me/profile, a username or an email', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({ error: 'email_change_unsupported' });
+    expect(seen).toEqual([]);
+  });
+});
+
+describe('DELETE /me/credentials/:id', () => {
+  const remove = (app: FastifyInstance, id = CRED_ID) => send(app, 'DELETE', `credentials/${id}`);
+  const TOTP_ACR = `${CHALLENGE}, acr_values="2"`;
+
+  it('removes the authenticator and answers 204 with no body, uncached', async () => {
+    const seen: string[] = [];
+    const audits: MeAuditEvent[] = [];
+    const res = await remove(build({ seen, audits }));
+    expect(res.statusCode).toBe(204);
+    expect(res.body).toBe('');
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(seen).toContain(`deleteCredential ${CRED_ID}`);
+    expect(audits.map((a) => a.action)).toEqual(['subject.credential_delete']);
+  });
+
+  it('asks a person who holds a second factor for a new sign-in that used one', async () => {
+    const seen: string[] = [];
+    const res = await remove(build({ signedInAt: STALE, seen }));
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toBe(TOTP_ACR);
+    expect(seen.some((entry) => entry.startsWith('deleteCredential'))).toBe(false);
+  });
+
+  it('asks a person who holds none for a recent sign-in and names no context', async () => {
+    const reads = {
+      credentials: () => Promise.resolve({ rows: [PASSWORD], recoveryCodesLeft: 0 }),
+    };
+    const res = await remove(build({ signedInAt: STALE, reads }));
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toBe(CHALLENGE);
+  });
+
+  it('answers a gone session with no challenge', async () => {
+    const res = await remove(build({ signedInAt: null }));
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toBe('Bearer error="invalid_token"');
+  });
+
+  it('refuses an agent token before anything is read', async () => {
+    const seen: string[] = [];
+    const app = build({ claims: { act: { sub: 'agent-1', client_id: 'agent' } }, seen });
+    const res = await remove(app);
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ error: 'agent_not_permitted' });
+    expect(seen).toEqual([]);
+  });
+
+  it.each(['last_sign_in_method', 'last_second_factor'] as const)(
+    'answers 409 %s with its own message and removes nothing',
+    async (code) => {
+      const seen: string[] = [];
+      const passkey: CredentialSummary = { ...SUMMARY, type: 'webauthn' };
+      const tx =
+        code === 'last_sign_in_method'
+          ? {
+              credentialOf: () => Promise.resolve(passkey),
+              heldCredentials: () => Promise.resolve([passkey]),
+            }
+          : { tenantRequiresSecondFactor: () => Promise.resolve(true) };
+      const res = await remove(build({ seen, tx }));
+      expect(res.statusCode).toBe(409);
+      expect(res.json()).toEqual({
+        error: code,
+        error_description: REMOVAL_REFUSAL_MESSAGES[code].en,
+      });
+      expect(seen.some((entry) => entry.startsWith('deleteCredential'))).toBe(false);
+    },
+  );
+
+  it('answers 404 for a credential the person does not hold, after the gate', async () => {
+    const seen: string[] = [];
+    const app = build({ seen, tx: { credentialOf: () => Promise.resolve(null) } });
+    expect((await remove(app)).statusCode).toBe(404);
+    expect(seen.filter((entry) => entry.startsWith('signedInAt'))).toHaveLength(1);
+  });
+
+  it('answers 404 for the password, which this route does not remove', async () => {
+    const app = build({ tx: { credentialOf: () => Promise.resolve(PASSWORD) } });
+    expect((await remove(app, PASSWORD.id)).statusCode).toBe(404);
+  });
+
+  it('answers 404 for an id that is not a uuid, without reading the session', async () => {
+    const seen: string[] = [];
+    expect((await remove(build({ seen }), 'nope')).statusCode).toBe(404);
     expect(seen).toEqual([]);
   });
 });

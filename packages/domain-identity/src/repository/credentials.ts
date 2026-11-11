@@ -185,6 +185,29 @@ export function credentialRepository(tx: TenantScopedDatabase) {
         .limit(page.limit);
     },
 
+    // The summary of one sign-in credential of the subject, or null where the
+    // subject holds none by that id. A recovery code and a retired password
+    // answer nothing, as in the list.
+    async summaryOf(subjectId: string, id: string): Promise<CredentialSummary | null> {
+      const rows = await tx
+        .select({
+          id: userCredentials.id,
+          type: userCredentials.type,
+          label: userCredentials.label,
+          createdAt: userCredentials.createdAt,
+          lastUsedAt: userCredentials.lastUsedAt,
+        })
+        .from(userCredentials)
+        .where(
+          and(
+            eq(userCredentials.id, id),
+            eq(userCredentials.subjectId, subjectId),
+            inArray(userCredentials.type, [...SIGN_IN_TYPES]),
+          ),
+        );
+      return rows[0] ?? null;
+    },
+
     // Gives an authenticator of the subject a new label and answers its
     // summary, or null where the subject holds no authenticator by that id. A
     // password and a recovery code carry no label a person reads.

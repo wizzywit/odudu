@@ -4,8 +4,10 @@ import { isUuid } from '@odudu/kernel';
 import type { MeWrites } from '#/repository/writes';
 import {
   consentRevokedEvent,
+  credentialRemovedEvent,
   credentialRenamedEvent,
   profileAmendedEvent,
+  recoveryCodesRevokedEvent,
   sessionEndedEvent,
   sessionsEndedEvent,
 } from '#/service/audit';
@@ -13,6 +15,7 @@ import { UsernameTakenError } from '#/service/errors';
 import { credentialView, type CredentialView } from '#/service/credential-view';
 import { fetchLimit, splitPage } from '#/service/page';
 import { planProfileAmend } from '#/service/profile-amend';
+import { canRemove, HELD_LIMIT, isRemovable, type RemovalRefusal } from '#/service/removal-rule';
 import { SESSION_END_LIMIT } from '#/service/session-end';
 import { isTokenSession } from '#/service/session-view';
 import type { MeCaller } from '#/usecase/admit-me';
@@ -156,5 +159,37 @@ export async function renameCredential(
     if (view === null) return NOT_FOUND;
     await tx.audit(credentialRenamedEvent(actorOf(caller), credentialId, view.type));
     return { kind: 'renamed', credential: view };
+  });
+}
+
+export type RemoveCredentialOutcome =
+  | typeof NOT_FOUND
+  | { readonly kind: 'refused'; readonly code: RemovalRefusal }
+  | { readonly kind: 'removed' };
+
+// The subject's row is locked first, so two removals by one person take turns
+// and the second judges what the first left.
+export async function removeCredential(
+  deps: MeWriteDeps,
+  caller: MeCaller,
+  credentialId: string,
+): Promise<RemoveCredentialOutcome> {
+  if (!isUuid(credentialId)) return NOT_FOUND;
+  return deps.writes.transact(caller.tenantId, async (tx): Promise<RemoveCredentialOutcome> => {
+    if ((await tx.lockProfile(caller.subjectId)) === null) return NOT_FOUND;
+    const target = await tx.credentialOf(caller.subjectId, credentialId);
+    if (target === null || !isRemovable(target.type)) return NOT_FOUND;
+    const verdict = canRemove(
+      await tx.heldCredentials(caller.subjectId, HELD_LIMIT),
+      target,
+      await tx.tenantRequiresSecondFactor(),
+    );
+    if (!verdict.ok) return { kind: 'refused', code: verdict.code };
+
+    await tx.deleteCredential(target.id);
+    const revoked = await tx.afterSecondFactorRemoved(caller.subjectId);
+    await tx.audit(credentialRemovedEvent(actorOf(caller), target.id, target.type));
+    if (revoked > 0) await tx.audit(recoveryCodesRevokedEvent(actorOf(caller), revoked));
+    return { kind: 'removed' };
   });
 }

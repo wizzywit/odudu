@@ -4,7 +4,7 @@ import {
   meNoQuerySchema,
   meRenameCredentialRequestSchema,
 } from '@odudu/contracts/me';
-import { tenantAddressOf } from '@odudu/kernel';
+import { isUuid, tenantAddressOf } from '@odudu/kernel';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   agentNotPermitted,
@@ -13,6 +13,7 @@ import {
   invalidBody,
   invalidRequest,
   notFound,
+  removalRefused,
   usernameNotEditable,
 } from '#/service/errors';
 import {
@@ -31,6 +32,7 @@ import {
   type MeAdmission,
   type MeCaller,
 } from '#/usecase/admit-me';
+import { HELD_LIMIT, holdsSecondFactor, SECOND_FACTOR_ACR } from '#/service/removal-rule';
 import { requireFreshSignIn, type MeGateDeps } from '#/usecase/freshness-gate';
 import {
   listConsents,
@@ -44,6 +46,7 @@ import {
   amendProfile,
   endOtherSessions,
   endSession,
+  removeCredential,
   renameCredential,
   revokeConsent,
   type MeWriteDeps,
@@ -54,6 +57,8 @@ export interface MeDeps extends AdmitMeDeps, MeReadDeps, MeWriteDeps, MeGateDeps
 type MeRequest = FastifyRequest<{ Params: { tenant: string } }>;
 
 const BASE = '/tenants/:tenant/me';
+
+const NO_AUTHENTICATOR = 'No such authenticator';
 
 // No route names a subject: the token's own is the only one any of them acts for.
 export const ME_ROUTES: readonly { readonly method: string; readonly url: string }[] = [
@@ -66,6 +71,7 @@ export const ME_ROUTES: readonly { readonly method: string; readonly url: string
   { method: 'DELETE', url: `${BASE}/sessions/:id` },
   { method: 'DELETE', url: `${BASE}/consents/:client_id` },
   { method: 'PATCH', url: `${BASE}/credentials/:id` },
+  { method: 'DELETE', url: `${BASE}/credentials/:id` },
 ];
 
 function respond(reply: FastifyReply, status: number, body?: object): FastifyReply {
@@ -109,8 +115,9 @@ async function signInIsFresh(
   deps: MeDeps,
   caller: MeCaller,
   reply: FastifyReply,
+  acrValues: string | null = null,
 ): Promise<boolean> {
-  const outcome = await requireFreshSignIn(deps, caller);
+  const outcome = await requireFreshSignIn(deps, caller, acrValues);
   if (outcome.kind === 'fresh') return true;
   reply.header('www-authenticate', outcome.challenge);
   respond(reply, 401);
@@ -207,9 +214,29 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
       if (!body.success) return respond(reply, 400, invalidBody(body.error.issues));
       const outcome = await renameCredential(deps, caller, request.params.id, body.data.label);
       if (outcome.kind === 'not_found') {
-        return respond(reply, 404, notFound('No such authenticator'));
+        return respond(reply, 404, notFound(NO_AUTHENTICATOR));
       }
       return respond(reply, 200, credentialDto(outcome.credential));
+    },
+  );
+
+  app.delete<{ Params: { tenant: string; id: string } }>(
+    `${BASE}/credentials/:id`,
+    async (request, reply) => {
+      const caller = await admitWrite(deps, request, reply);
+      if (caller === undefined) return reply;
+      if (!isUuid(request.params.id)) return respond(reply, 404, notFound(NO_AUTHENTICATOR));
+      // A person who holds a second factor proves it again to remove a credential.
+      const held = await deps.reads.credentials(caller.tenantId, caller.subjectId, {
+        after: undefined,
+        limit: HELD_LIMIT,
+      });
+      const acr = holdsSecondFactor(held.rows) ? SECOND_FACTOR_ACR : null;
+      if (!(await signInIsFresh(deps, caller, reply, acr))) return reply;
+      const outcome = await removeCredential(deps, caller, request.params.id);
+      if (outcome.kind === 'not_found') return respond(reply, 404, notFound(NO_AUTHENTICATOR));
+      if (outcome.kind === 'refused') return respond(reply, 409, removalRefused(outcome.code));
+      return respond(reply, 204);
     },
   );
 }

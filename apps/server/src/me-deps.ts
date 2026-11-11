@@ -1,4 +1,8 @@
-import { sessionRepository } from '@odudu/authn-flows';
+import {
+  onSecondFactorRemoved,
+  sessionRepository,
+  tenantSettingsRepository,
+} from '@odudu/authn-flows';
 import {
   type DatabaseHandle,
   isUniqueViolation,
@@ -85,6 +89,16 @@ function writeTxFor(tx: TenantScopedDatabase, tenantId: string, kek: Uint8Array)
     },
     renameCredential: (subjectId, credentialId, label) =>
       credentialRepository(tx).renameLabel(subjectId, credentialId, label),
+    credentialOf: (subjectId, credentialId) =>
+      credentialRepository(tx).summaryOf(subjectId, credentialId),
+    heldCredentials: (subjectId, limit) =>
+      credentialRepository(tx).summariesFor(subjectId, { after: undefined, limit }),
+    tenantRequiresSecondFactor: async () =>
+      (await tenantSettingsRepository(tx).flowSettings(tenantId)).otpRequired,
+    deleteCredential: (credentialId) => credentialRepository(tx).deleteOne(credentialId),
+    afterSecondFactorRemoved: async (subjectId) =>
+      (await onSecondFactorRemoved(tx, { subjectId }, () => Promise.resolve()))
+        .recoveryCodesRevoked,
     audit: async (event) => {
       const client = await clientRepository(tx).byClientId(event.actorClientKey);
       await auditRepository(tx).record({

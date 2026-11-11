@@ -9,6 +9,7 @@ import {
   amendProfile,
   endOtherSessions,
   endSession,
+  removeCredential,
   renameCredential,
   revokeConsent,
   type MeWriteDeps,
@@ -47,6 +48,14 @@ const SUMMARY: CredentialSummary = {
   id: CRED,
   type: 'totp',
   label: 'Phone',
+  createdAt: NOW,
+  lastUsedAt: null,
+};
+
+const PASSWORD: CredentialSummary = {
+  id: '01a0a992-4657-7d89-8fbf-3385f54810d4',
+  type: 'password',
+  label: null,
   createdAt: NOW,
   lastUsedAt: null,
 };
@@ -97,6 +106,26 @@ function world(over: Partial<MeWriteTx> = {}): { deps: MeWriteDeps; log: Log } {
     renameCredential: (s, id, label) => {
       log.calls.push(`renameCredential ${s} ${id} ${label}`);
       return Promise.resolve({ ...SUMMARY, label });
+    },
+    credentialOf: (s, id) => {
+      log.calls.push(`credentialOf ${s} ${id}`);
+      return Promise.resolve(SUMMARY);
+    },
+    heldCredentials: (s, limit) => {
+      log.calls.push(`heldCredentials ${s} ${String(limit)}`);
+      return Promise.resolve([PASSWORD, SUMMARY]);
+    },
+    tenantRequiresSecondFactor: () => {
+      log.calls.push('tenantRequiresSecondFactor');
+      return Promise.resolve(false);
+    },
+    deleteCredential: (id) => {
+      log.calls.push(`deleteCredential ${id}`);
+      return Promise.resolve();
+    },
+    afterSecondFactorRemoved: (s) => {
+      log.calls.push(`afterSecondFactorRemoved ${s}`);
+      return Promise.resolve(0);
     },
     audit: (event) => {
       log.audits.push(event);
@@ -317,5 +346,90 @@ describe('renameCredential', () => {
     expect(await renameCredential(deps, CALLER, CRED, 'x')).toEqual({ kind: 'not_found' });
     expect(await renameCredential(deps, CALLER, 'nope', 'x')).toEqual({ kind: 'not_found' });
     expect(log.audits).toEqual([]);
+  });
+});
+
+describe('removeCredential', () => {
+  it('locks the subject, judges, deletes, tidies recovery codes and files one audit row', async () => {
+    const { deps, log } = world();
+    const outcome = await removeCredential(deps, CALLER, CRED);
+    expect(outcome).toEqual({ kind: 'removed' });
+    expect(log.tenants).toEqual(['tenant-1']);
+    expect(log.calls).toEqual([
+      'lockProfile subject-1',
+      `credentialOf subject-1 ${CRED}`,
+      'heldCredentials subject-1 200',
+      'tenantRequiresSecondFactor',
+      `deleteCredential ${CRED}`,
+      'afterSecondFactorRemoved subject-1',
+    ]);
+    expect(log.audits).toEqual([
+      expect.objectContaining({
+        action: 'subject.credential_delete',
+        actorSubjectId: 'subject-1',
+        actorClientKey: 'app',
+        detail: { via: 'me', credential_id: CRED, type: 'totp' },
+      }),
+    ]);
+  });
+
+  it('files the recovery codes the removal revoked as their own row', async () => {
+    const { deps, log } = world({ afterSecondFactorRemoved: () => Promise.resolve(10) });
+    await removeCredential(deps, CALLER, CRED);
+    expect(log.audits.map((a) => a.action)).toEqual([
+      'subject.credential_delete',
+      'subject.recovery_codes_revoke',
+    ]);
+    expect(log.audits[1]?.detail).toEqual({
+      via: 'me',
+      revoked: 10,
+      reason: 'last_factor_removed',
+    });
+  });
+
+  it('refuses the last way to sign in and changes nothing', async () => {
+    const passkey: CredentialSummary = { ...SUMMARY, type: 'webauthn' };
+    const { deps, log } = world({
+      credentialOf: () => Promise.resolve(passkey),
+      heldCredentials: () => Promise.resolve([passkey]),
+    });
+    expect(await removeCredential(deps, CALLER, CRED)).toEqual({
+      kind: 'refused',
+      code: 'last_sign_in_method',
+    });
+    expect(log.calls.some((c) => c.startsWith('deleteCredential'))).toBe(false);
+    expect(log.audits).toEqual([]);
+  });
+
+  it('refuses the last second factor where the tenant requires one', async () => {
+    const { deps, log } = world({ tenantRequiresSecondFactor: () => Promise.resolve(true) });
+    expect(await removeCredential(deps, CALLER, CRED)).toEqual({
+      kind: 'refused',
+      code: 'last_second_factor',
+    });
+    expect(log.audits).toEqual([]);
+  });
+
+  it('does not tidy recovery codes after a password it was never asked to remove', async () => {
+    const { deps, log } = world({ credentialOf: () => Promise.resolve(PASSWORD) });
+    expect(await removeCredential(deps, CALLER, PASSWORD.id)).toEqual({ kind: 'not_found' });
+    expect(log.calls.some((c) => c.startsWith('deleteCredential'))).toBe(false);
+  });
+
+  it('answers not found for an id that is not a uuid, without a transaction', async () => {
+    const { deps, log } = world();
+    expect(await removeCredential(deps, CALLER, 'nope')).toEqual({ kind: 'not_found' });
+    expect(log.tenants).toEqual([]);
+  });
+
+  it('answers not found where the subject holds no such credential', async () => {
+    const { deps, log } = world({ credentialOf: () => Promise.resolve(null) });
+    expect(await removeCredential(deps, CALLER, CRED)).toEqual({ kind: 'not_found' });
+    expect(log.audits).toEqual([]);
+  });
+
+  it('answers not found where the subject has no profile row', async () => {
+    const { deps } = world({ lockProfile: () => Promise.resolve(null) });
+    expect(await removeCredential(deps, CALLER, CRED)).toEqual({ kind: 'not_found' });
   });
 });

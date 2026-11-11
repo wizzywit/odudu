@@ -11,6 +11,8 @@ export interface MeAuditEvent {
     | 'session.end_all'
     | 'consent.revoke'
     | 'subject.credential_rename'
+    | 'subject.credential_delete'
+    | 'subject.recovery_codes_revoke'
   >;
   readonly resourceType: 'subject' | 'session';
   readonly resourceId: string;
@@ -83,5 +85,24 @@ export function credentialRenamedEvent(
   return onSubject(actor, 'subject.credential_rename', {
     credential_id: credentialId,
     type,
+  });
+}
+
+export function credentialRemovedEvent(
+  actor: Actor,
+  credentialId: string,
+  type: string,
+): MeAuditEvent {
+  return onSubject(actor, 'subject.credential_delete', {
+    credential_id: credentialId,
+    type,
+  });
+}
+
+// Recovery codes stand in only for a TOTP, so the last TOTP takes them along.
+export function recoveryCodesRevokedEvent(actor: Actor, revoked: number): MeAuditEvent {
+  return onSubject(actor, 'subject.recovery_codes_revoke', {
+    revoked,
+    reason: 'last_factor_removed',
   });
 }
