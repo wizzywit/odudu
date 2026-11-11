@@ -4,6 +4,8 @@ import {
   credentialRepository,
   evaluatePassword,
   hashUserPassword,
+  isLockedOut,
+  loginFailureRepository,
   passwordExpired,
   REUSED_PASSWORD,
   userRepository,
@@ -33,10 +35,22 @@ export const SUPERSEDED_PASSWORD: PasswordViolation = {
   message: 'password superseded',
 };
 
+// The current password was not the one in force, or the account is locked
+// out: the page cannot tell the two apart, and neither can a guesser.
+export const CURRENT_PASSWORD_REFUSED: PasswordViolation = {
+  rule: 'current-password',
+  message: 'current password is not correct',
+};
+
 export interface UpdatePassword {
   tenantId: string;
   subjectId: string;
   password: string;
+  // Present where the person has to prove the password in force before
+  // choosing a new one, an empty string included: a form that left the field
+  // out is a wrong answer, not an exemption. Absent for the action a tenant
+  // owes the subject at sign-in, which has just proved it.
+  currentPassword?: string;
 }
 
 // A subject's password, and the candidates a reuse check has to refuse:
@@ -69,6 +83,28 @@ async function reusesAKnownPassword(candidate: string, state: PasswordState): Pr
   return false;
 }
 
+// A wrong answer counts as a failed sign-in against the tenant's lockout, and
+// an account already locked out is refused without the answer being looked at,
+// the way a second-factor guess is: this check must not be a way round the
+// lockout the sign-in form enforces.
+async function currentPasswordProved(
+  tx: TenantScopedDatabase,
+  input: UpdatePassword,
+  answer: string,
+  now: Date,
+): Promise<boolean> {
+  const failures = loginFailureRepository(tx);
+  const { lockout } = await tenantSettingsRepository(tx).flowSettings(input.tenantId);
+  if (isLockedOut(await failures.forSubject(input.subjectId), now)) {
+    await failures.recordFailure(input.subjectId, lockout, now);
+    return false;
+  }
+  const current = await credentialRepository(tx).passwordFor(input.subjectId);
+  if (current !== null && (await verifyUserPassword(current, answer))) return true;
+  await failures.recordFailure(input.subjectId, lockout, now);
+  return false;
+}
+
 // The fourth writer of a password in a tenant, bound by the same policy as
 // registration, reset redemption and the seed CLI — and the only one that
 // consults history, which is why it is the only one that keeps any.
@@ -80,7 +116,14 @@ async function reusesAKnownPassword(candidate: string, state: PasswordState): Pr
 export async function completeUpdatePassword(
   tx: TenantScopedDatabase,
   input: UpdatePassword,
+  clock: Clock = systemClock,
 ): Promise<UpdatePasswordOutcome> {
+  if (
+    input.currentPassword !== undefined &&
+    !(await currentPasswordProved(tx, input, input.currentPassword, clock.now()))
+  ) {
+    return { kind: 'rejected', violations: [{ ...CURRENT_PASSWORD_REFUSED }] };
+  }
   const policy = await tenantSettingsRepository(tx).passwordPolicy(input.tenantId);
   const user = await userRepository(tx).bySubjectId(input.subjectId);
   if (user === null) {

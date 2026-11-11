@@ -44,11 +44,16 @@ export async function completeTotpEnrolment(
     secret: string;
     code: string;
     authSessionId: string;
+    // Swap an authenticator the subject already holds for this one, once the
+    // new code has proved it. Without it a held authenticator refuses.
+    replace?: boolean;
   },
   clock: Clock = systemClock,
 ): Promise<TotpEnrolmentOutcome> {
   const existing = await credentialRepository(tx).listFor(input.subjectId, 'totp');
-  if (existing.length > 0) return { kind: 'rejected', reason: 'already_enrolled' };
+  if (existing.length > 0 && input.replace !== true) {
+    return { kind: 'rejected', reason: 'already_enrolled' };
+  }
   if (!isTotpSecretShape(input.secret)) return { kind: 'rejected', reason: 'invalid_code' };
 
   const now = clock.now();
@@ -59,6 +64,8 @@ export async function completeTotpEnrolment(
     lastStep: null,
   });
   if (!verified.ok) return { kind: 'rejected', reason: 'invalid_code' };
+
+  for (const held of existing) await credentialRepository(tx).deleteOne(held.id);
 
   // The confirming code is spent by the credential it creates: `lastStep`
   // stops the same code being replayed at a later login (RFC 6238 §5.2,

@@ -576,3 +576,56 @@ describe('a hash made before passwords were normalised is upgraded at the next s
     expect((await row(mine)).hashNfc).toBeNull();
   });
 });
+
+describe('a password change that must prove the current password', () => {
+  const NEW = 'a whole new passphrase';
+
+  function changeProving(account: Account, current: string): Promise<UpdatePasswordOutcome> {
+    return withTenant(app.db, account.tenantId, (tx) =>
+      completeUpdatePassword(tx, {
+        tenantId: account.tenantId,
+        subjectId: account.subjectId,
+        password: NEW,
+        currentPassword: current,
+      }),
+    );
+  }
+
+  const WRONG = {
+    kind: 'rejected',
+    violations: [expect.objectContaining({ rule: 'current-password' })],
+  };
+
+  it('changes the password when the current one is right', async () => {
+    const account = await seedAccount();
+    expect(await changeProving(account, PASSWORD)).toEqual({ kind: 'updated' });
+    expect(await signIn(account, NEW)).toMatchObject({ kind: 'success' });
+  });
+
+  it('refuses a wrong or empty current password and changes nothing', async () => {
+    const account = await seedAccount();
+    expect(await changeProving(account, 'not the password')).toEqual(WRONG);
+    expect(await changeProving(account, '')).toEqual(WRONG);
+    expect(await signIn(account, PASSWORD)).toMatchObject({ kind: 'success' });
+    expect(await credentialRows(account)).toEqual([]);
+  });
+
+  it('judges the current password before the new one, so a weak new one learns nothing', async () => {
+    const account = await seedAccount({ minLength: 30 });
+    expect(await changeProving(account, 'not the password')).toEqual(WRONG);
+  });
+
+  it('counts a wrong current password as a failed sign-in and refuses the right one once locked', async () => {
+    const account = await seedAccount();
+    await owner.sql`update tenants set brute_force_max_failures = 2 where id = ${account.tenantId}`;
+    expect(await changeProving(account, 'wrong one')).toEqual(WRONG);
+    expect(await changeProving(account, 'wrong two')).toEqual(WRONG);
+    expect(await changeProving(account, PASSWORD)).toEqual(WRONG);
+    expect(await signIn(account, PASSWORD)).toMatchObject({ kind: 'failure' });
+  });
+
+  it('asks for no current password where the caller gives none', async () => {
+    const account = await seedAccount();
+    expect(await change(account, NEW)).toEqual({ kind: 'updated' });
+  });
+});

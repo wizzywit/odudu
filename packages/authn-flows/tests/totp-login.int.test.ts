@@ -987,3 +987,73 @@ describe('authenticationSessionRepository — the subject binding', () => {
     expect(rows[0]?.subjectId).toBeNull();
   });
 });
+
+describe('replacing the authenticator a subject already holds', () => {
+  async function held(tenantId: string, subjectId: string) {
+    return withTenant(app.db, tenantId, (tx) =>
+      credentialRepository(tx).listFor(subjectId, 'totp'),
+    );
+  }
+
+  async function replace(
+    tenantId: string,
+    subjectId: string,
+    authSessionId: string,
+    clock: FakeClock,
+    secret: string,
+    code: string,
+  ) {
+    return withTenant(app.db, tenantId, (tx) =>
+      completeTotpEnrolment(
+        tx,
+        { tenantId, subjectId, secret, code, authSessionId, replace: true },
+        clock,
+      ),
+    );
+  }
+
+  async function holder() {
+    const tenantId = newId();
+    const clock = clockAt();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return seedUser(tx, tenantId, 'ada');
+    });
+    const first = await enrol(tenantId, subjectId, clock);
+    return { tenantId, subjectId, clock, first };
+  }
+
+  it('swaps the credential once the new code verifies', async () => {
+    const { tenantId, subjectId, clock, first } = await holder();
+    const offer = await withTenant(app.db, tenantId, (tx) =>
+      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+    );
+    const later = clockAt(60_000);
+    const outcome = await replace(
+      tenantId,
+      subjectId,
+      newId(),
+      later,
+      offer.secret,
+      totpCode(offer.secret, totpCounter(later.now())),
+    );
+    expect(outcome).toEqual({ kind: 'enrolled' });
+    const rows = await held(tenantId, subjectId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.secret).toMatchObject({ kind: 'totp', secret: offer.secret });
+    expect(rows[0]?.secret).not.toMatchObject({ secret: first.secret });
+    expect(clock.now()).toBeDefined();
+  });
+
+  it('keeps the old credential when the new code does not verify', async () => {
+    const { tenantId, subjectId, clock, first } = await holder();
+    const offer = await withTenant(app.db, tenantId, (tx) =>
+      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+    );
+    const outcome = await replace(tenantId, subjectId, newId(), clock, offer.secret, '000000');
+    expect(outcome).toEqual({ kind: 'rejected', reason: 'invalid_code' });
+    const rows = await held(tenantId, subjectId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.secret).toMatchObject({ secret: first.secret });
+  });
+});
