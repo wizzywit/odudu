@@ -68,7 +68,7 @@ const tableOf = (door: string) =>
   );
 
 async function tokenFor(
-  audience: (issuer: string) => string,
+  audience: (issuer: string) => string | string[],
   scope: string,
   tenant: { name: string; id: string; subjectId: string },
 ) {
@@ -79,7 +79,7 @@ async function tokenFor(
     {
       iss: issuer,
       sub: tenant.subjectId,
-      aud: [audience(issuer)],
+      aud: [audience(issuer)].flat(),
       client_id: 'portal',
       scope,
       iat,
@@ -141,6 +141,26 @@ describe('each door refuses the other’s token', () => {
       const expected = route.method === 'POST' ? 401 : 405;
       expect(res.statusCode, `${route.method} ${route.url}`).toBe(expected);
     }
+  });
+
+  it('refuses a token naming the me URL and the issuer at every MCP route and the admin API', async () => {
+    const t = await tenant();
+    const token = await tokenFor(
+      (issuer) => [meAudienceOfIssuer(issuer), issuer],
+      'openid me:read me:write',
+      t,
+    );
+    for (const route of tableOf('mcp')) {
+      const res = await send(route, t.name, token);
+      const expected = route.method === 'POST' ? 401 : 405;
+      expect(res.statusCode, `${route.method} ${route.url}`).toBe(expected);
+    }
+    const admin = await send(
+      { method: 'GET', url: '/admin/tenants/:tenant/whoami' },
+      t.name,
+      token,
+    );
+    expect(admin.statusCode).toBe(401);
   });
 
   it('refuses an MCP token at every "me" route', async () => {
