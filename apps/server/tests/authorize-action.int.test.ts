@@ -629,6 +629,26 @@ describe('recovery codes requested by an application', () => {
     expect(await recoveryRows(w)).toEqual(after);
   });
 
+  it('shows no way to cancel when an acknowledgement finds no set and a fresh one is issued', async () => {
+    const w = await world();
+    const secret = await enrolAuthenticator(w);
+    const cookie = await signInWithTotp(w, secret);
+    const page = await authorize(w, { action: 'generate-recovery-codes' }, cookie);
+    const shown = await form(w, 'required-action?action=generate-recovery-codes', {
+      auth_session_id: field(page, 'auth_session_id'),
+      confirm: '1',
+    });
+    await owner.sql`delete from user_credentials
+                     where tenant_id = ${w.tenantId} and subject_id = ${w.subjectId}
+                       and type = 'recovery-code'`;
+    const retry = await form(w, 'required-action?action=generate-recovery-codes', {
+      auth_session_id: field(shown, 'auth_session_id'),
+    });
+    expect(retry.statusCode).toBe(200);
+    expect(retry.body).toContain('<ol>');
+    expect(retry.body).not.toContain('name="cancel"');
+  });
+
   it('issues at render when no set is held, since nothing is lost', async () => {
     const w = await world();
     const secret = await enrolAuthenticator(w);

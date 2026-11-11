@@ -195,7 +195,7 @@ export async function handleRequiredActionSubmission(
   // Asked for by the application, and ended by this submission either way. It
   // may be left only where the tenant does not also owe it.
   const asked = pending !== null && requestedActionOf(pending) === next;
-  const requested = requestedVariant(requestedActionOf(pending ?? {}), tenantOwes) === next;
+  const requested = asked && requestedVariant(next, tenantOwes) === next;
   const step = (kind: ActionStep) =>
     deps.recordActionStep(
       { tenantId: tenant.id, authSessionId, subjectId, action: next, step: kind },
