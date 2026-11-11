@@ -29,6 +29,7 @@ export const AUDIT_ACTIONS = {
     'account.registration_duplicate',
     'account.address_proved',
     'email.verified',
+    'email.changed',
     'password.reset',
     'password.changed',
     'otp.enrolled',
@@ -196,6 +197,7 @@ type CredentialInput = EventCommon & {
     | 'account.registration_duplicate'
     | 'account.address_proved'
     | 'email.verified'
+    | 'email.changed'
     | 'password.reset'
     | 'password.changed'
     | 'otp.enrolled'

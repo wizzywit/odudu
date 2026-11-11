@@ -9,6 +9,7 @@ export {
   completeEmailVerification,
   type SendVerificationEmailDeps,
   type SendVerificationEmailInput,
+  type ChangeAddressDeps,
   type CompleteEmailVerificationDeps,
   type CompleteEmailVerificationResult,
 } from '#/usecase/verify-email';

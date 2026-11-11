@@ -23,7 +23,7 @@ import {
   completeRequiredActions,
   type CompleteRequiredActionsDeps,
 } from '#/usecase/execute-actions';
-import { completeEmailVerification } from '#/usecase/verify-email';
+import { completeEmailVerification, type ChangeAddressDeps } from '#/usecase/verify-email';
 import {
   completeRegistration,
   isRegistrationKey,
@@ -81,6 +81,8 @@ export interface ActionTokenRouteDeps extends BrandedLocaleDeps {
   readonly findTenant: (name: string) => Promise<ActionTokenTenantLookup | null>;
   readonly getCurrentEmail: (tx: TenantScopedDatabase, subjectId: string) => Promise<string | null>;
   readonly markVerified: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
+  // What a link for a changed address needs; absent, such a link is refused.
+  readonly changeAddress?: ChangeAddressDeps | undefined;
   // Injected for the same reason getCurrentEmail and markVerified are:
   // @odudu/account never imports @odudu/domain-identity, where hashPassword
   // and the credentials table live.
@@ -482,6 +484,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
           request: requestContextFrom(request),
           getCurrentEmail: deps.getCurrentEmail,
           markVerified: deps.markVerified,
+          changeAddress: deps.changeAddress,
         },
         key,
       );

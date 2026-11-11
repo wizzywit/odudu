@@ -1,4 +1,5 @@
 import { actionLink } from '#/service/action-link';
+import { mayTakeAddress } from '#/service/address-change';
 import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
@@ -78,6 +79,30 @@ export async function enqueueVerificationLink(
   });
 }
 
+// What swapping a proved address in needs of the identity tables, injected for
+// the same reason getCurrentEmail and markVerified are.
+export interface ChangeAddressDeps {
+  // Serialises completions and creations for one address.
+  readonly lockAddress: (
+    tx: TenantScopedDatabase,
+    tenantId: string,
+    email: string,
+  ) => Promise<void>;
+  // Deletes the subject's pending address when it is `email`, and says whether it was.
+  readonly takePending: (
+    tx: TenantScopedDatabase,
+    subjectId: string,
+    email: string,
+  ) => Promise<boolean>;
+  // The subject that holds the address in the tenant, in any case.
+  readonly holderOf: (tx: TenantScopedDatabase, email: string) => Promise<string | null>;
+  readonly replaceVerified: (
+    tx: TenantScopedDatabase,
+    subjectId: string,
+    email: string,
+  ) => Promise<void>;
+}
+
 export interface CompleteEmailVerificationDeps {
   readonly database: DatabaseHandle;
   readonly tenantId: string;
@@ -89,6 +114,8 @@ export interface CompleteEmailVerificationDeps {
   // takes its hash comparator injected for the same reason.
   readonly getCurrentEmail: (tx: TenantScopedDatabase, subjectId: string) => Promise<string | null>;
   readonly markVerified: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
+  // Absent, a link for an address other than the current one is refused.
+  readonly changeAddress?: ChangeAddressDeps | undefined;
 }
 
 export type CompleteEmailVerificationResult = { kind: 'verified' } | { kind: 'invalid' };
@@ -109,23 +136,53 @@ export async function completeEmailVerification(
       const record = await actionTokenRepository(tx).consume(key, 'verify_email');
       if (record === null) return { kind: 'invalid' };
 
-      // The token carries the address it was minted for; a changed address
-      // since then means this link no longer proves anything about the
-      // address the user holds today.
+      // The token carries the address it was minted for. When it is not the
+      // one the user holds today, it is a link for an address they asked to
+      // change to, or one that no longer proves anything.
       const currentEmail = await deps.getCurrentEmail(tx, record.subjectId);
-      if (currentEmail === null || currentEmail !== record.email) return { kind: 'invalid' };
+      if (currentEmail === null || currentEmail !== record.email) {
+        return deps.changeAddress === undefined || record.email === null
+          ? { kind: 'invalid' }
+          : swapAddress(tx, deps.changeAddress, deps, record.subjectId, record.email);
+      }
 
       await deps.markVerified(tx, record.subjectId);
-      await auditRepository(tx).record({
-        eventType: 'credential',
-        action: 'email.verified',
-        outcome: 'allowed',
-        actorSubjectId: record.subjectId,
-        resourceType: 'subject',
-        resourceId: record.subjectId,
-      });
+      await recordVerification(tx, 'email.verified', record.subjectId);
       return { kind: 'verified' };
     },
     deps.request,
   );
+}
+
+function recordVerification(
+  tx: TenantScopedDatabase,
+  action: 'email.verified' | 'email.changed',
+  subjectId: string,
+): Promise<void> {
+  return auditRepository(tx).record({
+    eventType: 'credential',
+    action,
+    outcome: 'allowed',
+    actorSubjectId: subjectId,
+    resourceType: 'subject',
+    resourceId: subjectId,
+  });
+}
+
+// The pending address is taken first, so a request replaced or cleared since
+// the link was mailed finds nothing, and the address is looked at under its
+// lock, so two accounts cannot both be given it.
+async function swapAddress(
+  tx: TenantScopedDatabase,
+  change: ChangeAddressDeps,
+  deps: CompleteEmailVerificationDeps,
+  subjectId: string,
+  email: string,
+): Promise<CompleteEmailVerificationResult> {
+  await change.lockAddress(tx, deps.tenantId, email);
+  if (!(await change.takePending(tx, subjectId, email))) return { kind: 'invalid' };
+  if (!mayTakeAddress(await change.holderOf(tx, email), subjectId)) return { kind: 'invalid' };
+  await change.replaceVerified(tx, subjectId, email);
+  await recordVerification(tx, 'email.changed', subjectId);
+  return { kind: 'verified' };
 }
