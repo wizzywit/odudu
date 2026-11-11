@@ -86,6 +86,11 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
   seed_unknown_grant_type: command(
     '`--grant-type` names a grant type this server does not implement.',
   ),
+  allowed_actions_need_me_read: command(
+    '`--allow-action` names an action for a client that would not hold the scope `me:read`, ' +
+      'which is how it reads the outcome. Assign `me:read` to the client first, or let the ' +
+      'tenant assign it to every new client.',
+  ),
   seed_admin_exists: command(
     '`odudu seed admin` found a subject with that name already in the system tenant.',
   ),

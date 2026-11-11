@@ -219,6 +219,7 @@ async function writeClient(
     idTokenSignedResponseAlg: metadata.idTokenSignedResponseAlg,
     defaultMaxAge: metadata.defaultMaxAge,
     requireAuthTime: metadata.requireAuthTime,
+    allowedActions: client.allowed_actions,
   });
   const account = needsServiceAccount(created.type, metadata.grantTypes)
     ? await ensureServiceAccount(tx, created)

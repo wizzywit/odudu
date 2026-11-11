@@ -27,13 +27,17 @@ import {
   clients,
   missingBuiltinScopeNames,
   restoreBuiltinScopes,
+  ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
+  ME_READ_SCOPE,
   ME_WRITE_NEEDS_READ_MESSAGE,
+  allowedActionsHaveMeRead,
   meWriteNeedsRead,
   TENANT_DEFAULT_SCOPE_NAMES,
   isBuiltinScopeName,
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
+import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
 import { COUNT_CAP, countAtMost } from '#/usecase/capped-count';
 import {
@@ -1076,6 +1080,7 @@ export type UnassignScopeFromClientOutcome =
   | TargetCeilingRefusal
   | { kind: 'not_assigned' }
   | { kind: 'me_scope_incoherent'; message: string }
+  | { kind: 'allowed_actions_need_me_read'; message: string }
   | { kind: 'removed'; clientEtag: string };
 
 /**
@@ -1134,6 +1139,16 @@ export async function unassignScopeFromClient(
   const held = (await clientScopeRepository(tx).forClient(input.clientId)).map((row) => row.name);
   if (!meWriteNeedsRead(held.filter((name) => name !== scope.name))) {
     return { kind: 'me_scope_incoherent', message: ME_WRITE_NEEDS_READ_MESSAGE };
+  }
+  if (scope.name === ME_READ_SCOPE) {
+    const config = await clientOidcConfigRepository(tx).byClientId(input.clientId);
+    const kept = held.filter((name) => name !== scope.name);
+    if (!allowedActionsHaveMeRead(config?.allowedActions ?? [], kept)) {
+      return {
+        kind: 'allowed_actions_need_me_read',
+        message: ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
+      };
+    }
   }
 
   const removed = await clientScopeRepository(tx).unassign(input.clientId, input.scopeId);

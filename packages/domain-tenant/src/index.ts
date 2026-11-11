@@ -60,6 +60,15 @@ export {
   MCP_WRITE_SCOPE,
 } from '#/service/mcp-client';
 export {
+  ALLOWED_ACTION_NAMES,
+  ALLOWED_ACTIONS_NEED_ME_READ,
+  ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
+  allowedActionsHaveMeRead,
+  distinctAllowedActions,
+  isAllowedAction,
+  unknownAllowedActions,
+} from '#/service/allowed-actions';
+export {
   holdsMeScope,
   isMeScope,
   ME_READ_SCOPE,

@@ -59,7 +59,10 @@ import {
 } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  ALLOWED_ACTION_NAMES,
+  ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
   MCP_CLIENT_ID,
+  allowedActionsHaveMeRead,
   clientRegistrationTokenRepository,
   clientRepository,
   ClientScopeLimitError,
@@ -75,6 +78,9 @@ import {
   TENANT_ADMIN,
   TENANT_NAME_RULE,
   ClientIdConflictError,
+  distinctAllowedActions,
+  isAllowedAction,
+  unknownAllowedActions,
   type ClientRecord,
   type ClientScopeAssignment,
   coerceTenantSetting,
@@ -1323,6 +1329,16 @@ async function runClientCommand(
   const postLogoutRedirectUris = values['post-logout-redirect-uri'] ?? [];
   const webOrigins = values['web-origin'] ?? [];
   const clientCredentialsScopes = [...new Set(values['client-credentials-scope'] ?? [])];
+  const requestedActions = values['allow-action'] ?? [];
+  const unknownActions = unknownAllowedActions(requestedActions);
+  if (unknownActions.length > 0) {
+    throw new OduduError(
+      'seed_invalid_options',
+      `--allow-action names ${unknownActions.join(', ')}, which is not an action a client may start: ` +
+        ALLOWED_ACTION_NAMES.join(', '),
+    );
+  }
+  const allowedActions = distinctAllowedActions(requestedActions.filter(isAllowedAction));
   const audiences = [...new Set(values.audience ?? [])];
   for (const [field, entries] of [
     ['redirect_uris', redirectUris],
@@ -1429,6 +1445,15 @@ async function runClientCommand(
       );
     }
 
+    if (allowedActions.length > 0) {
+      const assigned = (await clientScopeRepository(tx).allForTenant())
+        .filter((scope) => scope.defaultClientAssignment !== null)
+        .map((scope) => scope.name);
+      if (!allowedActionsHaveMeRead(allowedActions, assigned)) {
+        throw new OduduError('allowed_actions_need_me_read', ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE);
+      }
+    }
+
     const secretHash = clientSecret === undefined ? null : await hashPassword(clientSecret);
 
     const client = await refuseRepeat(
@@ -1464,6 +1489,7 @@ async function runClientCommand(
       clientCredentialsScopes,
       webOrigins,
       postLogoutRedirectUris,
+      allowedActions,
     });
     if (needsServiceAccount(type, grantTypes)) await ensureServiceAccount(tx, client);
 

@@ -187,6 +187,8 @@ export const exportedClientSchema = z.strictObject({
   id_token_signed_response_alg: z.string().nullable(),
   default_max_age: z.number().int().nullable(),
   require_auth_time: z.boolean(),
+  // Absent from a document exported before the setting existed: none.
+  allowed_actions: z.array(requiredActionSchema).default([]),
   // The roles a confidential client's own service account holds, which
   // its client_credentials tokens carry; empty for a client without that grant.
   service_account_roles: assignmentSet(roleReferenceSchema),

@@ -13,7 +13,7 @@ import { isUniqueViolation, type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
-import { DefaultScopeLimitError } from '@odudu/domain-tenant';
+import { ALLOWED_ACTIONS_NEED_ME_READ, DefaultScopeLimitError } from '@odudu/domain-tenant';
 import {
   amendScope,
   assignScopeToClient,
@@ -544,6 +544,17 @@ export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRout
           request,
           problem(409, 'about:blank', 'Conflict', outcome.message),
         );
+      case 'allowed_actions_need_me_read':
+        return sendProblem(reply, request, {
+          ...problem(409, 'about:blank', 'Conflict', outcome.message),
+          errors: [
+            {
+              path: 'allowed_actions',
+              message: outcome.message,
+              code: ALLOWED_ACTIONS_NEED_ME_READ,
+            },
+          ],
+        });
       case 'not_assigned':
         return sendProblem(
           reply,

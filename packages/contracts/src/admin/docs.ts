@@ -352,6 +352,8 @@ describeFields(clientFieldsSchema, {
   default_max_age:
     'The longest age in seconds a sign-in may have before the user must sign in again, when the request does not say. Null sets none.',
   require_auth_time: 'Whether ID tokens always carry the `auth_time` claim.',
+  allowed_actions:
+    'The required actions the client may start for a signed-in person through `/authorize`: `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
   previous_secret_expires_at:
     'When the secret that a rotation replaced stops authenticating, or null when no rotation kept one. The secret itself is never shown.',
   builtin_admin:
@@ -871,6 +873,8 @@ describeFields(exportedClientSchema, {
   default_max_age:
     'The longest age in seconds a sign-in may have before the user must sign in again, when the request does not say. Null sets none.',
   require_auth_time: 'Whether ID tokens always carry the `auth_time` claim.',
+  allowed_actions:
+    'The required actions the client may start for a signed-in person through `/authorize`: `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
 });
 describeFields(exportedFlowStepSchema, {
   authenticator: 'The sign-in step to run.',

@@ -65,6 +65,7 @@ const config: ClientOidcConfig = {
   idTokenSignedResponseAlg: null,
   defaultMaxAge: null,
   requireAuthTime: false,
+  allowedActions: [],
 };
 
 // One list stands for both halves of the rule these tests exercise: the
