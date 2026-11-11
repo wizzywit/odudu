@@ -53,6 +53,7 @@ export const ADMIN_MUTATION_ACTIONS = [
   'subject.amend',
   'subject.create',
   'subject.credential_delete',
+  'subject.credential_rename',
   'subject.delete',
   'subject.groups_set',
   'subject.lockout_clear',

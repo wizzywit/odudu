@@ -11,8 +11,8 @@ type VocabularyAction = AuditAction<VocabularyEventType>;
 
 export const AUDIT_EVENT_TYPE_DOCS: Record<AuditEventType, string> = {
   admin_mutation:
-    'A write made through the admin API or the `odudu console` command. Its action is free-form: ' +
-    'one per mutation, named `<resource>.<verb>`.',
+    'A write made through the admin API, the `odudu console` command or, by a person for their ' +
+    'own account, the me API. Its action is free-form: one per mutation, named `<resource>.<verb>`.',
   admin_access:
     'A refusal at the admin API door: an authenticated caller without the capability, or a ' +
     'genuine token from another tenant.',
@@ -47,7 +47,8 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'client.authenticate':
     'A client\u2019s authentication was refused at an endpoint that requires it.',
   'session.created': 'A user session was created by a completed sign-in.',
-  'session.ended': 'A user session ended. `detail.via` says by logout, by an admin or by eviction.',
+  'session.ended':
+    'A user session ended. `detail.via` says by logout, by an admin, by the person through the me API or by eviction.',
   'token.issue': 'The token endpoint issued tokens, or refused to.',
   'token.refresh': 'A refresh token was redeemed, or the redemption was refused.',
   'token.exchange':
@@ -152,6 +153,7 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'subject.amend': 'A subject was amended.',
   'subject.create': 'A subject was created.',
   'subject.credential_delete': 'A credential of a subject was deleted.',
+  'subject.credential_rename': 'An authenticator of a subject was given a new label.',
   'subject.delete': 'A subject was deleted.',
   'subject.groups_set': 'The groups of a subject were replaced.',
   'subject.lockout_clear': 'A subject’s lockout was cleared.',

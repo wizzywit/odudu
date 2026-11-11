@@ -23,7 +23,7 @@ export interface EndSessionInput {
   readonly subjectId: string;
   readonly now: Date;
   readonly issuer: string;
-  readonly via: 'logout' | 'admin';
+  readonly via: 'logout' | 'admin' | 'self';
 }
 
 // The one path that ends a session — the RP-Initiated Logout flow
@@ -48,18 +48,18 @@ export async function endSession(
   });
 }
 
-interface EndSessionsInput {
+export interface EndSessionsInput {
   readonly tenantId: string;
   readonly sessionIds: readonly string[];
   readonly subjectId: string;
   readonly now: Date;
   readonly issuer: string;
-  readonly via: 'logout' | 'admin';
+  readonly via: 'logout' | 'admin' | 'self';
 }
 
 // `endSession` for several sessions of one subject, in a fixed number of
 // statements however many there are.
-async function endSessions(
+export async function endSessions(
   tx: TenantScopedDatabase,
   deps: EndSessionDeps,
   input: EndSessionsInput,
