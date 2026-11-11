@@ -19,7 +19,12 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { groupRepository, roleRepository } from '@odudu/domain-authz';
-import { subjectRepository, userRepository, type ProfileUpdate } from '@odudu/domain-identity';
+import {
+  CLAIM_KEY,
+  subjectRepository,
+  userRepository,
+  type ProfileUpdate,
+} from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
   MCP_CLIENT_ID,
@@ -45,7 +50,6 @@ import {
   needsServiceAccount,
 } from '@odudu/protocol-oidc';
 import { tenantSmtpRepository } from '#/repository/tenant-smtp';
-import { CLAIM_KEY } from '#/usecase/profile';
 import { type MapperCatalogue } from '#/usecase/scope-mappers';
 import { roleKey, validateTenantImport } from '#/usecase/tenant-import-validation';
 import { insertProvisionedTenant, readTenant, TenantNameTakenError } from '#/usecase/tenants';

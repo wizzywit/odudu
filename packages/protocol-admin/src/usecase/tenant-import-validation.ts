@@ -23,7 +23,7 @@ import {
   type RoleReference,
   type TenantDocument,
 } from '@odudu/contracts/admin';
-import { isEmailAddress, isValidE164 } from '@odudu/domain-identity';
+import { CLAIM_KEY, isEmailAddress, isValidE164, shapeInvalidityFor } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
   WIRE_CLIENTS_PER_TENANT,
@@ -48,7 +48,7 @@ import { checkDescription } from '#/service/description';
 import { fieldPath } from '#/service/field-path';
 import { checkConsentText, checkDisplayOrder, checkScopeLocalised } from '#/service/scope-consent';
 import { validateFlowSteps } from '#/service/flow-validation';
-import { CLAIM_KEY, PHONE_E164_MESSAGE, shapeInvalidityFor } from '#/usecase/profile';
+import { PHONE_E164_MESSAGE } from '#/usecase/profile';
 import { tooManySubjectsDetail } from '#/usecase/tenant-export';
 import { PROVISIONED_KEY_ALG } from '#/usecase/tenants';
 

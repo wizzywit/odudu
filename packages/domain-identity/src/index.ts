@@ -45,11 +45,14 @@ export {
   type VerificationUpdate,
 } from '#/repository/users';
 export {
+  CLAIM_KEY,
   isValidBirthdate,
   isValidE164,
   isValidLocale,
   isValidProfileUrl,
   isValidZoneinfo,
+  shapeInvalidityFor,
+  type StringClaimKey,
 } from '#/service/profile';
 export {
   credentialRepository,

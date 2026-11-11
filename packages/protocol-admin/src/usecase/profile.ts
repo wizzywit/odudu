@@ -2,11 +2,9 @@ import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
 import { type Profile } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
-  isValidBirthdate,
+  CLAIM_KEY,
   isValidE164,
-  isValidLocale,
-  isValidProfileUrl,
-  isValidZoneinfo,
+  shapeInvalidityFor,
   userRepository,
   type ProfileUpdate,
   type UserRecord,
@@ -107,36 +105,6 @@ const REFUSALS: Readonly<Record<string, string>> = {
     'username is amended through PATCH /admin/tenants/{tenant}/subjects/{id}, not a subject’s profile',
 };
 
-// Every writable claim column, keyed by the snake_case wire name a caller
-// sends — the same mapping `profileWireShape` reads in reverse. Excludes
-// `phoneNumberVerified`, `ProfileUpdate`'s one non-string member, so every
-// value this maps to shares the same `string | null` property type.
-export type StringClaimKey = Exclude<keyof ProfileUpdate, 'phoneNumberVerified'>;
-export const CLAIM_KEY: Readonly<Record<string, StringClaimKey>> = {
-  name: 'name',
-  given_name: 'givenName',
-  family_name: 'familyName',
-  middle_name: 'middleName',
-  nickname: 'nickname',
-  preferred_username: 'preferredUsername',
-  profile: 'profile',
-  picture: 'picture',
-  website: 'website',
-  gender: 'gender',
-  birthdate: 'birthdate',
-  zoneinfo: 'zoneinfo',
-  locale: 'locale',
-  phone_number: 'phoneNumber',
-  address_formatted: 'addressFormatted',
-  address_street: 'addressStreet',
-  address_locality: 'addressLocality',
-  address_region: 'addressRegion',
-  address_postal_code: 'addressPostalCode',
-  address_country: 'addressCountry',
-};
-
-const URL_FIELDS = new Set(['profile', 'picture', 'website']);
-
 // The claims that name a person: refused when a write would add a bidirectional
 // control to them, tolerated where the value is the one already stored.
 const NAME_CLAIMS = new Set([
@@ -147,28 +115,6 @@ const NAME_CLAIMS = new Set([
   'nickname',
   'preferred_username',
 ]);
-
-// Mirrors the same shape check `updateProfile`'s domain path applies
-// (packages/domain-identity/src/service/profile.ts) — a friendly 400
-// instead of a caller learning of `users_birthdate_shape` from a 500.
-// `phone_number`'s own E.164 requirement is conditional on
-// `phone_number_verified`, so it is checked separately, against the
-// patch's final state, once both are known — never per-field here.
-export function shapeInvalidityFor(field: string, value: string): string | null {
-  if (field === 'birthdate' && !isValidBirthdate(value)) {
-    return `${JSON.stringify(value)} is not a birthdate the claim may carry (YYYY-MM-DD, or YYYY alone)`;
-  }
-  if (field === 'zoneinfo' && !isValidZoneinfo(value)) {
-    return `${JSON.stringify(value)} is not an IANA Time Zone Database name`;
-  }
-  if (field === 'locale' && !isValidLocale(value)) {
-    return `${JSON.stringify(value)} is not a BCP 47 locale the claim may carry`;
-  }
-  if (URL_FIELDS.has(field) && !isValidProfileUrl(value)) {
-    return `${JSON.stringify(value)} is not an http or https URL`;
-  }
-  return null;
-}
 
 /**
  * Amends the claim columns through `updateProfile` and the two
