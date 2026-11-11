@@ -1,4 +1,4 @@
-import type { RequiredAction } from '#/entities/subject';
+import type { RequiredAction } from '#/entities/subject/types/subjectWrites';
 import { listOrNone } from '#/shared/lib/services/format';
 import { inOrderOf } from '#/shared/lib/services/ids';
 

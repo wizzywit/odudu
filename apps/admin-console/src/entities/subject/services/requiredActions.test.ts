@@ -4,7 +4,7 @@ import {
   requiredActionsInOrder,
   REQUIRED_ACTIONS,
   REQUIRED_ACTION_OPTIONS,
-} from '#/pages/subjects/services/requiredActions';
+} from '#/entities/subject/services/requiredActions';
 
 describe('required actions', () => {
   it('words each action the way the mailed link does', () => {

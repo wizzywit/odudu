@@ -79,3 +79,10 @@ export {
   splitRoles,
   type SplitRoles,
 } from '#/entities/subject/services/subjectRoles';
+export {
+  actionsMailProblem,
+  describeActions,
+  REQUIRED_ACTION_OPTIONS,
+  REQUIRED_ACTIONS,
+  requiredActionsInOrder,
+} from '#/entities/subject/services/requiredActions';
