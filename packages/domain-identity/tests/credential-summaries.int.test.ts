@@ -160,3 +160,79 @@ describe('credentialRepository.summariesFor', () => {
     });
   });
 });
+
+describe('credentialRepository.renameLabel', () => {
+  async function seedKinds() {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      const id = await seedSubject(tx, tenantId);
+      await holdEveryKind(tx, tenantId, id);
+      return id;
+    });
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      credentialRepository(tx).summariesFor(subjectId, { after: undefined, limit: 50 }),
+    );
+    const idOf = (type: string) => rows.find((row) => row.type === type)?.id ?? '';
+    return { tenantId, subjectId, idOf };
+  }
+
+  it('renames an authenticator and answers its summary', async () => {
+    const { tenantId, subjectId, idOf } = await seedKinds();
+    const renamed = await withTenant(app.db, tenantId, async (tx) => [
+      await credentialRepository(tx).renameLabel(subjectId, idOf('totp'), 'Work phone'),
+      await credentialRepository(tx).renameLabel(subjectId, idOf('webauthn'), 'Desk key'),
+    ]);
+    expect(renamed.map((row) => [row?.type, row?.label])).toEqual([
+      ['totp', 'Work phone'],
+      ['webauthn', 'Desk key'],
+    ]);
+    const after = await withTenant(app.db, tenantId, (tx) =>
+      credentialRepository(tx).summariesFor(subjectId, { after: undefined, limit: 50 }),
+    );
+    expect(after.find((row) => row.type === 'password')?.label).toBeNull();
+  });
+
+  it('renames neither a password nor another subject’s credential', async () => {
+    const { tenantId, subjectId, idOf } = await seedKinds();
+    const strangerId = await withTenant(app.db, tenantId, async (tx) => {
+      const other = (await subjectRepository(tx).create({ tenantId, type: 'user' })).id;
+      return other;
+    });
+    const answers = await withTenant(app.db, tenantId, async (tx) => [
+      await credentialRepository(tx).renameLabel(subjectId, idOf('password'), 'x'),
+      await credentialRepository(tx).renameLabel(strangerId, idOf('totp'), 'x'),
+      await credentialRepository(tx).renameLabel(subjectId, newId(), 'x'),
+    ]);
+    expect(answers).toEqual([null, null, null]);
+    const totp = await withTenant(app.db, tenantId, (tx) =>
+      credentialRepository(tx).summariesFor(subjectId, { after: undefined, limit: 50 }),
+    );
+    expect(totp.find((row) => row.type === 'totp')?.label).toBe('Phone');
+  });
+
+  it('renames nothing of another tenant’s subject', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedSubject(tx, tenantId);
+        await holdEveryKind(tx, tenantId, subjectId);
+        const rows = await credentialRepository(tx).summariesFor(subjectId, {
+          after: undefined,
+          limit: 50,
+        });
+        return { subjectId, credentialId: rows.find((row) => row.type === 'totp')?.id ?? '' };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const rows = await credentialRepository(tx).summariesFor(seeded.subjectId, {
+          after: undefined,
+          limit: 50,
+        });
+        expect(rows.find((row) => row.id === seeded.credentialId)?.label).toBe('Phone');
+      },
+      attempt: (tx, seeded) =>
+        credentialRepository(tx).renameLabel(seeded.subjectId, seeded.credentialId, 'Taken'),
+      expectBlocked: (renamed) => {
+        expect(renamed).toBeNull();
+      },
+    });
+  });
+});

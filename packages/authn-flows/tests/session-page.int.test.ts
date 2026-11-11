@@ -146,3 +146,91 @@ describe('sessionRepository.livePageBySubject', () => {
     });
   });
 });
+
+describe('sessionRepository.lockOwnedId', () => {
+  it('is true for the subject’s own session, dead or live, and false for anyone else’s', async () => {
+    const tenantId = newId();
+    const ids = await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
+      const other = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      return {
+        subject,
+        live: await open(tx, tenantId, subject, AHEAD),
+        dead: await open(tx, tenantId, subject, BEHIND),
+        foreign: await open(tx, tenantId, other.id, AHEAD),
+      };
+    });
+
+    const answers = await withTenant(app.db, tenantId, async (tx) => {
+      const sessions = sessionRepository(tx);
+      return [
+        await sessions.lockOwnedId(ids.subject, ids.live),
+        await sessions.lockOwnedId(ids.subject, ids.dead),
+        await sessions.lockOwnedId(ids.subject, ids.foreign),
+        await sessions.lockOwnedId(ids.subject, newId()),
+      ];
+    });
+    expect(answers).toEqual([true, true, false, false]);
+  });
+
+  it('finds nothing of another tenant’s session', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedSubject(tx, tenantId);
+        return { subjectId, sessionId: await open(tx, tenantId, subjectId, AHEAD) };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await sessionRepository(tx).lockOwnedId(seeded.subjectId, seeded.sessionId)).toBe(
+          true,
+        );
+      },
+      attempt: (tx, seeded) =>
+        sessionRepository(tx).lockOwnedId(seeded.subjectId, seeded.sessionId),
+      expectBlocked: (found) => {
+        expect(found).toBe(false);
+      },
+    });
+  });
+});
+
+describe('sessionRepository.liveIdsFor with an exception', () => {
+  it('leaves out the named session and no other', async () => {
+    const tenantId = newId();
+    const seeded = await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedSubject(tx, tenantId);
+      return {
+        subject,
+        ids: [
+          await open(tx, tenantId, subject, AHEAD),
+          await open(tx, tenantId, subject, AHEAD),
+          await open(tx, tenantId, subject, AHEAD),
+        ].sort(),
+      };
+    });
+    const [first, second, third] = seeded.ids;
+
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      sessionRepository(tx).liveIdsFor(seeded.subject, NOW, 10, second),
+    );
+    expect(rows).toEqual([first, third]);
+  });
+
+  it('lists nothing of another tenant’s subject', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedSubject(tx, tenantId);
+        await open(tx, tenantId, subjectId, AHEAD);
+        return { subjectId };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(
+          await sessionRepository(tx).liveIdsFor(seeded.subjectId, NOW, 10, newId()),
+        ).toHaveLength(1);
+      },
+      attempt: (tx, seeded) => sessionRepository(tx).liveIdsFor(seeded.subjectId, NOW, 10, newId()),
+      expectBlocked: (ids) => {
+        expect(ids).toEqual([]);
+      },
+    });
+  });
+});

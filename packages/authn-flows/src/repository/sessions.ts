@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, ne, sql, type SQL } from 'drizzle-orm';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
 import { type SessionEntry } from '#/service/session-entry';
@@ -125,13 +125,24 @@ export function sessionRepository(tx: TenantScopedDatabase) {
       return ended.map((row) => row.id);
     },
 
-    // A subject's live sessions, a page at a time in id order. Served by
-    // sessions_by_subject.
-    async liveIdsFor(subjectId: string, now: Date, limit: number): Promise<string[]> {
+    // A subject's live sessions, a page at a time in id order, leaving out
+    // `except` when it is named. Served by sessions_by_subject.
+    async liveIdsFor(
+      subjectId: string,
+      now: Date,
+      limit: number,
+      except?: string,
+    ): Promise<string[]> {
       const rows = await tx
         .select({ id: sessions.id })
         .from(sessions)
-        .where(and(eq(sessions.subjectId, subjectId), gt(sessions.expiresAt, now)))
+        .where(
+          and(
+            eq(sessions.subjectId, subjectId),
+            gt(sessions.expiresAt, now),
+            except === undefined ? undefined : ne(sessions.id, except),
+          ),
+        )
         .orderBy(sessions.id)
         .limit(limit);
       return rows.map((row) => row.id);
@@ -201,6 +212,17 @@ export function sessionRepository(tx: TenantScopedDatabase) {
         .orderBy(asc(sessions.id))
         .limit(page.limit);
       return rows.map(toRecord);
+    },
+
+    // Whether the subject owns the session, live or not, taking its row lock
+    // so the end that follows runs against the row it checked.
+    async lockOwnedId(subjectId: string, sessionId: string): Promise<boolean> {
+      const rows = await tx
+        .select({ id: sessions.id })
+        .from(sessions)
+        .where(and(eq(sessions.id, sessionId), eq(sessions.subjectId, subjectId)))
+        .for('update');
+      return rows.length > 0;
     },
 
     async endMany(ids: readonly string[], now: Date): Promise<void> {

@@ -37,6 +37,9 @@ export interface CredentialSummary {
 // password answers nothing.
 const SIGN_IN_TYPES: readonly CredentialType[] = ['password', 'totp', 'webauthn'];
 
+// The credentials a person tells apart by a label of their choosing.
+const LABELLED_TYPES: readonly CredentialType[] = ['totp', 'webauthn'];
+
 export interface RecoveryStanding {
   readonly unspent: number;
   readonly held: number;
@@ -180,6 +183,34 @@ export function credentialRepository(tx: TenantScopedDatabase) {
         )
         .orderBy(userCredentials.id)
         .limit(page.limit);
+    },
+
+    // Gives an authenticator of the subject a new label and answers its
+    // summary, or null where the subject holds no authenticator by that id. A
+    // password and a recovery code carry no label a person reads.
+    async renameLabel(
+      subjectId: string,
+      id: string,
+      label: string,
+    ): Promise<CredentialSummary | null> {
+      const rows = await tx
+        .update(userCredentials)
+        .set({ label })
+        .where(
+          and(
+            eq(userCredentials.id, id),
+            eq(userCredentials.subjectId, subjectId),
+            inArray(userCredentials.type, [...LABELLED_TYPES]),
+          ),
+        )
+        .returning({
+          id: userCredentials.id,
+          type: userCredentials.type,
+          label: userCredentials.label,
+          createdAt: userCredentials.createdAt,
+          lastUsedAt: userCredentials.lastUsedAt,
+        });
+      return rows[0] ?? null;
     },
 
     // How many subjects hold a passkey registered under another relying
