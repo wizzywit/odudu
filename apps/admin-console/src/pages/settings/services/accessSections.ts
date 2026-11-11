@@ -54,7 +54,7 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         label: 'Recent sign-in window',
         control: 'seconds',
         description:
-          'A person must have signed in this recently to remove a credential, end other sessions, revoke a consent or rename themselves.',
+          'A person must have signed in this recently to change their address or username, end all their other sessions, withdraw a consent or remove an authenticator.',
       },
     ],
   },
