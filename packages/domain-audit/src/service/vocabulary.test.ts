@@ -169,3 +169,31 @@ describe('assertActionKnown', () => {
     }).toThrow(/token\.isue/);
   });
 });
+
+describe('the steps of an application-requested action', () => {
+  for (const action of [
+    'action.requested',
+    'action.completed',
+    'action.cancelled',
+    'action.failed',
+  ] as const) {
+    it(`${action} is a credential action whose detail names the required action`, () => {
+      expect(AUDIT_ACTIONS.credential).toContain(action);
+      expect(() => {
+        assertActionKnown('credential', action);
+      }).not.toThrow();
+      expect(() => {
+        assertDetailAllowed(action, { action: 'configure-totp' });
+      }).not.toThrow();
+    });
+  }
+
+  it('allows no other detail key and no non-string action', () => {
+    expect(() => {
+      assertDetailAllowed('action.requested', { action: 'configure-totp', scope: 'x' });
+    }).toThrow(/scope/);
+    expect(() => {
+      assertDetailAllowed('action.cancelled', { action: 3 });
+    }).toThrow(/invalid value/);
+  });
+});
