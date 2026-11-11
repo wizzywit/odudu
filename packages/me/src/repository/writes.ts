@@ -70,6 +70,8 @@ export interface MeWriteTx {
   holderOfEmail(email: string): Promise<string | null>;
   // Whether `email` may be mailed once more now; asking uses up one mail.
   mailBudgetAllows(email: string): boolean;
+  // Forgets the subject's pending address, so no link mailed earlier can complete.
+  clearPendingEmail(subjectId: string): Promise<void>;
   // Keeps `email` as the subject's one pending address, replacing any other.
   setPendingEmail(subjectId: string, email: string): Promise<void>;
   // Queues the mail that proves `email` to the person who asked for it, with
@@ -78,6 +80,7 @@ export interface MeWriteTx {
     readonly subjectId: string;
     readonly email: string;
     readonly locale: string | null;
+    readonly now: Date;
   }): Promise<void>;
 
   audit(event: MeAuditEvent): Promise<void>;

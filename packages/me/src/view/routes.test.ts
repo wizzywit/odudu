@@ -166,6 +166,7 @@ function build(
           mailIsAvailable: () => Promise.resolve(true),
           mailBudgetAllows: () => true,
           holderOfEmail: () => Promise.resolve(null),
+          clearPendingEmail: () => Promise.resolve(),
           setPendingEmail: (_s, email) => {
             note(`setPendingEmail ${email}`);
             return Promise.resolve();

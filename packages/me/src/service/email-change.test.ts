@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { checkEmailRequest, planEmailChange } from '#/service/email-change';
+import {
+  checkEmailRequest,
+  emailRequestOf,
+  planEmailChange,
+  proofLocale,
+} from '#/service/email-change';
 
 describe('checkEmailRequest', () => {
   it('accepts an address the email claim may carry', () => {
@@ -49,5 +54,37 @@ describe('planEmailChange', () => {
 
   it('names the holder, not the budget, when both apply', () => {
     expect(plan('other', false)).toEqual({ kind: 'skip', reason: 'address_in_use' });
+  });
+});
+
+describe('emailRequestOf', () => {
+  it('leaves a body with no email to the profile edit', () => {
+    expect(emailRequestOf({ name: 'Ada' })).toEqual({ kind: 'not_email' });
+  });
+
+  it('takes an address sent alone', () => {
+    expect(emailRequestOf({ email: 'ada@example.com' })).toEqual({
+      kind: 'ok',
+      email: 'ada@example.com',
+    });
+  });
+
+  it('refuses an address sent beside other members', () => {
+    const verdict = emailRequestOf({ email: 'ada@example.com', name: 'Ada' });
+    expect(verdict).toEqual({
+      kind: 'invalid',
+      description: 'change the address in a request of its own',
+    });
+  });
+
+  it('refuses a malformed address', () => {
+    expect(emailRequestOf({ email: 'nope' }).kind).toBe('invalid');
+  });
+});
+
+describe('proofLocale', () => {
+  it('is the person’s locale, or none', () => {
+    expect(proofLocale({ locale: 'ar' })).toBe('ar');
+    expect(proofLocale({ locale: null })).toBeNull();
   });
 });

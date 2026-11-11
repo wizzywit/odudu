@@ -79,6 +79,38 @@ describe('pendingEmailRepository', () => {
     });
   });
 
+  it('forgets the pending address, and a second time is no error', async () => {
+    const tenantId = newId();
+    const subjectId = await inTenant(tenantId, (tx) => seedUser(tx, tenantId, 'ada@example.com'));
+    await inTenant(tenantId, async (tx) => {
+      const pending = pendingEmailRepository(tx);
+      await pending.set(tenantId, subjectId, 'new@example.com');
+      await pending.clear(subjectId);
+      await pending.clear(subjectId);
+      expect(await pending.forSubject(subjectId)).toBeNull();
+    });
+  });
+
+  it('forgets nothing of another tenant’s subject', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedUser(tx, tenantId, 'ada@example.com');
+        await pendingEmailRepository(tx).set(tenantId, subjectId, 'new@example.com');
+        return { subjectId };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await pendingEmailRepository(tx).forSubject(seeded.subjectId)).not.toBeNull();
+      },
+      attempt: (tx, seeded) => pendingEmailRepository(tx).clear(seeded.subjectId),
+      expectBlocked: () => undefined,
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        expect(await pendingEmailRepository(tx).forSubject(seeded.subjectId)).toBe(
+          'new@example.com',
+        );
+      },
+    });
+  });
+
   it('goes with the subject', async () => {
     const tenantId = newId();
     const subjectId = await inTenant(tenantId, (tx) => seedUser(tx, tenantId, 'ada@example.com'));

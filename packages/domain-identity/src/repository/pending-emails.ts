@@ -25,6 +25,11 @@ export function pendingEmailRepository(tx: TenantScopedDatabase) {
       return rows[0]?.email ?? null;
     },
 
+    // Forgets the subject's pending address, whatever it is.
+    async clear(subjectId: string): Promise<void> {
+      await tx.delete(pendingEmailChanges).where(eq(pendingEmailChanges.subjectId, subjectId));
+    },
+
     // Deletes the row when it still names `email`, and says whether it did:
     // one statement decides between two completions of the same request, and
     // a request replaced or cleared since the link was mailed finds nothing.

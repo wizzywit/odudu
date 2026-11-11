@@ -1,3 +1,4 @@
+import type { MeAmendProfileRequest } from '@odudu/contracts/me';
 import { isEmailAddress } from '@odudu/domain-identity';
 
 export type EmailRequestVerdict =
@@ -23,6 +24,23 @@ export function checkEmailRequest(value: unknown): EmailRequestVerdict {
     };
   }
   return { kind: 'ok', email: value };
+}
+
+export type EmailRoute = { readonly kind: 'not_email' } | EmailRequestVerdict;
+
+// Whether a profile edit is a change of address, which is answered 202 and so
+// cannot share a request with edits answered 200: the address goes alone.
+export function emailRequestOf(body: MeAmendProfileRequest): EmailRoute {
+  if (!('email' in body)) return { kind: 'not_email' };
+  if (Object.keys(body).length > 1) {
+    return { kind: 'invalid', description: 'change the address in a request of its own' };
+  }
+  return checkEmailRequest(body.email);
+}
+
+// The language the proof mail is written in: the person's own, when they have one.
+export function proofLocale(user: { readonly locale?: string | null | undefined }): string | null {
+  return user.locale ?? null;
 }
 
 export type EmailChangePlan =

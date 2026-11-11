@@ -141,6 +141,7 @@ function writeTxFor(
       (mail.deploymentSmtp || (await tenantSmtpRepository(tx).byTenantId(tenantId)) !== null),
     holderOfEmail: (email) => userRepository(tx).holderOfEmail(email),
     mailBudgetAllows: (email) => mail.mailGate('change', tenantId, email),
+    clearPendingEmail: (subjectId) => pendingEmailRepository(tx).clear(subjectId),
     setPendingEmail: (subjectId, email) =>
       pendingEmailRepository(tx).set(tenantId, subjectId, email),
     queueAddressProof: async (input) => {
@@ -153,7 +154,7 @@ function writeTxFor(
           tenantName: names.name,
           tenantDisplayName: names.displayName ?? names.name,
           issuerBase: mail.publicBaseUrl,
-          now: () => new Date(),
+          now: () => input.now,
           resolveMailLook: mail.resolveMailLook,
         },
         input,

@@ -12,7 +12,7 @@ import {
   sessionEndedEvent,
   sessionsEndedEvent,
 } from '#/service/audit';
-import { planEmailChange } from '#/service/email-change';
+import { planEmailChange, proofLocale } from '#/service/email-change';
 import { UsernameTakenError } from '#/service/errors';
 import { credentialView, type CredentialView } from '#/service/credential-view';
 import { fetchLimit, splitPage } from '#/service/page';
@@ -216,17 +216,19 @@ export function requestEmailChange(
       subjectId: caller.subjectId,
       withinBudget: tx.mailBudgetAllows(email),
     });
+    // Whatever the plan, an address asked for earlier is no longer wanted.
     if (plan.kind === 'send') {
       await tx.setPendingEmail(caller.subjectId, email);
       await tx.queueAddressProof({
         subjectId: caller.subjectId,
         email,
-        locale: current.locale ?? null,
+        locale: proofLocale(current),
+        now: deps.now(),
       });
+    } else {
+      await tx.clearPendingEmail(caller.subjectId);
     }
-    await tx.audit(
-      emailChangeRequestedEvent(actorOf(caller), plan.kind === 'send' ? null : plan.reason),
-    );
+    await tx.audit(emailChangeRequestedEvent(actorOf(caller), plan));
     return { kind: 'accepted' };
   });
 }

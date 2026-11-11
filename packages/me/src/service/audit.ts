@@ -1,4 +1,5 @@
 import type { AdminMutationAction } from '@odudu/domain-audit';
+import type { EmailChangePlan } from '#/service/email-change';
 
 // An audit row for something a person did to their own account through the me
 // API. The actor is the subject themselves, acting through the client the token
@@ -108,15 +109,14 @@ export function recoveryCodesRevokedEvent(actor: Actor, revoked: number): MeAudi
 }
 
 // An address is asked for and not yet proved: the field is named and the
-// address never. `skipped` says why no mail went, for an address that cannot
-// be proved by mail to the person asking.
-export function emailChangeRequestedEvent(
-  actor: Actor,
-  skipped: 'address_in_use' | 'unchanged' | 'throttled' | null,
-): MeAuditEvent {
+// address never. A plan that skipped says why no mail went, for an address
+// that cannot be proved by mail to the person asking.
+export function emailChangeRequestedEvent(actor: Actor, plan: EmailChangePlan): MeAuditEvent {
   return onSubject(
     actor,
     'subject.profile_amend',
-    skipped === null ? { fields: ['email'], pending: true } : { fields: ['email'], skipped },
+    plan.kind === 'send'
+      ? { fields: ['email'], pending: true }
+      : { fields: ['email'], skipped: plan.reason },
   );
 }

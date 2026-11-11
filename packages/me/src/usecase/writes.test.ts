@@ -137,12 +137,18 @@ function world(over: Partial<MeWriteTx> = {}): { deps: MeWriteDeps; log: Log } {
       log.calls.push(`holderOfEmail ${email}`);
       return Promise.resolve(null);
     },
+    clearPendingEmail: (s) => {
+      log.calls.push(`clearPendingEmail ${s}`);
+      return Promise.resolve();
+    },
     setPendingEmail: (s, email) => {
       log.calls.push(`setPendingEmail ${s} ${email}`);
       return Promise.resolve();
     },
     queueAddressProof: (input) => {
-      log.calls.push(`queueAddressProof ${input.subjectId} ${input.email} ${String(input.locale)}`);
+      log.calls.push(
+        `queueAddressProof ${input.subjectId} ${input.email} ${String(input.locale)} ${input.now.toISOString()}`,
+      );
       return Promise.resolve();
     },
     audit: (event) => {
@@ -462,7 +468,7 @@ describe('requestEmailChange', () => {
       'mailIsAvailable',
       'holderOfEmail new@example.com',
       'setPendingEmail subject-1 new@example.com',
-      'queueAddressProof subject-1 new@example.com null',
+      'queueAddressProof subject-1 new@example.com null 2026-11-11T10:00:00.000Z',
     ]);
     expect(log.audits).toHaveLength(1);
     expect(log.audits[0]).toMatchObject({
@@ -484,6 +490,7 @@ describe('requestEmailChange', () => {
       fields: ['email'],
       skipped: 'address_in_use',
     });
+    expect(log.calls).toContain('clearPendingEmail subject-1');
   });
 
   it('records an address the person already holds as unchanged', async () => {
@@ -492,6 +499,7 @@ describe('requestEmailChange', () => {
       kind: 'accepted',
     });
     expect(log.audits[0]?.detail).toMatchObject({ skipped: 'unchanged' });
+    expect(log.calls).toContain('clearPendingEmail subject-1');
     expect(log.calls.some((c) => c.startsWith('queueAddressProof'))).toBe(false);
   });
 
@@ -502,6 +510,7 @@ describe('requestEmailChange', () => {
     });
     expect(log.calls.some((c) => c.startsWith('queueAddressProof'))).toBe(false);
     expect(log.audits[0]?.detail).toMatchObject({ skipped: 'throttled' });
+    expect(log.calls).toContain('clearPendingEmail subject-1');
   });
 
   it('refuses before judging the address when the deployment cannot send mail', async () => {

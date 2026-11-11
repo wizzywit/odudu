@@ -21,6 +21,8 @@ let container: TestDatabase;
 let owner: DatabaseHandle;
 let appDb: DatabaseHandle;
 let app: FastifyInstance;
+// The same server with no relay of its own, as a deployment that cannot send mail.
+let noMailApp: FastifyInstance;
 
 const KEK = Buffer.alloc(32, 7);
 const BASE = 'https://id.example.com';
@@ -37,21 +39,24 @@ beforeAll(async () => {
   process.env.ODUDU_APP_DATABASE_URL = appUrl;
   process.env.ODUDU_KEK = KEK.toString('base64');
   const logger = createLogger(loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' }));
-  app = buildApp({
+  const options = {
     database: appDb,
     ownerDatabase: owner,
     kek: KEK,
     logger,
     tls: true,
     publicBaseUrl: BASE,
-    deploymentSmtp: true,
     throttle: { limit: 100_000, windowSeconds: 60 },
-  });
+  };
+  app = buildApp({ ...options, deploymentSmtp: true });
+  noMailApp = buildApp({ ...options, deploymentSmtp: false });
   await app.ready();
+  await noMailApp.ready();
 }, 120_000);
 
 afterAll(async () => {
   await app.close();
+  await noMailApp.close();
   delete process.env.ODUDU_DATABASE_URL;
   delete process.env.ODUDU_APP_DATABASE_URL;
   delete process.env.ODUDU_KEK;
@@ -248,17 +253,70 @@ describe('PATCH /me/profile with an email', () => {
     expect(rows[0]?.detail).toEqual({ via: 'me', fields: ['email'], skipped: 'address_in_use' });
   });
 
-  it('answers the same for a free address and a held one', async () => {
+  it('answers a free address and another account’s address with the same status, body and headers', async () => {
     const w = await world();
     const free = await ask(w, { email: NEW });
-    const held = await ask(w, { email: 'ada@example.com' });
-    expect(held.statusCode).toBe(free.statusCode);
-    expect(held.body).toBe(free.body);
-    expect(held.headers['cache-control']).toBe(free.headers['cache-control']);
+    await withTenant(appDb.db, w.tenantId, async (tx) => {
+      const second = await subjectRepository(tx).create({ tenantId: w.tenantId, type: 'user' });
+      await userRepository(tx).create({
+        subjectId: second.id,
+        tenantId: w.tenantId,
+        username: 'second',
+        email: 'second@example.com',
+      });
+    });
+    const taken = await ask(w, { email: 'Second@Example.com' });
+    expect(taken.statusCode).toBe(free.statusCode);
+    expect(taken.body).toBe(free.body);
+    expect(taken.headers['cache-control']).toBe(free.headers['cache-control']);
+    expect(taken.headers['content-type']).toBe(free.headers['content-type']);
+  });
+
+  it('forgets an earlier pending address when a later request is skipped', async () => {
+    const w = await world();
+    const old = await requestAndGetLink(w, 'first@example.com');
+    await withTenant(appDb.db, w.tenantId, async (tx) => {
+      const second = await subjectRepository(tx).create({ tenantId: w.tenantId, type: 'user' });
+      await userRepository(tx).create({
+        subjectId: second.id,
+        tenantId: w.tenantId,
+        username: 'second',
+        email: 'second@example.com',
+      });
+    });
+    expect((await ask(w, { email: 'second@example.com' })).statusCode).toBe(202);
+    expect(await pendingOf(w)).toEqual([]);
+    expect((await press(old)).statusCode).toBe(400);
+    expect(await userOf(w)).toMatchObject({ email: 'ada@example.com' });
+  });
+
+  it('answers 503 where the deployment cannot send mail, whatever the address', async () => {
+    const w = await world();
+    for (const email of [NEW, 'ada@example.com']) {
+      const res = await noMailApp.inject({
+        method: 'PATCH',
+        url: `/tenants/${w.name}/me/profile`,
+        headers: { host: HOST, authorization: `Bearer ${await sign(w)}` },
+        payload: { email },
+      });
+      expect(res.statusCode).toBe(503);
+      expect(res.json()).toMatchObject({ error: 'mail_unavailable' });
+    }
+    expect(await pendingOf(w)).toEqual([]);
+    expect(await mail(w)).toEqual([]);
   });
 });
 
 describe('completing the mailed link', () => {
+  it('gives an address to a person who had none', async () => {
+    const w = await world();
+    await owner.sql`update users set email = null where subject_id = ${w.subjectId}`;
+    const link = await requestAndGetLink(w);
+    expect((await press(link)).statusCode).toBe(200);
+    expect(await userOf(w)).toMatchObject({ email: NEW, emailVerified: true });
+    expect(await pendingOf(w)).toEqual([]);
+  });
+
   it('swaps the address in, verified, and keeps the person’s sessions', async () => {
     const w = await world();
     const link = await requestAndGetLink(w);

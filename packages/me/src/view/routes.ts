@@ -1,6 +1,5 @@
 import {
   meAmendProfileRequestSchema,
-  type MeAmendProfileRequest,
   meListQuerySchema,
   meNoQuerySchema,
   meRenameCredentialRequestSchema,
@@ -33,7 +32,7 @@ import {
   type MeAdmission,
   type MeCaller,
 } from '#/usecase/admit-me';
-import { checkEmailRequest } from '#/service/email-change';
+import { emailRequestOf, type EmailRoute } from '#/service/email-change';
 import { acrForRemoval, requireFreshSignIn, type MeGateDeps } from '#/usecase/freshness-gate';
 import {
   listConsents,
@@ -157,18 +156,14 @@ function listRoute<Ok extends { readonly kind: 'ok' }>(
 async function changeEmail(
   deps: MeDeps,
   caller: MeCaller,
-  body: MeAmendProfileRequest,
+  asked: Exclude<EmailRoute, { readonly kind: 'not_email' }>,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
-  if (Object.keys(body).length > 1) {
-    return respond(reply, 400, invalidRequest('email: change the address in a request of its own'));
-  }
-  const verdict = checkEmailRequest(body.email);
-  if (verdict.kind === 'invalid') {
-    return respond(reply, 400, invalidRequest(`email: ${verdict.description}`));
+  if (asked.kind === 'invalid') {
+    return respond(reply, 400, invalidRequest(`email: ${asked.description}`));
   }
   if (!(await signInIsFresh(deps, caller, reply))) return reply;
-  const outcome = await requestEmailChange(deps, caller, verdict.email);
+  const outcome = await requestEmailChange(deps, caller, asked.email);
   if (outcome.kind === 'not_found') {
     return respond(reply, 404, notFound('There is no profile for this account'));
   }
@@ -182,7 +177,8 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
     if (caller === undefined) return reply;
     const body = meAmendProfileRequestSchema.safeParse(request.body);
     if (!body.success) return respond(reply, 400, invalidBody(body.error.issues));
-    if ('email' in body.data) return changeEmail(deps, caller, body.data, reply);
+    const asked = emailRequestOf(body.data);
+    if (asked.kind !== 'not_email') return changeEmail(deps, caller, asked, reply);
     if (body.data.username !== undefined) {
       if (!caller.usernameEditable) return respond(reply, 400, usernameNotEditable());
       if (!(await signInIsFresh(deps, caller, reply))) return reply;

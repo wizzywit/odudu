@@ -109,5 +109,7 @@ ordinary `verify_email` action token: when its address is not the current one,
 the same transaction, refusing like an expired link when the row was replaced or cleared or another
 account holds the address by then. The answer is `202` whether or not the address is held; the
 audit row says `skipped` (`address_in_use`, `unchanged` or `throttled`, the last from a new
-per-address mail budget of its own kind). The pending row is never reaped (one per subject, deleted
-with the subject). The notice to the old address is placed on spec section 5.5.
+per-address mail budget of its own kind). A pending row is one per subject and is cleared when the
+change completes, when a later request replaces it, when a later request is skipped, and when an
+administrator changes the address; it is deleted with the subject. It is not reaped by age and needs
+no such pass: the table cannot hold more rows than the tenant has subjects. The notice to the old address is placed on spec section 5.5.
