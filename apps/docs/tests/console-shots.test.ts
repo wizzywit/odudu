@@ -110,7 +110,8 @@ describe('the console captures', () => {
         expect(text.length, file).toBeGreaterThan(100);
         const seen = { text, attributes: [], fieldValues: [], passwordFieldsFilled: 0 };
         expect(findSecrets(seen, []), file).toEqual([]);
-        expect(/localhost:(?!3000\b)\d+/u.test(text), file).toBe(false);
+        // 8080 is the demo client's own callback address, listed on its Advanced tab.
+        expect(/localhost:(?!3000\b|8080\/callback)\d+/u.test(text), file).toBe(false);
         // The administrator is the published default, or whoever the capture is given.
         const emails = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/gu) ?? [];
         expect(

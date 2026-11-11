@@ -1,0 +1,154 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · demo
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Tenant
+Settings
+Branding
+Email
+Domains
+Export
+Observe
+Audit trail
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Collapse menu
+or press 
+[
+odudu · demo
+Menu
+System
+Acting in 
+demo
+ with system authority
+Back to system
+Applications
+›
+Clients
+›
+my-app
+‹
+Clients
+my-app
+enabled
+my-app
+General
+Redirects & origins
+Tokens
+Scopes
+Logout
+Branding
+Advanced
+Roles
+Service account
+Sessions
+Activity
+Installation
+What an application is configured with to sign people in through this client. The secret is never part of it: it is shown once, when it is made or rotated.
+Issuer
+http://localhost:3000/tenants/demo
+Copy
+Discovery URL
+http://localhost:3000/tenants/demo/.well-known/openid-configuration
+Copy
+Client ID
+my-app
+Copy
+Client type
+public
+Authentication method
+none
+Redirect URIs
+http://localhost:8080/callback
+Post-logout redirect URIs
+None
+Grant types
+authorization_code
+Default scope
+address email groups openid phone profile roles
+Client authentication
+A public client authenticates with nothing, and a client cannot change between public and confidential once it is made.
+Client keys
+The public keys the server verifies the client with and encrypts to. A key set is kept as given and served back by every read, so a private key is refused.
+Key source
+None published
+▾
+None published
+A JWKS URI
+A key set pasted here
+UserInfo response
+How UserInfo answers this client: signed, and then encrypted to a key it publishes above. Left alone it answers plain JSON.
+Signing algorithm
+Plain JSON, not signed
+▾
+Plain JSON, not signed
+RS256
+ES256
+An unsigned JWT (none)
+Encryption algorithm
+Not encrypted
+▾
+Not encrypted
+RSA-OAEP-256
+ECDH-ES
+ECDH-ES+A128KW
+ECDH-ES+A192KW
+ECDH-ES+A256KW
+Audiences
+Audiences
+Add audience
+The resource servers tokens issued to this client are meant for, which a token names as its audience. A request may narrow them with a resource, never widen them. 0 of 200 audiences.
+Token exchange
+Allow impersonation in token exchange
+Off
+On, this client may exchange a token for one that stands for the subject with no actor named. Off, an exchange it makes names the client as the actor. It has no effect unless the client holds the token exchange grant.
+Allow a public client to use token exchange
+Off
+A public client holds no secret, so it is refused the token exchange grant unless this is on. It has no effect on a confidential client, or unless the client holds the token exchange grant.
+Accept an actor token issued to another client
+Off
+An actor token issued to another client is refused unless this is on. It has no effect unless the client holds the token exchange grant.
+Application actions
+The account changes this client may ask Odudu to run for a person who is signed in, through a parameter of its authorization request. A client may start none until one is chosen here.
+Actions an application may start
+Choose a new password
+Asks for the current password, then a new one.
+Set up an authenticator app
+Enrols an authenticator app as a second factor.
+Register a passkey
+Registers a passkey on the device in use.
+Generate recovery codes
+Shows a fresh set of recovery codes once, replacing any held.
+A public client has no secret to rotate.
+Fixed by design
+Response type
+code
+ · Every client signs people in with the authorization code flow; no token is ever returned through the browser.
+PKCE
+S256
+ · An authorization request carries a code challenge, and the plain method is refused.
