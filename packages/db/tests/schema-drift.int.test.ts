@@ -35,6 +35,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text, 'execute_actions'::text])))",
   'action_tokens.action_tokens_actions_check':
     "CHECK (((type = 'execute_actions'::text) = ((actions IS NOT NULL) AND (cardinality(actions) > 0))))",
+  'action_tokens.action_tokens_return_check':
+    'CHECK (((client_id IS NULL) = (return_uri IS NULL)))',
   'tenants.tenants_audit_retention_days_range':
     'CHECK (((audit_retention_days >= 1) AND (audit_retention_days <= 3650)))',
   'audit_events.audit_events_outcome':

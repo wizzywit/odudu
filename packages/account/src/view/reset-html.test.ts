@@ -345,21 +345,21 @@ describe('renderResetPasswordForm', () => {
 
 describe('renderResetPasswordSucceededPage', () => {
   it('says what was removed only when something was', () => {
-    expect(renderResetPasswordFactorsRemovedPage(null, EN).body).toContain(
+    expect(renderResetPasswordFactorsRemovedPage(null, null, EN).body).toContain(
       'We removed the authenticator app, passkeys and recovery codes',
     );
-    expect(renderResetPasswordSucceededPage(null, EN).body).not.toContain('We removed');
+    expect(renderResetPasswordSucceededPage(null, null, EN).body).not.toContain('We removed');
   });
 
   it('returns a body fragment and a title beside the document', () => {
-    const page = renderResetPasswordSucceededPage(null, EN);
+    const page = renderResetPasswordSucceededPage(null, null, EN);
     expect(page.title).toBe('Password reset');
     expect(page.body).toContain('Your password has been reset');
     expectFragment(page);
   });
 
   it('keeps the English markup exactly', () => {
-    expect(renderResetPasswordSucceededPage(null, EN).body)
+    expect(renderResetPasswordSucceededPage(null, null, EN).body)
       .toBe(`<h1>Your password has been reset</h1>
 <p>Return to the application you were signing in to and sign in with your new password.</p>`);
   });
@@ -367,21 +367,21 @@ describe('renderResetPasswordSucceededPage', () => {
 
 describe('renderResetLinkFailedPage', () => {
   it('returns a body fragment and a title beside the document', () => {
-    const page = renderResetLinkFailedPage(null, null, EN);
+    const page = renderResetLinkFailedPage(null, null, null, EN);
     expect(page.title).toBe("Can't use this link");
     expect(page.body).toContain('This link can&#39;t be used');
     expectFragment(page);
   });
 
   it('keeps the English markup exactly', () => {
-    expect(renderResetLinkFailedPage(null, null, EN).body)
+    expect(renderResetLinkFailedPage(null, null, null, EN).body)
       .toBe(`<h1>This link can&#39;t be used</h1>
 <p>It may have already been used or expired. Request a new one and try again.</p>`);
   });
 
   it('offers a new link only when told where to ask for one', () => {
     expect(
-      renderResetLinkFailedPage('/tenants/acme/login-actions/reset-password', null, EN).body,
+      renderResetLinkFailedPage('/tenants/acme/login-actions/reset-password', null, null, EN).body,
     ).toBe(
       `<h1>This link can&#39;t be used</h1>
 <p>It may have already been used or expired. Request a new one and try again.</p>
@@ -392,7 +392,7 @@ describe('renderResetLinkFailedPage', () => {
   });
 
   it('reads French, and English for what the fixture lacks', () => {
-    const page = renderResetLinkFailedPage(null, null, FRENCH);
+    const page = renderResetLinkFailedPage(null, null, null, FRENCH);
     expect(page.body).toContain('<h1>Ce lien n&#39;est pas utilisable</h1>');
     expect(page.body).toContain(en['reset.linkFailed.reason']);
   });
@@ -427,7 +427,7 @@ describe('the reset pages a mailed link opens, with the way back it carried', ()
   });
 
   it('links back from the done page and beside the new-link one on the failed page', () => {
-    expect(renderResetPasswordSucceededPage(way, EN).body)
+    expect(renderResetPasswordSucceededPage(way, null, EN).body)
       .toBe(`<h1>Your password has been reset</h1>
 <p>Sign in with your new password.</p>
 <p class="links">
@@ -436,9 +436,24 @@ describe('the reset pages a mailed link opens, with the way back it carried', ()
     const failed = renderResetLinkFailedPage(
       '/tenants/acme/login-actions/reset-password',
       way,
+      null,
       EN,
     ).body;
     expect(failed).toContain('Request a new link</a>\n' + back);
-    expect(renderResetLinkFailedPage(null, null, EN).body).not.toContain('links');
+    expect(renderResetLinkFailedPage(null, null, null, EN).body).not.toContain('links');
+  });
+});
+
+describe('the way back to an application', () => {
+  const href = 'https://app.example/after?action_status=success';
+
+  it('is offered by the page a reset ends on, and by one that cannot be used', () => {
+    expect(renderResetPasswordSucceededPage(null, href, EN).body).toContain(
+      '<a href="https://app.example/after?action_status=success">Return to the application</a>',
+    );
+    expect(renderResetPasswordSucceededPage(null, null, EN).body).not.toContain('<a ');
+    expect(renderResetLinkFailedPage(null, null, href, EN).body).toContain(
+      'Return to the application</a>',
+    );
   });
 });

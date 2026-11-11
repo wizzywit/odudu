@@ -37,6 +37,23 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'An audit export or a tenant export would be larger than the cap, and is refused whole ' +
       'rather than cut short. Narrow the audit export with `from`, `to` or another filter.',
   },
+  'return-client-unknown': {
+    status: 400,
+    summary:
+      'A link\u2019s `client_id` names no enabled client of this tenant. A client of another ' +
+      'tenant is as unknown as one that does not exist.',
+  },
+  'return-redirect-uri-unregistered': {
+    status: 400,
+    summary:
+      'A link\u2019s `redirect_uri` is not one the client registers. It must match one of them exactly.',
+  },
+  'return-redirect-uri-required': {
+    status: 400,
+    summary:
+      'A link names a client that registers no `redirect_uri` or several, so the request must ' +
+      'say which one the link returns to.',
+  },
   'flow-duplicate-authenticator': {
     status: 400,
     summary:

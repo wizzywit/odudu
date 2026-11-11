@@ -904,6 +904,13 @@
       "when": 1790975783737,
       "tag": "0128_client_allowed_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1791062183737,
+      "tag": "0129_action_token_return",
+      "breakpoints": true
     }
   ]
 }

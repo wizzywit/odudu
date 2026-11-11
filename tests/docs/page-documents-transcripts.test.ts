@@ -366,7 +366,7 @@ const actionsOf = (body: string): (typeof LINKED_ACTIONS)[number][] =>
     const found = LINKED_ACTIONS.find(
       (action) =>
         first(
-          renderRequiredActionsSucceededPage([action], null, LOCALE).body,
+          renderRequiredActionsSucceededPage([action], null, null, LOCALE).body,
           /<li>(.*)<\/li>/u,
         ) === text,
     );
@@ -442,8 +442,8 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
   "Can't create this account": (body) =>
     renderRegistrationFailedPage(pathAddress(ORIGIN, tenantOf(body)), null, LOCALE).body,
   'Account created': () => renderRegistrationSucceededPage(false, null, LOCALE).body,
-  'Email confirmed': (body) => renderVerificationSucceededPage(continueOf(body), LOCALE).body,
-  "Can't verify this link": (body) => renderVerificationFailedPage(backOf(body), LOCALE).body,
+  'Email confirmed': (body) => renderVerificationSucceededPage(continueOf(body), null, LOCALE).body,
+  "Can't verify this link": (body) => renderVerificationFailedPage(backOf(body), null, LOCALE).body,
   'Forgot your password?': (body) => {
     const email = valueOf(body, 'email');
     return renderResetRequestForm(
@@ -480,13 +480,14 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
       rulesOf(body),
       LOCALE,
     ).body,
-  'Password reset': (body) => renderResetPasswordSucceededPage(backOf(body), LOCALE).body,
+  'Password reset': (body) => renderResetPasswordSucceededPage(backOf(body), null, LOCALE).body,
   "Can't use this link": (body) =>
     renderResetLinkFailedPage(
       body.includes('>Request a new link</a>')
         ? first(body, /<a href="([^"]*)">Request a new link<\/a>/u)
         : null,
       backOf(body),
+      null,
       LOCALE,
     ).body,
   'Update your account': (body) =>
@@ -501,7 +502,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
       LOCALE,
     ).body,
   'Account updated': (body) =>
-    renderRequiredActionsSucceededPage(actionsOf(body), backOf(body), LOCALE).body,
+    renderRequiredActionsSucceededPage(actionsOf(body), backOf(body), null, LOCALE).body,
   'Sign-in failed': () => renderSignInRefused(LOCALE).body,
   'Allow access?': (body) => {
     const link = (label: RegExp): string | null => {

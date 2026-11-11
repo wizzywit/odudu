@@ -1,6 +1,7 @@
 export const ar: Readonly<Record<string, string>> = {
   'link.backToSignIn': 'العودة إلى تسجيل الدخول',
   'link.continueToSignIn': 'المتابعة إلى تسجيل الدخول',
+  'link.returnToApplication': 'العودة إلى التطبيق',
   'link.tryAgain': 'حاول مرة أخرى',
   'link.registerAgain': 'سجّل مرة أخرى',
   'link.requestNewResetLink': 'اطلب رابطًا جديدًا',

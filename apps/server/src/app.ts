@@ -17,6 +17,7 @@ import {
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import {
+  clientRepository,
   dnsChallengeResolver,
   hostState,
   tenantAddressing,
@@ -73,6 +74,7 @@ import {
   clientKeySet,
   configureIssuerBase,
   configureTenantAddress,
+  clientOidcConfigRepository,
   endAllAccess,
   tenantIssuerFor,
   oidcRoutes,
@@ -826,6 +828,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     ...themed,
     database: deps.database,
     findHeldSignIn,
+    findReturnClient: async (tx, clientId) => {
+      const client = await clientRepository(tx).byId(clientId);
+      if (client === null) return null;
+      const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+      return { enabled: client.enabled, redirectUris: config?.redirectUris ?? [] };
+    },
     now: () => systemClock.now(),
     findTaken,
     lockAddress: (tx, tenantId, email) => lockEmailForCreation(tx, tenantId, email),

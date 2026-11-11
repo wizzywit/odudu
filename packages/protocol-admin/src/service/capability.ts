@@ -8,6 +8,7 @@ import {
   addRoleCompositeRequestSchema,
   listRoleCompositesResponseSchema,
   setRoleDefaultRequestSchema,
+  sendAccountLinkRequestSchema,
   sendActionsEmailRequestSchema,
   setGroupDefaultRequestSchema,
   amendClientRequestSchema,
@@ -215,6 +216,16 @@ export interface AdminRoute {
 }
 
 // Appended to the description of every route that mutates one subject.
+const RETURN_TO =
+  ' An optional body names a client to return to: `client_id`, and `redirect_uri` when the ' +
+  'client registers more than one. The last page of the link then offers a way back to that ' +
+  'registered address with `action_status` (`success`, or `error` for a link that cannot be ' +
+  'used), a hint, since the "me" API holds the outcome. Absent, the link ends as it always ' +
+  'did. `400` with its own problem type for a client that is not an enabled client of this ' +
+  'tenant (`return-client-unknown`), an address it does not register ' +
+  '(`return-redirect-uri-unregistered`), or none named where it registers several ' +
+  '(`return-redirect-uri-required`).';
+
 const TARGET_CEILING =
   ' Refused with `403` when the subject holds an admin capability the caller does not ' +
   '(the target ceiling).';
@@ -578,6 +589,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: z.void(),
     successStatus: 202,
+    bodySchema: sendAccountLinkRequestSchema.optional(),
     description:
       'Queues the reset-password link a self-service request sends, to the subject\u2019s own ' +
       'address. The link is never in this response or the audit trail. `409` with its own ' +
@@ -585,6 +597,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '`reset_password_allowed` is off so the link would be refused (`reset-password-off`), or ' +
       'when its mail would only be logged, `GET …/smtp`\u2019s `none` (`no-mail-relay`). ' +
       'Rate-limited per origin, as the self-service request is.' +
+      RETURN_TO +
       TARGET_CEILING,
   },
   {
@@ -593,10 +606,12 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: z.void(),
     successStatus: 202,
+    bodySchema: sendAccountLinkRequestSchema.optional(),
     description:
       'Queues a fresh email-verification link to the subject\u2019s own address. The link is ' +
       'never in this response or the audit trail. `409` `no-email` or `no-mail-relay` as ' +
       '`POST …/password-reset` answers them. Rate-limited per origin.' +
+      RETURN_TO +
       TARGET_CEILING,
   },
   {
@@ -614,6 +629,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'link is never in this response or the audit trail. ' +
       'The same `409`s as `POST …/password-reset`, `reset-password-off` only when ' +
       '`update-password` is named. Rate-limited per origin.' +
+      RETURN_TO +
       TARGET_CEILING,
   },
   {

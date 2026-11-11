@@ -343,6 +343,7 @@ describe('describe', () => {
         expect(await actionTokenRepository(tx).describe(seeded.token)).toEqual({
           type: 'reset_password',
           authenticationSessionId: SIGN_IN,
+          returnTo: null,
         });
       },
       attempt: async (tx, seeded) => actionTokenRepository(tx).describe(seeded.token),
@@ -356,6 +357,76 @@ describe('describe', () => {
       },
     });
   });
+});
+
+describe('the client a link returns to', () => {
+  const CLIENT = newId();
+  const URI = 'https://app.example/after';
+  const returning = (type: ActionTokenType = 'reset_password') =>
+    issue({
+      subjectId: subject,
+      type,
+      returnTo: { clientId: CLIENT, uri: URI },
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+
+  it('is read back by peek, describe and consume, and is null on a link that names none', async () => {
+    const named = await returning();
+    const bare = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    const read = (token: string) =>
+      withTenant(app.db, tenantId, async (tx) => ({
+        peeked: (await actionTokenRepository(tx).peek(token))?.returnTo,
+        described: (await actionTokenRepository(tx).describe(token))?.returnTo,
+      }));
+
+    expect(await read(named.token)).toEqual({
+      peeked: { clientId: CLIENT, uri: URI },
+      described: { clientId: CLIENT, uri: URI },
+    });
+    expect(await read(bare.token)).toEqual({ peeked: null, described: null });
+    expect((await consume(named.token, 'reset_password'))?.returnTo).toEqual({
+      clientId: CLIENT,
+      uri: URI,
+    });
+    expect((await describeAfter(named.token))?.returnTo).toEqual({ clientId: CLIENT, uri: URI });
+  });
+
+  it('cannot be read through another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seedTenantId) => {
+        await seedTenant(tx, seedTenantId);
+        const seededSubject = await insertSubject(tx, seedTenantId);
+        const { token } = await actionTokenRepository(tx).issue({
+          tenantId: seedTenantId,
+          subjectId: seededSubject,
+          type: 'verify_email',
+          returnTo: { clientId: CLIENT, uri: URI },
+          ttlSeconds: TEST_TTL_SECONDS,
+        });
+        return { token };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect((await actionTokenRepository(tx).peek(seeded.token))?.returnTo).toEqual({
+          clientId: CLIENT,
+          uri: URI,
+        });
+      },
+      attempt: async (tx, seeded) => actionTokenRepository(tx).peek(seeded.token),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        expect((await actionTokenRepository(tx).peek(seeded.token))?.returnTo).not.toBeNull();
+      },
+    });
+  });
+
+  const describeAfter = (token: string) =>
+    withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).describe(token));
 });
 
 describe('invalidateOutstanding', () => {

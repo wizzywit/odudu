@@ -245,12 +245,12 @@ describe('the reset pages under the default template', () => {
         SIGN_IN,
         DEFAULT_PAGE_LOCALE,
       ),
-      renderResetPasswordSucceededPage(null, DEFAULT_PAGE_LOCALE),
-      renderResetPasswordSucceededPage(SIGN_IN, ARABIC_DARK),
-      renderResetPasswordFactorsRemovedPage(null, DEFAULT_PAGE_LOCALE),
-      renderResetPasswordFactorsRemovedPage(SIGN_IN, DEFAULT_PAGE_LOCALE),
-      renderResetLinkFailedPage(null, null, DEFAULT_PAGE_LOCALE),
-      renderResetLinkFailedPage('/tenants/acme/login-actions/reset-password', SIGN_IN, DARK),
+      renderResetPasswordSucceededPage(null, null, DEFAULT_PAGE_LOCALE),
+      renderResetPasswordSucceededPage(SIGN_IN, null, ARABIC_DARK),
+      renderResetPasswordFactorsRemovedPage(null, null, DEFAULT_PAGE_LOCALE),
+      renderResetPasswordFactorsRemovedPage(SIGN_IN, null, DEFAULT_PAGE_LOCALE),
+      renderResetLinkFailedPage(null, null, null, DEFAULT_PAGE_LOCALE),
+      renderResetLinkFailedPage('/tenants/acme/login-actions/reset-password', SIGN_IN, null, DARK),
     ];
     expect(pages.map(markup)).toMatchSnapshot();
   });
@@ -259,15 +259,15 @@ describe('the reset pages under the default template', () => {
 describe('the verification pages under the default template', () => {
   for (const [name, locale] of LOCALES) {
     it(`renders the succeeded page byte-identically (${name})`, () => {
-      expect(markup(renderVerificationSucceededPage(null, locale))).toMatchSnapshot();
+      expect(markup(renderVerificationSucceededPage(null, null, locale))).toMatchSnapshot();
     });
   }
 
   it('renders the succeeded and failed pages with and without a way back', () => {
     const pages = [
-      renderVerificationSucceededPage(SIGN_IN, DEFAULT_PAGE_LOCALE),
-      renderVerificationFailedPage(null, DEFAULT_PAGE_LOCALE),
-      renderVerificationFailedPage(SIGN_IN, ARABIC_DARK),
+      renderVerificationSucceededPage(SIGN_IN, null, DEFAULT_PAGE_LOCALE),
+      renderVerificationFailedPage(null, null, DEFAULT_PAGE_LOCALE),
+      renderVerificationFailedPage(SIGN_IN, null, ARABIC_DARK),
     ];
     expect(pages.map(markup)).toMatchSnapshot();
   });
@@ -372,12 +372,17 @@ describe('the required-actions pages under the default template', () => {
 
   it('renders the outcome pages', () => {
     const pages = [
-      renderRequiredActionsSucceededPage([], null, DEFAULT_PAGE_LOCALE),
-      renderRequiredActionsSucceededPage([], SIGN_IN, DARK),
-      renderRequiredActionsSucceededPage(ACTIONS, null, DEFAULT_PAGE_LOCALE),
-      renderRequiredActionsSucceededPage([UNKNOWN_ACTION], SIGN_IN, ARABIC_DARK),
-      renderRequiredActionsFactorsRemovedPage([], null, DEFAULT_PAGE_LOCALE),
-      renderRequiredActionsFactorsRemovedPage(['configure-totp'], SIGN_IN, DEFAULT_PAGE_LOCALE),
+      renderRequiredActionsSucceededPage([], null, null, DEFAULT_PAGE_LOCALE),
+      renderRequiredActionsSucceededPage([], SIGN_IN, null, DARK),
+      renderRequiredActionsSucceededPage(ACTIONS, null, null, DEFAULT_PAGE_LOCALE),
+      renderRequiredActionsSucceededPage([UNKNOWN_ACTION], SIGN_IN, null, ARABIC_DARK),
+      renderRequiredActionsFactorsRemovedPage([], null, null, DEFAULT_PAGE_LOCALE),
+      renderRequiredActionsFactorsRemovedPage(
+        ['configure-totp'],
+        SIGN_IN,
+        null,
+        DEFAULT_PAGE_LOCALE,
+      ),
     ];
     expect(pages.map(markup)).toMatchSnapshot();
   });

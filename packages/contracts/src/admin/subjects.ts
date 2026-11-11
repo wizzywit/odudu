@@ -189,9 +189,21 @@ export const setRequiredActionsResponseSchema = z.object({
 });
 export type SetRequiredActionsResponse = z.infer<typeof setRequiredActionsResponseSchema>;
 
+// The client a mailed link returns to when it finishes: its `client_id`, and
+// the one registered `redirect_uri` of its to use, which only a client with
+// more than one needs to name.
+const returnToFields = {
+  client_id: z.string().min(1).optional(),
+  redirect_uri: z.string().min(1).optional(),
+};
+
+// The body of the reset and verification sends, which need none.
+export const sendAccountLinkRequestSchema = z.object(returnToFields).strict();
+export type SendAccountLinkRequest = z.infer<typeof sendAccountLinkRequestSchema>;
+
 // A mailed link takes the subject through `actions`.
 export const sendActionsEmailRequestSchema = z
-  .object({ actions: z.array(requiredActionSchema).min(1) })
+  .object({ actions: z.array(requiredActionSchema).min(1), ...returnToFields })
   .strict();
 export type SendActionsEmailRequest = z.infer<typeof sendActionsEmailRequestSchema>;
 
