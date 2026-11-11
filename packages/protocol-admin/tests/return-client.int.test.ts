@@ -169,6 +169,14 @@ describe.each(KINDS)('POST …/%s naming a client to return to', (path, type, ba
     expect(await queued(seeded)).toBe(0);
   });
 
+  it('refuses a field it does not know with 400, naming it', async () => {
+    const seeded = await seedTenant();
+    const res = await send(seeded, path, { ...base, return_to: 'https://app.example/after' });
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain('return_to');
+    expect(await queued(seeded)).toBe(0);
+  });
+
   it('keeps a request that names no client as it was: no columns set, no body needed', async () => {
     const seeded = await seedTenant();
     const res = await send(seeded, path, path === 'actions-email' ? base : undefined);

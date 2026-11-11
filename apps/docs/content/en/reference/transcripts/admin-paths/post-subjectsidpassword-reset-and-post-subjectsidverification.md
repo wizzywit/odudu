@@ -82,7 +82,8 @@ several with `about:blank#return-redirect-uri-required`, each queueing nothing;
 the three are shown in [the actions link's section](./post-subjectsidactions-email.md),
 whose body takes the same two members, and the audit row names the `client_id`.
 A request with no body, which is every request these routes took before, mails
-the link it always did, and its page ends with no link.
+the link it always did, and its page ends with no link. A body that names any
+other field is refused with `400`; before, these two routes ignored a body.
 
 On a stack of its own, on `http://localhost:3141`, with the tenant
 `required-actions-demo` of that page, its client `actions-app`, the other

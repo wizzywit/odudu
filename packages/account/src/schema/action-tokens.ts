@@ -25,8 +25,8 @@ export const actionTokens = pgTable('action_tokens', {
   // (packages/db/drizzle/0101_sign_in_resume.sql). Never in the link itself,
   // and not a foreign key: a sign-in is reaped long before its token.
   authenticationSessionId: uuid('authentication_session_id'),
-  // The client an administrator-issued link returns to and the one redirect URI
-  // of its the page offers (packages/db/drizzle/0129_action_token_return.sql).
+  // The client an administrator-issued link returns to and the one of its
+  // redirect URIs the page offers (packages/db/drizzle/0129_action_token_return.sql).
   // Both or neither; not a foreign key, because the page checks them against
   // the client's registration as it stands when the link is opened.
   clientId: uuid('client_id'),

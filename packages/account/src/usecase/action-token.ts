@@ -1,4 +1,4 @@
-import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import {
   type ActionTokenRecord,
@@ -7,7 +7,6 @@ import {
 } from '#/schema/action-tokens';
 import { orderedActions, type LinkedRequiredAction } from '#/service/required-actions';
 import { registeredReturn, type ReturnClient } from '#/service/return-link';
-import { type TenantScopedDatabase } from '@odudu/db';
 
 export type { LinkedRequiredAction };
 
