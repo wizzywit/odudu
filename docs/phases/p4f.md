@@ -172,3 +172,28 @@ per-address mail budget of its own kind). A pending row is one per subject and i
 change completes, when a later request replaces it, when a later request is skipped, and when an
 administrator changes the address; it is deleted with the subject. It is not reaped by age and needs
 no such pass: the table cannot hold more rows than the tenant has subjects. The notice to the old address is placed on spec section 5.5.
+
+## Increment 3: which actions a client may start
+
+### Increment 3 owes at close
+
+- Re-run the `get-adminopenapijson.md` admin-paths transcript on a live stack.
+  Its content length (810507) and size in KB (792) were edited by hand after
+  `allowed_actions` changed the OpenAPI document, so they are a claim until the
+  run replaces them.
+- Re-run the transcripts the new field and refusals touch: the client read,
+  create and amend pages, the export page, `delete-scopesidclientsclientid.md`
+  (the 409 with `allowed_actions_need_me_read`) and the scope delete page.
+- Console: the clients area page under `admin-console/` and `tour.mdx` describe
+  the "Application actions" section of the Advanced tab; then
+  `pnpm docs:screenshots` for the Advanced tab. No console e2e spec exists for
+  the section.
+- `CHANGELOG.md` under `## [Unreleased]`: `allowed_actions` on a client (admin
+  API, console, tenant document, `odudu seed client --allow-action`, which
+  assigns `me:read` itself), and the guards that keep `me:read` with a client
+  that may start an action or holds `me:write` (unassign and delete).
+- Concept or guide prose that names client settings, the CLI help and the
+  error `allowed_actions_need_me_read` page entries (generated from the kernel).
+- Dynamic Client Registration refuses `allowed_actions` as an operator-only
+  field, as it does `skip_logout_confirmation`; say so where registration
+  metadata is documented.
