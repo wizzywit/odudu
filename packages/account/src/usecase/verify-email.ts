@@ -147,26 +147,18 @@ export async function completeEmailVerification(
       }
 
       await deps.markVerified(tx, record.subjectId);
-      await recordVerification(tx, 'email.verified', record.subjectId);
+      await auditRepository(tx).record({
+        eventType: 'credential',
+        action: 'email.verified',
+        outcome: 'allowed',
+        actorSubjectId: record.subjectId,
+        resourceType: 'subject',
+        resourceId: record.subjectId,
+      });
       return { kind: 'verified' };
     },
     deps.request,
   );
-}
-
-function recordVerification(
-  tx: TenantScopedDatabase,
-  action: 'email.verified' | 'email.changed',
-  subjectId: string,
-): Promise<void> {
-  return auditRepository(tx).record({
-    eventType: 'credential',
-    action,
-    outcome: 'allowed',
-    actorSubjectId: subjectId,
-    resourceType: 'subject',
-    resourceId: subjectId,
-  });
 }
 
 // The pending address is taken first, so a request replaced or cleared since
@@ -183,6 +175,13 @@ async function swapAddress(
   if (!(await change.takePending(tx, subjectId, email))) return { kind: 'invalid' };
   if (!mayTakeAddress(await change.holderOf(tx, email), subjectId)) return { kind: 'invalid' };
   await change.replaceVerified(tx, subjectId, email);
-  await recordVerification(tx, 'email.changed', subjectId);
+  await auditRepository(tx).record({
+    eventType: 'credential',
+    action: 'email.changed',
+    outcome: 'allowed',
+    actorSubjectId: subjectId,
+    resourceType: 'subject',
+    resourceId: subjectId,
+  });
   return { kind: 'verified' };
 }
