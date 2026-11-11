@@ -99,6 +99,8 @@ describe('a scope’s default_client_assignment', () => {
       offline_access: 'optional',
       'mcp:read': null,
       'mcp:write': null,
+      'me:read': null,
+      'me:write': null,
     });
   });
 

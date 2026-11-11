@@ -1,4 +1,4 @@
-import { holdsMeScope, ME_READ_SCOPE, ME_WRITE_SCOPE } from '@odudu/domain-tenant';
+import { holdsMeScope, meWriteNeedsRead } from '@odudu/domain-tenant';
 
 export {
   holdsMeScope,
@@ -6,6 +6,7 @@ export {
   ME_READ_SCOPE,
   ME_SCOPES,
   ME_WRITE_SCOPE,
+  meWriteNeedsRead,
 } from '@odudu/domain-tenant';
 
 // A request that names the "me" audience has to ask for a "me" scope, and a
@@ -15,6 +16,6 @@ export function meAudienceRequestAllowed(
   audiences: readonly string[],
   meAudience: string,
 ): boolean {
-  if (scopes.includes(ME_WRITE_SCOPE) && !scopes.includes(ME_READ_SCOPE)) return false;
+  if (!meWriteNeedsRead(scopes)) return false;
   return !audiences.includes(meAudience) || holdsMeScope(scopes);
 }

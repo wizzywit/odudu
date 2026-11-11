@@ -152,6 +152,32 @@ describe('refusalIsAboutScope', () => {
   });
 });
 
+describe('evaluateRefreshGrant for a "me" grant', () => {
+  const both: TokenGrantRecord = { ...grant, scope: 'openid me:read me:write' };
+
+  it('refuses a narrowing to me:write alone', () => {
+    for (const requestedScope of ['me:write', 'openid me:write']) {
+      const decision = evaluateRefreshGrant(both, client, subject, { requestedScope });
+      expect(decision).toEqual({ ok: false, reason: 'me_write_without_read' });
+      if (!decision.ok) expect(refusalIsAboutScope(decision.reason)).toBe(true);
+    }
+  });
+
+  it('refuses a narrowing that leaves a "me" grant with no "me" scope', () => {
+    expect(evaluateRefreshGrant(both, client, subject, { requestedScope: 'openid' })).toEqual({
+      ok: false,
+      reason: 'me_scope_dropped',
+    });
+  });
+
+  it('allows a narrowing to me:read', () => {
+    expect(evaluateRefreshGrant(both, client, subject, { requestedScope: 'me:read' })).toEqual({
+      ok: true,
+      scope: ['me:read'],
+    });
+  });
+});
+
 describe('evaluateRefreshGrant', () => {
   it('refuses a grant holding mcp:write as invalid, even for a narrower request', () => {
     const written: TokenGrantRecord = { ...grant, scope: 'openid mcp:write' };

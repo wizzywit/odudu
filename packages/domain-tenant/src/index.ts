@@ -64,7 +64,9 @@ export {
   isMeScope,
   ME_READ_SCOPE,
   ME_SCOPES,
+  ME_WRITE_NEEDS_READ_MESSAGE,
   ME_WRITE_SCOPE,
+  meWriteNeedsRead,
 } from '#/service/me-scopes';
 export {
   isReservedTenantName,

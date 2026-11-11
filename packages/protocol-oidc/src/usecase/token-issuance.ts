@@ -51,6 +51,7 @@ import {
   type TokenErrorCode,
   type TokenRefusalAudit,
 } from '#/service/errors';
+import { meWriteNeedsRead } from '#/service/me-scopes';
 import {
   capLifetimeForScope,
   holdsMcpScope,
@@ -497,7 +498,8 @@ async function mintAccessToken(
       mcpAudienceOfIssuer(deps.issuer),
       ADMIN_API_AUDIENCE,
       meAudienceOfIssuer(deps.issuer),
-    )
+    ) ||
+    !meWriteNeedsRead(input.scope)
   ) {
     throw invalidScope();
   }

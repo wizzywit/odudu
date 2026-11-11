@@ -1,5 +1,6 @@
 import { discoveryDocument, type DiscoveryDocument } from '@odudu/contracts';
 import { addressIssuer, type TenantAddress } from '@odudu/kernel';
+import { isMeScope } from '#/service/me-scopes';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 
 export interface DiscoveryUsecaseDeps {
@@ -35,7 +36,11 @@ export async function resolveDiscoveryDocument(
   if (tenant === null) return null;
   // Sorted: the rows arrive in whatever order the table hands over, and a
   // document that reshuffles between identical requests cannot be diffed.
-  const scopesSupported = [...(await deps.scopesForTenant(tenant.id))].sort();
+  // The "me" scopes are defined in every tenant but advertised once an
+  // endpoint serves them.
+  const scopesSupported = (await deps.scopesForTenant(tenant.id))
+    .filter((s) => !isMeScope(s))
+    .sort();
   const algs = [...(await deps.algorithmsAvailable(tenant.id))].sort();
   return discoveryDocument({
     issuer: addressIssuer(address),

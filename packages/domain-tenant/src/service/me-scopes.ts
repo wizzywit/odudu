@@ -10,3 +10,9 @@ export function isMeScope(scope: string): boolean {
 export function holdsMeScope(scopes: readonly string[]): boolean {
   return scopes.some(isMeScope);
 }
+
+export const ME_WRITE_NEEDS_READ_MESSAGE = 'the scope me:write is held only together with me:read';
+
+export function meWriteNeedsRead(scopes: readonly string[]): boolean {
+  return !scopes.includes(ME_WRITE_SCOPE) || scopes.includes(ME_READ_SCOPE);
+}

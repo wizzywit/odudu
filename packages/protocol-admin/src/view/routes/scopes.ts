@@ -481,6 +481,12 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
           request,
           problem(409, 'about:blank', 'Conflict', outcome.message),
         );
+      case 'me_scope_incoherent':
+        return sendProblem(
+          reply,
+          request,
+          problem(409, 'about:blank', 'Conflict', outcome.message),
+        );
       case 'ok':
         reply.header('etag', outcome.clientEtag);
         return reply.code(200).send(outcome.assignments);
@@ -532,6 +538,12 @@ export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRout
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'target_ceiling':
         return serviceAccountCeilingProblem(reply, request, outcome.requested);
+      case 'me_scope_incoherent':
+        return sendProblem(
+          reply,
+          request,
+          problem(409, 'about:blank', 'Conflict', outcome.message),
+        );
       case 'not_assigned':
         return sendProblem(
           reply,

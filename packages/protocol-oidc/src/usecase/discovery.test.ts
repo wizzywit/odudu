@@ -56,6 +56,42 @@ describe('resolveDiscoveryDocument', () => {
     expect(doc).not.toHaveProperty('claims_locales_supported');
   });
 
+  it('does not list the "me" scopes, which no endpoint serves yet', async () => {
+    const doc = await resolveDiscoveryDocument(
+      {
+        findTenant: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: true,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+            ssoSessionIdleSeconds: 1_800,
+            rememberMeIdleSeconds: 604_800,
+            rememberMeMaxSeconds: 2_592_000,
+            rememberMeAllowed: false,
+            loginWithEmail: false,
+            registrationAllowed: false,
+            resetPasswordAllowed: false,
+            maxSessionsPerBrowser: 25,
+            clientRegistrationPolicy: 'disabled',
+            cimdEnabled: false,
+            supportedLocales: ['en'],
+            defaultLocale: null,
+            passwordRules: PASSWORD_RULES,
+          }),
+        claimNames,
+        scopesForTenant: () => Promise.resolve(['openid', 'me:write', 'mcp:read', 'me:read']),
+        algorithmsAvailable,
+        userinfoEncryptionAlgSupported,
+        userinfoEncryptionEncSupported,
+        trustProxy: false,
+      },
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+    );
+    expect(doc?.scopes_supported).toEqual(['mcp:read', 'openid']);
+  });
+
   it.each([
     [true, true, ['none', 'login', 'consent', 'select_account', 'create']],
     [true, false, ['none', 'login', 'consent', 'select_account']],

@@ -178,9 +178,11 @@ describe('seed', () => {
 
     const result = await seed(options);
 
-    // The MCP scopes are defined in the tenant and assigned to no client.
+    // The MCP and "me" scopes are defined in the tenant and assigned to no client.
     expect(await assignedScopes(result.tenantId, result.clientId)).toEqual(
-      TENANT_DEFAULT_SCOPE_NAMES.filter((name) => !name.startsWith('mcp:')).sort(),
+      TENANT_DEFAULT_SCOPE_NAMES.filter(
+        (name) => !name.startsWith('mcp:') && !name.startsWith('me:'),
+      ).sort(),
     );
   });
 
@@ -1045,7 +1047,7 @@ describe('seed client and the tenant’s default scopes', () => {
     ]);
 
     const expected = TENANT_DEFAULT_SCOPE_NAMES.filter(
-      (name) => name !== 'phone' && !name.startsWith('mcp:'),
+      (name) => name !== 'phone' && !name.startsWith('mcp:') && !name.startsWith('me:'),
     );
     expect(await assignedScopes(first.tenantId, 'marked-spa')).toEqual(
       [...expected, 'reports:read'].sort(),
