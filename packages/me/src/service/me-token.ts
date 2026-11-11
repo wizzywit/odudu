@@ -18,7 +18,7 @@ function nonEmpty(value: unknown): string | undefined {
 // Whether `aud` names `audience` and nothing else but the issuer, which every
 // access token also names for the UserInfo endpoint. A token that names another
 // resource as well is meant for another door.
-export function audienceIsOnly(aud: unknown, audience: string, issuer: string): boolean {
+export function audienceIsMeOrIssuer(aud: unknown, audience: string, issuer: string): boolean {
   if (typeof aud === 'string') return aud === audience;
   if (!Array.isArray(aud) || !aud.includes(audience)) return false;
   return aud.every((entry) => entry === audience || entry === issuer);
