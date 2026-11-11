@@ -308,7 +308,9 @@ describe('allowed_actions in a tenant document', () => {
     const older = {
       ...original,
       omitted: [],
-      clients: original.clients.map(({ allowed_actions: _dropped, ...rest }) => rest),
+      clients: original.clients.map((client) =>
+        Object.fromEntries(Object.entries(client).filter(([key]) => key !== 'allowed_actions')),
+      ),
     };
     const name = `aa-old-${newId()}`;
     const res = await postImport(name, older);

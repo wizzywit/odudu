@@ -94,7 +94,7 @@ describe('the service-account migration', () => {
     expect(rows[0]?.n).toBe(0);
   });
 
-  it('lifts row security on no table when the owner is a superuser', async () => {
+  it('lifts row security on no table when the owner is a superuser', () => {
     expect(afterTag).toEqual(lifted);
   });
 
