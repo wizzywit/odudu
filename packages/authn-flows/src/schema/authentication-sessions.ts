@@ -1,5 +1,9 @@
 import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
+import { type RequiredAction } from '#/schema/required-action';
+
+export const ACTION_STATUSES = ['success', 'cancelled', 'error'] as const;
+export type ActionStatus = (typeof ACTION_STATUSES)[number];
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
 // declared with pgPolicy() — see tenants.ts in @odudu/db for why.
@@ -108,6 +112,14 @@ export interface PendingRequest {
   // (`service/claims-request.ts`), declared locally: authn-flows may not
   // import protocol-oidc's types.
   claims?: PendingClaimsRequest;
+  // The credential action the client asked the person to take (`action` at
+  // /authorize), parked so every door the sign-in passes through can show its
+  // page. Absent is the same as no action asked.
+  action?: RequiredAction;
+  // How that action ended, written once by the step that ended it and never
+  // by anything the browser sends; read back when the response is built.
+  // Absent while the action is still to be shown.
+  actionStatus?: ActionStatus;
 }
 
 interface PendingClaimEntry {

@@ -4,6 +4,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { isUuid } from '@odudu/kernel';
 import {
   authenticationSessions,
+  type ActionStatus,
   type AuthenticationSessionRecord,
   type PendingRequest,
 } from '#/schema/authentication-sessions';
@@ -160,6 +161,25 @@ export function authenticationSessionRepository(tx: TenantScopedDatabase) {
           pendingRequest: sql`jsonb_set(${authenticationSessions.pendingRequest}, '{rememberMe}', to_jsonb(${rememberMe}))`,
         })
         .where(eq(authenticationSessions.id, id));
+    },
+
+    // Patches `pendingRequest.actionStatus` in place, and only where none is
+    // written yet, so the first outcome of a requested action is the one that
+    // stands. Returns whether this call wrote it.
+    async recordActionStatus(id: string, status: ActionStatus): Promise<boolean> {
+      const rows = await tx
+        .update(authenticationSessions)
+        .set({
+          pendingRequest: sql`jsonb_set(${authenticationSessions.pendingRequest}, '{actionStatus}', to_jsonb(${status}::text))`,
+        })
+        .where(
+          and(
+            eq(authenticationSessions.id, id),
+            sql`not (${authenticationSessions.pendingRequest} ? 'actionStatus')`,
+          ),
+        )
+        .returning({ id: authenticationSessions.id });
+      return rows.length > 0;
     },
 
     // Puts the attempt back to how it started, for the one refusal whose
