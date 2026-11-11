@@ -27,7 +27,7 @@ import {
   clients,
   missingBuiltinScopeNames,
   restoreBuiltinScopes,
-  ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
+  ALLOWED_ACTIONS_KEEP_ME_READ_MESSAGE,
   ME_READ_SCOPE,
   ME_WRITE_SCOPE,
   ME_WRITE_NEEDS_READ_MESSAGE,
@@ -637,7 +637,7 @@ async function clientsStrandedWithoutMeRead(
     LIMIT 1
   `);
   if (withActions.length > 0) {
-    return { kind: 'allowed_actions_need_me_read', message: ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE };
+    return { kind: 'allowed_actions_need_me_read', message: ALLOWED_ACTIONS_KEEP_ME_READ_MESSAGE };
   }
   const meWrite = await clientScopeRepository(tx).byName(ME_WRITE_SCOPE);
   if (meWrite === null) return null;
@@ -1207,7 +1207,7 @@ export async function unassignScopeFromClient(
     if (!allowedActionsHaveMeRead(config?.allowedActions ?? [], kept)) {
       return {
         kind: 'allowed_actions_need_me_read',
-        message: ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
+        message: ALLOWED_ACTIONS_KEEP_ME_READ_MESSAGE,
       };
     }
   }

@@ -62,6 +62,7 @@ export {
 export {
   ALLOWED_ACTION_NAMES,
   ALLOWED_ACTIONS_NEED_ME_READ,
+  ALLOWED_ACTIONS_KEEP_ME_READ_MESSAGE,
   ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
   allowedActionsHaveMeRead,
   distinctAllowedActions,

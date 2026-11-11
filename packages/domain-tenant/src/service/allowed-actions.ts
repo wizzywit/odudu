@@ -13,6 +13,11 @@ export const ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE =
   `assign ${ME_READ_SCOPE} to the client first, or make it a default assignment so every new client has it ` +
   `(odudu seed client --allow-action assigns it itself)`;
 
+// The refusal where me:read is the thing being taken away.
+export const ALLOWED_ACTIONS_KEEP_ME_READ_MESSAGE =
+  `the scope ${ME_READ_SCOPE} stays while a client may start an action, since that client reads ` +
+  `the outcome through it: clear the client's allowed_actions first`;
+
 export function isAllowedAction(entry: string): entry is RequiredAction {
   return ALLOWED_ACTION_NAMES.includes(entry);
 }

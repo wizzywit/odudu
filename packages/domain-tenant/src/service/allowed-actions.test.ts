@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ALLOWED_ACTION_NAMES,
   ALLOWED_ACTIONS_NEED_ME_READ,
+  ALLOWED_ACTIONS_KEEP_ME_READ_MESSAGE,
   ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
   allowedActionsHaveMeRead,
   distinctAllowedActions,
@@ -49,5 +50,11 @@ describe('allowedActionsHaveMeRead', () => {
   it('has a stable code and a message that names the scope', () => {
     expect(ALLOWED_ACTIONS_NEED_ME_READ).toBe('allowed_actions_need_me_read');
     expect(ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE).toContain('me:read');
+  });
+
+  it('tells a person removing me:read to clear the actions, not to assign it', () => {
+    expect(ALLOWED_ACTIONS_KEEP_ME_READ_MESSAGE).toContain('me:read');
+    expect(ALLOWED_ACTIONS_KEEP_ME_READ_MESSAGE).toContain('clear');
+    expect(ALLOWED_ACTIONS_KEEP_ME_READ_MESSAGE).not.toContain('assign');
   });
 });

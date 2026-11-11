@@ -165,6 +165,7 @@ describe('allowed_actions on a client', () => {
     const refused = await s.unassign('me:read');
     expect(refused.statusCode, refused.body).toBe(409);
     expect(codes(refused)).toEqual([CODE]);
+    expect(refused.json<Refusal>().detail).toContain('clear');
     expect((await s.patch({ allowed_actions: [] })).statusCode).toBe(200);
     expect((await s.unassign('me:read')).statusCode).toBe(204);
   });
@@ -336,6 +337,7 @@ describe('deleting the me:read scope', () => {
     const refused = await remove(s);
     expect(refused.statusCode, refused.body).toBe(409);
     expect(codes(refused)).toEqual([CODE]);
+    expect(refused.json<Refusal>().detail).toContain('clear');
     expect((await s.read()).json()).toMatchObject({ allowed_actions: ['update-password'] });
     await s.patch({ allowed_actions: [] });
     expect((await remove(s)).statusCode).toBe(204);
