@@ -7,3 +7,17 @@
 -- its own.
 ALTER TABLE client_oidc_config
   ADD COLUMN IF NOT EXISTS allowed_actions text[] NOT NULL DEFAULT '{}';
+
+-- The vocabulary of required actions, held by the database too, so a write
+-- that skips the application's own check cannot store another name.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'client_oidc_config_allowed_actions_check'
+  ) THEN
+    ALTER TABLE client_oidc_config ADD CONSTRAINT client_oidc_config_allowed_actions_check
+      CHECK (allowed_actions <@ ARRAY[
+        'update-password', 'configure-totp', 'configure-passkey', 'generate-recovery-codes'
+      ]);
+  END IF;
+END $$;

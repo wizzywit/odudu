@@ -236,6 +236,27 @@ describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
     });
   });
 
+  it('Dynamic Client Registration refuses allowed_actions, naming it, and registers nothing', async () => {
+    const tenantName = `open-actions-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
+    );
+    const refused = await http.inject({
+      method: 'POST',
+      url: URL_FOR(tenantName),
+      payload: { ...MINIMAL, allowed_actions: ['update-password'] },
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<{ error: string; error_description: string }>()).toMatchObject({
+      error: 'invalid_client_metadata',
+      error_description: expect.stringContaining('allowed_actions'),
+    });
+    await withTenant(app.db, tenantId, async (tx) => {
+      expect(await tx.select().from(clients)).toHaveLength(0);
+    });
+  });
+
   it('marks an anonymous registration as requiring consent, with origin anonymous', async () => {
     const tenantName = `open-anon-${newId()}`;
     const tenantId = newId();

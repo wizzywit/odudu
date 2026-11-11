@@ -120,7 +120,7 @@ const SERVER_ASSIGNED_FIELDS = [
 
 // Settings only an administrator may choose. A registration naming one is
 // refused rather than dropped, so a registrant cannot believe it set it.
-const OPERATOR_ONLY_FIELDS = ['skip_logout_confirmation'] as const;
+const OPERATOR_ONLY_FIELDS = ['skip_logout_confirmation', 'allowed_actions'] as const;
 
 export function isLoopbackHost(hostname: string): boolean {
   // RFC 8252 §8.3 prefers the literal forms over `localhost`, whose
