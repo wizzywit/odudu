@@ -426,9 +426,10 @@ Keep-Alive: timeout=72
 {"count":1,"current":[true]}
 ```
 
-The token of the first sign-in of the address section stood behind one of the sessions just ended. A read with it, and a change
-that needs no recent sign-in, still answer; a change that does answers `401` `invalid_token`, since the session its freshness
-would be read from is gone and signing in again is a new session, not a refresh of this one:
+The token of the first sign-in of the address section stood behind one of the sessions just ended. A read with it still answers,
+because a read checks the token and not the session. Every change is refused `401` `invalid_token`, the ones that need a recent
+sign-in and the ones that do not: a change is made on behalf of a session, and signing in again is a new session, not a refresh
+of this one, so there is no challenge to answer:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" $ME/profile
@@ -440,7 +441,7 @@ curl -sS -D - -o /dev/null -X PATCH -H "Authorization: Bearer $TOKEN" -H 'conten
 
 ```
 200
-200
+401
 HTTP/1.1 401 Unauthorized
 www-authenticate: Bearer error="invalid_token"
 ```

@@ -78,9 +78,11 @@ one with `400` like the three lists, and its block in the transcript was re-run 
 
 None of these is argued in `docs/NEXT.md`; the row there points here.
 
-1. **Liveness of a me token's session and grant on reads.** The door judges the token, not
-   the session it was issued for: a token whose session has ended can still read until it
-   expires (five minutes at the default). Decided in the increment that builds the freshness gate.
+1. **Liveness of a me token's session on reads** is a design choice, not a gap: reads stay
+   stateless (spec 10a), so a token whose session has ended can still read until it expires (five
+   minutes at the default). Reads are cheap and expose what the person already sees; a session
+   lookup on every one would add a read to each of the four routes for no change of state. Every
+   write checks the session (increment 2).
 2. **Rate limit and CORS on the me routes.** The MCP route has a per-principal limiter and an
    origin throttle; the me routes have neither, and a browser application on another origin
    cannot call them yet.
@@ -103,7 +105,8 @@ None of these is argued in `docs/NEXT.md`; the row there points here.
   `session_freshness_seconds` (default 300, 30 to 3600, migration `0126`; a field in the console's
   Settings under Sessions). An older sign-in answers `401` with the RFC 9470 challenge, with
   `acr_values="2"` for a removal by a person who holds a second factor. The claims, a rename and
-  ending one session are not gated. A session that is gone is `invalid_token`, no challenge.
+  ending one session are not gated. Every write, gated or not, needs the token's session to
+  stand: a session that is gone, or a token that names none, is `invalid_token`, no challenge.
 - The removal rule (`removal-rule.ts`): only a TOTP or a passkey can be removed; `409`
   `last_sign_in_method` and `last_second_factor` are the refusals; removing the last TOTP revokes
   the recovery codes that stood in for it.
@@ -130,25 +133,25 @@ Nothing that needed a code change, three things the tests had not shown. A tenan
 relay answers an address change `503` `mail_unavailable`, which is the stack the other
 transcripts run on, so the page adds a relay that keeps what it is given. The gate answers before
 the removal rule, so a stale removal by a person with a second factor is a `401` and never a `409`.
-And a token whose session was ended by `DELETE /me/sessions` still reads and still makes an
-ungated write, which is open placement 1 below, observed.
+And a token whose session was ended by `DELETE /me/sessions` still made an ungated write: the
+claims, a rename and ending one session ignored a dead session. Every write now needs a live
+session (`requireLiveSession`, `84e1fb63c`), and the transcript block shows reads answering and
+every change refused `401`.
 
 ### Open placements
 
-1. **Liveness of a me token's session on reads and ungated writes** is still open (placement 1
-   of increment 1, observed in the transcript). Decide at phase close.
-2. **The notice to the old address** when a way to sign in is removed or the address changes
+1. **The notice to the old address** when a way to sign in is removed or the address changes
    goes with the notice-mail increment (spec section 5.5), and must land before the phase closes.
-3. **The administrator's `updateEmail` holder check is case-sensitive** where the address the
+2. **The administrator's `updateEmail` holder check is case-sensitive** where the address the
    verification link completes is not; the case-reconciliation increment places it.
-4. **Rate limit and CORS on the me routes**, as in increment 1, still open.
-5. **The gate and the write are separate transactions** (below), a limit recorded and not removed.
+3. **Rate limit and CORS on the me routes**, as in increment 1, still open.
+4. **The gate and the write are separate transactions** (below), a limit recorded and not removed.
 
 ### Known limits of the gated writes
 
-- **The gate read and the write are separate transactions.** A session that ends between
-  the freshness read and the write still lets the write through; the gate judges the moment
-  it read, not the moment of the write.
+- **The session read and the write are separate transactions.** A session that ends between
+  the read (the freshness gate's, or the liveness check's on an ungated change) and the write
+  still lets the write through; the check judges the moment it read, not the moment of the write.
 - **A username edit is gated on the member being present in the body**, not on the value
   changing, because knowing it is unchanged needs the profile read before the gate.
 - **No notice mail goes to the old address** when a way to sign in is removed or the address

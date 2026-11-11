@@ -78,7 +78,7 @@ On the same stack and day, `the-me-api.md` was replayed whole (the only differen
 `get-settings-and-patch-settings.md` that show the settings were replayed with the rest of that page (the tenant document gained
 `session_freshness_seconds`, so each is 32 bytes longer and the list of names the unknown-setting refusal prints has one more), the
 first export block of `get-export.md` was run on a tenant `export-demo` made as the page makes it (10,629 to 10,661 bytes), and
-`GET /admin/openapi.json` was fetched again (807,100 to 807,428 bytes). The stack and its image were removed afterwards.
+`GET /admin/openapi.json` was fetched again (807,100 to 807,428 bytes). The stack and its image were removed afterwards. The block of `the-me-api-changes.md` that uses a token whose session ended was run once more, after every change began to need a live session, on a stack built from `84e1fb63c` (project `odudu-p4f-i25`, the same mail file), by replaying the page as far as that block; the block's output is that run's and the blocks around it are the earlier pass's.
 
 The discovery document and authorization server metadata began to list `me:read` and `me:write` on 2026-11-11, and every tenant now
 starts with twelve scopes. On the compose project `odudu-p4f-i15` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`,
