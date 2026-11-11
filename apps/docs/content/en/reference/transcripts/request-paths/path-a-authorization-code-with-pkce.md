@@ -83,6 +83,8 @@ curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration
     "groups",
     "mcp:read",
     "mcp:write",
+    "me:read",
+    "me:write",
     "offline_access",
     "openid",
     "phone",

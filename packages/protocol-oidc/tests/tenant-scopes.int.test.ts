@@ -185,9 +185,7 @@ describe('scopes come from the tenant', () => {
     );
 
     expect(advertised).toContain('reports:advertised');
-    expect([...advertised].sort()).toEqual(
-      defined.filter((name) => !name.startsWith('me:')).sort(),
-    );
+    expect([...advertised].sort()).toEqual([...defined].sort());
   });
 
   it('refuses a scope the tenant has never heard of', async () => {

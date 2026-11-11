@@ -111,6 +111,8 @@ curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/de
     "groups",
     "mcp:read",
     "mcp:write",
+    "me:read",
+    "me:write",
     "offline_access",
     "openid",
     "phone",

@@ -56,7 +56,7 @@ describe('resolveDiscoveryDocument', () => {
     expect(doc).not.toHaveProperty('claims_locales_supported');
   });
 
-  it('does not list the "me" scopes, which no endpoint serves yet', async () => {
+  it('lists the "me" scopes beside the others, sorted', async () => {
     const doc = await resolveDiscoveryDocument(
       {
         findTenant: () =>
@@ -89,7 +89,7 @@ describe('resolveDiscoveryDocument', () => {
       'acme',
       pathAddress('https://idp.example', 'acme'),
     );
-    expect(doc?.scopes_supported).toEqual(['mcp:read', 'openid']);
+    expect(doc?.scopes_supported).toEqual(['mcp:read', 'me:read', 'me:write', 'openid']);
   });
 
   it.each([
