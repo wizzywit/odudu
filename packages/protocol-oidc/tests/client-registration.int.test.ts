@@ -248,10 +248,9 @@ describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
       payload: { ...MINIMAL, allowed_actions: ['update-password'] },
     });
     expect(refused.statusCode).toBe(400);
-    expect(refused.json<{ error: string; error_description: string }>()).toMatchObject({
-      error: 'invalid_client_metadata',
-      error_description: expect.stringContaining('allowed_actions'),
-    });
+    const body = refused.json<{ error: string; error_description: string }>();
+    expect(body.error).toBe('invalid_client_metadata');
+    expect(body.error_description).toContain('allowed_actions');
     await withTenant(app.db, tenantId, async (tx) => {
       expect(await tx.select().from(clients)).toHaveLength(0);
     });
