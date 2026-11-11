@@ -352,6 +352,11 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       'carried by the gap-audit capability check above',
     ],
     [
+      'The "me" reads do not check that the session or grant',
+      ['P4f'],
+      'details of the "me" API the P4f line already places; the phase note holds them',
+    ],
+    [
       '`tests/lint/production-guard-order.test.ts`',
       ['P12'],
       'a test maintenance note for the boot rework',

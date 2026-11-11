@@ -60,6 +60,15 @@ export {
   MCP_WRITE_SCOPE,
 } from '#/service/mcp-client';
 export {
+  holdsMeScope,
+  isMeScope,
+  ME_READ_SCOPE,
+  ME_SCOPES,
+  ME_WRITE_NEEDS_READ_MESSAGE,
+  ME_WRITE_SCOPE,
+  meWriteNeedsRead,
+} from '#/service/me-scopes';
+export {
   isReservedTenantName,
   isValidTenantName,
   RESERVED_TENANT_NAMES,

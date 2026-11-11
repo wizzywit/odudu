@@ -179,6 +179,30 @@ export function sessionRepository(tx: TenantScopedDatabase) {
       return rows.filter((row) => stillLive(row, tenant, now)).map(toRecord);
     },
 
+    // A page of a subject's live sessions in id order after `after`, at most
+    // `limit`, the liveness decided in SQL so the page is bounded whatever the
+    // subject holds. Served by sessions_by_subject.
+    async livePageBySubject(
+      subjectId: string,
+      tenant: SessionLifespans,
+      now: Date,
+      page: { readonly after: string | undefined; readonly limit: number },
+    ): Promise<SessionRecord[]> {
+      const rows = await tx
+        .select()
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.subjectId, subjectId),
+            liveSessionCondition(tenant, now),
+            page.after === undefined ? undefined : gt(sessions.id, page.after),
+          ),
+        )
+        .orderBy(asc(sessions.id))
+        .limit(page.limit);
+      return rows.map(toRecord);
+    },
+
     async endMany(ids: readonly string[], now: Date): Promise<void> {
       if (ids.length === 0) return;
       await tx

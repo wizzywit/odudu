@@ -53,6 +53,7 @@ export {
 } from '#/service/profile';
 export {
   credentialRepository,
+  type CredentialSummary,
   type NewCredential,
   type RecoveryStanding,
 } from '#/repository/credentials';

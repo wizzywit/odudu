@@ -6,6 +6,14 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Each tenant serves a "me" API where a signed-in person reads their own account with their own access token: `GET /tenants/<name>/me/profile`, `/me/credentials`, `/me/sessions` and `/me/consents` (at `/me/...` on a tenant's own domain). A token for it names the tenant's `/me` address as its audience and holds `me:read`. `me:read` and `me:write` are two new scopes every tenant defines, and a tenant that exists before the upgrade gets them when the server migrates; no client has either until you assign it, a request for either is refused with `invalid_scope` at any audience but the tenant's `/me` address, and a request for `me:write` carries `me:read` with it. No path or parameter names a person: the token's own subject is the only one read. A list takes `limit` and `cursor` and answers `items` and `next_cursor`; the credential list adds `recovery_codes_left`, and carries no secret, seed, key or hash. A token that holds `me:write` without `me:read` is refused with `insufficient_scope`.
+
+### Changed
+
+- A tenant's discovery document and its authorization server metadata list `me:read` and `me:write` in `scopes_supported`, with the tenant's other scopes. A tenant starts with twelve scopes where it started with ten, and the console's scope list and a tenant export show the two.
+
 ## [0.1.0] - 2026-11-07
 
 The first stable release. It gathers everything from the release candidates and

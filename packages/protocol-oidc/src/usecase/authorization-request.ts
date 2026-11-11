@@ -24,7 +24,8 @@ import {
   type McpPolicyGrant,
 } from '#/service/mcp-registration-policy';
 import { scopesCoherentWithAudience } from '#/service/mcp-scopes';
-import { isUuid, mcpAudienceOfIssuer } from '@odudu/kernel';
+import { meAudienceRequestAllowed } from '#/service/me-scopes';
+import { isUuid, mcpAudienceOfIssuer, meAudienceOfIssuer } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
@@ -414,6 +415,7 @@ export async function handleAuthorizationRequest(
   // with no registered audience (every client in this repository, today)
   // still succeeds with an empty resolved audience — see parseResource.
   const mcpAudience = mcpAudienceOfIssuer(issuer);
+  const meAudience = meAudienceOfIssuer(issuer);
   const resourceOutcome = parseResource(
     resourceParam(rawParams),
     audiencesHeld(
@@ -435,7 +437,9 @@ export async function handleAuthorizationRequest(
       audience,
       mcpAudience,
       ADMIN_API_AUDIENCE,
-    )
+      meAudience,
+    ) ||
+    !meAudienceRequestAllowed(requestedScopeTokens(asked.scope), audience, meAudience)
   ) {
     return reject('invalid_scope');
   }

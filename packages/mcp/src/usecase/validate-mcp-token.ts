@@ -1,4 +1,9 @@
-import { addressIssuer, mcpAudienceOfIssuer, type TenantAddress } from '@odudu/kernel';
+import {
+  addressIssuer,
+  mcpAudienceOfIssuer,
+  namesMeAudience,
+  type TenantAddress,
+} from '@odudu/kernel';
 import {
   checkGrantLiveness,
   resolveForeignIssuer,
@@ -120,6 +125,7 @@ export async function validateMcpToken(
   });
   if (payload === null) return refused('invalid_token');
   if (audiencesOf(payload.aud).includes(input.adminAudience)) return refused('admin_audience');
+  if (namesMeAudience(payload.aud, accepted)) return refused('me_audience');
 
   const sub = nonEmpty(payload.sub);
   const clientId = nonEmpty(payload.client_id);

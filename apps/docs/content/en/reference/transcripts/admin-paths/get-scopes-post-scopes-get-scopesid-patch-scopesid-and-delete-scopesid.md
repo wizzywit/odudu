@@ -251,13 +251,13 @@ curl -sS \
 
 A tenant defines at most 1000 scopes: discovery and `/authorize` read the set,
 so it is bounded by the model rather than paged. On `perf-demo`, after `scope-1`
-to `scope-992` (the tenant provisions eight of its own), the next create:
+to `scope-988` (the tenant provisions twelve of its own), the next create:
 
 ```bash
 P=http://localhost:3000/admin/tenants/perf-demo
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
   -d '{"name":"perf-demo"}' http://localhost:3000/admin/tenants -o /dev/null
-for i in $(seq 1 992); do
+for i in $(seq 1 988); do
   curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
     -d "{\"name\":\"scope-$i\"}" "$P/scopes" -o /dev/null
 done
@@ -271,15 +271,15 @@ curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a1872c-873d-7229-862a-8b6d8636b835
+x-request-id: 01a1cb3e-de4c-77b4-a408-b8522714a6d6
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 152
-Date: Thu, 29 Oct 2026 10:20:04 GMT
+Date: Wed, 11 Nov 2026 15:34:17 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"a tenant defines at most 1000 scopes","instance":"01a1872c-873d-7229-862a-8b6d8636b835"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"a tenant defines at most 1000 scopes","instance":"01a1cb3e-de4c-77b4-a408-b8522714a6d6"}
 ```
 
 ## The most scopes marked for every new client

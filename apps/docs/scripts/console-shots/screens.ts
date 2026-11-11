@@ -266,8 +266,8 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'scopes',
-    alt: "The demo tenant's Scopes list: openid, profile, email, address, phone, roles, groups, offline_access, mcp:read and mcp:write, with Restore built-in scopes and Create a scope buttons.",
-    caption: 'The ten scopes every tenant starts with.',
+    alt: "The demo tenant's Scopes list: openid, profile, email, address, phone, roles, groups, offline_access, mcp:read, mcp:write, me:read and me:write, with Restore built-in scopes and Create a scope buttons.",
+    caption: 'The twelve scopes every tenant starts with.',
     signedIn: true,
     expect: [
       { heading: 'Scopes' },
@@ -275,7 +275,7 @@ export const SCREENS: readonly Screen[] = [
       {
         rows: [
           'openid',
-          'profile',
+          'profile —',
           'email',
           'address',
           'phone',
@@ -284,12 +284,14 @@ export const SCREENS: readonly Screen[] = [
           'offline_access',
           'mcp:read',
           'mcp:write',
+          'me:read',
+          'me:write',
         ],
       },
     ],
     open: async (page, context) => {
       await openArea(page, context, `${DEMO}/scopes`);
-      await page.getByText('10 scopes').waitFor();
+      await page.getByText('12 scopes').waitFor();
     },
   },
   {

@@ -27,6 +27,8 @@ import {
   clients,
   missingBuiltinScopeNames,
   restoreBuiltinScopes,
+  ME_WRITE_NEEDS_READ_MESSAGE,
+  meWriteNeedsRead,
   TENANT_DEFAULT_SCOPE_NAMES,
   isBuiltinScopeName,
   type ClientScopeAssignment,
@@ -969,6 +971,7 @@ export type AssignScopeToClientOutcome =
   | { kind: 'client_not_found' }
   | TargetCeilingRefusal
   | { kind: 'client_scope_limit'; message: string }
+  | { kind: 'me_scope_incoherent'; message: string }
   | { kind: 'ok'; assignments: AssignScopeToClientResponse; clientEtag: string };
 
 // The `ETag` `GET …/clients/:id` answers, which hashes the client's scopes too:
@@ -1004,6 +1007,11 @@ export async function assignScopeToClient(
     { type: 'scope', id: input.scopeId },
   );
   if (refused !== null) return refused;
+
+  const held = (await clientScopeRepository(tx).forClient(input.clientId)).map((row) => row.name);
+  if (!meWriteNeedsRead([...held, scope.name])) {
+    return { kind: 'me_scope_incoherent', message: ME_WRITE_NEEDS_READ_MESSAGE };
+  }
 
   try {
     await clientScopeRepository(tx).assignOrUpdate(input.clientId, input.scopeId, input.assignment);
@@ -1067,6 +1075,7 @@ export type UnassignScopeFromClientOutcome =
   | { kind: 'builtin_admin_guarded'; reason: string }
   | TargetCeilingRefusal
   | { kind: 'not_assigned' }
+  | { kind: 'me_scope_incoherent'; message: string }
   | { kind: 'removed'; clientEtag: string };
 
 /**
@@ -1120,6 +1129,11 @@ export async function unassignScopeFromClient(
       detail: { reason },
     });
     return { kind: 'builtin_admin_guarded', reason };
+  }
+
+  const held = (await clientScopeRepository(tx).forClient(input.clientId)).map((row) => row.name);
+  if (!meWriteNeedsRead(held.filter((name) => name !== scope.name))) {
+    return { kind: 'me_scope_incoherent', message: ME_WRITE_NEEDS_READ_MESSAGE };
   }
 
   const removed = await clientScopeRepository(tx).unassign(input.clientId, input.scopeId);

@@ -1123,6 +1123,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 export { acceptedIssuersLookup } from '#/repository/accepted-issuers';
 export { acceptedIssuers, tenantIssuer, type AcceptedIssuersLookup } from '#/service/issuer';
 export { extractBearerToken } from '#/service/bearer-token';
+export { unverifiedIssuer } from '#/service/unverified-issuer';
 export { restartAuthorizeLocation } from '#/service/restart-request';
 export { sendThrottledPage } from '#/view/routes/throttled';
 export { sendPreviousAddressPage } from '#/view/routes/previous-address';
@@ -1130,6 +1131,7 @@ export { answerNotFound, answerServerError, type UnroutedDeps } from '#/view/rou
 export { isApiPath, wantsHtmlPage } from '#/service/page-negotiation';
 export { AS_METADATA_PATH_FORM } from '#/view/routes/as-metadata';
 export { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
+export { ME_READ_SCOPE, ME_SCOPES, ME_WRITE_SCOPE } from '#/service/me-scopes';
 export {
   configureIssuerBase,
   configureTenantAddress,

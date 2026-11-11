@@ -9,6 +9,8 @@ import {
   isAddressLiteral,
   isDomainAddress,
   mcpAudienceOfIssuer,
+  meAudienceOfIssuer,
+  namesMeAudience,
   pathAddress,
   routeAddress,
   tenantAddressOf,
@@ -129,6 +131,19 @@ describe('mcpAudienceOfIssuer', () => {
   });
 });
 
+describe('meAudienceOfIssuer', () => {
+  it('is the "me" API under the tenant address', () => {
+    expect(meAudienceOfIssuer('https://a.test/t')).toBe('https://a.test/t/me');
+    const domain = domainAddress('login.acme.com', true);
+    expect(meAudienceOfIssuer(addressIssuer(domain))).toBe('https://login.acme.com/me');
+  });
+  it('differs from the MCP audience', () => {
+    expect(meAudienceOfIssuer('https://a.test/t')).not.toBe(
+      mcpAudienceOfIssuer('https://a.test/t'),
+    );
+  });
+});
+
 describe('isDomainAddress', () => {
   it('is true for a tenant at its own domain and false at the path address', () => {
     expect(isDomainAddress(domainAddress('login.acme.example', true))).toBe(true);
@@ -137,5 +152,23 @@ describe('isDomainAddress', () => {
 
   it('is false for no address', () => {
     expect(isDomainAddress(undefined)).toBe(false);
+  });
+});
+
+describe('namesMeAudience', () => {
+  const issuer = 'https://a.test/t';
+  it.each([
+    ['a string audience', 'https://a.test/t/me', true],
+    ['an array holding it among others', [issuer, 'https://a.test/t/me'], true],
+    ['an array without it', [issuer, 'https://a.test/t/mcp'], false],
+    ['another tenant’s me audience', 'https://a.test/u/me', false],
+    ['a trailing slash', 'https://a.test/t/me/', false],
+    ['no audience', undefined, false],
+    ['a non-string member', [5, null], false],
+  ])('is decided for %s', (_l, aud, expected) => {
+    expect(namesMeAudience(aud, [issuer])).toBe(expected);
+  });
+  it('checks every issuer a tenant accepts', () => {
+    expect(namesMeAudience(['https://old.test/me'], [issuer, 'https://old.test'])).toBe(true);
   });
 });

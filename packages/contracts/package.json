@@ -10,7 +10,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./admin": "./src/admin/index.ts",
-    "./admin/docs": "./src/admin/docs.ts"
+    "./admin/docs": "./src/admin/docs.ts",
+    "./me": "./src/me/index.ts"
   },
   "main": "./src/index.ts",
   "scripts": {

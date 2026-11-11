@@ -1,4 +1,5 @@
 import { generateSigningKey, signJwt, type SigningKeyRecord } from '@odudu/crypto';
+import { meAudienceOfIssuer } from '@odudu/kernel';
 import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
 import { acceptedIssuers, type TenantLookup } from '@odudu/protocol-oidc';
 import { describe, expect, it } from 'vitest';
@@ -549,5 +550,50 @@ describe('the scope and the agent a token carries', () => {
   it('refuses an MCP-scoped token of another tenant as it refuses any foreign token', async () => {
     const outcome = await outcomeFor({ scope: 'mcp:read' }, {}, `${BASE}/tenants/foreign`);
     expect(outcome).toMatchObject({ kind: 'unauthenticated', reason: 'issuer_mismatch' });
+  });
+});
+
+describe('a token for the "me" API', () => {
+  const ISSUER = `${BASE}/tenants/target`;
+  const TARGET: TenantLookup = { ...FOREIGN, id: 'target-tenant-id' };
+
+  async function outcomeFor(aud: string[]) {
+    const key = { ...(await foreignKey()), tenantId: TARGET.id };
+    const iat = Math.floor(Date.now() / 1000);
+    const token = await signJwt(
+      { iss: ISSUER, sub: 'subject-id', aud, iat, exp: iat + 300, grant_id: 'grant-id' },
+      { key, kek: KEK, typ: 'at+jwt' },
+    );
+    const d = deps(key, {
+      findTenant: (name) => Promise.resolve(name === 'target' ? TARGET : null),
+      loadGrant: () =>
+        Promise.resolve({ clientId: 'client-id', sessionId: null, revokedAt: null } as never),
+      loadClientState: () =>
+        Promise.resolve({ enabled: true, builtinMcp: false, builtinAdmin: false }),
+      isSubjectEnabled: () => Promise.resolve(true),
+    });
+    return authenticateAdmin(d, {
+      authorizationHeader: `Bearer ${token}`,
+      targetTenantName: 'target',
+      targetTenant: TARGET,
+      targetTenantIssuer: ISSUER,
+      systemTenantIssuer: `${BASE}/tenants/system`,
+      issuerBase: BASE,
+      now: new Date(),
+    });
+  }
+
+  it('stands at the admin API with the admin audience alone', async () => {
+    expect((await outcomeFor([ADMIN_API_AUDIENCE])).kind).toBe('authenticated');
+  });
+
+  it.each([
+    ['alone', [meAudienceOfIssuer(ISSUER)]],
+    ['beside the admin audience', [ADMIN_API_AUDIENCE, meAudienceOfIssuer(ISSUER)]],
+  ])('is refused when it names the "me" audience %s', async (_l, aud) => {
+    expect(await outcomeFor(aud)).toMatchObject({
+      kind: 'unauthenticated',
+      reason: 'invalid_token',
+    });
   });
 });

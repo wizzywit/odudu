@@ -100,6 +100,26 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     auth: 'None',
     purpose: 'Answers `405` with `Allow: POST`: the endpoint keeps no session to end.',
   },
+  'GET /tenants/:tenant/me/profile': {
+    auth: 'Access token',
+    purpose:
+      'The signed-in person’s own profile: username, email and the OpenID Connect profile claims. Takes a bearer token whose audience is the tenant’s `/me` URL and whose scope holds `me:read`; `401` with a `WWW-Authenticate` challenge for no usable token, `403` `insufficient_scope` for a token without `me:read`. No path names a subject: the token’s own is the only one read. At a tenant’s own domain it is `/me/profile` there.',
+  },
+  'GET /tenants/:tenant/me/credentials': {
+    auth: 'Access token',
+    purpose:
+      'The person’s own ways to sign in (password, authenticator app, passkey) with a label, when each was created and last used, and `recovery_codes_left`; no secret, seed, key or hash. A page of `limit` rows after `cursor`, returned as `items` and `next_cursor`, with the same bearer token and refusals as the profile.',
+  },
+  'GET /tenants/:tenant/me/sessions': {
+    auth: 'Access token',
+    purpose:
+      'The person’s own live sessions, marking the one the token was issued for as `current`; `device` is `null` until a session records one. A page of `limit` rows after `cursor`, returned as `items` and `next_cursor`, with the same bearer token and refusals as the profile.',
+  },
+  'GET /tenants/:tenant/me/consents': {
+    auth: 'Access token',
+    purpose:
+      'The applications the person has consented to, each by its `client_id` with the scopes granted and when. A page of `limit` rows after `cursor`, returned as `items` and `next_cursor`, with the same bearer token and refusals as the profile.',
+  },
   [`GET ${OIDC}/certs`]: {
     auth: 'None',
     purpose: 'The JWKS: the tenant’s public signing keys.',

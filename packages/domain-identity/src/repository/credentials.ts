@@ -23,6 +23,20 @@ export interface NewCredential {
   rpId?: string;
 }
 
+// A credential as its owner may be shown it: no column that holds or derives
+// from the secret, `secret_data` and `lookup_key` included.
+export interface CredentialSummary {
+  readonly id: string;
+  readonly type: CredentialType;
+  readonly label: string | null;
+  readonly createdAt: Date;
+  readonly lastUsedAt: Date | null;
+}
+
+// The ways to sign in. A recovery code is counted, never listed, and a retired
+// password answers nothing.
+const SIGN_IN_TYPES: readonly CredentialType[] = ['password', 'totp', 'webauthn'];
+
 export interface RecoveryStanding {
   readonly unspent: number;
   readonly held: number;
@@ -139,6 +153,33 @@ export function credentialRepository(tx: TenantScopedDatabase) {
         .from(userCredentials)
         .where(and(eq(userCredentials.subjectId, subjectId), eq(userCredentials.type, type)));
       return rows.map(toRecord);
+    },
+
+    // A page of the ways a subject can sign in, in id order after `after`, at
+    // most `limit`. Served by user_credentials_by_subject, which the type
+    // filter narrows to the few rows a subject holds.
+    async summariesFor(
+      subjectId: string,
+      page: { readonly after: string | undefined; readonly limit: number },
+    ): Promise<CredentialSummary[]> {
+      return tx
+        .select({
+          id: userCredentials.id,
+          type: userCredentials.type,
+          label: userCredentials.label,
+          createdAt: userCredentials.createdAt,
+          lastUsedAt: userCredentials.lastUsedAt,
+        })
+        .from(userCredentials)
+        .where(
+          and(
+            eq(userCredentials.subjectId, subjectId),
+            inArray(userCredentials.type, [...SIGN_IN_TYPES]),
+            page.after === undefined ? undefined : gt(userCredentials.id, page.after),
+          ),
+        )
+        .orderBy(userCredentials.id)
+        .limit(page.limit);
     },
 
     // How many subjects hold a passkey registered under another relying
