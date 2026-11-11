@@ -55,6 +55,8 @@ export function planProfileAmend(
     }
     const key = CLAIM_KEY[field];
     if (key === undefined || raw === undefined) continue;
+    // Every claim the schema admits is a string or null; this narrows the
+    // entries' `unknown` for the compiler and skips nothing at run time.
     if (raw !== null && typeof raw !== 'string') continue;
     if (raw === current[key]) continue;
     if (NAME_CLAIMS.has(field) && refusesBidi(raw, current[key])) {

@@ -1,7 +1,9 @@
 import { isUuid } from '@odudu/kernel';
+import type { MeReads } from '#/repository/reads';
 import type { MeSessionAuth } from '#/repository/gate';
 import { invalidToken } from '#/service/challenge';
 import { freshnessChallenge, isFresh } from '#/service/freshness';
+import { HELD_LIMIT, holdsSecondFactor, SECOND_FACTOR_ACR } from '#/service/removal-rule';
 import type { MeCaller } from '#/usecase/admit-me';
 
 export interface MeGateDeps {
@@ -38,4 +40,17 @@ export async function requireFreshSignIn(
   if (signedInAt === null) return gone;
   if (isFresh(signedInAt, now, caller.freshnessSeconds)) return { kind: 'fresh' };
   return { kind: 'stale', challenge: freshnessChallenge(caller.freshnessSeconds, acrValues) };
+}
+
+// The authentication class a removal asks the sign-in to have reached: a
+// second factor for a person who holds one, none otherwise.
+export async function acrForRemoval(
+  deps: { readonly reads: MeReads },
+  caller: MeCaller,
+): Promise<string | null> {
+  const held = await deps.reads.credentials(caller.tenantId, caller.subjectId, {
+    after: undefined,
+    limit: HELD_LIMIT,
+  });
+  return holdsSecondFactor(held.rows) ? SECOND_FACTOR_ACR : null;
 }

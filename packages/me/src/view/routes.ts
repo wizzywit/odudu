@@ -32,8 +32,7 @@ import {
   type MeAdmission,
   type MeCaller,
 } from '#/usecase/admit-me';
-import { HELD_LIMIT, holdsSecondFactor, SECOND_FACTOR_ACR } from '#/service/removal-rule';
-import { requireFreshSignIn, type MeGateDeps } from '#/usecase/freshness-gate';
+import { acrForRemoval, requireFreshSignIn, type MeGateDeps } from '#/usecase/freshness-gate';
 import {
   listConsents,
   listCredentials,
@@ -226,12 +225,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
       const caller = await admitWrite(deps, request, reply);
       if (caller === undefined) return reply;
       if (!isUuid(request.params.id)) return respond(reply, 404, notFound(NO_AUTHENTICATOR));
-      // A person who holds a second factor proves it again to remove a credential.
-      const held = await deps.reads.credentials(caller.tenantId, caller.subjectId, {
-        after: undefined,
-        limit: HELD_LIMIT,
-      });
-      const acr = holdsSecondFactor(held.rows) ? SECOND_FACTOR_ACR : null;
+      const acr = await acrForRemoval(deps, caller);
       if (!(await signInIsFresh(deps, caller, reply, acr))) return reply;
       const outcome = await removeCredential(deps, caller, request.params.id);
       if (outcome.kind === 'not_found') return respond(reply, 404, notFound(NO_AUTHENTICATOR));

@@ -87,3 +87,14 @@ None of these is argued in `docs/NEXT.md`; the row there points here.
 3. **`/me` is missing from the previous-address window.** After a tenant switches address, the
    old address serves the routes in `WINDOW_SERVES` (`host-rules.ts`) for an hour, and `/me`
    is not among them, as the MCP route is not either.
+
+### Known limits of the gated writes
+
+- **The gate read and the write are separate transactions.** A session that ends between
+  the freshness read and the write still lets the write through; the gate judges the moment
+  it read, not the moment of the write.
+- **A username edit is gated on the member being present in the body**, not on the value
+  changing, because knowing it is unchanged needs the profile read before the gate.
+- **No notice mail goes to the old address** when a way to sign in is removed or the address
+  is changed; the admin routes enqueue those mails, and the me routes' notices are placed on
+  spec section 5.5 (the notice-mail increment).

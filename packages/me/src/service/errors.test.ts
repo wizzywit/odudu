@@ -66,15 +66,14 @@ describe('the removal refusals', () => {
     (code) => {
       const refusal = removalRefused(code);
       expect(refusal.error).toBe(code);
-      expect(refusal.error_description).toBe(REMOVAL_REFUSAL_MESSAGES[code].en);
-      expect(REMOVAL_REFUSAL_MESSAGES[code].en).not.toBe('');
-      expect(REMOVAL_REFUSAL_MESSAGES[code].ar).toMatch(/[؀-ۿ]/);
+      expect(refusal.error_description).toBe(REMOVAL_REFUSAL_MESSAGES[code]);
+      expect(REMOVAL_REFUSAL_MESSAGES[code]).not.toBe('');
     },
   );
 
   it('words the two refusals differently', () => {
-    expect(REMOVAL_REFUSAL_MESSAGES.last_sign_in_method.en).not.toBe(
-      REMOVAL_REFUSAL_MESSAGES.last_second_factor.en,
+    expect(REMOVAL_REFUSAL_MESSAGES.last_sign_in_method).not.toBe(
+      REMOVAL_REFUSAL_MESSAGES.last_second_factor,
     );
   });
 });

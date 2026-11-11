@@ -722,7 +722,7 @@ describe('DELETE /me/credentials/:id', () => {
       expect(res.statusCode).toBe(409);
       expect(res.json()).toEqual({
         error: code,
-        error_description: REMOVAL_REFUSAL_MESSAGES[code].en,
+        error_description: REMOVAL_REFUSAL_MESSAGES[code],
       });
       expect(seen.some((entry) => entry.startsWith('deleteCredential'))).toBe(false);
     },
