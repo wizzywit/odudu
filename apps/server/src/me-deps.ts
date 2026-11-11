@@ -1,14 +1,17 @@
 import { sessionRepository } from '@odudu/authn-flows';
-import { type DatabaseHandle, withTenant } from '@odudu/db';
+import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
-import { consentRepository } from '@odudu/domain-tenant';
-import { type MeDeps, type MeReads } from '@odudu/me';
+import { clientRepository, consentRepository } from '@odudu/domain-tenant';
+import { type MeDeps, type MeReads, type MeWrites, type MeWriteTx } from '@odudu/me';
 import { adminAuthDeps, verifyTenantAccessToken } from '@odudu/protocol-admin';
+import { endSessions, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type Logger as PinoLogger } from 'pino';
 
 export interface MeDepsParts {
   readonly database: DatabaseHandle;
   readonly ownerDatabase: DatabaseHandle;
+  readonly kek: Uint8Array;
   readonly logger: PinoLogger;
   readonly publicBaseUrl: string | undefined;
 }
@@ -33,6 +36,56 @@ export function meReadsFor(database: DatabaseHandle): MeReads {
       ),
     consents: (tenantId, subjectId, page) =>
       withTenant(database.db, tenantId, (tx) => consentRepository(tx).forSubject(subjectId, page)),
+  };
+}
+
+function writeTxFor(tx: TenantScopedDatabase, tenantId: string, kek: Uint8Array): MeWriteTx {
+  return {
+    lockProfile: (subjectId) => userRepository(tx).lockBySubjectId(subjectId),
+    updateProfile: (subjectId, patch) => userRepository(tx).updateProfile(subjectId, patch),
+    setVerification: (subjectId, patch) => userRepository(tx).setVerification(subjectId, patch),
+    lockOwnedSession: (subjectId, sessionId) =>
+      sessionRepository(tx).lockOwnedId(subjectId, sessionId),
+    liveSessionIds: (subjectId, now, limit, except) =>
+      sessionRepository(tx).liveIdsFor(subjectId, now, limit, except ?? undefined),
+    endSessions: (input) => endSessions(tx, { kek }, { tenantId, via: 'self', ...input }),
+    revokeConsent: async (subjectId, clientKey, now) => {
+      const client = await clientRepository(tx).byClientId(clientKey);
+      if (client === null) return null;
+      const consent = await consentRepository(tx).forSubjectClient(subjectId, client.id);
+      if (consent === null) return null;
+      if (!(await consentRepository(tx).revoke(subjectId, client.id))) return null;
+      const grantsRevoked = await tokenGrantRepository(tx).revokeForSubjectClient(
+        subjectId,
+        client.id,
+        now,
+      );
+      return { scopeNames: consent.scopeNames, grantsRevoked };
+    },
+    renameCredential: (subjectId, credentialId, label) =>
+      credentialRepository(tx).renameLabel(subjectId, credentialId, label),
+    audit: async (event) => {
+      const client = await clientRepository(tx).byClientId(event.actorClientKey);
+      await auditRepository(tx).record({
+        eventType: 'admin_mutation',
+        action: event.action,
+        outcome: 'allowed',
+        resourceType: event.resourceType,
+        resourceId: event.resourceId,
+        actorSubjectId: event.actorSubjectId,
+        actorClientId: client?.id ?? null,
+        detail: event.detail,
+      });
+    },
+  };
+}
+
+// Each change runs in one tenant-scoped transaction: the session cascade, the
+// change and its audit row commit together or not at all.
+export function meWritesFor(database: DatabaseHandle, kek: Uint8Array): MeWrites {
+  return {
+    transact: (tenantId, run) =>
+      withTenant(database.db, tenantId, (tx) => run(writeTxFor(tx, tenantId, kek))),
   };
 }
 
@@ -63,6 +116,7 @@ export function meRouteDepsFor(parts: MeDepsParts): MeDeps {
       };
     },
     reads: meReadsFor(parts.database),
+    writes: meWritesFor(parts.database, parts.kek),
     now: () => new Date(),
     logger: parts.logger,
   };

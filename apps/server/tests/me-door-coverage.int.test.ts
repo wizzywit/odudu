@@ -103,19 +103,25 @@ async function tenant() {
 }
 
 function send(route: { method: string; url: string }, name: string, token: string) {
-  const method = route.method as 'GET' | 'HEAD' | 'POST' | 'DELETE';
+  const method = route.method as 'GET' | 'HEAD' | 'POST' | 'PATCH' | 'DELETE';
+  const hasBody = method === 'POST' || method === 'PATCH';
+  const url = route.url
+    .replace(':tenant', name)
+    .replace(':client_id', 'portal')
+    .replace(':id', newId());
   return app.inject({
     method,
-    url: route.url.replace(':tenant', name),
+    url,
     headers: {
       host: HOST,
       authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
       accept: 'application/json, text/event-stream',
+      ...(hasBody ? { 'content-type': 'application/json' } : {}),
     },
     ...(method === 'POST'
       ? { payload: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }) }
       : {}),
+    ...(method === 'PATCH' ? { payload: '{}' } : {}),
   });
 }
 
@@ -174,11 +180,15 @@ describe('each door refuses the other’s token', () => {
 
   it('opens each door to its own token, so a refusal above is the audience’s', async () => {
     const t = await tenant();
-    const me = await tokenFor(meAudienceOfIssuer, 'openid me:read', t);
-    const own = tableOf('me')[0];
+    const me = await tokenFor(meAudienceOfIssuer, 'openid me:read me:write', t);
+    const own = tableOf('me').find((r) => r.method === 'GET');
     const mcpPost = tableOf('mcp').find((r) => r.method === 'POST');
     if (own === undefined || mcpPost === undefined) throw new Error('a table is empty');
     expect((await send(own, t.name, me)).statusCode).toBe(200);
+    for (const route of tableOf('me').filter((r) => r.method !== 'GET' && r.method !== 'HEAD')) {
+      const res = await send(route, t.name, me);
+      expect(res.statusCode, `${route.method} ${route.url}`).not.toBe(401);
+    }
 
     const w = await mcpWorld(appDb, BASE, ['view-users'], 'openid mcp:read');
     const key = await withTenant(appDb.db, w.tenantId, (tx) => signingKeyRepository(tx).active());

@@ -795,6 +795,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     meRouteDepsFor({
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
+      kek: deps.kek,
       logger: deps.logger,
       publicBaseUrl: deps.publicBaseUrl,
     }),
