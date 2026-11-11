@@ -1,5 +1,6 @@
 import { addressPath, type PageLocale, type RenderedPage, type TenantAddress } from '@odudu/kernel';
 import { type EnrolmentRefusal } from '#/schema/enrolment-refusal';
+import { cancelButton, type ActionPageVariant } from '#/view/action-cancel';
 import { escapeHtml, intro, page } from '#/view/document';
 import { t, tHtml, token } from '#/view/messages';
 import { problemSummary } from '#/view/form-error';
@@ -18,13 +19,14 @@ export interface RecoveryCodesOffer {
 // database exactly as a password is, so no later page — and no
 // administrator — can show them again; the form below carries no code back,
 // only the acknowledgement that the page was seen.
-export function renderRecoveryCodesPage(
+function recoveryCodesPage(
   tenant: string,
   address: TenantAddress,
   authSessionId: string,
   offer: RecoveryCodesOffer,
   error: EnrolmentRefusal | undefined,
   locale: PageLocale,
+  variant: ActionPageVariant | undefined,
 ): RenderedPage {
   const target = escapeHtml(
     addressPath(address, '/login-actions/required-action?action=generate-recovery-codes'),
@@ -44,7 +46,7 @@ ${items}
 </ol>`,
       'form.open': `<form method="post" action="${target}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
-      submit: `<button type="submit">${tHtml(locale, 'recoveryCodes.acknowledge')}</button>`,
+      submit: `<button type="submit">${tHtml(locale, 'recoveryCodes.acknowledge')}</button>${cancelButton(variant, locale)}`,
       'form.close': '</form>',
     },
     locale,
@@ -52,4 +54,27 @@ ${items}
   // No script: nothing on this page talks to an authenticator or fetches
   // anything, so the base content-security policy describes it exactly.
   return page(title, body, null, [], locale, 'recovery-codes');
+}
+
+export function renderRecoveryCodesPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  offer: RecoveryCodesOffer,
+  error: EnrolmentRefusal | undefined,
+  locale: PageLocale,
+): RenderedPage {
+  return recoveryCodesPage(tenant, address, authSessionId, offer, error, locale, undefined);
+}
+
+// The same page for a person an application sent here, who may leave it again.
+export function renderRequestedRecoveryCodesPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  offer: RecoveryCodesOffer,
+  error: EnrolmentRefusal | undefined,
+  locale: PageLocale,
+): RenderedPage {
+  return recoveryCodesPage(tenant, address, authSessionId, offer, error, locale, 'requested');
 }

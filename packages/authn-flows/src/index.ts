@@ -84,9 +84,19 @@ export {
   type SecondFactorRemovedOutcome,
 } from '#/usecase/second-factor-removed';
 export { oweRecoveryCodesIfFactorWithoutCodes, pendingActionsFor } from '#/usecase/recovery-codes';
-export { renderRecoveryCodesPage, type RecoveryCodesOffer } from '#/view/recovery-codes-html';
-export { renderUpdatePasswordPage } from '#/view/update-password-html';
+export { recordActionStep, type ActionStep, type RecordActionStep } from '#/usecase/action-step';
+export { type ActionPageVariant } from '#/view/action-cancel';
 export {
+  renderRecoveryCodesPage,
+  renderRequestedRecoveryCodesPage,
+  type RecoveryCodesOffer,
+} from '#/view/recovery-codes-html';
+export {
+  renderUpdatePasswordPage,
+  renderRequestedUpdatePasswordPage,
+} from '#/view/update-password-html';
+export {
+  CURRENT_PASSWORD_REFUSED,
   completeUpdatePassword,
   recordPasswordExpiryIfOwed,
   SUPERSEDED_PASSWORD,
@@ -94,7 +104,11 @@ export {
 } from '#/usecase/update-password';
 export { type PasswordViolation } from '#/schema/password-violation';
 export { type EnrolmentRefusal } from '#/schema/enrolment-refusal';
-export { renderTotpEnrolmentPage, type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
+export {
+  renderTotpEnrolmentPage,
+  renderRequestedTotpEnrolmentPage,
+  type TotpEnrolmentOffer,
+} from '#/view/totp-enrolment-html';
 export {
   beginPasskeyEnrolment,
   completePasskeyEnrolment,
@@ -111,6 +125,7 @@ export {
 } from '#/service/webauthn';
 export {
   renderPasskeyEnrolmentPage,
+  renderRequestedPasskeyEnrolmentPage,
   type PasskeyEnrolmentOffer,
 } from '#/view/passkey-enrolment-html';
 export { authenticationSessionRepository } from '#/repository/authentication-sessions';
@@ -120,7 +135,9 @@ export {
   type PresentedSession,
 } from '#/repository/sessions';
 export {
+  ACTION_STATUSES,
   authenticationSessions,
+  type ActionStatus,
   type AuthenticationSessionRecord,
   type PendingRequest,
 } from '#/schema/authentication-sessions';

@@ -65,6 +65,9 @@ export const en = {
   'updatePassword.rule.notReused': 'Password must not be one you have used before.',
   'updatePassword.rule.superseded':
     'Your password was changed somewhere else before this form was submitted. Sign in again with the password you set there.',
+  'updatePassword.currentPassword': 'Current password',
+  'updatePassword.rule.currentPassword': 'The current password is not correct.',
+  'action.cancel': 'Cancel and go back',
 };
 
 // A Latin token (a secret, a key URI, a recovery code) keeps its own

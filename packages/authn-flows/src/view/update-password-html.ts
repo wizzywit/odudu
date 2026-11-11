@@ -7,8 +7,9 @@ import {
   type TenantAddress,
 } from '@odudu/kernel';
 import { type PasswordViolation } from '#/schema/password-violation';
+import { cancelButton, type ActionPageVariant } from '#/view/action-cancel';
 import { escapeHtml, intro, page } from '#/view/document';
-import { problemSummary } from '#/view/form-error';
+import { invalidAttributes, problemSummary } from '#/view/form-error';
 import { passwordField } from '#/view/password-field';
 import { bdi, t, tHtml, type MessageId } from '#/view/messages';
 import { fillPage } from '#/view/template';
@@ -25,6 +26,7 @@ const RULE_MESSAGE: Readonly<Record<string, MessageId>> = {
   'not-email': 'updatePassword.rule.notEmail',
   'common-password': 'updatePassword.rule.common',
   'not-reused': 'updatePassword.rule.notReused',
+  'current-password': 'updatePassword.rule.currentPassword',
   superseded: 'updatePassword.rule.superseded',
 };
 
@@ -45,28 +47,37 @@ function ruleHtml(violation: PasswordViolation, locale: PageLocale): string {
 // them all rather than stopping at the first. The hidden auth_session_id is
 // this page's own CSRF defence and what resumes the parked login, exactly
 // as on the enrolment pages beside it.
-export function renderUpdatePasswordPage(
+function updatePasswordPage(
   tenant: string,
   address: TenantAddress,
   authSessionId: string,
   violations: readonly PasswordViolation[] = [],
   rules: PasswordRules,
   locale: PageLocale,
+  variant: ActionPageVariant | undefined,
 ): RenderedPage {
   const target = escapeHtml(
     addressPath(address, '/login-actions/required-action?action=update-password'),
   );
   const problems = violations.map((violation) => ({
-    fields: ['password'],
+    fields: [violation.rule === 'current-password' ? 'current_password' : 'password'],
     html: ruleHtml(violation, locale),
   }));
+  const currentRefused = problems.some((problem) => problem.fields.includes('current_password'));
   const password = passwordField(
     'updatePassword.newPassword',
     rules,
     problems,
-    problems.length > 0,
+    problems.length > 0 && !currentRefused,
     locale,
   );
+  // Asked of a person an application sent here, whatever age their sign-in:
+  // the password in force is what separates them from somebody at their
+  // unlocked browser.
+  const current =
+    variant === 'requested'
+      ? `<label>${tHtml(locale, 'updatePassword.currentPassword')} <input type="password" name="current_password" autocomplete="current-password"${invalidAttributes(problems, 'current_password')}${currentRefused ? ' autofocus' : ''}></label>\n`
+      : '';
   const title = t(locale, 'updatePassword.title');
   const body = fillPage(
     'update-password',
@@ -75,11 +86,34 @@ export function renderUpdatePasswordPage(
       error: problemSummary(problems),
       'form.open': `<form method="post" action="${target}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
-      fields: password.html,
-      submit: `<button type="submit">${tHtml(locale, 'updatePassword.submit')}</button>`,
+      fields: `${current}${password.html}`,
+      submit: `<button type="submit">${tHtml(locale, 'updatePassword.submit')}</button>${cancelButton(variant, locale)}`,
       'form.close': '</form>',
     },
     locale,
   );
   return page(title, body, password.script, [], locale, 'update-password');
+}
+
+export function renderUpdatePasswordPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  violations: readonly PasswordViolation[] = [],
+  rules: PasswordRules,
+  locale: PageLocale,
+): RenderedPage {
+  return updatePasswordPage(tenant, address, authSessionId, violations, rules, locale, undefined);
+}
+
+// The same page for a person an application sent here, who may leave it again.
+export function renderRequestedUpdatePasswordPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  violations: readonly PasswordViolation[] = [],
+  rules: PasswordRules,
+  locale: PageLocale,
+): RenderedPage {
+  return updatePasswordPage(tenant, address, authSessionId, violations, rules, locale, 'requested');
 }
