@@ -30,6 +30,8 @@ export { COMMON_PASSWORD_COUNT } from '#/service/common-password';
 export { passwordExpired } from '#/service/password-age';
 export { isLockedOut, nextLockout, type LockoutPolicy, type LockoutState } from '#/service/lockout';
 export { loginFailures } from '#/schema/login-failures';
+export { pendingEmailChanges } from '#/schema/pending-email-changes';
+export { pendingEmailRepository } from '#/repository/pending-emails';
 export {
   loginFailureRepository,
   type LoginFailureRecord,
