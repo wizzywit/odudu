@@ -30,6 +30,7 @@ import {
   lockEmailForCreation,
   loginFailures,
   passwordExpired,
+  pendingEmailRepository,
   subjectRepository,
   subjects,
   userCredentials,
@@ -738,6 +739,13 @@ async function amendSubjectUnguarded(
     await subjectRepository(tx).setEnabled(input.subjectId, patch.enabled.value);
   }
   if (patch.email !== undefined) {
+    // An administrator's address replaces whatever the person asked for: a link
+    // mailed for the earlier request must not swap an old target back in. The
+    // address lock is the one a completed change takes, so the two take turns.
+    if (patch.email.value !== null) {
+      await lockEmailForCreation(tx, locked.subject.tenantId, patch.email.value);
+    }
+    await pendingEmailRepository(tx).clear(input.subjectId);
     await userRepository(tx).updateEmail(input.subjectId, patch.email.value);
   }
   if (patch.username !== undefined) {

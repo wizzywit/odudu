@@ -54,7 +54,7 @@ to the routes that depend on it with no boundary between them, and every OIDC
 consumer would carry the self-service surface. Rejected: the layer that issues
 and checks tokens should not hold the surface it is checked against.
 
-## Amendment: no adapter layer in `me`
+## Amendment, 2026-11-11: no adapter layer in `me`
 
 The package has no `adapter` folder. The layering rules let a view and a
 usecase import neither an adapter nor `@odudu/db`, and `me` may not import

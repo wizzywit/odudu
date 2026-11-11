@@ -15,10 +15,17 @@ let before: string | undefined;
 let lifted: Record<string, string> = {};
 
 // A table whose row security was lifted and restored has a newer pg_class
-// row, which `xmin` shows; one nothing touched keeps its own.
+// row, which `xmin` shows; one nothing touched keeps its own. `tenants` is
+// left out of the `xmin` comparison because later migrations alter its
+// columns, which also writes its pg_class row; its row security flags are
+// compared instead.
 async function versions(): Promise<Record<string, string>> {
   const rows = await handle().sql<{ relname: string; version: string }[]>`
-    select relname, xmin::text as version from pg_class
+    select relname,
+           case when relname = 'tenants'
+                then relrowsecurity::text || relforcerowsecurity::text
+                else xmin::text end as version
+      from pg_class
      where relname in ('audit_events', 'tenants', 'client_oidc_config')`;
   return Object.fromEntries(rows.map((row) => [row.relname, row.version]));
 }

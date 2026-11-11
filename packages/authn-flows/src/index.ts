@@ -147,6 +147,7 @@ export {
 export { startsALogin, type OrderedStep } from '#/service/flow-start';
 export { nextRequiredAction } from '#/usecase/required-actions';
 export { requiredActionRepository } from '#/repository/required-actions';
+export { tenantSettingsRepository } from '#/repository/tenant-settings';
 export { userRequiredActions, type RequiredAction } from '#/schema/required-action';
 export { renderRequiredActionPage } from '#/view/required-action-html';
 export { DEFAULT_TEMPLATES } from '#/view/templates/index';

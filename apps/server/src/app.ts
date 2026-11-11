@@ -44,6 +44,7 @@ import {
   hashUserPassword,
   isEmailAddress,
   lockEmailForCreation,
+  pendingEmailRepository,
   REUSED_PASSWORD,
   subjectRepository,
   userRepository,
@@ -790,13 +791,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       createToolLimiter({ ...DEFAULT_TOOL_LIMITS, ...deps.mcpToolLimits }),
     ),
   );
+  const mailGate = deps.mailGate ?? createMailGate(() => systemClock.now());
   registerMeRoutes(
     app,
     meRouteDepsFor({
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
+      kek: deps.kek,
       logger: deps.logger,
       publicBaseUrl: deps.publicBaseUrl,
+      mail: {
+        resolveMailLook: mailLook,
+        mailGate,
+        deploymentSmtp: deps.deploymentSmtp ?? false,
+      },
     }),
   );
 
@@ -806,7 +814,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // itself stays free of that dependency
   // (packages/account/src/usecase/verify-email.ts explains why).
   const findHeldSignIn = findHeldSignInIn(deps.database, tls);
-  const mailGate = deps.mailGate ?? createMailGate(() => systemClock.now());
 
   const themed = {
     resolveBranding: branding.resolveBranding,
@@ -844,6 +851,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       (await userRepository(tx).bySubjectId(subjectId))?.email ?? null,
     markVerified: async (tx, subjectId) => {
       await userRepository(tx).markEmailVerified(subjectId);
+    },
+    changeAddress: {
+      lockAddress: (tx, tenantId, email) => lockEmailForCreation(tx, tenantId, email),
+      takePending: (tx, subjectId, email) => pendingEmailRepository(tx).take(subjectId, email),
+      holderOf: (tx, email) => userRepository(tx).holderOfEmail(email),
+      replaceVerified: async (tx, subjectId, email) => {
+        await userRepository(tx).replaceVerifiedEmail(subjectId, email);
+      },
     },
     // A subject an administrator created has no password until a link gives
     // it its first, the way `POST …/subjects/:id/password` creates one.

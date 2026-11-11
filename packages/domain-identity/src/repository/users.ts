@@ -353,6 +353,22 @@ export function userRepository(tx: TenantScopedDatabase) {
       return toUser(row);
     },
 
+    // A mailed link has proved the new address of a subject who asked to
+    // change it: unlike `updateEmail`, the address arrives verified, because
+    // the proof is what this write is made of.
+    async replaceVerifiedEmail(subjectId: string, email: string): Promise<UserRecord> {
+      const rows = await tx
+        .update(users)
+        .set({ email, emailVerified: true, selfRegistered: false })
+        .where(eq(users.subjectId, subjectId))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+      return toUser(row);
+    },
+
     // A mailed link has proved the mailbox of an account that registered
     // itself and never verified the address: the address becomes verified and
     // the account stops being one this can happen to again. True only for

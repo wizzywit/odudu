@@ -29,6 +29,7 @@ export const AUDIT_ACTIONS = {
     'account.registration_duplicate',
     'account.address_proved',
     'email.verified',
+    'email.changed',
     'password.reset',
     'password.changed',
     'otp.enrolled',
@@ -152,7 +153,7 @@ type SessionInput =
   | (EventCommon & {
       readonly eventType: 'session';
       readonly action: 'session.ended';
-      readonly detail?: WithReason<{ via: 'logout' | 'admin' | 'evicted' }>;
+      readonly detail?: WithReason<{ via: 'logout' | 'admin' | 'self' | 'evicted' }>;
     });
 
 type TokenInput =
@@ -196,6 +197,7 @@ type CredentialInput = EventCommon & {
     | 'account.registration_duplicate'
     | 'account.address_proved'
     | 'email.verified'
+    | 'email.changed'
     | 'password.reset'
     | 'password.changed'
     | 'otp.enrolled'
@@ -263,7 +265,8 @@ function isValidDetailValue(key: string, value: unknown): boolean {
   if (key === 'tool') return typeof value === 'string' && TOOL_NAME.test(value);
   if (key === 'route') return typeof value === 'string' && ROUTE_KEY.test(value);
   if (key === 'mode') return value === 'delegation' || value === 'impersonation';
-  if (key === 'via') return value === 'logout' || value === 'admin' || value === 'evicted';
+  if (key === 'via')
+    return value === 'logout' || value === 'admin' || value === 'self' || value === 'evicted';
   if (key === 'also_admits') {
     return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }

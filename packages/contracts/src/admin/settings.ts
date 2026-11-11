@@ -22,7 +22,7 @@ export interface TenantSettingRange {
 }
 
 // The ranges the CHECK constraints on `tenants` hold each integer setting
-// to (migrations 0028, 0035, 0041, 0045, 0048, 0049, 0068 and 0082), here so
+// to (migrations 0028, 0035, 0041, 0045, 0048, 0049, 0068, 0082 and 0126), here so
 // the console words the same limits the server enforces;
 // tests/tenant-setting-checks.int.test.ts in @odudu/domain-tenant holds the
 // two in agreement.
@@ -47,6 +47,7 @@ export const TENANT_SETTING_RANGES: Readonly<Partial<Record<string, TenantSettin
   login_ttl_seconds: { min: 60, max: 86_400 },
   verify_email_ttl_seconds: { min: 60, max: 604_800 },
   reset_password_ttl_seconds: { min: 60, max: 86_400 },
+  session_freshness_seconds: { min: 30, max: 3600 },
 };
 
 /** Pairs `[lower, upper]` a CHECK holds `lower <= upper`. */

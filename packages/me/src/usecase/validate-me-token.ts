@@ -4,7 +4,7 @@ import {
   unverifiedIssuer,
   type AcceptedIssuersLookup,
 } from '@odudu/protocol-oidc';
-import { audienceIsOnly, meTokenClaims, type MeTokenClaims } from '#/service/me-token';
+import { audienceIsMeOrIssuer, meTokenClaims, type MeTokenClaims } from '#/service/me-token';
 
 export interface ValidateMeTokenDeps {
   // The issuers a token for this tenant may carry: its canonical address and
@@ -58,7 +58,7 @@ export async function validateMeToken(
     audience,
   });
   if (payload === null) return refused('invalid_token');
-  if (!audienceIsOnly(payload.aud, audience, iss)) return refused('invalid_token');
+  if (!audienceIsMeOrIssuer(payload.aud, audience, iss)) return refused('invalid_token');
 
   const claims = meTokenClaims(payload);
   if (claims === null) return refused('invalid_token');

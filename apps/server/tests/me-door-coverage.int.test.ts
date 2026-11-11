@@ -1,3 +1,4 @@
+import { SessionEntry, sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, withTenant } from '@odudu/db';
 import type { DatabaseHandle } from '@odudu/db';
@@ -68,9 +69,10 @@ const tableOf = (door: string) =>
   );
 
 async function tokenFor(
-  audience: (issuer: string) => string,
+  audience: (issuer: string) => string | string[],
   scope: string,
   tenant: { name: string; id: string; subjectId: string },
+  sid?: string,
 ) {
   const issuer = `${BASE}/tenants/${tenant.name}`;
   const key = await withTenant(appDb.db, tenant.id, (tx) => signingKeyRepository(tx).active());
@@ -79,14 +81,32 @@ async function tokenFor(
     {
       iss: issuer,
       sub: tenant.subjectId,
-      aud: [audience(issuer)],
+      aud: [audience(issuer)].flat(),
       client_id: 'portal',
+      ...(sid === undefined ? {} : { sid }),
       scope,
       iat,
       exp: iat + 600,
     },
     { key, kek: KEK, typ: 'at+jwt' },
   );
+}
+
+// A live session of the tenant's person, for a token that names it: the gated
+// routes read it.
+async function openSession(t: { id: string; subjectId: string }): Promise<string> {
+  const entry = SessionEntry.issue(newId());
+  await withTenant(appDb.db, t.id, (tx) =>
+    sessionRepository(tx).create({
+      id: entry.id,
+      tenantId: t.id,
+      subjectId: t.subjectId,
+      expiresAt: new Date(Date.now() + 3_600_000),
+      authenticators: ['pwd'],
+      secretHash: entry.secretHash(),
+    }),
+  );
+  return entry.id;
 }
 
 async function tenant() {
@@ -103,19 +123,25 @@ async function tenant() {
 }
 
 function send(route: { method: string; url: string }, name: string, token: string) {
-  const method = route.method as 'GET' | 'HEAD' | 'POST' | 'DELETE';
+  const method = route.method as 'GET' | 'HEAD' | 'POST' | 'PATCH' | 'DELETE';
+  const hasBody = method === 'POST' || method === 'PATCH';
+  const url = route.url
+    .replace(':tenant', name)
+    .replace(':client_id', 'portal')
+    .replace(':id', newId());
   return app.inject({
     method,
-    url: route.url.replace(':tenant', name),
+    url,
     headers: {
       host: HOST,
       authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
       accept: 'application/json, text/event-stream',
+      ...(hasBody ? { 'content-type': 'application/json' } : {}),
     },
     ...(method === 'POST'
       ? { payload: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }) }
       : {}),
+    ...(method === 'PATCH' ? { payload: '{}' } : {}),
   });
 }
 
@@ -143,6 +169,26 @@ describe('each door refuses the other’s token', () => {
     }
   });
 
+  it('refuses a token naming the me URL and the issuer at every MCP route and the admin API', async () => {
+    const t = await tenant();
+    const token = await tokenFor(
+      (issuer) => [meAudienceOfIssuer(issuer), issuer],
+      'openid me:read me:write',
+      t,
+    );
+    for (const route of tableOf('mcp')) {
+      const res = await send(route, t.name, token);
+      const expected = route.method === 'POST' ? 401 : 405;
+      expect(res.statusCode, `${route.method} ${route.url}`).toBe(expected);
+    }
+    const admin = await send(
+      { method: 'GET', url: '/admin/tenants/:tenant/whoami' },
+      t.name,
+      token,
+    );
+    expect(admin.statusCode).toBe(401);
+  });
+
   it('refuses an MCP token at every "me" route', async () => {
     const t = await tenant();
     const token = await tokenFor(mcpAudienceOfIssuer, 'openid mcp:read mcp:write', t);
@@ -154,11 +200,20 @@ describe('each door refuses the other’s token', () => {
 
   it('opens each door to its own token, so a refusal above is the audience’s', async () => {
     const t = await tenant();
-    const me = await tokenFor(meAudienceOfIssuer, 'openid me:read', t);
-    const own = tableOf('me')[0];
+    const me = await tokenFor(
+      meAudienceOfIssuer,
+      'openid me:read me:write',
+      t,
+      await openSession(t),
+    );
+    const own = tableOf('me').find((r) => r.method === 'GET');
     const mcpPost = tableOf('mcp').find((r) => r.method === 'POST');
     if (own === undefined || mcpPost === undefined) throw new Error('a table is empty');
     expect((await send(own, t.name, me)).statusCode).toBe(200);
+    for (const route of tableOf('me').filter((r) => r.method !== 'GET' && r.method !== 'HEAD')) {
+      const res = await send(route, t.name, me);
+      expect(res.statusCode, `${route.method} ${route.url}`).not.toBe(401);
+    }
 
     const w = await mcpWorld(appDb, BASE, ['view-users'], 'openid mcp:read');
     const key = await withTenant(appDb.db, w.tenantId, (tx) => signingKeyRepository(tx).active());

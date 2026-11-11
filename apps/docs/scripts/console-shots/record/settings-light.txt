@@ -84,6 +84,10 @@ Time to finish a sign-in
 s
 1800 s · 30 minutes
 A sign-in left unfinished this long has to be started again. Between 60 s · 1 minute and 86400 s · 1 day.
+Recent sign-in window
+s
+300 s · 5 minutes
+A person must have signed in this recently to change their address or username, end all their other sessions, withdraw a consent or remove an authenticator. Between 30 s and 3600 s · 1 hour.
 Remember me
 A longer session for a person who asks to stay signed in.
 Offer remember me

@@ -994,6 +994,8 @@ describeFields(tenantSettingsDocumentSchema, {
   login_ttl_seconds: 'How long a started sign-in may take to finish.',
   verify_email_ttl_seconds: 'How long a mailed email-verification link works.',
   reset_password_ttl_seconds: 'How long a mailed password-reset link works.',
+  session_freshness_seconds:
+    'How recent a sign-in must be, in seconds, for the "me" API to accept removing a credential, ending other sessions in bulk, revoking a consent or changing a username.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',

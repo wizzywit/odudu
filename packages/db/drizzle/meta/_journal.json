@@ -883,6 +883,20 @@
       "when": 1790802883737,
       "tag": "0125_me_scopes",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1790802983737,
+      "tag": "0126_session_freshness",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1790889383737,
+      "tag": "0127_pending_email_changes",
+      "breakpoints": true
     }
   ]
 }

@@ -60,6 +60,26 @@ stack, from `019dd64be`, refused every token a real sign-in issues, because the 
 from the build that fixed it. `a refusal for a token holding me:write alone` is not on the page, because no sign-in can produce one;
 the integration test of the door runs it. The stack and its image were removed afterwards.
 
+The me API's changes page, `the-me-api-changes.md`, and the pages the writes made stale were captured on 2026-11-11 on one freshly
+built compose project, `odudu-p4f-i25` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit
+`e34a77bd9` with nothing uncommitted. The changes page ran on that stack with one file added, shown on the page, that gives the
+server a relay (`mailpit`, port `8092`) and turns its own outbox sender off, so `odudu send-mail` is what sends and reports; the
+stack had served the other pages first, and the page's tenant `me-edit` is made by the page, its mail catcher emptied before it
+began. Its blocks are one script run in one shell, each block's output written to the page as it came back (carriage returns and
+trailing spaces removed), after a first pass that found and corrected the mailed link's trailing carriage return and added the
+agent section; the page is from the last full pass, which includes the two 35-second waits that age a sign-in past the 30-second
+window and the hundred sign-ins that fill the session limit. The administrator's token was got again when it had run for
+150 seconds, as the page's own sign-ins were: that is the only thing the script does that a reader does not see. A removal refused
+`last_sign_in_method` is not on the page, because a passkey is registered by a browser; `apps/server/tests/me-credential-removal.int.test.ts`
+runs it. The agent section's token came from the same exchange as [Path D](../reference/transcripts/request-paths/path-d-token-exchange.md), with `lin` as the actor.
+
+On the same stack and day, `the-me-api.md` was replayed whole (the only difference from its earlier capture is the `400` of
+`profile?subject=`, which was a `200` before the profile refused a query member), the three blocks of
+`get-settings-and-patch-settings.md` that show the settings were replayed with the rest of that page (the tenant document gained
+`session_freshness_seconds`, so each is 32 bytes longer and the list of names the unknown-setting refusal prints has one more), the
+first export block of `get-export.md` was run on a tenant `export-demo` made as the page makes it (10,629 to 10,661 bytes), and
+`GET /admin/openapi.json` was fetched again (807,100 to 807,428 bytes). The stack and its image were removed afterwards. The block of `the-me-api-changes.md` that uses a token whose session ended was run once more, after every change began to need a live session, on a stack built from `84e1fb63c` (project `odudu-p4f-i25`, the same mail file), by replaying the page as far as that block; the block's output is that run's and the blocks around it are the earlier pass's.
+
 The discovery document and authorization server metadata began to list `me:read` and `me:write` on 2026-11-11, and every tenant now
 starts with twelve scopes. On the compose project `odudu-p4f-i15` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`,
 built from the branch commit `019dd64be`), a freshly built stack with `demo`, `demo-spa` and `ada` seeded as Bootstrap seeds them, the

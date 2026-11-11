@@ -92,6 +92,9 @@ export const tenants = pgTable('tenants', {
   loginTtlSeconds: integer('login_ttl_seconds').notNull().default(1800),
   verifyEmailTtlSeconds: integer('verify_email_ttl_seconds').notNull().default(43_200),
   resetPasswordTtlSeconds: integer('reset_password_ttl_seconds').notNull().default(300),
+  // How recent a sign-in must be for the "me" API to accept a sensitive change
+  // (packages/db/drizzle/0126_session_freshness.sql).
+  sessionFreshnessSeconds: integer('session_freshness_seconds').notNull().default(300),
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),

@@ -1287,9 +1287,11 @@ export { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';
 export {
   endAllAccess,
   endSession,
+  endSessions,
   type EndAllAccessInput,
   type EndSessionDeps,
   type EndSessionInput,
+  type EndSessionsInput,
 } from '#/usecase/end-session';
 export {
   auditRefusalBudgetKey,

@@ -380,6 +380,7 @@ describe('the door', () => {
     const w = await world();
     const token = await sign(w);
     expect((await get(w, `sessions?subject=${w.otherSubjectId}`, token)).statusCode).toBe(400);
+    expect((await get(w, `profile?subject=${w.otherSubjectId}`, token)).statusCode).toBe(400);
     expect((await get(w, `${w.otherSubjectId}/profile`, token)).statusCode).toBe(404);
   });
 });

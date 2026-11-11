@@ -53,4 +53,11 @@ describe('the per-address mail bound', () => {
     allow('registration', 't1', 'c@example.test');
     expect(allow('registration', 't1', 'a@example.test')).toBe(true);
   });
+
+  it('keeps a proof of a changed address apart from a registration to the same address', () => {
+    const allow = gate();
+    for (let i = 0; i < MAIL_LIMIT; i += 1) allow('change', 't1', 'ada@example.test');
+    expect(allow('change', 't1', 'ada@example.test')).toBe(false);
+    expect(allow('registration', 't1', 'ada@example.test')).toBe(true);
+  });
 });

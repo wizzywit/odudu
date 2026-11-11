@@ -8,6 +8,7 @@ import {
   hashPassword,
   lockEmailForCreation,
   loginFailureRepository,
+  pendingEmailRepository,
   subjectRepository,
   userRepository,
 } from '@odudu/domain-identity';
@@ -829,6 +830,25 @@ describe('PATCH /admin/tenants/{t}/subjects/{id}', () => {
     const body = res.json<{ email: string | null; enabled: boolean }>();
     expect(body.email).toBe('ada@example.com');
     expect(body.enabled).toBe(false);
+  });
+
+  it('forgets an address the person asked to change to, so its mailed link cannot complete', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await seedUser(t.id, `pend-${newId()}`, 'ada@example.com');
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      pendingEmailRepository(tx).set(t.id, id, 'stale@example.com'),
+    );
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/subjects/${id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { email: 'corrected@example.com' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(
+      await withTenant(fixture.app.db, t.id, (tx) => pendingEmailRepository(tx).forSubject(id)),
+    ).toBeNull();
   });
 
   // Regression for a partial write: `enabled` used to be written before

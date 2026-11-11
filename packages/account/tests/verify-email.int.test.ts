@@ -16,6 +16,7 @@ import {
 } from '@odudu/email';
 import { newId, type TenantAddress } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { auditRepository } from '@odudu/domain-audit';
 import { tenantDomainRepository } from '@odudu/domain-tenant';
 import { eq, sql } from 'drizzle-orm';
 import formbody from '@fastify/formbody';
@@ -25,7 +26,11 @@ import { accountTestDeps } from '#/testing/support';
 import { openAndPress } from '#/testing/support';
 import { actionTokens } from '#/schema/action-tokens';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
-import { sendVerificationEmail, type SendVerificationEmailDeps } from '#/usecase/verify-email';
+import {
+  sendVerificationEmail,
+  type ChangeAddressDeps,
+  type SendVerificationEmailDeps,
+} from '#/usecase/verify-email';
 import { registerActionTokenRoute } from '#/view/routes/action-token';
 
 let containerHandle: TestDatabase | undefined;
@@ -66,8 +71,28 @@ interface FakeUser {
 
 function fakeUserStore() {
   const users = new Map<string, FakeUser>();
+  // The one pending address each subject may have, as the table keeps it.
+  const pending = new Map<string, string>();
+  const changeAddress: ChangeAddressDeps = {
+    lockAddress: () => Promise.resolve(),
+    takePending: (_tx, subjectId, email) => {
+      const taken = pending.get(subjectId) === email;
+      if (taken) pending.delete(subjectId);
+      return Promise.resolve(taken);
+    },
+    holderOf: (_tx, email) => {
+      const held = [...users].find(([, user]) => user.email === email);
+      return Promise.resolve(held?.[0] ?? null);
+    },
+    replaceVerified: (_tx, subjectId, email) => {
+      users.set(subjectId, { email, verified: true });
+      return Promise.resolve();
+    },
+  };
   return {
     users,
+    pending,
+    changeAddress,
     getCurrentEmail: (_tx: TenantScopedDatabase, subjectId: string) =>
       Promise.resolve(users.get(subjectId)?.email ?? null),
     markVerified: (_tx: TenantScopedDatabase, subjectId: string) => {
@@ -165,6 +190,7 @@ async function buildHttpApp(): Promise<FastifyInstance> {
     findTenant: (name) => tenantSettingsRepository(owner.db).byName(name),
     getCurrentEmail: store.getCurrentEmail,
     markVerified: store.markVerified,
+    changeAddress: store.changeAddress,
     setPassword: store.setPassword,
     getUsername: store.getUsername,
     // Unused by any test in this file, for the same reason setPassword is.
@@ -445,5 +471,71 @@ describe('address verification', () => {
       url: `/tenants/${tenantName}/login-actions/action-token`,
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('an address change', () => {
+  const NEW = 'ada.new@example.test';
+
+  async function mailedLink(email: string): Promise<string> {
+    await sendVerificationEmail(deps, { subjectId: subject, email });
+    await drainOutbox();
+    const message = sender.sent.at(-1);
+    if (message === undefined) throw new Error('no mail sent');
+    return extractLink(message);
+  }
+
+  const auditActions = () =>
+    withTenant(app.db, tenantId, async (tx) =>
+      (await auditRepository(tx).list({ limit: 50 })).map((row) => row.action),
+    );
+
+  it('swaps the address in, verified, when the link for the pending address is used', async () => {
+    store.pending.set(subject, NEW);
+    const link = await mailedLink(NEW);
+
+    expect(store.users.get(subject)).toEqual({ email: 'ada@example.test', verified: false });
+    expect((await pressLink(link)).statusCode).toBe(200);
+
+    expect(store.users.get(subject)).toEqual({ email: NEW, verified: true });
+    expect(store.pending.has(subject)).toBe(false);
+    expect(await auditActions()).toContain('email.changed');
+    expect((await pressLink(link)).statusCode).toBe(400);
+  });
+
+  it('refuses a link whose pending address was replaced since it was mailed', async () => {
+    store.pending.set(subject, NEW);
+    const old = await mailedLink(NEW);
+    store.pending.set(subject, 'ada.other@example.test');
+
+    expect((await pressLink(old)).statusCode).toBe(400);
+    expect(store.users.get(subject)?.email).toBe('ada@example.test');
+    expect(store.pending.get(subject)).toBe('ada.other@example.test');
+  });
+
+  it('refuses a link whose pending address was cleared', async () => {
+    store.pending.set(subject, NEW);
+    const link = await mailedLink(NEW);
+    store.pending.delete(subject);
+
+    expect((await pressLink(link)).statusCode).toBe(400);
+    expect(store.users.get(subject)?.email).toBe('ada@example.test');
+  });
+
+  it('refuses the swap when another account has taken the address since', async () => {
+    store.pending.set(subject, NEW);
+    const link = await mailedLink(NEW);
+    store.users.set(newId(), { email: NEW, verified: true });
+
+    expect((await pressLink(link)).statusCode).toBe(400);
+    expect(store.users.get(subject)?.email).toBe('ada@example.test');
+    expect(await auditActions()).not.toContain('email.changed');
+  });
+
+  it('refuses a link for an address nothing is pending for', async () => {
+    const link = await mailedLink(NEW);
+
+    expect((await pressLink(link)).statusCode).toBe(400);
+    expect(store.users.get(subject)?.email).toBe('ada@example.test');
   });
 });

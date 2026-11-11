@@ -8,6 +8,9 @@ export { DEFAULT_LIMIT, MAX_LIMIT } from '#/admin/shared';
 export const meListQuerySchema = cursorQuerySchema.strict();
 export type MeListQuery = z.infer<typeof meListQuerySchema>;
 
+// The query of a read that takes none: any member is refused.
+export const meNoQuerySchema = z.object({}).strict();
+
 // A list is a page and the cursor of the next, or null where there is none.
 export function mePage<Item extends z.ZodType>(item: Item) {
   return z.object({ items: z.array(item), next_cursor: z.string().nullable() });

@@ -121,7 +121,13 @@ describe('assertDetailAllowed', () => {
     }).toThrow(/mode/);
   });
 
-  it('rejects a via outside logout|admin|evicted', () => {
+  it('accepts a session ended by the person through the me API', () => {
+    expect(() => {
+      assertDetailAllowed('session.ended', { via: 'self' });
+    }).not.toThrow();
+  });
+
+  it('rejects a via outside logout|admin|self|evicted', () => {
     expect(() => {
       assertDetailAllowed('session.ended', { via: 'timeout' });
     }).toThrow(/via/);
