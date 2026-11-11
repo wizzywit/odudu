@@ -158,6 +158,12 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'a step-up scope',
   ],
   ['P5b', 'The injection suite gains', 'a scenario in the injection suite for each class'],
+  [
+    'P5b',
+    'It also decides whether an agent may read',
+    'the "me" api\'s reads',
+    'application-initiated action',
+  ],
   ['P5b', 'A theme image', 'the theme image upload, and any other binary payload'],
   [
     'P5b',
