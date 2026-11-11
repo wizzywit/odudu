@@ -1,5 +1,6 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
+import { namesMeAudience } from '@odudu/kernel';
 import { ADMIN_API_AUDIENCE, holdsMcpScope, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import {
   extractBearerToken,
@@ -379,6 +380,7 @@ export async function authenticateAdmin(
   if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
     return unauthenticated('invalid_token');
   }
+  if (namesMeAudience(payload.aud, [iss])) return unauthenticated('invalid_token');
 
   const claims = readAgentClaims(payload);
   if (claims === undefined) return unauthenticated('invalid_token');

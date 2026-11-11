@@ -10,6 +10,7 @@ import {
   isDomainAddress,
   mcpAudienceOfIssuer,
   meAudienceOfIssuer,
+  namesMeAudience,
   pathAddress,
   routeAddress,
   tenantAddressOf,
@@ -151,5 +152,23 @@ describe('isDomainAddress', () => {
 
   it('is false for no address', () => {
     expect(isDomainAddress(undefined)).toBe(false);
+  });
+});
+
+describe('namesMeAudience', () => {
+  const issuer = 'https://a.test/t';
+  it.each([
+    ['a string audience', 'https://a.test/t/me', true],
+    ['an array holding it among others', [issuer, 'https://a.test/t/me'], true],
+    ['an array without it', [issuer, 'https://a.test/t/mcp'], false],
+    ['another tenant’s me audience', 'https://a.test/u/me', false],
+    ['a trailing slash', 'https://a.test/t/me/', false],
+    ['no audience', undefined, false],
+    ['a non-string member', [5, null], false],
+  ])('is decided for %s', (_l, aud, expected) => {
+    expect(namesMeAudience(aud, [issuer])).toBe(expected);
+  });
+  it('checks every issuer a tenant accepts', () => {
+    expect(namesMeAudience(['https://old.test/me'], [issuer, 'https://old.test'])).toBe(true);
   });
 });

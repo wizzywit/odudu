@@ -42,6 +42,14 @@ export function meAudienceOfIssuer(issuer: string): string {
   return `${issuer}${ME_RESOURCE_PATH}`;
 }
 
+// Whether a token's `aud` claim names the "me" audience of any of `issuers`.
+// A token carries that audience alone; a door that is not the "me" API refuses
+// one that names it beside another.
+export function namesMeAudience(aud: unknown, issuers: readonly string[]): boolean {
+  const named = typeof aud === 'string' ? [aud] : Array.isArray(aud) ? aud : [];
+  return issuers.some((issuer) => named.includes(meAudienceOfIssuer(issuer)));
+}
+
 export function addressUrl(a: TenantAddress, rest: string): string {
   return `${a.origin}${addressPath(a, rest)}`;
 }
