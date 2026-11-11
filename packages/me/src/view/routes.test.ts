@@ -603,12 +603,49 @@ describe('the freshness gate', () => {
     },
   );
 
-  it.each(UNGATED)('does not read the session for %s, however old it is', async (_l, m, p, b) => {
+  it.each(UNGATED)(
+    'reads the session once for %s and ignores how old it is',
+    async (_l, m, p, b) => {
+      const seen: string[] = [];
+      const res = await send(build({ signedInAt: STALE, seen }), m, p, b);
+      expect(res.statusCode).toBeLessThan(300);
+      expect(seen.filter((entry) => entry.startsWith('signedInAt'))).toEqual([
+        `signedInAt tenant-1 subject-1 ${ID}`,
+      ]);
+    },
+  );
+
+  it.each(UNGATED)(
+    'refuses %s with no challenge once the session has ended',
+    async (_l, m, p, b) => {
+      const seen: string[] = [];
+      const audits: MeAuditEvent[] = [];
+      const res = await send(build({ signedInAt: null, seen, audits }), m, p, b);
+      expect(res.statusCode).toBe(401);
+      expect(res.headers['www-authenticate']).toBe('Bearer error="invalid_token"');
+      expect(seen.filter((entry) => entry.startsWith('signedInAt'))).toHaveLength(1);
+      expect(seen.some((entry) => entry.startsWith('endSessions'))).toBe(false);
+      expect(audits).toEqual([]);
+    },
+  );
+
+  it.each(UNGATED)('refuses %s for a token with no session', async (_l, m, p, b) => {
     const seen: string[] = [];
-    const res = await send(build({ signedInAt: STALE, seen }), m, p, b);
-    expect(res.statusCode).toBeLessThan(300);
-    expect(seen.some((entry) => entry.startsWith('signedInAt'))).toBe(false);
+    const res = await send(build({ claims: { sid: undefined }, seen }), m, p, b);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toBe('Bearer error="invalid_token"');
+    expect(seen).toEqual([]);
   });
+
+  it.each(UNGATED)(
+    'still refuses an agent token before %s reads the session',
+    async (_l, m, p, b) => {
+      const seen: string[] = [];
+      const app = build({ claims: { act: { sub: 'agent-1', client_id: 'agent' } }, seen });
+      expect((await send(app, m, p, b)).statusCode).toBe(403);
+      expect(seen).toEqual([]);
+    },
+  );
 
   it.each(['profile', 'credentials', 'sessions', 'consents'])(
     'does not read the session to read %s',

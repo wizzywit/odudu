@@ -547,6 +547,61 @@ async function untouched(w: World): Promise<void> {
   }
 }
 
+describe('a token whose session has ended', () => {
+  async function endTokenSession(w: World): Promise<string> {
+    const token = await sign(w);
+    const own = w.sessionIds[0] ?? '';
+    await read(w, (tx) => sessionRepository(tx).endMany([own], new Date()));
+    return token;
+  }
+
+  const WRITES: readonly [string, Method, (w: World) => string, object | undefined][] = [
+    ['amending a claim', 'PATCH', () => 'profile', { name: 'Ada Lovelace' }],
+    ['renaming an authenticator', 'PATCH', (w) => `credentials/${w.totpId}`, { label: 'Phone' }],
+    ['ending a session', 'DELETE', (w) => `sessions/${w.sessionIds[1] ?? ''}`, undefined],
+    ['ending the others', 'DELETE', () => 'sessions', undefined],
+    ['withdrawing a consent', 'DELETE', () => 'consents/portal', undefined],
+  ];
+
+  it.each(WRITES)(
+    'refuses %s with no challenge, and reads still answer',
+    async (_l, m, path, b) => {
+      const w = await world();
+      const token = await endTokenSession(w);
+      const res = await call(w, m, path(w), token, b);
+      expect(res.statusCode).toBe(401);
+      expect(res.headers['www-authenticate']).toBe('Bearer error="invalid_token"');
+      expect(await sessionLive(w, w.sessionIds[1] ?? '')).toBe(true);
+      expect(await auditRows(w, 'session.end')).toEqual([]);
+      const profile = await app.inject({
+        method: 'GET',
+        url: `/tenants/${w.name}/me/profile`,
+        headers: { host: HOST, authorization: `Bearer ${token}` },
+      });
+      expect(profile.statusCode).toBe(200);
+    },
+  );
+
+  it('refuses the repeat of ending the token’s own session', async () => {
+    const w = await world();
+    const token = await sign(w);
+    const own = w.sessionIds[0] ?? '';
+    expect((await call(w, 'DELETE', `sessions/${own}`, token)).statusCode).toBe(200);
+    const again = await call(w, 'DELETE', `sessions/${own}`, token);
+    expect(again.statusCode).toBe(401);
+    expect(again.headers['www-authenticate']).toBe('Bearer error="invalid_token"');
+    expect(await auditRows(w, 'session.end')).toHaveLength(1);
+  });
+
+  it('refuses an ungated write from a token that names no session', async () => {
+    const w = await world();
+    const res = await call(w, 'PATCH', 'profile', await sign(w, { sid: undefined }), {
+      name: 'Ada Lovelace',
+    });
+    expect(res.statusCode).toBe(401);
+  });
+});
+
 describe('who may write', () => {
   it('refuses a token holding me:read alone, naming me:write', async () => {
     const w = await world();

@@ -1,8 +1,7 @@
-import { isUuid } from '@odudu/kernel';
 import type { MeReads } from '#/repository/reads';
 import type { MeSessionAuth } from '#/repository/gate';
 import { invalidToken } from '#/service/challenge';
-import { freshnessChallenge, isFresh } from '#/service/freshness';
+import { freshnessChallenge, isFresh, namesASession } from '#/service/freshness';
 import { HELD_LIMIT, holdsSecondFactor, SECOND_FACTOR_ACR } from '#/service/removal-rule';
 import type { MeCaller } from '#/usecase/admit-me';
 
@@ -28,7 +27,7 @@ export async function requireFreshSignIn(
   acrValues: string | null = null,
 ): Promise<FreshnessOutcome> {
   const gone: FreshnessOutcome = { kind: 'unauthenticated', challenge: invalidToken() };
-  if (caller.sessionId === null || !isUuid(caller.sessionId)) return gone;
+  if (!namesASession(caller.sessionId)) return gone;
   const now = deps.now();
   const signedInAt = await deps.sessionAuth.signedInAt(
     caller.tenantId,
@@ -40,6 +39,20 @@ export async function requireFreshSignIn(
   if (signedInAt === null) return gone;
   if (isFresh(signedInAt, now, caller.freshnessSeconds)) return { kind: 'fresh' };
   return { kind: 'stale', challenge: freshnessChallenge(caller.freshnessSeconds, acrValues) };
+}
+
+// Whether the session the token was issued for still stands: every change
+// needs one, however old its sign-in.
+export async function requireLiveSession(deps: MeGateDeps, caller: MeCaller): Promise<boolean> {
+  if (!namesASession(caller.sessionId)) return false;
+  const signedInAt = await deps.sessionAuth.signedInAt(
+    caller.tenantId,
+    caller.subjectId,
+    caller.sessionId,
+    caller.lifespans,
+    deps.now(),
+  );
+  return signedInAt !== null;
 }
 
 // The authentication class a removal asks the sign-in to have reached: a

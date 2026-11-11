@@ -1,3 +1,4 @@
+import { isUuid } from '@odudu/kernel';
 // Whether a sign-in made at `authTime` is recent enough: a sign-in exactly
 // `windowSeconds` old still counts.
 export function isFresh(authTime: Date, now: Date, windowSeconds: number): boolean {
@@ -12,4 +13,10 @@ export function freshnessChallenge(windowSeconds: number, acrValues: string | nu
     'Bearer error="insufficient_user_authentication", ' +
     `error_description="A recent sign-in is required", max_age="${String(windowSeconds)}"`;
   return acrValues === null ? base : `${base}, acr_values="${acrValues}"`;
+}
+
+// A change is made on behalf of a session, so a token that names none, or one
+// that is not a session id, cannot make it.
+export function namesASession(sessionId: string | null): sessionId is string {
+  return sessionId !== null && isUuid(sessionId);
 }

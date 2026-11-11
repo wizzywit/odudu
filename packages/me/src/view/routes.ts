@@ -32,8 +32,14 @@ import {
   type MeAdmission,
   type MeCaller,
 } from '#/usecase/admit-me';
+import { invalidToken } from '#/service/challenge';
 import { emailRequestOf, type EmailRoute } from '#/service/email-change';
-import { acrForRemoval, requireFreshSignIn, type MeGateDeps } from '#/usecase/freshness-gate';
+import {
+  acrForRemoval,
+  requireFreshSignIn,
+  requireLiveSession,
+  type MeGateDeps,
+} from '#/usecase/freshness-gate';
 import {
   listConsents,
   listCredentials,
@@ -125,6 +131,19 @@ async function signInIsFresh(
   return false;
 }
 
+// Whether the session behind the token still stands, for a change that needs
+// no recent sign-in; when it does not, the refusal has been sent.
+async function sessionIsLive(
+  deps: MeDeps,
+  caller: MeCaller,
+  reply: FastifyReply,
+): Promise<boolean> {
+  if (await requireLiveSession(deps, caller)) return true;
+  reply.header('www-authenticate', invalidToken());
+  respond(reply, 401);
+  return false;
+}
+
 type Read<Ok> = (
   deps: MeReadDeps,
   caller: MeCaller,
@@ -182,7 +201,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
     if (body.data.username !== undefined) {
       if (!caller.usernameEditable) return respond(reply, 400, usernameNotEditable());
       if (!(await signInIsFresh(deps, caller, reply))) return reply;
-    }
+    } else if (!(await sessionIsLive(deps, caller, reply))) return reply;
     const outcome = await amendProfile(deps, caller, body.data);
     if (outcome.kind === 'not_found') {
       return respond(reply, 404, notFound('There is no profile for this account'));
@@ -209,6 +228,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
     async (request, reply) => {
       const caller = await admitWrite(deps, request, reply);
       if (caller === undefined) return reply;
+      if (!(await sessionIsLive(deps, caller, reply))) return reply;
       const outcome = await endSession(deps, caller, request.params.id);
       if (outcome.kind === 'not_found') return respond(reply, 404, notFound('No such session'));
       return respond(reply, 200, sessionEndedDto(outcome.currentSessionEnded));
@@ -232,6 +252,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
     async (request, reply) => {
       const caller = await admitWrite(deps, request, reply);
       if (caller === undefined) return reply;
+      if (!(await sessionIsLive(deps, caller, reply))) return reply;
       const body = meRenameCredentialRequestSchema.safeParse(request.body);
       if (!body.success) return respond(reply, 400, invalidBody(body.error.issues));
       const outcome = await renameCredential(deps, caller, request.params.id, body.data.label);

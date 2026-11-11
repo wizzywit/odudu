@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MeSessionAuth } from '#/repository/gate';
 import type { MeCaller } from '#/usecase/admit-me';
-import { requireFreshSignIn } from '#/usecase/freshness-gate';
+import { requireFreshSignIn, requireLiveSession } from '#/usecase/freshness-gate';
 
 const SESSION = '01a0a992-4657-7d89-8fbf-3385f54810d1';
 const NOW = new Date('2026-11-11T10:00:00.000Z');
@@ -96,5 +96,26 @@ describe('requireFreshSignIn', () => {
     const world = counting(ago(10));
     await gate(world, CALLER);
     expect(world.reads).toEqual([`tenant-1 subject-1 ${SESSION}`]);
+  });
+});
+
+describe('requireLiveSession', () => {
+  const live = (world: ReturnType<typeof counting>, caller: MeCaller = CALLER) =>
+    requireLiveSession({ sessionAuth: world.sessionAuth, now: () => NOW }, caller);
+
+  it('accepts a session that is live however old its sign-in is, after one read', async () => {
+    const world = counting(ago(100_000));
+    expect(await live(world)).toBe(true);
+    expect(world.reads).toEqual([`tenant-1 subject-1 ${SESSION}`]);
+  });
+
+  it('refuses a session that is gone', async () => {
+    expect(await live(counting(null))).toBe(false);
+  });
+
+  it.each([[null], ['not-a-uuid']])('refuses the session id %j without a read', async (id) => {
+    const world = counting(ago(1));
+    expect(await live(world, { ...CALLER, sessionId: id })).toBe(false);
+    expect(world.reads).toEqual([]);
   });
 });
