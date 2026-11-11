@@ -340,3 +340,55 @@ Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a1872c-bae3-78a2-955c-9bc78dcc4732"}
 ```
+
+## `me:read` while a client may start an action
+
+A built-in scope is deleted only when the request names it again with `?confirm=`, and `me:read` is held back further: it is refused
+with `409` and the code `allowed_actions_need_me_read` while any client that holds it may start an action through `/authorize`
+(`allowed_actions`). The refusal says to clear that client's actions first, and once they are cleared the same request goes through
+(the `204` carries no body). In a tenant `scope-actions-docs`, one client holds `me:read` and may start `configure-totp`:
+
+```bash
+A="Authorization: Bearer $ADMIN_TOKEN"; J='Content-Type: application/json'
+curl -sS -X POST -H "$A" -H "$J" -d '{"name":"scope-actions-docs"}' http://localhost:3000/admin/tenants -o /dev/null
+P=http://localhost:3000/admin/tenants/scope-actions-docs
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"profile-app","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none"}' \
+  $P/clients -o /dev/null
+CID=$(curl -sS -H "$A" "$P/clients?client_id_exact=profile-app" | jq -r '.items[0].id')
+ME_READ=$(curl -sS -H "$A" "$P/scopes?name=me:read" | jq -r '.items[0].id')
+curl -sS -X PUT -H "$A" -H "$J" -d '{"assignment":"optional"}' $P/scopes/$ME_READ/clients/$CID -o /dev/null
+etag() { curl -sS -D - -o /dev/null -H "$A" $P/clients/$CID | tr -d '\r' | sed -n 's/^etag: //p'; }
+curl -sS -X PATCH -H "$A" -H "$J" -H "If-Match: $(etag)" -d '{"allowed_actions":["configure-totp"]}' $P/clients/$CID | jq -c '{allowed_actions}'
+curl -sS -D - -X DELETE -H "$A" "$P/scopes/$ME_READ?confirm=me:read"
+```
+
+```
+{"allowed_actions":["configure-totp"]}
+HTTP/1.1 409 Conflict
+x-request-id: 01a1cc87-52b6-7472-b943-72969d7b7dda
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 501
+Date: Wed, 11 Nov 2026 21:33:03 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the scope me:read stays while a client may start an action, since that client reads the outcome through it: clear the client's allowed_actions first","errors":[{"path":"allowed_actions","message":"the scope me:read stays while a client may start an action, since that client reads the outcome through it: clear the client's allowed_actions first","code":"allowed_actions_need_me_read"}],"instance":"01a1cc87-52b6-7472-b943-72969d7b7dda"}
+```
+
+```bash
+curl -sS -X PATCH -H "$A" -H "$J" -H "If-Match: $(etag)" -d '{"allowed_actions":[]}' $P/clients/$CID | jq -c '{allowed_actions}'
+curl -sS -D - -X DELETE -H "$A" "$P/scopes/$ME_READ?confirm=me:read"
+```
+
+```
+{"allowed_actions":[]}
+HTTP/1.1 204 No Content
+x-request-id: 01a1cc87-52fd-7bb2-be54-37b86b67500d
+cache-control: no-store
+Date: Wed, 11 Nov 2026 21:33:03 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+```
