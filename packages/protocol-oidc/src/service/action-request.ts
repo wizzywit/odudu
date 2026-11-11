@@ -65,6 +65,15 @@ export function requestedActionOf(pending: ParkedAction): RequiredAction | null 
   return pending.action !== undefined && pending.actionStatus === undefined ? pending.action : null;
 }
 
+// The action whose page may be left: asked for by the application and not
+// also owed by the tenant, which cannot be cancelled away.
+export function requestedVariant(
+  requested: RequiredAction | null,
+  tenantOwes: readonly RequiredAction[],
+): RequiredAction | null {
+  return requested !== null && !tenantOwes.includes(requested) ? requested : null;
+}
+
 // What the person owes before the code is issued: the tenant's own required
 // actions, and the one the application asked for while it is still to be shown.
 export function owedWithRequested(

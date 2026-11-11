@@ -616,7 +616,8 @@ describe('recovery codes requested by an application', () => {
     });
     expect(shown.statusCode).toBe(200);
     expect(shown.body).toContain('<ol>');
-    expect(shown.body).toContain('name="cancel"');
+    // The set is already replaced, so nothing on this page may record a cancel.
+    expect(shown.body).not.toContain('name="cancel"');
     const after = await recoveryRows(w);
     expect(after).not.toEqual(before);
     expect(await issuedRows(w)).toBe(issuedBefore + 1);
@@ -637,6 +638,7 @@ describe('recovery codes requested by an application', () => {
                        and type = 'recovery-code'`;
     const page = await authorize(w, { action: 'generate-recovery-codes' }, cookie);
     expect(page.body).toContain('<ol>');
+    expect(page.body).not.toContain('name="cancel"');
     expect((await recoveryRows(w)).length).toBeGreaterThan(0);
   });
 });

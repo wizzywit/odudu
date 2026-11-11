@@ -11,6 +11,7 @@ import {
 import { requestContextFrom, type RequestContext } from '@odudu/domain-audit';
 import { type PasswordRules, type RenderedPage, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
+import { requestedVariant } from '#/service/action-request';
 import { sendHtml } from '#/view/html-response';
 import { actionPages } from '#/view/routes/action-pages';
 import { sendActionUnavailable, sendSignInExpired } from '#/view/routes/expired-sign-in';
@@ -85,11 +86,10 @@ export async function sendRequiredActionPage(
   );
   // The page of an action an application sent the person to may be left; the
   // page of one the tenant owes may not.
-  const isAsked = requestedAction === action;
-  const asked = isAsked ? await deps.findTenant(tenantName) : null;
+  const asked = requestedAction === action ? await deps.findTenant(tenantName) : null;
   const owedByTenant = asked === null ? [] : await deps.pendingActions(asked.id, subjectId);
   const variant: ActionPageVariant | undefined =
-    isAsked && !owedByTenant.includes(action) ? 'requested' : undefined;
+    requestedVariant(requestedAction, owedByTenant) === action ? 'requested' : undefined;
   const pages = actionPages(variant);
   const record = (step: RecordActionStep['step']) =>
     asked === null
@@ -151,7 +151,7 @@ export async function sendRequiredActionPage(
         );
       }
       return send(
-        pages.recoveryCodes(
+        actionPages(undefined).recoveryCodes(
           tenantName,
           tenantAddressOf(reply.request),
           authSessionId,

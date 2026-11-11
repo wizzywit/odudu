@@ -11,6 +11,7 @@ import {
   handleRequiredActionSubmission,
   type RequiredActionSubmissionDeps,
 } from '#/usecase/required-action-submission';
+import { requestedVariant } from '#/service/action-request';
 import { actionPages } from '#/view/routes/action-pages';
 import { sendActionUnavailable, sendSignInExpired } from '#/view/routes/expired-sign-in';
 import { sendHtml } from '#/view/html-response';
@@ -43,7 +44,7 @@ async function variantFor(
   if (requestedAction !== action) return undefined;
   const subjectId = await deps.authenticatedSubject(tenantId, authSessionId);
   const owed = subjectId === null ? [] : await deps.pendingActions(tenantId, subjectId);
-  return owed.includes(action) ? undefined : 'requested';
+  return requestedVariant(requestedAction, owed) === action ? 'requested' : undefined;
 }
 
 // The password in force, as typed to prove it. One too long to be hashed is a
@@ -215,7 +216,7 @@ export function registerRequiredActionRoute(
         reply,
         200,
         shown.continuing(
-          actionPages('requested').recoveryCodes(
+          actionPages(undefined).recoveryCodes(
             tenantName,
             tenantAddressOf(request),
             outcome.authSessionId,
@@ -276,7 +277,7 @@ export function registerRequiredActionRoute(
         reply,
         200,
         continuing(
-          pages.recoveryCodes(
+          actionPages(undefined).recoveryCodes(
             tenantName,
             tenantAddressOf(request),
             outcome.authSessionId,

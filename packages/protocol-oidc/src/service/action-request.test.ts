@@ -6,6 +6,7 @@ import {
   owedWithRequested,
   parseAction,
   requestedActionOf,
+  requestedVariant,
 } from '#/service/action-request';
 
 describe('parseAction', () => {
@@ -130,5 +131,21 @@ describe('actionRefusal', () => {
     };
     expect(actionRefusal(passkey)).toBeNull();
     expect(actionRefusal({ ...passkey, passkeyAvailable: false })).not.toBeNull();
+  });
+});
+
+describe('requestedVariant', () => {
+  it('names the action when an application asked and the tenant does not owe it', () => {
+    expect(requestedVariant('configure-totp', [])).toBe('configure-totp');
+    expect(requestedVariant('configure-totp', ['update-password'])).toBe('configure-totp');
+  });
+
+  it('names nothing when the tenant owes the same action', () => {
+    expect(requestedVariant('update-password', ['update-password'])).toBeNull();
+  });
+
+  it('names nothing when no action was asked for', () => {
+    expect(requestedVariant(null, [])).toBeNull();
+    expect(requestedVariant(null, ['configure-totp'])).toBeNull();
   });
 });
