@@ -7,10 +7,10 @@ export interface Page {
   readonly limit: number;
 }
 
-// Every read of the "me" API, by the subject the token names and nobody else.
-// Each takes the tenant it runs in and returns only that tenant's rows, and
-// each page is read in id order (consents, by client_id) one list per
-// call, so a request makes a constant number of queries.
+// Every read of the "me" API, for the subject the token names and nobody else.
+// Each takes the tenant it runs in and returns only that tenant's rows. A page
+// is one list read in id order (consents, by client_id), so a request makes a
+// constant number of queries.
 export interface MeReads {
   profile(tenantId: string, subjectId: string): Promise<UserRecord | null>;
   credentials(

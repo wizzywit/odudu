@@ -3,7 +3,7 @@ import type { SubjectConsent } from '@odudu/domain-tenant';
 import type { MeReads } from '#/repository/reads';
 import { credentialViews, type CredentialView } from '#/service/credential-view';
 import { nextCursor, startAfter } from '#/service/cursor';
-import { pageLimit, splitPage } from '#/service/page';
+import { fetchLimit, pageLimit, splitPage } from '#/service/page';
 import { sessionView, type SessionView } from '#/service/session-view';
 import type { MeCaller } from '#/usecase/admit-me-read';
 
@@ -50,7 +50,7 @@ export async function listCredentials(
   const limit = pageLimit(query.limit);
   const read = await deps.reads.credentials(caller.tenantId, caller.subjectId, {
     after: start.after,
-    limit: limit + 1,
+    limit: fetchLimit(limit),
   });
   const { items, hasMore } = splitPage(read.rows, limit);
   return {
@@ -74,7 +74,7 @@ export async function listSessions(
     caller.subjectId,
     caller.lifespans,
     deps.now(),
-    { after: start.after, limit: limit + 1 },
+    { after: start.after, limit: fetchLimit(limit) },
   );
   const { items, hasMore } = splitPage(rows, limit);
   return {
@@ -94,7 +94,7 @@ export async function listConsents(
   const limit = pageLimit(query.limit);
   const rows = await deps.reads.consents(caller.tenantId, caller.subjectId, {
     after: start.after,
-    limit: limit + 1,
+    limit: fetchLimit(limit),
   });
   const { items, hasMore } = splitPage(rows, limit);
   return { kind: 'ok', items, next: nextCursor('consents', hasMore, items.at(-1)?.clientKey) };

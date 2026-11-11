@@ -53,3 +53,12 @@ would claim a symmetry it does not have.
 to the routes that depend on it with no boundary between them, and every OIDC
 consumer would carry the self-service surface. Rejected: the layer that issues
 and checks tokens should not hold the surface it is checked against.
+
+## Amendment: no adapter layer in `me`
+
+The package has no `adapter` folder. The layering rules let a view and a
+usecase import neither an adapter nor `@odudu/db`, and `me` may not import
+`@odudu/db` at all, so a database adapter inside it could not be reached. The
+wire shapes are pure mappings in `service/wire.ts`. The reads are a port,
+`MeReads` in `repository/reads.ts`, implemented in `apps/server/src/me-deps.ts`,
+where the database is already in reach.

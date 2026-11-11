@@ -5,6 +5,11 @@ export function pageLimit(requested: number | undefined): number {
   return Math.min(requested ?? DEFAULT_LIMIT, MAX_LIMIT);
 }
 
+// The row count to ask the store for: one past the limit.
+export function fetchLimit(limit: number): number {
+  return limit + 1;
+}
+
 // A list is read one row past its limit; the extra row says whether a next
 // page exists and is not returned.
 export function splitPage<Row>(

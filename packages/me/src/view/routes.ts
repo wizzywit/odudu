@@ -25,7 +25,7 @@ export const ME_ROUTES = ['profile', 'credentials', 'sessions', 'consents'].map(
   url: `${BASE}/${name}`,
 }));
 
-function refuse(reply: FastifyReply, status: number, body?: object): FastifyReply {
+function respond(reply: FastifyReply, status: number, body?: object): FastifyReply {
   const sent = reply.code(status).header('cache-control', 'no-store');
   return body === undefined ? sent.send() : sent.send(body);
 }
@@ -43,13 +43,13 @@ async function admit(
     now: deps.now(),
   });
   if (admission.kind === 'admitted') return admission.caller;
-  if (admission.kind === 'not_found') refuse(reply, 404);
+  if (admission.kind === 'not_found') respond(reply, 404);
   else if (admission.kind === 'unauthenticated') {
     reply.header('www-authenticate', admission.challenge);
-    refuse(reply, 401);
+    respond(reply, 401);
   } else {
     reply.header('www-authenticate', admission.challenge);
-    refuse(reply, 403);
+    respond(reply, 403);
   }
   return undefined;
 }
@@ -71,12 +71,12 @@ function listRoute<Ok extends { readonly kind: 'ok' }>(
     const caller = await admit(deps, request, reply);
     if (caller === undefined) return reply;
     const query = meListQuerySchema.safeParse(request.query);
-    if (!query.success) return refuse(reply, 400, invalidRequest('The query is not valid'));
+    if (!query.success) return respond(reply, 400, invalidRequest('The query is not valid'));
     const outcome = await read(deps, caller, query.data);
     if (outcome.kind === 'invalid_cursor') {
-      return refuse(reply, 400, invalidRequest('The cursor is not valid'));
+      return respond(reply, 400, invalidRequest('The cursor is not valid'));
     }
-    return refuse(reply, 200, answer(outcome));
+    return respond(reply, 200, answer(outcome));
   });
 }
 
@@ -86,9 +86,9 @@ export function registerMeRoutes(app: FastifyInstance, deps: MeDeps): void {
     if (caller === undefined) return reply;
     const outcome = await readProfile(deps, caller);
     if (outcome.kind === 'not_found') {
-      return refuse(reply, 404, notFound('There is no profile for this account'));
+      return respond(reply, 404, notFound('There is no profile for this account'));
     }
-    return refuse(reply, 200, profileDto(outcome.profile));
+    return respond(reply, 200, profileDto(outcome.profile));
   });
   listRoute(app, deps, 'credentials', listCredentials, (o) =>
     credentialsDto(o.items, o.next, o.recoveryCodesLeft),

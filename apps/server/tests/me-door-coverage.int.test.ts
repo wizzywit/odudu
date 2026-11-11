@@ -138,8 +138,8 @@ describe('each door refuses the other’s token', () => {
     const token = await tokenFor(meAudienceOfIssuer, 'openid me:read me:write', t);
     for (const route of tableOf('mcp')) {
       const res = await send(route, t.name, token);
-      expect(res.statusCode, `${route.method} ${route.url}`).toBeGreaterThanOrEqual(400);
-      expect(res.statusCode, `${route.method} ${route.url}`).not.toBe(200);
+      const expected = route.method === 'POST' ? 401 : 405;
+      expect(res.statusCode, `${route.method} ${route.url}`).toBe(expected);
     }
   });
 

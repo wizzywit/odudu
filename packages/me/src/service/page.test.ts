@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_LIMIT, MAX_LIMIT } from '@odudu/contracts/me';
-import { pageLimit, splitPage } from '#/service/page';
+import { fetchLimit, pageLimit, splitPage } from '#/service/page';
 
 describe('pageLimit', () => {
   it('defaults when none is asked', () => {
@@ -23,5 +23,11 @@ describe('splitPage', () => {
 
   it('says there is no more when the rows fit', () => {
     expect(splitPage([1, 2], 2)).toEqual({ items: [1, 2], hasMore: false });
+  });
+});
+
+describe('fetchLimit', () => {
+  it('reads one row past the limit', () => {
+    expect(fetchLimit(25)).toBe(26);
   });
 });
