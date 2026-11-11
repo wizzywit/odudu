@@ -66,6 +66,7 @@ import {
   registerResourceMetadataRoute,
   type ToolLimiterOptions,
 } from '@odudu/mcp';
+import { registerMeRoutes } from '@odudu/me';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -114,6 +115,7 @@ import { mailGate as createMailGate } from '#/mail-limiter';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
 import { mcpRouteDepsFor } from '#/mcp-deps';
+import { meRouteDepsFor } from '#/me-deps';
 import { mcpRegistrationBudget } from '#/mcp-registration-budget';
 import { throttleOrigin } from '#/throttle-origin';
 
@@ -787,6 +789,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       },
       createToolLimiter({ ...DEFAULT_TOOL_LIMITS, ...deps.mcpToolLimits }),
     ),
+  );
+  registerMeRoutes(
+    app,
+    meRouteDepsFor({
+      database: deps.database,
+      ownerDatabase: deps.ownerDatabase,
+      logger: deps.logger,
+      publicBaseUrl: deps.publicBaseUrl,
+    }),
   );
 
   // getCurrentEmail, markVerified and setPassword are the only points where

@@ -385,6 +385,9 @@ importers:
       '@odudu/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
+      '@odudu/me':
+        specifier: workspace:*
+        version: link:../../packages/me
       '@odudu/protocol-admin':
         specifier: workspace:*
         version: link:../../packages/protocol-admin

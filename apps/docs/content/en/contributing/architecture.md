@@ -82,6 +82,7 @@ Every directory of the workspace, grouped by what it is for.
 - `packages/protocol-oidc` holds the OAuth 2.1 and OpenID Connect endpoints.
 - `packages/protocol-admin` holds the admin API and its OpenAPI description.
 - `packages/mcp` holds the Model Context Protocol server: the endpoint each tenant serves, its tools and their catalogue, the token checks and the metadata and challenge a client is answered with, and the stdio server `odudu mcp` runs. It reaches the admin API through a caller and is composed only by `apps/server` ([ADR 0051](https://github.com/wizzywit/odudu/blob/main/docs/adr/0051-the-mcp-package-sits-above-the-protocol-packages.md)).
+- `packages/me` holds the "me" API, where a signed-in person reads their own account with their own access token: the profile, credentials, sessions and consents routes and the checks of the token they are read with. It sits above `packages/protocol-oidc` and is composed only by `apps/server` ([ADR 0052](https://github.com/wizzywit/odudu/blob/main/docs/adr/0052-the-me-package-sits-above-protocol-oidc.md)).
 - `packages/console-gateway` holds the server side of the console, which keeps its tokens out of the browser.
 
 **Presentation and delivery**

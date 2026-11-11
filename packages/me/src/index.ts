@@ -1,16 +1,10 @@
-import type { FastifyInstance } from 'fastify';
-import type { ValidateMeTokenDeps } from '#/usecase/validate-me-token';
-
 export {
   validateMeToken,
   type MeAuthOutcome,
   type ValidateMeTokenDeps,
   type ValidateMeTokenInput,
 } from '#/usecase/validate-me-token';
-
-// What the server hands the "me" API once per process. Routes add to it.
-export type MeDeps = ValidateMeTokenDeps;
-
-export function registerMeRoutes(app: FastifyInstance, deps: MeDeps): void {
-  app.log.debug({ door: typeof deps.verifyAccessToken }, 'me routes registered');
-}
+export type { MeTenant } from '#/usecase/admit-me-read';
+export type { MeReads, Page } from '#/repository/reads';
+export type { MeSessionLifespans, MeSessionRecord } from '#/service/session-view';
+export { ME_ROUTES, registerMeRoutes, type MeDeps } from '#/view/routes';
