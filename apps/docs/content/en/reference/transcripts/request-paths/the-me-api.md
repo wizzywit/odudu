@@ -285,14 +285,13 @@ Keep-Alive: timeout=72
 A refusal for a token that holds `me:write` and not `me:read`, a `403` with `insufficient_scope`, cannot be reached from a sign-in,
 because a request for `me:write` carries `me:read` with it; an integration test mints one and runs it against the real door.
 
-No request names a subject. A list refuses a query member it does not know, and `profile` ignores one and still answers with
-the token's own person, so the answer is the same with or without it. A subject in the path matches no route:
+No request names a subject. A read refuses a query member it does not know with `400`, and a subject in the path matches no
+route. The block shows a list and the path; the same refusal of `profile?subject=` is held by the integration tests:
 
 ```bash
 SUB=$(echo "$TOKEN" | cut -d. -f2 | python3 -c "import sys,base64;s=sys.stdin.read().strip();print(base64.urlsafe_b64decode(s+'='*(-len(s)%4)).decode())" | jq -r .sub)
 curl -sS -D - -H "Authorization: Bearer $TOKEN" "$ME/sessions?subject=$SUB"
 echo
-curl -sS -H "Authorization: Bearer $TOKEN" "$ME/profile?subject=$SUB" | jq -c '{sub, username}'
 curl -sS -D - -H "Authorization: Bearer $TOKEN" "$ME/$SUB/profile"
 ```
 
@@ -307,7 +306,6 @@ Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"error":"invalid_request","error_description":"The query is not valid"}
-{"sub":"01a1cb46-e174-7a6c-9dd0-359f9a8b609c","username":"grace"}
 HTTP/1.1 404 Not Found
 x-request-id: 01a1cb47-1254-729f-92b4-62bd5daec21a
 content-type: application/problem+json; charset=utf-8

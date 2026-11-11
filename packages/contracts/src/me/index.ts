@@ -18,4 +18,10 @@ export {
   type MeSession,
   type MeSessionsResponse,
 } from '#/me/sessions';
-export { DEFAULT_LIMIT, MAX_LIMIT, meListQuerySchema, type MeListQuery } from '#/me/shared';
+export {
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  meListQuerySchema,
+  meNoQuerySchema,
+  type MeListQuery,
+} from '#/me/shared';

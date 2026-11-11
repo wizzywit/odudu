@@ -1,4 +1,4 @@
-import { meListQuerySchema } from '@odudu/contracts/me';
+import { meListQuerySchema, meNoQuerySchema } from '@odudu/contracts/me';
 import { tenantAddressOf } from '@odudu/kernel';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { invalidRequest, notFound } from '#/service/errors';
@@ -84,6 +84,9 @@ export function registerMeRoutes(app: FastifyInstance, deps: MeDeps): void {
   app.get<{ Params: { tenant: string } }>(`${BASE}/profile`, async (request, reply) => {
     const caller = await admit(deps, request, reply);
     if (caller === undefined) return reply;
+    if (!meNoQuerySchema.safeParse(request.query).success) {
+      return respond(reply, 400, invalidRequest('The query is not valid'));
+    }
     const outcome = await readProfile(deps, caller);
     if (outcome.kind === 'not_found') {
       return respond(reply, 404, notFound('There is no profile for this account'));

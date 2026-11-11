@@ -60,8 +60,8 @@ because it required the me URL alone. The tests minted tokens with a single audi
 saw it. The door now accepts the issuer beside the me URL and still refuses any other resource
 (`validate-me-token.test.ts`, `me-reads.int.test.ts`). A request for the me URL with no me scope
 never gets a token, so a `403` `insufficient_scope` from a sign-in cannot be shown; the
-integration test is what runs it. On `profile` a query member the route does not know is
-ignored and the answer is still the token's own person; the three lists refuse one with `400`.
+integration test is what runs it. The live run showed `profile` ignoring a query member and answering `200` with the token's own person; `profile` now refuses
+one with `400` like the three lists, and its block in the transcript is to be re-run at the close of increment 2.
 
 ### Open placements
 

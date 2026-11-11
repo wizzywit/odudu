@@ -136,6 +136,12 @@ describe('GET /me/profile', () => {
     expect(seen).toEqual(['profile tenant-1 subject-1']);
   });
 
+  it('refuses any query member with 400, a subject among them', async () => {
+    const res = await get(build(), 'profile?subject=other');
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_request' });
+  });
+
   it('answers 404 for a subject with no profile', async () => {
     const app = build({ reads: { profile: () => Promise.resolve(null) } });
     expect((await get(app, 'profile')).statusCode).toBe(404);
