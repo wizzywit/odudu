@@ -22,6 +22,8 @@ const TENANT = {
   maxSessionsPerBrowser: 25,
   clientRegistrationPolicy: 'disabled' as const,
   cimdEnabled: false,
+  sessionFreshnessSeconds: 300,
+  usernameEditable: false,
 };
 
 const PENDING = {

@@ -49,6 +49,13 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         control: 'seconds',
         description: 'A sign-in left unfinished this long has to be started again.',
       },
+      {
+        name: 'session_freshness_seconds',
+        label: 'Recent sign-in window',
+        control: 'seconds',
+        description:
+          'A person must have signed in this recently to remove a credential, end other sessions, revoke a consent or rename themselves.',
+      },
     ],
   },
   {

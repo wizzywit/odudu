@@ -52,6 +52,7 @@ const SETTINGS = {
   login_ttl_seconds: { column: 'loginTtlSeconds', type: 'integer' },
   verify_email_ttl_seconds: { column: 'verifyEmailTtlSeconds', type: 'integer' },
   reset_password_ttl_seconds: { column: 'resetPasswordTtlSeconds', type: 'integer' },
+  session_freshness_seconds: { column: 'sessionFreshnessSeconds', type: 'integer' },
   login_with_email: { column: 'loginWithEmail', type: 'boolean' },
   cimd_enabled: { column: 'cimdEnabled', type: 'boolean' },
   // The audit trail's admin pair can never be left out: a security trail an

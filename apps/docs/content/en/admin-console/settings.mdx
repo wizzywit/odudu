@@ -63,6 +63,7 @@ Each line gives the label, then the name the admin API and `odudu seed tenant --
 - **Maximum lifetime** (`sso_session_max_seconds`): a session ends this long after sign-in, however active. Both run from 1 minute to 30 days.
 - **Sessions per browser** (`max_sessions_per_browser`): how many people one browser may be signed in as at once, 1 to 32.
 - **Time to finish a sign-in** (`login_ttl_seconds`): an unfinished sign-in must be started again after this, 1 minute to 24 hours.
+- **Recent sign-in window** (`session_freshness_seconds`): how recent a person's sign-in must be before the "me" API accepts removing a credential, ending other sessions, revoking a consent or changing a username. 300 seconds by default, 30 seconds to 1 hour.
 
 ### Remember me
 

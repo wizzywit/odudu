@@ -80,6 +80,7 @@ describe('migrations', () => {
       'remember_me_max_seconds',
       'reset_password_allowed',
       'reset_password_ttl_seconds',
+      'session_freshness_seconds',
       'sso_session_idle_seconds',
       'sso_session_max_seconds',
       'supported_locales',
