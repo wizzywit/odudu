@@ -1982,11 +1982,30 @@ describe('seed client --allow-action', () => {
     expect(await countClients(tenant.id)).toBe(before);
   });
 
-  it('refuses an action for a client that would not hold me:read, creating nothing', async () => {
+  it('assigns me:read to the client itself where the tenant does not', async () => {
     const tenant = await tenantWith(false);
+    await client(tenant.name, 'bare', '--allow-action', 'update-password');
+    expect(await allowedActionsOf(tenant.id, 'bare')).toEqual(['update-password']);
+    expect(await assignedScopes(tenant.id, 'bare')).toContain('me:read');
+  });
+
+  it('keeps the assignment the tenant already gives, and assigns nothing without the flag', async () => {
+    const tenant = await tenantWith(true);
+    await client(tenant.name, 'given', '--allow-action', 'configure-totp');
+    expect(await assignedScopes(tenant.id, 'given')).toContain('me:read');
+    await client(tenant.name, 'plain');
+    expect((await assignedScopes(tenant.id, 'plain')).includes('me:read')).toBe(true);
+    const bare = await tenantWith(false);
+    await client(bare.name, 'plain');
+    expect(await assignedScopes(bare.id, 'plain')).not.toContain('me:read');
+  });
+
+  it('refuses, writing nothing, in a tenant that has no me:read scope to assign', async () => {
+    const tenant = await tenantWith(false);
+    await owner.sql`delete from client_scopes where tenant_id = ${tenant.id} and name = 'me:read'`;
     const before = await countClients(tenant.id);
     await expect(
-      client(tenant.name, 'bare', '--allow-action', 'update-password'),
+      client(tenant.name, 'orphan', '--allow-action', 'update-password'),
     ).rejects.toMatchObject({ code: 'allowed_actions_need_me_read' });
     expect(await countClients(tenant.id)).toBe(before);
   });

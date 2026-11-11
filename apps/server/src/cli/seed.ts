@@ -25,6 +25,7 @@ import {
 } from '#/cli/seed-domain';
 import {
   CLIENT_LIST_LIMIT,
+  CLIENT_SCOPE_LIMIT,
   GROUP_LIMIT,
   groupLimitMessage,
   listLimitProblem,
@@ -60,9 +61,10 @@ import {
 import {
   ADMIN_CLIENT_ID,
   ALLOWED_ACTION_NAMES,
+  ALLOWED_ACTIONS_NEED_ME_READ,
   ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
   MCP_CLIENT_ID,
-  allowedActionsHaveMeRead,
+  ME_READ_SCOPE,
   clientRegistrationTokenRepository,
   clientRepository,
   ClientScopeLimitError,
@@ -1445,13 +1447,18 @@ async function runClientCommand(
       );
     }
 
+    // The flag gives the client me:read itself, which the actions need, so the
+    // tenant must still define it and the client must have room for it.
+    let meReadScopeId: string | null = null;
     if (allowedActions.length > 0) {
-      const assigned = (await clientScopeRepository(tx).allForTenant())
-        .filter((scope) => scope.defaultClientAssignment !== null)
-        .map((scope) => scope.name);
-      if (!allowedActionsHaveMeRead(allowedActions, assigned)) {
-        throw new OduduError('allowed_actions_need_me_read', ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE);
+      const tenantScopes = await clientScopeRepository(tx).allForTenant();
+      const given = tenantScopes.filter((scope) => scope.defaultClientAssignment !== null);
+      const meRead = tenantScopes.find((scope) => scope.name === ME_READ_SCOPE);
+      const holds = given.some((scope) => scope.name === ME_READ_SCOPE);
+      if (meRead === undefined || (!holds && given.length >= CLIENT_SCOPE_LIMIT)) {
+        throw new OduduError(ALLOWED_ACTIONS_NEED_ME_READ, ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE);
       }
+      if (!holds) meReadScopeId = meRead.id;
     }
 
     const secretHash = clientSecret === undefined ? null : await hashPassword(clientSecret);
@@ -1471,6 +1478,9 @@ async function runClientCommand(
     // The tenant's standard OIDC vocabulary, without which /authorize would
     // refuse `openid` on this client's very first request.
     await provisionClientDefaults(tx, client.id);
+    if (meReadScopeId !== null) {
+      await clientScopeRepository(tx).assign(client.id, meReadScopeId, 'optional');
+    }
 
     await clientOidcConfigRepository(tx).create({
       clientId: client.id,
