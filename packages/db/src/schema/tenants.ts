@@ -106,6 +106,9 @@ export const tenants = pgTable('tenants', {
   webauthnUserVerification: text('webauthn_user_verification').notNull().default('required'),
   webauthnResidentKey: text('webauthn_resident_key').notNull().default('required'),
   recoveryCodeCount: integer('recovery_code_count').notNull().default(10),
+  // Whether every person who signs in is asked to hold a passkey
+  // (packages/db/drizzle/0133_require_passkey.sql).
+  requirePasskey: boolean('require_passkey').notNull().default(false),
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),

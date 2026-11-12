@@ -13,6 +13,7 @@ import { executionRepository } from '#/repository/executions';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
+import { passkeyCheckedAgainst } from '#/service/passkey-switch';
 import { SessionEntry } from '#/service/session-entry';
 import { hashSignInSecret, newSignInSecret, readSignInHandle } from '#/service/sign-in-handle';
 import {
@@ -443,6 +444,7 @@ interface FlowFacts {
   hasTotp: boolean;
   hasRecoveryCodes: boolean;
   otpRequired: boolean;
+  requirePasskey: boolean;
   // Zero where the tenant does not age passwords out, which is the default.
   passwordMaxAgeDays: number;
   lockout: LockoutPolicy;
@@ -477,6 +479,7 @@ async function flowFacts(
     hasTotp,
     hasRecoveryCodes,
     otpRequired: settings.otpRequired,
+    requirePasskey: settings.requirePasskey,
     passwordMaxAgeDays: settings.passwordMaxAgeDays,
     lockout: settings.lockout,
     loginWithEmail: settings.loginWithEmail,
@@ -772,6 +775,25 @@ async function recordOtpEnrolmentIfOwed(
   await requiredActionRepository(tx).add(tenantId, subjectId, 'configure-totp');
 }
 
+// The tenant's mandate for a passkey is carried the same way: a required
+// action the sign-in then meets, so a person without one is asked at the
+// next sign-in and a session already open is left alone. What is owed stays
+// owed when the switch goes off; completing the enrolment clears it.
+async function recordPasskeyEnrolmentIfOwed(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  subjectId: string,
+  required: boolean,
+  publicBaseUrl: string | null,
+): Promise<void> {
+  if (!required) return;
+  const party = await relyingPartyOfTenantOrNone(tx, tenantId, publicBaseUrl);
+  const checked = passkeyCheckedAgainst({ required, relyingPartyId: party?.id ?? null });
+  if (checked === null) return;
+  if (await credentialRepository(tx).holdsPasskey(subjectId, checked)) return;
+  await requiredActionRepository(tx).add(tenantId, subjectId, 'configure-passkey');
+}
+
 // What /authorize renders before any authentication session exists: the
 // first thing this tenant's flow would ask for, with nothing submitted yet.
 // A 'failure' here means the flow has no reachable execution at all — the
@@ -1043,6 +1065,13 @@ export async function advance(
   // earned a prompt about a factor it did not present.
   if (outcome.kind === 'success') {
     await oweRecoveryCodesIfFactorWithoutCodes(tx, record.tenantId, subjectId);
+    await recordPasskeyEnrolmentIfOwed(
+      tx,
+      record.tenantId,
+      subjectId,
+      facts.requirePasskey,
+      options.publicBaseUrl ?? null,
+    );
   }
 
   // What a required-action submission is judged against, since it carries no

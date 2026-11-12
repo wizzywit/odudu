@@ -79,9 +79,15 @@ describe('the authenticator policy', () => {
       'totp_period',
       'webauthn_user_verification',
       'webauthn_resident_key',
+      'require_passkey',
       'recovery_code_count',
       'recovery_code_warn_below',
     ]);
+  });
+
+  it('separates the sign-in policy from the enrolment parameters and names its prerequisite', () => {
+    expect(home?.description).toContain('whether sign-in asks everyone for a passkey');
+    expect(named('require_passkey')?.description).toContain('no public base URL');
   });
 
   it('offers exactly the values the server accepts, digits and period as numbers', () => {

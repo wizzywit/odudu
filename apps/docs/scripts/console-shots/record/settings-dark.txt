@@ -122,7 +122,7 @@ s
 300 s · 5 minutes
 A reset link stops working after this long. Between 60 s · 1 minute and 86400 s · 1 day.
 Authenticators
-What a new authenticator app, passkey or recovery set is made with. One already enrolled keeps the values it was made with.
+What a new authenticator app, passkey or recovery set is made with, and whether sign-in asks everyone for a passkey. One already enrolled keeps the values it was made with.
 Authenticator app algorithm
 SHA1
 ▾
@@ -154,6 +154,9 @@ A passkey that is not stored on the device cannot sign a person in who has not t
 Required
 Preferred
 Discouraged
+Require a passkey
+Off
+Does nothing where the deployment has no public base URL, or one that is an IP address, unless the tenant has a domain of its own: nobody is asked. A person without a passkey is asked to add one at their next sign-in and cannot skip it. Sessions already open are not touched. Turning this off does not clear an action already owed; clear it on the person’s record.
 Recovery codes in a set
 codes
 10 codes

@@ -97,6 +97,7 @@ const DOCUMENT: TenantDocument = {
     webauthn_user_verification: 'required',
     webauthn_resident_key: 'required',
     recovery_code_count: 10,
+    require_passkey: false,
     login_with_email: false,
     cimd_enabled: false,
     audit_event_types: ['admin_mutation', 'admin_access'],
@@ -252,6 +253,15 @@ describe('tenantDocumentSchema', () => {
       webauthn_resident_key: 'required',
       recovery_code_count: 10,
     });
+  });
+
+  it('imports a document from before the passkey switch with it off', () => {
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => name !== 'require_passkey'),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings.require_passkey).toBe(false);
   });
 
   it('refuses an authenticator parameter nobody offers', () => {

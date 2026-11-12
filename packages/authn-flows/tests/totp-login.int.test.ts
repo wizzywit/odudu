@@ -822,6 +822,7 @@ describe('tenantSettingsRepository', () => {
       verifySeeded: async (tx, tenantId) => {
         expect(await tenantSettingsRepository(tx).flowSettings(tenantId)).toEqual({
           otpRequired: true,
+          requirePasskey: false,
           loginWithEmail: false,
           passwordMaxAgeDays: 90,
           lockout: {

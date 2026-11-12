@@ -169,3 +169,15 @@ describe('createdDetail', () => {
     });
   });
 });
+
+describe('the passkey switch', () => {
+  it('shows the switch by value, so a tenant-wide mandate is on the trail', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        { require_passkey: false, verify_email: false },
+        { require_passkey: true, verify_email: true },
+      ),
+    ).toEqual({ require_passkey: { before: false, after: true } });
+  });
+});
