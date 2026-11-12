@@ -8,6 +8,7 @@ import {
   renderAuthorizeErrorPage,
   type WayOn,
 } from '../../packages/protocol-oidc/src/view/authorize-html.js';
+import { type ClientSource } from '../../packages/protocol-oidc/src/service/client-source.js';
 import { renderConsentPage } from '../../packages/protocol-oidc/src/view/consent-html.js';
 import { page } from '../../packages/protocol-oidc/src/view/document.js';
 import {
@@ -388,6 +389,14 @@ const elidesOnlyTheQr = (block: Recorded): boolean =>
 // pages of authn-flows (recorded nowhere), the account forms nothing records,
 // a rule or action wording that two sentences share, or a value the markup
 // does not show.
+// The consent screen's note for a client that registered itself, read back
+// from the recorded body as the ClientSource the renderer made it from.
+function selfRegisteredSource(body: string): ClientSource | null {
+  if (!body.includes('This application registered itself.')) return null;
+  const sentTo = /sent back to:<\/p>\n<p class="context"><bdi>(.*?)<\/bdi><\/p>/u.exec(body);
+  return { kind: 'self-registered', sentTo: sentTo?.[1] ?? null, origins: [], more: 0 };
+}
+
 const RENDER_BACK: Record<string, (body: string) => string> = {
   'Set up your authenticator': (body: string) =>
     renderTotpEnrolmentPage(
@@ -525,6 +534,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
           clientUri: link(/About <bdi>.*?<\/bdi>/u),
           policyUri: link(/Privacy policy/u),
           tosUri: link(/Terms of service/u),
+          source: selfRegisteredSource(body),
         },
         defaultScopes: all(body.slice(body.indexOf('<ul>')), /^ {2}<li><bdi>(.*)<\/bdi><\/li>$/gmu),
         optionalScopes: optional.map((m) => unescaped(m[1] ?? '')),

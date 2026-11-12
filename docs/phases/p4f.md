@@ -512,7 +512,10 @@ that never configures a step behaves as it does today.
 - Five transcript pages still carry the on-page note that they predate the device cookie or field: `the-tenants-own-sign-in.md`,
   `get-consoleauthcallback-refused.md`, `get-consoleauthcallback-restarted.md`, `a-refresh-the-server-refuses.md` and
   `guides/admin-signs-in-and-changes-a-user.md`. They continue one console sign-in across pages, so they need that whole run replayed
-  in order. The other nineteen were replayed or cleared, below.
+  in order, together with `get-sessions-get-sessionscount-and-get-clientsidsessions.md` and
+  `get-subjectsidsessions-and-delete-subjectsidsessionssid.md`, whose prose says their blocks predate `device`. Placed on the phase's
+  closing pass (increment 14), which replays every console and session transcript once, after the password-change, sign-in-flow and
+  required-action increments that still change those same responses. The other nineteen were replayed or cleared, below.
 - The roadmap's P4f bullet still names the device and the orphan; it is closed by the phase's closing pass, which reconciles the
   roadmap and section 11.
 
