@@ -166,6 +166,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'tenants.tenants_login_ttl_range':
     'CHECK (((login_ttl_seconds >= 60) AND (login_ttl_seconds <= 86400)))',
   'tenants.tenants_refresh_token_ttl_floor': 'CHECK ((refresh_token_ttl_seconds >= 1))',
+  'tenants.tenants_recovery_code_warn_below_range':
+    'CHECK (((recovery_code_warn_below >= 0) AND (recovery_code_warn_below <= 10)))',
   'tenants.tenants_reset_password_ttl_range':
     'CHECK (((reset_password_ttl_seconds >= 60) AND (reset_password_ttl_seconds <= 86400)))',
   'tenants.tenants_session_freshness_range':

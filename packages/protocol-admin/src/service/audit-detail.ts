@@ -64,6 +64,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     client_registration_policy: 'value',
     cimd_enabled: 'value',
     session_freshness_seconds: 'value',
+    recovery_code_warn_below: 'value',
     display_name: 'value',
     supported_locales: 'value',
     default_locale: 'value',

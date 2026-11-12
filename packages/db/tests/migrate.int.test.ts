@@ -73,6 +73,7 @@ describe('migrations', () => {
       'password_require_lowercase',
       'password_require_special',
       'password_require_uppercase',
+      'recovery_code_warn_below',
       'refresh_token_ttl_seconds',
       'registration_allowed',
       'remember_me_allowed',
