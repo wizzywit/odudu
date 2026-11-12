@@ -433,9 +433,10 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
 - The tenant mandate has no skip. The required-action page already hides its way back for an action the tenant owes
   (`requestedVariant`), so an application-requested `configure-passkey` that the tenant also owes shows the page without Cancel
   and is not a second row: an application's request is never a row. An administrator clears the owed action under Required
-  actions on the person's record (`PUT .../required-actions`), or turns the switch off. A clear lets the sign-in under way
+  actions on the person's record (`PUT .../required-actions`). A clear lets the sign-in under way
   finish and no more: the next completed sign-in adds the row again while the switch is on, which the live run shows. There is no
-  per-person exemption, so a person whose device cannot make a passkey needs the switch off.
+  per-person exemption, so a person whose device cannot make a passkey needs the switch off and the owed
+  action cleared, or the action cleared at each sign-in while the switch stays on.
 - Turning the switch off does not remove rows already added. They are the person's owed actions like any other an administrator
   or a policy wrote, and removing them on a setting change would need a scan of every subject of the tenant. Completing the
   enrolment, or an administrator, clears them.

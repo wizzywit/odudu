@@ -132,6 +132,8 @@ run replayed in order. The stack and its image were removed afterwards.
 
 The first block of `get-adminopenapijson.md` was run again on 2026-11-12 on a freshly built compose project, `odudu-p4f-i8` (port `3081`), built from the branch commit `01b0c3c70` with the documentation changes uncommitted, because the `device` field made the document 519 bytes longer (816,440 to 816,959). The stack and its image were removed afterwards.
 
+On 2026-11-12 `GET /admin/openapi.json` was run again alone on a freshly built compose project, `odudu-p4f-i7b-fix` (port `3000`, Postgres on `5443`), built from the branch commit `3acd8e8f1` with the `require_passkey` field description changed and uncommitted (816,440 to 816,573 bytes). The `ADA` assignment added to `enrolling-a-passkey.md` is the `userSubjectId` that page's seed printed; no output of that page was run again. The stack and its image were removed afterwards.
+
 The discovery document and authorization server metadata began to list `me:read` and `me:write` on 2026-11-11, and every tenant now
 starts with twelve scopes. On the compose project `odudu-p4f-i15` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`,
 built from the branch commit `019dd64be`), a freshly built stack with `demo`, `demo-spa` and `ada` seeded as Bootstrap seeds them, the
