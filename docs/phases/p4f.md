@@ -835,22 +835,32 @@ migration back, which is what the order is for. `docs/NEXT.md` and `RELEASING.md
   the address verified completes, and the sign-in's own gates decide what is next. A row owed to a verified address or none is cleared at
   sign-in. An application that starts it for a verified address sees the page say so, with the way on, and for none gets
   `action_status=error`.
-- **update-profile.** The fields are the keys of `CLAIM_KEY` (twenty) and `username` when `username_editable` is on, which is the set
-  `PATCH /me/profile` writes. The validation is `planProfileAmend`, moved from `@odudu/me` to `@odudu/domain-identity` so there is one
-  copy, and its refusal gained a `reason` (`bidi` or `shape`) so the page words it. The form is all-or-nothing: nothing is written
-  until every value passes and every field that was empty has one. The username is written first in a savepoint, so a name claimed
-  meanwhile leaves nothing written. Audit: `subject.profile_amend` with `via: required_action` and the field names. `email` and
-  unknown fields are ignored. `no-editable-profile-fields` cannot occur yet, since every tenant lets a person edit every claim, so it
-  is a guard with a unit test and a sentence in the docs, and no transcript.
+- **update-profile.** The page lists every editable field (the keys of `CLAIM_KEY`, twenty, and `username` when `username_editable`
+  is on, the set `PATCH /me/profile` writes) and marks the ones in the tenant setting `required_profile_fields`, a `text[]` column
+  with a CHECK against the twenty claim names, `given_name` and `family_name` by default, empty allowed (a page reviewed and
+  submitted). The action ends when every listed field is non-empty after the form, and every value sent is judged by
+  `planProfileAmend` (moved from `@odudu/me` to `@odudu/domain-identity`, gaining a `reason`), each on its own so the page names all
+  the refusals at once; the me API's own behaviour is unchanged. The form is all-or-nothing, the username is written first in a
+  savepoint (a name claimed meanwhile leaves nothing written), and a subject with no user row has its row cleared. Audit:
+  `subject.profile_amend` with `via: required_action` and the field names. `email` and unknown fields are ignored.
+  `no-editable-profile-fields` is refused when a required field is not one a person may edit; no tenant does that yet, so it is a
+  guard with a unit test and a sentence in the docs, and no transcript.
 - **accept-terms.** The address is judged with `isValidWebPageUri`, moved from protocol-oidc's client metadata to `@odudu/kernel` so a
-  client's policy and terms addresses and the tenant's follow one rule; an empty value clears it. The version recorded is the one in
-  force when the box is ticked, read in the usecase and not taken from the form. Audit: `terms.accepted` (credential) with `version`.
+  client's policy and terms addresses and the tenant's follow one rule; an empty value clears it. The page posts the version it shows and
+  the usecase compares it with the version in force: a mismatch, or none, records nothing and shows the page again at the current
+  version with a notice, so nobody accepts terms they did not see. Audit: `terms.accepted` (credential) with `version`.
   Changing `terms_version` adds the action to nobody. An application cannot start it: the client setting, the seed flag, a tenant
   import and `/authorize` each refuse it, and `requestedActionOf` ignores it in a parked request.
 - **Placing among the rest.** `verify-email` first, since proving an address asks nothing of the person but the mailbox; the other two
   last, since nothing before them depends on either.
 - **The page kinds are additive.** Three new `page-<kind>` hooks are added to the published list without a new version, since no
   existing hook moved. Field label keys are camel case (`updateProfile.field.givenName`), which the template grammar admits.
+- **Acceptances are readable.** `GET /admin/tenants/<name>/subjects/<id>/terms-acceptances`, under `view-users`, newest first,
+  paged by keyset on `(accepted_at, version)` over an index of the same columns, with an MCP read tool and a read-only list on the
+  Required actions tab of the console.
+- **A PUT judges only what it adds.** An action already owed that has since become impossible does not refuse the list.
+- **Terms limits.** `terms_version` is counted in characters, as the CHECK counts them; `terms_uri` is capped at 2048 characters and
+  carries no user name or password, for the terms setting only, so client policy and terms addresses behave as before.
 - **Tenant import** takes `required_actions` of any of the seven; the refusals above are the admin route's, and a row that cannot be
   finished is cleared at sign-in.
 
@@ -861,15 +871,10 @@ migration back, which is what the order is for. `docs/NEXT.md` and `RELEASING.md
   three. The admin check reads the same rows for the actions in the request only.
 - `update-profile` is one locked `users` row, one lookup of the username by its unique index and at most four writes; its form is at
   most twenty-one fields, each bounded by the body limit.
+- The acceptances read serves `limit + 1` rows (at most 200 + 1) through `subject_terms_acceptances_recent`, in one query, so a
+  subject with many versions costs the same as one with few.
 - Mail from the address page is bounded by the per-address budget and the in-process limiter's own bound.
 
 ### Open placements
 
-- **A person's acceptance in the console's subject record** is not cheap (it needs an admin API read of the acceptances and a
-  contract), so it is placed on Increment 14, with the other reads of a subject's standing.
-- **Every empty profile field must be filled** is the ruling as given, and it is hard for the twenty claims a person may never have had
-  (a picture address, a region). A tenant naming which fields it needs is the declarative user profile of **P7**, which this form reads
-  from when it exists.
-- None else. The console frames that name the new settings, actions and theme hooks (`settings`, `client-actions`,
-  `branding-selectors` and the records of the branding frames) were captured again with `pnpm docs:screenshots` on the build of this
-  branch.
+- None.
