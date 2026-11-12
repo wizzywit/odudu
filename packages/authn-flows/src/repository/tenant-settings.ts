@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm';
 // password stand, and how many wrong passwords an account tolerates.
 export interface FlowSettings {
   otpRequired: boolean;
+  requirePasskey: boolean;
   loginWithEmail: boolean;
   passwordMaxAgeDays: number;
   lockout: LockoutPolicy;
@@ -31,6 +32,7 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
       const rows = await tx
         .select({
           otpRequired: tenants.otpRequired,
+          requirePasskey: tenants.requirePasskey,
           loginWithEmail: tenants.loginWithEmail,
           passwordMaxAgeDays: tenants.passwordMaxAgeDays,
           maxFailures: tenants.bruteForceMaxFailures,
@@ -46,6 +48,7 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
       }
       return {
         otpRequired: row.otpRequired,
+        requirePasskey: row.requirePasskey,
         loginWithEmail: row.loginWithEmail,
         passwordMaxAgeDays: row.passwordMaxAgeDays,
         lockout: {

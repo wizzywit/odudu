@@ -263,6 +263,25 @@ export function credentialRepository(tx: TenantScopedDatabase) {
       return { subjects: Math.min(held.size, cap), capped: read.length > cap };
     },
 
+    // Whether the subject holds a passkey registered under `rpId`, the only
+    // kind a sign-in at that address offers. One row is enough to answer:
+    // served by user_credentials_by_subject, which the type filter narrows
+    // to the few rows a subject holds.
+    async holdsPasskey(subjectId: string, rpId: string): Promise<boolean> {
+      const rows = await tx
+        .select({ id: userCredentials.id })
+        .from(userCredentials)
+        .where(
+          and(
+            eq(userCredentials.subjectId, subjectId),
+            eq(userCredentials.type, 'webauthn'),
+            eq(userCredentials.rpId, rpId),
+          ),
+        )
+        .limit(1);
+      return rows.length > 0;
+    },
+
     async byLookupKey(lookupKey: string): Promise<CredentialRecord | null> {
       const rows = await tx
         .select()
