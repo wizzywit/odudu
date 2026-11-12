@@ -53,7 +53,12 @@ describe('parseCredentialSecret', () => {
 
   it('writes a secret without parameters exactly as before', () => {
     expect(
-      serializeCredentialSecret({ kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 0 }),
+      serializeCredentialSecret({
+        kind: 'totp',
+        secret: 'JBSWY3DPEHPK3PXP',
+        digits: 6,
+        lastStep: 0,
+      }),
     ).toEqual({ secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 0 });
   });
 

@@ -187,9 +187,9 @@ describe('verifyTotp under the parameters a credential was made with', () => {
 
   it('refuses a 6-digit code when the credential holds 8 digits', () => {
     const code = totpCode(SEED_SHA1, totpCounter(now), 6);
-    expect(
-      verifyTotp({ secret: SEED_SHA1, code, now, lastStep: null, digits: 8 }),
-    ).toEqual({ ok: false });
+    expect(verifyTotp({ secret: SEED_SHA1, code, now, lastStep: null, digits: 8 })).toEqual({
+      ok: false,
+    });
   });
 
   it('refuses a SHA-1 code against a SHA-512 credential', () => {
@@ -201,8 +201,8 @@ describe('verifyTotp under the parameters a credential was made with', () => {
 
   it('measures the window in the credential’s own step', () => {
     const code = totpCode(SEED_SHA1, totpCounter(now, 60) - 1, 6);
-    expect(
-      verifyTotp({ secret: SEED_SHA1, code, now, lastStep: null, periodSeconds: 60 }),
-    ).toEqual({ ok: true, step: 0 });
+    expect(verifyTotp({ secret: SEED_SHA1, code, now, lastStep: null, periodSeconds: 60 })).toEqual(
+      { ok: true, step: 0 },
+    );
   });
 });

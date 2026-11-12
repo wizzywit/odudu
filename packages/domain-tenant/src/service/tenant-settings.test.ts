@@ -320,8 +320,8 @@ describe('the authenticator policy settings', () => {
         (problem) => problem.name,
       ),
     ).toEqual(['recovery_code_warn_below']);
-    expect(
-      tenantSettingProblems({ recovery_code_warn_below: 8, recovery_code_count: 8 }),
-    ).toEqual([]);
+    expect(tenantSettingProblems({ recovery_code_warn_below: 8, recovery_code_count: 8 })).toEqual(
+      [],
+    );
   });
 });

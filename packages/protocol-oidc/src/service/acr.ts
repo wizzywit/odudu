@@ -43,7 +43,6 @@ export function acrFor(authenticators: readonly string[]): string | null {
   if (authenticators.length === 0) return null;
   const counted = authenticators.filter((name) => name !== UNVERIFIED_PASSKEY);
   const unverified = authenticators.includes(UNVERIFIED_PASSKEY) ? 1 : 0;
-  const factors =
-    counted.reduce((sum, name) => sum + (FACTOR_COUNT[name] ?? 1), 0) - unverified;
+  const factors = counted.reduce((sum, name) => sum + (FACTOR_COUNT[name] ?? 1), 0) - unverified;
   return factors >= 2 ? '2' : '1';
 }

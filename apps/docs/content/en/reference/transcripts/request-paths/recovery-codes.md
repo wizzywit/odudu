@@ -49,6 +49,9 @@ The page is the response to the enrolment's own submission, printed in full
 under [Confirming the secret enrols it](./two-factor-authentication-with-totp.md#confirming-the-secret-enrols-it-and-is-the-logins-second-factor)
 above.
 
+A set holds ten codes unless the tenant's `recovery_code_count` says otherwise, 8
+to 16 ([the settings page](../../../admin-console/settings.mdx#authenticators)).
+It takes effect on the next set issued, and a set already issued keeps its size.
 Ten characters each from Crockford's 32-character base32 alphabet, printed
 as two groups of five: 32^10, which is 2^50 per code. The alphabet's
 excluded letters — `I`, `L` and `O` — are the ones a reader confuses with
@@ -79,15 +82,15 @@ docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
 
 Reloading the page is therefore not a way to see them twice: the render is a
 `POST` result, and a reload while the action is still owed issues a
-_different_ ten and retires the set it just displayed: a sign-in that cannot
+_different_ set and retires the set it just displayed: a sign-in that cannot
 finish without a set is never refused one. A person who asks for a set on their
 own, while one with codes left to spend was issued less than an hour ago, is
 refused with a page that says how many minutes to wait, and the set they hold
 stays. After the hour, or once every code is spent, a repeat issues a
-_different_ ten.
+_different_ set.
 
-The bound keeps the voluntary path cheap. Each set is ten Argon2id hashes (about
-40 ms, run together), a delete and ten inserts, and the lockout does not reach
+The bound keeps the voluntary path cheap. Each set is one Argon2id hash per code (ten by default, about
+40 ms, run together), a delete and one insert per code, and the lockout does not reach
 it, because that counts failures and this path needs a password that works; the
 owed path is limited by the sign-in itself, which acknowledging the page ends. The
 hour is counted from `subjects.recovery_codes_issued_at`, claimed by one

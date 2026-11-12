@@ -388,3 +388,100 @@ Date: Wed, 14 Oct 2026 00:32:57 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
+
+## A policy that changes after somebody enrolled
+
+A tenant's `totp_algorithm`, `totp_digits` and `totp_period` say what the next authenticator app is made with: `SHA1`, 6
+digits and 30 seconds unless the tenant changed them. The credential keeps the three it was made under, in its row beside
+the secret, and every later code is checked by them, so a change of policy strands nobody and applies to the next
+enrolment only. On a stack of its own on `http://localhost:3000`, started on an empty volume, a tenant `policy-demo` that
+requires a second factor, with `ada` (client `policy-spa`) and `bob` (client `bob-spa`):
+
+```bash
+odudu seed --tenant policy-demo --client policy-spa --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery
+odudu seed --tenant policy-demo --client bob-spa --redirect-uri http://localhost:8080/callback \
+  --user bob --password correct-horse-battery
+odudu seed tenant --name policy-demo --set otp_required=true
+```
+
+```
+{"created":true,"tenant":"policy-demo","tenantId":"01a1cfb0-7768-723d-82d9-27648132f160","clientId":"policy-spa","userSubjectId":"01a1cfb0-7849-775d-8710-7f6d44030e42"}
+{"created":true,"tenant":"policy-demo","tenantId":"01a1cfb0-7768-723d-82d9-27648132f160","clientId":"bob-spa","userSubjectId":"01a1cfb0-7c09-7c4f-9e14-58241ecfc346"}
+{"command":"tenant","created":false,"tenant":"policy-demo","tenantId":"01a1cfb0-7768-723d-82d9-27648132f160","settings":["otp_required"]}
+```
+
+`ada` signs in and is offered the enrolment page. These blocks show the lines of the page that matter (the QR image and the rest
+of the markup are left out, so they are not the bytes on the wire), as the same `auth_session_id` flow above produces them:
+
+```
+<title>Set up your authenticator</title>
+<p>Scan this with your authenticator app, or enter the key by hand.</p>
+<p><bdi dir="ltr"><code>otpauth://totp/policy-demo:ada?secret=AJPEPRQ3ULN6QOU3WZHZKC7KR3UH42SK&amp;issuer=policy-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code></bdi></p>
+<p>Key: <bdi dir="ltr"><code>AJPEPRQ3ULN6QOU3WZHZKC7KR3UH42SK</code></bdi></p>
+  <input type="hidden" name="secret" value="AJPEPRQ3ULN6QOU3WZHZKC7KR3UH42SK">
+  <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
+```
+
+She confirms with the code her app shows, which arrives with her set of recovery codes (`10` of them). The
+tenant then changes its parameters and the size of a set:
+
+```bash
+odudu seed tenant --name policy-demo --set totp_algorithm=SHA256 --set totp_digits=8 \
+  --set totp_period=60 --set recovery_code_count=12
+```
+
+```
+{"command":"tenant","created":false,"tenant":"policy-demo","tenantId":"01a1cfb0-7768-723d-82d9-27648132f160","settings":["totp_algorithm","totp_digits","totp_period","recovery_code_count"]}
+```
+
+`bob` signs in after the change. The page says what an app must support, and the address the QR code encodes carries the three
+parameters. His confirmation, an 8-digit SHA256 code at a 60-second step, is accepted and shows a set of `12` codes:
+
+```
+<title>Set up your authenticator</title>
+<p>Scan this with your authenticator app, or enter the key by hand.</p>
+<p>This authenticator uses SHA256, 8 digits and a 60-second period. Your app must support all three, or use a different one.</p>
+<p><bdi dir="ltr"><code>otpauth://totp/policy-demo:bob?secret=DSR5NIEILND4AM3WYXBGTUYIYJWKMVHS&amp;issuer=policy-demo&amp;algorithm=SHA256&amp;digits=8&amp;period=60</code></bdi></p>
+<p>Key: <bdi dir="ltr"><code>DSR5NIEILND4AM3WYXBGTUYIYJWKMVHS</code></bdi></p>
+  <input type="hidden" name="secret" value="DSR5NIEILND4AM3WYXBGTUYIYJWKMVHS">
+  <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
+```
+
+Each credential holds what it was made under, read here as the database owner without the secret:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select u.username, c.secret_data - 'secret' as parameters from user_credentials c join users u on u.subject_id = c.subject_id where c.type = 'totp' and c.tenant_id = (select id from tenants where name = 'policy-demo') order by u.username"
+```
+
+```
+ username |                                parameters
+----------+--------------------------------------------------------------------------
+ ada      | {"digits": 6, "period": 30, "lastStep": 59816193, "algorithm": "SHA1"}
+ bob      | {"digits": 8, "period": 60, "lastStep": 29908096, "algorithm": "SHA256"}
+(2 rows)
+```
+
+A minute later, `ada` signs in again. A code made the way the tenant now makes them (8 digits, SHA256, 60 seconds) is refused for her,
+and the 6-digit SHA1 code her app shows is accepted: the next page is the one that asks her to save the set she was shown (she had not
+acknowledged it), where a refusal would have shown the code form again. The refused answer's error line, then the accepted answer's
+status and page title:
+
+```
+<li id="form-error-0">That code did not work. Check it and try again.</li>
+```
+
+```
+HTTP/1.1 200 OK
+<title>Save your recovery codes</title>
+```
+
+`bob` signs in with his 8-digit code the same way, and is accepted:
+
+```
+HTTP/1.1 200 OK
+<title>Save your recovery codes</title>
+```
+
+The codes in these blocks were made with the `totpCode` function, given the algorithm, digits and period of the credential.
