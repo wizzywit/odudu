@@ -1,5 +1,5 @@
 import { tenantAddressOf } from '@odudu/kernel';
-import { clearedSignInHandleCookie, sessionCookies } from '@odudu/authn-flows';
+import { clearedSignInHandleCookie, deviceCookie, sessionCookies } from '@odudu/authn-flows';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { type FastifyInstance } from 'fastify';
 import { handleConsentSubmission, type ConsentSubmissionDeps } from '#/usecase/consent-submission';
@@ -107,6 +107,7 @@ export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDep
 
     const reply302 = reply.code(302);
     for (const cookie of written) reply302.header('set-cookie', cookie);
+    reply302.header('set-cookie', deviceCookie(request.params.tenant, deps.tls, outcome.device));
     // The sign-in is finished: its handle has nothing left to name.
     reply302.header('set-cookie', clearedSignInHandleCookie(tenantAddressOf(request), deps.tls));
     return reply302.header('location', outcome.location).send();

@@ -77,6 +77,7 @@ function deps(): LoginRouteDeps {
         entry: SessionEntry.issue('remembered-session'),
       },
     ]),
+    deviceOf: vi.fn().mockReturnValue('AAECAwQFBgcICQoLDA0ODw'),
     consentContext: vi.fn().mockResolvedValue({
       clientName: 'Test Client',
       consentRequired: false,
@@ -115,8 +116,12 @@ describe('the login route, on a successful login', () => {
     expect(res.statusCode).toBe(302);
     const raw = res.headers['set-cookie'];
     const cookies = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
-    // The two session cookies, each its own header, and the sign-in handle's expiry.
-    expect(cookies).toHaveLength(3);
+    // The two session cookies and the device cookie, each its own header, and
+    // the sign-in handle's expiry.
+    expect(cookies).toHaveLength(4);
+    expect(cookies).toContain(
+      'acme-device=AAECAwQFBgcICQoLDA0ODw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000',
+    );
     expect(cookies.at(-1)).toBe(
       'odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/acme/; Max-Age=0',
     );

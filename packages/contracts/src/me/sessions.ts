@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { mePage } from '#/me/shared';
 
-// `current` is the session the token was issued for. `device` is null until a
-// session records the device it was opened on.
+// `current` is the session the token was issued for. `device` is an opaque id
+// shared by the sessions opened on one browser, null for a session opened
+// before the id was recorded.
 export const meSessionSchema = z.object({
   id: z.string(),
   created_at: z.string(),
@@ -10,7 +11,7 @@ export const meSessionSchema = z.object({
   expires_at: z.string(),
   remembered: z.boolean(),
   current: z.boolean(),
-  device: z.null(),
+  device: z.string().nullable(),
 });
 export type MeSession = z.infer<typeof meSessionSchema>;
 

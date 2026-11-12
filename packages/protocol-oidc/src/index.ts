@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { lookupLocalised } from '@odudu/contracts';
 import {
   admitSession,
@@ -21,6 +22,8 @@ import {
   authenticatorsSatisfyFlow,
   pendingChallenge,
   pendingSession,
+  newDeviceId,
+  readDeviceId,
   readSessionEntries,
   recordRememberMe,
   holdsPassword,
@@ -378,6 +381,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       );
     };
 
+    // The device cookie the browser presented, or a fresh value for one that
+    // presented none; the login response writes it back either way.
+    const deviceOf = (tenantName: string, header: string | undefined) =>
+      readDeviceId(header, tenantName, tls) ?? newDeviceId(() => randomBytes(16));
+
     // Whether the login page offers a passkey button at all: the relying
     // party id comes from ODUDU_PUBLIC_BASE_URL and nowhere else, so
     // without it there is nothing behind one.
@@ -513,6 +521,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
                 browserSessions: input.browserSessions,
                 maxSessionsPerBrowser: input.maxSessionsPerBrowser,
                 lifespans: input.lifespans,
+                device: input.device,
               },
               clock,
             );
@@ -996,6 +1005,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       grantedScopeIds,
       completeLogin,
       resolveSessions,
+      deviceOf,
     };
 
     registerRequiredActionRoute(app, {
@@ -1058,6 +1068,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         ),
       completeLogin,
       resolveSessions,
+      deviceOf,
     });
     registerLogoutRoute(app, {
       findTenant,

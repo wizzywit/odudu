@@ -78,6 +78,7 @@ const session = (id: string): MeSessionRecord => ({
   lastActiveAt: AT,
   expiresAt: AT,
   remembered: false,
+  deviceId: null,
 });
 
 describe('readProfile', () => {

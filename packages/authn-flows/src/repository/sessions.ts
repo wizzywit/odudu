@@ -46,6 +46,7 @@ function toRecord(row: SessionRow): SessionRecord {
     lastActiveAt: row.lastActiveAt,
     authenticators: row.authenticators,
     remembered: row.remembered,
+    deviceId: row.deviceId,
   };
 }
 
@@ -60,6 +61,7 @@ export interface NewSession {
   // (packages/authn-flows/src/schema/sessions.ts). establishSession is the
   // only caller with a login's own choice to record.
   remembered?: boolean;
+  deviceId?: string | null;
 }
 
 async function rowById(tx: TenantScopedDatabase, id: string): Promise<SessionRow | undefined> {
@@ -171,6 +173,33 @@ export function sessionRepository(tx: TenantScopedDatabase) {
           ? [{ ...toRecord(row), entry }]
           : [];
       });
+    },
+
+    // The subject's live sessions opened on one device, at most `limit`.
+    // Read under the tenant-row lock admission takes, so it sees every
+    // session a concurrent admission committed, which the cookie's own id
+    // list cannot. The subject condition is what keeps a forged device value
+    // from reaching anybody else's sessions; sessions_by_subject serves it.
+    async liveByDevice(
+      subjectId: string,
+      deviceId: string,
+      tenant: SessionLifespans,
+      now: Date,
+      limit: number,
+    ): Promise<SessionRecord[]> {
+      const rows = await tx
+        .select()
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.subjectId, subjectId),
+            eq(sessions.deviceId, deviceId),
+            liveSessionCondition(tenant, now),
+          ),
+        )
+        .orderBy(asc(sessions.id))
+        .limit(limit);
+      return rows.map(toRecord);
     },
 
     // The only read keyed on who a session belongs to rather than what a

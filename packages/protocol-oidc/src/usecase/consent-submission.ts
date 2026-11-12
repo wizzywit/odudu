@@ -42,6 +42,7 @@ export type ConsentSubmissionOutcome =
       ephemeralSessions: readonly SessionEntry[];
       persistentSessions: readonly SessionEntry[];
       persistentMaxAgeSeconds: number;
+      device: string;
     };
 
 export interface ConsentSubmissionDeps {
@@ -82,6 +83,8 @@ export interface ConsentSubmissionDeps {
     },
     header: string | undefined,
   ): Promise<PresentedSession[]>;
+  // See LoginSubmissionDeps.deviceOf.
+  deviceOf(tenantName: string, header: string | undefined): string;
   // The same two dependencies handleLoginSubmission reads to enforce its own
   // pre-consent gates — see refusedForUnverifiedEmail and nextRequiredAction
   // below, this endpoint's only callers of either.

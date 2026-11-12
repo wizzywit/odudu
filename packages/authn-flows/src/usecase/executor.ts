@@ -1249,6 +1249,8 @@ export async function establishSession(
   // liveness is measured against.
   remembered = false,
   clock: Clock = systemClock,
+  // Digest of the device cookie of the browser this login came from.
+  deviceId: string | null = null,
 ): Promise<EstablishedSession> {
   // Always a fresh id, even for the same subject: reusing the pre-auth id
   // here is exactly the session-fixation hole this function exists to close.
@@ -1261,6 +1263,7 @@ export async function establishSession(
     expiresAt: new Date(clock.now().getTime() + maxSeconds * 1000),
     remembered,
     secretHash: entry.secretHash(),
+    deviceId,
   });
   return { sessionId: entry.id, entry };
 }
