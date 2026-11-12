@@ -18,9 +18,9 @@ docker compose -p odudu-docs-12b exec -T odudu node dist/main.js seed admin --us
 ```
 
 ```
-eA1vc1ord9cJ0jTx8mt-fWzZgaOayh_k
+tj4amnDmsFjrKDM-lJ2I2wgISuEbH5Nn
 This password is shown once and cannot be retrieved again.
-{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a1d093-8b67-7001-b4b6-c8b3224cbc30"}
+{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a1d0c6-e5e5-7e98-9339-c6747f9c2e6d"}
 ```
 
 `odudu-admin` is a **confidential client** while the console is on: it holds no
@@ -50,7 +50,7 @@ curl -sS -c jar -b jar -o authorize.html \
   'http://localhost:3082/tenants/system/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2F127.0.0.1%3A8080%2Fcallback&scope=openid&state=s&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 curl -sS -c jar -b jar -o change.html \
   --data-urlencode "auth_session_id=$(grep -o 'name="auth_session_id" value="[^"]*"' authorize.html | head -1 | sed 's/.*value="//;s/"//')" \
-  --data-urlencode username=ada --data-urlencode 'password=eA1vc1ord9cJ0jTx8mt-fWzZgaOayh_k' \
+  --data-urlencode username=ada --data-urlencode 'password=tj4amnDmsFjrKDM-lJ2I2wgISuEbH5Nn' \
   http://localhost:3082/tenants/system/login-actions/authenticate
 ```
 
@@ -80,7 +80,7 @@ the change-password page, `change.html`, whose form carries the same
 </header>
 <p>This account needs a new password before you can continue.</p>
 <form method="post" action="/tenants/system/login-actions/required-action?action=update-password">
-  <input type="hidden" name="auth_session_id" value="01a1d0b8-43c7-7bf9-aa30-29219db57882">
+  <input type="hidden" name="auth_session_id" value="01a1d0c6-e6c0-7518-aab8-d78bb4fa5460">
   <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
@@ -89,7 +89,7 @@ the change-password page, `change.html`, whose form carries the same
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="n3aoV4H2UcWCoOhyLhcjoA==">(function () {
+  <script nonce="OtvPBhmnlDNjvxx9wPocPA==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -137,7 +137,7 @@ the change-password page, `change.html`, whose form carries the same
 
 The page offers "End my other sessions", checked. A browser that leaves it
 checked sends `end_other_sessions=true`; the request below sends nothing for it,
-so the session the person holds elsewhere is left alone.
+so no session is ended.
 
 Submitting it **ends in the redirect**: the password the login form already
 accepted is not asked for again, and with nothing else owed the parked
@@ -145,21 +145,21 @@ login completes:
 
 ```bash
 curl -sS -D - -c jar -b jar -o /dev/null \
-  --data-urlencode "auth_session_id=01a1d093-8c34-72f3-8265-8d009b5904f3" \
+  --data-urlencode "auth_session_id=01a1d0c6-e6c0-7518-aab8-d78bb4fa5460" \
   --data-urlencode 'password=correct-horse-battery-staple-9' \
   'http://localhost:3082/tenants/system/login-actions/required-action?action=update-password'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1d093-8caf-761d-bbf3-4c2c71305db2
-set-cookie: system-session=01a1d093-8d4a-7d46-a0e7-f71aef418c32:P4vppwjLEyxxhVggmx0J3SIh6-JjCqDs7tHl56oPMn0; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d0c6-e739-7128-a52c-1fdb0fe79d6c
+set-cookie: system-session=01a1d0c6-e77a-76c2-8a1f-91547841f737:p8lSqJIB3E62btLMwHcJXddT9EjJJTpAizScGZetVv0; HttpOnly; SameSite=Lax; Path=/
 set-cookie: system-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: system-device=5mXJMOxKAcvl_PYeimadeQ; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: system-device=HyH9WM33ZYsP64Z87cvrjw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/system/; Max-Age=0
-location: http://127.0.0.1:8080/callback?code=fwjdQ-59_X9c03_WxrQuI9uFp4RtmCT6_E2VcWu8PF8&state=s&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsystem
+location: http://127.0.0.1:8080/callback?code=ZNQ-_vEtorwtvWU9TUdgOMcWuQBeb1u8nQOc6LYv_4M&state=s&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsystem
 content-length: 0
-Date: Thu, 12 Nov 2026 16:24:53 GMT
+Date: Thu, 12 Nov 2026 17:20:58 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -176,7 +176,7 @@ holds it:
 ```bash
 curl -sS -D - \
   --data-urlencode grant_type=authorization_code \
-  --data-urlencode 'code=fwjdQ-59_X9c03_WxrQuI9uFp4RtmCT6_E2VcWu8PF8' \
+  --data-urlencode 'code=ZNQ-_vEtorwtvWU9TUdgOMcWuQBeb1u8nQOc6LYv_4M' \
   --data-urlencode redirect_uri=http://127.0.0.1:8080/callback \
   --data-urlencode client_id=odudu-admin \
   --data-urlencode code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk \
@@ -185,14 +185,14 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 401 Unauthorized
-x-request-id: 01a1d093-8d69-7727-8d9e-3a44c7a26d75
+x-request-id: 01a1d0c6-e790-7f0b-ae16-6ebb7c8ce93a
 vary: Origin
 www-authenticate: Basic realm="token"
 cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
 content-length: 78
-Date: Thu, 12 Nov 2026 16:24:53 GMT
+Date: Thu, 12 Nov 2026 17:20:58 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -211,7 +211,7 @@ ellipsis, one of two places here where a block is not the bytes on the wire:
 ASSERTION=$(docker compose -p odudu-docs-12b exec -T odudu node dist/main.js console assertion --tenant system)
 curl -sS -D - \
   --data-urlencode grant_type=authorization_code \
-  --data-urlencode 'code=fwjdQ-59_X9c03_WxrQuI9uFp4RtmCT6_E2VcWu8PF8' \
+  --data-urlencode 'code=ZNQ-_vEtorwtvWU9TUdgOMcWuQBeb1u8nQOc6LYv_4M' \
   --data-urlencode redirect_uri=http://127.0.0.1:8080/callback \
   --data-urlencode client_id=odudu-admin \
   --data-urlencode code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk \
@@ -222,22 +222,22 @@ curl -sS -D - \
 
 ```
 {"alg":"ES256","kid":"ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs"}
-{"iss":"odudu-admin","sub":"odudu-admin","aud":"http://localhost:3082/tenants/system/protocol/openid-connect/token","iat":1794500693,"exp":1794500753,"jti":"1bcb2066-f5a8-486e-88ba-a47c85b318ce"}
+{"iss":"odudu-admin","sub":"odudu-admin","aud":"http://localhost:3082/tenants/system/protocol/openid-connect/token","iat":1794504059,"exp":1794504119,"jti":"106a33a8-d5f9-4442-827f-ad31de959ac1"}
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d093-8fe5-7f51-b6a5-699e9efdb433
+x-request-id: 01a1d0c6-e935-7e8a-b1ed-6ac189a2dda4
 vary: Origin
 cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
 content-length: 1305
-Date: Thu, 12 Nov 2026 16:24:54 GMT
+Date: Thu, 12 Nov 2026 17:20:59 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"access_token":"eyJhbGciOiJFUzI1NiIsImtp…","id_token":"eyJhbGciOiJFUzI1NiIsImtp…","refresh_token":"Xi2YLzBIrgwXMDU99zW9QmBQ…","token_type":"Bearer","expires_in":300,"scope":"openid"}
+{"access_token":"eyJhbGciOiJFUzI1NiIsImtp\u2026","id_token":"eyJhbGciOiJFUzI1NiIsImtp\u2026","refresh_token":"JEuYsYSso0hd0KnA91GSZMWY\u2026","token_type":"Bearer","expires_in":300,"scope":"openid"}
 ```
 
 The access token's `aud` carries `urn:odudu:params:admin-api` **without the
@@ -249,15 +249,15 @@ indented — the other, because the bytes on the wire are a signed JWT:
 ```
 {
   "iss": "http://localhost:3082/tenants/system",
-  "sub": "01a1d093-8b67-7001-b4b6-c8b3224cbc30",
+  "sub": "01a1d0c6-e5e5-7e98-9339-c6747f9c2e6d",
   "aud": ["urn:odudu:params:admin-api", "http://localhost:3082/tenants/system"],
   "client_id": "odudu-admin",
   "scope": "openid",
-  "iat": 1794500694,
-  "exp": 1794500994,
-  "jti": "01a1d093-9017-7281-b48a-0544b3857934",
-  "sid": "01a1d093-8d4a-7d46-a0e7-f71aef418c32",
-  "grant_id": "01a1d093-9017-7281-b48a-05432c517f13"
+  "iat": 1794504059,
+  "exp": 1794504359,
+  "jti": "01a1d0c6-e950-7cd2-839c-e6b95cc7dca1",
+  "sid": "01a1d0c6-e77a-76c2-8a1f-91547841f737",
+  "grant_id": "01a1d0c6-e950-7cd2-839c-e6b876f6009f"
 }
 ```
 

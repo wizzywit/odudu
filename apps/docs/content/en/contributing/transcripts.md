@@ -1249,9 +1249,10 @@ refusal and the budget's counts are that pass's. The MCP endpoint's page was not
 it was. That changed command was run on the same project on a tenant of its own, `mcp-check`, and answered the page's
 response member for member, with another id, instant and tenant name. The stack was removed afterwards.
 
-The change-password page gained the box "End my other sessions". Its page document in Getting the token was
-read again for that, on the compose project `odudu-p4f-i9` on port `3089` (throttles at `1000`, built from the branch
-plus the change), after `seed admin --username ada` on an empty volume, so its `auth_session_id` and nonce are that
-run's and the rest of the page stands as the earlier run left it. Password expiry, and changing a password was run
-again whole on the same project, tenant `expiry-demo`, with the port in its commands and its ids, cookies and times
-that run's; its last section, on ending the other sessions, was added to it in the same run. The stack was removed afterwards.
+The change-password page gained the box "End my other sessions". Getting the token was replayed from its
+first block to the token's decoded payload for that, on the compose project `odudu-docs-12b` on port `3082` (throttles
+at `1000`, built from the branch plus the change), after `seed admin --username ada` on an empty volume, so every
+id, code, cookie and time in those blocks is that one run's; the sections after them stand as the earlier runs left
+them, each saying so where its port or ids differ. Password expiry, and changing a password was run again whole on
+the compose project `odudu-p4f-i9` on port `3089`, tenant `expiry-demo`, with its ids, cookies and times that run's; its
+last section, on ending the other sessions, was added to it in the same run. Both stacks were removed afterwards.

@@ -569,6 +569,14 @@ that never configures a step behaves as it does today.
   touched, as when a person ends sessions through the "me" API.
 - A refused candidate re-renders the page with the box checked again, whatever it was; the safer value on a retry.
 
+### Fix round
+
+- `getting-the-token` was replayed whole from its first block to the token's decoded payload on one stack (port `3082`, empty
+  volume), so the page, the posted `auth_session_id`, the code and the token share one run; its later sections keep their own
+  notes. The provenance paragraph in `contributing/transcripts.md` says so. The page's sentence on the unchecked box now says only
+  that the request sends nothing, so none is ended.
+- The sessions concept page names both triggers of the revocation mail again, with room made by tightening two other sentences.
+
 ### At volume
 
 - One bounded read by subject (`sessions_by_subject`) and one batch of statements per 100 sessions; a subject with 250 live sessions

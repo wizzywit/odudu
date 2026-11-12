@@ -8,7 +8,7 @@ import { Diagram } from '@site/src/shared/ui/Diagram';
 
 # Sessions
 
-You sign in to one app in the morning, then open another that uses the same Odudu. It does not ask for your password again. That is a session: a record that you proved who you are.
+You sign in to one app, then open another that uses the same Odudu. It does not ask for your password again. That is a session: a record that you proved who you are.
 
 <Diagram
   name="sessions"
@@ -37,7 +37,7 @@ Two limits apply, and the earlier one ends the session:
 
 The idle limit cannot be longer than the absolute one. A tenant with `remember_me_allowed` offers a "stay signed in" box with its own pair of limits, `remember_me_idle_seconds` and `remember_me_max_seconds`.
 
-One browser can hold several sessions, such as two people's. The tenant's `max_sessions_per_browser` caps them at 25 sessions by default; a new one past the cap ends the one used longest ago.
+One browser can hold several sessions. The tenant's `max_sessions_per_browser` caps them at 25 sessions by default; a new one past the cap ends the one used longest ago.
 
 ## How a session ends
 
@@ -62,7 +62,7 @@ A few rules are worth knowing:
 4. **An administrator can revoke a set**, with `DELETE /admin/tenants/{tenant}/subjects/{id}/recovery-codes`. If the person still has an authenticator, the next sign-in asks them to make a new set, unless the call says `require_new_set=false`. With none, nothing is asked.
 5. **A wrong code counts** towards the lockout that follows too many wrong second-factor attempts.
 
-The person is told by email when their set is revoked, whoever revokes it.
+The person is told by email when their set is revoked, by an administrator or because the last authenticator went.
 
 ## Working with sessions
 
