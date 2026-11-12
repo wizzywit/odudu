@@ -2608,6 +2608,8 @@ exports[`the verification pages under the default template > renders the confirm
 <main class="page">
 <p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
 <h1>أكّد عنوان بريدك الإلكتروني</h1>
+<p>عنوان البريد الإلكتروني: <bdi>ada@example.test</bdi></p>
+<p>حساب لدى <bdi>Acme</bdi></p>
 <p>اضغط على الزر لتأكيد هذا العنوان.</p>
 <form method="post" action="/tenants/acme/login-actions/action-token">
   <input type="hidden" name="key" value="key-1">
@@ -2634,6 +2636,8 @@ exports[`the verification pages under the default template > renders the confirm
 <main class="page">
 <p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
 <h1>Confirm your email address</h1>
+<p>Email address: <bdi>ada@example.test</bdi></p>
+<p>Account at <bdi>Acme</bdi></p>
 <p>Press the button to confirm this address.</p>
 <form method="post" action="/tenants/acme/login-actions/action-token">
   <input type="hidden" name="key" value="key-1">
@@ -2660,6 +2664,8 @@ exports[`the verification pages under the default template > renders the confirm
 <main class="page">
 <p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
 <h1>Confirm your email address</h1>
+<p>Email address: <bdi>ada@example.test</bdi></p>
+<p>Account at <bdi>Acme</bdi></p>
 <p>Press the button to confirm this address.</p>
 <form method="post" action="/tenants/acme/login-actions/action-token">
   <input type="hidden" name="key" value="key-1">
@@ -2687,7 +2693,9 @@ exports[`the verification pages under the default template > renders the confirm
 <main class="page">
 <p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
 <h1>Confirm your email address</h1>
+<p>Email address: <bdi>ada@example.test</bdi></p>
 <p>Account name: <bdi>ann</bdi></p>
+<p>Account at <bdi>Acme</bdi></p>
 <p>Press the button to confirm this address.</p>
 <form method="post" action="/tenants/acme/login-actions/action-token">
   <input type="hidden" name="key" value="key-1">
@@ -2711,7 +2719,9 @@ exports[`the verification pages under the default template > renders the confirm
 <main class="page">
 <p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
 <h1>Confirm your email address</h1>
+<p>Email address: <bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
 <p>Account name: <bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
+<p>Account at <bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
 <p>Press the button to confirm this address.</p>
 <form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/action-token">
   <input type="hidden" name="key" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
