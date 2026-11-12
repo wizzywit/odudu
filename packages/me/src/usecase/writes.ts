@@ -13,6 +13,7 @@ import {
   sessionsEndedEvent,
 } from '#/service/audit';
 import { planEmailChange, proofLocale } from '#/service/email-change';
+import { removalNotice, type NoticeOutcome } from '#/service/notice';
 import { UsernameTakenError } from '#/service/errors';
 import { credentialView, type CredentialView } from '#/service/credential-view';
 import { fetchLimit, splitPage } from '#/service/page';
@@ -190,7 +191,12 @@ export async function removeCredential(
 
     await tx.deleteCredential(target.id);
     const revoked = await tx.afterSecondFactorRemoved(caller.subjectId);
-    await tx.audit(credentialRemovedEvent(actorOf(caller), target.id, target.type));
+    const notice = await tx.noticeOwnChange(
+      caller.subjectId,
+      removalNotice(target.type, revoked),
+      deps.now(),
+    );
+    await tx.audit(credentialRemovedEvent(actorOf(caller), target.id, target.type, notice));
     if (revoked > 0) await tx.audit(recoveryCodesRevokedEvent(actorOf(caller), revoked));
     return { kind: 'removed' };
   });
@@ -217,6 +223,7 @@ export function requestEmailChange(
       withinBudget: tx.mailBudgetAllows(email),
     });
     // Whatever the plan, an address asked for earlier is no longer wanted.
+    let notice: NoticeOutcome | null = null;
     if (plan.kind === 'send') {
       await tx.setPendingEmail(caller.subjectId, email);
       await tx.queueAddressProof({
@@ -225,10 +232,15 @@ export function requestEmailChange(
         locale: proofLocale(current),
         now: deps.now(),
       });
+      notice = await tx.noticeOwnChange(
+        caller.subjectId,
+        { kind: 'address_change_requested' },
+        deps.now(),
+      );
     } else {
       await tx.clearPendingEmail(caller.subjectId);
     }
-    await tx.audit(emailChangeRequestedEvent(actorOf(caller), plan));
+    await tx.audit(emailChangeRequestedEvent(actorOf(caller), plan, notice));
     return { kind: 'accepted' };
   });
 }

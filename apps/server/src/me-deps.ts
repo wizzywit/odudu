@@ -1,5 +1,6 @@
 import { enqueueVerificationLink, type MailGate } from '@odudu/account';
 import {
+  noticeOwnChange,
   onSecondFactorRemoved,
   sessionRepository,
   tenantSettingsRepository,
@@ -149,6 +150,8 @@ function writeTxFor(
     afterSecondFactorRemoved: async (subjectId) =>
       (await onSecondFactorRemoved(tx, { subjectId }, () => Promise.resolve()))
         .recoveryCodesRevoked,
+    noticeOwnChange: (subjectId, change, now) =>
+      noticeOwnChange(tx, { tenantId, subjectId, now }, change, mail.resolveMailLook),
     mailIsAvailable: async () =>
       mail.publicBaseUrl !== undefined &&
       (mail.deploymentSmtp || (await tenantSmtpRepository(tx).byTenantId(tenantId)) !== null),

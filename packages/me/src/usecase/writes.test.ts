@@ -128,6 +128,10 @@ function world(over: Partial<MeWriteTx> = {}): { deps: MeWriteDeps; log: Log } {
       log.calls.push(`afterSecondFactorRemoved ${s}`);
       return Promise.resolve(0);
     },
+    noticeOwnChange: (s, change) => {
+      log.calls.push(`noticeOwnChange ${s} ${JSON.stringify(change)}`);
+      return Promise.resolve('sent');
+    },
     mailIsAvailable: () => {
       log.calls.push('mailIsAvailable');
       return Promise.resolve(true);
@@ -386,15 +390,44 @@ describe('removeCredential', () => {
       'tenantRequiresSecondFactor',
       `deleteCredential ${CRED}`,
       'afterSecondFactorRemoved subject-1',
+      'noticeOwnChange subject-1 {"kind":"totp_removed","codes":false}',
     ]);
     expect(log.audits).toEqual([
       expect.objectContaining({
         action: 'subject.credential_delete',
         actorSubjectId: 'subject-1',
         actorClientKey: 'app',
-        detail: { via: 'me', credential_id: CRED, type: 'totp' },
+        detail: { via: 'me', credential_id: CRED, type: 'totp', notice: 'sent' },
       }),
     ]);
+  });
+
+  it('tells the owner a passkey went, and that the codes went with a last authenticator app', async () => {
+    const passkey: CredentialSummary = { ...SUMMARY, type: 'webauthn' };
+    const first = world({
+      credentialOf: () => Promise.resolve(passkey),
+      heldCredentials: () => Promise.resolve([PASSWORD, passkey]),
+    });
+    await removeCredential(first.deps, CALLER, CRED);
+    expect(first.log.calls).toContain('noticeOwnChange subject-1 {"kind":"passkey_removed"}');
+
+    const second = world({ afterSecondFactorRemoved: () => Promise.resolve(10) });
+    await removeCredential(second.deps, CALLER, CRED);
+    expect(second.log.calls).toContain(
+      'noticeOwnChange subject-1 {"kind":"totp_removed","codes":true}',
+    );
+  });
+
+  it('records that nobody was told when the address is unverified', async () => {
+    const { deps, log } = world({ noticeOwnChange: () => Promise.resolve('skipped_unverified') });
+    await removeCredential(deps, CALLER, CRED);
+    expect(log.audits[0]?.detail).toMatchObject({ notice: 'skipped_unverified' });
+  });
+
+  it('tells nobody of a removal it refused', async () => {
+    const { deps, log } = world({ tenantRequiresSecondFactor: () => Promise.resolve(true) });
+    await removeCredential(deps, CALLER, CRED);
+    expect(log.calls.some((c) => c.startsWith('noticeOwnChange'))).toBe(false);
   });
 
   it('files the recovery codes the removal revoked as their own row', async () => {
@@ -459,6 +492,12 @@ describe('removeCredential', () => {
 });
 
 describe('requestEmailChange', () => {
+  it('records that nobody was told of the request when the current address is unverified', async () => {
+    const { deps, log } = world({ noticeOwnChange: () => Promise.resolve('skipped_unverified') });
+    await requestEmailChange(deps, CALLER, 'new@example.com');
+    expect(log.audits[0]?.detail).toMatchObject({ pending: true, notice: 'skipped_unverified' });
+  });
+
   it('stores the pending address and queues one mail to it, changing no profile column', async () => {
     const { deps, log } = world();
     const outcome = await requestEmailChange(deps, CALLER, 'new@example.com');
@@ -469,11 +508,12 @@ describe('requestEmailChange', () => {
       'holderOfEmail new@example.com',
       'setPendingEmail subject-1 new@example.com',
       'queueAddressProof subject-1 new@example.com null 2026-11-11T10:00:00.000Z',
+      'noticeOwnChange subject-1 {"kind":"address_change_requested"}',
     ]);
     expect(log.audits).toHaveLength(1);
     expect(log.audits[0]).toMatchObject({
       action: 'subject.profile_amend',
-      detail: { via: 'me', fields: ['email'], pending: true },
+      detail: { via: 'me', fields: ['email'], pending: true, notice: 'sent' },
     });
     expect(JSON.stringify(log.audits)).not.toContain('new@example.com');
   });
@@ -485,6 +525,7 @@ describe('requestEmailChange', () => {
     });
     expect(log.calls.some((c) => c.startsWith('setPendingEmail'))).toBe(false);
     expect(log.calls.some((c) => c.startsWith('queueAddressProof'))).toBe(false);
+    expect(log.calls.some((c) => c.startsWith('noticeOwnChange'))).toBe(false);
     expect(log.audits[0]?.detail).toEqual({
       via: 'me',
       fields: ['email'],

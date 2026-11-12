@@ -3,6 +3,7 @@ import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, withTenant } from '@odudu/db';
 import type { DatabaseHandle } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
+import { emailOutbox } from '@odudu/email';
 import { credentialRepository, subjectRepository } from '@odudu/domain-identity';
 import { loadConfig, meAudienceOfIssuer, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -189,7 +190,12 @@ describe('DELETE /me/credentials/{id}', () => {
     expect(await typesHeld(w)).toEqual(['password']);
     const rows = await auditRows(w, 'subject.credential_delete');
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.detail).toEqual({ via: 'me', credential_id: passkey, type: 'webauthn' });
+    expect(rows[0]?.detail).toEqual({
+      via: 'me',
+      credential_id: passkey,
+      type: 'webauthn',
+      notice: 'skipped_unverified',
+    });
     expect(rows[0]?.actorSubjectId).toBe(w.subjectId);
   });
 
@@ -294,6 +300,56 @@ describe('DELETE /me/credentials/{id}', () => {
     const totp = await hold(theirs, 'totp');
     expect((await remove(mine, totp)).statusCode).toBe(404);
     expect(await typesHeld(theirs)).toEqual(['password', 'totp']);
+  });
+});
+
+const verifyAddress = (w: World) =>
+  owner.sql`update users set email_verified = true where subject_id = ${w.subjectId}`;
+
+const mailTo = (w: World) =>
+  owner.db.select().from(emailOutbox).where(eq(emailOutbox.tenantId, w.tenantId));
+
+describe('the notice a removal sends', () => {
+  it('tells a verified address once, naming the passkey, and records that it did', async () => {
+    const w = await world();
+    await verifyAddress(w);
+    const passkey = await hold(w, 'webauthn');
+    expect((await remove(w, passkey)).statusCode).toBe(204);
+    const sent = await mailTo(w);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.toAddress).toBe('ada@example.com');
+    expect(sent[0]?.subject).toMatch(/^A passkey was removed from your .* account$/u);
+    expect(sent[0]?.bodyText).toContain('If this was not you');
+    expect((await auditRows(w, 'subject.credential_delete'))[0]?.detail).toMatchObject({
+      notice: 'sent',
+    });
+  });
+
+  it('says the codes went when the last authenticator app took them along', async () => {
+    const w = await world();
+    await verifyAddress(w);
+    const totp = await hold(w, 'totp');
+    await hold(w, 'recovery-code');
+    expect((await remove(w, totp)).statusCode).toBe(204);
+    const sent = await mailTo(w);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.bodyText).toContain('recovery codes were removed with it');
+  });
+
+  it('sends nothing to an unverified address, and the removal still happens', async () => {
+    const w = await world();
+    const passkey = await hold(w, 'webauthn');
+    expect((await remove(w, passkey)).statusCode).toBe(204);
+    expect(await mailTo(w)).toEqual([]);
+  });
+
+  it('sends nothing for a removal that is refused', async () => {
+    const w = await world();
+    await verifyAddress(w);
+    await dropPassword(w);
+    const passkey = await hold(w, 'webauthn');
+    expect((await remove(w, passkey)).statusCode).toBe(409);
+    expect(await mailTo(w)).toEqual([]);
   });
 });
 

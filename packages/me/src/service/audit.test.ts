@@ -73,13 +73,13 @@ describe('the audit events of a person’s own changes', () => {
   });
 
   it('file a removed credential on the subject, naming its id and type', () => {
-    expect(credentialRemovedEvent(ACTOR, 'cred-1', 'webauthn')).toEqual({
+    expect(credentialRemovedEvent(ACTOR, 'cred-1', 'webauthn', 'sent')).toEqual({
       action: 'subject.credential_delete',
       resourceType: 'subject',
       resourceId: 'subject-1',
       actorSubjectId: 'subject-1',
       actorClientKey: 'app',
-      detail: { via: 'me', credential_id: 'cred-1', type: 'webauthn' },
+      detail: { via: 'me', credential_id: 'cred-1', type: 'webauthn', notice: 'sent' },
     });
   });
 
