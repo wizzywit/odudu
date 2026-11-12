@@ -271,7 +271,7 @@ function uniqueConflictDetail(error: unknown, values: AmendSubjectRequest): stri
   if (isUniqueViolationNaming(error, 'users_username_unique')) {
     return `the username ${JSON.stringify(values.username)} is already in use`;
   }
-  if (isUniqueViolationNaming(error, 'users_email_unique')) {
+  if (isUniqueViolationNaming(error, 'users_email_unique') || error instanceof EmailTakenError) {
     return `the email ${JSON.stringify(values.email)} is already in use`;
   }
   return null;

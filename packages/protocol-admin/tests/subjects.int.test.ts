@@ -1251,6 +1251,40 @@ describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () =>
     expect(await readSubjectBody(t.name, id)).toEqual(before);
     expect(before.enabled).toBe(true);
   });
+
+  it('answers 409 for an email another subject holds in another case', async () => {
+    const t = await fixture.createTenant(`amend-email-case-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const local = `case-${newId()}`;
+    const { id: holder } = await fixture.createSubject(t.name, `holder-${newId()}`);
+    expect(
+      (await patchSubject(t.name, holder, token, { email: `${local}@example.com` })).statusCode,
+    ).toBe(200);
+    const { id } = await fixture.createSubject(t.name, `other-${newId()}`);
+    const before = await readSubjectBody(t.name, id);
+
+    const asked = `${local.toUpperCase()}@Example.COM`;
+    const res = await patchSubject(t.name, id, token, { enabled: false, email: asked });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toBe(
+      `the email ${JSON.stringify(asked)} is already in use`,
+    );
+    expect(await readSubjectBody(t.name, id)).toEqual(before);
+  });
+
+  it('lets a subject change the case of the address it holds itself', async () => {
+    const t = await fixture.createTenant(`amend-email-own-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const local = `own-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, `mine-${newId()}`);
+    expect(
+      (await patchSubject(t.name, id, token, { email: `${local}@example.com` })).statusCode,
+    ).toBe(200);
+
+    const res = await patchSubject(t.name, id, token, { email: `${local}@EXAMPLE.com` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ email: string }>().email).toBe(`${local}@EXAMPLE.com`);
+  });
 });
 
 describe('DELETE /admin/tenants/{t}/subjects/{id}', () => {
