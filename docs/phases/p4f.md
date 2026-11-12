@@ -453,4 +453,18 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
 
 ### Open placements
 
-- The per-step configuration remains increment 7c.
+- The per-step configuration is increment 7c, below.
+
+## Increment 7c: per-step configuration
+
+Ruling: no code in this increment. A sign-in flow model does not exist yet
+(`git grep -n -i "flow_config\|authentication_flow" -- packages/db/src
+packages/domain-tenant/src` finds nothing), so there is no step to carry a
+setting. The authenticator settings stay on the tenant, where 7a put them, and
+increment 13b moves each of them onto the step it governs when it builds the
+flow model, with the tenant value as the default a step inherits. A tenant
+that never configures a step behaves as it does today.
+
+### Open placements
+
+- Moving the authenticator settings onto flow steps is increment 13b's work.
