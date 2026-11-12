@@ -81,7 +81,7 @@ What to read depends on the action:
   is already verified sees the page say so and ends it at once; one with no address cannot do the action, and the page
   says so and offers the way back with `action_status=error`.
 - `update-profile`: `GET /me/profile`. The page, "Complete your profile", lists every profile field a person can edit through `PATCH /me/profile`, with
-  what they hold, and ends only when each field that was empty has a value the same rules accept. Nothing is written until
+  what they hold, and ends only when each field the tenant requires (`required_profile_fields`, given and family name by default) has a value, and every value sent is accepted by the same rules. Nothing is written until
   the whole form is acceptable. The address is not on this page.
 - `update-password`: the list shows the password by type either way, so it cannot show a change. Each credential lists when it was
   made, and a new password is dated from the change, so compare the password's `created_at` from before the action with the one
