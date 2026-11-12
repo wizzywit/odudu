@@ -257,3 +257,71 @@ describe('the locale settings', () => {
     expect(names(settings(['en', 'fr'], 'de'))).toEqual(['default_locale']);
   });
 });
+
+describe('the authenticator policy settings', () => {
+  it('reads each as the column it is stored in', () => {
+    expect(coerceTenantSetting('totp_algorithm', 'SHA256')).toEqual({
+      kind: 'coerced',
+      column: 'totpAlgorithm',
+      value: 'SHA256',
+    });
+    expect(coerceTenantSetting('totp_digits', '8')).toEqual({
+      kind: 'coerced',
+      column: 'totpDigits',
+      value: 8,
+    });
+    expect(coerceTenantSetting('totp_period', '60')).toEqual({
+      kind: 'coerced',
+      column: 'totpPeriod',
+      value: 60,
+    });
+    expect(coerceTenantSetting('webauthn_user_verification', 'preferred')).toEqual({
+      kind: 'coerced',
+      column: 'webauthnUserVerification',
+      value: 'preferred',
+    });
+    expect(coerceTenantSetting('webauthn_resident_key', 'discouraged')).toEqual({
+      kind: 'coerced',
+      column: 'webauthnResidentKey',
+      value: 'discouraged',
+    });
+    expect(coerceTenantSetting('recovery_code_count', '12')).toEqual({
+      kind: 'coerced',
+      column: 'recoveryCodeCount',
+      value: 12,
+    });
+  });
+
+  it('refuses a name that is not one of the offered values, naming them', () => {
+    expect(coerceTenantSetting('totp_algorithm', 'MD5')).toEqual({
+      kind: 'invalid_value',
+      expected: 'text',
+      values: ['SHA1', 'SHA256', 'SHA512'],
+    });
+    expect(coerceTenantSetting('webauthn_user_verification', 'sometimes').kind).toBe(
+      'invalid_value',
+    );
+  });
+
+  it('holds digits and period to the values authenticator apps use, and the count to its range', () => {
+    const named = (values: Record<string, unknown>) =>
+      tenantSettingProblems(values).map((problem) => problem.name);
+    expect(named({ totp_digits: 6, totp_period: 30, recovery_code_count: 8 })).toEqual([]);
+    expect(named({ totp_digits: 7 })).toEqual(['totp_digits']);
+    expect(named({ totp_period: 45 })).toEqual(['totp_period']);
+    expect(named({ recovery_code_count: 7 })).toEqual(['recovery_code_count']);
+    expect(named({ recovery_code_count: 17 })).toEqual(['recovery_code_count']);
+    expect(named({ totp_algorithm: 'MD5' })).toEqual(['totp_algorithm']);
+  });
+
+  it('keeps the warning threshold within the size of a set', () => {
+    expect(
+      tenantSettingProblems({ recovery_code_warn_below: 9, recovery_code_count: 8 }).map(
+        (problem) => problem.name,
+      ),
+    ).toEqual(['recovery_code_warn_below']);
+    expect(
+      tenantSettingProblems({ recovery_code_warn_below: 8, recovery_code_count: 8 }),
+    ).toEqual([]);
+  });
+});

@@ -1014,6 +1014,18 @@ describeFields(tenantSettingsDocumentSchema, {
     'How recent a sign-in must be, in seconds, for the "me" API to accept removing a credential, ending other sessions in bulk, revoking a consent or changing a username.',
   recovery_code_warn_below:
     'How few unspent recovery codes a person may hold before the "me" API reports recovery_codes_low; 0 turns the warning off.',
+  totp_algorithm:
+    'The HMAC algorithm of an authenticator app enrolled from now on: SHA1, SHA256 or SHA512. An enrolment keeps the algorithm it was made with.',
+  totp_digits:
+    'The length of the code an authenticator app enrolled from now on shows: 6 or 8. An enrolment keeps the digits it was made with.',
+  totp_period:
+    'The seconds an authenticator app enrolled from now on shows one code for: 30 or 60. An enrolment keeps the period it was made with.',
+  webauthn_user_verification:
+    'Whether a passkey enrolled from now on is made with user verification: required, preferred or discouraged. A passkey made without it signs in as one factor.',
+  webauthn_resident_key:
+    'Whether a passkey enrolled from now on is stored on the authenticator so it can sign in without a username: required, preferred or discouraged.',
+  recovery_code_count:
+    'How many recovery codes a newly issued set holds, 8 to 16. A set already issued keeps its size.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',

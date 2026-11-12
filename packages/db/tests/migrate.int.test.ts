@@ -73,6 +73,7 @@ describe('migrations', () => {
       'password_require_lowercase',
       'password_require_special',
       'password_require_uppercase',
+      'recovery_code_count',
       'recovery_code_warn_below',
       'refresh_token_ttl_seconds',
       'registration_allowed',
@@ -85,9 +86,14 @@ describe('migrations', () => {
       'sso_session_idle_seconds',
       'sso_session_max_seconds',
       'supported_locales',
+      'totp_algorithm',
+      'totp_digits',
+      'totp_period',
       'username_editable',
       'verify_email',
       'verify_email_ttl_seconds',
+      'webauthn_resident_key',
+      'webauthn_user_verification',
     ]);
   });
 

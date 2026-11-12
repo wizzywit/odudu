@@ -98,6 +98,14 @@ export const tenants = pgTable('tenants', {
   // How few unspent recovery codes a person may hold before they are warned
   // (packages/db/drizzle/0131_recovery_code_warn_below.sql); 0 turns it off.
   recoveryCodeWarnBelow: integer('recovery_code_warn_below').notNull().default(3),
+  // What a tenant asks of the authenticators enrolled from now on; an enrolment
+  // keeps the values it was made under (packages/db/drizzle/0132_authenticator_policy.sql).
+  totpAlgorithm: text('totp_algorithm').notNull().default('SHA1'),
+  totpDigits: integer('totp_digits').notNull().default(6),
+  totpPeriod: integer('totp_period').notNull().default(30),
+  webauthnUserVerification: text('webauthn_user_verification').notNull().default('required'),
+  webauthnResidentKey: text('webauthn_resident_key').notNull().default('required'),
+  recoveryCodeCount: integer('recovery_code_count').notNull().default(10),
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),

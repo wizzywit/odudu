@@ -925,6 +925,13 @@
       "when": 1791148683737,
       "tag": "0131_recovery_code_warn_below",
       "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1791148783737,
+      "tag": "0132_authenticator_policy",
+      "breakpoints": true
     }
   ]
 }

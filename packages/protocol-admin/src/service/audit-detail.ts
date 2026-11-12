@@ -57,14 +57,21 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     display_name: 'value',
     enabled: 'value',
   },
-  // The two settings that decide who may become a client of the tenant and the
-  // three that are wording people read: the display name and the languages.
-  // Every other setting stays out of the audit detail, as an unlisted field does.
+  // The settings that decide who may become a client of the tenant, how fresh
+  // a sign-in must be, what a new authenticator is made with, and the wording
+  // people read: the display name and the languages. Every other setting
+  // stays out of the audit detail, as an unlisted field does.
   tenant_settings: {
     client_registration_policy: 'value',
     cimd_enabled: 'value',
     session_freshness_seconds: 'value',
     recovery_code_warn_below: 'value',
+    totp_algorithm: 'value',
+    totp_digits: 'value',
+    totp_period: 'value',
+    webauthn_user_verification: 'value',
+    webauthn_resident_key: 'value',
+    recovery_code_count: 'value',
     display_name: 'value',
     supported_locales: 'value',
     default_locale: 'value',

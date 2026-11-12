@@ -168,6 +168,18 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'tenants.tenants_refresh_token_ttl_floor': 'CHECK ((refresh_token_ttl_seconds >= 1))',
   'tenants.tenants_recovery_code_warn_below_range':
     'CHECK (((recovery_code_warn_below >= 0) AND (recovery_code_warn_below <= 10)))',
+  'tenants.tenants_recovery_code_count_range':
+    'CHECK (((recovery_code_count >= 8) AND (recovery_code_count <= 16)))',
+  'tenants.tenants_recovery_warn_within_count':
+    'CHECK ((recovery_code_warn_below <= recovery_code_count))',
+  'tenants.tenants_totp_algorithm_check':
+    "CHECK ((totp_algorithm = ANY (ARRAY['SHA1'::text, 'SHA256'::text, 'SHA512'::text])))",
+  'tenants.tenants_totp_digits_check': 'CHECK ((totp_digits = ANY (ARRAY[6, 8])))',
+  'tenants.tenants_totp_period_check': 'CHECK ((totp_period = ANY (ARRAY[30, 60])))',
+  'tenants.tenants_webauthn_resident_key_check':
+    "CHECK ((webauthn_resident_key = ANY (ARRAY['required'::text, 'preferred'::text, 'discouraged'::text])))",
+  'tenants.tenants_webauthn_user_verification_check':
+    "CHECK ((webauthn_user_verification = ANY (ARRAY['required'::text, 'preferred'::text, 'discouraged'::text])))",
   'tenants.tenants_reset_password_ttl_range':
     'CHECK (((reset_password_ttl_seconds >= 60) AND (reset_password_ttl_seconds <= 86400)))',
   'tenants.tenants_session_freshness_range':
