@@ -54,6 +54,7 @@ General
 Sessions
 Remember me
 Registration and recovery
+Authenticators
 Usernames
 Password policy
 Brute force
@@ -120,6 +121,43 @@ Reset link lifetime
 s
 300 s · 5 minutes
 A reset link stops working after this long. Between 60 s · 1 minute and 86400 s · 1 day.
+Authenticators
+What a new authenticator app, passkey or recovery set is made with. One already enrolled keeps the values it was made with.
+Authenticator app algorithm
+SHA1
+▾
+SHA1 works in every authenticator app. A person’s app must support another algorithm, digit count and period before they can use it; the enrolment page says so.
+SHA1
+SHA256
+SHA512
+Authenticator app code length
+6 digits
+▾
+6 digits
+8 digits
+Authenticator app code period
+30 seconds
+▾
+30 seconds
+60 seconds
+Passkey user verification
+Required
+▾
+Whether a new passkey checks the person with a PIN or biometric. A passkey made without it signs in as one factor, so a second factor is still asked for.
+Required
+Preferred
+Discouraged
+Passkey stored on the device
+Required
+▾
+A passkey that is not stored on the device cannot sign a person in who has not typed a username.
+Required
+Preferred
+Discouraged
+Recovery codes in a set
+codes
+10 codes
+A set already issued keeps its size. Between 8 and 16 codes.
 Recovery code warning
 codes
 3 codes
