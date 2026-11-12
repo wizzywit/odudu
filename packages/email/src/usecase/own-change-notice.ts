@@ -1,19 +1,13 @@
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { eq } from 'drizzle-orm';
 import { outboxRepository } from '#/repository/outbox';
-import { noticeRecipient } from '#/service/notice-recipient';
+import { noticeRecipient, type NoticeAddress } from '#/service/notice-recipient';
 import { renderOwnChange, type OwnChange } from '#/service/templates';
 import { tenantMailContext, type MailLookResolver } from '#/usecase/mail-context';
 
 export interface OwnChangeNotice {
   readonly tenantId: string;
-  // What the subject's row holds: the address, whether it was proved, and the
-  // language the mail is read in.
-  readonly address: {
-    readonly email: string | null;
-    readonly verified: boolean;
-    readonly locale: string | null;
-  };
+  readonly address: NoticeAddress;
   readonly now: Date;
 }
 

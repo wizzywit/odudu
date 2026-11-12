@@ -20,7 +20,12 @@ export {
   type RequiredActionsInput,
   type SmtpTestInput,
 } from '#/service/templates';
-export { noticeRecipient, type NoticeRecipient } from '#/service/notice-recipient';
+export {
+  noticeAddressOf,
+  noticeRecipient,
+  type NoticeAddress,
+  type NoticeRecipient,
+} from '#/service/notice-recipient';
 export { smtpSender, type SmtpConfig } from '#/adapter/smtp';
 export { capturingSender } from '#/adapter/capturing';
 export { loggingSender } from '#/adapter/logging';

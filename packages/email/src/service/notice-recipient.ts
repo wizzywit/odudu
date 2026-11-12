@@ -9,3 +9,20 @@ export function noticeRecipient(address: string | null, verified: boolean): Noti
   if (address === null || address === '') return { send: false, reason: 'none' };
   return verified ? { send: true, to: address } : { send: false, reason: 'unverified' };
 }
+
+export interface NoticeAddress {
+  readonly email: string | null;
+  readonly verified: boolean;
+  readonly locale: string | null;
+}
+
+export function noticeAddressOf(
+  user: {
+    readonly email: string | null;
+    readonly emailVerified: boolean;
+    readonly locale: string | null;
+  } | null,
+): NoticeAddress {
+  if (user === null) return { email: null, verified: false, locale: null };
+  return { email: user.email, verified: user.emailVerified, locale: user.locale };
+}

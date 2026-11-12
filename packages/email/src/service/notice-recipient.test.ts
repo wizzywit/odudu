@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { noticeRecipient } from '#/service/notice-recipient';
+import { noticeAddressOf, noticeRecipient } from '#/service/notice-recipient';
 
 describe('noticeRecipient', () => {
   it('sends to a verified address', () => {
@@ -23,5 +23,17 @@ describe('noticeRecipient', () => {
 
   it('treats an empty address as none', () => {
     expect(noticeRecipient('', true)).toEqual({ send: false, reason: 'none' });
+  });
+});
+
+describe('noticeAddressOf', () => {
+  it('reads the address, its proof and the language from a subject row', () => {
+    expect(
+      noticeAddressOf({ email: 'ada@example.test', emailVerified: true, locale: 'ar' }),
+    ).toEqual({ email: 'ada@example.test', verified: true, locale: 'ar' });
+  });
+
+  it('is an address nobody holds when the subject is not there', () => {
+    expect(noticeAddressOf(null)).toEqual({ email: null, verified: false, locale: null });
   });
 });
