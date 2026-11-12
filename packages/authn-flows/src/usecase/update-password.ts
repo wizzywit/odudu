@@ -1,6 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import {
+  type BreachedPasswordCheck,
   credentialRepository,
   evaluatePassword,
   hashUserPassword,
@@ -46,6 +47,9 @@ export interface UpdatePassword {
   tenantId: string;
   subjectId: string;
   password: string;
+  // Asked of a candidate that passed the tenant's other rules, before the
+  // reuse check: one lookup, where the reuse check can be twenty-five hashes.
+  breachedCheck: BreachedPasswordCheck;
   // Present where the person has to prove the password in force before
   // choosing a new one, an empty string included: a form that left the field
   // out is a wrong answer, not an exemption. Absent for the action a tenant
@@ -151,6 +155,14 @@ export async function completeUpdatePassword(
     };
   }
 
+  const breached = await input.breachedCheck(tx, input.tenantId, input.password);
+  if (breached.violations.length > 0) {
+    return {
+      kind: 'rejected',
+      violations: breached.violations.map(({ rule, message }) => ({ rule, message })),
+    };
+  }
+
   // Nothing in the tenant holds a password for this subject, so there is
   // nothing to rotate. Unreachable through the only thing that owes this
   // action today — expiry, which reads the credential it expires — so it is
@@ -189,7 +201,10 @@ export async function completeUpdatePassword(
     actorSubjectId: input.subjectId,
     resourceType: 'subject',
     resourceId: input.subjectId,
-    detail: { ended_other_sessions: input.endOtherSessions !== undefined },
+    detail: {
+      ended_other_sessions: input.endOtherSessions !== undefined,
+      breached_check: breached.audit,
+    },
   });
   return { kind: 'updated' };
 }

@@ -15,6 +15,7 @@ import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
 import { type TenantAddress } from '@odudu/kernel';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { type MailGate } from '#/service/mail-gate';
+import { type BreachedCheck } from '#/service/breached-check';
 import { withMinimum } from '#/service/password-violations';
 
 // Re-exported so the view layer can reach these without importing the
@@ -213,6 +214,9 @@ export interface CompletePasswordResetDeps extends AccountRecoveryDeps {
     subject: { username: string; email: string | null },
   ) => PolicyViolation[];
   readonly getUsername: (tx: TenantScopedDatabase, subjectId: string) => Promise<string>;
+  // After the rules and before the link is spent, so a refused password
+  // burns nothing; what it decided is recorded on the password.reset row.
+  readonly breachedCheck: BreachedCheck;
   // The one policy rule no candidate decides on its own: whether it is the
   // password already in force. Injected as the violations to report rather
   // than as a predicate, for the reason setPassword is — the stored hash,
@@ -268,6 +272,11 @@ export async function completePasswordReset(
         };
       }
 
+      const breached = await deps.breachedCheck(tx, deps.tenantId, newPassword);
+      if (breached.violations.length > 0) {
+        return { kind: 'invalid_password', violations: [...breached.violations] };
+      }
+
       // Before the link is spent, for the same reason the rules above are:
       // setting the password already in force restarts the tenant's
       // password_max_age_days on it, which would make an expired password
@@ -289,6 +298,7 @@ export async function completePasswordReset(
         actorSubjectId: record.subjectId,
         resourceType: 'subject',
         resourceId: record.subjectId,
+        detail: { breached_check: breached.audit },
       });
       return { kind: 'reset', factorsRemoved };
     },

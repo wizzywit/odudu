@@ -1,6 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import {
+  createBreachedPasswordCheck,
   credentialRepository,
   evaluatePassword,
   hashUserPassword,
@@ -59,6 +60,11 @@ export async function lockAddress(
   await lockEmailForCreation(tx, tenantId, email);
 }
 
+// The dataset and no egress: a remote lookup is a failure to see, not a pass.
+export const breachedCheck = createBreachedPasswordCheck({
+  fetchRange: () => Promise.reject(new Error('no remote lookup expected')),
+});
+
 export const openMailGate: MailGate = () => true;
 
 export const accountTestDeps = {
@@ -68,6 +74,7 @@ export const accountTestDeps = {
   createVerifiedAccount,
   lockAddress,
   hashPassword: hashUserPassword,
+  breachedCheck,
   isEmailAddress,
   mailGate: openMailGate,
   findReturnClient: () => Promise.resolve(null),
@@ -93,6 +100,7 @@ export function linkRouteDeps() {
       return user.username;
     },
     evaluatePassword,
+    breachedCheck,
     unchangedPasswordViolations: () => Promise.resolve([]),
     clearPasswordUpdateAction: () => Promise.resolve(),
     addRequiredActions: () => Promise.resolve(),

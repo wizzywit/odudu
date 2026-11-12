@@ -1,10 +1,15 @@
 import { actionLink } from '#/service/action-link';
 import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
-import { auditRepository, type RequestContext } from '@odudu/domain-audit';
+import {
+  auditRepository,
+  type BreachedCheckOutcome,
+  type RequestContext,
+} from '@odudu/domain-audit';
 import { mailContext, outboxRepository, renderRequiredActions } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { mailAddressOf } from '#/usecase/mail-address';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
+import { type BreachedCheck } from '#/service/breached-check';
 import { withMinimum } from '#/service/password-violations';
 import { orderedActions, type LinkedRequiredAction } from '#/service/required-actions';
 import {
@@ -77,6 +82,7 @@ export interface CompleteRequiredActionsDeps extends AccountRecoveryDeps {
     subject: { username: string; email: string | null },
   ) => PolicyViolation[];
   readonly getUsername: (tx: TenantScopedDatabase, subjectId: string) => Promise<string>;
+  readonly breachedCheck: BreachedCheck;
   readonly unchangedPasswordViolations: (
     tx: TenantScopedDatabase,
     subjectId: string,
@@ -123,6 +129,7 @@ export async function completeRequiredActions(
       if (peeked?.type !== 'execute_actions') return { kind: 'invalid' };
       const actions = orderedActions(peeked.actions ?? []);
       const setsPassword = actions.includes('update-password');
+      let breachedAudit: BreachedCheckOutcome | undefined;
 
       if (setsPassword) {
         if (newPassword === undefined) return { kind: 'password_required' };
@@ -137,6 +144,11 @@ export async function completeRequiredActions(
             violations: withMinimum(violations, deps.passwordPolicy.minLength),
           };
         }
+        const breached = await deps.breachedCheck(tx, deps.tenantId, newPassword);
+        if (breached.violations.length > 0) {
+          return { kind: 'invalid_password', violations: [...breached.violations] };
+        }
+        breachedAudit = breached.audit;
         const unchanged = await deps.unchangedPasswordViolations(tx, peeked.subjectId, newPassword);
         if (unchanged.length > 0) return { kind: 'invalid_password', violations: unchanged };
       }
@@ -157,6 +169,7 @@ export async function completeRequiredActions(
           actorSubjectId: record.subjectId,
           resourceType: 'subject',
           resourceId: record.subjectId,
+          ...(breachedAudit === undefined ? {} : { detail: { breached_check: breachedAudit } }),
         });
       }
       const remaining = actions.filter((action) => action !== 'update-password');

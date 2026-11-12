@@ -61,6 +61,9 @@ export const ar: Readonly<Record<string, string>> = {
   'updatePassword.rule.common': 'كلمة المرور هذه سهلة التخمين. اختر كلمة مرور أخرى.',
   'updatePassword.rule.notReused':
     'يجب ألا تكون كلمة المرور من كلمات المرور التي استخدمتها من قبل.',
+  'updatePassword.rule.breached': 'ظهرت كلمة المرور هذه في تسريب بيانات. اختر كلمة مرور أخرى.',
+  'updatePassword.rule.breachCheckUnavailable':
+    'تعذّر فحص كلمة المرور مقابل التسريبات المعروفة. حاول مرة أخرى بعد قليل.',
   'updatePassword.rule.superseded':
     'تم تغيير كلمة مرورك في مكان آخر قبل إرسال هذا النموذج. سجّل الدخول مرة أخرى بكلمة المرور التي عيّنتها هناك.',
   'updatePassword.currentPassword': 'كلمة المرور الحالية',

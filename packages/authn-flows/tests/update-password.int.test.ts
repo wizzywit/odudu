@@ -9,9 +9,13 @@ import {
 } from '@odudu/db';
 import { auditRepository, type AuditEventRecord } from '@odudu/domain-audit';
 import {
+  type BreachedPasswordCheck,
   credentialRepository,
   hashPassword,
+  breachedHash,
+  createBreachedPasswordCheck,
   hashUserPassword,
+  insertBreachedHashes,
   subjectRepository,
   userCredentials,
   users,
@@ -26,6 +30,11 @@ import { type PendingRequest } from '#/schema/authentication-sessions';
 import { advance, startAuthentication, type AdvanceOutcome } from '#/usecase/executor';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 import { completeUpdatePassword, type UpdatePasswordOutcome } from '#/usecase/update-password';
+
+// The dataset and no egress: a lookup the test did not expect fails loudly.
+const breachedCheck = createBreachedPasswordCheck({
+  fetchRange: () => Promise.reject(new Error('no remote lookup expected')),
+});
 
 const SILENT_LOGGER = { error: (): void => undefined };
 
@@ -72,6 +81,8 @@ interface TenantPolicy {
   maxAgeDays?: number;
   historyDepth?: number;
   minLength?: number;
+  breachedCheck?: 'off' | 'dataset' | 'remote';
+  breachedOnError?: 'open' | 'closed';
   // A password stored as typed, the way every hash was made before
   // passwords were normalised.
   storedAsTyped?: string;
@@ -91,6 +102,8 @@ async function seedAccount(policy: TenantPolicy = {}): Promise<Account> {
       passwordMaxAgeDays: policy.maxAgeDays ?? 0,
       passwordHistoryDepth: policy.historyDepth ?? 0,
       passwordMinLength: policy.minLength ?? 8,
+      breachedCheck: policy.breachedCheck ?? 'dataset',
+      breachedOnError: policy.breachedOnError ?? 'open',
     });
     await provisionBrowserFlow(tx, tenantId);
     const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
@@ -143,12 +156,14 @@ function change(
   account: Account,
   password: string,
   endOtherSessions?: (tx: TenantScopedDatabase) => Promise<void>,
+  check: BreachedPasswordCheck = breachedCheck,
 ): Promise<UpdatePasswordOutcome> {
   return withTenant(app.db, account.tenantId, (tx) =>
     completeUpdatePassword(tx, {
       tenantId: account.tenantId,
       subjectId: account.subjectId,
       password,
+      breachedCheck: check,
       ...(endOtherSessions === undefined ? {} : { endOtherSessions }),
     }),
   );
@@ -402,8 +417,8 @@ describe('the change-password action writes one password.changed row', () => {
       .filter((row) => row.action === 'password.changed')
       .map((row) => row.detail);
     expect(details).toHaveLength(2);
-    expect(details).toContainEqual({ ended_other_sessions: true });
-    expect(details).toContainEqual({ ended_other_sessions: false });
+    expect(details).toContainEqual({ ended_other_sessions: true, breached_check: 'passed' });
+    expect(details).toContainEqual({ ended_other_sessions: false, breached_check: 'passed' });
   });
 
   it('ends no session for a refused candidate', async () => {
@@ -624,6 +639,7 @@ describe('a password change that must prove the current password', () => {
         tenantId: account.tenantId,
         subjectId: account.subjectId,
         password: NEW,
+        breachedCheck,
         currentPassword: current,
       }),
     );
@@ -675,5 +691,72 @@ describe('a password change that must prove the current password', () => {
   it('asks for no current password where the caller gives none', async () => {
     const account = await seedAccount();
     expect(await change(account, NEW)).toEqual({ kind: 'updated' });
+  });
+});
+
+describe('the breached-password check on a change', () => {
+  const LEAKED = 'leaked passphrase from a breach';
+
+  beforeAll(async () => {
+    await insertBreachedHashes(owner.db, [breachedHash(LEAKED)]);
+  });
+
+  it('refuses a password in the dataset, naming the rule and changing nothing', async () => {
+    const account = await seedAccount();
+
+    expect(await change(account, LEAKED)).toEqual({
+      kind: 'rejected',
+      violations: [
+        {
+          rule: 'breached-password',
+          message: 'That password has appeared in a data breach. Choose a different one.',
+        },
+      ],
+    });
+
+    expect(await credentialRows(account)).toEqual([]);
+    expect(await signIn(account, PASSWORD)).toMatchObject({ kind: 'success' });
+  });
+
+  it('accepts the same password for a tenant that switched the check off', async () => {
+    const account = await seedAccount({ breachedCheck: 'off' });
+
+    expect(await change(account, LEAKED)).toEqual({ kind: 'updated' });
+
+    const [row] = await credentialRows(account);
+    expect(row?.detail).toEqual({ ended_other_sessions: false, breached_check: 'off' });
+  });
+
+  it('asks only a password that passed the other rules', async () => {
+    const account = await seedAccount({ minLength: 40 });
+    const asked: string[] = [];
+    const spy: BreachedPasswordCheck = (tx, tenantId, password) => {
+      asked.push(password);
+      return breachedCheck(tx, tenantId, password);
+    };
+
+    expect(await change(account, LEAKED, undefined, spy)).toMatchObject({
+      kind: 'rejected',
+      violations: [{ rule: 'min-length' }],
+    });
+    expect(asked).toEqual([]);
+  });
+
+  it('refuses a remote check that could not finish when the tenant fails closed', async () => {
+    const down = createBreachedPasswordCheck({
+      fetchRange: () => Promise.reject(new Error('unreachable')),
+    });
+    const closed = await seedAccount({ breachedCheck: 'remote', breachedOnError: 'closed' });
+    const open = await seedAccount({ breachedCheck: 'remote', breachedOnError: 'open' });
+
+    expect(await change(closed, 'fresh unbreached passphrase', undefined, down)).toMatchObject({
+      kind: 'rejected',
+      violations: [{ rule: 'breach-check-unavailable' }],
+    });
+    expect(await change(open, 'fresh unbreached passphrase', undefined, down)).toEqual({
+      kind: 'updated',
+    });
+    const [row] = await credentialRows(open);
+    expect(row?.detail).toEqual({ ended_other_sessions: false, breached_check: 'error_open' });
   });
 });

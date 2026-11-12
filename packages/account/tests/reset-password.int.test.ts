@@ -8,8 +8,10 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import {
+  breachedHash,
   credentialRepository,
   evaluatePassword,
+  insertBreachedHashes,
   hashPassword,
   REUSED_PASSWORD,
   subjectRepository,
@@ -557,6 +559,30 @@ describe('password reset', () => {
 
     const retried = await submitNewPassword(link, 'a compliant password');
     expect(retried.statusCode).toBe(200);
+  });
+
+  it('refuses a breached password without spending the link, and not when the check is off', async () => {
+    const leaked = 'a leaked reset passphrase here';
+    await insertBreachedHashes(owner.db, [breachedHash(leaked)]);
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
+      resetPasswordAllowed: true,
+    });
+    await seedAda(tenantId);
+    await requestReset(tenantName, 'ada@example.test');
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    const link = extractLink(message);
+
+    const rejected = await submitNewPassword(link, leaked);
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.body).toContain(
+      '>That password has appeared in a data breach. Choose a different one.</li>',
+    );
+    expect(await passwordWorksFor(tenantId, 'ada', 'correct horse battery')).toBe(true);
+
+    await owner.db.update(tenants).set({ breachedCheck: 'off' }).where(eq(tenants.id, tenantId));
+    expect((await submitNewPassword(link, leaked)).statusCode).toBe(200);
+    expect(await passwordWorksFor(tenantId, 'ada', leaked)).toBe(true);
   });
 
   it('stops the old password working', async () => {

@@ -40,6 +40,8 @@ import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
+  type BreachedPasswordCheck,
+  createBreachedPasswordCheck,
   hashPassword,
   subjectIsEnabled,
   subjectRepository,
@@ -121,6 +123,10 @@ import { registerRevokeRoute } from '#/view/routes/revoke';
 import { registerTokenRoute } from '#/view/routes/token';
 import { registerUserinfoRoute } from '#/view/routes/userinfo';
 
+const datasetOnlyBreachedCheck = createBreachedPasswordCheck({
+  fetchRange: () => Promise.reject(new Error('no remote lookup is wired')),
+});
+
 export interface OidcRoutesDeps {
   database: DatabaseHandle;
   // The owner (RLS-bypassing) connection — see repository/tenant-lookup.ts
@@ -130,6 +136,11 @@ export interface OidcRoutesDeps {
   // can sign access and ID tokens. Required, not defaulted: there is no
   // safe placeholder for a key-encryption key.
   kek: Uint8Array;
+  // What a password written through the required-action form is checked
+  // against after the tenant's other rules. Absent, the dataset alone is
+  // asked and a tenant's remote source counts as a failed lookup, so a
+  // caller that wires none can neither skip the check nor reach out.
+  breachedPasswordCheck?: BreachedPasswordCheck;
   // Whether this process serves over TLS (ODUDU_TLS): the __Host- prefix and
   // Secure attribute of every cookie these routes write. No default, so a
   // caller cannot lose it silently.
@@ -1037,6 +1048,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           (tx) =>
             completeUpdatePassword(tx, {
               ...input,
+              breachedCheck: deps.breachedPasswordCheck ?? datasetOnlyBreachedCheck,
               ...(ending === undefined
                 ? {}
                 : {

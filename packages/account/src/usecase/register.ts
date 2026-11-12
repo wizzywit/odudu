@@ -14,13 +14,14 @@ import { mailAddressOf } from '#/usecase/mail-address';
 import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
 import { pendingRegistrationRepository } from '#/repository/pending-registrations';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
+import { type BreachedCheck } from '#/service/breached-check';
 import { withMinimum } from '#/service/password-violations';
 
 // Re-exported so the view layer can reach these without importing the
 // repository directly (no-view-to-repository, .dependency-cruiser.cjs):
 // view → usecase is permitted, usecase → repository is where the type
 // actually lives.
-export type { PasswordPolicy, PolicyViolation };
+export type { BreachedCheck, PasswordPolicy, PolicyViolation };
 
 export interface NewAccountInput {
   readonly username: string;
@@ -114,6 +115,9 @@ export interface RegisterDeps {
     policy: PasswordPolicy,
     subject: { username: string; email: string | null },
   ) => PolicyViolation[];
+  // Asked only of a candidate the rules above accepted, before anything is
+  // written or mailed, in a transaction of its own that holds no row lock.
+  readonly breachedCheck: BreachedCheck;
 }
 
 export type RegisterOutcome =
@@ -184,6 +188,19 @@ export async function register(
     };
   }
 
+  const breached = await withTenant(
+    deps.database.db,
+    deps.tenantId,
+    (tx) => deps.breachedCheck(tx, deps.tenantId, input.password),
+    deps.request,
+  );
+  if (breached.violations.length > 0) {
+    return {
+      kind: 'invalid_password',
+      violations: withMinimum([...breached.violations], deps.passwordPolicy.minLength),
+    };
+  }
+
   if (!deps.isEmailAddress(input.email)) return { kind: 'invalid_email' };
 
   if (deps.verifyEmailEnabled) return requestVerification(deps, input);
@@ -205,6 +222,7 @@ export async function register(
           actorSubjectId: account.subjectId,
           resourceType: 'subject',
           resourceId: account.subjectId,
+          detail: { breached_check: breached.audit },
         });
         return { kind: 'created', subjectId: account.subjectId };
       },

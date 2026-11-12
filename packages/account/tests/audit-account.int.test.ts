@@ -152,6 +152,7 @@ function expectSubjectRow(
   action: string,
   subjectId: string,
   requestId: string,
+  detail: Record<string, unknown> = {},
 ): void {
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
@@ -164,7 +165,7 @@ function expectSubjectRow(
     requestId,
     ip: '127.0.0.1',
   });
-  expect(rows[0]?.detail).toEqual({});
+  expect(rows[0]?.detail).toEqual(detail);
 }
 
 async function mailedVerificationKey(tenantId: string): Promise<string> {
@@ -248,6 +249,7 @@ describe('registration writes one account.registered row', () => {
       'account.registered',
       subjectId,
       requestId,
+      { breached_check: 'passed' },
     );
     expect(await credentialRows(tenant.id)).toHaveLength(1);
   });
@@ -369,7 +371,7 @@ describe('redeeming a reset link writes one password.reset row', () => {
 
     expect(res.statusCode).toBe(200);
     const rows = await rowsFor(tenant.id, requestId);
-    expectSubjectRow(rows, 'password.reset', subjectId, requestId);
+    expectSubjectRow(rows, 'password.reset', subjectId, requestId, { breached_check: 'passed' });
     const everything = JSON.stringify(await credentialRows(tenant.id));
     expect(everything).not.toContain(newPassword);
     expect(everything).not.toContain(key);

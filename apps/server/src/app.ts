@@ -39,6 +39,8 @@ import { requiredActionRepository } from '@odudu/authn-flows';
 import { consoleGateway } from '@odudu/console-gateway';
 import { instrumentRoutes } from '@odudu/instrument';
 import {
+  createBreachedPasswordCheck,
+  type RangeFetch,
   credentialRepository,
   evaluatePassword,
   hashUserPassword,
@@ -101,6 +103,7 @@ import Fastify, {
 import { randomBytes } from 'node:crypto';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
+import { createBreachedRangeFetch } from '#/breached-range-transport';
 import { findHeldSignInIn } from '#/held-sign-in';
 import { findReturnClient } from '#/return-client';
 import {
@@ -285,6 +288,12 @@ export interface AppDeps {
     readonly lookup: (hostname: string) => Promise<readonly string[]>;
     readonly request: CimdRequest;
   };
+  /**
+   * How a remote breached-password lookup is made. The default is the pinned
+   * request to the one fixed host, behind the address guard; a test of the
+   * whole path swaps the request, never the host or the guard.
+   */
+  readonly breachedRangeFetch?: RangeFetch;
   /**
    * The same escape hatch for the relay a tenant configures through
    * `PUT /smtp`. Separate from `allowPrivateClientUrls` because an
@@ -548,6 +557,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     now: () => new Date(),
   });
 
+  // One check for every password write; its per-tenant concurrency limit is
+  // held in this instance, so it is built once per process.
+  const breachedPasswordCheck = createBreachedPasswordCheck({
+    fetchRange:
+      deps.breachedRangeFetch ??
+      createBreachedRangeFetch({ allowPrivate: deps.allowPrivateClientUrls ?? false }),
+  });
+
   // private_key_jwt's own address-guarded fetcher (RFC 7523 §2.2, ADR
   // 0028) — the real `node:https`/`node:dns` pair `#/client-key-transport`
   // wraps, shared by every tenant's clients the way the cache in
@@ -753,6 +770,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
+      breachedPasswordCheck,
       clientSecretLimiter,
       mcpRegistrationLimiter: mcpRegistrations,
       auditRefusalBudget: auditRefusalBudget(() => new Date()),
@@ -887,6 +905,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return user.username;
     },
     evaluatePassword,
+    breachedCheck: breachedPasswordCheck,
     // A subject with no password credential at all has nothing to leave
     // unchanged, so there is nothing to refuse.
     unchangedPasswordViolations: async (tx, subjectId, candidate) => {
@@ -917,6 +936,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     isEmailAddress,
     mailGate,
     evaluatePassword,
+    breachedCheck: breachedPasswordCheck,
   });
 
   registerResetPasswordRoute(app, {

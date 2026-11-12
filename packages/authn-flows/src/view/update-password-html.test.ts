@@ -1,4 +1,9 @@
-import { evaluatePassword, REUSED_PASSWORD } from '@odudu/domain-identity';
+import {
+  BREACH_CHECK_UNAVAILABLE,
+  BREACHED_PASSWORD,
+  evaluatePassword,
+  REUSED_PASSWORD,
+} from '@odudu/domain-identity';
 import { DEFAULT_PAGE_LOCALE, PASSWORD_TOO_LONG, pageHeaders, pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { type PasswordViolation } from '#/schema/password-violation';
@@ -98,8 +103,12 @@ describe('every rule the domain reports is worded by the catalogue', () => {
       ...evaluatePassword('baseball', policy, subject),
       REUSED_PASSWORD,
       PASSWORD_TOO_LONG,
+      BREACHED_PASSWORD,
+      BREACH_CHECK_UNAVAILABLE,
     ];
     expect([...new Set(reported.map((violation) => violation.rule))].sort()).toEqual([
+      'breach-check-unavailable',
+      'breached-password',
       'common-password',
       'max-length',
       'min-length',

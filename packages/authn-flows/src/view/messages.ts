@@ -67,6 +67,10 @@ export const en = {
   'updatePassword.hint.summary': '{met} of {total} rules met',
   'updatePassword.rule.common': 'That password is too easy to guess. Choose a different one.',
   'updatePassword.rule.notReused': 'Password must not be one you have used before.',
+  'updatePassword.rule.breached':
+    'That password has appeared in a data breach. Choose a different one.',
+  'updatePassword.rule.breachCheckUnavailable':
+    'The password could not be checked against known breaches. Try again in a moment.',
   'updatePassword.rule.superseded':
     'Your password was changed somewhere else before this form was submitted. Sign in again with the password you set there.',
   'updatePassword.currentPassword': 'Current password',

@@ -26,6 +26,8 @@ const RULE_MESSAGE: Readonly<Record<string, MessageId>> = {
   'not-email': 'updatePassword.rule.notEmail',
   'common-password': 'updatePassword.rule.common',
   'not-reused': 'updatePassword.rule.notReused',
+  'breached-password': 'updatePassword.rule.breached',
+  'breach-check-unavailable': 'updatePassword.rule.breachCheckUnavailable',
   'current-password': 'updatePassword.rule.currentPassword',
   superseded: 'updatePassword.rule.superseded',
 };

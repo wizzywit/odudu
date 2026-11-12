@@ -7,9 +7,11 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import {
+  breachedHash,
   credentialRepository,
   evaluatePassword,
   hashPassword,
+  insertBreachedHashes,
   subjectRepository,
   userRepository,
   verifyPassword,
@@ -358,6 +360,27 @@ describe('a link that takes its subject through required actions', () => {
       '>That password is too easy to guess. Choose a different one.</li>',
     );
     expect((await submit(seeded, keyOf(link), NEW_PASSWORD)).statusCode).toBe(200);
+  });
+
+  it('refuses a breached password on an actions link without spending it, and not when off', async () => {
+    const leaked = 'a leaked actions passphrase here';
+    await insertBreachedHashes(owner.db, [breachedHash(leaked)]);
+    const seeded = await seed(true);
+    const link = await mail(seeded, ['update-password']);
+
+    const refused = await submit(seeded, keyOf(link), leaked);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.body).toContain(
+      '>That password has appeared in a data breach. Choose a different one.</li>',
+    );
+    expect(await passwordIs(seeded, OLD_PASSWORD)).toBe(true);
+
+    await owner.db
+      .update(tenants)
+      .set({ breachedCheck: 'off' })
+      .where(eq(tenants.id, seeded.tenantId));
+    expect((await submit(seeded, keyOf(link), leaked)).statusCode).toBe(200);
+    expect(await passwordIs(seeded, leaked)).toBe(true);
   });
 
   it('words a weak password from the catalogue with the tenant minimum, in the page language', async () => {

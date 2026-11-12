@@ -31,7 +31,7 @@ import {
   registrationWaiting,
   type VerifiedAccountInput,
 } from '#/usecase/complete-registration';
-import { type TakenIdentifiers } from '#/usecase/register';
+import { type BreachedCheck, type TakenIdentifiers } from '#/usecase/register';
 import {
   renderResetLinkFailedPage,
   renderResetPasswordForm,
@@ -93,6 +93,7 @@ export interface ActionTokenRouteDeps extends BrandedLocaleDeps {
     newPassword: string,
   ) => Promise<void>;
   readonly getUsername: (tx: TenantScopedDatabase, subjectId: string) => Promise<string>;
+  readonly breachedCheck: BreachedCheck;
   readonly evaluatePassword: (
     candidate: string,
     policy: PasswordPolicy,
@@ -252,6 +253,7 @@ async function completeActionsLink(
       passwordPolicy: tenant.passwordPolicy,
       evaluatePassword: deps.evaluatePassword,
       getUsername: deps.getUsername,
+      breachedCheck: deps.breachedCheck,
       unchangedPasswordViolations: deps.unchangedPasswordViolations,
       clearPasswordUpdateAction: deps.clearPasswordUpdateAction,
       addRequiredActions: deps.addRequiredActions,
@@ -634,6 +636,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         passwordPolicy: tenant.passwordPolicy,
         evaluatePassword: deps.evaluatePassword,
         getUsername: deps.getUsername,
+        breachedCheck: deps.breachedCheck,
         unchangedPasswordViolations: deps.unchangedPasswordViolations,
         clearPasswordUpdateAction: deps.clearPasswordUpdateAction,
       },
