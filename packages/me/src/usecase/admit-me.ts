@@ -16,6 +16,8 @@ export interface MeTenant {
 
 export interface AdmitMeDeps extends ValidateMeTokenDeps {
   findTenant(name: string): Promise<MeTenant | null>;
+  // False for a subject an administrator disabled or a merge retired.
+  subjectEnabled(tenantId: string, subjectId: string): Promise<boolean>;
   readonly logger: { warn(context: Record<string, unknown>, message: string): void };
 }
 
@@ -79,6 +81,10 @@ async function admitMe(
       kind: 'unauthenticated',
       challenge: outcome.reason === 'missing_credentials' ? missingCredentials() : invalidToken(),
     };
+  }
+  if (!(await deps.subjectEnabled(tenant.id, outcome.subjectId))) {
+    deps.logger.warn({ reason: 'subject_disabled' }, 'me request unauthenticated');
+    return { kind: 'unauthenticated', challenge: invalidToken() };
   }
   if (!mayAccess(outcome.scopes, access)) {
     return { kind: 'insufficient_scope', challenge: insufficientScope(requiredScope(access)) };

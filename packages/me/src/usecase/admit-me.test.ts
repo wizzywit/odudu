@@ -32,8 +32,10 @@ function claims(over: Record<string, unknown> = {}): Record<string, unknown> {
 function deps(
   payload: Record<string, unknown> | null,
   tenant: { enabled: boolean } | null = { enabled: true },
+  subjectEnabled = true,
 ): AdmitMeDeps {
   return {
+    subjectEnabled: () => Promise.resolve(subjectEnabled),
     acceptedIssuers: () => Promise.resolve([ISSUER]),
     verifyAccessToken: () => Promise.resolve(payload),
     findTenant: () =>
@@ -157,5 +159,20 @@ describe('admitMeWrite', () => {
       kind: 'unauthenticated',
       challenge: 'Bearer error="invalid_token"',
     });
+  });
+});
+
+describe('a token whose subject is disabled', () => {
+  it('is refused as an invalid token on a read and on a write', async () => {
+    const warnings: Record<string, unknown>[] = [];
+    const door: AdmitMeDeps = {
+      ...deps(claims({ scope: 'openid me:read me:write' }), { enabled: true }, false),
+      logger: { warn: (context) => warnings.push(context) },
+    };
+    for (const admit of [admitMeRead, admitMeWrite]) {
+      const outcome = await admit(door, input());
+      expect(outcome).toMatchObject({ kind: 'unauthenticated' });
+    }
+    expect(warnings).toEqual([{ reason: 'subject_disabled' }, { reason: 'subject_disabled' }]);
   });
 });

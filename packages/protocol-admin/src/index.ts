@@ -296,6 +296,12 @@ export {
 } from '#/service/idempotency';
 export { withIdempotency } from '#/usecase/idempotent';
 export { expireRotatedClientSecrets } from '#/usecase/client-secret-expiry';
+export {
+  reconcileDuplicateAccounts,
+  RECONCILE_CHUNK_GROUPS,
+  type ReconcileOptions,
+} from '#/usecase/reconcile-accounts';
+export { type PairEvent, type ReconcileReport } from '#/service/reconcile-accounts';
 export { composeUserSubject, type ComposeUserSubjectInput } from '#/usecase/subjects';
 export { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 export { resolveHostAddresses } from '#/adapter/host-addresses';

@@ -152,6 +152,22 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
     '`ODUDU_APP_DATABASE_URL` names a superuser or BYPASSRLS role, so `odudu reap` would not ' +
       'delete under the tenant policy.',
   ),
+  reconcile_accounts_usage: command(
+    '`odudu reconcile-accounts` takes `--dry-run` and nothing else.',
+  ),
+  reconcile_cannot_enumerate_tenants: command(
+    '`odudu reconcile-accounts` must list every tenant, which needs a connection that bypasses ' +
+      'row-level security, and `ODUDU_DATABASE_URL` names a role that neither is a superuser nor ' +
+      'has BYPASSRLS.',
+  ),
+  reconcile_requires_app_database_url: command(
+    '`odudu reconcile-accounts` moves rows under the tenant policy and so needs ' +
+      '`ODUDU_APP_DATABASE_URL`; the owner role escapes the policy.',
+  ),
+  reconcile_serving_role_bypasses_rls: command(
+    '`ODUDU_APP_DATABASE_URL` names a superuser or BYPASSRLS role, so `odudu reconcile-accounts` ' +
+      'would not move rows under the tenant policy.',
+  ),
   outbox_cannot_enumerate_tenants: pass(
     'The mail sender must list every tenant, which needs a connection that bypasses row-level ' +
       'security, and `ODUDU_DATABASE_URL` names a role that does not.',

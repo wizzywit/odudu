@@ -55,6 +55,19 @@ if (process.argv[2] === 'reap') {
   }
 }
 
+if (process.argv[2] === 'reconcile-accounts') {
+  try {
+    const report = await (
+      await import('#/cli/reconcile-accounts')
+    ).reconcileAccountsCommand(process.argv.slice(3));
+    console.log(JSON.stringify(report));
+    process.exit(report.failed > 0 ? 1 : 0);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
 if (process.argv[2] === 'domains') {
   try {
     console.log(

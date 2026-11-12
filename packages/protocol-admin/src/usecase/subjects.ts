@@ -744,6 +744,8 @@ async function amendSubjectUnguarded(
     // address lock is the one a completed change takes, so the two take turns.
     if (patch.email.value !== null) {
       await lockEmailForCreation(tx, locked.subject.tenantId, patch.email.value);
+      const holder = await userRepository(tx).holderOfEmail(patch.email.value);
+      if (holder !== null && holder !== input.subjectId) throw new EmailTakenError();
     }
     await pendingEmailRepository(tx).clear(input.subjectId);
     await userRepository(tx).updateEmail(input.subjectId, patch.email.value);

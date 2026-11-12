@@ -1,6 +1,7 @@
 import { cliOptions, type CliCommand } from '#/cli/command-types';
 import { INIT_OPTIONS } from '#/cli/init-options';
 import { MCP_OPTIONS } from '#/cli/mcp-options';
+import { RECONCILE_OPTIONS } from '#/cli/reconcile-options';
 import {
   ASSERTION_OPTIONS,
   SEED_BOOTSTRAP_HELP,
@@ -92,6 +93,16 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
     options: [],
     subcommands: NONE,
     example: 'odudu reap',
+  },
+  {
+    name: 'reconcile-accounts',
+    summary:
+      'Fold accounts that hold one address apart from its case into one, in every tenant, ' +
+      'and print what was merged, refused and failed as JSON. Run it before the release ' +
+      'that makes an address unique. Safe to run again.',
+    options: cliOptions(RECONCILE_OPTIONS),
+    subcommands: NONE,
+    example: 'odudu reconcile-accounts --dry-run',
   },
   {
     name: 'domains',

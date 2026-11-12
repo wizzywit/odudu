@@ -17,6 +17,8 @@ import { type MailLookResolver } from '@odudu/email';
 import {
   credentialRepository,
   pendingEmailRepository,
+  subjectIsEnabled,
+  subjectRepository,
   userRepository,
 } from '@odudu/domain-identity';
 import { clientRepository, consentRepository } from '@odudu/domain-tenant';
@@ -247,6 +249,10 @@ export function meRouteDepsFor(parts: MeDepsParts): MeDeps {
         usernameEditable: tenant.usernameEditable,
       };
     },
+    subjectEnabled: (tenantId, subjectId) =>
+      withTenant(parts.database.db, tenantId, async (tx) =>
+        subjectIsEnabled(await subjectRepository(tx).byId(subjectId)),
+      ),
     reads: meReadsFor(parts.database),
     sessionAuth: meSessionAuthFor(parts.database),
     writes: meWritesFor(parts.database, parts.kek, {
