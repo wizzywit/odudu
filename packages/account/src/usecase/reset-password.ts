@@ -9,6 +9,7 @@ import {
   type MailContext,
 } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
+import { type ReturnTarget } from '#/schema/action-tokens';
 import { mailAddressOf } from '#/usecase/mail-address';
 import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
 import { type TenantAddress } from '@odudu/kernel';
@@ -102,6 +103,8 @@ export interface ActionLinkTenant {
   // The sign-in the link came out of, so its page can lead the same browser
   // back to it; an administrator's link has none.
   readonly authenticationSessionId?: string | null;
+  // The client an administrator's link returns to; a self-service link has none.
+  readonly returnTo?: ReturnTarget | undefined;
   readonly resolveMailLook?: MailLookResolver | undefined;
 }
 
@@ -132,6 +135,7 @@ export async function enqueueResetLink(
     ...(tenant.authenticationSessionId === undefined
       ? {}
       : { authenticationSessionId: tenant.authenticationSessionId }),
+    returnTo: tenant.returnTo,
     ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'reset_password'),
   });
   const link = actionLink(address, token);

@@ -43,6 +43,7 @@ export async function enqueueActionsLink(
     type: 'execute_actions',
     email: user.email,
     actions,
+    returnTo: tenant.returnTo,
     ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'execute_actions'),
   });
   const url = actionLink(address, token);

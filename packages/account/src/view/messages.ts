@@ -8,6 +8,7 @@ import { ar } from '#/view/messages.ar';
 export const en = {
   'link.backToSignIn': 'Back to sign in',
   'link.continueToSignIn': 'Continue to sign in',
+  'link.returnToApplication': 'Return to the application',
   'link.tryAgain': 'Try again',
   'link.registerAgain': 'Register again',
   'link.requestNewResetLink': 'Request a new link',

@@ -210,6 +210,8 @@ export {
   requiredActionSchema,
   type RequiredAction,
   setRequiredActionsRequestSchema,
+  sendAccountLinkRequestSchema,
+  type SendAccountLinkRequest,
   sendActionsEmailRequestSchema,
   type SendActionsEmailRequest,
   type SetRequiredActionsRequest,

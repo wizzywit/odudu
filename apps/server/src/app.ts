@@ -102,6 +102,7 @@ import { randomBytes } from 'node:crypto';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
 import { findHeldSignInIn } from '#/held-sign-in';
+import { findReturnClient } from '#/return-client';
 import {
   createCimdRequest,
   createClientKeyRequest,
@@ -826,6 +827,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     ...themed,
     database: deps.database,
     findHeldSignIn,
+    findReturnClient,
     now: () => systemClock.now(),
     findTaken,
     lockAddress: (tx, tenantId, email) => lockEmailForCreation(tx, tenantId, email),

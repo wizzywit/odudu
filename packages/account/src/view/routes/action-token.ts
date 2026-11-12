@@ -11,6 +11,7 @@ import {
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ensureTenantAddress } from '#/view/routes/tenant-address';
 import { resumablePath, type FindHeldSignIn } from '#/service/sign-in-resume';
+import { returnHref, type ReturnClient } from '#/service/return-link';
 import { peekActionToken, type LinkedRequiredAction } from '#/usecase/action-token';
 import { type PasswordFailure } from '#/view/password-rules';
 import {
@@ -115,6 +116,12 @@ export interface ActionTokenRouteDeps extends BrandedLocaleDeps {
   // The sign-in this browser parked and can still finish, if any: the one
   // place a link's page learns whether to offer a way back to it.
   readonly findHeldSignIn: FindHeldSignIn;
+  // The registration of the client an administrator's link returns to, read
+  // when the link is opened: @odudu/protocol-oidc owns it.
+  readonly findReturnClient: (
+    tx: TenantScopedDatabase,
+    clientId: string,
+  ) => Promise<ReturnClient | null>;
   // What opening a registration link needs, injected like register's:
   // the identity tables belong to @odudu/domain-identity.
   readonly now: () => Date;
@@ -194,6 +201,7 @@ async function completeActionsLink(
     actions: readonly LinkedRequiredAction[];
     setsPassword: boolean;
     authenticationSessionId: string | null;
+    returnTo: string | null;
   },
   locale: PageLocale,
 ): Promise<FastifyReply> {
@@ -220,7 +228,12 @@ async function completeActionsLink(
     return sendVerificationHtml(
       reply,
       400,
-      renderResetLinkFailedPage(null, await returnTo(), locale),
+      renderResetLinkFailedPage(
+        null,
+        await returnTo(),
+        returnHref(peeked.returnTo, 'error'),
+        locale,
+      ),
     );
   }
   const candidate = readPasswordField(request.body.password);
@@ -254,7 +267,12 @@ async function completeActionsLink(
       return sendVerificationHtml(
         reply,
         400,
-        renderResetLinkFailedPage(null, await returnTo(), locale),
+        renderResetLinkFailedPage(
+          null,
+          await returnTo(),
+          returnHref(peeked.returnTo, 'error'),
+          locale,
+        ),
       );
     case 'password_required':
       return again('required');
@@ -266,7 +284,12 @@ async function completeActionsLink(
         200,
         (result.factorsRemoved
           ? renderRequiredActionsFactorsRemovedPage
-          : renderRequiredActionsSucceededPage)(result.remaining, await returnTo(), locale),
+          : renderRequiredActionsSucceededPage)(
+          result.remaining,
+          await returnTo(),
+          returnHref(peeked.returnTo, 'success'),
+          locale,
+        ),
       );
   }
 }
@@ -304,7 +327,7 @@ async function finishRegistration(
     );
   }
   if (result.kind === 'invalid') {
-    return sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, locale));
+    return sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, null, locale));
   }
   return sendVerificationHtml(
     reply,
@@ -345,7 +368,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     // that tenant's users table, and disabling a tenant is meant to stop all
     // of those, not just the ones a client can see.
     if (key === undefined || !tenant?.enabled) {
-      return sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, locale));
+      return sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, null, locale));
     }
 
     // A visit changes nothing: mail scanners and link previews open mailed
@@ -358,7 +381,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
           )
         : null;
       return waiting === null
-        ? sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, locale))
+        ? sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, null, locale))
         : sendVerificationHtml(
             reply,
             200,
@@ -368,7 +391,10 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
 
     // A read, never a redemption: what each kind of link shows is decided from
     // its type, and nothing is consumed until the page's own form is posted.
-    const peeked = await peekActionToken({ database: deps.database, tenantId: tenant.id }, key);
+    const peeked = await peekActionToken(
+      { database: deps.database, tenantId: tenant.id, findReturnClient: deps.findReturnClient },
+      key,
+    );
     const resume = (): Promise<string | null> =>
       resumeAt(deps, request, tenant, peeked.authenticationSessionId);
     if (peeked.kind === 'invalid') {
@@ -383,11 +409,16 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
               ? newResetLink(tenantAddressOf(request), tenant)
               : null,
             await resume(),
+            returnHref(peeked.returnTo, 'error'),
             locale,
           ),
         );
       }
-      return sendVerificationHtml(reply, 400, renderVerificationFailedPage(await resume(), locale));
+      return sendVerificationHtml(
+        reply,
+        400,
+        renderVerificationFailedPage(await resume(), returnHref(peeked.returnTo, 'error'), locale),
+      );
     }
 
     if (peeked.type === 'reset_password') {
@@ -395,7 +426,12 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         return sendVerificationHtml(
           reply,
           400,
-          renderResetLinkFailedPage(null, await resume(), locale),
+          renderResetLinkFailedPage(
+            null,
+            await resume(),
+            returnHref(peeked.returnTo, 'error'),
+            locale,
+          ),
         );
       }
       return sendVerificationHtml(
@@ -419,7 +455,12 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         return sendVerificationHtml(
           reply,
           400,
-          renderResetLinkFailedPage(null, await resume(), locale),
+          renderResetLinkFailedPage(
+            null,
+            await resume(),
+            returnHref(peeked.returnTo, 'error'),
+            locale,
+          ),
         );
       }
       return sendVerificationHtml(
@@ -467,13 +508,16 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     );
 
     if (key === undefined || !tenant?.enabled) {
-      return sendVerificationHtml(reply, 400, renderResetLinkFailedPage(null, null, locale));
+      return sendVerificationHtml(reply, 400, renderResetLinkFailedPage(null, null, null, locale));
     }
 
     if (isRegistrationKey(key))
       return finishRegistration(request, reply, deps, tenant, key, locale);
 
-    const peeked = await peekActionToken({ database: deps.database, tenantId: tenant.id }, key);
+    const peeked = await peekActionToken(
+      { database: deps.database, tenantId: tenant.id, findReturnClient: deps.findReturnClient },
+      key,
+    );
     const resume = (): Promise<string | null> =>
       resumeAt(deps, request, tenant, peeked.authenticationSessionId);
     if (peeked.kind === 'usable' && peeked.type === 'verify_email') {
@@ -489,11 +533,31 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         key,
       );
       return result.kind === 'invalid'
-        ? sendVerificationHtml(reply, 400, renderVerificationFailedPage(await resume(), locale))
-        : sendVerificationHtml(reply, 200, renderVerificationSucceededPage(await resume(), locale));
+        ? sendVerificationHtml(
+            reply,
+            400,
+            renderVerificationFailedPage(
+              await resume(),
+              returnHref(peeked.returnTo, 'error'),
+              locale,
+            ),
+          )
+        : sendVerificationHtml(
+            reply,
+            200,
+            renderVerificationSucceededPage(
+              await resume(),
+              returnHref(peeked.returnTo, 'success'),
+              locale,
+            ),
+          );
     }
     if (peeked.kind === 'invalid' && peeked.type === 'verify_email') {
-      return sendVerificationHtml(reply, 400, renderVerificationFailedPage(await resume(), locale));
+      return sendVerificationHtml(
+        reply,
+        400,
+        renderVerificationFailedPage(await resume(), returnHref(peeked.returnTo, 'error'), locale),
+      );
     }
     if (peeked.kind === 'usable' && peeked.type === 'execute_actions') {
       return completeActionsLink(request, reply, deps, tenant, key, peeked, locale);
@@ -502,7 +566,12 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
       return sendVerificationHtml(
         reply,
         400,
-        renderResetLinkFailedPage(null, await resume(), locale),
+        renderResetLinkFailedPage(
+          null,
+          await resume(),
+          returnHref(peeked.returnTo, 'error'),
+          locale,
+        ),
       );
     }
     // A key nothing usable holds gets the link-failed page whatever else was
@@ -514,6 +583,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         renderResetLinkFailedPage(
           newResetLink(tenantAddressOf(request), tenant),
           await resume(),
+          returnHref(peeked.returnTo, 'error'),
           locale,
         ),
       );
@@ -581,6 +651,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         renderResetLinkFailedPage(
           newResetLink(tenantAddressOf(request), tenant),
           await resume(),
+          returnHref(peeked.returnTo, 'error'),
           locale,
         ),
       );
@@ -590,7 +661,11 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
       200,
       (result.factorsRemoved
         ? renderResetPasswordFactorsRemovedPage
-        : renderResetPasswordSucceededPage)(await resume(), locale),
+        : renderResetPasswordSucceededPage)(
+        await resume(),
+        returnHref(peeked.returnTo, 'success'),
+        locale,
+      ),
     );
   });
 }

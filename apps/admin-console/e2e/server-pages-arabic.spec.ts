@@ -463,7 +463,7 @@ test('the previous-address page, renderer only', async ({ page, problems }) => {
 const RENDER_ACTIONS_DONE = `
 const { renderRequiredActionsSucceededPage } = await import(process.env.RENDERER);
 const { pageHeaders } = await import(process.env.HEADERS);
-const page = renderRequiredActionsSucceededPage([], process.env.WAY || null, { tag: 'ar', dir: 'rtl' });
+const page = renderRequiredActionsSucceededPage([], process.env.WAY || null, null, { tag: 'ar', dir: 'rtl' });
 process.stdout.write(JSON.stringify({ html: page.html, headers: Object.fromEntries(pageHeaders(page)) }));
 `;
 

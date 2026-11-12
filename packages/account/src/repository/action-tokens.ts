@@ -2,7 +2,12 @@ import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { createHash, randomBytes } from 'node:crypto';
-import { actionTokens, type ActionTokenRecord, type ActionTokenType } from '#/schema/action-tokens';
+import {
+  actionTokens,
+  type ActionTokenRecord,
+  type ActionTokenType,
+  type ReturnTarget,
+} from '#/schema/action-tokens';
 
 // 32 random bytes, base64url-encoded to 43 characters: 256 bits of entropy,
 // comfortably above what a mailed, single-use credential needs to resist
@@ -32,7 +37,18 @@ export interface IssueActionToken {
   actions?: readonly string[];
   // The sign-in this link came out of; absent for an administrator's link.
   authenticationSessionId?: string | null;
+  // The client an administrator's link returns to; absent for any other.
+  returnTo?: ReturnTarget | undefined;
   ttlSeconds: number;
+}
+
+function returnTargetOf(row: {
+  clientId: string | null;
+  returnUri: string | null;
+}): ReturnTarget | null {
+  return row.clientId === null || row.returnUri === null
+    ? null
+    : { clientId: row.clientId, uri: row.returnUri };
 }
 
 function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
@@ -48,6 +64,7 @@ function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
     expiresAt: row.expiresAt,
     consumedAt: row.consumedAt,
     authenticationSessionId: row.authenticationSessionId,
+    returnTo: returnTargetOf(row),
   };
 }
 
@@ -83,6 +100,8 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
         expiresAt: new Date(Date.now() + input.ttlSeconds * 1000),
         consumedAt: null,
         authenticationSessionId: input.authenticationSessionId ?? null,
+        clientId: input.returnTo?.clientId ?? null,
+        returnUri: input.returnTo?.uri ?? null,
       });
       return { token };
     },
@@ -136,13 +155,17 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
     // can still be used: a refused redemption says which next step to offer,
     // never whose link it was. Read only after peek found nothing, so a
     // usable link costs no extra query.
-    async describe(
-      token: string,
-    ): Promise<{ type: ActionTokenType; authenticationSessionId: string | null } | null> {
+    async describe(token: string): Promise<{
+      type: ActionTokenType;
+      authenticationSessionId: string | null;
+      returnTo: ReturnTarget | null;
+    } | null> {
       const rows = await tx
         .select({
           type: actionTokens.type,
           authenticationSessionId: actionTokens.authenticationSessionId,
+          clientId: actionTokens.clientId,
+          returnUri: actionTokens.returnUri,
         })
         .from(actionTokens)
         .where(eq(actionTokens.tokenHash, sha256Hex(token)));
@@ -152,6 +175,7 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
         : {
             type: row.type as ActionTokenType,
             authenticationSessionId: row.authenticationSessionId,
+            returnTo: returnTargetOf(row),
           };
     },
 

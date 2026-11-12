@@ -115,6 +115,7 @@ import {
   listSubjectsQuerySchema,
   listedSubjectSchema,
   roleAssignmentSchema,
+  sendAccountLinkRequestSchema,
   sendActionsEmailRequestSchema,
   setRequiredActionsRequestSchema,
   setRequiredActionsResponseSchema,
@@ -744,8 +745,19 @@ describeFields(roleAssignmentSchema, {
     'For a role scoped to a client, that client’s internal id; null for a tenant-wide role.',
   client_key: 'For a client role, the client’s `client_id`.',
 });
+const RETURN_FIELDS = {
+  client_id:
+    'The `client_id` of a client of this tenant the link returns to when the person finishes, ' +
+    'with `action_status` on its registered `redirect_uri`. Absent, the link ends on a page of ' +
+    'the tenant’s own with no way on.',
+  redirect_uri:
+    'Which registered `redirect_uri` of that client to return to; it must match one exactly. ' +
+    'Optional for a client that registers one; needs `client_id`.',
+};
+describeFields(sendAccountLinkRequestSchema, RETURN_FIELDS);
 describeFields(sendActionsEmailRequestSchema, {
   actions: 'The actions the mailed link asks the user to complete; at least one.',
+  ...RETURN_FIELDS,
 });
 describeFields(setRequiredActionsRequestSchema, {
   actions:

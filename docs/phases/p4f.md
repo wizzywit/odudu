@@ -38,6 +38,13 @@ authenticators that ran count at least two factors (a passkey counts as two) and
 `'1'` otherwise; an empty list gives null. Confirmed by
 `pnpm --filter @odudu/protocol-oidc exec vitest run acr`.
 
+### S5: whether the action-token table already names a client
+
+`git grep -n client -- packages/account/src/schema/action-tokens.ts packages/account/src/service/action-link.ts`
+found nothing: the table carried no client, so the column was needed. An earlier column that named one
+(`redirect_client_id`, migration 0093) was dropped by 0094 because nothing read it; this one is read by the
+link's last page, as the closing section of Increment 4 says.
+
 ## Increment 1: the "me" API reads
 
 ### What shipped
@@ -237,3 +244,27 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
   confirmation page with a cancel control, and cancelling then records `cancelled` after the set changed. It is the remaining
   case of the render-time change that the confirmation step removed for a held set. It is placed on Increment 5, the
   recovery-code increment, which decides whether a first set also waits for a confirmation.
+
+## Increment 4: a place to return to for an administrator-issued link
+
+### What shipped
+
+- Migration 0129 adds `client_id` (the client's internal id) and `return_uri` to `action_tokens`, held both or neither by
+  a CHECK. Neither is a foreign key: the client can be deleted or edited before the link is opened, so the page reads the
+  client's registration when the link is opened and drops the way back if the client is gone, disabled or no longer
+  registers the address. The link is still redeemed.
+- The three admin sends (`password-reset`, `verification`, `actions-email`) take an optional `client_id` and an optional
+  `redirect_uri`; the two older ones gain an optional body, and a request with no body is as it was. A client of another
+  tenant is as unknown as a missing one, and so is a disabled one (`return-client-unknown`). A named `redirect_uri` has to
+  match a registered one exactly (`return-redirect-uri-unregistered`); an unnamed one is the client's only address, and a
+  client with several or none needs the request to say which (`return-redirect-uri-required`). A `redirect_uri` with no
+  `client_id` is refused with a plain `400`. The audit row names the client in `detail.client_id`.
+- The last page of each link (the reset, verification and required-actions pages, and the page a link that cannot be used
+  gets) carries a "Return to the application" link to the registered address with `action_status=success`, or `error` for
+  a link that cannot be used, as a hint only: the "me" API holds the outcome. It is a link on the page and not a redirect,
+  so the page that says the factors were removed or the actions still owed is still read.
+- Documentation: the three admin pages, the changelog, the capture note.
+
+### Open placements
+
+- A link that is used from the sign-in that mailed it keeps the way back to that sign-in and names no client.

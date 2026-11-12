@@ -1,9 +1,11 @@
 import { requiredActionSchema, type RequiredAction } from '@odudu/contracts/admin';
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { users } from '@odudu/domain-identity';
-import { tenantSettingsRepository } from '@odudu/domain-tenant';
+import { clientRepository, tenantSettingsRepository } from '@odudu/domain-tenant';
+import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
 import { tenantSmtpRepository } from '#/repository/tenant-smtp';
+import { chooseReturnUri } from '#/service/return-target';
 import {
   lockSubjectRow,
   refuseOverTargetCeiling,
@@ -32,6 +34,8 @@ interface AccountLinkAddress {
   readonly subjectId: string;
   readonly email: string;
   readonly locale: string | null;
+  /** The client, by its internal id, and the registered address the link returns to. */
+  readonly returnTo?: { readonly clientId: string; readonly uri: string } | undefined;
 }
 
 /**
@@ -71,14 +75,24 @@ export type AccountEmailPurpose =
       readonly actions: readonly RequiredAction[];
     };
 
+/** The client a link returns to when it finishes, as the request names it. */
+export interface AccountEmailReturn {
+  readonly clientId: string;
+  readonly redirectUri?: string | undefined;
+}
+
 export type AccountEmailInput = TargetCeilingInput & {
   readonly tenantId: string;
   readonly tenantName: string;
+  readonly returnTo?: AccountEmailReturn | undefined;
 } & AccountEmailPurpose;
 
 export type AccountEmailOutcome =
   | { kind: 'not_found' }
   | TargetCeilingRefusal
+  | { kind: 'unknown_client' }
+  | { kind: 'return_uri_unregistered' }
+  | { kind: 'return_uri_required' }
   | { kind: 'no_email' }
   | { kind: 'reset_password_off' }
   | { kind: 'no_mail_relay' }
@@ -102,6 +116,32 @@ function purposeOf(input: AccountEmailInput): {
   return { purpose: { kind: input.kind, actions }, detail: { actions } };
 }
 
+type ResolvedReturn =
+  | { kind: 'none' }
+  | {
+      kind: 'refused';
+      refusal: 'unknown_client' | 'return_uri_unregistered' | 'return_uri_required';
+    }
+  | { kind: 'resolved'; clientId: string; uri: string };
+
+// The client is looked up through the tenant's own rows, so another tenant's is
+// as unknown as one that does not exist, and a disabled one is refused.
+async function resolveReturn(
+  tx: TenantScopedDatabase,
+  returnTo: AccountEmailReturn | undefined,
+): Promise<ResolvedReturn> {
+  if (returnTo === undefined) return { kind: 'none' };
+  const client = await clientRepository(tx).byClientId(returnTo.clientId);
+  if (client?.enabled !== true) return { kind: 'refused', refusal: 'unknown_client' };
+  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+  const choice = chooseReturnUri(config?.redirectUris ?? [], returnTo.redirectUri);
+  if (choice.kind === 'ok') return { kind: 'resolved', clientId: client.id, uri: choice.uri };
+  return {
+    kind: 'refused',
+    refusal: choice.kind === 'required' ? 'return_uri_required' : 'return_uri_unregistered',
+  };
+}
+
 // Each refusal is one the link would otherwise meet later, silently: an
 // address that is not there, a tenant whose reset page refuses every link,
 // or mail that is only ever written to the log (`GET …/smtp`'s `none`).
@@ -119,6 +159,8 @@ export async function sendAccountEmail(
   const action = ACTIONS[input.kind];
   const refused = await refuseOverTargetCeiling(tx, deps.audit, action, input);
   if (refused !== null) return refused;
+  const returning = await resolveReturn(tx, input.returnTo);
+  if (returning.kind === 'refused') return { kind: returning.refusal };
   const { purpose, detail } = purposeOf(input);
 
   const email = user[0]?.email ?? null;
@@ -145,6 +187,9 @@ export async function sendAccountEmail(
     subjectId: input.subjectId,
     email,
     locale: user[0]?.locale ?? null,
+    ...(returning.kind === 'resolved'
+      ? { returnTo: { clientId: returning.clientId, uri: returning.uri } }
+      : {}),
   });
   if (sent === 'unavailable') return { kind: 'unavailable' };
 
@@ -156,7 +201,8 @@ export async function sendAccountEmail(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
-    detail,
+    detail:
+      input.returnTo === undefined ? detail : { ...detail, client_id: input.returnTo.clientId },
   });
   return { kind: 'queued' };
 }

@@ -10,6 +10,7 @@ import {
   type MailContext,
 } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
+import { type ReturnTarget } from '#/schema/action-tokens';
 import { mailAddressOf } from '#/usecase/mail-address';
 import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
 
@@ -30,6 +31,8 @@ export interface SendVerificationEmailInput {
   readonly subjectId: string;
   readonly email: string;
   readonly locale?: string | null | undefined;
+  // The client an administrator's link returns to; a self-service link has none.
+  readonly returnTo?: ReturnTarget | undefined;
 }
 
 // The token and the mail that carries it are written in one transaction:
@@ -63,6 +66,7 @@ export async function enqueueVerificationLink(
     subjectId: input.subjectId,
     type: 'verify_email',
     email: input.email,
+    returnTo: input.returnTo,
     ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'verify_email'),
   });
   const link = actionLink(address, token);

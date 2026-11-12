@@ -322,12 +322,12 @@ const RESET = '/tenants/t1/login-actions/reset-password';
 const NOTICES: NoticeCase[] = [
   {
     name: 'verification succeeded',
-    render: (l) => renderVerificationSucceededPage(SIGN_IN, l),
+    render: (l) => renderVerificationSucceededPage(SIGN_IN, null, l),
     wayOn: true,
   },
   {
     name: 'verification failed',
-    render: (l) => renderVerificationFailedPage(SIGN_IN, l),
+    render: (l) => renderVerificationFailedPage(SIGN_IN, null, l),
     wayOn: false,
   },
   {
@@ -360,27 +360,27 @@ const NOTICES: NoticeCase[] = [
   },
   {
     name: 'reset succeeded',
-    render: (l) => renderResetPasswordSucceededPage(SIGN_IN, l),
+    render: (l) => renderResetPasswordSucceededPage(SIGN_IN, null, l),
     wayOn: true,
   },
   {
     name: 'reset factors removed',
-    render: (l) => renderResetPasswordFactorsRemovedPage(SIGN_IN, l),
+    render: (l) => renderResetPasswordFactorsRemovedPage(SIGN_IN, null, l),
     wayOn: true,
   },
   {
     name: 'reset link failed',
-    render: (l) => renderResetLinkFailedPage(RESET, SIGN_IN, l),
+    render: (l) => renderResetLinkFailedPage(RESET, SIGN_IN, null, l),
     wayOn: true,
   },
   {
     name: 'required actions succeeded',
-    render: (l) => renderRequiredActionsSucceededPage([], SIGN_IN, l),
+    render: (l) => renderRequiredActionsSucceededPage([], SIGN_IN, null, l),
     wayOn: true,
   },
   {
     name: 'required actions factors removed',
-    render: (l) => renderRequiredActionsFactorsRemovedPage([], SIGN_IN, l),
+    render: (l) => renderRequiredActionsFactorsRemovedPage([], SIGN_IN, null, l),
     wayOn: true,
   },
 ];
