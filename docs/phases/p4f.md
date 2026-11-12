@@ -585,3 +585,61 @@ that never configures a step behaves as it does today.
 ### Open placements
 
 - None.
+
+## Increment 9, part 2: the breached-password check
+
+### What shipped
+
+- Two tenant settings, `breached_check` (`off|dataset|remote`, default `dataset`) and `breached_on_error` (`open|closed`, default `open`),
+  with a CHECK each in migration 0135, import/export, the audit detail allowlist and a Password policy control in the console.
+- `BreachedPasswordSource { isBreached }` with two implementations in `domain-identity`: the dataset (one primary-key probe of
+  `breached_password_hashes`) and the remote range lookup (`breached-range-source.ts`). `judgeBreached` settles a
+  `BreachedLookupFailed` by `breached_on_error` and lets every other error through, so a defect is never read as an answer.
+  `createBreachedPasswordCheck` reads the tenant's settings through the caller's transaction and is injected into the four
+  writers: registration, reset redemption, actions-link redemption (`@odudu/account`) and `completeUpdatePassword`.
+- The remote request is `createBreachedRangeFetch` (`apps/server`), which reuses the pinned transport of ADR 0028: one fixed host,
+  a `/range/<five hex>` path and nothing else, every resolved address checked and the connection pinned to one, `Add-Padding: true`
+  and no other header, 3 s, 128 KiB, 4 lookups in flight per tenant.
+- `odudu breached-passwords load <file>`: a stream, chunks of 5,000, `on conflict do nothing`, the owner connection only.
+- Rules `breached-password` and `breach-check-unavailable`, worded in both catalogues and in Arabic; `detail.breached_check` on
+  `password.changed`, `password.reset` and `account.registered`.
+
+### Ruling
+
+- The dataset is one global table, not one per tenant: a corpus of hundreds of millions of rows cannot be copied into each of 10,000
+  tenants. Every other table is tenant-scoped, and `rls-policy.int.test.ts` demands a policy naming `app.tenant_id` on every one,
+  so the table has a read policy that admits any bound tenant context and nothing else, and `INSERT`, `UPDATE` and `DELETE` are
+  revoked from the serving role. The load runs as the owner and refuses a role that does not bypass row-level security.
+- The default is the dataset, as the spec says, and an empty dataset judges nothing breached, so no tenant's behaviour changes until
+  an operator loads one. A tenant is shown as checking whether or not a dataset has been loaded; the console cannot see the table.
+- The check runs after the other rules, on a candidate that passed them, and before the reuse check, which can be up to 25 Argon2id
+  verifications. A candidate refused by a rule is never looked up.
+- The check runs in the writer's own transaction, so it opens no second connection (a second would deadlock a saturated pool).
+  Registration has no transaction at that point and opens a short one. A remote lookup therefore holds a connection for up to 3 s;
+  the per-tenant limit of 4 bounds how many a tenant can hold.
+- An administrator never types a password: `POST .../subjects/:id/password` mails a link, and the link's page is the actions-link
+  writer. There is no fifth path to cover. `odudu seed` and `odudu init` check the policy rules only; they are operator-typed on a
+  command line and a remote lookup from a one-shot command has no bound.
+- A refusal is a form error, as a refused rule is, and writes no audit row. `breached` and `error_closed` are in the vocabulary because the
+  check reports them, and so no stored row ever carries either.
+- A registration that waits for a mailed link runs the check when the form is submitted. Its `account.registered` row, written when
+  the link is used, has no `breached_check`, since the verdict has nowhere to wait in `pending_registrations` without a column.
+- "Timeout honours the setting" is read as: a lookup that timed out is settled by `breached_on_error`. The timeout is a constant; a
+  tenant cannot lengthen the time a form submission can wait.
+- The suffix is compared with plain equality: it is public data, and the answer is the whole bucket the service sends anyway.
+- A count of zero in an answer is the service's padding and is not a hit. An empty answer is a failed lookup, not a pass.
+
+### At volume
+
+- Dataset: one probe of the primary key (`prefix`, `suffix`), constant whatever the table's size, no listing. Remote: bounded by
+  3 s, 128 KiB and 4 in flight per tenant; the limiter's map holds an entry only while a tenant has a lookup running.
+  10,000 tenants with one lookup each is 10,000 entries for at most 3 s.
+- The load streams and holds one chunk of 5,000 rows.
+
+### Open placements
+
+- None. The remote path has not been run against a live stack, because the real host must not be contacted: its wire is asserted
+  with a capturing fake and against a TLS server of the test's own, and the transcripts show the dataset path and the settings.
+- The settings screen record (`record/settings-*.txt`) was edited by hand for the two new fields: `pnpm docs:screenshots` refused to
+  finish on the stack used, because the screen guard found the admin password's value on the new-subject page. The console-shots job
+  recaptures it in CI and reports any difference.

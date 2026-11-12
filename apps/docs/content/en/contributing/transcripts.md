@@ -1256,3 +1256,17 @@ id, code, cookie and time in those blocks is that one run's; the sections after 
 them, each saying so where its port or ids differ. Password expiry, and changing a password was run again whole on
 the compose project `odudu-p4f-i9` on port `3089`, tenant `expiry-demo`, with its ids, cookies and times that run's; its
 last section, on ending the other sessions, was added to it in the same run. Both stacks were removed afterwards.
+
+The breached-password check was run on 2026-11-12 on a compose project, `odudu-p4f-i92` (port `3092`, `ODUDU_REAP_ENABLED=false`,
+throttles at `10000`), built from the branch commit `6533a26aa` with only documentation files uncommitted, on a database that began
+empty: `seed admin`, a token as in Getting the token, then one script per page that wrote each block's output as it came back
+(carriage returns and trailing spaces removed). The first three blocks of `get-settings-and-patch-settings.md`, its new last section
+and the audit read after it, the export block of `get-export.md` (10,913 to 10,967 bytes, made as that page makes it) and `GET
+/admin/openapi.json` (816,959 to 817,743 bytes) were run again. `password-expiry-and-changing-a-password.md` was run again whole,
+with its commands now naming port `3092` and the project `odudu-p4f-i92`, and gained its last section, which loads a two-line file
+with `odudu breached-passwords load` and shows a refusal, an acceptance and a tenant with the check off. `password-reset.md` gained
+a last section on a tenant `reset-breach`, and its audit section, on its own tenant `reset-audit` with its five-minute wait, was
+run again because the `password.reset` row now carries `breached_check`. The audit section of `self-registration.md` was not: its
+row is the one written when a mailed link is used, and that row carries no `breached_check`, so its capture stands. The remote
+source is not run on any page, because it would contact a host outside the stack; `apps/server/tests/breached-range-transport.int.test.ts`
+runs it against a TLS server of its own and asserts what goes on the wire. The stack and its image were removed afterwards.

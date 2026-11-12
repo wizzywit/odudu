@@ -45,6 +45,7 @@ A long password protects better than a complicated one, and the console's defaul
 - Character rules: the digit, uppercase, lowercase and special-character rules are off by default. NIST advises against them, so turn one on only if you must. When one is on, the password pages list it for the person.
 - Expiry: **Password lifetime** is 0 by default, so a password never expires. NIST advises against changing passwords on a schedule.
 - Common passwords: a password is always refused when it is on a list of about 38,000 common ones, or when it is only the tenant's name, the username, or the name part of the email. Only the whole password is compared, ignoring case: `baseball` is refused and `baseball and a long walk home` is not. This has no setting.
+- Known breaches: **Check against known breaches** refuses a password that appears in a published list of passwords taken from breaches, once it has passed the rules above. [Passwords known from breaches](#passwords-known-from-breaches) says what the three values do. It is on, against the loaded dataset, for every tenant, and it refuses nothing until an operator loads a dataset.
 - Typing: passwords are stored in Unicode NFC form, so `é` typed as one character or as `e` and an accent is one password. A password set before this change still signs in.
 
 A person with a passkey signs in without a password, so none of this applies to that sign-in.
@@ -128,7 +129,21 @@ With **Require a passkey** on, a sign-in that completes adds the `configure-pass
 - **Refuse the username** (`password_not_username`) and **Refuse the email address** (`password_not_email`): a password may not be only that.
 - **Passwords remembered** (`password_history_depth`): a new password may not repeat one of this many before it. 0 remembers none, 24 is the most.
 - **Password lifetime** (`password_max_age_days`): a password older than this must be changed. 0 never expires one.
+- **Check against known breaches** (`breached_check`): **Off**, **Dataset loaded on the server** (`dataset`, the default) or **Remote range lookup** (`remote`). [Passwords known from breaches](#passwords-known-from-breaches) says what each does.
+- **When a remote lookup fails** (`breached_on_error`): **Accept the password** (`open`, the default) or **Refuse it and ask to try again** (`closed`). It applies to the remote lookup only.
 - `otp_required` is the **Ask every subject for a one-time password** switch of [Sign-in flow](./sign-in-flow.mdx).
+
+#### Passwords known from breaches
+
+A password that passed the other rules is also refused when it is a password known from breaches. The refusal comes after the length, character, username, email and common-password rules and before the reuse check, on the same four pages that apply those rules: registration, a reset link, an administrator's actions link and the change-password page. The page says "That password has appeared in a data breach. Choose a different one." and never says which source said so. Administrators never type a password for anybody, so there is no fifth place; `odudu seed` checks the policy rules only.
+
+- **Dataset loaded on the server** asks a table in the server's own database for the password's SHA-1 hash, split as the public range lists split it. Nothing leaves the server. The table is empty until an operator runs `odudu breached-passwords load` with a file of hashes ([Deploying](../operating/deploying.md#load-a-breached-password-dataset)); an empty table refuses nothing. One table serves every tenant.
+- **Remote range lookup** asks a range service at one fixed host, `api.pwnedpasswords.com`, for the first five characters of the hash. The service answers with every suffix that starts with them and Odudu looks for its own in the answer, so neither the password nor its full hash leaves the server. The request carries no cookie, no account and no tenant name. It waits at most 3 seconds, reads at most 128 KiB of answer, and a tenant has at most 4 lookups in flight, so a form submitted in a burst fails the lookup rather than queueing. An address that resolves to a private or loopback address is refused, as for a client's key set. It is off for every tenant until an administrator chooses it, because it is the one place a sign-in page's traffic causes a request to another service.
+- **Off** skips the check. The audit row of the password write says `off`, so a tenant that stopped checking can be seen.
+
+When the remote lookup fails, **When a remote lookup fails** decides. **Accept the password** lets it through and the audit row of the write says `error_open`. **Refuse it and ask to try again** refuses it with "The password could not be checked against known breaches. Try again in a moment." The dataset has no such failure.
+
+Each password write records what the check decided in `detail.breached_check` of its audit row: `passed`, `error_open` or `off`. The password is never recorded, and neither is any part of its hash. A refused password writes no row, as a refused rule does not, so `breached` and `error_closed`, the two other values the check can report, are never stored.
 
 ### Brute force
 

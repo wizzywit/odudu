@@ -47,16 +47,16 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1cfdb-ba5d-7764-ba1f-9a5bba7899c5
+x-request-id: 01a1d0eb-7726-79a2-ad03-c3542ecb8c9a
 cache-control: no-store
-etag: "d7a245d8934a65f0d08304df5cc1ef2faaf98433bde0533f76ea06beb91b8d67"
+etag: "8cd3743c34dc50bd4b843db4b4503d1079b95eae4816ba9a5b4a9f41eb158232"
 content-type: application/json; charset=utf-8
-content-length: 1518
-Date: Thu, 12 Nov 2026 13:04:06 GMT
+content-length: 1572
+Date: Thu, 12 Nov 2026 18:00:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":false,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":15,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"session_freshness_seconds":300,"recovery_code_warn_below":3,"totp_algorithm":"SHA1","totp_digits":6,"totp_period":30,"webauthn_user_verification":"required","webauthn_resident_key":"required","recovery_code_count":10,"require_passkey":false,"login_with_email":false,"cimd_enabled":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"],"supported_locales":["en"],"default_locale":null}
+{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":false,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":15,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"session_freshness_seconds":300,"recovery_code_warn_below":3,"totp_algorithm":"SHA1","totp_digits":6,"totp_period":30,"webauthn_user_verification":"required","webauthn_resident_key":"required","recovery_code_count":10,"require_passkey":false,"breached_check":"dataset","breached_on_error":"open","login_with_email":false,"cimd_enabled":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"],"supported_locales":["en"],"default_locale":null}
 ```
 
 Amending sends only the settings that change, and the response is the whole
@@ -72,16 +72,16 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1cfdb-ba75-797a-8956-8dec8909154d
+x-request-id: 01a1d0eb-7742-70f8-98b4-4194fb7cc0db
 cache-control: no-store
-etag: "1a55e29efa128099bf5918ea8e3033d8544ae4f51161ef7d2b509c3404a90edd"
+etag: "0b2dc18f1ff6f7651d74445a0accc77495085c8acfb23102056c3a7fc5615078"
 content-type: application/json; charset=utf-8
-content-length: 1517
-Date: Thu, 12 Nov 2026 13:04:06 GMT
+content-length: 1571
+Date: Thu, 12 Nov 2026 18:00:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":14,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"session_freshness_seconds":300,"recovery_code_warn_below":3,"totp_algorithm":"SHA1","totp_digits":6,"totp_period":30,"webauthn_user_verification":"required","webauthn_resident_key":"required","recovery_code_count":10,"require_passkey":false,"login_with_email":false,"cimd_enabled":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"],"supported_locales":["en"],"default_locale":null}
+{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":14,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"session_freshness_seconds":300,"recovery_code_warn_below":3,"totp_algorithm":"SHA1","totp_digits":6,"totp_period":30,"webauthn_user_verification":"required","webauthn_resident_key":"required","recovery_code_count":10,"require_passkey":false,"breached_check":"dataset","breached_on_error":"open","login_with_email":false,"cimd_enabled":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"],"supported_locales":["en"],"default_locale":null}
 ```
 
 A name this map does not know is refused with `400`, naming the settings it does
@@ -95,7 +95,7 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days, username_editable, access_token_ttl_seconds, id_token_ttl_seconds, refresh_token_ttl_seconds, authorization_code_ttl_seconds, login_ttl_seconds, verify_email_ttl_seconds, reset_password_ttl_seconds, session_freshness_seconds, recovery_code_warn_below, totp_algorithm, totp_digits, totp_period, webauthn_user_verification, webauthn_resident_key, recovery_code_count, require_passkey, login_with_email, cimd_enabled, audit_event_types, supported_locales, default_locale","errors":[{"path":"nonesuch","message":"is not a tenant setting"}],"instance":"01a1cfdb-ba91-7c3b-9be4-602c99329fff"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days, username_editable, access_token_ttl_seconds, id_token_ttl_seconds, refresh_token_ttl_seconds, authorization_code_ttl_seconds, login_ttl_seconds, verify_email_ttl_seconds, reset_password_ttl_seconds, session_freshness_seconds, recovery_code_warn_below, totp_algorithm, totp_digits, totp_period, webauthn_user_verification, webauthn_resident_key, recovery_code_count, require_passkey, breached_check, breached_on_error, login_with_email, cimd_enabled, audit_event_types, supported_locales, default_locale","errors":[{"path":"nonesuch","message":"is not a tenant setting"}],"instance":"01a1d0eb-775b-79e8-8293-8f882e3447d5"}
 ```
 
 A value the map coerces but outside its range — `password_min_length` outside
@@ -345,6 +345,56 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: appl
 {"require_passkey":false}
 ```
 
-The first three blocks of this page, `GET /admin/openapi.json` and the passkey switch section were run again after the switch
-joined the settings, on a freshly built stack; the authenticator policy section keeps the capture from when that policy joined
-(see [How the transcripts are captured](../../../contributing/transcripts.md)).
+## The breached-password settings
+
+`breached_check` says where a new password is checked against passwords known from breaches, and `breached_on_error` what a
+remote lookup that failed does. Both are text with a fixed set of values, so any other value is refused before anything is
+written, and the refusal lists the values. [Passwords known from breaches](../../../admin-console/settings.mdx#passwords-known-from-breaches)
+says what each value sends and where. In a tenant `breach-api-demo`, made for it, setting only changes and no password is ever
+written, so nothing here asks a service outside the server anything: the values as the tenant starts, both set, a value nobody
+offers, and the check turned off:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/breach-api-demo/settings | jq -c '{breached_check, breached_on_error}'
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"breached_check":"remote","breached_on_error":"closed"}' \
+  http://localhost:3000/admin/tenants/breach-api-demo/settings | jq -c '{breached_check, breached_on_error}'
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"breached_check":"always"}' http://localhost:3000/admin/tenants/breach-api-demo/settings; echo
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"breached_check":"off"}' \
+  http://localhost:3000/admin/tenants/breach-api-demo/settings | jq -c '{breached_check, breached_on_error}'
+```
+
+```
+{"breached_check":"dataset","breached_on_error":"open"}
+{"breached_check":"remote","breached_on_error":"closed"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"tenant setting breached_check must be one of off, dataset, remote","errors":[{"path":"breached_check","message":"must be one of off, dataset, remote"}],"instance":"01a1d0eb-77f5-7daf-b9b0-14c960c33b9d"}
+{"breached_check":"off","breached_on_error":"closed"}
+```
+
+The two settings are by value in the audit trail, so a tenant that turned the check off is on record, with the value
+before and after:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "SELECT action, detail FROM audit_events
+     WHERE tenant_id = (SELECT id FROM tenants WHERE name = 'breach-api-demo')
+       AND event_type = 'admin_mutation'
+     ORDER BY occurred_at, id;"
+```
+
+```
+        action         |                                                          detail
+-----------------------+--------------------------------------------------------------------------------------------------------------------------
+ tenant.create         | {}
+ tenant.amend_settings | {"breached_check": {"after": "remote", "before": "dataset"}, "breached_on_error": {"after": "closed", "before": "open"}}
+ tenant.amend_settings | {"breached_check": {"after": "off", "before": "remote"}}
+(3 rows)
+```
+
+The first three blocks of this page, the breached-password section, `GET /admin/openapi.json` and the first export block of
+[GET /export](./get-export.md) were run again after the breached-password settings joined the settings, on a freshly built
+stack; the passkey switch section and the authenticator policy section keep the captures from when they joined (see
+[How the transcripts are captured](../../../contributing/transcripts.md)).

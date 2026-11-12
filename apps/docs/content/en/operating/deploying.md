@@ -141,6 +141,20 @@ The domain recheck needs `ODUDU_APP_DATABASE_URL` for the same reason, and `ODUD
 
 To send real mail, set `ODUDU_SMTP_HOST` and `ODUDU_SMTP_FROM`, and `ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS=true` if your relay needs a login. The server refuses to set a password without STARTTLS, so credentials never travel in the clear. A tenant can also set its own relay through the console. Send a test message from the tenant's email page before you rely on it.
 
+## Load a breached-password dataset
+
+A tenant refuses a new password that is known from breaches, and by default it looks in a table inside your own database, which starts empty. To fill it, give `odudu breached-passwords load` a file with one SHA-1 hash per line, each optionally followed by `:` and a count, which is the format of the published Pwned Passwords list ordered by hash:
+
+```bash
+odudu breached-passwords load pwned-passwords-sha1-ordered-by-hash.txt
+```
+
+It prints `{"read":…,"inserted":…}`. It reads the file as a stream, so the file is never held in memory, and adds the hashes in statements of 5,000 rows, skipping any the table already holds. Running it again with the same file adds nothing, and a file can be loaded in pieces or topped up later. A line that is not a SHA-1 hash stops the load and names its number, so a file of another kind of hash is refused at its first line. Rows loaded before that stay.
+
+The table holds each hash split as the public range lookup splits it, five characters and thirty-five, so it is exactly as sensitive as the list it came from and no more. It is read inside a tenant's own context and written by nothing the server serves: the command needs `ODUDU_DATABASE_URL` to name the owner role, which has to be a superuser or have BYPASSRLS, and says so and stops if it is not. One table serves every tenant. The full published list has hundreds of millions of hashes, and the table and its index take disk in proportion, so load a copy of your database's size first if disk matters. A lookup is one probe of the table's primary key whatever its size.
+
+Nothing else needs doing. A tenant checks the dataset unless an administrator turns the check off or chooses the remote lookup instead; [Passwords known from breaches](../admin-console/settings.mdx#passwords-known-from-breaches) says what each choice sends and where.
+
 ## What is not here yet
 
 Odudu runs as one container beside one Postgres. Secret storage beyond environment variables, written and proven backup and restore, and running several instances are all on the [roadmap](../roadmap.md), not in the product today.
