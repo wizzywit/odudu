@@ -41,6 +41,7 @@ How they were captured is in [How the transcripts are captured and checked](../.
 - [The me API](./the-me-api.md)
 - [The me API: changes](./the-me-api-changes.md)
 - [Sending a person to change a credential](./sending-a-person-to-change-a-credential.md)
+- [An address, a profile and the terms at sign-in](./more-required-actions.md)
 - [A themed sign-in and the brand route](./a-themed-sign-in-and-the-brand-route.md)
 - [A tenant at its own address](./custom-domains-a-domain-host-and-the-proxys-question.md)
 - [`Path C: client_credentials`](./path-c-client_credentials.md)

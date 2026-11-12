@@ -93,3 +93,81 @@ curl -sS -X PUT \
 ```
 {"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0d7ef-62f8-7819-a402-6a7987acd136"}
 ```
+
+## Three actions that ask more of a person
+
+The list names any of `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`,
+`update-profile` and `accept-terms`, which is the order a sign-in asks for them, and the read sorts them by name. An action that
+cannot be owed is refused with `409` and a `type` that names why, and the whole list is refused with it: `no-email` for
+`verify-email` on a subject with no address, `terms-not-configured` for `accept-terms` while the tenant has no `terms_uri`, and
+`no-editable-profile-fields` for `update-profile` where a person may edit no profile field, which no tenant does yet, so it is not
+shown. A subject whose address is already verified can still be owed `verify-email`: the next sign-in clears it without a page. The
+set is the same for a mailed link's `actions-email`, except that it takes only `update-password`, `configure-totp`,
+`configure-passkey` and `generate-recovery-codes`, and refuses the others with `400`.
+
+The run below is the one [An address, a profile and the terms at sign-in](../request-paths/more-required-actions.md) makes, in its
+tenant `more-demo`, with `lin` holding no address and `grace` holding one. Its sign-in half is on that page:
+
+```bash
+GRACE=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$BASE/admin/tenants/more-demo/subjects?username=grace" | jq -r '.items[0].id')
+LIN=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$BASE/admin/tenants/more-demo/subjects?username=lin" | jq -r '.items[0].id')
+BASE=http://localhost:3000
+put() { # subject id, then the actions as a JSON list
+  local etag; etag=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" "$BASE/admin/tenants/more-demo/subjects/$1/required-actions" | grep -i '^etag:' | cut -d' ' -f2 | tr -d '\r')
+  curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $etag" -H 'content-type: application/json' \
+    -d "{\"actions\":$2}" "$BASE/admin/tenants/more-demo/subjects/$1/required-actions"
+  echo
+}
+put $LIN '["verify-email"]'
+put $GRACE '["accept-terms"]'
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a1d1ba-a602-78bf-b8b6-04f94702a37b
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 189
+Date: Thu, 12 Nov 2026 21:47:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank#no-email","title":"Conflict","status":409,"detail":"the subject has no email address, so verify-email cannot be owed","instance":"01a1d1ba-a602-78bf-b8b6-04f94702a37b"}
+HTTP/1.1 409 Conflict
+x-request-id: 01a1d1ba-a62f-79b1-ba80-03c5aa4fef30
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 231
+Date: Thu, 12 Nov 2026 21:47:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank#terms-not-configured","title":"Conflict","status":409,"detail":"the tenant has no terms_uri, so accept-terms cannot be owed; set it with PATCH /settings first","instance":"01a1d1ba-a62f-79b1-ba80-03c5aa4fef30"}
+```
+
+With the terms set, as `PATCH /settings` sets them, the same write is accepted:
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"terms_uri":"https://example.com/terms","terms_version":"2026-01"}' "$BASE/admin/tenants/more-demo/settings" \
+  | jq -c '{terms_uri, terms_version}'
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"terms_uri":"http://example.com/terms"}' "$BASE/admin/tenants/more-demo/settings" | jq -c .
+put $GRACE '["accept-terms","update-profile","verify-email"]'
+```
+
+```
+{"terms_uri":"https://example.com/terms","terms_version":"2026-01"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"1 tenant setting(s) outside the permitted range, listed under errors","errors":[{"path":"terms_uri","message":"must be an https address, or an http one to this machine, with no fragment"}],"instance":"01a1d1ba-a660-7f28-b4c2-fbe035d4d2cf"}
+HTTP/1.1 200 OK
+x-request-id: 01a1d1ba-a687-7aad-a45d-afdf3f7c20c8
+cache-control: no-store
+etag: "3c95abeefed1547300c92fafd42865cf075b9f54e2a070978ecb8418a80d0f6b"
+content-type: application/json; charset=utf-8
+content-length: 60
+Date: Thu, 12 Nov 2026 21:47:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"actions":["accept-terms","update-profile","verify-email"]}
+```

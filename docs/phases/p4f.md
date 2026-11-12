@@ -802,3 +802,73 @@ migration back, which is what the order is for. `docs/NEXT.md` and `RELEASING.md
 ### Open placements
 
 - None. The administrator's address check that was placed here is done above.
+
+## Increment 12: more required actions (verify email, update profile, accept terms)
+
+### What shipped
+
+- `verify-email`, `update-profile` and `accept-terms` join `requiredActionSchema` (`@odudu/contracts`), `RequiredAction`
+  (`@odudu/authn-flows`), the `user_required_actions` and `client_oidc_config.allowed_actions` CHECKs (migration 0136) and the order a
+  sign-in asks in: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`,
+  `update-profile`, `accept-terms`. A mailed link keeps four (`linkedActionSchema`), an application may start six
+  (`applicationActionSchema`); `tests/docs/required-action-order.test.ts` holds the sentence in `enrolling-a-passkey.md` to the order.
+- Three page kinds, `verify-email`, `update-profile` and `accept-terms`, each a `*-html.ts` in `packages/authn-flows/src/view/` with
+  a default template, catalogue entries and Arabic twins, a preview, a `page-` hook, an editor manifest and a theme-reach rule.
+- Two tenant settings, `terms_uri` (nullable) and `terms_version` (1 to 64 characters, `1` by default), as columns with a CHECK on the
+  length; the Settings page of the console has a Terms section; the audit detail of a settings change shows both by value; export and
+  import carry them. A table, `subject_terms_acceptances (tenant_id, subject_id, version, accepted_at)`, primary key
+  `(tenant_id, subject_id, version)`, RLS like its siblings, deleted with the subject.
+- The admin API refuses with `409` an action that cannot be owed: `no-email`, `terms-not-configured` and
+  `no-editable-profile-fields`, problem types in `ADMIN_PROBLEM_TYPES`.
+- A sign-in clears an owed action no page could finish (`pendingActionsFor`, which now takes the tenant id), through the pure
+  `unfinishableActions`.
+
+### Ruling
+
+- **The stable identifiers of the 409s are problem types, not underscore codes.** The admin API's convention is `about:blank#<name>`
+  in `ADMIN_PROBLEM_TYPES` (`no-email` already existed and was generalised); `no_editable_profile_fields` and `terms_not_configured`
+  are the usecase's names for the same refusals.
+- **verify-email.** The page mails on a button, not on every render (a reload would otherwise mail again), through
+  `enqueueVerificationLink` and the existing `verification` budget (three an hour to one address). "I have verified it" re-reads the
+  subject. The link that proves an address clears the row in the composition root (`markVerified` and `replaceVerified`). A person who
+  comes back to the page after using the link finds nothing owed; the submission gate has one exception for this action: not owed and
+  the address verified completes, and the sign-in's own gates decide what is next. A row owed to a verified address or none is cleared at
+  sign-in. An application that starts it for a verified address sees the page say so, with the way on, and for none gets
+  `action_status=error`.
+- **update-profile.** The fields are the keys of `CLAIM_KEY` (twenty) and `username` when `username_editable` is on, which is the set
+  `PATCH /me/profile` writes. The validation is `planProfileAmend`, moved from `@odudu/me` to `@odudu/domain-identity` so there is one
+  copy, and its refusal gained a `reason` (`bidi` or `shape`) so the page words it. The form is all-or-nothing: nothing is written
+  until every value passes and every field that was empty has one. The username is written first in a savepoint, so a name claimed
+  meanwhile leaves nothing written. Audit: `subject.profile_amend` with `via: required_action` and the field names. `email` and
+  unknown fields are ignored. `no-editable-profile-fields` cannot occur yet, since every tenant lets a person edit every claim, so it
+  is a guard with a unit test and a sentence in the docs, and no transcript.
+- **accept-terms.** The address is judged with `isValidWebPageUri`, moved from protocol-oidc's client metadata to `@odudu/kernel` so a
+  client's policy and terms addresses and the tenant's follow one rule; an empty value clears it. The version recorded is the one in
+  force when the box is ticked, read in the usecase and not taken from the form. Audit: `terms.accepted` (credential) with `version`.
+  Changing `terms_version` adds the action to nobody. An application cannot start it: the client setting, the seed flag, a tenant
+  import and `/authorize` each refuse it, and `requestedActionOf` ignores it in a parked request.
+- **Placing among the rest.** `verify-email` first, since proving an address asks nothing of the person but the mailbox; the other two
+  last, since nothing before them depends on either.
+- **The page kinds are additive.** Three new `page-<kind>` hooks are added to the published list without a new version, since no
+  existing hook moved. Field label keys are camel case (`updateProfile.field.givenName`), which the template grammar admits.
+- **Tenant import** takes `required_actions` of any of the seven; the refusals above are the admin route's, and a row that cannot be
+  finished is cleared at sign-in.
+
+### At volume
+
+- `pendingActionsFor` reads, only for an action that is owed, one `users` row by subject, the tenant row by id, and one probe of the
+  acceptances' primary key: a constant number of reads by key, whatever the tenant's size, and none for a subject that owes none of the
+  three. The admin check reads the same rows for the actions in the request only.
+- `update-profile` is one locked `users` row, one lookup of the username by its unique index and at most four writes; its form is at
+  most twenty-one fields, each bounded by the body limit.
+- Mail from the address page is bounded by the per-address budget and the in-process limiter's own bound.
+
+### Open placements
+
+- **A person's acceptance in the console's subject record** is not cheap (it needs an admin API read of the acceptances and a
+  contract), so it is placed on Increment 14, with the other reads of a subject's standing.
+- **Every empty profile field must be filled** is the ruling as given, and it is hard for the twenty claims a person may never have had
+  (a picture address, a region). A tenant naming which fields it needs is the declarative user profile of **P7**, which this form reads
+  from when it exists.
+- `branding-selectors` of the console screenshots lists the theme hooks, and three more now exist; the capture shows them at the next
+  `pnpm docs:screenshots`, and the check named in the report below says whether the frame differs.

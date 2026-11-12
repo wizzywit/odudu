@@ -527,6 +527,9 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Remember me': page(ACCESS, "title: 'Remember me'"),
   Usernames: page(ACCESS, "title: 'Usernames'"),
   'Password policy': page(ACCESS, "title: 'Password policy'"),
+  Terms: page(ACCESS, "title: 'Terms'"),
+  'Terms address': page(ACCESS, "label: 'Terms address'"),
+  'Terms version': page(ACCESS, "label: 'Terms version'"),
   'Brute force': page(ACCESS, "title: 'Brute force'"),
   'Token lifetimes': page(PLATFORM, "title: 'Token lifetimes'"),
   'Client registration': page(SETTINGS_WORDS, "registrationTitle: 'Client registration'"),
@@ -1040,6 +1043,15 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/services/credentialAsk.ts',
     "label: 'Ask for a new set at next sign-in'",
   ),
+  'Verify the email address': entity(
+    'subject/services/requiredActions.ts',
+    "label: 'Verify the email address'",
+  ),
+  'Complete the profile': entity(
+    'subject/services/requiredActions.ts',
+    "label: 'Complete the profile'",
+  ),
+  'Accept the terms': entity('subject/services/requiredActions.ts', "label: 'Accept the terms'"),
   'Choose a new password': entity(
     'subject/services/requiredActions.ts',
     "label: 'Choose a new password'",

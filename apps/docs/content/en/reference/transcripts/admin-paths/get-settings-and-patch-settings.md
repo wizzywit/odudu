@@ -47,16 +47,16 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d0eb-7726-79a2-ad03-c3542ecb8c9a
+x-request-id: 01a1d1ba-b1c5-71aa-a00d-57f84b863200
 cache-control: no-store
-etag: "8cd3743c34dc50bd4b843db4b4503d1079b95eae4816ba9a5b4a9f41eb158232"
+etag: "9304d003bdb422e3704c6f467adb2f033f0d90b1b07693452e44ee2932247f89"
 content-type: application/json; charset=utf-8
-content-length: 1572
-Date: Thu, 12 Nov 2026 18:00:54 GMT
+content-length: 1609
+Date: Thu, 12 Nov 2026 21:47:15 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":false,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":15,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"session_freshness_seconds":300,"recovery_code_warn_below":3,"totp_algorithm":"SHA1","totp_digits":6,"totp_period":30,"webauthn_user_verification":"required","webauthn_resident_key":"required","recovery_code_count":10,"require_passkey":false,"breached_check":"dataset","breached_on_error":"open","login_with_email":false,"cimd_enabled":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"],"supported_locales":["en"],"default_locale":null}
+{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":false,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":15,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"session_freshness_seconds":300,"recovery_code_warn_below":3,"totp_algorithm":"SHA1","totp_digits":6,"totp_period":30,"webauthn_user_verification":"required","webauthn_resident_key":"required","recovery_code_count":10,"require_passkey":false,"breached_check":"dataset","breached_on_error":"open","terms_uri":null,"terms_version":"1","login_with_email":false,"cimd_enabled":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"],"supported_locales":["en"],"default_locale":null}
 ```
 
 Amending sends only the settings that change, and the response is the whole
@@ -72,16 +72,16 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d0eb-7742-70f8-98b4-4194fb7cc0db
+x-request-id: 01a1d1ba-b1de-7efc-b6ea-fdea34611e1d
 cache-control: no-store
-etag: "0b2dc18f1ff6f7651d74445a0accc77495085c8acfb23102056c3a7fc5615078"
+etag: "c6951ad31824d31fc1026eeb613fdc9313c712b6484499e0c1c5603b8364d5e5"
 content-type: application/json; charset=utf-8
-content-length: 1571
-Date: Thu, 12 Nov 2026 18:00:54 GMT
+content-length: 1608
+Date: Thu, 12 Nov 2026 21:47:15 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":14,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"session_freshness_seconds":300,"recovery_code_warn_below":3,"totp_algorithm":"SHA1","totp_digits":6,"totp_period":30,"webauthn_user_verification":"required","webauthn_resident_key":"required","recovery_code_count":10,"require_passkey":false,"breached_check":"dataset","breached_on_error":"open","login_with_email":false,"cimd_enabled":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"],"supported_locales":["en"],"default_locale":null}
+{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":14,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"session_freshness_seconds":300,"recovery_code_warn_below":3,"totp_algorithm":"SHA1","totp_digits":6,"totp_period":30,"webauthn_user_verification":"required","webauthn_resident_key":"required","recovery_code_count":10,"require_passkey":false,"breached_check":"dataset","breached_on_error":"open","terms_uri":null,"terms_version":"1","login_with_email":false,"cimd_enabled":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"],"supported_locales":["en"],"default_locale":null}
 ```
 
 A name this map does not know is refused with `400`, naming the settings it does
@@ -95,7 +95,7 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days, username_editable, access_token_ttl_seconds, id_token_ttl_seconds, refresh_token_ttl_seconds, authorization_code_ttl_seconds, login_ttl_seconds, verify_email_ttl_seconds, reset_password_ttl_seconds, session_freshness_seconds, recovery_code_warn_below, totp_algorithm, totp_digits, totp_period, webauthn_user_verification, webauthn_resident_key, recovery_code_count, require_passkey, breached_check, breached_on_error, login_with_email, cimd_enabled, audit_event_types, supported_locales, default_locale","errors":[{"path":"nonesuch","message":"is not a tenant setting"}],"instance":"01a1d0eb-775b-79e8-8293-8f882e3447d5"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days, username_editable, access_token_ttl_seconds, id_token_ttl_seconds, refresh_token_ttl_seconds, authorization_code_ttl_seconds, login_ttl_seconds, verify_email_ttl_seconds, reset_password_ttl_seconds, session_freshness_seconds, recovery_code_warn_below, totp_algorithm, totp_digits, totp_period, webauthn_user_verification, webauthn_resident_key, recovery_code_count, require_passkey, breached_check, breached_on_error, terms_uri, terms_version, login_with_email, cimd_enabled, audit_event_types, supported_locales, default_locale","errors":[{"path":"nonesuch","message":"is not a tenant setting"}],"instance":"01a1d1ba-b1f7-7284-aa32-8df5bf2d2a2e"}
 ```
 
 A value the map coerces but outside its range — `password_min_length` outside
@@ -398,3 +398,31 @@ The first three blocks of this page, the breached-password section, `GET /admin/
 [GET /export](./get-export.md) were run again after the breached-password settings joined the settings, on a freshly built
 stack; the passkey switch section and the authenticator policy section keep the captures from when they joined (see
 [How the transcripts are captured](../../../contributing/transcripts.md)).
+
+## The terms
+
+`terms_uri` and `terms_version` are the tenant's terms for the `accept-terms` required action. The address has to be https, or
+http to this machine, with no fragment, as a client's policy and terms addresses do; the version is 1 to 64 characters and is `1`
+until it is set. An empty `terms_uri` clears the address, which is how a request that can only carry text says none. Setting
+either asks nobody: an administrator owes `accept-terms` to each person, and again when the terms change. Three writes, the
+first accepted, the second refused for both fields at once and the third clearing the address. `jq` keeps the fields that matter:
+
+```bash
+for body in '{"terms_uri": "https://example.com/terms", "terms_version": "2026-01"}' '{"terms_uri": "http://example.com/terms", "terms_version": ""}' '{"terms_uri": ""}'; do
+  curl -sS -X PATCH \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$body" \
+    http://localhost:3000/admin/tenants/settings-demo/settings | jq -c '{terms_uri, terms_version, errors}'
+done
+```
+
+```
+{"terms_uri":"https://example.com/terms","terms_version":"2026-01","errors":null}
+{"terms_uri":null,"terms_version":null,"errors":[{"path":"terms_uri","message":"must be an https address, or an http one to this machine, with no fragment"},{"path":"terms_version","message":"must be between 1 and 64 characters"}]}
+{"terms_uri":null,"terms_version":"2026-01","errors":null}
+```
+
+The first three blocks of this page and the block that lists the setting names in the refusal above were run again after
+`terms_uri` and `terms_version` joined the settings, so each answer carries both and is longer, and the list of names has two more.
+Their ids and times are that run's, not those of the blocks around them.
