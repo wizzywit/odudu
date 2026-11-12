@@ -32,13 +32,13 @@ docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```
-{"created":true,"tenant":"expiry-demo","tenantId":"01a1d0ec-d011-7e75-be3a-15df3464d28e","clientId":"expiry-spa","userSubjectId":"01a1d0ec-d0cd-766e-b8c3-8a592c7186c9"}
-{"command":"tenant","created":false,"tenant":"expiry-demo","tenantId":"01a1d0ec-d011-7e75-be3a-15df3464d28e","settings":["password_max_age_days","password_history_depth"]}
+{"created":true,"tenant":"expiry-demo","tenantId":"01a1d113-6f8b-7a1b-a604-f4c8aa4e8227","clientId":"expiry-spa","userSubjectId":"01a1d113-7057-74b7-8438-721b0a676465"}
+{"command":"tenant","created":false,"tenant":"expiry-demo","tenantId":"01a1d113-6f8b-7a1b-a604-f4c8aa4e8227","settings":["password_max_age_days","password_history_depth"]}
 UPDATE 1
 ```
 
 `/authorize` parks the request and renders the ordinary password form; the
-`auth_session_id` in it — `01a1d0ec-d3b3-73f1-93e8-8ee67cbd8a9d` in this
+`auth_session_id` in it — `01a1d113-72fd-7b7d-8b17-faea009f99a4` in this
 run — is what every request below carries. The correct password answers
 `200` with a change-password form rather than `302` with a code: it was
 accepted, and the pending action is what holds the login (no `set-cookie`,
@@ -46,7 +46,7 @@ no `code`).
 
 ```bash
 curl -sS -X POST http://localhost:3092/tenants/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d0ec-d3b3-73f1-93e8-8ee67cbd8a9d' \
+  --data-urlencode 'auth_session_id=01a1d113-72fd-7b7d-8b17-faea009f99a4' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -72,7 +72,7 @@ curl -sS -X POST http://localhost:3092/tenants/expiry-demo/login-actions/authent
 </header>
 <p>This account needs a new password before you can continue.</p>
 <form method="post" action="/tenants/expiry-demo/login-actions/required-action?action=update-password">
-  <input type="hidden" name="auth_session_id" value="01a1d0ec-d3b3-73f1-93e8-8ee67cbd8a9d">
+  <input type="hidden" name="auth_session_id" value="01a1d113-72fd-7b7d-8b17-faea009f99a4">
   <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
@@ -81,7 +81,7 @@ curl -sS -X POST http://localhost:3092/tenants/expiry-demo/login-actions/authent
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="0uCg9tzpv95ZhmpbOx8qEQ==">(function () {
+  <script nonce="V1+I2e/1belKDVznDV15Lg==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -134,7 +134,7 @@ bound by — `400`, with every rule it broke:
 ```bash
 curl -sS -X POST \
   'http://localhost:3092/tenants/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d0ec-d3b3-73f1-93e8-8ee67cbd8a9d' \
+  --data-urlencode 'auth_session_id=01a1d113-72fd-7b7d-8b17-faea009f99a4' \
   --data-urlencode 'password=short' \
   | grep -E 'role="alert"|<li id="form-error'
 ```
@@ -153,7 +153,7 @@ it is reported as a policy violation like the rest:
 ```bash
 curl -sS -X POST \
   'http://localhost:3092/tenants/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d0ec-d3b3-73f1-93e8-8ee67cbd8a9d' \
+  --data-urlencode 'auth_session_id=01a1d113-72fd-7b7d-8b17-faea009f99a4' \
   --data-urlencode 'password=correct-horse-battery' \
   | sed -n '/<header class="intro">/,/^<\/div>/p'
 ```
@@ -184,7 +184,7 @@ answer is the code issued to the client:
 ```bash
 curl -sS -D - -o /dev/null -X POST \
   'http://localhost:3092/tenants/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d0ec-d3b3-73f1-93e8-8ee67cbd8a9d' \
+  --data-urlencode 'auth_session_id=01a1d113-72fd-7b7d-8b17-faea009f99a4' \
   --data-urlencode 'password=a-brand-new-passphrase'
 docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
@@ -195,21 +195,21 @@ docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1d0ec-d498-7994-b640-c86908131c2e
-set-cookie: expiry-demo-session=01a1d0ec-d4f7-7d90-b974-7d5d4e83decc:af54735-DdxuG23HzToV18t1WsuOLcayzDQS-6hlSMg; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d113-740b-7f2f-967d-23bb9f2b60c5
+set-cookie: expiry-demo-session=01a1d113-7477-75ee-9549-10e753814cfb:vYfo8Yh_7C_nzpaXLnF7rV5C6jx-AXviZBAlLaN_ZXw; HttpOnly; SameSite=Lax; Path=/
 set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: expiry-demo-device=OxZWDNfQy9BSqpvKQW5vnQ; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: expiry-demo-device=PmR8C7ubH4KGQ16AMIDYTA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/expiry-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=gUd1bq2nW3_waLol2EamXCDnjOQU563e0EBbtzsLAIw&state=xyz&iss=http%3A%2F%2Flocalhost%3A3092%2Ftenants%2Fexpiry-demo
+location: http://localhost:8080/callback?code=K65ECF_atiisyXlBXSbYEAk9iKwgEeHzXwqmGMYogpY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3092%2Ftenants%2Fexpiry-demo
 content-length: 0
-Date: Thu, 12 Nov 2026 18:02:24 GMT
+Date: Thu, 12 Nov 2026 18:44:35 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
        type       |          created_at
-------------------+-------------------------------
- password         | 2026-11-12 18:02:24.287186+00
- password-history | 2026-11-12 18:02:24.287186+00
+------------------+------------------------------
+ password         | 2026-11-12 18:44:35.47975+00
+ password-history | 2026-11-12 18:44:35.47975+00
 (2 rows)
 ```
 
@@ -227,7 +227,7 @@ reads history, and only this action writes any.
 An accepted change writes one `credential` audit row, `password.changed`,
 naming the subject, saying in `ended_other_sessions` whether the person
 asked for their other sessions to end (the section after this one), and in `breached_check`
-what the breached-password check decided (the last section). A candidate the
+what the breached-password check decided (the last section; `dataset_empty` in every row before it, since no dataset has been loaded by then). A candidate the
 policy or the history refuses writes none, and no row carries a candidate
 either way.
 
@@ -238,7 +238,7 @@ fresh authentication session:
 
 ```bash
 curl -sS -D - -o /dev/null -X POST http://localhost:3092/tenants/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d0ec-d577-7cbe-a47a-dca2dd3b4962' \
+  --data-urlencode 'auth_session_id=01a1d113-74f0-7ae9-85e5-a5786b63cc97' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery' | sed -n 1p
 ```
@@ -273,7 +273,7 @@ docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
 ```
           created_at           | live
 -------------------------------+------
- 2026-11-12 18:02:24.372181+00 | t
+ 2026-11-12 18:44:35.573281+00 | t
 (1 row)
 ```
 
@@ -287,7 +287,7 @@ docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
      WHERE type = 'password'
        AND tenant_id = (SELECT id FROM tenants WHERE name = 'expiry-demo');"
 curl -sS -X POST http://localhost:3092/tenants/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d0ec-d61e-78db-9c11-79f9ff18644b' \
+  --data-urlencode 'auth_session_id=01a1d113-75d7-7792-87d0-148be69933f6' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=a-brand-new-passphrase' \
   | grep 'end_other_sessions'
@@ -307,7 +307,7 @@ signed in, the session they are signed in with is the one left standing.
 ```bash
 curl -sS -D - -o /dev/null -X POST \
   'http://localhost:3092/tenants/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d0ec-d61e-78db-9c11-79f9ff18644b' \
+  --data-urlencode 'auth_session_id=01a1d113-75d7-7792-87d0-148be69933f6' \
   --data-urlencode 'password=a-second-new-passphrase' \
   --data-urlencode 'end_other_sessions=true'
 docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
@@ -319,21 +319,21 @@ docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1d0ec-d6cb-77d5-854b-cfea1e549703
-set-cookie: expiry-demo-session=01a1d0ec-d74a-737a-bd56-6d2f4e358135:USvJaLTE5HxiBgLIos7UaQdfjja0EO64Ego4Ytg-RFk; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d113-7694-7da8-ba1b-3011e23cf427
+set-cookie: expiry-demo-session=01a1d113-770d-74f2-9596-8efbff0e5e2d:OgdiurCOoC3DwMpTd_zV31YNLBEa92Wa5VV6_yjZuuU; HttpOnly; SameSite=Lax; Path=/
 set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: expiry-demo-device=WdfHz3lobnwOARLMACOxjw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: expiry-demo-device=XEUVA1KKjKQjQ90r0OeI4Q; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/expiry-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=8mZLfY9ogGL0JS8-ZH391eTyBAAa1RJo06LUKkDQ9N0&state=xyz&iss=http%3A%2F%2Flocalhost%3A3092%2Ftenants%2Fexpiry-demo
+location: http://localhost:8080/callback?code=9XFIqy290bU-kaZUyQc6XIjAchUqP8Od819PnXootv4&state=xyz&iss=http%3A%2F%2Flocalhost%3A3092%2Ftenants%2Fexpiry-demo
 content-length: 0
-Date: Thu, 12 Nov 2026 18:02:24 GMT
+Date: Thu, 12 Nov 2026 18:44:36 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
           created_at           | live
 -------------------------------+------
- 2026-11-12 18:02:24.372181+00 | f
- 2026-11-12 18:02:24.968766+00 | t
+ 2026-11-12 18:44:35.573281+00 | f
+ 2026-11-12 18:44:36.23514+00  | t
 (2 rows)
 ```
 
@@ -351,11 +351,11 @@ docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```
-      action      |                           detail
-------------------+-------------------------------------------------------------
- password.changed | {"breached_check": "passed", "ended_other_sessions": false}
+      action      |                               detail
+------------------+--------------------------------------------------------------------
+ password.changed | {"breached_check": "dataset_empty", "ended_other_sessions": false}
  session.ended    | {"via": "self"}
- password.changed | {"breached_check": "passed", "ended_other_sessions": true}
+ password.changed | {"breached_check": "dataset_empty", "ended_other_sessions": true}
 (3 rows)
 ```
 
@@ -369,10 +369,11 @@ person whether or not they asked, since a reset is how an account is recovered
 
 A tenant also refuses a new password that is known from breaches, after the rules above and before the reuse check, and it
 does so on this page like every other place a person chooses one. By default it looks in a table inside the server's own
-database, which is empty until an operator loads a file into it, so nothing is refused until then. The file is a list of SHA-1
-hashes, one to a line, each optionally followed by `:` and a count. This one holds the hash of
-`a leaked passphrase from a breach` with a count and of `another leaked passphrase` without; the second `load` of the same
-file adds nothing, and the tenant, `breach-demo`, is made as `expiry-demo` was, with no history setting:
+database, which is empty until an operator loads a file into it, so nothing is refused until then (and the rows above say
+`dataset_empty`, because the check found nothing in a table that holds nothing). The file is a list of SHA-1 hashes, one to a line,
+each optionally followed by `:` and a count. This one holds the hash of `a leaked passphrase from a breach` with a count and of
+`another leaked passphrase` without; `status` says whether the table holds anything, the second `load` of the same file adds
+nothing, and the tenant, `breach-demo`, is made as `expiry-demo` was, with no history setting:
 
 ```bash
 odudu seed \
@@ -388,8 +389,8 @@ docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```
-{"created":true,"tenant":"breach-demo","tenantId":"01a1d0ed-6ed1-7131-a416-8250e6b894d5","clientId":"breach-spa","userSubjectId":"01a1d0ed-6f7b-7afd-9847-3b33cc2a2edd"}
-{"command":"tenant","created":false,"tenant":"breach-demo","tenantId":"01a1d0ed-6ed1-7131-a416-8250e6b894d5","settings":["password_max_age_days"]}
+{"created":true,"tenant":"breach-demo","tenantId":"01a1d11e-92d5-79c0-abc0-994fdfca6213","clientId":"breach-spa","userSubjectId":"01a1d11e-93a8-749f-ba16-354d23731f74"}
+{"command":"tenant","created":false,"tenant":"breach-demo","tenantId":"01a1d11e-92d5-79c0-abc0-994fdfca6213","settings":["password_max_age_days"]}
 UPDATE 1
 ```
 
@@ -397,18 +398,22 @@ UPDATE 1
 printf '%s' 'a leaked passphrase from a breach' | shasum -a 1 | awk '{print toupper($1) ":12"}' > leaked.txt
 printf '%s' 'another leaked passphrase' | shasum -a 1 | awk '{print toupper($1)}' >> leaked.txt
 cat leaked.txt
+odudu breached-passwords status
 docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml cp leaked.txt odudu:/tmp/leaked.txt
 odudu breached-passwords load /tmp/leaked.txt
 odudu breached-passwords load /tmp/leaked.txt
+odudu breached-passwords status
 ```
 
 ```
 73D19908EAACB33D2E87168047A26BB39AD2190D:12
 CEEF9B2F2D3CE722DD4383AAF704E8829230A69B
+{"loaded":false,"rows":0,"capped":false}
  odudu-p4f-i92-odudu-1 Copying leaked.txt to odudu-p4f-i92-odudu-1:/tmp/leaked.txt
  odudu-p4f-i92-odudu-1 Copied leaked.txt to odudu-p4f-i92-odudu-1:/tmp/leaked.txt
 {"read":2,"inserted":2}
 {"read":2,"inserted":0}
+{"loaded":true,"rows":2,"capped":false}
 ```
 
 The sign-in reaches the change-password page, and a candidate in the file is refused with its own message, `400`, in the
@@ -416,16 +421,16 @@ form's alert. The message does not say which source found it, and a candidate th
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3092/tenants/breach-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d0ed-73f0-7b86-a65c-e5f2780ce817' \
+  --data-urlencode 'auth_session_id=01a1d11e-9a89-795c-88f1-b23aff3f631f' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 curl -sS -D - -o /dev/null -X POST \
   'http://localhost:3092/tenants/breach-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d0ed-73f0-7b86-a65c-e5f2780ce817' \
+  --data-urlencode 'auth_session_id=01a1d11e-9a89-795c-88f1-b23aff3f631f' \
   --data-urlencode 'password=a leaked passphrase from a breach' | sed -n 1p
 curl -sS -X POST \
   'http://localhost:3092/tenants/breach-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d0ed-73f0-7b86-a65c-e5f2780ce817' \
+  --data-urlencode 'auth_session_id=01a1d11e-9a89-795c-88f1-b23aff3f631f' \
   --data-urlencode 'password=a leaked passphrase from a breach' \
   | grep -E 'role="alert"|<li id="form-error'
 ```
@@ -443,7 +448,7 @@ does not:
 ```bash
 curl -sS -D - -o /dev/null -X POST \
   'http://localhost:3092/tenants/breach-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d0ed-73f0-7b86-a65c-e5f2780ce817' \
+  --data-urlencode 'auth_session_id=01a1d11e-9a89-795c-88f1-b23aff3f631f' \
   --data-urlencode 'password=a-third-new-passphrase' | sed -n 1p
 docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
@@ -461,7 +466,7 @@ HTTP/1.1 302 Found
 ```
 
 A tenant that turns the check off accepts the password that was refused, and the trail says the check was off, so a tenant that
-stopped checking can be told from one that never found anything. The password is aged again for the second sign-in:
+stopped checking can be told from one that found nothing. The password is aged again for the second sign-in:
 
 ```bash
 odudu seed tenant --name breach-demo --set breached_check=off
@@ -471,12 +476,12 @@ docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
      WHERE type = 'password'
        AND tenant_id = (SELECT id FROM tenants WHERE name = 'breach-demo');"
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3092/tenants/breach-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d0ed-7724-7791-95ee-0cf581396e81' \
+  --data-urlencode 'auth_session_id=01a1d11e-a148-7f98-88b0-304c57835376' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=a-third-new-passphrase'
 curl -sS -D - -o /dev/null -X POST \
   'http://localhost:3092/tenants/breach-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d0ed-7724-7791-95ee-0cf581396e81' \
+  --data-urlencode 'auth_session_id=01a1d11e-a148-7f98-88b0-304c57835376' \
   --data-urlencode 'password=a leaked passphrase from a breach' | sed -n 1p
 docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
@@ -487,7 +492,7 @@ docker compose -p odudu-p4f-i92 -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```
-{"command":"tenant","created":false,"tenant":"breach-demo","tenantId":"01a1d0ed-6ed1-7131-a416-8250e6b894d5","settings":["breached_check"]}
+{"command":"tenant","created":false,"tenant":"breach-demo","tenantId":"01a1d11e-92d5-79c0-abc0-994fdfca6213","settings":["breached_check"]}
 UPDATE 1
 200
 HTTP/1.1 302 Found

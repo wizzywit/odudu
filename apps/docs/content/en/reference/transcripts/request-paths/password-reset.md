@@ -681,8 +681,8 @@ odudu seed tenant --name reset-audit --set reset_password_allowed=true
 ```
 
 ```
-{"created":true,"tenant":"reset-audit","tenantId":"01a1d0ee-5c2a-7d86-92a2-26c8a3d44b24","clientId":"reset-audit-spa","userSubjectId":"01a1d0ee-5cd6-7f5c-bb01-b1d31935c190"}
-{"command":"tenant","created":false,"tenant":"reset-audit","tenantId":"01a1d0ee-5c2a-7d86-92a2-26c8a3d44b24","settings":["reset_password_allowed"]}
+{"created":true,"tenant":"reset-audit","tenantId":"01a1d113-6bda-7e80-b49f-e9e8f18e45fb","clientId":"reset-audit-spa","userSubjectId":"01a1d113-6cfa-7493-8adf-78cda82424ea"}
+{"command":"tenant","created":false,"tenant":"reset-audit","tenantId":"01a1d113-6bda-7e80-b49f-e9e8f18e45fb","settings":["reset_password_allowed"]}
 ```
 
 The first link was left unredeemed past its five minutes. That it is
@@ -703,7 +703,7 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
 curl -sS -o /dev/null -w '%{http_code}\n' \
   -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-expired' \
-  --data-urlencode 'key=uFF_xOcnVCu7VFzgryiyPx8BT_h2BX7ojNC3fyr_Cqw' \
+  --data-urlencode 'key=xUIR1fCWgmk6eaefSUSo7S8DZrQFfNckJDY8INObRX4' \
   --data-urlencode 'password=a brand new password'
 ```
 
@@ -732,14 +732,14 @@ docker compose exec -T postgres psql -U odudu -d odudu -At -c \
 
 ```
 200
-bO9ivD9WGGFIMbZfxackKj0rwv-eN-E8nCCAdRQxfc0
+IBAVeKULTmDC5Y1_ntwUJU5g58nTSGyNy-MOozbik2E
 ```
 
 That link is then submitted with a password the policy refuses, with one it
 accepts, and once more after it is spent:
 
 ```bash
-KEY=bO9ivD9WGGFIMbZfxackKj0rwv-eN-E8nCCAdRQxfc0
+KEY=IBAVeKULTmDC5Y1_ntwUJU5g58nTSGyNy-MOozbik2E
 curl -sS -o /dev/null -w '%{http_code}\n' \
   -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-weak' --data-urlencode "key=$KEY" --data-urlencode 'password=weak'
@@ -773,10 +773,10 @@ request_id       | reset-audit-ada
 event_type       | credential
 action           | password.reset
 outcome          | allowed
-actor_subject_id | 01a1d0ee-5cd6-7f5c-bb01-b1d31935c190
+actor_subject_id | 01a1d113-6cfa-7493-8adf-78cda82424ea
 resource_type    | subject
-resource_id      | 01a1d0ee-5cd6-7f5c-bb01-b1d31935c190
-detail           | {"breached_check": "passed"}
+resource_id      | 01a1d113-6cfa-7493-8adf-78cda82424ea
+detail           | {"breached_check": "dataset_empty"}
 
  rows_naming_either
 --------------------
@@ -784,7 +784,7 @@ detail           | {"breached_check": "passed"}
 (1 row)
 ```
 
-Six requests, one row. The last query reads every audit row this stack
+Six requests, one row. Its `detail` says what the breached-password check decided: `dataset_empty`, since no dataset had been loaded on this stack, so the check found nothing in a table that holds nothing. The last query reads every audit row this stack
 holds, in every tenant, as text: none carries the password that was set or
 the key that set it.
 
@@ -812,17 +812,17 @@ docker compose exec -T postgres psql -U odudu -d odudu -At -c \
 ```
 
 ```
-{"created":true,"tenant":"reset-breach","tenantId":"01a1d0ef-25d8-7050-b365-57c7a3fbd578","clientId":"reset-breach-spa","userSubjectId":"01a1d0ef-2691-7d2e-97e2-21dcac336ba1"}
-{"command":"tenant","created":false,"tenant":"reset-breach","tenantId":"01a1d0ef-25d8-7050-b365-57c7a3fbd578","settings":["reset_password_allowed"]}
+{"created":true,"tenant":"reset-breach","tenantId":"01a1d11e-a4cb-7d21-8a92-ff277d1a4310","clientId":"reset-breach-spa","userSubjectId":"01a1d11e-a5f6-7183-ac67-83b766e712dd"}
+{"command":"tenant","created":false,"tenant":"reset-breach","tenantId":"01a1d11e-a4cb-7d21-8a92-ff277d1a4310","settings":["reset_password_allowed"]}
 200
-0VQeywC8yiALBK_TBctWrXOIaKIS27QrfrgN4vUUn6w
+L73HGBvDeXlFe6FR9kDAYiaGVp7fB56DT-i0sqIn-ic
 ```
 
 The link is submitted with a password in the file, which is refused with `400` and the form's own message, and the table shows
 the link is still unspent:
 
 ```bash
-KEY=0VQeywC8yiALBK_TBctWrXOIaKIS27QrfrgN4vUUn6w
+KEY=L73HGBvDeXlFe6FR9kDAYiaGVp7fB56DT-i0sqIn-ic
 curl -sS -o /dev/null -w '%{http_code}\n' \
   -X POST http://localhost:3092/tenants/reset-breach/login-actions/action-token \
   --data-urlencode "key=$KEY" --data-urlencode 'password=a leaked passphrase from a breach'

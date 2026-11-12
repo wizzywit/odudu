@@ -615,8 +615,7 @@ that never configures a step behaves as it does today.
 - The check runs after the other rules, on a candidate that passed them, and before the reuse check, which can be up to 25 Argon2id
   verifications. A candidate refused by a rule is never looked up.
 - The check runs in the writer's own transaction, so it opens no second connection (a second would deadlock a saturated pool).
-  Registration has no transaction at that point and opens a short one. A remote lookup therefore holds a connection for up to 3 s;
-  the per-tenant limit of 4 bounds how many a tenant can hold.
+  Registration has no transaction at that point and opens a short one. (Superseded: see the fix round, a remote lookup now holds none.)
 - An administrator never types a password: `POST .../subjects/:id/password` mails a link, and the link's page is the actions-link
   writer. There is no fifth path to cover. `odudu seed` and `odudu init` check the policy rules only; they are operator-typed on a
   command line and a remote lookup from a one-shot command has no bound.
@@ -640,6 +639,23 @@ that never configures a step behaves as it does today.
 
 - None. The remote path has not been run against a live stack, because the real host must not be contacted: its wire is asserted
   with a capturing fake and against a TLS server of the test's own, and the transcripts show the dataset path and the settings.
-- The settings screen record (`record/settings-*.txt`) was edited by hand for the two new fields: `pnpm docs:screenshots` refused to
-  finish on the stack used: its screen guard refused the new-subject screen ("the page shows a value it was given to refuse") and
-  the cause was not traced. The console-shots job recaptures it in CI and reports any difference.
+
+### Fix round
+
+- A remote lookup holds no pooled connection. The check is two parts: `prepare` reads the tenant's settings in a short transaction of
+  its own, releases it and only then asks a remote service; `judge` runs inside the writing transaction and does at most one
+  primary-key read. Reset, actions-link and change-password run a read-only phase first (token, rules), so the rules still decide
+  before anything is asked and a refused candidate is never looked up; `prepareUpdatePassword` does the same ahead of
+  `completeUpdatePassword`. A process-wide cap of `DEFAULT_POOL_MAX - 2` (8) lookups joins the per-tenant 4; a lookup refused by
+  either is a failed lookup settled by `breached_on_error`. A test holds three blocked lookups against a pool of two connections and
+  shows both still answer.
+- `parseRange` skips empty lines, so a terminated last line and CRLF no longer fail a lookup; a body of nothing but line ends is
+  still a failed lookup. The hash is computed before a slot is taken.
+- A dataset holding no row reads `dataset_empty` in `detail.breached_check` (one `select 1 ... limit 1`, only when nothing was
+  found), and `odudu breached-passwords status` prints `{loaded, rows, capped}`, counting up to a million.
+- `breachedPasswordCheck` is required in `protocol-oidc`; the module-level default is gone.
+- The settings screen record was recaptured by `pnpm docs:screenshots` and is the tool's output. The earlier refusal was the run's
+  own admin password: a short, word-like one matched page text (the guard refuses a given string appearing anywhere). A 40-character
+  random password passed that guard, then the run needed a database holding only the `system` and `demo` tenants.
+- In the change-password transcript, a candidate that fails the current-password proof is still looked up when it passes the rules,
+  since the proof writes failures and cannot run before the lookup; the lookup sends only the hash prefix.
