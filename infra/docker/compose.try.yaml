@@ -22,7 +22,7 @@ services:
   # Catches every message sent to it; read them at http://localhost:8090.
   mailpit:
     # digest of the multi-arch index; Dependabot moves it
-    image: axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
     ports:
       - '127.0.0.1:8090:8025'
 
@@ -46,7 +46,7 @@ services:
   # 127.0.0.1, so http://login.acme-live.lvh.me reaches this on port 80 with no
   # port in the Host header, which is how the server sees a domain.
   domain-proxy:
-    image: nginx:1.31-alpine@sha256:785835ea65db4bba6f021acc0f3be91b0fef76a53fe41f8588c6698d2aed0606
+    image: nginx:1.31-alpine@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11
     volumes:
       - ./try-domain-proxy.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
