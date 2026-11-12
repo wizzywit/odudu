@@ -45,7 +45,7 @@ One browser can hold several sessions, such as two people's. The tenant's `max_s
 - **On purpose**, when an app sends the person to the tenant's end-session address. The person is asked to confirm, unless the app's operator turned that off and the request carries the app's own ID token for this session. A form edited since it was issued is refused. [Refresh and end a session](../guides/refresh-and-end-a-session.md) shows it.
 - **By an administrator**, who can end one person's sessions, or call `DELETE /admin/tenants/{tenant}/sessions` to end a tenant's live sessions a few hundred at a time.
 
-Ending a session ends the refresh tokens bound to it, which is what a sign-in in a browser produces. A grant made with `offline_access` has no session, so ending sessions leaves it alone. Its refresh tokens work until they expire or an administrator revokes them, client by client, through the subject's `grants` routes in the admin API. An API that checks only a signature keeps accepting an access token until it expires, which is why they are short. One that asks the introspection endpoint is told at once that it is inactive.
+Ending a session ends the refresh tokens bound to it, which is what a sign-in in a browser produces. A grant made with `offline_access` has no session, so ending sessions leaves it alone. Its refresh tokens work until they expire or an administrator revokes them, client by client, with `DELETE /admin/tenants/{tenant}/subjects/{id}/grants/{clientId}`. An API that checks only a signature keeps accepting an access token until it expires, which is why they are short. One that asks the introspection endpoint is told at once that it is inactive.
 
 ## Recovery codes
 

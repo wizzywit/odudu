@@ -33,6 +33,7 @@ import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { ConflictPanel } from '#/shared/ui/ConflictPanel';
 import { ContextBar } from '#/shared/ui/ContextBar';
 import { CopyValue } from '#/shared/ui/CopyValue';
+import { DeviceCell } from '#/shared/ui/DeviceCell';
 import { Count } from '#/shared/ui/Count';
 import { DataTable, type Column } from '#/shared/ui/DataTable';
 import { Duration } from '#/shared/ui/Duration';
@@ -1013,6 +1014,12 @@ export function Gallery({
               <CopyValue label="issuer" value="https://id.acme.example/acme" />
               <CopyValue label="client id" value={CLIENTS[0]?.id ?? ''} short />
               <CopyValue label="JWKS" value={JWKS_SAMPLE} block />
+            </div>
+          </Specimen>
+          <Specimen label="DeviceCell">
+            <div className={styles.stack}>
+              <DeviceCell device="3f1c7a9e5b2d4c68a0e91f37d5b84c2a6e7f90b1d3c5a8e2f4b6d7091a3c5e8f" />
+              <DeviceCell device={null} />
             </div>
           </Specimen>
           <Specimen label="Timestamp · Duration · Count">
