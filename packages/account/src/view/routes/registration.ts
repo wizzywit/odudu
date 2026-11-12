@@ -135,14 +135,14 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
 
   app.post<{
     Params: { tenant: string };
-    Body: Record<string, string | string[] | undefined>;
+    Body: Record<string, string | string[] | undefined> | null | undefined;
   }>('/tenants/:tenant/login-actions/registration', async (request, reply) => {
     const tenant = await deps.findTenant(request.params.tenant);
     if (!tenantIsOpenForRegistration(tenant)) {
       return reply.code(404).send();
     }
 
-    const body = request.body;
+    const body = request.body ?? {};
     const username = firstNonEmptyString(body.username);
     const email = firstNonEmptyString(body.email);
     const candidate = readPasswordField(body.password);

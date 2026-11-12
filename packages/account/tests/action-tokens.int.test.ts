@@ -359,6 +359,63 @@ describe('describe', () => {
   });
 });
 
+describe('lookup', () => {
+  it('reads a link whatever became of it, with the address and the client it named', async () => {
+    const returnTo = { clientId: newId(), uri: 'https://app.example/cb' };
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
+      actionTokenRepository(tx).issue({
+        tenantId,
+        subjectId: subject,
+        type: 'verify_email',
+        email: 'ada@example.test',
+        returnTo,
+        ttlSeconds: TEST_TTL_SECONDS,
+      }),
+    );
+    await withTenant(app.db, tenantId, (tx) =>
+      actionTokenRepository(tx).consume(token, 'verify_email'),
+    );
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      actionTokenRepository(tx).lookup(token),
+    );
+    expect(found).toMatchObject({ email: 'ada@example.test', returnTo, type: 'verify_email' });
+    expect(found?.consumedAt).not.toBeNull();
+    expect(
+      await withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).lookup('nothing')),
+    ).toBeNull();
+  });
+
+  it('cannot see a token minted in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seedTenantId) => {
+        await seedTenant(tx, seedTenantId);
+        const seededSubject = await insertSubject(tx, seedTenantId);
+        const { token } = await actionTokenRepository(tx).issue({
+          tenantId: seedTenantId,
+          subjectId: seededSubject,
+          type: 'verify_email',
+          email: 'ada@example.test',
+          ttlSeconds: TEST_TTL_SECONDS,
+        });
+        return { token, subjectId: seededSubject };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await actionTokenRepository(tx).lookup(seeded.token)).toMatchObject({
+          subjectId: seeded.subjectId,
+        });
+      },
+      attempt: async (tx, seeded) => actionTokenRepository(tx).lookup(seeded.token),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        expect(await actionTokenRepository(tx).lookup(seeded.token)).not.toBeNull();
+      },
+    });
+  });
+});
+
 describe('the client a link returns to', () => {
   const CLIENT = newId();
   const URI = 'https://app.example/after';

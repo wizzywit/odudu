@@ -60,4 +60,12 @@ describe('the per-address mail bound', () => {
     expect(allow('change', 't1', 'ada@example.test')).toBe(false);
     expect(allow('registration', 't1', 'ada@example.test')).toBe(true);
   });
+
+  it('keeps a new verification link apart from a proof of a changed address', () => {
+    const allow = gate();
+    for (let i = 0; i < MAIL_LIMIT; i += 1) allow('verification', 't1', 'ada@example.test');
+    expect(allow('verification', 't1', 'ada@example.test')).toBe(false);
+    expect(allow('change', 't1', 'ada@example.test')).toBe(true);
+    expect(allow('verification', 't2', 'ada@example.test')).toBe(true);
+  });
 });

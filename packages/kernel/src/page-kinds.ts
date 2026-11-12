@@ -92,7 +92,7 @@ export const PAGE_KINDS: Record<PageKind, PageManifest> = {
   },
   verification: {
     required: ['message', FORM_OPEN, 'submit', FORM_CLOSE],
-    optional: [],
+    optional: ['links'],
     inForm: ['submit'],
   },
   'required-actions': {

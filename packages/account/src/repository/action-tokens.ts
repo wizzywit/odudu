@@ -179,6 +179,18 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
           };
     },
 
+    // The row a key names, whatever became of it: a spent or expired link is
+    // still what a request for a new one is read from, until the reaper takes
+    // it. Served by the token_hash lookup `peek` uses.
+    async lookup(token: string): Promise<ActionTokenRecord | null> {
+      const rows = await tx
+        .select()
+        .from(actionTokens)
+        .where(eq(actionTokens.tokenHash, sha256Hex(token)));
+      const row = rows[0];
+      return row === undefined ? null : toRecord(row);
+    },
+
     // Called alongside a successful consume, in the same transaction:
     // whatever sets a subject's password retires every other outstanding
     // link that could set it — each reset link, and each actions link naming

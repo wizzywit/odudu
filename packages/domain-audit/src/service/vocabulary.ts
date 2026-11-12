@@ -29,6 +29,7 @@ export const AUDIT_ACTIONS = {
     'account.registration_duplicate',
     'account.address_proved',
     'email.verified',
+    'email.verification_resent',
     'email.changed',
     'password.reset',
     'password.changed',
@@ -218,6 +219,7 @@ type CredentialInput =
         | 'account.registration_duplicate'
         | 'account.address_proved'
         | 'email.verified'
+        | 'email.verification_resent'
         | 'email.changed'
         | 'recovery_codes.refused';
       readonly detail?: ReasonOnly;

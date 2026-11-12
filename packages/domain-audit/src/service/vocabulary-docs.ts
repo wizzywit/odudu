@@ -68,6 +68,8 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'account.address_proved':
     "A reset link proved an unverified address. The account's second factors, passkeys and recovery codes were removed.",
   'email.verified': 'A user verified their email address through the mailed link.',
+  'email.verification_resent':
+    'A new verification link was mailed because the one a person held was spent or expired. Written once for each request that queued a mail, with no actor, and without the address.',
   'email.changed':
     'A user changed their email address by proving the new one through the mailed link.',
   'password.reset':

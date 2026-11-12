@@ -20,6 +20,11 @@ export {
   type ActionTokenRouteDeps,
 } from '#/view/routes/action-token';
 export {
+  registerResendVerificationRoute,
+  type ResendVerificationTenantLookup,
+  type ResendVerificationRouteDeps,
+} from '#/view/routes/resend-verification';
+export {
   peekActionToken,
   type PeekActionTokenDeps,
   type PeekActionTokenResult,

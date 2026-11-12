@@ -132,7 +132,12 @@ const CASES: Case[] = [
     name: 'verification, confirm',
     kind: 'verification',
     render: (locale) =>
-      renderEmailConfirmPage(pathAddress('https://idp.example', 't1'), 'key-1', 'ann', locale),
+      renderEmailConfirmPage(
+        pathAddress('https://idp.example', 't1'),
+        'key-1',
+        { username: 'ann', email: null, tenant: 'T1' },
+        locale,
+      ),
     template: '{{form.open}}{{submit}}{{form.close}}{{message}}',
     inOrder: ['<form', '<button', '</form>', '<h1>'],
     hidden: ['key'],
@@ -294,7 +299,12 @@ describe('a theme template that cannot be filled', () => {
     told.length = 0;
     const own = '{{message}}{{form.open}}{{submit}}{{form.close}}{{t "no.such.key"}}';
     const locale = { ...themed('verification', own), templateFallback: spy };
-    renderEmailConfirmPage(pathAddress('https://idp.example', 't1'), 'key-1', null, locale);
+    renderEmailConfirmPage(
+      pathAddress('https://idp.example', 't1'),
+      'key-1',
+      { username: null, email: null, tenant: 'T1' },
+      locale,
+    );
     expect(told).toEqual([['verification', 'unknown message no.such.key']]);
   });
 
@@ -304,7 +314,12 @@ describe('a theme template that cannot be filled', () => {
       ...themed('verification', '{{message}}{{form.open}}{{submit}}{{form.close}}'),
       templateFallback: spy,
     };
-    renderEmailConfirmPage(pathAddress('https://idp.example', 't1'), 'key-1', null, locale);
+    renderEmailConfirmPage(
+      pathAddress('https://idp.example', 't1'),
+      'key-1',
+      { username: null, email: null, tenant: 'T1' },
+      locale,
+    );
     expect(told).toEqual([]);
   });
 });
@@ -327,7 +342,7 @@ const NOTICES: NoticeCase[] = [
   },
   {
     name: 'verification failed',
-    render: (l) => renderVerificationFailedPage(SIGN_IN, null, l),
+    render: (l) => renderVerificationFailedPage(SIGN_IN, null, null, l),
     wayOn: false,
   },
   {

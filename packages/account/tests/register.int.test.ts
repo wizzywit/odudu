@@ -257,6 +257,30 @@ beforeEach(async () => {
 });
 
 describe('self-registration', () => {
+  it.each([
+    ['no body and no content type', undefined, undefined],
+    ['a JSON null body', 'null', 'application/json'],
+  ] as const)('answers %s as it answers an empty form', async (_label, payload, contentType) => {
+    const { tenantName } = await seedTenant(`tenant-${newId()}`, { registrationAllowed: true });
+    const url = `/tenants/${tenantName}/login-actions/registration`;
+    const empty = await httpApp.inject({
+      method: 'POST',
+      url,
+      payload: '',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    const res = await httpApp.inject({
+      method: 'POST',
+      url,
+      ...(payload === undefined ? {} : { payload }),
+      ...(contentType === undefined ? {} : { headers: { 'content-type': contentType } }),
+    });
+    expect(res.statusCode).toBe(empty.statusCode);
+    expect(res.statusCode).toBeLessThan(500);
+    const bare = (html: string): string => html.replace(/nonce="[^"]*"/g, 'nonce=""');
+    expect(bare(res.body)).toBe(bare(empty.body));
+  });
+
   it('is not served at all when the tenant has not enabled it', async () => {
     const { tenantName } = await seedTenant(`tenant-${newId()}`, { registrationAllowed: false });
 
@@ -1408,10 +1432,15 @@ describe('a registration that waits for its mailed link', () => {
     const unknown = await follow(tenant.tenantName, 'reg_nothing-holds-this');
     const plain = await follow(tenant.tenantName, 'not-a-registration-key');
 
-    for (const res of [foreign, spent, expired, unknown, plain]) {
+    for (const res of [foreign, spent, expired, unknown]) {
       expect(res.statusCode).toBe(400);
-      expect(res.body).toBe(plain.body);
+      expect(res.body).toBe(unknown.body);
     }
+    // A key that is no registration's is a verification link's to refuse, so
+    // its page also offers a new one: no form here, which is the one difference.
+    expect(plain.statusCode).toBe(400);
+    expect(unknown.body).not.toContain('<form');
+    expect(plain.body).toContain('resend-verification');
     expect(await holder(other.tenantId, 'ada')).toBeNull();
   });
 
@@ -1448,7 +1477,7 @@ describe('a registration that waits for its mailed link', () => {
     const res = await follow(tenant.tenantName, key);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body).toBe((await follow(tenant.tenantName, 'not-a-registration-key')).body);
+    expect(res.body).toBe((await follow(tenant.tenantName, 'reg_nothing-holds-this')).body);
     expect(await holder(tenant.tenantId, 'ada')).toBeNull();
   });
 

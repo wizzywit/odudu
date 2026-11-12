@@ -97,6 +97,7 @@ function buildTestApp(): FastifyInstance {
   const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' });
   return buildApp({
     tls: false,
+    publicBaseUrl: 'https://idp.example.test',
     database: appDb,
     ownerDatabase: owner,
     kek: KEK,
@@ -253,4 +254,76 @@ describe('address verification, through the real composition root', () => {
       await app.close();
     }
   });
+
+  it('mails a new link for a spent one until the address is verified, and then nothing', async () => {
+    const tenantName = `resend-${newId()}`;
+    const seeded = await seed({
+      tenant: tenantName,
+      clientId: 'verify-spa',
+      redirectUris: [REDIRECT_URI],
+      username: 'ada',
+      password: PASSWORD,
+      email: EMAIL,
+    });
+    const userSubjectId = seeded.userSubjectId;
+    if (userSubjectId === undefined) throw new Error('seed did not report a user');
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const first = capturingSender();
+      await sendVerificationEmail(
+        {
+          database: appDb,
+          tenantId: seeded.tenantId,
+          tenantName,
+          tenantDisplayName: tenantName,
+          issuerBase: 'https://idp.example.test',
+          now: () => new Date(),
+        },
+        { subjectId: userSubjectId, email: EMAIL },
+      );
+      await drainOutbox(first);
+      const spent = extractKey(first.sent[0] ?? failNoMail());
+      await owner.sql`update action_tokens set expires_at = now() - interval '1 minute' where tenant_id = ${seeded.tenantId}`;
+
+      const refused = await app.inject({
+        url: `/tenants/${tenantName}/login-actions/action-token?key=${spent}`,
+      });
+      expect(refused.statusCode).toBe(400);
+      expect(refused.body).toContain('login-actions/resend-verification');
+
+      const ask = (key: string) =>
+        app.inject({
+          method: 'POST',
+          url: `/tenants/${tenantName}/login-actions/resend-verification`,
+          payload: new URLSearchParams({ key }).toString(),
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        });
+      expect((await ask(spent)).statusCode).toBe(200);
+      const second = capturingSender();
+      await drainOutbox(second);
+      expect(second.sent).toHaveLength(1);
+      expect(second.sent[0]?.to).toBe(EMAIL);
+
+      const fresh = extractKey(second.sent[0] ?? failNoMail());
+      const pressed = await app.inject({
+        method: 'POST',
+        url: `/tenants/${tenantName}/login-actions/action-token`,
+        payload: new URLSearchParams({ key: fresh }).toString(),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      });
+      expect(pressed.statusCode).toBe(200);
+
+      expect((await ask(spent)).statusCode).toBe(200);
+      const third = capturingSender();
+      await drainOutbox(third);
+      expect(third.sent).toHaveLength(0);
+    } finally {
+      await app.close();
+    }
+  });
 });
+
+function failNoMail(): never {
+  throw new Error('no mail sent');
+}

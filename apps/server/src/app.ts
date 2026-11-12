@@ -8,6 +8,7 @@ import {
   tenantSettingsRepository,
   registerActionTokenRoute,
   registerRegistrationRoute,
+  registerResendVerificationRoute,
   registerResetPasswordRoute,
   type CreateAccountResult,
   type NewAccountInput,
@@ -404,6 +405,7 @@ const PAGE_POSTS: ReadonlySet<string> = new Set([
   SIGN_IN_POST,
   '/tenants/:tenant/login-actions/registration',
   '/tenants/:tenant/login-actions/reset-password',
+  '/tenants/:tenant/login-actions/resend-verification',
 ]);
 
 const THROTTLED_POSTS: ReadonlySet<string> = new Set([
@@ -938,6 +940,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     mailGate,
     evaluatePassword,
     breachedCheck: breachedPasswordCheck,
+  });
+
+  registerResendVerificationRoute(app, {
+    ...themed,
+    database: deps.database,
+    findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
+    publicBaseUrl: deps.publicBaseUrl,
+    now: () => systemClock.now(),
+    mailGate,
+    proofOwed: async (tx, subjectId, email) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      if (user === null) return null;
+      const owed =
+        (user.email === email && !user.emailVerified) ||
+        (await pendingEmailRepository(tx).forSubject(subjectId)) === email;
+      return owed ? { locale: user.locale } : null;
+    },
   });
 
   registerResetPasswordRoute(app, {
