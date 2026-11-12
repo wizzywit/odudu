@@ -8,6 +8,12 @@ export interface ReissueStanding {
   owed: boolean;
 }
 
+// Whether the bound does not apply at all, whatever the last issue time. The
+// repository's claim takes this same answer, so the two cannot differ.
+export function bypassesBound(standing: ReissueStanding): boolean {
+  return standing.spentAll || standing.owed;
+}
+
 // A set may be replaced once an hour: issuing costs ten Argon2id hashes. The
 // first set, one with nothing left to spend, and one the sign-in is waiting
 // for are never held back, because refusing any would leave a person with no
@@ -17,7 +23,7 @@ export function reissueAllowed(
   standing: ReissueStanding,
   now: Date,
 ): ReissueVerdict {
-  if (lastIssuedAt === null || standing.spentAll || standing.owed) return { ok: true };
+  if (lastIssuedAt === null || bypassesBound(standing)) return { ok: true };
   const retryAt = new Date(lastIssuedAt.getTime() + REISSUE_INTERVAL_MS);
   return retryAt.getTime() <= now.getTime() ? { ok: true } : { ok: false, retryAt };
 }

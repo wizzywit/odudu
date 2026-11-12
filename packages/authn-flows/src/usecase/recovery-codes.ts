@@ -5,6 +5,7 @@ import { requiredActionRepository } from '#/repository/required-actions';
 import { type RequiredAction } from '#/schema/required-action';
 import { generateRecoveryCodes, normaliseRecoveryCode } from '#/service/authenticators/recovery';
 import {
+  bypassesBound,
   reissueAllowed,
   reissueCutoff,
   retryInMinutes,
@@ -46,14 +47,16 @@ export async function beginRecoveryCodes(
     return { kind: 'no_second_factor' };
   }
 
-  const spentAll = standing.unspent === 0;
-  const owed = (await requiredActionRepository(tx).pendingFor(input.subjectId)).includes(
-    'generate-recovery-codes',
-  );
+  const reissue = {
+    spentAll: standing.unspent === 0,
+    owed: (await requiredActionRepository(tx).pendingFor(input.subjectId)).includes(
+      'generate-recovery-codes',
+    ),
+  };
   const refusal = async (): Promise<BeginRecoveryCodesOutcome | null> => {
     const verdict = reissueAllowed(
       await subjects.recoveryIssuedAt(input.subjectId),
-      { spentAll, owed },
+      reissue,
       input.now,
     );
     if (verdict.ok) return null;
@@ -80,7 +83,7 @@ export async function beginRecoveryCodes(
     input.subjectId,
     input.now,
     reissueCutoff(input.now),
-    spentAll || owed,
+    bypassesBound(reissue),
   );
   if (!claimed) {
     const refused = await refusal();

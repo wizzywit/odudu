@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   REISSUE_INTERVAL_MS,
+  bypassesBound,
   reissueAllowed,
   reissueCutoff,
   retryInMinutes,
@@ -48,5 +49,18 @@ describe('retryInMinutes', () => {
     expect(retryInMinutes(new Date(NOW.getTime() + 61_000), NOW)).toBe(2);
     expect(retryInMinutes(new Date(NOW.getTime() + 1), NOW)).toBe(1);
     expect(retryInMinutes(NOW, NOW)).toBe(1);
+  });
+});
+
+describe('bypassesBound', () => {
+  it('is the one rule reissueAllowed follows, for every standing', () => {
+    for (const spentAll of [false, true]) {
+      for (const owed of [false, true]) {
+        const standing = { spentAll, owed };
+        expect(reissueAllowed(ago(1000), standing, NOW).ok, JSON.stringify(standing)).toBe(
+          bypassesBound(standing),
+        );
+      }
+    }
   });
 });
