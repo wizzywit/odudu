@@ -321,7 +321,7 @@ Someone asked to change the email address on your ⁨me-edit⁩ account. This ad
 
 This happened on 2026-11-12 11:10 UTC.
 
-If this was not you, sign in and change your password, or contact your administrator right away.
+If this was not you, sign in and review your sign-in methods, change your password if you use one, or contact your administrator right away.
 
 --
 You received this because the email address on your account at ⁨me-edit⁩ was asked to change.
