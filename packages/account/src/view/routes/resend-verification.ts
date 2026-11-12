@@ -43,9 +43,9 @@ export function registerResendVerificationRoute(
   ensureTenantAddress(app);
   app.post<{
     Params: { tenant: string };
-    Body: Record<string, string | string[] | undefined>;
+    Body: Record<string, string | string[] | undefined> | null | undefined;
   }>('/tenants/:tenant/login-actions/resend-verification', async (request, reply) => {
-    const key = firstNonEmptyString(request.body.key);
+    const key = firstNonEmptyString(request.body?.key);
     const tenant = await deps.findTenant(request.params.tenant);
     const locale = await brandedLocale(request, deps, tenant);
     if (key !== undefined && tenant?.enabled === true && deps.publicBaseUrl !== undefined) {

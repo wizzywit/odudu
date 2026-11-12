@@ -100,15 +100,15 @@ export function registerResetPasswordRoute(
 
   app.post<{
     Params: { tenant: string };
-    Body: Record<string, string | string[] | undefined>;
+    Body: Record<string, string | string[] | undefined> | null | undefined;
   }>('/tenants/:tenant/login-actions/reset-password', async (request, reply) => {
     const tenant = await deps.findTenant(request.params.tenant);
     if (!tenantIsOpenForReset(tenant)) {
       return reply.code(404).send();
     }
 
-    const email = firstNonEmptyString(request.body.email);
-    const returnTo = signInPath(tenantAddressOf(request), request.body.return_to);
+    const email = firstNonEmptyString(request.body?.email);
+    const returnTo = signInPath(tenantAddressOf(request), request.body?.return_to);
     const locale = await brandedLocale(request, deps, tenant, returnTo);
     if (email === undefined) {
       return sendResetHtml(

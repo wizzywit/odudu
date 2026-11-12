@@ -327,6 +327,29 @@ describe('password reset', () => {
     expect(known.statusCode).toBe(200);
   });
 
+  it.each([
+    ['no body and no content type', undefined, undefined],
+    ['a JSON null body', 'null', 'application/json'],
+  ] as const)('answers %s as it answers an empty form', async (_label, payload, contentType) => {
+    const { tenantName } = await seedTenant(`tenant-${newId()}`, { resetPasswordAllowed: true });
+    const url = `/tenants/${tenantName}/login-actions/reset-password`;
+    const empty = await httpApp.inject({
+      method: 'POST',
+      url,
+      payload: '',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    const res = await httpApp.inject({
+      method: 'POST',
+      url,
+      ...(payload === undefined ? {} : { payload }),
+      ...(contentType === undefined ? {} : { headers: { 'content-type': contentType } }),
+    });
+    expect(res.statusCode).toBe(empty.statusCode);
+    expect(res.statusCode).toBeLessThan(500);
+    expect(res.body).toBe(empty.body);
+  });
+
   it('answers a known and an unknown address identically in every page locale, headers included', async () => {
     const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,

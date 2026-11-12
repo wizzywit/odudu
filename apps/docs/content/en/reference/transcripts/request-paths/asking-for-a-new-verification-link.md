@@ -161,7 +161,7 @@ odudu send-mail
 
 ## Three an hour
 
-The mail budget is per tenant and address, three an hour for this kind of mail, and separate from the budgets of the other kinds. In
+The mail budget is per tenant and address, three an hour for this kind of mail, and separate from the budgets of the other kinds. The count is per server process, so a deployment with N replicas admits N times as many. In
 a second tenant `grace` has an unverified address and a link that has expired. Four requests are four identical pages, and three
 mails: the fourth was answered and not sent. The last line counts the messages the relay holds for `grace`, the one sent when she was seeded and the three:
 
