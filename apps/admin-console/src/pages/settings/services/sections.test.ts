@@ -1,4 +1,5 @@
 import {
+  PROFILE_CLAIM_NAMES,
   REGISTRATION_POLICY_SETTINGS,
   tenantSettingsDocumentSchema,
   TENANT_SETTING_CHOICES,
@@ -140,6 +141,21 @@ describe('the terms', () => {
 
   it('say that setting them asks nobody', () => {
     expect(home?.description).toContain('asks nobody');
+  });
+});
+
+describe('the required profile fields', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'profile');
+
+  it('are a set in a section of their own, offering exactly the claims a person writes', () => {
+    expect(home?.fields.map((field) => [field.name, field.control])).toEqual([
+      ['required_profile_fields', 'set'],
+    ]);
+    expect(home?.fields[0]?.options?.map((option) => option.id)).toEqual([...PROFILE_CLAIM_NAMES]);
+  });
+
+  it('fix none of them, since an empty list is allowed', () => {
+    expect(home?.fields[0]?.options?.some((option) => option.fixed !== undefined)).toBe(false);
   });
 });
 

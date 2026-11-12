@@ -48,7 +48,7 @@ it('lists the sections, each a button that sends the focus to its heading', asyn
   renderConsoleAt(AT, settingsRoutes());
   await section('General');
   const nav = screen.getByRole('navigation', { name: 'On this page' });
-  expect(within(nav).getAllByRole('button')).toHaveLength(12);
+  expect(within(nav).getAllByRole('button')).toHaveLength(13);
   await user.click(within(nav).getByRole('button', { name: 'Password policy' }));
   expect(screen.getByRole('heading', { level: 2, name: 'Password policy' })).toHaveFocus();
   await user.tab();
@@ -236,6 +236,39 @@ it('sends the events chosen as a list, and cannot leave out the two that are alw
         'credential',
       ],
     });
+  });
+});
+
+it('sends the profile fields chosen as a list, and may send none', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, { [`PATCH ${ST}`]: settingsAnswer({}, '"s2"') }),
+  );
+  const profile = await section('Profile');
+  expect(within(profile).getByRole('checkbox', { name: 'Given name' })).toBeChecked();
+  expect(within(profile).getByRole('checkbox', { name: 'Birthdate' })).not.toBeChecked();
+  await user.click(within(profile).getByRole('checkbox', { name: 'Birthdate' }));
+  await user.click(within(profile).getByRole('button', { name: 'Save Profile' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      required_profile_fields: ['given_name', 'family_name', 'birthdate'],
+    });
+  });
+});
+
+it('may send an empty list of profile fields, which makes the page one that is only reviewed', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, { [`PATCH ${ST}`]: settingsAnswer({}, '"s2"') }),
+  );
+  const profile = await section('Profile');
+  await user.click(within(profile).getByRole('checkbox', { name: 'Given name' }));
+  await user.click(within(profile).getByRole('checkbox', { name: 'Family name' }));
+  await user.click(within(profile).getByRole('button', { name: 'Save Profile' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ required_profile_fields: [] });
   });
 });
 

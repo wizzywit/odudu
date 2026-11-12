@@ -86,6 +86,34 @@ it('says why the server refused an action, in its own words', async () => {
   expect(await within(section).findByText(/the tenant has no terms_uri/u)).toBeVisible();
 });
 
+it('lists the versions of the terms the person accepted, newest first, read-only', async () => {
+  renderConsoleAt(
+    AT,
+    subjectRoutes(['view-users'], {
+      [`GET ${RA}`]: json({ actions: [] }, 200, { etag: '"a1"' }),
+      [`GET ${S}/${ADA_ID}/terms-acceptances`]: json({
+        items: [
+          { version: '2026-02', accepted_at: '2026-03-01T10:00:00.000Z' },
+          { version: '2026-01', accepted_at: '2026-01-05T09:30:00.000Z' },
+        ],
+      }),
+    }),
+  );
+  const table = await screen.findByRole('grid', { name: 'Terms ada accepted' });
+  expect(within(table).getAllByRole('row')).toHaveLength(3);
+  expect(within(table).getByText('2026-02')).toBeVisible();
+  expect(within(table).getByText('2026-01')).toBeVisible();
+  expect(within(table).queryByRole('button')).toBeNull();
+});
+
+it('says no terms were accepted when none were', async () => {
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, { [`GET ${RA}`]: json({ actions: [] }, 200, { etag: '"a1"' }) }),
+  );
+  expect(await screen.findByText(/has accepted no version of the terms/u)).toBeVisible();
+});
+
 it('shows a limited operator what is asked, as text', async () => {
   renderConsoleAt(
     AT,

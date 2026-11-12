@@ -49,6 +49,7 @@
   "breached_on_error": "open",
   "terms_uri": null,
   "terms_version": "1",
+  "required_profile_fields": ["given_name", "family_name"],
   "login_with_email": false,
   "audit_event_types": [
     "admin_mutation",

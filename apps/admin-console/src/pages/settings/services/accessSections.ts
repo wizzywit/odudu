@@ -1,3 +1,4 @@
+import { PROFILE } from '#/pages/settings/services/profileSection';
 import { AUTHENTICATORS } from '#/pages/settings/services/authenticatorsSection';
 import type { SettingsSection } from '#/pages/settings/services/sectionTypes';
 
@@ -144,6 +145,7 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
       },
     ],
   },
+  PROFILE,
   AUTHENTICATORS,
   {
     id: 'usernames',
