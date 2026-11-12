@@ -55,6 +55,7 @@ Sessions
 Remember me
 Registration and recovery
 Terms
+Profile
 Authenticators
 Usernames
 Password policy
@@ -128,6 +129,30 @@ Terms address
 An https address, or http to this machine, with no fragment. Leave it empty for no terms.
 Terms version
 Up to 64 characters. A person accepts one version. Changing it asks nobody again by itself.
+Profile
+What the Complete the profile action needs a person to have before it ends. The page lists every field a person can edit and marks these; the others stay optional.
+Required profile fields
+Full name
+Given name
+Family name
+Middle name
+Nickname
+Preferred username
+Profile page
+Picture address
+Website
+Gender
+Birthdate
+Time zone
+Language
+Phone number
+Address
+Street
+City
+Region
+Postal code
+Country
+Choose none and the page is only reviewed and submitted. Full name or given and family name are the usual ones to ask for.
 Authenticators
 What a new authenticator app, passkey or recovery set is made with, and whether sign-in asks everyone for a passkey. One already enrolled keeps the values it was made with.
 Authenticator app algorithm

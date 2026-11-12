@@ -532,7 +532,6 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Language: page('settings/services/profileSection.ts', "label: 'Language'"),
   Address: page('settings/services/profileSection.ts', "label: 'Address'"),
   City: page('settings/services/profileSection.ts', "label: 'City'"),
-  Profile: page('settings/services/profileSection.ts', "title: 'Profile'"),
   'Required profile fields': page(
     'settings/services/profileSection.ts',
     "label: 'Required profile fields'",
