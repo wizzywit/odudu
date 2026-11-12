@@ -874,8 +874,46 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "label: 'Recent sign-in window'",
   ),
   'Recovery code warning': page(
-    'settings/services/accessSections.ts',
+    'settings/services/authenticatorsSection.ts',
     "label: 'Recovery code warning'",
+  ),
+  'Require a passkey': page(
+    'settings/services/authenticatorsSection.ts',
+    "label: 'Require a passkey'",
+  ),
+  Authenticators: page('settings/services/authenticatorsSection.ts', "title: 'Authenticators'"),
+  'Authenticator app algorithm': page(
+    'settings/services/authenticatorsSection.ts',
+    "label: 'Authenticator app algorithm'",
+  ),
+  SHA1: page('settings/services/authenticatorsSection.ts', "label: 'SHA1'"),
+  SHA256: page('settings/services/authenticatorsSection.ts', "label: 'SHA256'"),
+  SHA512: page('settings/services/authenticatorsSection.ts', "label: 'SHA512'"),
+  'Authenticator app code length': page(
+    'settings/services/authenticatorsSection.ts',
+    "label: 'Authenticator app code length'",
+  ),
+  '6 digits': page('settings/services/authenticatorsSection.ts', "label: '6 digits'"),
+  '8 digits': page('settings/services/authenticatorsSection.ts', "label: '8 digits'"),
+  'Authenticator app code period': page(
+    'settings/services/authenticatorsSection.ts',
+    "label: 'Authenticator app code period'",
+  ),
+  '30 seconds': page('settings/services/authenticatorsSection.ts', "label: '30 seconds'"),
+  '60 seconds': page('settings/services/authenticatorsSection.ts', "label: '60 seconds'"),
+  'Passkey user verification': page(
+    'settings/services/authenticatorsSection.ts',
+    "label: 'Passkey user verification'",
+  ),
+  Preferred: page('settings/services/authenticatorsSection.ts', "label: 'Preferred'"),
+  Discouraged: page('settings/services/authenticatorsSection.ts', "label: 'Discouraged'"),
+  'Passkey stored on the device': page(
+    'settings/services/authenticatorsSection.ts',
+    "label: 'Passkey stored on the device'",
+  ),
+  'Recovery codes in a set': page(
+    'settings/services/authenticatorsSection.ts',
+    "label: 'Recovery codes in a set'",
   ),
   'Offer remember me': page('settings/services/accessSections.ts', "label: 'Offer remember me'"),
   'Verification link lifetime': page(
