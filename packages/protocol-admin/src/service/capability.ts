@@ -59,6 +59,8 @@ import {
   listMailQuerySchema,
   listConsentsQuerySchema,
   listConsentsResponseSchema,
+  listTermsAcceptancesQuerySchema,
+  listTermsAcceptancesResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
   listRegistrationTokensQuerySchema,
@@ -555,6 +557,15 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     querystringSchema: listConsentsQuerySchema,
     description:
       'The subject\u2019s consents, paged by keyset on the client\u2019s own `client_id`: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/terms-acceptances',
+    capability: 'view-users',
+    responseSchema: listTermsAcceptancesResponseSchema,
+    querystringSchema: listTermsAcceptancesQuerySchema,
+    description:
+      'The versions of the tenant\u2019s terms the subject accepted and when, newest first, paged by keyset on the time and the version: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last. `404` for a subject that does not exist.',
   },
   {
     method: 'DELETE',

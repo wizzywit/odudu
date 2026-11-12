@@ -15,7 +15,7 @@ second account, and a reader of Arabic); they stay outstanding, not phase work. 
 What it placed on later phases is on
 [the roadmap page](../apps/docs/content/en/roadmap.md).
 
-**P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 61 read
+**P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 62 read
 tools (two for the system tenant's agent alone) and 12 write tools (descriptive text, the display name, languages and message overrides, drafts of a theme that a person publishes, and roles, groups and scopes that grant nothing; the three creates, the two that set or clear an override and the two that save a theme draft only through that endpoint, not through `odudu mcp --allow-writes`), `odudu mcp` serves the rest over stdio,
 and nothing that changes who can sign in, handles a secret or deletes what grants or authenticates is offered to an agent (that is P5b's, below), and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
 client ID metadata documents, `mcp:read` and `mcp:write`) is in place. What it found

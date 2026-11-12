@@ -32,6 +32,7 @@ import {
   clientRecordSchema,
 } from '#/admin/clients';
 import { consentSchema } from '#/admin/consents';
+import { termsAcceptanceSchema } from '#/admin/terms-acceptances';
 import { countResponseSchema } from '#/admin/counts';
 import {
   executionStepSchema,
@@ -423,6 +424,10 @@ describeFields(consentSchema, {
   client_key: 'The client’s `client_id`.',
   scope_names: 'The scopes the user agreed to.',
   granted_at: 'When the user agreed.',
+});
+describeFields(termsAcceptanceSchema, {
+  version: 'The version of the tenant’s terms the user accepted.',
+  accepted_at: 'When the user accepted it.',
 });
 describeFields(countResponseSchema, {
   count: 'How many items match, up to a cap.',

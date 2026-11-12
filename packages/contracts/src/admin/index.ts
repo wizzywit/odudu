@@ -294,6 +294,14 @@ export {
   type Lockout,
 } from '#/admin/account-recovery';
 export {
+  termsAcceptanceSchema,
+  type TermsAcceptance,
+  listTermsAcceptancesQuerySchema,
+  type ListTermsAcceptancesQuery,
+  listTermsAcceptancesResponseSchema,
+  type ListTermsAcceptancesResponse,
+} from '#/admin/terms-acceptances';
+export {
   consentSchema,
   type Consent,
   listConsentsQuerySchema,

@@ -1,3 +1,4 @@
+import { termsAcceptanceRepository } from '@odudu/authn-flows';
 import { withTenant } from '@odudu/db';
 import { userRepository } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
@@ -123,5 +124,65 @@ describe('PUT …/required-actions with the three actions that ask more of a per
       payload: { actions: ['verify-email'] },
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('GET …/terms-acceptances', () => {
+  async function withAcceptances() {
+    const s = await setup();
+    await withTenant(fixture.app.db, s.t.id, async (tx) => {
+      const terms = termsAcceptanceRepository(tx);
+      await terms.accept(s.t.id, s.id, '1', new Date('2026-01-01T00:00:00Z'));
+      await terms.accept(s.t.id, s.id, '2', new Date('2026-02-01T00:00:00Z'));
+      await terms.accept(s.t.id, s.id, '3', new Date('2026-03-01T00:00:00Z'));
+    });
+    const url = `/admin/tenants/${s.t.name}/subjects/${s.id}/terms-acceptances`;
+    const get = (query = '', token = s.token) =>
+      fixture.http.inject({
+        method: 'GET',
+        url: `${url}${query}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+    return { ...s, get };
+  }
+
+  it('lists the versions accepted, newest first', async () => {
+    const { get } = await withAcceptances();
+    const res = await get();
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      items: [
+        { version: '3', accepted_at: '2026-03-01T00:00:00.000Z' },
+        { version: '2', accepted_at: '2026-02-01T00:00:00.000Z' },
+        { version: '1', accepted_at: '2026-01-01T00:00:00.000Z' },
+      ],
+    });
+  });
+
+  it('pages by keyset, with a link and a next that end at the last page', async () => {
+    const { get } = await withAcceptances();
+    const first = await get('?limit=2');
+    const body = first.json<{ items: { version: string }[]; next?: string }>();
+    expect(body.items.map((item) => item.version)).toEqual(['3', '2']);
+    expect(body.next).toBeTruthy();
+    expect(String(first.headers.link)).toContain('rel="next"');
+    const second = await get(`?limit=2&cursor=${encodeURIComponent(body.next ?? '')}`);
+    expect(second.json()).toEqual({
+      items: [{ version: '1', accepted_at: '2026-01-01T00:00:00.000Z' }],
+    });
+  });
+
+  it('refuses a cursor that is not ours, an unknown subject and a caller without view-users', async () => {
+    const { get, t } = await withAcceptances();
+    expect((await get('?cursor=nonsense')).statusCode).toBe(400);
+    const unknown = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects/${newId()}/terms-acceptances`,
+      headers: { authorization: `Bearer ${await fixture.adminToken(t.name, ['view-users'])}` },
+    });
+    expect(unknown.statusCode).toBe(404);
+    expect((await get('', await fixture.adminToken(t.name, ['view-audit']))).statusCode).toBe(
+      403,
+    );
   });
 });

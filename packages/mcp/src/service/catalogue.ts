@@ -4,6 +4,7 @@ import { auditTools } from '#/service/tools/audit';
 import { clientMetadataTool } from '#/service/tools/client-metadata';
 import { clientTools } from '#/service/tools/clients';
 import { consentTools } from '#/service/tools/consents';
+import { termsAcceptanceTools } from '#/service/tools/terms-acceptances';
 import { domainTools } from '#/service/tools/domains';
 import { flowTools } from '#/service/tools/flow';
 import { grantTools } from '#/service/tools/grants';
@@ -35,6 +36,7 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...clientBrandingTools,
   ...clientTools,
   ...consentTools,
+  ...termsAcceptanceTools,
   ...domainTools,
   ...flowTools,
   ...grantTools,

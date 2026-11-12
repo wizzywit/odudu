@@ -115,6 +115,37 @@ describe('the terms acceptance record', () => {
     });
   });
 
+  it('lists a subject’s acceptances newest first, in pages by keyset', async () => {
+    const made = await owing({ termsUri: 'https://example.com/terms' }, []);
+    await inTenant(made, async (tx) => {
+      const terms = termsAcceptanceRepository(tx);
+      await terms.accept(made.tenantId, made.subjectId, 'a', new Date('2026-01-01T00:00:00Z'));
+      await terms.accept(made.tenantId, made.subjectId, 'c', new Date('2026-03-01T00:00:00Z'));
+      await terms.accept(made.tenantId, made.subjectId, 'b', new Date('2026-03-01T00:00:00Z'));
+      const first = await terms.recent(made.subjectId, { after: undefined, limit: 2 });
+      expect(first.map((row) => row.version)).toEqual(['c', 'b']);
+      const last = first[1];
+      if (last === undefined) throw new Error('no row');
+      const rest = await terms.recent(made.subjectId, {
+        after: { acceptedAt: last.acceptedAt, version: last.version },
+        limit: 2,
+      });
+      expect(rest.map((row) => row.version)).toEqual(['a']);
+    });
+  });
+
+  it('does not list another tenant’s subject', async () => {
+    const own = await owing({}, []);
+    const other = await owing({}, []);
+    await inTenant(own, (tx) =>
+      termsAcceptanceRepository(tx).accept(own.tenantId, own.subjectId, '1'),
+    );
+    const seen = await inTenant(other, (tx) =>
+      termsAcceptanceRepository(tx).recent(own.subjectId, { after: undefined, limit: 10 }),
+    );
+    expect(seen).toEqual([]);
+  });
+
   it('is not read by another tenant', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {

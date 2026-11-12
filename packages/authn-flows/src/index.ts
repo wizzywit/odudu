@@ -93,6 +93,7 @@ export {
 } from '#/usecase/second-factor-removed';
 export { oweRecoveryCodesIfFactorWithoutCodes } from '#/usecase/recovery-codes';
 export { pendingActionsFor } from '#/usecase/pending-actions';
+export { termsAcceptanceRepository } from '#/repository/terms-acceptances';
 export { editableProfileFields } from '#/service/profile-form';
 export { recordActionStep, type ActionStep, type RecordActionStep } from '#/usecase/action-step';
 export { type ActionPageVariant } from '#/view/action-cancel';
