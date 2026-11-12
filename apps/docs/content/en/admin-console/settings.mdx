@@ -92,12 +92,25 @@ The link stops working once it is used, and it asks for one click first, so a ma
 - **Authenticator app code period** (`totp_period`): **30 seconds** or **60 seconds**.
 - **Passkey user verification** (`webauthn_user_verification`): **Required**, **Preferred** or **Discouraged**, the WebAuthn values of the same names (`required`, `preferred`, `discouraged`). Required is the default.
 - **Passkey stored on the device** (`webauthn_resident_key`): **Required**, **Preferred** or **Discouraged**, with the same three values. Required is the default.
+- **Require a passkey** (`require_passkey`): off by default. On, a person who signs in and holds no passkey for the address they signed in at is asked to register one before the sign-in completes. [Asking everyone for a passkey](#asking-everyone-for-a-passkey) says what that does and does not touch.
 - **Recovery codes in a set** (`recovery_code_count`): how many codes a newly issued set holds, 8 to 16 and 10 by default.
 - **Recovery code warning** (`recovery_code_warn_below`): a person left with fewer unspent recovery codes than this is flagged by `recovery_codes_low` in the "me" API's credentials answer. 3 by default, 0 to 10 and no more than the size of a set, and 0 turns the warning off.
 
 Each setting applies to the next enrolment. An authenticator app keeps the algorithm, digits and period it was made with and is checked by them, so changing the tenant's choice strands nobody; a person who wants the new parameters enrols the app again. A passkey keeps the user verification and resident key it was made with, and a set of recovery codes keeps its size. A person who is enrolling an app is shown what it must support when the parameters are not `SHA1`, 6 digits and 30 seconds, because many apps do not support the others and a code the app cannot make never confirms. Choose them only for an app you know.
 
 A passkey made without user verification proves possession of a key and nothing else, so it is one factor and not two. The person who signs in with one is still asked for an authenticator app code where they have one or the tenant requires one, and the token reports `acr` `1` and no `user` method. Choose `preferred` or `discouraged` only if you accept that. Sign-in options then ask the browser for `preferred` rather than `required`, so an older passkey that was made with verification required is refused if its authenticator skips verification. A passkey that is not stored on the device cannot answer a sign-in that asks for no username, so `preferred` and `discouraged` can leave a person with a passkey the sign-in page does not offer.
+
+#### Asking everyone for a passkey
+
+With **Require a passkey** on, a sign-in that completes adds the `configure-passkey` required action for a person who holds no passkey under the address they signed in at, and the next page is the passkey registration page. Nothing else changes:
+
+- A session that is already open is not touched, and no token is revoked. The person is asked at their next sign-in, not before; a client that sends a person to `/authorize` with a session still open sees no extra step.
+- The action is added once, however often the person signs in, and a person who already holds a passkey is never asked. A person who removes their last passkey is asked again at their next sign-in. A passkey registered at another address, for example before the tenant moved to a domain of its own, is hidden at sign-in and so does not count.
+- The page has no way to skip it. This is a mandate of the tenant, so a person whose browser or device cannot make a passkey cannot finish a sign-in. An administrator can clear the action on their record under **Required actions**, which lets the sign-in under way finish; the next sign-in asks again while the switch is on, so for such a person the way through is to turn the switch off.
+- Turning the switch off does not remove an action already owed. A person who was asked and has not registered still meets the page at their next sign-in, until they register or an administrator clears it.
+- A deployment that cannot show the page, with no public address to derive the relying party from, never adds the action, so the switch cannot lock everybody out.
+- An application can still send a person to register a passkey with `action=configure-passkey`. Where the tenant already owes the person one, the page is the tenant's and has no way back.
+- Service accounts and agent tokens never sign in at a page and are never asked.
 
 ### Usernames
 

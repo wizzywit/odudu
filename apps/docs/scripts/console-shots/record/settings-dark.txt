@@ -154,6 +154,9 @@ A passkey that is not stored on the device cannot sign a person in who has not t
 Required
 Preferred
 Discouraged
+Require a passkey
+Off
+A person without one is asked to add a passkey at their next sign-in and cannot skip it. Sessions already open are not touched. Turning this off does not clear an action already owed; an administrator can clear it on the person’s record.
 Recovery codes in a set
 codes
 10 codes

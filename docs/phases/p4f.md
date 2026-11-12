@@ -406,3 +406,51 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 - The tenant-wide passkey switch and the per-step configuration are the next two parts of the increment, unchanged.
 - A weak-passkey sign-in audits as `login.passkey`, the same as a verified one; the token's `acr` and the session's satisfied list
   are the only record. Placed on increment 8, where the session and audit detail are revisited.
+
+## Increment 7b: the passkey switch
+
+### What shipped
+
+- Tenant `require_passkey` (migration `0133`, boolean, default false): a column, a `SETTINGS` entry, a field of the tenant document
+  that defaults to off, an audit-detail entry by value and a toggle first among the passkey fields of the console's Authenticators
+  section. Off changes nothing for any tenant.
+- A sign-in that completes (every factor passed) adds `configure-passkey` through `requiredActionRepository(tx).add` for a person with
+  no passkey registered under the tenant's current relying party id. `add` is an insert that conflicts away, so repeated sign-ins
+  leave one row. The same pass already runs for recovery codes, so no step was added to the flow itself.
+- `credentialRepository.holdsPasskey(subjectId, rpId)` answers it with one indexed row (`user_credentials_by_subject`).
+  `passkeyCheckedAgainst` is the pure decision of whether to look at all.
+
+### Ruling
+
+- The tenant mandate has no skip. The required-action page already hides its way back for an action the tenant owes
+  (`requestedVariant`), so an application-requested `configure-passkey` that the tenant also owes shows the page without Cancel
+  and is not a second row: an application's request is never a row. An administrator clears the owed action under Required
+  actions on the person's record (`PUT .../required-actions`), or turns the switch off. A clear lets the sign-in under way
+  finish and no more: the next completed sign-in adds the row again while the switch is on, which the live run shows. There is no
+  per-person exemption, so a person whose device cannot make a passkey needs the switch off.
+- Turning the switch off does not remove rows already added. They are the person's owed actions like any other an administrator
+  or a policy wrote, and removing them on a setting change would need a scan of every subject of the tenant. Completing the
+  enrolment, or an administrator, clears them.
+- Existing sessions and tokens are never touched: the action is written at a sign-in and read by the gate that follows it, and
+  an `/authorize` that finds an open session does not run a sign-in.
+- Only a passkey under the relying party id the sign-in would offer counts. After a tenant moves to a domain its old passkeys are
+  hidden at sign-in, so a person holding only those is owed a new one; counting them would have left that person with a mandate
+  met and no passkey usable.
+- A deployment with no relying party (no public base URL, or a path-addressed tenant on a base that names an address) adds
+  nothing: the page cannot be shown there, and an action owed for it would be a lockout the switch could not explain.
+- Service accounts and agent tokens never pass this path. It runs only after an interactive sign-in has bound a user subject.
+
+### Found while building
+
+- No new index was needed: `user_credentials_by_subject` (subject, type) narrows to the few rows a person holds and `rp_id` is
+  filtered on those. `rp_id` is stamped at boot on rows written before domains existed, so a row still unstamped is not counted
+  here, although the sign-in reads it against the base host (`credentialRelyingPartyId`). Nothing writes an unstamped row now.
+
+### At volume
+
+- One read of the tenant row by primary key (already made for the flow settings; `requirePasskey` rides on it) and, only with the
+  switch on, one canonical-host read and one indexed one-row existence check per completed sign-in. Nothing lists.
+
+### Open placements
+
+- The per-step configuration remains increment 7c.

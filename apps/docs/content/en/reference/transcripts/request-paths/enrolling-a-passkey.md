@@ -8,9 +8,10 @@ description: 'POST /tenants/{tenant}/login-actions/required-action?action=config
 `POST /tenants/{tenant}/login-actions/required-action?action=configure-passkey`
 enrols a WebAuthn credential for the subject the authentication session is
 bound to, the same way the `configure-totp` submission above enrols a TOTP
-one. Nothing yet asks for the action on its own — there is no tenant switch
-for passkeys, the way `otp_required` exists for TOTP — so it becomes pending
-only when something adds it (today: a row in `user_required_actions`).
+one. The action becomes pending when something adds it: a row in
+`user_required_actions` an administrator wrote, or the tenant's
+`require_passkey` switch, which adds it at the sign-in of a person who holds
+no passkey ([the run below](#a-tenant-that-asks-everyone-for-a-passkey)).
 Signing in _with_ the credential this enrols is
 [Signing in with a passkey](./signing-in-with-a-passkey-and-no-username.md).
 
@@ -81,3 +82,172 @@ Refused, each for its own reason:
   reports the action as one that cannot be completed rather than binding a
   credential to a guessed domain. With `NODE_ENV=production` the server
   refuses to boot in that state.
+
+## A tenant that asks everyone for a passkey
+
+`require_passkey` is a tenant setting, off unless it is turned on. With it on, a sign-in that completes adds the
+`configure-passkey` action for a person who holds no passkey under the address they signed in at, and the page above is the
+next thing they see. This section ran, and the blocks are what came back; the passkey ceremony itself still needs a browser, so
+it stops at the page. On a stack of its own on `http://localhost:3000`, started on an empty volume, a tenant `switch-demo` with
+a client `switch-spa` and `ada`:
+
+```bash
+odudu seed --tenant switch-demo --client switch-spa --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery
+```
+
+```
+{"created":true,"tenant":"switch-demo","tenantId":"01a1cfdb-2633-71b2-82b2-d2176a45d71c","clientId":"switch-spa","userSubjectId":"01a1cfdb-26f0-7925-b25a-93c21753df78"}
+```
+
+`sign_in` is a shell function that starts an authorization request with a cookie jar and posts `ada`'s password to the form it
+gets back. It prints the status line and `Location` of a sign-in that finishes, with the authorization code shown as `CODE`,
+and otherwise the lines of the page it landed on that matter. `rows` reads the owed actions of the tenant as the database owner:
+
+```bash
+AUTHORIZE_URL='http://localhost:3000/tenants/switch-demo/protocol/openid-connect/auth?response_type=code&client_id=switch-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=s&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+sign_in() {
+  curl -sS -D a.hdr -c "$1" -b "$1" -o a.html "$AUTHORIZE_URL"
+  if head -1 a.hdr | grep -q 302; then
+    head -1 a.hdr | tr -d '\r'; grep -i '^location' a.hdr | tr -d '\r' | sed 's/code=[^&]*/code=CODE/'
+    return
+  fi
+  SID=$(grep -o 'name="auth_session_id" value="[^"]*"' a.html | head -1 | sed 's/.*value="//;s/"//')
+  curl -sS -D b.hdr -c "$1" -b "$1" -o b.html --data-urlencode "auth_session_id=$SID" \
+    --data-urlencode username=ada --data-urlencode password=correct-horse-battery \
+    http://localhost:3000/tenants/switch-demo/login-actions/authenticate
+  head -1 b.hdr | tr -d '\r'
+  if head -1 b.hdr | grep -q 302; then
+    grep -i '^location' b.hdr | tr -d '\r' | sed 's/code=[^&]*/code=CODE/'
+  else
+    grep -E '<title>|<form |<p>This|cancel' b.html
+  fi
+}
+rows() {
+  docker compose exec -T postgres psql -U odudu -d odudu -c \
+    "select u.username, r.action from user_required_actions r join users u on u.subject_id = r.subject_id where r.tenant_id = (select id from tenants where name = 'switch-demo') order by 1, 2"
+}
+```
+
+With the switch off, `ada` signs in and ends in the redirect, and her browser keeps the session. The tenant then turns the switch on:
+
+```bash
+sign_in jarA
+odudu seed tenant --name switch-demo --set require_passkey=true
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?code=CODE&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fswitch-demo
+{"command":"tenant","created":false,"tenant":"switch-demo","tenantId":"01a1cfdb-2633-71b2-82b2-d2176a45d71c","settings":["require_passkey"]}
+```
+
+Nothing happens to the session that is open. `ada` asks for another authorization with the same cookie jar and ends in the
+redirect again: no sign-in runs, so none is asked for a passkey:
+
+```bash
+sign_in jarA
+```
+
+```
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?code=CODE&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fswitch-demo
+```
+
+A sign-in that starts without that session is the next one that completes. The password is right, so authentication succeeds,
+and the page that comes back is the passkey page, with the action owed. Its form has no `cancel` button, which the count
+confirms:
+
+```bash
+sign_in jarB; rows
+grep -c 'name="cancel"' b.html
+```
+
+```
+HTTP/1.1 200 OK
+<title>Add a passkey</title>
+<form method="post" action="/tenants/switch-demo/login-actions/required-action?action=configure-passkey" id="passkey-form" data-failed="Your device did not finish adding the passkey — {reason}. You can try again." data-cancelled="the request was cancelled">
+    const reason = caught && caught.message ? caught.message : form.dataset.cancelled;
+ username |      action
+----------+-------------------
+ ada      | configure-passkey
+(1 row)
+0
+```
+
+The sign-in is not complete until the passkey is registered. A third sign-in is asked the same, and the owed action is still one row:
+
+```bash
+sign_in jarC; rows
+```
+
+```
+HTTP/1.1 200 OK
+<title>Add a passkey</title>
+<form method="post" action="/tenants/switch-demo/login-actions/required-action?action=configure-passkey" id="passkey-form" data-failed="Your device did not finish adding the passkey — {reason}. You can try again." data-cancelled="the request was cancelled">
+    const reason = caught && caught.message ? caught.message : form.dataset.cancelled;
+ username |      action
+----------+-------------------
+ ada      | configure-passkey
+(1 row)
+```
+
+Turning the switch off does not remove what is owed. After it, `ada` signs in again and meets the page, and the row is still there:
+
+```bash
+odudu seed tenant --name switch-demo --set require_passkey=false
+sign_in jarD; rows
+```
+
+```
+{"command":"tenant","created":false,"tenant":"switch-demo","tenantId":"01a1cfdb-2633-71b2-82b2-d2176a45d71c","settings":["require_passkey"]}
+HTTP/1.1 200 OK
+<title>Add a passkey</title>
+<form method="post" action="/tenants/switch-demo/login-actions/required-action?action=configure-passkey" id="passkey-form" data-failed="Your device did not finish adding the passkey — {reason}. You can try again." data-cancelled="the request was cancelled">
+    const reason = caught && caught.message ? caught.message : form.dataset.cancelled;
+ username |      action
+----------+-------------------
+ ada      | configure-passkey
+(1 row)
+```
+
+An administrator clears it with the required-actions route (the `ETag` is read from the `GET` first, as that page shows). The
+next sign-in, with the switch still off, ends in the redirect and nothing is owed:
+
+```bash
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H "If-Match: $ETAG" \
+  -d '{"actions":[]}' http://localhost:3000/admin/tenants/switch-demo/subjects/$ADA/required-actions
+sign_in jarE; rows
+```
+
+```
+{"actions":[]}
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?code=CODE&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fswitch-demo
+ username | action
+----------+--------
+(0 rows)
+```
+
+Clearing the action lets the sign-in through once, and it is not an exemption. With the switch on again, the next sign-in owes
+it again:
+
+```bash
+odudu seed tenant --name switch-demo --set require_passkey=true
+sign_in jarF; rows
+```
+
+```
+{"command":"tenant","created":false,"tenant":"switch-demo","tenantId":"01a1cfdb-2633-71b2-82b2-d2176a45d71c","settings":["require_passkey"]}
+HTTP/1.1 200 OK
+<title>Add a passkey</title>
+<form method="post" action="/tenants/switch-demo/login-actions/required-action?action=configure-passkey" id="passkey-form" data-failed="Your device did not finish adding the passkey — {reason}. You can try again." data-cancelled="the request was cancelled">
+    const reason = caught && caught.message ? caught.message : form.dataset.cancelled;
+ username |      action
+----------+-------------------
+ ada      | configure-passkey
+(1 row)
+```
+
+A person whose browser or device cannot make a passkey is therefore asked at every sign-in while the switch is on. Turn the
+switch off, or clear the action for each of their sign-ins, until they have a device that can.
