@@ -81,6 +81,8 @@ Each line gives the label, then the name the admin API and `odudu seed tenant --
 
 When somebody sets a new password from a mailed link, whether a reset link or an administrator's link that asks for one, every session they hold ends and every token grant they gave is revoked, offline ones too. Anyone else signed in to that account is signed out.
 
+A person who changes their password on the change-password page is offered "End my other sessions", checked. Leave it checked and their other sessions end, the one they are using stays, and so do grants that no session holds; clear it and nothing ends. No setting turns the box off.
+
 If the account registered itself and its address was never verified, the link also removes any authenticator app, passkey and recovery codes and marks the address verified. The page says so. Whoever registered the address first may have added them. In a tenant that does not verify addresses, that is every self-registered account until its first reset. Accounts an administrator created keep their factors.
 
 The link stops working once it is used, and it asks for one click first, so a mail scanner that opens it cannot spend it.

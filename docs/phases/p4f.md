@@ -544,3 +544,36 @@ that never configures a step behaves as it does today.
   in `rp-initiated-logout` now carries the self-registered client's notice, which
   `tests/docs/page-documents-transcripts.test.ts` does not read back yet. The method and the page list are in
   `contributing/transcripts.md`.
+
+## Increment 9: ending the other sessions on a password change
+
+### What shipped
+
+- A checked box, `end_other_sessions` (`value="true"`), on the change-password page in both its variants, wording `updatePassword.endOtherSessions`
+  with an Arabic twin. The field is read as `=== 'true'`, the way `remember_me` is.
+- `endOtherSessions` in `protocol-oidc` (`usecase/end-session.ts`) shares one batch loop with `endAllAccess`, 100 sessions a round,
+  and ends the sessions the way a logout does (grants revoked, back-channel deliveries queued, `session.ended` with `via: 'self'`).
+  `completeUpdatePassword` takes it as a callback, runs it after the new hash is stored in the same transaction, and never for a
+  refused or superseded candidate. The `password.changed` row carries `ended_other_sessions`, in the audit vocabulary's allowlist.
+
+### Ruling
+
+- An absent field leaves the sessions. A cleared box sends nothing, so the rendered default (checked) is what makes ending the
+  usual answer; a script posting the form without the field is not assumed to want it.
+- The session in use is the parked request's `reuseSessionId`, present when an application sent a person who is already signed in.
+  On a sign-in the change interrupts there is no session yet, so every earlier one ends and the new one is made afterwards.
+- A password reset has no box. It already ends every session and revokes every grant of the person, unconditionally
+  (`recoverAccount`), because a reset is how an account is recovered; a box on it would let whoever holds the mailbox
+  choose to keep the previous holder signed in. `reset-ends-access.int.test.ts` holds it.
+- The "me" API has no password change, so there is no API path to cover. Grants no session holds (`offline_access`) are not
+  touched, as when a person ends sessions through the "me" API.
+- A refused candidate re-renders the page with the box checked again, whatever it was; the safer value on a retry.
+
+### At volume
+
+- One bounded read by subject (`sessions_by_subject`) and one batch of statements per 100 sessions; a subject with 250 live sessions
+  takes under 40 statements (`end-all-access.int.test.ts`).
+
+### Open placements
+
+- None.

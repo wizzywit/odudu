@@ -80,7 +80,7 @@ the change-password page, `change.html`, whose form carries the same
 </header>
 <p>This account needs a new password before you can continue.</p>
 <form method="post" action="/tenants/system/login-actions/required-action?action=update-password">
-  <input type="hidden" name="auth_session_id" value="01a1d093-8c34-72f3-8265-8d009b5904f3">
+  <input type="hidden" name="auth_session_id" value="01a1d0b8-43c7-7bf9-aa30-29219db57882">
   <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
@@ -89,7 +89,7 @@ the change-password page, `change.html`, whose form carries the same
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="7md+1DAiwQPvGU9En6HBTA==">(function () {
+  <script nonce="n3aoV4H2UcWCoOhyLhcjoA==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -127,12 +127,17 @@ the change-password page, `change.html`, whose form carries the same
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
 </body>
 </html>
 ```
+
+The page offers "End my other sessions", checked. A browser that leaves it
+checked sends `end_other_sessions=true`; the request below sends nothing for it,
+so the session the person holds elsewhere is left alone.
 
 Submitting it **ends in the redirect**: the password the login form already
 accepted is not asked for again, and with nothing else owed the parked

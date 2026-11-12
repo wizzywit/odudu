@@ -15,7 +15,7 @@ to move along.
 The policy is two tenant settings, so `seed tenant --set` carries both. The
 `psql` that follows has no alternative and never will: nothing can make a
 password ninety days old in less than ninety days. On its own stack, on
-`http://localhost:3086`:
+`http://localhost:3089`:
 
 ```bash
 odudu seed \
@@ -24,7 +24,7 @@ odudu seed \
   --user ada --password correct-horse-battery --email ada@example.com
 odudu seed tenant --name expiry-demo \
   --set password_max_age_days=90 --set password_history_depth=2
-docker compose -p odudu-t8d -f infra/docker/compose.yaml exec -T postgres \
+docker compose -p odudu-p4f-i9 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "UPDATE user_credentials SET created_at = now() - interval '100 days'
      WHERE type = 'password'
@@ -32,21 +32,21 @@ docker compose -p odudu-t8d -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```
-{"created":true,"tenant":"expiry-demo","tenantId":"01a1d09b-…","clientId":"expiry-spa","userSubjectId":"01a1d09b-…"}
-{"command":"tenant","created":false,"tenant":"expiry-demo","tenantId":"01a1d09b-779c-740f-9959-29e74bda3571","settings":["password_max_age_days","password_history_depth"]}
+{"created":true,"tenant":"expiry-demo","tenantId":"01a1d0b7-5ac9-7e4c-ad54-fc7cb613838b","clientId":"expiry-spa","userSubjectId":"01a1d0b7-5b8a-7b64-95ee-abb9f482e9fe"}
+{"command":"tenant","created":false,"tenant":"expiry-demo","tenantId":"01a1d0b7-5ac9-7e4c-ad54-fc7cb613838b","settings":["password_max_age_days","password_history_depth"]}
 UPDATE 1
 ```
 
 `/authorize` parks the request and renders the ordinary password form; the
-`auth_session_id` in it — `01a1d09b-7c0d-70ab-bc3d-021e0c22964a` in this
+`auth_session_id` in it — `01a1d0b7-5e13-7f85-b172-3453605f8f93` in this
 run — is what every request below carries. The correct password answers
 `200` with a change-password form rather than `302` with a code: it was
 accepted, and the pending action is what holds the login (no `set-cookie`,
 no `code`).
 
 ```bash
-curl -sS -X POST http://localhost:3086/tenants/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d09b-7c0d-70ab-bc3d-021e0c22964a' \
+curl -sS -X POST http://localhost:3089/tenants/expiry-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a1d0b7-5e13-7f85-b172-3453605f8f93' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -72,7 +72,7 @@ curl -sS -X POST http://localhost:3086/tenants/expiry-demo/login-actions/authent
 </header>
 <p>This account needs a new password before you can continue.</p>
 <form method="post" action="/tenants/expiry-demo/login-actions/required-action?action=update-password">
-  <input type="hidden" name="auth_session_id" value="01a1d09b-7c0d-70ab-bc3d-021e0c22964a">
+  <input type="hidden" name="auth_session_id" value="01a1d0b7-5e13-7f85-b172-3453605f8f93">
   <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
@@ -81,7 +81,7 @@ curl -sS -X POST http://localhost:3086/tenants/expiry-demo/login-actions/authent
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="T55wgb2g6LbtxTHgh6URLA==">(function () {
+  <script nonce="0RhoXjBXiGzyyJt84yvD8w==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -119,6 +119,7 @@ curl -sS -X POST http://localhost:3086/tenants/expiry-demo/login-actions/authent
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -132,8 +133,8 @@ bound by — `400`, with every rule it broke:
 
 ```bash
 curl -sS -X POST \
-  'http://localhost:3086/tenants/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d09b-7c0d-70ab-bc3d-021e0c22964a' \
+  'http://localhost:3089/tenants/expiry-demo/login-actions/required-action?action=update-password' \
+  --data-urlencode 'auth_session_id=01a1d0b7-5e13-7f85-b172-3453605f8f93' \
   --data-urlencode 'password=short' \
   | grep -E 'role="alert"|<li id="form-error'
 ```
@@ -151,9 +152,10 @@ it is reported as a policy violation like the rest:
 
 ```bash
 curl -sS -X POST \
-  'http://localhost:3086/tenants/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d09b-7c0d-70ab-bc3d-021e0c22964a' \
-  --data-urlencode 'password=correct-horse-battery'
+  'http://localhost:3089/tenants/expiry-demo/login-actions/required-action?action=update-password' \
+  --data-urlencode 'auth_session_id=01a1d0b7-5e13-7f85-b172-3453605f8f93' \
+  --data-urlencode 'password=correct-horse-battery' \
+  | sed -n '/<header class="intro">/,/^<\/div>/p'
 ```
 
 ```
@@ -169,7 +171,7 @@ curl -sS -X POST \
 </div>
 ```
 
-(both refusals re-render the whole form, the second elided here to its heading and its alert; the hidden
+(both refusals re-render the whole form, the second cut by the `sed` to its heading and its alert; the hidden
 `auth_session_id` comes back with it, so the same parked login survives a
 wrong answer.)
 
@@ -181,10 +183,10 @@ answer is the code issued to the client:
 
 ```bash
 curl -sS -D - -o /dev/null -X POST \
-  'http://localhost:3086/tenants/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a1d09b-7c0d-70ab-bc3d-021e0c22964a' \
+  'http://localhost:3089/tenants/expiry-demo/login-actions/required-action?action=update-password' \
+  --data-urlencode 'auth_session_id=01a1d0b7-5e13-7f85-b172-3453605f8f93' \
   --data-urlencode 'password=a-brand-new-passphrase'
-docker compose -p odudu-t8d -f infra/docker/compose.yaml exec -T postgres \
+docker compose -p odudu-p4f-i9 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "SELECT type, created_at FROM user_credentials
      WHERE tenant_id = (SELECT id FROM tenants WHERE name = 'expiry-demo')
@@ -193,21 +195,21 @@ docker compose -p odudu-t8d -f infra/docker/compose.yaml exec -T postgres \
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1d09b-7cf2-7e04-b2e4-35555999b2ac
-set-cookie: expiry-demo-session=01a1d09b-7d4a-720d-84a6-81d9c2e65ac3:JUwFpS6CV1QzxvXV-5bKyvV9amdeW-42WOS7w0fASc8; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d0b7-5ee7-76d7-9eb0-cd30025dd09d
+set-cookie: expiry-demo-session=01a1d0b7-5f37-7591-b5f0-75dc3df08d7f:ECAKeOz21yy4-CZI5Bn5FB8VE6G4TL9Yeq9UKGUAIlI; HttpOnly; SameSite=Lax; Path=/
 set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: expiry-demo-device=ttqyfnr6ImKOO7eNMnryeA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: expiry-demo-device=nVM8tzc4m6UpD7Y_9vLn8A; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/expiry-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=D7suWQeITwRBAEwowRkoZrE9uBZpKoLmggQt3L-iApk&state=xyz&iss=http%3A%2F%2Flocalhost%3A3086%2Ftenants%2Fexpiry-demo
+location: http://localhost:8080/callback?code=MVkIIlKFC3wRWi34_CYIT5RUcABfpsCNmK4N9s64KgM&state=xyz&iss=http%3A%2F%2Flocalhost%3A3089%2Ftenants%2Fexpiry-demo
 content-length: 0
-Date: Thu, 12 Nov 2026 16:33:33 GMT
+Date: Thu, 12 Nov 2026 17:04:00 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
        type       |          created_at
 ------------------+-------------------------------
- password         | 2026-11-12 16:33:33.432403+00
- password-history | 2026-11-12 16:33:33.432403+00
+ password         | 2026-11-12 17:04:00.750596+00
+ password-history | 2026-11-12 17:04:00.750596+00
 (2 rows)
 ```
 
@@ -223,8 +225,10 @@ retired more than one change ago can be restored that way. Only this action
 reads history, and only this action writes any.
 
 An accepted change writes one `credential` audit row, `password.changed`,
-naming the subject. A candidate the policy or the history refuses writes
-none, and no row carries a candidate either way.
+naming the subject and saying in `ended_other_sessions` whether the person
+asked for their other sessions to end (the last section). A candidate the
+policy or the history refuses writes none, and no row carries a candidate
+either way.
 
 A retired hash is never a login's input. The password credential read at
 authentication filters on `type = 'password'`, so the row above answers
@@ -232,10 +236,10 @@ nothing but a reuse check — the old password is simply wrong now, against a
 fresh authentication session:
 
 ```bash
-curl -sS -D - -o /dev/null -X POST http://localhost:3086/tenants/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d09b-7dd3-7110-8187-cb652a7ad05e' \
+curl -sS -D - -o /dev/null -X POST http://localhost:3089/tenants/expiry-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a1d0b7-6018-75f9-8fe1-103bdc1fad7e' \
   --data-urlencode 'username=ada' \
-  --data-urlencode 'password=correct-horse-battery'
+  --data-urlencode 'password=correct-horse-battery' | sed -n 1p
 ```
 
 ```
@@ -248,3 +252,114 @@ outright rather than kept and marked, which is the one exception to
 [ADR 0021](https://github.com/wizzywit/odudu/blob/main/docs/adr/0021-retention-is-bounded-by-the-detection-window.md)'s default in this codebase —
 a retired password nothing will ever compare against is a stored hash that
 answers no decision.
+
+## Ending the other sessions
+
+The change-password page offers a box, "End my other sessions", checked when the
+page is rendered. The change above sent no `end_other_sessions` field, which is
+what a browser sends for a box that was unchecked, so the session the person
+holds elsewhere is left alone: one session, still live, since the change
+made the one it ends in.
+
+```bash
+docker compose -p odudu-p4f-i9 -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "SELECT created_at, expires_at > now() AS live FROM sessions
+     WHERE tenant_id = (SELECT id FROM tenants WHERE name = 'expiry-demo')
+     ORDER BY created_at;"
+```
+
+```
+          created_at          | live
+------------------------------+------
+ 2026-11-12 17:04:00.81994+00 | t
+(1 row)
+```
+
+The password is aged again, so that the tenant owes the change a second time, and
+the next sign-in reaches the page. The page carries the box, checked:
+
+```bash
+docker compose -p odudu-p4f-i9 -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "UPDATE user_credentials SET created_at = now() - interval '100 days'
+     WHERE type = 'password'
+       AND tenant_id = (SELECT id FROM tenants WHERE name = 'expiry-demo');"
+curl -sS -X POST http://localhost:3089/tenants/expiry-demo/login-actions/authenticate \
+  --data-urlencode 'auth_session_id=01a1d0b7-60c5-7d2f-bab5-d0cb6b9d2868' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=a-brand-new-passphrase' \
+  | grep 'end_other_sessions'
+```
+
+```
+UPDATE 1
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
+```
+
+Submitting the box checked ends every session the person had, the one in use
+excepted. That session does not exist yet on this path, because the sign-in
+this change belongs to completes after it, so the earlier one ends and the new
+one is the only one live. When an application sent a person who is already
+signed in, the session they are signed in with is the one left standing.
+
+```bash
+curl -sS -D - -o /dev/null -X POST \
+  'http://localhost:3089/tenants/expiry-demo/login-actions/required-action?action=update-password' \
+  --data-urlencode 'auth_session_id=01a1d0b7-60c5-7d2f-bab5-d0cb6b9d2868' \
+  --data-urlencode 'password=a-second-new-passphrase' \
+  --data-urlencode 'end_other_sessions=true'
+docker compose -p odudu-p4f-i9 -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "SELECT created_at, expires_at > now() AS live FROM sessions
+     WHERE tenant_id = (SELECT id FROM tenants WHERE name = 'expiry-demo')
+     ORDER BY created_at;"
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a1d0b7-610a-7f35-be30-f277ba4a784d
+set-cookie: expiry-demo-session=01a1d0b7-62b1-74f9-9b1f-1068c8cf12a2:YQw9h9eW6xEe9EFu0mwtWQnmHRSfxPduF3Jkoe5YO5k; HttpOnly; SameSite=Lax; Path=/
+set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: expiry-demo-device=kOxLIiO7A3OoNadwZWCt1A; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/expiry-demo/; Max-Age=0
+location: http://localhost:8080/callback?code=fndmqvNuYWA1njXni3YiVXd8Vr58_NPwcZSF4jdHy_8&state=xyz&iss=http%3A%2F%2Flocalhost%3A3089%2Ftenants%2Fexpiry-demo
+content-length: 0
+Date: Thu, 12 Nov 2026 17:04:01 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+          created_at           | live
+-------------------------------+------
+ 2026-11-12 17:04:00.81994+00  | f
+ 2026-11-12 17:04:01.710683+00 | t
+(2 rows)
+```
+
+The audit trail has each change, whether it asked, and one `session.ended` row
+for the session it ended, `via` `self` as when a person ends a session of
+their own from the "me" API:
+
+```bash
+docker compose -p odudu-p4f-i9 -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c \
+  "SELECT action, detail FROM audit_events
+     WHERE tenant_id = (SELECT id FROM tenants WHERE name = 'expiry-demo')
+       AND action IN ('password.changed', 'session.ended')
+     ORDER BY occurred_at, id;"
+```
+
+```
+      action      |             detail
+------------------+---------------------------------
+ password.changed | {"ended_other_sessions": false}
+ session.ended    | {"via": "self"}
+ password.changed | {"ended_other_sessions": true}
+(3 rows)
+```
+
+A form that leaves the field out, as a script posting the form would, ends
+nothing; the page's own default of checked is what makes ending the usual
+answer. A password reset reached through a mailed link ends every session of the
+person whether or not they asked, since a reset is how an account is recovered
+([Password reset](./password-reset.md) shows it), so that page has no box.
