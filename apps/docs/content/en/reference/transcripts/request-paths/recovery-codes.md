@@ -77,15 +77,18 @@ docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 Reloading the page is therefore not a way to see them twice: the render is a
-`POST` result, and a set cannot be replaced while one with codes left to spend
-was issued less than an hour ago. The reload is refused with a page that says
-how many minutes to wait, and the set on the screen stays the set the person
-holds. After the hour, or once every code is spent, a repeat issues a
-_different_ ten and retires the set it just displayed.
+`POST` result, and a reload while the action is still owed issues a
+_different_ ten and retires the set it just displayed: a sign-in that cannot
+finish without a set is never refused one. A person who asks for a set on their
+own, while one with codes left to spend was issued less than an hour ago, is
+refused with a page that says how many minutes to wait, and the set they hold
+stays. After the hour, or once every code is spent, a repeat issues a
+_different_ ten.
 
-The bound is what keeps this path cheap. Each set is ten Argon2id hashes (about
+The bound keeps the voluntary path cheap. Each set is ten Argon2id hashes (about
 40 ms, run together), a delete and ten inserts, and the lockout does not reach
-it, because that counts failures and this path needs a password that works. The
+it, because that counts failures and this path needs a password that works; the
+owed path is limited by the sign-in itself, which acknowledging the page ends. The
 hour is counted from `subjects.recovery_codes_issued_at`, claimed by one
 conditional `UPDATE` under the subject's row lock, so two requests at once
 cannot both pass. A refusal costs that lock and a read and no hash. Re-serving

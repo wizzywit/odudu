@@ -279,7 +279,7 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
   function) decides the same thing from a read and names the retry time, which the claim cannot return. Two calls at the
   same instant: one claims, one reads the claimed time and is refused (tested with two concurrent transactions).
 - **The one issuer** is `beginRecoveryCodes`; the sign-in page, a reload of it and the requested action all pass through
-  it, so the bound holds for each. A refusal writes `recovery_codes.refused` (outcome `refused`, reason `rate_limited`),
+  it, so the bound holds for each. The bound does not apply while the action is owed (see Ruling). A refusal writes `recovery_codes.refused` (outcome `refused`, reason `rate_limited`),
   carries `retryAt` and the minutes to wait, and renders a page with a `429`. A page an application sent the person to
   has the cancel control; the page a tenant owes has none.
 - **A first set waits for a confirmation too.** `askFirst` replaces `keepHeld`: a requested action issues nothing at
@@ -294,10 +294,13 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 - `beginRecoveryCodes` had no clock, and the bound needs one. It takes `now` as a required input, so the callers in
   four test suites pass one rather than the function reading the wall clock.
 
+### Ruling
+
+- A person whose sign-in waits for a set (the `generate-recovery-codes` action is owed) is exempt from the bound, as the
+  first set and a used-up set are, so a reload of the owed page issues a fresh set and the bound never blocks a sign-in.
+  It is one input of the pure `reissueAllowed` (`owed`), read from the person's pending actions. A set asked for
+  voluntarily, by an application or otherwise, keeps the bound.
+
 ### Open placements
 
-- A person at the page the tenant owes (a new authenticator, a set spent down to nothing) who reloads it while the set
-  just shown is unspent is refused for up to an hour, and that page has no way out, so the sign-in cannot finish until the
-  hour passes. The bound is doing what it says; whether the owed page should
-  offer a way on is the owner's call at the review of this increment.
 - The low-count warning is the next task of this increment.
