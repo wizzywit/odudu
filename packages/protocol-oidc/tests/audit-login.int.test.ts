@@ -650,11 +650,11 @@ describe('what the browser holds', () => {
     const setCookies = [signedIn.res.headers['set-cookie'] ?? []].flat();
     const valueOf = (header: string) => /^[^=]+=([^;]*)/.exec(header)?.[1] ?? '';
     const cookieValues = setCookies
-      .filter((header) => /-session=/u.test(header))
+      .filter((header) => header.includes('-session='))
       .map(valueOf)
       .filter((value) => value.length > 0);
     const deviceValues = setCookies
-      .filter((header) => /-device=/u.test(header))
+      .filter((header) => header.includes('-device='))
       .map(valueOf)
       .filter((value) => value.length > 0);
     expect(cookieValues).toHaveLength(1);
