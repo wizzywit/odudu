@@ -109,6 +109,11 @@ export const tenants = pgTable('tenants', {
   // Whether every person who signs in is asked to hold a passkey
   // (packages/db/drizzle/0133_require_passkey.sql).
   requirePasskey: boolean('require_passkey').notNull().default(false),
+  // Where a new password is checked against known breaches, and whether a
+  // check that could not finish accepts or refuses it
+  // (packages/db/drizzle/0135_breached_passwords.sql).
+  breachedCheck: text('breached_check').notNull().default('dataset'),
+  breachedOnError: text('breached_on_error').notNull().default('open'),
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),

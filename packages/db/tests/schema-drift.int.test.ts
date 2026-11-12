@@ -172,6 +172,14 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK (((recovery_code_count >= 8) AND (recovery_code_count <= 16)))',
   'tenants.tenants_recovery_warn_within_count':
     'CHECK ((recovery_code_warn_below <= recovery_code_count))',
+  'tenants.tenants_breached_check_check':
+    "CHECK ((breached_check = ANY (ARRAY['off'::text, 'dataset'::text, 'remote'::text])))",
+  'tenants.tenants_breached_on_error_check':
+    "CHECK ((breached_on_error = ANY (ARRAY['open'::text, 'closed'::text])))",
+  'breached_password_hashes.breached_password_hashes_prefix_shape':
+    "CHECK ((prefix ~ '^[0-9A-F]{5}$'::text))",
+  'breached_password_hashes.breached_password_hashes_suffix_shape':
+    "CHECK ((suffix ~ '^[0-9A-F]{35}$'::text))",
   'tenants.tenants_totp_algorithm_check':
     "CHECK ((totp_algorithm = ANY (ARRAY['SHA1'::text, 'SHA256'::text, 'SHA512'::text])))",
   'tenants.tenants_totp_digits_check': 'CHECK ((totp_digits = ANY (ARRAY[6, 8])))',

@@ -102,6 +102,10 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   // Absent from a document exported before the switch existed, which
   // imports with it off.
   require_passkey: z.boolean().default(false),
+  // Absent from a document exported before the check existed, which imports
+  // with the dataset source and a lookup that fails open.
+  breached_check: z.enum(['off', 'dataset', 'remote']).default('dataset'),
+  breached_on_error: z.enum(['open', 'closed']).default('open'),
   login_with_email: z.boolean(),
   // Absent from a document exported before the setting existed, which
   // imports with it off.

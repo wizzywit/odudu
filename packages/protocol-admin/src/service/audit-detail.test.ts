@@ -181,3 +181,18 @@ describe('the passkey switch', () => {
     ).toEqual({ require_passkey: { before: false, after: true } });
   });
 });
+
+describe('the breached-password settings', () => {
+  it('show by value, so a tenant that stops checking is on the trail', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        { breached_check: 'dataset', breached_on_error: 'open' },
+        { breached_check: 'off', breached_on_error: 'closed' },
+      ),
+    ).toEqual({
+      breached_check: { before: 'dataset', after: 'off' },
+      breached_on_error: { before: 'open', after: 'closed' },
+    });
+  });
+});

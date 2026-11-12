@@ -98,6 +98,8 @@ const DOCUMENT: TenantDocument = {
     webauthn_resident_key: 'required',
     recovery_code_count: 10,
     require_passkey: false,
+    breached_check: 'dataset',
+    breached_on_error: 'open',
     login_with_email: false,
     cimd_enabled: false,
     audit_event_types: ['admin_mutation', 'admin_access'],
@@ -262,6 +264,26 @@ describe('tenantDocumentSchema', () => {
     const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
     expect(result.success).toBe(true);
     expect(result.data?.settings.require_passkey).toBe(false);
+  });
+
+  it('imports a document from before the breached-password check with the defaults', () => {
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => !name.startsWith('breached_')),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings.breached_check).toBe('dataset');
+    expect(result.data?.settings.breached_on_error).toBe('open');
+  });
+
+  it('refuses a breached-password source nobody offers', () => {
+    for (const bad of [{ breached_check: 'always' }, { breached_on_error: 'maybe' }]) {
+      const result = tenantDocumentSchema.safeParse({
+        ...DOCUMENT,
+        settings: { ...DOCUMENT.settings, ...bad },
+      });
+      expect(result.success).toBe(false);
+    }
   });
 
   it('refuses an authenticator parameter nobody offers', () => {

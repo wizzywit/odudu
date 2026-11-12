@@ -59,8 +59,8 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
   },
   // The settings that decide who may become a client of the tenant, how fresh
   // a sign-in must be, what a new authenticator is made with, whether a
-  // passkey is required, and the wording people read: the display name and
-  // the languages. Every other setting stays out of the audit detail, as an
+  // passkey is required, where a new password is checked for breaches, and the
+  // wording people read: the display name and the languages. Every other setting stays out of the audit detail, as an
   // unlisted field does.
   tenant_settings: {
     client_registration_policy: 'value',
@@ -74,6 +74,8 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     webauthn_resident_key: 'value',
     recovery_code_count: 'value',
     require_passkey: 'value',
+    breached_check: 'value',
+    breached_on_error: 'value',
     display_name: 'value',
     supported_locales: 'value',
     default_locale: 'value',
