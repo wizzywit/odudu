@@ -125,11 +125,6 @@ export function renderVerificationResentPage(locale: PageLocale): RenderedPage {
   );
 }
 
-// What a mailed link shows on a visit, for an address to confirm and for a
-// registration that waits on it. Opening the link changes nothing: a mail
-// scanner or a link preview reads the page and the key is still good. One
-// button posts the key back, and that confirms the address (and, for a
-// registration, creates the account named on the page).
 export interface ConfirmedParty {
   readonly tenant: string;
   // The address the link proves, when the link names one.
@@ -138,6 +133,11 @@ export interface ConfirmedParty {
   readonly username: string | null;
 }
 
+// What a mailed link shows on a visit, for an address to confirm and for a
+// registration that waits on it. Opening the link changes nothing: a mail
+// scanner or a link preview reads the page and the key is still good. One
+// button posts the key back, and that confirms the address (and, for a
+// registration, creates the account named on the page).
 export function renderEmailConfirmPage(
   address: TenantAddress,
   key: string,
