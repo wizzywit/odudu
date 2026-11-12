@@ -79,6 +79,7 @@ describe('the authenticator policy', () => {
       'totp_period',
       'webauthn_user_verification',
       'webauthn_resident_key',
+      'require_passkey',
       'recovery_code_count',
       'recovery_code_warn_below',
     ]);
