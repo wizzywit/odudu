@@ -105,7 +105,7 @@ import {
 } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
 import { type DiscoveryUsecaseDeps } from '#/usecase/discovery';
-import { endSession } from '#/usecase/end-session';
+import { endOtherSessions, endSession } from '#/usecase/end-session';
 import { registerAsMetadataRoutes } from '#/view/routes/as-metadata';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
 import { registerClientRegistrationRoute } from '#/view/routes/client-registration';
@@ -1030,11 +1030,29 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         ),
       completeRecoveryCodes: (input) =>
         withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
-      completeUpdatePassword: (input, request) =>
+      completeUpdatePassword: ({ endOtherSessions: ending, ...input }, request) =>
         withTenant(
           deps.database.db,
           input.tenantId,
-          (tx) => completeUpdatePassword(tx, input),
+          (tx) =>
+            completeUpdatePassword(tx, {
+              ...input,
+              ...(ending === undefined
+                ? {}
+                : {
+                    endOtherSessions: (inTx) =>
+                      endOtherSessions(
+                        inTx,
+                        { kek: deps.kek },
+                        {
+                          tenantId: input.tenantId,
+                          subjectId: input.subjectId,
+                          now: clock.now(),
+                          ...ending,
+                        },
+                      ),
+                  }),
+            }),
           request,
         ),
     });
@@ -1354,9 +1372,11 @@ export { refreshTokens } from '#/schema/refresh-tokens';
 export { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';
 export {
   endAllAccess,
+  endOtherSessions,
   endSession,
   endSessions,
   type EndAllAccessInput,
+  type EndOtherSessionsInput,
   type EndSessionDeps,
   type EndSessionInput,
   type EndSessionsInput,

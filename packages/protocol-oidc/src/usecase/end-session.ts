@@ -122,6 +122,36 @@ export interface EndAllAccessInput {
 // not larger ones.
 const SESSIONS_PER_BATCH = 100;
 
+// Ends the subject's live sessions a batch at a time, leaving out `except`
+// when it is named. Each batch is a fixed number of statements, so a subject
+// with a great many sessions takes more rounds, not larger ones; an ended
+// session is no longer live, so the loop reads each one once.
+async function endLiveSessions(
+  tx: TenantScopedDatabase,
+  deps: EndSessionDeps,
+  input: EndAllAccessInput,
+  via: EndSessionsInput['via'],
+  except: string | undefined,
+): Promise<void> {
+  for (;;) {
+    const batch = await sessionRepository(tx).liveIdsFor(
+      input.subjectId,
+      input.now,
+      SESSIONS_PER_BATCH,
+      except,
+    );
+    if (batch.length === 0) return;
+    await endSessions(tx, deps, {
+      tenantId: input.tenantId,
+      sessionIds: batch,
+      subjectId: input.subjectId,
+      now: input.now,
+      issuer: input.issuer,
+      via,
+    });
+  }
+}
+
 // What recovering an account owes whoever else is signed in to it: every session
 // of the subject ended the way a logout ends one (grants revoked, back-channel
 // deliveries queued), then every grant left, offline ones included, revoked.
@@ -131,21 +161,22 @@ export async function endAllAccess(
   deps: EndSessionDeps,
   input: EndAllAccessInput,
 ): Promise<void> {
-  for (;;) {
-    const batch = await sessionRepository(tx).liveIdsFor(
-      input.subjectId,
-      input.now,
-      SESSIONS_PER_BATCH,
-    );
-    if (batch.length === 0) break;
-    await endSessions(tx, deps, {
-      tenantId: input.tenantId,
-      sessionIds: batch,
-      subjectId: input.subjectId,
-      now: input.now,
-      issuer: input.issuer,
-      via: 'logout',
-    });
-  }
+  await endLiveSessions(tx, deps, input, 'logout', undefined);
   await tokenGrantRepository(tx).revokeForSubject(input.subjectId, input.now);
+}
+
+export interface EndOtherSessionsInput extends EndAllAccessInput {
+  // The session the person is using, which stays; null where none exists yet.
+  readonly except: string | null;
+}
+
+// What a person who changes their own password may ask of every other place
+// they are signed in: those sessions ended the way a logout ends them, the one
+// in use left alone. Grants not bound to a session are not touched.
+export async function endOtherSessions(
+  tx: TenantScopedDatabase,
+  deps: EndSessionDeps,
+  input: EndOtherSessionsInput,
+): Promise<void> {
+  await endLiveSessions(tx, deps, input, 'self', input.except ?? undefined);
 }

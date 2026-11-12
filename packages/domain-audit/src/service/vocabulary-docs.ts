@@ -70,7 +70,8 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'email.changed':
     'A user changed their email address by proving the new one through the mailed link.',
   'password.reset': 'A password was set through a reset link.',
-  'password.changed': 'A user changed their password.',
+  'password.changed':
+    'A user changed their password. `detail.ended_other_sessions` says whether they ended their other sessions with it.',
   'otp.enrolled':
     'A user enrolled a one-time-code authenticator. `detail.notice` says whether the owner was told by mail.',
   'passkey.enrolled':

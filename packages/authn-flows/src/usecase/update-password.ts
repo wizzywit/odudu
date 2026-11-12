@@ -51,6 +51,10 @@ export interface UpdatePassword {
   // out is a wrong answer, not an exemption. Absent for the action a tenant
   // owes the subject at sign-in, which has just proved it.
   currentPassword?: string;
+  // Ends the person's other sessions once the new password is stored, in this
+  // transaction. Absent, they are left; never run for a candidate that was
+  // refused or lost a race, since no password changed.
+  endOtherSessions?: (tx: TenantScopedDatabase) => Promise<void>;
 }
 
 // A subject's password, and the candidates a reuse check has to refuse:
@@ -177,6 +181,7 @@ export async function completeUpdatePassword(
   // on a false return it is the one the other transaction set.
   await requiredActionRepository(tx).complete(input.subjectId, 'update-password');
   if (!rotated) return { kind: 'superseded' };
+  await input.endOtherSessions?.(tx);
   await auditRepository(tx).record({
     eventType: 'credential',
     action: 'password.changed',
@@ -184,6 +189,7 @@ export async function completeUpdatePassword(
     actorSubjectId: input.subjectId,
     resourceType: 'subject',
     resourceId: input.subjectId,
+    detail: { ended_other_sessions: input.endOtherSessions !== undefined },
   });
   return { kind: 'updated' };
 }

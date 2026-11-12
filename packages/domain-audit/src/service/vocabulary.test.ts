@@ -123,6 +123,25 @@ describe('assertDetailAllowed', () => {
     }).toThrow(/username/);
   });
 
+  it('accepts whether a password change ended the other sessions', () => {
+    expect(() => {
+      assertDetailAllowed('password.changed', { ended_other_sessions: true });
+      assertDetailAllowed('password.changed', { ended_other_sessions: false });
+    }).not.toThrow();
+  });
+
+  it('rejects an ended_other_sessions that is not a boolean', () => {
+    expect(() => {
+      assertDetailAllowed('password.changed', { ended_other_sessions: 'yes' });
+    }).toThrow(/ended_other_sessions/);
+  });
+
+  it('allows no ended_other_sessions on a password reset', () => {
+    expect(() => {
+      assertDetailAllowed('password.reset', { ended_other_sessions: true });
+    }).toThrow(/ended_other_sessions/);
+  });
+
   it('rejects a mode outside delegation|impersonation', () => {
     expect(() => {
       assertDetailAllowed('token.exchange', {

@@ -70,6 +70,7 @@ export const en = {
   'updatePassword.rule.superseded':
     'Your password was changed somewhere else before this form was submitted. Sign in again with the password you set there.',
   'updatePassword.currentPassword': 'Current password',
+  'updatePassword.endOtherSessions': 'End my other sessions',
   'updatePassword.rule.currentPassword': 'The current password is not correct.',
   'action.cancel': 'Cancel and go back',
   'updatePassword.requestedIntro':

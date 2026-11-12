@@ -209,9 +209,14 @@ type CredentialInput =
         | 'email.verified'
         | 'email.changed'
         | 'password.reset'
-        | 'password.changed'
         | 'recovery_codes.refused';
       readonly detail?: ReasonOnly;
+    })
+  // `detail.ended_other_sessions` says whether the change ended the person's other sessions.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'password.changed';
+      readonly detail?: WithReason<{ ended_other_sessions: boolean }>;
     })
   // `detail.notice` says whether the subject was told of the change by mail.
   | (EventCommon & {
@@ -250,6 +255,7 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'factor.offered': ['factor'],
   'client.authenticate': ['method'],
   'session.ended': ['via'],
+  'password.changed': ['ended_other_sessions'],
   'token.issue': ['grant_type', 'scope'],
   'token.refresh': ['scope'],
   'token.exchange': ['mode', 'scope', 'requested_token_type'],
@@ -303,7 +309,7 @@ function isValidDetailValue(key: string, value: unknown): boolean {
   if (key === 'also_admits') {
     return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }
-  if (key === 'user_verified') return typeof value === 'boolean';
+  if (key === 'user_verified' || key === 'ended_other_sessions') return typeof value === 'boolean';
   if (STRING_DETAIL_KEYS.has(key)) return typeof value === 'string';
   return true;
 }

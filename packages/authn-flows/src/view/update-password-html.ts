@@ -84,7 +84,7 @@ function updatePasswordPage(
     error: problemSummary(problems),
     'form.open': `<form method="post" action="${target}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
-    fields: `${current}${password.html}`,
+    fields: `${current}${password.html}\n  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> ${tHtml(locale, 'updatePassword.endOtherSessions')}</label>`,
     submit: `<button type="submit">${tHtml(locale, 'updatePassword.submit')}</button>${cancelButton(variant, locale)}`,
     'form.close': '</form>',
   };

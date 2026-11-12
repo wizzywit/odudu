@@ -1119,6 +1119,7 @@ exports[`the update-password page under the default template > renders a refused
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -1199,6 +1200,7 @@ exports[`the update-password page under the default template > renders a violati
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -1274,6 +1276,7 @@ exports[`the update-password page under the default template > renders byte-iden
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> إنهاء جلساتي الأخرى</label>
   <button type="submit">تحديث كلمة المرور</button>
 </form>
 </main>
@@ -1349,6 +1352,7 @@ exports[`the update-password page under the default template > renders byte-iden
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -1424,6 +1428,7 @@ exports[`the update-password page under the default template > renders byte-iden
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -1503,6 +1508,7 @@ exports[`the update-password page under the default template > renders every rul
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -1586,6 +1592,7 @@ exports[`the update-password page under the default template > renders hostile t
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> إنهاء جلساتي الأخرى</label>
   <button type="submit">تحديث كلمة المرور</button>
 </form>
 </main>

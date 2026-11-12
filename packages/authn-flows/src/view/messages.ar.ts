@@ -64,6 +64,7 @@ export const ar: Readonly<Record<string, string>> = {
   'updatePassword.rule.superseded':
     'تم تغيير كلمة مرورك في مكان آخر قبل إرسال هذا النموذج. سجّل الدخول مرة أخرى بكلمة المرور التي عيّنتها هناك.',
   'updatePassword.currentPassword': 'كلمة المرور الحالية',
+  'updatePassword.endOtherSessions': 'إنهاء جلساتي الأخرى',
   'updatePassword.rule.currentPassword': 'كلمة المرور الحالية غير صحيحة.',
   'action.cancel': 'إلغاء والعودة',
   'updatePassword.requestedIntro':

@@ -5,6 +5,7 @@ import {
   runMigrations,
   withTenant,
   type DatabaseHandle,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { auditRepository, type AuditEventRecord } from '@odudu/domain-audit';
 import {
@@ -138,12 +139,17 @@ function pending(account: Account): Promise<string[]> {
   );
 }
 
-function change(account: Account, password: string): Promise<UpdatePasswordOutcome> {
+function change(
+  account: Account,
+  password: string,
+  endOtherSessions?: (tx: TenantScopedDatabase) => Promise<void>,
+): Promise<UpdatePasswordOutcome> {
   return withTenant(app.db, account.tenantId, (tx) =>
     completeUpdatePassword(tx, {
       tenantId: account.tenantId,
       subjectId: account.subjectId,
       password,
+      ...(endOtherSessions === undefined ? {} : { endOtherSessions }),
     }),
   );
 }
@@ -377,6 +383,38 @@ describe('the change-password action writes one password.changed row', () => {
       resourceType: 'subject',
       resourceId: account.subjectId,
     });
+  });
+
+  it('records whether the change ended the other sessions, and ends them once', async () => {
+    const account = await seedAccount();
+    let ended = 0;
+    const end = (): Promise<void> => {
+      ended += 1;
+      return Promise.resolve();
+    };
+
+    expect(await change(account, 'second passphrase here', end)).toEqual({ kind: 'updated' });
+    expect(await change(account, 'third passphrase here')).toEqual({ kind: 'updated' });
+
+    expect(ended).toBe(1);
+    const rows = await credentialRows(account);
+    const details = rows
+      .filter((row) => row.action === 'password.changed')
+      .map((row) => row.detail);
+    expect(details).toHaveLength(2);
+    expect(details).toContainEqual({ ended_other_sessions: true });
+    expect(details).toContainEqual({ ended_other_sessions: false });
+  });
+
+  it('ends no session for a refused candidate', async () => {
+    const account = await seedAccount({ minLength: 12 });
+    let ended = 0;
+    const end = (): Promise<void> => {
+      ended += 1;
+      return Promise.resolve();
+    };
+    expect(await change(account, 'short', end)).toMatchObject({ kind: 'rejected' });
+    expect(ended).toBe(0);
   });
 
   // The other writer holds the row while this change reads the old hash and

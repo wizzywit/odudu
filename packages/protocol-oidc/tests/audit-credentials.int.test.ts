@@ -162,7 +162,12 @@ async function rowsFor(tenant: SeededTenant, posted: Posted): Promise<AuditEvent
   return (await credentialRows(tenant)).filter((row) => row.requestId === posted.requestId);
 }
 
-async function expectOneRow(tenant: SeededTenant, posted: Posted, name: string): Promise<void> {
+async function expectOneRow(
+  tenant: SeededTenant,
+  posted: Posted,
+  name: string,
+  detail: Record<string, unknown> = {},
+): Promise<void> {
   const rows = await rowsFor(tenant, posted);
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
@@ -175,7 +180,7 @@ async function expectOneRow(tenant: SeededTenant, posted: Posted, name: string):
     requestId: posted.requestId,
     ip: '127.0.0.1',
   });
-  expect(rows[0]?.detail).toEqual({});
+  expect(rows[0]?.detail).toEqual(detail);
 }
 
 // A finished enrolment carries straight on to the recovery codes it owes,
@@ -363,7 +368,7 @@ describe('changing a password the login owes', () => {
       password: candidate,
     });
     expect(changed.res.statusCode).toBe(302);
-    await expectOneRow(tenant, changed, 'password.changed');
+    await expectOneRow(tenant, changed, 'password.changed', { ended_other_sessions: false });
 
     const everything = JSON.stringify(await credentialRows(tenant));
     expect(everything).not.toContain(candidate);
@@ -382,7 +387,7 @@ describe('tenant isolation', () => {
       password: 'a considerably better passphrase than the old one',
     });
 
-    await expectOneRow(tenant, changed, 'password.changed');
+    await expectOneRow(tenant, changed, 'password.changed', { ended_other_sessions: false });
     expect(await credentialRows(other)).toEqual([]);
   });
 });

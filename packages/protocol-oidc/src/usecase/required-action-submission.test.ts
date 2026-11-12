@@ -30,6 +30,8 @@ const SUBMISSION = {
   currentPassword: undefined,
   cancel: false,
   confirm: false,
+  endOtherSessions: false,
+  issuer: 'https://idp.test/tenants/acme',
 };
 
 interface Harness {
@@ -824,5 +826,69 @@ describe('handleRequiredActionSubmission — an action an application requested'
     );
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+  });
+});
+
+describe('handleRequiredActionSubmission — ending the other sessions on a password change', () => {
+  const CHANGE = { ...SUBMISSION, action: 'update-password', password: 'correct horse battery' };
+
+  function owing() {
+    const made = harness();
+    made.pendingActions.mockResolvedValue(['update-password']);
+    return made;
+  }
+
+  it('asks for the other sessions to end when the box was checked', async () => {
+    const { deps, completeUpdatePassword } = owing();
+    await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...CHANGE, endOtherSessions: true },
+      REQUEST,
+    );
+    expect(completeUpdatePassword).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endOtherSessions: { except: null, issuer: 'https://idp.test/tenants/acme' },
+      }),
+      REQUEST,
+    );
+  });
+
+  it('leaves the other sessions when the box was not checked or the field is absent', async () => {
+    const { deps, completeUpdatePassword } = owing();
+    await handleRequiredActionSubmission(deps, 'acme', CHANGE, REQUEST);
+    expect(completeUpdatePassword).toHaveBeenCalledTimes(1);
+    expect(completeUpdatePassword.mock.calls[0]?.[0]).not.toHaveProperty('endOtherSessions');
+  });
+
+  it('spares the session this change is made from', async () => {
+    const { deps, completeUpdatePassword, loadPendingRequest } = owing();
+    loadPendingRequest.mockResolvedValue({
+      reuseSessionId: 'session-in-use',
+      reuseAuthTime: '2026-10-01T12:00:00.000Z',
+    });
+    await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...CHANGE, endOtherSessions: true },
+      REQUEST,
+    );
+    expect(completeUpdatePassword).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endOtherSessions: { except: 'session-in-use', issuer: 'https://idp.test/tenants/acme' },
+      }),
+      REQUEST,
+    );
+  });
+
+  it('asks nothing of a submission for another action', async () => {
+    const { deps, completeTotpEnrolment } = harness();
+    await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, endOtherSessions: true },
+      REQUEST,
+    );
+    expect(completeTotpEnrolment.mock.calls[0]?.[0]).not.toHaveProperty('endOtherSessions');
   });
 });
