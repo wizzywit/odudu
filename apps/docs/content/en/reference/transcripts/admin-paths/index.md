@@ -48,6 +48,7 @@ How they were captured is in [How the transcripts are captured and checked](../.
 - [DELETE /subjects/:id/credentials/:credentialId](./delete-subjectsidcredentialscredentialid.md)
 - [DELETE /subjects/:id/recovery-codes](./delete-subjectsidrecovery-codes.md)
 - [GET /subjects/:id/consents and DELETE…](./get-subjectsidconsents-and-delete-subjectsidconsentsclientid.md)
+- [A subject's accepted terms: read](./get-subjectsidterms-acceptances.md)
 - [GET /subjects/:id/lockout](./get-subjectsidlockout.md)
 - [DELETE /subjects/:id/lockout](./delete-subjectsidlockout.md)
 - [DELETE /lockouts](./delete-lockouts.md)

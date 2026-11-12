@@ -1,12 +1,12 @@
 ---
 title: An address, a profile and the terms at sign-in
-description: A tenant asks a person to verify their email address, fill in their profile and accept its terms before a sign-in completes, and an application may start the first two.
+description: A tenant asks a person to verify an address, fill in a profile and accept terms before a sign-in ends; an application may start two of these.
 ---
 
 # An address, a profile and the terms at sign-in
 
 Three required actions ask more of a person than a credential does. `verify-email` asks them to prove the address on file, with
-a link mailed to it. `update-profile` asks them to fill in every profile field that is still empty. `accept-terms` asks them to
+a link mailed to it. `update-profile` asks them to fill in the profile fields the tenant requires. `accept-terms` asks them to
 accept the tenant's terms at the version in force. An administrator owes them to a person with `PUT /admin/tenants/<name>/subjects/<id>/required-actions`,
 and a sign-in asks for them after the password, in this order among the rest: `verify-email`, `update-password`, `configure-totp`,
 `configure-passkey`, `generate-recovery-codes`, `update-profile` and `accept-terms`. The page of each has no way out while the
@@ -68,16 +68,16 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$BASE/admin/tenants/more-demo/
 ```
 
 ```
-{"created":true,"tenant":"more-demo","tenantId":"01a1d1ba-9b10-7af0-830d-b1847b070b60","clientId":"demo-spa","userSubjectId":"01a1d1ba-9be0-7eef-a1ee-0773a009dcf4"}
-{"command":"user","tenant":"more-demo","tenantId":"01a1d1ba-9b10-7af0-830d-b1847b070b60","username":"lin","userSubjectId":"01a1d1ba-9dc7-721a-931e-c07541c323bd"}
-{"command":"client","created":true,"tenant":"more-demo","tenantId":"01a1d1ba-9b10-7af0-830d-b1847b070b60","clientId":"profile-app","clientDbId":"01a1d1ba-9f6c-7765-8a5d-9c66e86936d7"}
+{"created":true,"tenant":"more-demo","tenantId":"01a1d202-aa3c-7470-b30e-0494d8902d94","clientId":"demo-spa","userSubjectId":"01a1d202-aadf-79f5-a8b2-bb9c647a6a1c"}
+{"command":"user","tenant":"more-demo","tenantId":"01a1d202-aa3c-7470-b30e-0494d8902d94","username":"lin","userSubjectId":"01a1d202-acb5-7ef7-9ef0-183016b546bc"}
+{"command":"client","created":true,"tenant":"more-demo","tenantId":"01a1d202-aa3c-7470-b30e-0494d8902d94","clientId":"profile-app","clientDbId":"01a1d202-aeb7-7d10-bb98-d453006afd5c"}
 {"client_id":"profile-app","allowed_actions":["verify-email","update-profile"]}
 ```
 
 ## What an administrator cannot owe
 
-An action that cannot be done is refused when it is owed, with a `409` whose `type` says why, rather than left to fail at the next
-sign-in. `lin` has no address to verify, and the tenant has no terms yet, so `accept-terms` is refused for `grace`:
+An action that cannot be done is refused when it is added to a person's list, with a `409` whose `type` says why, rather than left to
+fail at the next sign-in. `lin` has no address to verify, and the tenant has no terms yet, so `accept-terms` is refused for `grace`:
 
 ```bash
 GRACE=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$BASE/admin/tenants/more-demo/subjects?username=grace" | jq -r '.items[0].id')
@@ -94,49 +94,55 @@ put $GRACE '["accept-terms"]'
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a1d1ba-a602-78bf-b8b6-04f94702a37b
+x-request-id: 01a1d202-bb60-7e5b-b91f-de3ff63a910a
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 189
-Date: Thu, 12 Nov 2026 21:47:12 GMT
+Date: Thu, 12 Nov 2026 23:05:56 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank#no-email","title":"Conflict","status":409,"detail":"the subject has no email address, so verify-email cannot be owed","instance":"01a1d1ba-a602-78bf-b8b6-04f94702a37b"}
+{"type":"about:blank#no-email","title":"Conflict","status":409,"detail":"the subject has no email address, so verify-email cannot be owed","instance":"01a1d202-bb60-7e5b-b91f-de3ff63a910a"}
 HTTP/1.1 409 Conflict
-x-request-id: 01a1d1ba-a62f-79b1-ba80-03c5aa4fef30
+x-request-id: 01a1d202-bba2-78e2-b8c7-869ab7783e8a
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 231
-Date: Thu, 12 Nov 2026 21:47:12 GMT
+Date: Thu, 12 Nov 2026 23:05:56 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank#terms-not-configured","title":"Conflict","status":409,"detail":"the tenant has no terms_uri, so accept-terms cannot be owed; set it with PATCH /settings first","instance":"01a1d1ba-a62f-79b1-ba80-03c5aa4fef30"}
+{"type":"about:blank#terms-not-configured","title":"Conflict","status":409,"detail":"the tenant has no terms_uri, so accept-terms cannot be owed; set it with PATCH /settings first","instance":"01a1d202-bba2-78e2-b8c7-869ab7783e8a"}
 ```
 
 The terms are two tenant settings, `terms_uri` and `terms_version`; setting them asks nobody. The address has to be https (or http
-to this machine) and carry no fragment. With them set, all three are owed to `grace`, and the list is read back sorted by name:
+to this machine), of a bounded length, with no fragment and no credentials in it. The profile asks for the claims in a third
+setting, `required_profile_fields`, which is `given_name` and `family_name` until it is changed; here `birthdate` is added. With the
+terms set, all three actions are owed to `grace`, and the list is read back sorted by name:
 
 ```bash
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"terms_uri":"https://example.com/terms","terms_version":"2026-01"}' "$BASE/admin/tenants/more-demo/settings" \
-  | jq -c '{terms_uri, terms_version}'
+  | jq -c '{terms_uri, terms_version, required_profile_fields}'
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"terms_uri":"http://example.com/terms"}' "$BASE/admin/tenants/more-demo/settings" | jq -c .
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"required_profile_fields":["given_name","family_name","birthdate"]}' "$BASE/admin/tenants/more-demo/settings" \
+  | jq -c '{required_profile_fields}'
 put $GRACE '["accept-terms","update-profile","verify-email"]'
 ```
 
 ```
-{"terms_uri":"https://example.com/terms","terms_version":"2026-01"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"1 tenant setting(s) outside the permitted range, listed under errors","errors":[{"path":"terms_uri","message":"must be an https address, or an http one to this machine, with no fragment"}],"instance":"01a1d1ba-a660-7f28-b4c2-fbe035d4d2cf"}
+{"terms_uri":"https://example.com/terms","terms_version":"2026-01","required_profile_fields":["given_name","family_name"]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"1 tenant setting(s) outside the permitted range, listed under errors","errors":[{"path":"terms_uri","message":"must be an https address, or an http one to this machine, of up to 2048 characters, with no fragment and no credentials in it"}],"instance":"01a1d202-bc21-737e-b88d-d9d722b505a4"}
+{"required_profile_fields":["given_name","family_name","birthdate"]}
 HTTP/1.1 200 OK
-x-request-id: 01a1d1ba-a687-7aad-a45d-afdf3f7c20c8
+x-request-id: 01a1d202-bc7d-7935-854c-121da8523a1d
 cache-control: no-store
 etag: "3c95abeefed1547300c92fafd42865cf075b9f54e2a070978ecb8418a80d0f6b"
 content-type: application/json; charset=utf-8
 content-length: 60
-Date: Thu, 12 Nov 2026 21:47:12 GMT
+Date: Thu, 12 Nov 2026 23:05:57 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -253,63 +259,71 @@ t
 ## The profile
 
 Back at the page she was left on, `grace` says she has verified it. Nothing is owed of that action any more, and the sign-in
-carries on to the next one: the profile. The form lists every profile field a person can edit through `PATCH /me/profile`, in the
-order the form lays them out (the username is there only where the tenant lets one change), each with what the person holds:
+carries on to the next one: the profile. The form lists every profile field a person can edit through `PATCH /me/profile` (the
+username is there only where the tenant lets one change), each with what the person holds, and marks the ones the tenant requires.
+The block lists the marked ones and counts the fields that carry a value attribute, which is every field of the form:
 
 ```bash
 step "required-action?action=verify-email"
 shown
-grep -o '<input type="[a-z]*" name="[a-z_]*"' step.html | grep -v auth_session_id | sed 's/<input type="\([a-z]*\)" name="\([a-z_]*\)"/\2 (\1)/' | tr '\n' ' '; echo
+grep -o '<label>[^<]*(required) <input type="[a-z]*" name="[a-z_]*"' step.html | sed 's/<label>//;s/ <input type="[a-z]*" name="\([a-z_]*\)"/ [\1]/'
+grep -c '<input type="[a-z]*" name="[a-z_]*" value' step.html
 ```
 
 ```
 status: 200
 page: Complete your profile
 cancel control: no
-name (text) given_name (text) family_name (text) middle_name (text) nickname (text) preferred_username (text) profile (url) picture (url) website (url) gender (text) birthdate (text) zoneinfo (text) locale (text) phone_number (tel) address_formatted (text) address_street (text) address_locality (text) address_region (text) address_postal_code (text) address_country (text)
+Given name (required) [given_name]
+Family name (required) [family_name]
+Birthdate (required) [birthdate]
+21
 ```
 
-The form is done when each field that was empty has a value the me API would accept. Left with the birthdate empty, it comes back
-with every problem at once, the field marked invalid, and what was typed kept:
+The form is done when each required field has a value. Left without the birthdate, it comes back with the problem, the field marked
+invalid, and nothing written; the last line is the stored name and given name, both still empty:
 
 ```bash
 FIELDS=(--data-urlencode "name=Grace Hopper" --data-urlencode given_name=Grace --data-urlencode family_name=Hopper --data-urlencode middle_name=Brewster --data-urlencode nickname=Amazing --data-urlencode preferred_username=grace --data-urlencode profile=https://example.com/grace --data-urlencode picture=https://example.com/grace.png --data-urlencode website=https://example.com --data-urlencode gender=female --data-urlencode zoneinfo=America/New_York --data-urlencode locale=en-US --data-urlencode phone_number=+12025550123 --data-urlencode "address_formatted=1 Navy Way" --data-urlencode "address_street=1 Navy Way" --data-urlencode address_locality=Arlington --data-urlencode address_region=Virginia --data-urlencode address_postal_code=22202 --data-urlencode address_country=US)
-step "required-action?action=update-profile" "${FIELDS[@]}"
+step "required-action?action=update-profile" --data-urlencode "name=Grace Hopper" --data-urlencode given_name=Grace --data-urlencode family_name=Hopper
 shown
-grep -o '<li id="form-error-0">[^<]*' step.html | sed 's/<li id="form-error-0">//'
+grep -o '<li id="form-error-[0-9]*">[^<]*' step.html | sed 's/<li id="form-error-[0-9]*">//'
 grep -o '<input[^>]*name="birthdate"[^>]*>' step.html
-grep -o '<input[^>]*name="name"[^>]*>' step.html
+psql -At -c "select name, given_name from users where subject_id = '$GRACE'"
 ```
 
 ```
 status: 400
 page: Complete your profile
 cancel control: no
-Fill in every field.
+Fill in the required fields.
 <input type="text" name="birthdate" value="" autocomplete="bday" aria-invalid="true" aria-describedby="form-error-0">
-<input type="text" name="name" value="Grace Hopper" autocomplete="name">
-```
-
-A value the me API would refuse is refused the same way, naming the field, and nothing is written, so the name she typed is not
-stored yet:
-
-```bash
-step "required-action?action=update-profile" "${FIELDS[@]}" --data-urlencode birthdate=12/09/1906
-shown
-grep -o '<li id="form-error-0">[^<]*' step.html | sed 's/<li id="form-error-0">//'
-psql -At -c "select name, birthdate from users where subject_id = '$GRACE'"
-```
-
-```
-status: 400
-page: Complete your profile
-cancel control: no
-Birthdate must be a date as YYYY-MM-DD, or a year as YYYY.
 |
 ```
 
-With every field filled, the profile is written in one transaction. A field the form was not asked for is ignored: the `email` and
-`unknown` fields below change nothing, and the address stays the one held. The next page is the terms:
+Every value is judged as the me API judges it, and every refusal is named at once, not one for each round trip. The three bad values
+below are all named, and nothing is written:
+
+```bash
+step "required-action?action=update-profile" --data-urlencode given_name=Grace --data-urlencode family_name=Hopper \
+  --data-urlencode birthdate=12/09/1906 --data-urlencode zoneinfo=+1 --data-urlencode website=ftp://example.com
+shown
+grep -o '<li id="form-error-[0-9]*">[^<]*' step.html | sed 's/<li id="form-error-[0-9]*">//'
+psql -At -c "select name, given_name, birthdate from users where subject_id = '$GRACE'"
+```
+
+```
+status: 400
+page: Complete your profile
+cancel control: no
+Website must be an address starting with http:// or https://.
+Birthdate must be a date as YYYY-MM-DD, or a year as YYYY.
+Time zone must be a time zone name such as Europe/London.
+||
+```
+
+With the required fields filled and every value good, the profile is written in one transaction. A field the form was not asked for
+is ignored: the `email` and `unknown` fields below change nothing, and the address stays the one held. The next page is the terms:
 
 ```bash
 step "required-action?action=update-profile" "${FIELDS[@]}" --data-urlencode birthdate=1906-12-09 --data-urlencode email=other@example.com --data-urlencode unknown=ignored
@@ -331,14 +345,15 @@ Grace Hopper|1906-12-09|grace@example.com|US
 
 ## The terms
 
-The terms page links the terms with `rel="noopener noreferrer"` and `target="_blank"`, names the version and has one box. A box left
-unticked comes back with the reason:
+The terms page links the terms with `rel="noopener noreferrer"` and `target="_blank"`, names the version, carries the version it shows
+in a hidden field and has one box. A box left unticked comes back with the reason:
 
 ```bash
 grep -o '<a href="[^"]*"[^>]*>[^<]*</a>' step.html
 grep -o '(Version <bdi>[^<]*</bdi>)' step.html
+grep -o '<input type="hidden" name="version"[^>]*>' step.html
 grep -c 'type="checkbox"' step.html
-step "required-action?action=accept-terms"
+step "required-action?action=accept-terms" --data-urlencode version=2026-01
 shown
 grep -o '<li id="form-error-0">[^<]*' step.html | sed 's/<li id="form-error-0">//'
 ```
@@ -346,6 +361,7 @@ grep -o '<li id="form-error-0">[^<]*' step.html | sed 's/<li id="form-error-0">/
 ```
 <a href="https://example.com/terms" rel="noopener noreferrer" target="_blank">Read the terms</a>
 (Version <bdi>2026-01</bdi>)
+<input type="hidden" name="version" value="2026-01">
 1
 status: 400
 page: Accept the terms
@@ -353,11 +369,38 @@ cancel control: no
 Tick the box to accept the terms and continue.
 ```
 
-Ticking it records the version in force at that moment, with the time, clears the action, and the sign-in completes. The audit trail
-has the two writes: the profile fields that changed (their names, never their values) and the acceptance with its version:
+The page recorded nothing about the version it showed until the box is ticked, and it is ticked for the version the person saw. If an
+administrator changes the version while the page is open, the form that comes back names the old one: the page is shown again at the
+version now in force, says so, and records nothing:
 
 ```bash
-step "required-action?action=accept-terms" --data-urlencode accept=true
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"terms_version":"2026-02"}' "$BASE/admin/tenants/more-demo/settings" | jq -c '{terms_version}'
+step "required-action?action=accept-terms" --data-urlencode accept=true --data-urlencode version=2026-01
+shown
+grep -o '<li id="form-error-0">[^<]*' step.html | sed 's/<li id="form-error-0">//'
+grep -o '(Version <bdi>[^<]*</bdi>)' step.html
+psql -c "select count(*) as accepted from subject_terms_acceptances where subject_id = '$GRACE'"
+```
+
+```
+{"terms_version":"2026-02"}
+status: 400
+page: Accept the terms
+cancel control: no
+The terms changed while this page was open. Read the new version, and accept it if you agree.
+(Version <bdi>2026-02</bdi>)
+ accepted
+----------
+        0
+(1 row)
+```
+
+Ticking the box for the version shown records it, with the time, clears the action, and the sign-in completes. The audit trail has
+the two writes: the profile fields that changed (their names, never their values) and the acceptance with its version:
+
+```bash
+step "required-action?action=accept-terms" --data-urlencode accept=true --data-urlencode version=2026-02
 back | sed 's/code=[^&]*/code=CODE/'
 psql -c "select version, accepted_at is not null as recorded from subject_terms_acceptances where subject_id = '$GRACE'"
 psql -c "select action from user_required_actions where subject_id = '$GRACE'"
@@ -368,7 +411,7 @@ psql -At -c "select action, detail from audit_events where tenant_id = (select i
 location: http://127.0.0.1:8080/callback?code=CODE&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fmore-demo
  version | recorded
 ---------+----------
- 2026-01 | t
+ 2026-02 | t
 (1 row)
 
  action
@@ -376,7 +419,50 @@ location: http://127.0.0.1:8080/callback?code=CODE&state=s&iss=http%3A%2F%2Floca
 (0 rows)
 
 subject.profile_amend|{"via": "required_action", "fields": [...]}
-terms.accepted|{"version": "2026-01"}
+terms.accepted|{"version": "2026-02"}
+```
+
+The terms change again, and the action is owed again. A person who has accepted one version is asked for the next when an
+administrator says so, and not before. The administrator reads what `grace` accepted, newest first, on
+[the route that lists it](../admin-paths/get-subjectsidterms-acceptances.md):
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"terms_version":"2026-03"}' "$BASE/admin/tenants/more-demo/settings" | jq -c '{terms_version}'
+put $GRACE '["accept-terms"]' | tail -1
+rm -f jar
+authorize profile-app ""
+step authenticate --data-urlencode username=grace --data-urlencode password=correct-horse-battery
+shown
+step "required-action?action=accept-terms" --data-urlencode accept=true --data-urlencode version=2026-03
+back | sed 's/code=[^&]*/code=CODE/'
+```
+
+```
+{"terms_version":"2026-03"}
+{"actions":["accept-terms"]}
+status: 200
+page: Accept the terms
+cancel control: no
+location: http://127.0.0.1:8080/callback?code=CODE&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fmore-demo
+```
+
+```bash
+S=$BASE/admin/tenants/more-demo/subjects
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $S/$GRACE/terms-acceptances
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1d202-d3f2-7d80-82c3-15f504080474
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 137
+Date: Thu, 12 Nov 2026 23:06:03 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"version":"2026-03","accepted_at":"2026-11-12T23:06:02.355Z"},{"version":"2026-02","accepted_at":"2026-11-12T23:06:01.045Z"}]}
 ```
 
 ## An application starting an action
