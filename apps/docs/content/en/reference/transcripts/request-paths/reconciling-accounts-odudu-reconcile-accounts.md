@@ -15,37 +15,45 @@ operator runs this command first.
 **What ran before.** A freshly built compose stack (`ODUDU_REAP_ENABLED=false`,
 `ODUDU_OUTBOX_ENABLED=false`), driven only as far as this page shows: no administrator
 was seeded and no one signed in. Tenant `recon-demo` was made with `odudu seed tenant`,
-and then seven users, one `odudu seed user` each with the password `a long passphrase
-for the demo 41` and the address on the right, a second apart so that their creation
-times differ:
+and then eleven users, one `odudu seed user` each with the password `a long passphrase
+for the demo 41` and the address shown below, a second apart so that their creation
+times differ (`--email-verified` where the table below says so):
 
 ```bash
 odudu seed tenant --name recon-demo
-odudu seed user --tenant recon-demo --username grace    --password "$PW" --email Grace@Example.com
-odudu seed user --tenant recon-demo --username grace2   --password "$PW" --email grace@example.com
+odudu seed user --tenant recon-demo --username grace    --password "$PW" --email Grace@Example.com --email-verified
+odudu seed user --tenant recon-demo --username grace2   --password "$PW" --email grace@example.com --email-verified
 odudu seed user --tenant recon-demo --username lin      --password "$PW" --email Lin@Example.com
 odudu seed user --tenant recon-demo --username lin-work --password "$PW" --email lin@example.com --email-verified
-odudu seed user --tenant recon-demo --username heidi    --password "$PW" --email Heidi@Example.com
-odudu seed user --tenant recon-demo --username heidi2   --password "$PW" --email heidi@example.com
+odudu seed user --tenant recon-demo --username heidi    --password "$PW" --email Heidi@Example.com --email-verified
+odudu seed user --tenant recon-demo --username heidi2   --password "$PW" --email heidi@example.com --email-verified
+odudu seed user --tenant recon-demo --username ivan     --password "$PW" --email Ivan@Example.com
+odudu seed user --tenant recon-demo --username ivan2    --password "$PW" --email ivan@example.com
+odudu seed user --tenant recon-demo --username judy     --password "$PW" --email Judy@Example.com --email-verified
+odudu seed user --tenant recon-demo --username judy2    --password "$PW" --email judy@example.com
 odudu seed user --tenant recon-demo --username solo     --password "$PW" --email solo@example.com
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"recon-demo","tenantId":"01a1d167-67b1-7e36-9e3e-d4714feaafc8"}
+{"command":"tenant","created":true,"tenant":"recon-demo","tenantId":"01a1d17b-db18-796d-a70b-ba17f4d30a73"}
 ```
 
 Each `seed user` prints one line of JSON naming the user, left out here. The page does
-not run a sign-in, so the evidence of one is written with `psql`: a session for `grace2`,
-and a first use of each credential of `heidi` and `heidi2`, which is what a sign-in
-leaves behind.
+not run a sign-in, so the evidence of one is written with `psql`: a session for `heidi2`,
+and an audit row recording a successful password sign-in for `heidi` and for `judy2`. That
+audit row is what a password sign-in leaves once its session has been reaped; a password
+sign-in stamps nothing on the credential.
 
 ```bash
 psql -U odudu -d odudu -q <<'SQL'
 insert into sessions (id, tenant_id, subject_id, expires_at)
 select gen_random_uuid(), u.tenant_id, u.subject_id, now() + interval '8 hours'
-  from users u where u.username = 'grace2';
-update user_credentials set last_used_at = now()
- where subject_id in (select subject_id from users where username in ('heidi', 'heidi2'));
+  from users u where u.username = 'heidi2';
+insert into audit_events (id, tenant_id, event_type, action, outcome, actor_subject_id,
+                          resource_type, resource_id)
+select gen_random_uuid(), u.tenant_id, 'authentication', 'login.password', 'allowed',
+       u.subject_id, 'authentication_session', 'digest'
+  from users u where u.username in ('heidi', 'judy2');
 SQL
 ```
 
@@ -65,48 +73,68 @@ SQL
 ```
  username |       email       | verified | disabled | credentials | sessions
 ----------+-------------------+----------+----------+-------------+----------
- grace    | Grace@Example.com | f        | f        |           1 |        0
- grace2   | grace@example.com | f        | f        |           1 |        1
+ grace    | Grace@Example.com | t        | f        |           1 |        0
+ grace2   | grace@example.com | t        | f        |           1 |        0
  lin      | Lin@Example.com   | f        | f        |           1 |        0
  lin-work | lin@example.com   | t        | f        |           1 |        0
- heidi    | Heidi@Example.com | f        | f        |           1 |        0
- heidi2   | heidi@example.com | f        | f        |           1 |        0
+ heidi    | Heidi@Example.com | t        | f        |           1 |        0
+ heidi2   | heidi@example.com | t        | f        |           1 |        1
+ ivan     | Ivan@Example.com  | f        | f        |           1 |        0
+ ivan2    | ivan@example.com  | f        | f        |           1 |        0
+ judy     | Judy@Example.com  | t        | f        |           1 |        0
+ judy2    | judy@example.com  | f        | f        |           1 |        0
  solo     | solo@example.com  | f        | f        |           1 |        0
-(7 rows)
+(11 rows)
 ```
 
-Three groups share an address. `grace` is the oldest of its pair, `lin-work` has the
-verified address of its pair, and both `heidi` accounts have signed in.
+Five groups share an address. The pairs differ like this: `grace` and `grace2` are both
+verified and neither has signed in; `lin-work` has the verified address of its pair;
+`heidi` and `heidi2` are both verified and both have signed in; `ivan` and `ivan2` are
+both unverified; `judy` is verified and `judy2` is not and has signed in.
 
 ## A dry run
 
-`--dry-run` reads and plans and writes nothing. The report says how many groups it found,
-how many it would merge, and each group it refuses, by tenant and subject id. Addresses
-are never printed.
+`--dry-run` reads and plans and writes nothing. It prints one line for each pair it would
+merge, with the address that would be cleared, and then a report that counts the groups
+and lists each group it refuses by tenant, reason and subject id.
 
 ```bash
 odudu reconcile-accounts --dry-run
 ```
 
 ```
-{"dry_run":true,"tenants":1,"groups":3,"merged":0,"would_merge":2,"accounts_retired":0,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0},"refused":1,"failed":0,"refusals":[{"tenant_id":"01a1d167-67b1-7e36-9e3e-d4714feaafc8","reason":"several_have_sign_ins","subject_ids":["01a1d167-81b7-7c79-ac79-534ef4a54a2e","01a1d167-8765-7752-be71-54334905006f"]}],"failures":[]}
+{"event":"would_merge","tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","survivor":"01a1d17b-dd31-749a-b6a6-3058b7b94a25","loser":"01a1d17b-e311-7903-9f27-fa96caa87b2c","former_address":"grace@example.com","carried_over":true,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0}}
+{"event":"would_merge","tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","survivor":"01a1d17b-ef55-7dc0-899b-607939fcb5dd","loser":"01a1d17b-e8e7-74eb-aa8b-95c307a676c6","former_address":"Lin@Example.com","carried_over":false,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0}}
+{"dry_run":true,"tenants":1,"groups":5,"merged":0,"would_merge":2,"accounts_retired":0,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0},"refused":3,"failed":0,"refusals":[{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"several_have_sign_ins","subject_ids":["01a1d17b-f519-7c5e-a9e2-7803c7321edf","01a1d17b-fb00-7fb0-8cd7-429b62837044"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"no_verified_account","subject_ids":["01a1d17c-00b4-73ec-b2ce-0495675b36ec","01a1d17c-0718-7744-bd2e-3e1406a4322a"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"unverified_account_has_sign_ins","subject_ids":["01a1d17c-0cdd-7d3e-b8af-03267b4b8dda","01a1d17c-12ab-789d-9ab4-0f988fcc4797"]}],"failures":[]}
 ```
 
-Two groups would merge. The third is refused with `several_have_sign_ins`: both `heidi`
-accounts have signed in, so nothing says which of them is the person. The same query as
-above shows the dry run changed nothing:
+Two pairs would merge, and the other three groups are refused:
+
+- `several_have_sign_ins`: `heidi` has signed in by an audit row alone and `heidi2` by a
+  session, so nothing says which of them is the person.
+- `no_verified_account`: `ivan` and `ivan2` are both unverified, so nothing says which
+  person proved the address.
+- `unverified_account_has_sign_ins`: `judy2` is unverified and has signed in, so merging
+  it into the verified `judy` would lock out someone the command cannot tell from a
+  squatter.
+
+The same query as above shows the dry run changed nothing:
 
 ```
  username |       email       | verified | disabled | credentials | sessions
 ----------+-------------------+----------+----------+-------------+----------
- grace    | Grace@Example.com | f        | f        |           1 |        0
- grace2   | grace@example.com | f        | f        |           1 |        1
+ grace    | Grace@Example.com | t        | f        |           1 |        0
+ grace2   | grace@example.com | t        | f        |           1 |        0
  lin      | Lin@Example.com   | f        | f        |           1 |        0
  lin-work | lin@example.com   | t        | f        |           1 |        0
- heidi    | Heidi@Example.com | f        | f        |           1 |        0
- heidi2   | heidi@example.com | f        | f        |           1 |        0
+ heidi    | Heidi@Example.com | t        | f        |           1 |        0
+ heidi2   | heidi@example.com | t        | f        |           1 |        1
+ ivan     | Ivan@Example.com  | f        | f        |           1 |        0
+ ivan2    | ivan@example.com  | f        | f        |           1 |        0
+ judy     | Judy@Example.com  | t        | f        |           1 |        0
+ judy2    | judy@example.com  | f        | f        |           1 |        0
  solo     | solo@example.com  | f        | f        |           1 |        0
-(7 rows)
+(11 rows)
 ```
 
 ## The run
@@ -116,36 +144,46 @@ odudu reconcile-accounts
 ```
 
 ```
-{"dry_run":false,"tenants":1,"groups":3,"merged":2,"would_merge":0,"accounts_retired":2,"moved":{"credentials":0,"sessions":1,"grants":0,"consents":0},"refused":1,"failed":0,"refusals":[{"tenant_id":"01a1d167-67b1-7e36-9e3e-d4714feaafc8","reason":"several_have_sign_ins","subject_ids":["01a1d167-81b7-7c79-ac79-534ef4a54a2e","01a1d167-8765-7752-be71-54334905006f"]}],"failures":[]}
+{"event":"merged","tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","survivor":"01a1d17b-dd31-749a-b6a6-3058b7b94a25","loser":"01a1d17b-e311-7903-9f27-fa96caa87b2c","former_address":"grace@example.com","carried_over":true,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0}}
+{"event":"merged","tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","survivor":"01a1d17b-ef55-7dc0-899b-607939fcb5dd","loser":"01a1d17b-e8e7-74eb-aa8b-95c307a676c6","former_address":"Lin@Example.com","carried_over":false,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0}}
+{"dry_run":false,"tenants":1,"groups":5,"merged":2,"would_merge":0,"accounts_retired":2,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0},"refused":3,"failed":0,"refusals":[{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"several_have_sign_ins","subject_ids":["01a1d17b-f519-7c5e-a9e2-7803c7321edf","01a1d17b-fb00-7fb0-8cd7-429b62837044"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"no_verified_account","subject_ids":["01a1d17c-00b4-73ec-b2ce-0495675b36ec","01a1d17c-0718-7744-bd2e-3e1406a4322a"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"unverified_account_has_sign_ins","subject_ids":["01a1d17c-0cdd-7d3e-b8af-03267b4b8dda","01a1d17c-12ab-789d-9ab4-0f988fcc4797"]}],"failures":[]}
 ```
 
 The command exits `0`: a refused group is the operator's to settle, and only a group that
-failed, or a run that could not start, exits `1`. Its report counts the groups found, the groups merged, the accounts retired and the rows
-moved of each kind. The same query again:
+failed, or a run that could not start, exits `1`. The same query again:
 
 ```
  username |       email       | verified | disabled | credentials | sessions
 ----------+-------------------+----------+----------+-------------+----------
- grace    | Grace@Example.com | f        | f        |           1 |        1
+ grace    | Grace@Example.com | t        | f        |           1 |        0
  grace2   |                   | f        | t        |           1 |        0
  lin      |                   | f        | t        |           1 |        0
  lin-work | lin@example.com   | t        | f        |           1 |        0
- heidi    | Heidi@Example.com | f        | f        |           1 |        0
- heidi2   | heidi@example.com | f        | f        |           1 |        0
+ heidi    | Heidi@Example.com | t        | f        |           1 |        0
+ heidi2   | heidi@example.com | t        | f        |           1 |        1
+ ivan     | Ivan@Example.com  | f        | f        |           1 |        0
+ ivan2    | ivan@example.com  | f        | f        |           1 |        0
+ judy     | Judy@Example.com  | t        | f        |           1 |        0
+ judy2    | judy@example.com  | f        | f        |           1 |        0
  solo     | solo@example.com  | f        | f        |           1 |        0
-(7 rows)
+(11 rows)
 ```
 
-- `grace2` was newer than `grace`, so `grace` stays. The session `grace2` had moved to
-  `grace`. Its password stayed on `grace2`, since `grace` has one of its own, and
-  `grace2` is disabled with its address cleared, so nothing is deleted.
-- `lin-work` has the verified address, so it stays and `lin` is retired. Nothing moved from
-  `lin`: an unverified account's credentials are not handed to the account that proved the
-  address.
-- `heidi` and `heidi2` are untouched, and `solo` was never in a group.
+- `grace` is the older of two verified accounts, so it stays and `grace2` is retired:
+  disabled, its address cleared and its pending links deleted. Nothing is deleted. The
+  line the command printed is the only record of `grace@example.com`.
+- `lin-work` has the verified address, so it stays and `lin` is retired. Nothing moved
+  from `lin`: an unverified account's credentials are not handed to the account that
+  proved the address.
+- The three refused groups are untouched. Neither of the retired accounts had signed in,
+  so no row moved. Credentials and consents move from a verified account to the survivor
+  when the survivor lacks them (a passkey always; a password only where the survivor has
+  none), which this page has no passkey or consent to show; the integration tests do.
 
-Each retired account leaves one audit row naming the one that stayed, and the rows already
-in the trail are not touched:
+Each retired account leaves one `account.reconciled` audit row naming the one that stayed
+and how many rows of each kind moved. It holds no address, and the rows already in the
+trail are not touched. A merge is not undone by enabling the account again: what moved
+stays with the survivor.
 
 ```bash
 psql -U odudu -d odudu -q <<'SQL'
@@ -154,17 +192,17 @@ select a.action, r.username as retired, s.username as survivor,
   from audit_events a
   join users r on r.subject_id::text = a.resource_id
   join users s on s.subject_id::text = a.detail->>'survivor'
- where a.action = 'subject.reconcile'
+ where a.action = 'account.reconciled'
    and a.tenant_id = (select id from tenants where name = 'recon-demo')
  order by r.username;
 SQL
 ```
 
 ```
-      action       | retired | survivor | carried_over |                             moved
--------------------+---------+----------+--------------+---------------------------------------------------------------
- subject.reconcile | grace2  | grace    | true         | {"grants": 0, "consents": 0, "sessions": 1, "credentials": 0}
- subject.reconcile | lin     | lin-work | false        | {"grants": 0, "consents": 0, "sessions": 0, "credentials": 0}
+       action       | retired | survivor | carried_over |                             moved
+--------------------+---------+----------+--------------+---------------------------------------------------------------
+ account.reconciled | grace2  | grace    | true         | {"grants": 0, "consents": 0, "sessions": 0, "credentials": 0}
+ account.reconciled | lin     | lin-work | false        | {"grants": 0, "consents": 0, "sessions": 0, "credentials": 0}
 (2 rows)
 ```
 
@@ -175,13 +213,19 @@ odudu reconcile-accounts
 ```
 
 ```
-{"dry_run":false,"tenants":1,"groups":1,"merged":0,"would_merge":0,"accounts_retired":0,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0},"refused":1,"failed":0,"refusals":[{"tenant_id":"01a1d167-67b1-7e36-9e3e-d4714feaafc8","reason":"several_have_sign_ins","subject_ids":["01a1d167-81b7-7c79-ac79-534ef4a54a2e","01a1d167-8765-7752-be71-54334905006f"]}],"failures":[]}
+{"dry_run":false,"tenants":1,"groups":3,"merged":0,"would_merge":0,"accounts_retired":0,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0},"refused":3,"failed":0,"refusals":[{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"several_have_sign_ins","subject_ids":["01a1d17b-f519-7c5e-a9e2-7803c7321edf","01a1d17b-fb00-7fb0-8cd7-429b62837044"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"no_verified_account","subject_ids":["01a1d17c-00b4-73ec-b2ce-0495675b36ec","01a1d17c-0718-7744-bd2e-3e1406a4322a"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"unverified_account_has_sign_ins","subject_ids":["01a1d17c-0cdd-7d3e-b8af-03267b4b8dda","01a1d17c-12ab-789d-9ab4-0f988fcc4797"]}],"failures":[]}
 ```
 
-A second run finds only what was refused. Settling `heidi` and `heidi2` by hand, by
-disabling one and clearing its address through `PATCH /admin/tenants/<name>/subjects/<id>`,
-leaves nothing for the command and nothing to stop the unique index.
+A second run finds only what was refused. Settle those groups by hand, for example by
+disabling one account and clearing its address through
+`PATCH /admin/tenants/<name>/subjects/<id>`, and the command has nothing left, which is what
+the later unique index needs.
+
+A sign-in is seen from a live session, a grant, a credential that was used or an audit row
+recording a successful sign-in. Audit retention and the reaper delete old rows, so a person
+whose only sign-in is older than the tenant's audit retention, with no session left, looks as
+if they never signed in. Look at a group you are unsure of before you run the command for real.
 
 The administrator's own `PATCH` refuses to put an address on a subject while another subject
-holds it in any case (`409`, as for an exact repeat), so a pair cannot be made again by
-that door.
+holds it in any case (`409`, as for an exact repeat), so a pair cannot be made again by that
+door.

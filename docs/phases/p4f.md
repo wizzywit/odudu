@@ -716,39 +716,53 @@ that never configures a step behaves as it does today.
 ### What shipped
 
 - `odudu reconcile-accounts [--dry-run]` finds, in every tenant, the accounts that hold one address apart from its case and folds
-  each group into one account. It prints one JSON report: groups found, merged, would merge (a dry run), accounts retired, the rows
-  moved by kind, and the groups refused or failed (the first hundred of each, by tenant and subject id, never by address). It exits
+  each group into one account. It prints one JSON line for each pair merged (or, on a dry run, that would be) with the former
+  address of the account that goes, which is the only place that address is written down, then one JSON report: groups found,
+  merged, would merge, accounts retired, the rows moved by kind, and the groups refused or failed (the first hundred of each, by
+  tenant and subject id, never by address). It exits
   `1` when a group failed or the run could not start, and `0` otherwise, refused groups included: a refusal is the operator's to
   settle, not a fault. A second run finds only what is left.
 - `reconcileDuplicateAccounts(db, tenantIds, now, options)` in `@odudu/protocol-admin` holds no timer. It reads a page of addresses
   (`chunkGroups`, 100 by default), merges each address in its own transaction and re-reads the group under lock, so a group that
   changed since the page was read is judged as it is now. `reconcileGroup(tx, …)` is the one-group step a test or another caller
   can run in its own transaction.
-- The audit trail gains `subject.reconcile`, one row for each retired account, resource the retired subject, `detail` naming the
-  survivor, whether anything was carried over and the counts moved. Nothing already in the trail is read or rewritten.
-- The administrator's `PATCH /subjects/{id}` now refuses an address another subject holds in another case, `409` as for an exact
-  repeat, so it compares as the verification link does. It checked nothing before: only `users_email_unique`, which compares bytes,
-  stood between `Ada@x` and `ada@x`. A subject may still change the case of its own address.
+- The audit trail gains `account.reconciled` (credential), one row for each retired account, resource the retired subject, `detail`
+  naming the survivor and the loser, whether anything was carried over and the rows moved of each kind, and no address. Existing
+  rows are not read or rewritten (a test holds them byte-identical). A merge is not mechanically reversible: the rows that moved
+  stay with the survivor and are not listed one by one.
+- A mailed link (`verify_email`, `reset_password`, `execute_actions`) for a disabled subject is refused as an expired one is
+  (`actionTokenRepository.consume` and `peek`), and the "me" API refuses an access token whose subject is disabled
+  (`admitMe`), so a token the retired account still holds stops reading at once. Before, a disabled subject's link completed and its
+  me token read until it expired.
 
-### Rulings
-
-- **The survivor** is the account with a verified address, then the oldest by creation time, then the lowest id (`chooseSurvivor`).
-- **What counts as having signed in** is what a sign-in leaves on the account: any `sessions` row, any `token_grants` row or any
-  credential with `last_used_at`. No audit row is read, so the check is three indexed existence tests for each account of a group.
-  A group where more than one account has signed in is refused whole, whatever its size.
-- **What moves, from each loser to the survivor:** the credentials (a passkey always; a password, second factor, recovery-code set
-  or retired-hash set only where the survivor holds none of that kind, and the time the recovery set was made goes with it),
-  `sessions`, `token_grants` (refresh tokens follow their grant) and consents for a client the survivor has none for. What stays on
-  the loser: roles, groups and required actions, so that administrative standing is never handed to another account by a merge,
-  and the short-lived rows (action tokens, authorization codes, console sessions, pending changes), which the reaper clears.
-- **An unverified account never hands what it set up to a verified one.** Whoever made it never proved the address, so a password
-  or a session moved onto the account that did would let them in. With a verified survivor, an unverified loser is retired with
-  nothing moved; if it has signed in, the group is refused (`unverified_account_has_sign_ins`) because retiring it would lock out
-  a person the command cannot tell from a squatter. Both unverified, or both verified, carry over.
+- **What counts as having signed in** is any of: a `sessions` row, a `token_grants` row, a credential with `last_used_at`, or an
+  audit row with `outcome` `allowed`, the account as actor and the action `login.password`, `login.otp`, `login.recovery_code`,
+  `login.passkey` or `session.created`. The first three are what a sign-in leaves live, but a password sign-in stamps no credential
+  and the reaper deletes expired sessions and grants, so a person who only ever used a password was invisible without the audit
+  probe. The probe is one `exists` on `audit_events_actor` for each account of a group, stopping at its first match
+  (asserted in `reconcile-plans.int.test.ts`). **The limit that remains:** audit retention can delete an old sign-in, so a person
+  who last signed in with a password longer ago than the tenant's `audit_retention_days`, and holds no live session, grant or used
+  credential, looks as if they never signed in. The rule is in `hasSignedIn` (service) and the evidence is read in one place
+  (`lockAccounts`).
+- **The group is refused, and nothing moves,** when more than one account has signed in (`several_have_sign_ins`), when none has a
+  verified address (`no_verified_account`: nothing says which person proved the address) and when an unverified account has signed
+  in while another is verified (`unverified_account_has_sign_ins`). An operator settles those by hand.
+- **The survivor** is the account with a verified address, then, where exactly one has signed in, that one, then the oldest by
+  creation time, then the lowest id (`chooseSurvivor`). The middle step refines the spec's "verified, then oldest" only where
+  evidence exists: the account a person actually uses survives, so their password stays usable and the merge cannot lock them out
+  of it. With no evidence anywhere it is the spec's rule.
+- **What moves, from each verified loser to the survivor:** the credentials (a passkey always; a password, second factor,
+  recovery-code set or retired-hash set only where the survivor holds none of that kind, and the time the recovery set was made
+  goes with it), `sessions`, `token_grants` (refresh tokens follow their grant) and consents for a client the survivor has none
+  for. Because the account that has signed in survives, sessions and grants move only in a race; the code keeps the spec's move.
+  What an unverified loser had is not moved (it is only retired, and only when it has not signed in).
+- **What is left on the loser on purpose:** roles, groups and required actions (administrative standing is never handed over by
+  a merge); `login_failures` (lockout state of a disabled account, harmless and reaped); `authentication_sessions` in flight (the
+  sign-in checks the account is enabled before it completes); authorization codes, console sessions (short-lived, reaped). What is
+  deleted at the merge: the loser's `pending_email_changes` row and its `action_tokens`, so no link mailed for it can complete.
 - **What becomes of the loser:** disabled (`subjects.disabled_at`, the one switch an administrator uses) and its address cleared
-  (`users.email` null, so `email_search` is null and it stops colliding). Nothing is deleted, so a mistake is undone by an
-  administrator restoring the address and enabling the account, and the case of its old address is lost only where the survivor
-  holds the same address. The former address is not copied into the audit row, which keeps no address anywhere else either.
+  (`users.email` null, so `email_search` is null and it stops colliding). Nothing is deleted. An administrator can set an address
+  and enable it again, but that does not take back what moved to the survivor. The former address is in the command's output only.
 - **Failure:** a group whose transaction fails is rolled back whole (a trigger that refuses the consent update in the test leaves
   its credentials, sessions and address as they were), counted, and the run goes on; the report carries the error's kind and
   database code and never its message, which quotes an address.
@@ -777,7 +791,7 @@ migration back, which is what the order is for. `docs/NEXT.md` and `RELEASING.md
   accounts each. A tenant with no duplicate costs one pass over its own index entries and nothing else; the command visits tenants
   in id order, a page of 500 at a time.
 - A group of `n` accounts is a constant number of statements for each account: a lock read by `users_email_search` and the
-  subjects primary key, then at most six updates by `tenant_id`, `subject_id` on `sessions_by_subject`, `token_grants_by_subject`,
+  subjects primary key (with, for each account, the four existence probes, the audit one on `audit_events_actor`), then at most six updates by `tenant_id`, `subject_id` on `sessions_by_subject`, `token_grants_by_subject`,
   `user_credentials_by_subject` and the consents key.
 
 ### Open placements
