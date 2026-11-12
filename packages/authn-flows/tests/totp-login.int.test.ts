@@ -115,7 +115,7 @@ async function enrol(
   clock: FakeClock,
 ): Promise<{ secret: string }> {
   const offer = await withTenant(app.db, tenantId, (tx) =>
-    beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+    beginTotpEnrolment(tx, tenantId, `tenant-${tenantId}`, subjectId),
   );
   const outcome = await withTenant(app.db, tenantId, (tx) =>
     completeTotpEnrolment(
@@ -227,7 +227,7 @@ describe('a tenant that requires a second factor collects it as a required actio
     );
 
     const offer = await withTenant(app.db, tenantId, (tx) =>
-      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+      beginTotpEnrolment(tx, tenantId, `tenant-${tenantId}`, subjectId),
     );
     const code = totpCode(offer.secret, totpCounter(clock.now()));
     const enrolled = await withTenant(app.db, tenantId, (tx) =>
@@ -270,7 +270,7 @@ describe('a tenant that requires a second factor collects it as a required actio
     await enrol(tenantId, subjectId, clock);
 
     const offer = await withTenant(app.db, tenantId, (tx) =>
-      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+      beginTotpEnrolment(tx, tenantId, `tenant-${tenantId}`, subjectId),
     );
     const refused = await withTenant(app.db, tenantId, (tx) =>
       completeTotpEnrolment(
@@ -344,7 +344,7 @@ describe('a tenant that requires a second factor collects it as a required actio
     });
 
     const offer = await withTenant(app.db, tenantId, (tx) =>
-      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+      beginTotpEnrolment(tx, tenantId, `tenant-${tenantId}`, subjectId),
     );
     const outcome = await withTenant(app.db, tenantId, (tx) =>
       completeTotpEnrolment(
@@ -1026,7 +1026,7 @@ describe('replacing the authenticator a subject already holds', () => {
   it('swaps the credential once the new code verifies', async () => {
     const { tenantId, subjectId, clock, first } = await holder();
     const offer = await withTenant(app.db, tenantId, (tx) =>
-      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+      beginTotpEnrolment(tx, tenantId, `tenant-${tenantId}`, subjectId),
     );
     const later = clockAt(60_000);
     const outcome = await replace(
@@ -1048,7 +1048,7 @@ describe('replacing the authenticator a subject already holds', () => {
   it('keeps the old credential when the new code does not verify', async () => {
     const { tenantId, subjectId, clock, first } = await holder();
     const offer = await withTenant(app.db, tenantId, (tx) =>
-      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+      beginTotpEnrolment(tx, tenantId, `tenant-${tenantId}`, subjectId),
     );
     const outcome = await replace(tenantId, subjectId, newId(), clock, offer.secret, '000000');
     expect(outcome).toEqual({ kind: 'rejected', reason: 'invalid_code' });
@@ -1062,7 +1062,7 @@ describe('replacing the authenticator a subject already holds', () => {
     const offers = await Promise.all(
       [0, 1].map(() =>
         withTenant(app.db, tenantId, (tx) =>
-          beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+          beginTotpEnrolment(tx, tenantId, `tenant-${tenantId}`, subjectId),
         ),
       ),
     );

@@ -1,6 +1,12 @@
 import { totpCode, totpCounter } from '@odudu/crypto';
 import { describe, expect, it } from 'vitest';
-import { otpApplicable, totpStep, type TotpSecret } from '#/service/authenticators/totp';
+import {
+  otpApplicable,
+  totpEnrolmentUri,
+  totpParameters,
+  totpStep,
+  type TotpSecret,
+} from '#/service/authenticators/totp';
 
 const SUBJECT = '11111111-1111-1111-1111-111111111111';
 const SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
@@ -116,5 +122,49 @@ describe('otpApplicable', () => {
     expect(otpApplicable({ hasTotp: true }, { otpRequired: false }, new Set(['password']))).toBe(
       true,
     );
+  });
+});
+
+describe('a credential verifies under the parameters it holds', () => {
+  const sha512 = credential({ algorithm: 'SHA512', digits: 8, period: 60 });
+
+  it('accepts the 8-digit SHA-512 code at a 60-second step', () => {
+    const code = totpCode(SECRET, totpCounter(NOW, 60), 8, 'SHA-512');
+    expect(totpStep({ code }, { subjectId: SUBJECT, secret: sha512, now: NOW })).toEqual({
+      kind: 'success',
+      subjectId: SUBJECT,
+      step: totpCounter(NOW, 60),
+    });
+  });
+
+  it('refuses the 6-digit SHA-1 code the tenant default would have accepted', () => {
+    const result = totpStep(
+      { code: currentCode() },
+      { subjectId: SUBJECT, secret: sha512, now: NOW },
+    );
+    expect(result).toMatchObject({ kind: 'failure' });
+  });
+
+  it('reads a credential without parameters as SHA1, six digits and 30 seconds', () => {
+    expect(totpParameters(credential())).toEqual({
+      algorithm: 'SHA-1',
+      digits: 6,
+      periodSeconds: 30,
+    });
+  });
+});
+
+describe('totpEnrolmentUri', () => {
+  const base = { issuer: 'Acme', account: 'ada', secret: SECRET };
+
+  it('carries the algorithm, digits and period the credential will be made under', () => {
+    const uri = new URL(
+      totpEnrolmentUri({ ...base, algorithm: 'SHA256', digits: 8, period: 60 }),
+    );
+    expect(Object.fromEntries(uri.searchParams)).toMatchObject({
+      algorithm: 'SHA256',
+      digits: '8',
+      period: '60',
+    });
   });
 });

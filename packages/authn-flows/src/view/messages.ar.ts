@@ -2,6 +2,8 @@ export const ar: Readonly<Record<string, string>> = {
   'totp.title': 'إعداد تطبيق المصادقة',
   'totp.scan': 'امسح هذا الرمز ضوئيًا بتطبيق المصادقة، أو أدخل المفتاح يدويًا.',
   'totp.key': 'المفتاح:',
+  'totp.parameters':
+    'يستخدم هذا المصادق الخوارزمية \u2068{algorithm}\u2069 و{digits, number, ::group-off} أرقام وفترة {period, number, ::group-off} ثانية. يجب أن يدعم تطبيقك الثلاثة جميعًا، وإلا فاستخدم تطبيقًا آخر.',
   'totp.codeLabel': 'الرمز من تطبيقك',
   'totp.confirm': 'تأكيد',
   'passkey.title': 'إضافة مفتاح مرور',

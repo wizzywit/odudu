@@ -27,6 +27,7 @@ const CODE_LENGTH = 10;
 // does not both authenticate.
 const GROUP_LENGTH = 5;
 
+// What a set holds where a tenant has not chosen a size.
 export const RECOVERY_CODE_COUNT = 10;
 
 function alphabetChar(index: number): string {

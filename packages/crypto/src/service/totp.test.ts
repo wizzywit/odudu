@@ -172,3 +172,37 @@ describe('verifyTotp', () => {
     expect(verifyTotp({ secret, code: '000000', now, lastStep: null })).toEqual({ ok: false });
   });
 });
+
+describe('verifyTotp under the parameters a credential was made with', () => {
+  const now = new Date(90_000);
+
+  it('accepts an 8-digit SHA-256 code at a 60-second step, and its step is that step', () => {
+    const params = { algorithm: 'SHA-256', digits: 8, periodSeconds: 60 } as const;
+    const code = totpCode(SEED_SHA256, totpCounter(now, 60), 8, 'SHA-256');
+    expect(verifyTotp({ secret: SEED_SHA256, code, now, lastStep: null, ...params })).toEqual({
+      ok: true,
+      step: 1,
+    });
+  });
+
+  it('refuses a 6-digit code when the credential holds 8 digits', () => {
+    const code = totpCode(SEED_SHA1, totpCounter(now), 6);
+    expect(
+      verifyTotp({ secret: SEED_SHA1, code, now, lastStep: null, digits: 8 }),
+    ).toEqual({ ok: false });
+  });
+
+  it('refuses a SHA-1 code against a SHA-512 credential', () => {
+    const code = totpCode(SEED_SHA512, totpCounter(now), 6, 'SHA-1');
+    expect(
+      verifyTotp({ secret: SEED_SHA512, code, now, lastStep: null, algorithm: 'SHA-512' }),
+    ).toEqual({ ok: false });
+  });
+
+  it('measures the window in the credential’s own step', () => {
+    const code = totpCode(SEED_SHA1, totpCounter(now, 60) - 1, 6);
+    expect(
+      verifyTotp({ secret: SEED_SHA1, code, now, lastStep: null, periodSeconds: 60 }),
+    ).toEqual({ ok: true, step: 0 });
+  });
+});

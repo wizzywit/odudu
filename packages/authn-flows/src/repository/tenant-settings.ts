@@ -1,6 +1,7 @@
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { type LockoutPolicy, type PasswordPolicy } from '@odudu/domain-identity';
 import { OduduError } from '@odudu/kernel';
+import { authenticatorPolicyOf, type AuthenticatorPolicy } from '#/service/authenticator-policy';
 import { eq } from 'drizzle-orm';
 
 // What one `advance` needs from the tenant row: whether it demands a second
@@ -54,6 +55,28 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
           failureResetSeconds: row.failureResetSeconds,
         },
       };
+    },
+
+    // What a new enrolment is made under. Raises on a missing row for the same
+    // reason as above: a default would enrol a person under parameters the
+    // tenant never chose.
+    async authenticatorPolicy(tenantId: string): Promise<AuthenticatorPolicy> {
+      const rows = await tx
+        .select({
+          totpAlgorithm: tenants.totpAlgorithm,
+          totpDigits: tenants.totpDigits,
+          totpPeriod: tenants.totpPeriod,
+          webauthnUserVerification: tenants.webauthnUserVerification,
+          webauthnResidentKey: tenants.webauthnResidentKey,
+          recoveryCodeCount: tenants.recoveryCodeCount,
+        })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId));
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('tenant_not_found', `no tenant with id ${tenantId} in this context`);
+      }
+      return authenticatorPolicyOf(row);
     },
 
     // How long a login may stay open (packages/db/drizzle/0082_tenant_lifetimes.sql).

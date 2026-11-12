@@ -135,7 +135,7 @@ describe('a default tenant login, walked for several subject shapes before and a
     const subjectId = await seedUserWithPassword(tenantId, 'ada');
     const clock = new FakeClock(new Date('2031-01-01T00:00:00.000Z'));
     const offer = await withTenant(app.db, tenantId, (tx) =>
-      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+      beginTotpEnrolment(tx, tenantId, `tenant-${tenantId}`, subjectId),
     );
     const enrolled = await withTenant(app.db, tenantId, (tx) =>
       completeTotpEnrolment(

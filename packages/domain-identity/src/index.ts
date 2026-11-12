@@ -17,7 +17,12 @@ export {
   type CredentialRecord,
   type CredentialType,
 } from '#/schema/user-credentials';
-export { parseCredentialSecret, type CredentialSecret } from '#/service/credential-secret';
+export {
+  parseCredentialSecret,
+  TOTP_ALGORITHMS,
+  WEBAUTHN_REQUIREMENTS,
+  type CredentialSecret,
+} from '#/service/credential-secret';
 export {
   COMMON_PASSWORD,
   evaluatePassword,

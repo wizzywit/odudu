@@ -9,6 +9,8 @@ export const en = {
   'totp.title': 'Set up your authenticator',
   'totp.scan': 'Scan this with your authenticator app, or enter the key by hand.',
   'totp.key': 'Key:',
+  'totp.parameters':
+    'This authenticator uses {algorithm}, {digits, number, ::group-off} digits and a {period, number, ::group-off}-second period. Your app must support all three. If it does not, use a different app.',
   'totp.codeLabel': 'Code from your app',
   'totp.confirm': 'Confirm',
   'passkey.title': 'Add a passkey',
