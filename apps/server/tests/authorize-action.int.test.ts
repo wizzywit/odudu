@@ -3,6 +3,7 @@ import { totpCode, totpCounter } from '@odudu/crypto';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, withTenant } from '@odudu/db';
 import type { DatabaseHandle } from '@odudu/db';
 import { clientRepository, clientScopeRepository } from '@odudu/domain-tenant';
+import { emailOutbox } from '@odudu/email';
 import { loadConfig, meAudienceOfIssuer, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
@@ -815,5 +816,40 @@ describe('an action requested through the account chooser', () => {
       cancel: '1',
     });
     expect(locationOf(done).searchParams.get('action_status')).toBe('cancelled');
+  });
+});
+
+describe('the notice an enrolment through an application sends', () => {
+  const mailTo = (w: World) =>
+    owner.db.select().from(emailOutbox).where(eq(emailOutbox.tenantId, w.tenantId));
+
+  async function enrol(w: World): Promise<void> {
+    const page = await submitPassword(w, await authorize(w, { action: 'configure-totp' }));
+    const secret = secretOf(page);
+    const confirmed = await form(w, 'required-action?action=configure-totp', {
+      auth_session_id: field(page, 'auth_session_id'),
+      secret,
+      code: totpCode(secret, totpCounter(new Date())),
+    });
+    await form(w, 'required-action?action=generate-recovery-codes', {
+      auth_session_id: field(confirmed, 'auth_session_id'),
+    });
+  }
+
+  it('tells a verified address once for the authenticator app and once for the codes', async () => {
+    const w = await world();
+    await owner.sql`update users set email_verified = true where subject_id = ${w.subjectId}`;
+    await enrol(w);
+    const subjects = (await mailTo(w)).map((row) => row.subject).sort();
+    expect(subjects).toEqual([
+      'An authenticator app was added to your ' + w.name + ' account',
+      'New recovery codes were saved on your ' + w.name + ' account',
+    ]);
+  });
+
+  it('tells an unverified address nothing', async () => {
+    const w = await world();
+    await enrol(w);
+    expect(await mailTo(w)).toEqual([]);
   });
 });

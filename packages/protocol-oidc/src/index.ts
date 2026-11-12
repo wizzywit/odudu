@@ -12,6 +12,7 @@ import {
   completePasskeyEnrolment,
   completeRecoveryCodes,
   completeTotpEnrolment,
+  type MailLookResolver,
   completeUpdatePassword,
   consumeAuthenticationSession,
   initialChallenge,
@@ -193,6 +194,10 @@ export interface OidcRoutesDeps {
   // The tenant's own wording for the language a page is shown in; the server
   // wires the reader here. None means every page reads the catalogue alone.
   resolveOverrides?: OverridesResolver;
+  // How the mail that tells a person of a change to their own sign-in methods
+  // is dressed and worded; the server wires the same resolver its other mail
+  // uses. Absent, that mail is unthemed.
+  resolveMailLook?: MailLookResolver;
   // How a Client ID Metadata Document is fetched, for the tenants that turn
   // them on. Absent, no document can be fetched and a URL client_id is refused
   // like any unknown one. The limiter is shared by every request, so the
@@ -662,7 +667,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       withTenant(
         deps.database.db,
         tenantId,
-        (tx) => beginRecoveryCodes(tx, { tenantId, subjectId, askFirst, now: clock.now() }),
+        (tx) =>
+          beginRecoveryCodes(tx, {
+            tenantId,
+            subjectId,
+            askFirst,
+            now: clock.now(),
+            ...(deps.resolveMailLook === undefined
+              ? {}
+              : { resolveMailLook: deps.resolveMailLook }),
+          }),
         request,
       );
     const holdsPasswordFor = (tenantId: string, subjectId: string) =>
@@ -727,7 +741,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
               withTenant(
                 deps.database.db,
                 input.tenantId,
-                (tx) => completePasskeyEnrolment(tx, { ...input, publicBaseUrl }),
+                (tx) =>
+                  completePasskeyEnrolment(tx, {
+                    ...input,
+                    publicBaseUrl,
+                    now: clock.now(),
+                    ...(deps.resolveMailLook === undefined
+                      ? {}
+                      : { resolveMailLook: deps.resolveMailLook }),
+                  }),
                 request,
               ),
           };
@@ -981,7 +1003,17 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withTenant(
           deps.database.db,
           input.tenantId,
-          (tx) => completeTotpEnrolment(tx, input, clock),
+          (tx) =>
+            completeTotpEnrolment(
+              tx,
+              {
+                ...input,
+                ...(deps.resolveMailLook === undefined
+                  ? {}
+                  : { resolveMailLook: deps.resolveMailLook }),
+              },
+              clock,
+            ),
           request,
         ),
       completeRecoveryCodes: (input) =>
