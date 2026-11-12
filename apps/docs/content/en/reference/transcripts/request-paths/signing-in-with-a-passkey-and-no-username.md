@@ -85,6 +85,8 @@ What the flow is, stated rather than shown:
    `amr: ["hwk"]` and `acr: "1"`, and the second factor applies as it does
    after a password. Like the enrolment above it, this was run by an
    integration test and not against a stack: `curl` cannot sign an assertion.
+   Where the setting is not `required`, the options ask the browser for `preferred`, so an older
+   passkey made with verification required is refused if its authenticator skips it.
 
 Refused, each for its own reason:
 

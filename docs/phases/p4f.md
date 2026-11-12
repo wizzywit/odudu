@@ -404,3 +404,5 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 ### Open placements
 
 - The tenant-wide passkey switch and the per-step configuration are the next two parts of the increment, unchanged.
+- A weak-passkey sign-in audits as `login.passkey`, the same as a verified one; the token's `acr` and the session's satisfied list
+  are the only record. Placed on increment 8, where the session and audit detail are revisited.

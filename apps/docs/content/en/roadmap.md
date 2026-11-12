@@ -39,7 +39,7 @@ Everything here works in the latest stable release, which the quick start instal
 ### Credentials and second factors
 
 - Passwords with a policy and lockouts, a list of common passwords that may not be chosen, passkeys, and a one-time password from an authenticator app.
-- Recovery codes: ten per person, shown once, offered again when the last is spent, revoked as a set when the last authenticator goes.
+- Recovery codes: ten per person by default (8 to 16 per tenant), shown once, offered again when the last is spent, revoked as a set when the last authenticator goes.
 - Self-registration, email verification and password reset, each switched on per tenant, and required actions you set on a person. An app can send a person straight to the registration page with `prompt=create`. Registering with an address that is taken does not say so when verification is on, and a reset ends every session and token the person had. Where an account registered itself and nobody verified the address, it also removes the authenticators and recovery codes on it.
 
 ### Admin API and console

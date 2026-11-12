@@ -1,5 +1,13 @@
+import { PASSKEY_UNVERIFIED } from '@odudu/authn-flows';
 import { describe, expect, it } from 'vitest';
 import { acrFor, amrFor } from '#/service/acr';
+
+describe('the marker the executor records for an unverified passkey', () => {
+  it('is the one amrFor and acrFor read', () => {
+    expect(amrFor(['passkey', PASSKEY_UNVERIFIED])).toEqual(['hwk']);
+    expect(acrFor(['passkey', PASSKEY_UNVERIFIED])).toBe('1');
+  });
+});
 
 describe('amrFor', () => {
   it('maps each authenticator to its registered RFC 8176 value', () => {

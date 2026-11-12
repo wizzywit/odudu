@@ -50,6 +50,7 @@ export {
   type PasskeyVerification,
   type WebauthnSecret,
 } from '#/service/authenticators/passkey';
+export { PASSKEY_UNVERIFIED } from '#/service/authenticators/names';
 export {
   otpApplicable,
   totpStep,
