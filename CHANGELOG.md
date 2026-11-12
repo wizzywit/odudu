@@ -27,7 +27,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Changed
 
-- `max_sessions_per_browser` is now exact for a browser that holds the device cookie. Before, `k` sign-ins from one browser at the same instant left `cap + (k - 1)` sessions; they now leave the cap. A session one of them leaves that the browser's cookies no longer name still cannot be ended by signing out, and is listed under its device and counted against the cap. A browser's first sign-in, which has no device cookie yet, is bounded as before.
+- `max_sessions_per_browser` is now exact for one person's sessions on a browser that already holds the device cookie. Before, `k` sign-ins from one browser at the same instant left `cap + (k - 1)` sessions; they now leave the cap. Two people signing in at once on one browser are still counted only through the browser's cookies. A session one of them leaves that the browser's cookies no longer name still cannot be ended by signing out, and is listed under its device and counted against the cap. A browser's first sign-in, which has no device cookie yet, is bounded as before.
 - An application that sends a person to `generate-recovery-codes` now asks before it makes a first set, as it already did before replacing one. Nothing is made while the question is on the screen, so reloading it changes nothing and cancelling it no longer follows a set that was made at once.
 - A tenant's discovery document and its authorization server metadata list `me:read` and `me:write` in `scopes_supported`, with the tenant's other scopes. A tenant starts with twelve scopes where it started with ten, and the console's scope list and a tenant export show the two.
 

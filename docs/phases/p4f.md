@@ -487,7 +487,7 @@ that never configures a step behaves as it does today.
 
 ### Ruling
 
-- The cap is exact when the browser holds the cookie; the orphan is bounded and visible, not closed. The measurement
+- The cap is exact only for one person's sessions on a browser that already holds the cookie (a first sign-in stays bounded, and two people racing on one browser are not seen by each other); the orphan is bounded and listed, not closed. The measurement
   (`apps/server/tests/session-cap-k.int.test.ts`, ten races per k, cap 3) gave `cap + (k - 1)` live and `k - 1` orphaned without
   the device read, and exactly the cap live with it, for k of 2, 3, 4 and 6; orphaned stays up to `cap - 1`, because no cookie can
   name a session whose secret the server never stored. The device is read only for the subject signing in, so a forged cookie value

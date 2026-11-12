@@ -266,12 +266,14 @@ weaker mode excludes exactly what `for update` did among themselves.
 both halves: the lock is taken within a 500 ms `lock_timeout` beside an open
 audit row, and a second capacity lock still times out behind the first.
 
-## Amendment, 2026-11-12 — a device cookie, and an exact cap
+## Amendment, 2026-11-12 — a device cookie, and a cap that is exact per subject on a known device
 
 The identifier the amendments above defer now exists, and the decision the
-`cap + (k - 1)` residual waited on is taken: the cap is **exact** for a browser
-that holds it, and the orphan it leaves is **bounded and reachable, not
-closed**.
+`cap + (k - 1)` residual waited on is taken, in plain words: the cap is
+**exact only for one person's sessions on a browser that already holds the
+cookie**. A browser's first sign-in stays bounded as before, two people racing
+on one browser are not seen by each other's device read, and an orphan of up to
+`cap - 1` sessions remains. The orphan is **bounded and listed, not closed**.
 
 **The identifier.** A sign-in that ends in a redirect sets a cookie,
 `<tenant>-device` (`__Host-<tenant>-device` under TLS), carrying 16 random
@@ -323,8 +325,8 @@ last `Set-Cookie` of a name and the server stores no secret to write it again
 (a session row holds a hash). What changes is that the orphan is bounded by the
 cap, never more than `cap - 1` (two of three above), counts against it, and so
 is the first thing admission evicts once it is the least recently active.
-The lists, which already showed it (the 2026-09-25 amendment), now group it
-under its device, so a person or an operator sees which browser it came from. A
+The lists, which already showed it (the 2026-09-25 amendment), now group
+sessions under their device, so a person or an operator sees which browser it came from. A
 remembered orphan still lives until its idle window or until an admission finds
 the cap full and it is the oldest. Logout through the cookie still cannot reach it.
 
@@ -333,8 +335,8 @@ its first sign-in or one after the person cleared cookies, has no device to
 read, and each of `k` simultaneous first sign-ins draws its own value. The
 cookie's list is then all the cap knows, as before, and it is empty for a first
 sign-in: `k` simultaneous first sign-ins leave `k` sessions, which passes a cap
-of 25 only when 26 or more arrive at one instant. A session opened before this amendment has no device and
-is counted through the cookie as before.
+of 25 only when 26 or more arrive at one instant. A session opened before this
+amendment has no device and is counted through the cookie as before.
 
 **Cost.** One more read in the admission transaction: `liveByDevice` filters
 on `subject_id` and `device_id` and is served by `sessions_by_subject`; it takes

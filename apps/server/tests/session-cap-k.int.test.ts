@@ -159,7 +159,10 @@ describe('k concurrent logins at the cap', () => {
     const byK = await measure(DEVICE);
     console.info(`MEASURE cap=${String(CAP)}\n${line('device', byK)}`);
     for (const races of byK.values()) {
-      for (const r of races) expect(r.admitted).toBe(CAP);
+      for (const r of races) {
+        expect(r.admitted).toBe(CAP);
+        expect(r.orphaned).toBeLessThanOrEqual(CAP - 1);
+      }
     }
   }, 120_000);
 });
