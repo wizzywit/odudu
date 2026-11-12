@@ -22,6 +22,7 @@ function sessionOf(wire: WireSession): SubjectSession {
     lastActiveAt: wire.last_active_at,
     remembered: wire.remembered,
     clientIds: wire.client_ids,
+    device: wire.device,
   };
 }
 

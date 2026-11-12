@@ -1,3 +1,4 @@
+import { deviceCaptionOf, groupByDevice } from '#/entities/session';
 import { useState } from 'react';
 import type { SessionsEnded, TenantSession } from '#/pages/tenant-sessions/types/tenantSession';
 import { useAuthority, usePrincipal, useRefusal, isOwnTenant } from '#/entities/session';
@@ -21,6 +22,7 @@ import { usernameOrId, subjectHref } from '#/entities/subject';
 
 export interface TenantSessionsPage {
   list: ResourceListState<TenantSession>;
+  deviceCaption: (device: string | null) => string | null;
   // Where a session's subject has its page, or null where the caller may not read subjects.
   subjectLink: ((id: string) => string) | null;
   endAll: Confirming<'all'>;
@@ -38,8 +40,10 @@ export function useTenantSessionsPage(tenant: string): TenantSessionsPage {
   const principal = usePrincipal();
   const authority = useAuthority(tenant);
   const [more, setMore] = useState<string | null>(null);
+  const list = useTenantSessionList(tenant);
   return {
-    list: useTenantSessionList(tenant),
+    list: { ...list, rows: groupByDevice(list.rows) },
+    deviceCaption: deviceCaptionOf(list.rows),
     subjectLink: subjectLinkOf(holds(authority, 'view-users'), tenant, subjectHref),
     endAll: useConfirmedChange<'all', SessionsEnded>({
       refusal,

@@ -12,9 +12,16 @@ import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
+import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { provisionTenant, SessionEntry, sessionRepository } from '@odudu/authn-flows';
+import {
+  deviceDigest,
+  provisionTenant,
+  SessionEntry,
+  sessionRepository,
+  sessions,
+} from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
@@ -257,5 +264,33 @@ describe('the session cap, end to end', () => {
         [...finalIds].sort(),
       );
     });
+  });
+
+  it('groups two sessions of one browser under one device, and a second browser under another', async () => {
+    const tenantName = `tenant-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+
+    const first = new Map<string, string>();
+    const second = new Map<string, string>();
+    const firstLogin = await login(tenantName, first);
+    await login(tenantName, first);
+    await login(tenantName, second);
+
+    const issued = cookieList(firstLogin).find((set) => set.startsWith(`${tenantName}-device=`));
+    expect(issued).toMatch(/; HttpOnly; SameSite=Lax; Path=\/; Max-Age=34560000$/);
+    const deviceOne = first.get(`${tenantName}-device`);
+    const deviceTwo = second.get(`${tenantName}-device`);
+    if (deviceOne === undefined || deviceTwo === undefined) {
+      throw new Error('expected each browser to hold a device cookie');
+    }
+    expect(deviceOne).not.toBe(deviceTwo);
+
+    const stored = await withTenant(app.db, tenantId, async (tx) => {
+      const rows = await tx.select().from(sessions).where(eq(sessions.tenantId, tenantId));
+      return rows.map((row) => row.deviceId);
+    });
+    expect(stored.filter((id) => id === deviceDigest(deviceOne))).toHaveLength(2);
+    expect(stored.filter((id) => id === deviceDigest(deviceTwo))).toHaveLength(1);
+    expect(stored).not.toContain(deviceOne);
   });
 });

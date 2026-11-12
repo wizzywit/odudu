@@ -55,7 +55,7 @@ describe('the list responses', () => {
     expect(parsed.items[0]).not.toHaveProperty('secret_data');
   });
 
-  it('say a session has no device yet', () => {
+  it('say a session may have no device, or an opaque id', () => {
     const parsed = meSessionsResponseSchema.parse({
       items: [
         {
@@ -71,6 +71,11 @@ describe('the list responses', () => {
       next_cursor: null,
     });
     expect(parsed.items[0]?.device).toBeNull();
+    const withDevice = meSessionsResponseSchema.parse({
+      items: [{ ...parsed.items[0], device: 'a1b2' }],
+      next_cursor: null,
+    });
+    expect(withDevice.items[0]?.device).toBe('a1b2');
   });
 });
 

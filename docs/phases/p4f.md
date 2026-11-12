@@ -477,3 +477,71 @@ that never configures a step behaves as it does today.
 ### Open placements
 
 - Moving the authenticator settings onto flow steps is increment 13b's work.
+
+## Increment 8: session device identity and ADR 0033
+
+### What shipped
+
+- A device cookie, `<tenant>-device`, set (and set again) by every sign-in that ends in a redirect, in both doors that write the
+  session cookies (`login-response.ts`, `consent.ts`); `newDeviceId`, `deviceDigest`, `deviceCookie` and `readDeviceId` are one
+  file (`packages/authn-flows/src/service/device-id.ts`). `sessions.device_id` (migration `0134`) stores the digest, never the
+  cookie value. `admitSession` takes the digest and reads the subject's live sessions on it, in the same transaction under the
+  tenant-row lock, beside the cookie's own entries.
+- `device` on `/me/sessions` (was a constant `null`) and on the admin API's session lists: `sessionSchema` is shared by the
+  subject list and, extended, the tenant and client lists, so one field covers all three. A Device column on the console's
+  three session lists (`shared/ui/DeviceCell`, reusing `CopyValue`).
+- `login.passkey` audit rows carry `user_verified` (boolean, passkey only, stated by the executor from `PASSKEY_UNVERIFIED`). The
+  generated audit events page names it.
+- ADR 0033's amendment, with the measurement.
+
+### Ruling
+
+- The cap is exact only for one person's sessions on a browser that already holds the cookie (a first sign-in stays bounded, and two people racing on one browser are not seen by each other); the orphan is bounded and listed, not closed. The measurement
+  (`apps/server/tests/session-cap-k.int.test.ts`, ten races per k, cap 3) gave `cap + (k - 1)` live and `k - 1` orphaned without
+  the device read, and exactly the cap live with it, for k of 2, 3, 4 and 6; orphaned stays up to `cap - 1`, because no cookie can
+  name a session whose secret the server never stored. The device is read only for the subject signing in, so a forged cookie value
+  groups nothing of anybody else's.
+- The lists show a digest, not the cookie value, so reading a list never yields a value a browser sends.
+- No index: the new read filters on `subject_id` and `device_id` and `sessions_by_subject` narrows it to one subject's rows.
+
+### Found while building
+
+- The brief names a `(tenant_id, subject_id)` index on `sessions`; there is none. The index is `sessions_by_subject (subject_id, id)`
+  (`0095_lookup_indexes.sql`), and tenant isolation is the row-level policy.
+- The `-session` cookie lint (`session-cookie-authority.test.ts`) only reads the route files, so the device cookie's attributes live
+  in `device-id.ts` and the routes call `deviceCookie`.
+
+### At volume
+
+- Admission gains one bounded read (at most 100 rows) by subject and device. The sessions lists are unchanged queries with one more
+  selected column. The cookie adds one `Set-Cookie` of about 90 bytes to a sign-in's redirect.
+
+### Open placements
+
+- Five transcript pages still carry the on-page note that they predate the device cookie or field: `the-tenants-own-sign-in.md`,
+  `get-consoleauthcallback-refused.md`, `get-consoleauthcallback-restarted.md`, `a-refresh-the-server-refuses.md` and
+  `guides/admin-signs-in-and-changes-a-user.md`. They continue one console sign-in across pages, so they need that whole run replayed
+  in order, together with `get-sessions-get-sessionscount-and-get-clientsidsessions.md` and
+  `get-subjectsidsessions-and-delete-subjectsidsessionssid.md`, whose prose says their blocks predate `device`. Placed on the phase's
+  closing pass (increment 14), which replays every console and session transcript once, after the password-change, sign-in-flow and
+  required-action increments that still change those same responses. The other nineteen were replayed or cleared, below.
+- The roadmap's P4f bullet still names the device and the orphan; it is closed by the phase's closing pass, which reconciles the
+  roadmap and section 11.
+
+### Fix round
+
+- The exact-cap claim is qualified in the ADR, the concept page and the CHANGELOG: exact per person on a browser that already holds
+  the cookie; a first sign-in stays bounded and an orphan of up to `cap - 1` remains.
+- The console's session lists group: a pure `groupByDevice` in the session entity orders sessions by device (devices as they first
+  appear, no device last), `deviceCaptionOf` words the count, and the use cases only call them. Grouping applies to the rows loaded.
+- The cap test asserts the orphan bound; `query-plans.plan.test.ts` asserts the device read uses `sessions_by_subject` with no Seq Scan.
+- The concept page keeps its checked facts (cookie lifetime, grants route and `offline`, both revocation-mail triggers).
+- Transcripts replayed on 2026-11-12 on the compose project `odudu-p4f-i8-replay` from `ce1b37221`: `the-mcp-endpoint`,
+  `getting-the-token`, `two-factor-authentication-with-totp`, `recovery-codes`, `brute-force-lockout`, `password-reset`,
+  `password-expiry-and-changing-a-password`, `path-a-authorization-code-with-pkce`, `rp-initiated-logout`, `the-branches` (the session
+  cap), the consents and recovery-codes admin pages, `delete-subjectsidsessions` and `delete-sessions`; the Path A excerpt in
+  `guides/sign-a-user-in`. Four pages show no sign-in's cookie list and only lost the note: `self-registration`,
+  `a-themed-sign-in-and-the-brand-route`, `following-the-logout-redirect` and `guides/refresh-and-end-a-session`. The consent screen
+  in `rp-initiated-logout` now carries the self-registered client's notice, which
+  `tests/docs/page-documents-transcripts.test.ts` does not read back yet. The method and the page list are in
+  `contributing/transcripts.md`.

@@ -18,6 +18,7 @@ export interface TenantSessionView {
   readonly lastActiveAt: Date;
   readonly remembered: boolean;
   readonly clientIds: readonly string[];
+  readonly device: string | null;
 }
 
 export interface SessionScope {
@@ -88,6 +89,7 @@ export async function listTenantSessions(
       createdAt: sessions.createdAt,
       lastActiveAt: sessions.lastActiveAt,
       remembered: sessions.remembered,
+      device: sessions.deviceId,
     })
     .from(sessions)
     .leftJoin(users, eq(users.subjectId, sessions.subjectId))

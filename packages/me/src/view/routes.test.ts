@@ -97,7 +97,14 @@ function build(
     sessions: (t, s, _l, _n, page) => {
       note(`sessions ${t} ${s} ${String(page.limit)}`);
       return Promise.resolve([
-        { id: ID, createdAt: AT, lastActiveAt: AT, expiresAt: AT, remembered: false },
+        {
+          id: ID,
+          createdAt: AT,
+          lastActiveAt: AT,
+          expiresAt: AT,
+          remembered: false,
+          deviceId: 'a1b2',
+        },
       ]);
     },
     consents: (t, s, page) => {
@@ -264,7 +271,7 @@ describe('the lists', () => {
           expires_at: AT.toISOString(),
           remembered: false,
           current: true,
-          device: null,
+          device: 'a1b2',
         },
       ],
       next_cursor: null,

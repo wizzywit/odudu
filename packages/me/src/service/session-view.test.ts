@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { isTokenSession, sessionView } from '#/service/session-view';
 
 const AT = new Date('2026-01-01T00:00:00Z');
-const record = { id: 's1', createdAt: AT, lastActiveAt: AT, expiresAt: AT, remembered: false };
+const record = {
+  id: 's1',
+  createdAt: AT,
+  lastActiveAt: AT,
+  expiresAt: AT,
+  remembered: false,
+  deviceId: null,
+};
 
 describe('sessionView', () => {
   it('marks the session the token was issued for', () => {
@@ -14,8 +21,12 @@ describe('sessionView', () => {
     expect(sessionView(record, null).current).toBe(false);
   });
 
-  it('has no device yet', () => {
+  it('has no device for a session opened before one was recorded', () => {
     expect(sessionView(record, null).device).toBeNull();
+  });
+
+  it('carries the device the session was opened on', () => {
+    expect(sessionView({ ...record, deviceId: 'd1' }, null).device).toBe('d1');
   });
 });
 

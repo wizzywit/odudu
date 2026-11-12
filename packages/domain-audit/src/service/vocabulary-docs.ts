@@ -42,7 +42,9 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'login.password': 'A password was checked at sign-in.',
   'login.otp': 'A one-time code was checked at sign-in.',
   'login.recovery_code': 'A recovery code was used in place of a second factor.',
-  'login.passkey': 'A passkey assertion was checked at sign-in.',
+  'login.passkey':
+    'A passkey assertion was checked at sign-in. An allowed row says in `user_verified` whether the ' +
+    'assertion verified the person or only their presence.',
   'factor.offered': 'A second factor was offered to a user who had passed the first.',
   'lockout.tripped': 'Failed sign-ins reached the limit and the subject was locked out.',
   'client.authenticate':

@@ -22,6 +22,7 @@ export interface SessionView {
   readonly lastActiveAt: Date;
   readonly remembered: boolean;
   readonly clientIds: readonly string[];
+  readonly device: string | null;
 }
 
 interface SessionAuditFields {
@@ -78,6 +79,7 @@ function toView(record: SessionRecord, clientIds: readonly string[]): SessionVie
     lastActiveAt: record.lastActiveAt,
     remembered: record.remembered,
     clientIds,
+    device: record.deviceId,
   };
 }
 

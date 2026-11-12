@@ -273,10 +273,11 @@ attempt 5: 200
 status 200, location ''
 --- the same password, 125 seconds later ---
 HTTP/1.1 302 Found
-set-cookie: lockout-demo-session=01a0de1d-56f0-752b-bdda-35fea9a3bd12:sSLOTtksH5BK5FC8ou5gmQ4cvjhvanx9_xokqpQ5w0k; HttpOnly; SameSite=Lax; Path=/
+set-cookie: lockout-demo-session=01a1d09b-2049-7319-8269-9aebcc9419dd:Iqz1cvJLnHnxHstQS7sowiwSLvH_pNB4HexwWAxY9Vo; HttpOnly; SameSite=Lax; Path=/
 set-cookie: lockout-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: lockout-demo-device=fTXMLwDcnYcMUS4ATE0_HQ; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/lockout-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=QnWfcy1CggMc-sXu1mjrahD5SrkuKrVuVx8wdy7AYug&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Flockout-demo
+location: http://localhost:8080/callback?code=S4T-6g0xOPWAzUTWyphcF9Uyj-7X41roFdb6COaqL5o&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Flockout-demo
 ```
 
 (`sid` is the `/authorize` request above with the hidden field read out of the

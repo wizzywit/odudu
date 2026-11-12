@@ -1,4 +1,5 @@
 import {
+  deviceDigest,
   nextRequiredAction,
   type AdvanceInput,
   type AdvanceOutcome,
@@ -148,6 +149,9 @@ export type LoginSubmissionOutcome =
       ephemeralSessions: readonly SessionEntry[];
       persistentSessions: readonly SessionEntry[];
       persistentMaxAgeSeconds: number;
+      // The value of the browser's device cookie, written back on every
+      // sign-in so its lifetime restarts and a first sign-in sets it.
+      device: string;
     };
 
 // Everything the atomic completion step needs to establish the SSO session
@@ -176,6 +180,9 @@ export interface CompleteLoginInput {
   // never needs a lookup of its own inside the transaction it runs in.
   lifespans: SessionLifespans;
   maxSessionsPerBrowser: number;
+  // Digest of the browser's device cookie, stored on the session admitSession
+  // creates and read to count the subject's sessions on that device.
+  device: string;
   // The entries this browser's cookies proved, read before completeLogin
   // runs — admitSession evicts from exactly this list, never a subject-wide
   // one: the cap is per browser, and a browser can hold sessions for more
@@ -398,6 +405,9 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
     },
     header: string | undefined,
   ): Promise<PresentedSession[]>;
+  // The browser's device cookie value, or a fresh one when it presented
+  // none. Used for grouping sessions only; it proves nothing about anyone.
+  deviceOf(tenantName: string, header: string | undefined): string;
 }
 
 // An authorization error response delivered to the parked request's own
@@ -425,7 +435,7 @@ export function errorRedirect(
 // the atomic consume. `clientId` is never resolved again here: every
 // caller already needed it before reaching this tail.
 export async function completeAuthorizedLogin(
-  deps: Pick<LoginSubmissionDeps, 'completeLogin' | 'resolveSessions'>,
+  deps: Pick<LoginSubmissionDeps, 'completeLogin' | 'resolveSessions' | 'deviceOf'>,
   tenant: {
     id: string;
     name: string;
@@ -477,6 +487,7 @@ export async function completeAuthorizedLogin(
     header,
   );
 
+  const device = deps.deviceOf(tenant.name, header);
   const completed = await deps.completeLogin({
     tenantId: tenant.id,
     authSessionId,
@@ -491,6 +502,7 @@ export async function completeAuthorizedLogin(
     remembered: rememberMeRequested,
     lifespans,
     maxSessionsPerBrowser: tenant.maxSessionsPerBrowser,
+    device: deviceDigest(device),
     browserSessions: before.map((session) => session.entry),
     authenticators,
     ...(reuseSession !== undefined ? { reuseSession } : {}),
@@ -555,6 +567,7 @@ export async function completeAuthorizedLogin(
     // `rememberMeRequested`, which says nothing about a survivor already
     // in the list.
     persistentMaxAgeSeconds: tenant.rememberMeMaxSeconds,
+    device,
   };
 }
 

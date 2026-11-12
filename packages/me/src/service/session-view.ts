@@ -12,6 +12,7 @@ export interface MeSessionRecord {
   readonly lastActiveAt: Date;
   readonly expiresAt: Date;
   readonly remembered: boolean;
+  readonly deviceId: string | null;
 }
 
 export interface SessionView {
@@ -22,8 +23,9 @@ export interface SessionView {
   readonly remembered: boolean;
   // Whether this is the session the token was issued for.
   readonly current: boolean;
-  // Null until a session records the device it was opened on.
-  readonly device: null;
+  // An opaque id shared by every session opened on one browser; null for a
+  // session opened before it was recorded.
+  readonly device: string | null;
 }
 
 export function isTokenSession(sessionId: string, tokenSessionId: string | null): boolean {
@@ -38,6 +40,6 @@ export function sessionView(record: MeSessionRecord, tokenSessionId: string | nu
     expiresAt: record.expiresAt,
     remembered: record.remembered,
     current: isTokenSession(record.id, tokenSessionId),
-    device: null,
+    device: record.deviceId,
   };
 }

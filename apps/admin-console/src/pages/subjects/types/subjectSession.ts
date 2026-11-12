@@ -4,6 +4,7 @@ export interface SubjectSession {
   lastActiveAt: string;
   remembered: boolean;
   clientIds: string[];
+  device: string | null;
 }
 
 export interface SessionsEnded {

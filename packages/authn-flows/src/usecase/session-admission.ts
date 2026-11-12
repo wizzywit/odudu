@@ -8,6 +8,10 @@ import { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
 import { chooseEvictions } from '#/service/session-set';
 import { establishSession, type EstablishedSession } from '#/usecase/executor';
 
+// Past this a device holds more live sessions for one subject than any cap
+// allows, so the scan is bounded rather than exact.
+const DEVICE_SCAN_LIMIT = 100;
+
 export interface AdmitSessionInput {
   tenantId: string;
   subjectId: string;
@@ -22,16 +26,20 @@ export interface AdmitSessionInput {
   browserSessions: readonly SessionEntry[];
   maxSessionsPerBrowser: number;
   lifespans: SessionLifespans;
+  // Digest of the device cookie the login presented; null when there was
+  // none. The subject's sessions on this device count against the cap beside
+  // the cookie's own entries (ADR 0033's amendment on the device).
+  device: string | null;
 }
 
 // The only place a session row is created (ADR 0033). Locks the tenant's
-// own row before reading anything else: a lock on the session rows
-// instead does not hold the cap under concurrency (ADR 0033's worked
-// failure). Locking the tenant row does not make eviction against a fixed
-// id list exact either — see the ADR's amendment for the accepted
-// cap+k residual and why a per-subject predicate is not the fix.
-// `no key update` still excludes another admission, but not the key-share
-// lock any row referencing the tenant holds: that wait can deadlock.
+// own row before reading anything else: a lock on the session rows does not
+// hold the cap under concurrency. The cap counts the cookie's live entries
+// and the subject's live sessions on the device the browser names, read
+// after the lock so a concurrent admission's insert is seen; with no device
+// cookie only the cookie's list is known and the cap is bounded, not exact.
+// `no key update` excludes another admission but not the key-share lock any
+// row referencing the tenant holds: that wait can deadlock.
 export async function admitSession(
   tx: TenantScopedDatabase,
   input: AdmitSessionInput,
@@ -41,7 +49,18 @@ export async function admitSession(
 
   const now = clock.now();
   const repo = sessionRepository(tx);
-  const live = await repo.liveByEntries(input.browserSessions, input.lifespans, now);
+  const named = await repo.liveByEntries(input.browserSessions, input.lifespans, now);
+  const onDevice =
+    input.device === null
+      ? []
+      : await repo.liveByDevice(
+          input.subjectId,
+          input.device,
+          input.lifespans,
+          now,
+          DEVICE_SCAN_LIMIT,
+        );
+  const live = unionById(named, onDevice);
   const evicted = new Set(chooseEvictions(live, input.maxSessionsPerBrowser));
   await repo.endMany([...evicted], now);
   await auditRepository(tx).recordAll(
@@ -67,5 +86,15 @@ export async function admitSession(
     input.authenticators,
     input.remembered,
     clock,
+    input.device,
   );
+}
+
+function unionById<T extends { readonly id: string }>(
+  first: readonly T[],
+  second: readonly T[],
+): T[] {
+  const byId = new Map<string, T>();
+  for (const session of [...first, ...second]) byId.set(session.id, session);
+  return [...byId.values()];
 }

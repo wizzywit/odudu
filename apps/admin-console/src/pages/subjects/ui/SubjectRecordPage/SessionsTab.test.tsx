@@ -15,6 +15,8 @@ afterEach(() => {
 const AT = `${ADA_AT}?tab=sessions`;
 const X = `${S}/${ADA_ID}/sessions`;
 
+const DEVICE = 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00';
+
 function session(id: string, created: string, clients: string[] = ['billing']) {
   return {
     id,
@@ -22,6 +24,7 @@ function session(id: string, created: string, clients: string[] = ['billing']) {
     last_active_at: created,
     remembered: id === 'x2',
     client_ids: clients,
+    device: id === 'x2' ? null : DEVICE,
   };
 }
 
@@ -42,6 +45,10 @@ it('lists the live sessions, and ends one after a confirmation', async () => {
   expect(within(table).getByRole('row', { name: /2026-09-28 08:00/u })).toHaveTextContent(
     'billing',
   );
+  expect(within(table).getByRole('row', { name: /2026-09-28 08:00/u })).toHaveTextContent(
+    'c0ffee00…',
+  );
+  expect(within(table).getByRole('row', { name: /2026-09-28 09:00/u })).toHaveTextContent('—');
   await user.click(
     within(table).getByRole('button', { name: 'End the session started 2026-09-28 08:00:00 UTC' }),
   );
@@ -108,4 +115,31 @@ it('passes axe in both themes', async () => {
       },
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('groups the sessions of one device together, with a count, and the ones with no device last', async () => {
+  const other = { ...session('x3', '2026-09-28T10:00:00.000Z'), device: 'aa11aa11aa11aa11' };
+  const stray = { ...session('x4', '2026-09-28T07:00:00.000Z'), device: null };
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`GET ${X}`]: json({ items: [ONE, stray, other, session('x5', '2026-09-28T11:00:00.000Z')] }),
+    }),
+  );
+  const table = await screen.findByRole('grid', { name: 'Live sessions of ada' });
+  const rows = within(table).getAllByRole('row').slice(1);
+  expect(rows.map((row) => /2026-09-28 (\d\d:\d\d)/u.exec(row.textContent)?.[1])).toEqual([
+    '08:00',
+    '11:00',
+    '10:00',
+    '07:00',
+  ]);
+  expect(
+    rows.map((row) => within(row).queryByText(/sessions? on this device/u)?.textContent),
+  ).toEqual([
+    '2 sessions on this device',
+    '2 sessions on this device',
+    '1 session on this device',
+    undefined,
+  ]);
 });

@@ -1,4 +1,4 @@
-import { SessionEntry, sessionRepository } from '@odudu/authn-flows';
+import { deviceDigest, newDeviceId, SessionEntry, sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants, withTenant } from '@odudu/db';
 import type { DatabaseHandle } from '@odudu/db';
@@ -71,11 +71,14 @@ interface World {
   readonly passwordHash: string;
 }
 
+const DEVICE = deviceDigest(newDeviceId(() => new Uint8Array(16).fill(5)));
+
 async function openSession(
   w: { tenantId: string },
   tx: Parameters<Parameters<typeof withTenant>[2]>[0],
   subjectId: string,
   expiresAt: Date,
+  deviceId: string | null = null,
 ): Promise<string> {
   const entry = SessionEntry.issue(newId());
   await sessionRepository(tx).create({
@@ -85,6 +88,7 @@ async function openSession(
     expiresAt,
     authenticators: ['pwd'],
     secretHash: entry.secretHash(),
+    deviceId,
   });
   return entry.id;
 }
@@ -149,8 +153,8 @@ async function world(): Promise<World> {
     if (passwordHash === null) throw new Error('no password');
 
     const sessionIds = [
-      await openSession({ tenantId }, tx, subjectId, ahead),
-      await openSession({ tenantId }, tx, subjectId, ahead),
+      await openSession({ tenantId }, tx, subjectId, ahead, DEVICE),
+      await openSession({ tenantId }, tx, subjectId, ahead, DEVICE),
     ];
     await openSession({ tenantId }, tx, subjectId, behind);
     await openSession({ tenantId }, tx, otherSubjectId, ahead);
@@ -288,7 +292,7 @@ describe('each read answers with the token’s own subject’s rows', () => {
     const body = res.json<Page<{ id: string; current: boolean; device: unknown }>>();
     expect(body.items.map((s) => s.id)).toEqual(w.sessionIds);
     expect(body.items.find((s) => s.id === w.sessionIds[0])?.current).toBe(true);
-    expect(body.items.every((s) => s.device === null)).toBe(true);
+    expect(body.items.map((s) => s.device)).toEqual([DEVICE, DEVICE]);
     expect(body.next_cursor).toBeNull();
   });
 

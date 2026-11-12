@@ -41,6 +41,7 @@ function tenantSessionWireShape(view: TenantSessionView): TenantSession {
     last_active_at: view.lastActiveAt.toISOString(),
     remembered: view.remembered,
     client_ids: [...view.clientIds],
+    device: view.device,
   };
 }
 

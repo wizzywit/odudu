@@ -3,13 +3,15 @@ import { createdAtSchema, cursorQuerySchema, dateTimeSchema, idSchema } from '#/
 
 // `client_ids` is the OAuth `client_id` strings the session holds a grant
 // for — what an operator ending it needs to recognise, not the clients
-// table's own surrogate ids.
+// table's own surrogate ids. `device` is an opaque id shared by the sessions
+// opened on one browser, null for a session opened before it was recorded.
 export const sessionSchema = z.object({
   id: idSchema,
   created_at: createdAtSchema,
   last_active_at: createdAtSchema,
   remembered: z.boolean(),
   client_ids: z.array(z.string()),
+  device: z.string().nullable(),
 });
 export type Session = z.infer<typeof sessionSchema>;
 

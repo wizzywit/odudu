@@ -12,6 +12,7 @@ function session(id: string, lastActiveAt: Date): SessionRecord {
     lastActiveAt,
     authenticators: ['password'],
     remembered: false,
+    deviceId: null,
   };
 }
 

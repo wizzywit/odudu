@@ -18,9 +18,9 @@ docker compose -p odudu-docs-12b exec -T odudu node dist/main.js seed admin --us
 ```
 
 ```
-fYR3GHYEwNL7mFD-3X4_RvfYFqZve2_1
+eA1vc1ord9cJ0jTx8mt-fWzZgaOayh_k
 This password is shown once and cannot be retrieved again.
-{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a1203a-f86d-7e8e-a537-e39f5d77b04f"}
+{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a1d093-8b67-7001-b4b6-c8b3224cbc30"}
 ```
 
 `odudu-admin` is a **confidential client** while the console is on: it holds no
@@ -37,7 +37,7 @@ docker compose -p odudu-docs-12b exec -T postgres psql -U odudu -d odudu -c \
 ```
   client_id  |     type     | no_secret_hash | token_endpoint_auth_method | keys |                     kid
 -------------+--------------+----------------+----------------------------+------+---------------------------------------------
- odudu-admin | confidential | t              | private_key_jwt            |    1 | lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM
+ odudu-admin | confidential | t              | private_key_jwt            |    1 | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs
 (1 row)
 ```
 
@@ -50,7 +50,7 @@ curl -sS -c jar -b jar -o authorize.html \
   'http://localhost:3082/tenants/system/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2F127.0.0.1%3A8080%2Fcallback&scope=openid&state=s&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 curl -sS -c jar -b jar -o change.html \
   --data-urlencode "auth_session_id=$(grep -o 'name="auth_session_id" value="[^"]*"' authorize.html | head -1 | sed 's/.*value="//;s/"//')" \
-  --data-urlencode username=ada --data-urlencode 'password=fYR3GHYEwNL7mFD-3X4_RvfYFqZve2_1' \
+  --data-urlencode username=ada --data-urlencode 'password=eA1vc1ord9cJ0jTx8mt-fWzZgaOayh_k' \
   http://localhost:3082/tenants/system/login-actions/authenticate
 ```
 
@@ -80,7 +80,7 @@ the change-password page, `change.html`, whose form carries the same
 </header>
 <p>This account needs a new password before you can continue.</p>
 <form method="post" action="/tenants/system/login-actions/required-action?action=update-password">
-  <input type="hidden" name="auth_session_id" value="01a1203b-3d92-7736-aa5e-d291255eace5">
+  <input type="hidden" name="auth_session_id" value="01a1d093-8c34-72f3-8265-8d009b5904f3">
   <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
@@ -140,20 +140,21 @@ login completes:
 
 ```bash
 curl -sS -D - -c jar -b jar -o /dev/null \
-  --data-urlencode "auth_session_id=01a1203b-3d92-7736-aa5e-d291255eace5" \
+  --data-urlencode "auth_session_id=01a1d093-8c34-72f3-8265-8d009b5904f3" \
   --data-urlencode 'password=correct-horse-battery-staple-9' \
   'http://localhost:3082/tenants/system/login-actions/required-action?action=update-password'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1203b-533a-7119-94ff-8e90304357b2
-set-cookie: system-session=01a1203b-5383-79a0-892a-1da6060f57f0:AwhbliF-ogxYzIWVNx7EtXc3LSGLG6tess9MT_vLbnU; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d093-8caf-761d-bbf3-4c2c71305db2
+set-cookie: system-session=01a1d093-8d4a-7d46-a0e7-f71aef418c32:P4vppwjLEyxxhVggmx0J3SIh6-JjCqDs7tHl56oPMn0; HttpOnly; SameSite=Lax; Path=/
 set-cookie: system-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: system-device=5mXJMOxKAcvl_PYeimadeQ; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/system/; Max-Age=0
-location: http://127.0.0.1:8080/callback?code=uNtx2kbG23_7tdxFwbLiFIPfeWGfj2HGKG-mqC3XSYs&state=s&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsystem
+location: http://127.0.0.1:8080/callback?code=fwjdQ-59_X9c03_WxrQuI9uFp4RtmCT6_E2VcWu8PF8&state=s&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsystem
 content-length: 0
-Date: Fri, 09 Oct 2026 10:35:21 GMT
+Date: Thu, 12 Nov 2026 16:24:53 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -170,7 +171,7 @@ holds it:
 ```bash
 curl -sS -D - \
   --data-urlencode grant_type=authorization_code \
-  --data-urlencode 'code=uNtx2kbG23_7tdxFwbLiFIPfeWGfj2HGKG-mqC3XSYs' \
+  --data-urlencode 'code=fwjdQ-59_X9c03_WxrQuI9uFp4RtmCT6_E2VcWu8PF8' \
   --data-urlencode redirect_uri=http://127.0.0.1:8080/callback \
   --data-urlencode client_id=odudu-admin \
   --data-urlencode code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk \
@@ -179,14 +180,14 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 401 Unauthorized
-x-request-id: 01a1203b-7384-7591-a64d-25b92f53f7ce
+x-request-id: 01a1d093-8d69-7727-8d9e-3a44c7a26d75
 vary: Origin
 www-authenticate: Basic realm="token"
 cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
 content-length: 78
-Date: Fri, 09 Oct 2026 10:35:29 GMT
+Date: Thu, 12 Nov 2026 16:24:53 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -205,7 +206,7 @@ ellipsis, one of two places here where a block is not the bytes on the wire:
 ASSERTION=$(docker compose -p odudu-docs-12b exec -T odudu node dist/main.js console assertion --tenant system)
 curl -sS -D - \
   --data-urlencode grant_type=authorization_code \
-  --data-urlencode 'code=uNtx2kbG23_7tdxFwbLiFIPfeWGfj2HGKG-mqC3XSYs' \
+  --data-urlencode 'code=fwjdQ-59_X9c03_WxrQuI9uFp4RtmCT6_E2VcWu8PF8' \
   --data-urlencode redirect_uri=http://127.0.0.1:8080/callback \
   --data-urlencode client_id=odudu-admin \
   --data-urlencode code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk \
@@ -215,23 +216,23 @@ curl -sS -D - \
 ```
 
 ```
-{"alg":"ES256","kid":"lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM"}
-{"iss":"odudu-admin","sub":"odudu-admin","aud":"http://localhost:3082/tenants/system/protocol/openid-connect/token","iat":1791542130,"exp":1791542190,"jti":"d006a56d-23ae-4398-985a-c4a2edf9df3b"}
+{"alg":"ES256","kid":"ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs"}
+{"iss":"odudu-admin","sub":"odudu-admin","aud":"http://localhost:3082/tenants/system/protocol/openid-connect/token","iat":1794500693,"exp":1794500753,"jti":"1bcb2066-f5a8-486e-88ba-a47c85b318ce"}
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1203b-76b3-758f-9aab-e551eaf77680
+x-request-id: 01a1d093-8fe5-7f51-b6a5-699e9efdb433
 vary: Origin
 cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
 content-length: 1305
-Date: Fri, 09 Oct 2026 10:35:30 GMT
+Date: Thu, 12 Nov 2026 16:24:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"access_token":"eyJhbGciOiJFUzI1NiIsImtp…","id_token":"eyJhbGciOiJFUzI1NiIsImtp…","refresh_token":"VhmsJmaRSWDOs27jKjGz8d5W…","token_type":"Bearer","expires_in":300,"scope":"openid"}
+{"access_token":"eyJhbGciOiJFUzI1NiIsImtp…","id_token":"eyJhbGciOiJFUzI1NiIsImtp…","refresh_token":"Xi2YLzBIrgwXMDU99zW9QmBQ…","token_type":"Bearer","expires_in":300,"scope":"openid"}
 ```
 
 The access token's `aud` carries `urn:odudu:params:admin-api` **without the
@@ -243,15 +244,15 @@ indented — the other, because the bytes on the wire are a signed JWT:
 ```
 {
   "iss": "http://localhost:3082/tenants/system",
-  "sub": "01a1203a-f86d-7e8e-a537-e39f5d77b04f",
+  "sub": "01a1d093-8b67-7001-b4b6-c8b3224cbc30",
   "aud": ["urn:odudu:params:admin-api", "http://localhost:3082/tenants/system"],
   "client_id": "odudu-admin",
   "scope": "openid",
-  "iat": 1791542130,
-  "exp": 1791542430,
-  "jti": "01a1203b-76ee-770f-a30e-ad9c67688ecf",
-  "sid": "01a1203b-5383-79a0-892a-1da6060f57f0",
-  "grant_id": "01a1203b-76ed-7f8b-94ad-a0175049233a"
+  "iat": 1794500694,
+  "exp": 1794500994,
+  "jti": "01a1d093-9017-7281-b48a-0544b3857934",
+  "sid": "01a1d093-8d4a-7d46-a0e7-f71aef418c32",
+  "grant_id": "01a1d093-9017-7281-b48a-05432c517f13"
 }
 ```
 
@@ -368,7 +369,7 @@ docker compose -p odudu-docs-12b exec -T postgres psql -U odudu -d odudu -c \
   name  |     type     | no_secret_hash | token_endpoint_auth_method |                     kid                     |                                redirect_uris
 --------+--------------+----------------+----------------------------+---------------------------------------------+------------------------------------------------------------------------------
  legacy | public       | t              | none                       |                                             | {http://127.0.0.1:8080/callback}
- system | confidential | t              | private_key_jwt            | lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM | {http://127.0.0.1:8080/callback,http://localhost:3082/console/auth/callback}
+ system | confidential | t              | private_key_jwt            | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs | {http://127.0.0.1:8080/callback,http://localhost:3082/console/auth/callback}
 (2 rows)
 ```
 
@@ -387,8 +388,8 @@ provisioned 2 tenants
 ```
   name  |     type     | no_secret_hash | token_endpoint_auth_method |                     kid                     |                                redirect_uris
 --------+--------------+----------------+----------------------------+---------------------------------------------+------------------------------------------------------------------------------
- legacy | confidential | t              | private_key_jwt            | lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM | {http://127.0.0.1:8080/callback,http://localhost:3082/console/auth/callback}
- system | confidential | t              | private_key_jwt            | lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM | {http://127.0.0.1:8080/callback,http://localhost:3082/console/auth/callback}
+ legacy | confidential | t              | private_key_jwt            | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs | {http://127.0.0.1:8080/callback,http://localhost:3082/console/auth/callback}
+ system | confidential | t              | private_key_jwt            | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs | {http://127.0.0.1:8080/callback,http://localhost:3082/console/auth/callback}
 (2 rows)
 ```
 
@@ -445,8 +446,8 @@ ODUDU_CONSOLE_CLIENT_KEY=eyJrdHkiOiJFQyIsIngiOiJ3N01waUxUaWZ
 ```
   name  | keys |                  first_kid                  | second_kid
 --------+------+---------------------------------------------+------------
- legacy |    1 | lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM |
- system |    1 | lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM |
+ legacy |    1 | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs |
+ system |    1 | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs |
 (2 rows)
 ```
 
@@ -466,8 +467,8 @@ provisioned 2 tenants
 ```
   name  | keys |                  first_kid                  |                 second_kid
 --------+------+---------------------------------------------+---------------------------------------------
- legacy |    2 | eI17EP1c344tSxqMmlBFXFhaedH7qc5F7KS2GFMv3i8 | lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM
- system |    2 | eI17EP1c344tSxqMmlBFXFhaedH7qc5F7KS2GFMv3i8 | lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM
+ legacy |    2 | eI17EP1c344tSxqMmlBFXFhaedH7qc5F7KS2GFMv3i8 | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs
+ system |    2 | eI17EP1c344tSxqMmlBFXFhaedH7qc5F7KS2GFMv3i8 | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs
 (2 rows)
 ```
 
@@ -506,8 +507,8 @@ provisioned 2 tenants
 ```
   name  | keys |                  first_kid                  | second_kid
 --------+------+---------------------------------------------+------------
- legacy |    1 | lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM |
- system |    1 | lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM |
+ legacy |    1 | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs |
+ system |    1 | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs |
 (2 rows)
 ```
 

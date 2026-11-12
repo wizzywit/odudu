@@ -37,10 +37,10 @@ odudu seed tenant --name demo --set client_registration_policy=mcp
 ```
 
 ```
-{"created":true,"tenant":"demo","tenantId":"01a1b4cd-c113-7527-aaf1-6cc53fd0a082","clientId":"demo-spa","userSubjectId":"01a1b4cd-c1a0-7ac7-81dd-4ef82ca669f2"}
-{"command":"grant-role","tenant":"demo","tenantId":"01a1b4cd-c113-7527-aaf1-6cc53fd0a082","username":"ada","role":"odudu-admin:view-users"}
-{"command":"grant-role","tenant":"demo","tenantId":"01a1b4cd-c113-7527-aaf1-6cc53fd0a082","username":"ada","role":"odudu-admin:manage-clients"}
-{"command":"tenant","created":false,"tenant":"demo","tenantId":"01a1b4cd-c113-7527-aaf1-6cc53fd0a082","settings":["client_registration_policy"]}
+{"created":true,"tenant":"demo","tenantId":"01a1d091-1cfa-79ae-834e-c3839d074e44","clientId":"demo-spa","userSubjectId":"01a1d091-1e49-7c5b-be1d-7f43502e59ff"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a1d091-1cfa-79ae-834e-c3839d074e44","username":"ada","role":"odudu-admin:view-users"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a1d091-1cfa-79ae-834e-c3839d074e44","username":"ada","role":"odudu-admin:manage-clients"}
+{"command":"tenant","created":false,"tenant":"demo","tenantId":"01a1d091-1cfa-79ae-834e-c3839d074e44","settings":["client_registration_policy"]}
 ```
 
 ```bash
@@ -51,7 +51,7 @@ curl -sS -X POST -H 'content-type: application/json' \
 ```
 
 ```
-{"client_id":"01a1b4cd-c6b0-7b45-96c6-1ab1b358bf02","client_id_issued_at":1794034747,"redirect_uris":["http://127.0.0.1:8080/callback"],"audience":["http://localhost:3000/tenants/demo/mcp"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"Transcript agent"}
+{"client_id":"01a1d091-266f-7790-acf0-662e60d08aba","client_id_issued_at":1794500535,"redirect_uris":["http://127.0.0.1:8080/callback"],"audience":["http://localhost:3000/tenants/demo/mcp"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"Transcript agent"}
 ```
 
 ## Getting a token
@@ -95,7 +95,7 @@ sed -n '/<header/,/<\/form>/p' login.html
 <p class="tenant"><bdi>demo</bdi></p>
 </header>
 <form method="post" action="/tenants/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a1b4cd-c700-742e-88fa-8521647ef548">
+  <input type="hidden" name="auth_session_id" value="01a1d091-26ee-780f-bcce-a1e207355068">
   <ul>
   <li><bdi>openid</bdi></li>
   </ul>
@@ -117,13 +117,14 @@ curl -sS -c jar -b jar -D - -o /dev/null \
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1b4cd-c76f-7f70-9209-1533a7b212e4
-set-cookie: demo-session=01a1b4cd-c780-7c1c-aed5-c85b1dc120f7:R57JJmUSSrqnrh27VlIqPVM2MstlQJz6lScIGfC1qyo; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d091-2799-7ecb-890a-f5c416ed0c48
+set-cookie: demo-session=01a1d091-27b8-751f-a6ed-6642c31feadf:qmDiY6_j1hBoy3rk5__-tlD4K1gqx3gUxV4rcYpgCF0; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-device=KMt2Q-keir8k-GySaJiyvA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/demo/; Max-Age=0
-location: http://127.0.0.1:8080/callback?code=1W0KhLZbyNEPuId7xwsAiKSV6afmvq5mS9DaY9ehTr8&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
+location: http://127.0.0.1:8080/callback?code=xfxIBIRJ7wJoKLZ6jymVOxMPn9t3RoOH77Q9RWBatcg&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:16 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -144,18 +145,18 @@ echo "$TOKEN" | cut -d. -f2 | python3 -c "import sys,base64;s=sys.stdin.read().s
 ```
 {
   "iss": "http://localhost:3000/tenants/demo",
-  "sub": "01a1b4cd-c1a0-7ac7-81dd-4ef82ca669f2",
+  "sub": "01a1d091-1e49-7c5b-be1d-7f43502e59ff",
   "aud": [
     "http://localhost:3000/tenants/demo/mcp",
     "http://localhost:3000/tenants/demo"
   ],
-  "client_id": "01a1b4cd-c6b0-7b45-96c6-1ab1b358bf02",
+  "client_id": "01a1d091-266f-7790-acf0-662e60d08aba",
   "scope": "openid mcp:read",
-  "iat": 1794034747,
-  "exp": 1794035047,
-  "jti": "01a1b4cd-c7a9-7c38-8682-082a268c5f2f",
-  "sid": "01a1b4cd-c780-7c1c-aed5-c85b1dc120f7",
-  "grant_id": "01a1b4cd-c7a8-7071-ad69-eb5f493b9609"
+  "iat": 1794500536,
+  "exp": 1794500836,
+  "jti": "01a1d091-27ff-7f3c-93a7-6ade087d71a2",
+  "sid": "01a1d091-27b8-751f-a6ed-6642c31feadf",
+  "grant_id": "01a1d091-27fe-779c-b7a6-4d00beee96e1"
 }
 ```
 
@@ -182,11 +183,11 @@ curl -sS -D - -X POST "$MCP" -H 'content-type: application/json' \
 
 ```
 HTTP/1.1 401 Unauthorized
-x-request-id: 01a1b4cd-c7da-75a9-ac33-41ec3cb5ea96
+x-request-id: 01a1d091-284c-7713-b3b8-57ff572375e4
 cache-control: no-store
 www-authenticate: Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/tenants/demo/mcp", scope="mcp:read"
 content-length: 0
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:16 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -200,11 +201,11 @@ curl -sS -D - -X POST "$MCP" -H 'Authorization: Bearer not-a-token' -H 'content-
 
 ```
 HTTP/1.1 401 Unauthorized
-x-request-id: 01a1b4cd-c7e6-7845-b34a-a6ec3b99f5b0
+x-request-id: 01a1d091-285d-77a4-8db0-85096d5ade69
 cache-control: no-store
 www-authenticate: Bearer error="invalid_token", resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/tenants/demo/mcp", scope="mcp:read"
 content-length: 0
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:16 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -218,9 +219,9 @@ curl -sS -D - -X POST http://localhost:3000/tenants/nobody/mcp -H 'content-type:
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1b4cd-c7ef-74ad-948d-b3633cab22f1
+x-request-id: 01a1d091-286a-7c22-be9b-2aa261f4f083
 content-length: 0
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:16 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -237,11 +238,11 @@ rpc -D - -H 'Host: evil.example' -d '{"jsonrpc":"2.0","id":1,"method":"tools/lis
 
 ```
 HTTP/1.1 403 Forbidden
-x-request-id: 01a1b4cd-c7f9-789f-bd23-04ab06cf1c1a
+x-request-id: 01a1d091-2877-7ec6-8660-9a25d899d2af
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 116
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:16 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -254,11 +255,11 @@ rpc -D - -H 'Origin: https://evil.example' -d '{"jsonrpc":"2.0","id":1,"method":
 
 ```
 HTTP/1.1 403 Forbidden
-x-request-id: 01a1b4cd-c805-7dc5-93b6-212e353ff899
+x-request-id: 01a1d091-2885-738a-aa49-2f2536def482
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 116
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:16 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -274,22 +275,22 @@ curl -sS -D - -X DELETE "$MCP"
 
 ```
 HTTP/1.1 405 Method Not Allowed
-x-request-id: 01a1b4cd-c80f-7073-a5b6-0418013fbbaa
+x-request-id: 01a1d091-2894-7e75-92b8-5f7c265a4876
 allow: POST
 content-type: application/json; charset=utf-8
 content-length: 83
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:16 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"jsonrpc":"2.0","error":{"code":-32000,"message":"Method not allowed."},"id":null}
 
 HTTP/1.1 405 Method Not Allowed
-x-request-id: 01a1b4cd-c818-7029-89a8-ebfc92c11279
+x-request-id: 01a1d091-28a1-7819-9ef8-b23d3b0ebec5
 allow: POST
 content-type: application/json; charset=utf-8
 content-length: 83
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:16 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -312,12 +313,12 @@ rpc -D - -H 'mcp-protocol-version: 2025-11-25' \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1b4cd-c823-70c2-8959-398a68d48617
+x-request-id: 01a1d091-28b1-75c5-b071-d392d0bce967
 cache-control: no-cache, no-transform
 connection: keep-alive
 content-type: text/event-stream
 x-accel-buffering: no
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:16 GMT
 Transfer-Encoding: chunked
 
 event: message
@@ -355,13 +356,13 @@ rpc -H 'mcp-protocol-version: 2025-11-25' \
     "content": [
       {
         "type": "text",
-        "text": "{\"data\":{\"subjectId\":\"01a1b4cd-c1a0-7ac7-81dd-4ef82ca669f2\",\"issuerTenantId\":\"01a1b4cd-c113-7527-aaf1-6cc53fd0a082\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"
+        "text": "{\"data\":{\"subjectId\":\"01a1d091-1e49-7c5b-be1d-7f43502e59ff\",\"issuerTenantId\":\"01a1d091-1cfa-79ae-834e-c3839d074e44\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"
       }
     ],
     "structuredContent": {
       "data": {
-        "subjectId": "01a1b4cd-c1a0-7ac7-81dd-4ef82ca669f2",
-        "issuerTenantId": "01a1b4cd-c113-7527-aaf1-6cc53fd0a082",
+        "subjectId": "01a1d091-1e49-7c5b-be1d-7f43502e59ff",
+        "issuerTenantId": "01a1d091-1cfa-79ae-834e-c3839d074e44",
         "issuerTenantName": "demo",
         "capabilities": [
           "manage-clients",
@@ -463,9 +464,9 @@ rpc -D - -H 'mcp-protocol-version: 2026-07-28' \
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a1b4cd-c927-710f-9912-5bd64cc41ba7
+x-request-id: 01a1d091-2a19-759f-80fe-b239f2b151f8
 content-type: application/json
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:16 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 Transfer-Encoding: chunked
@@ -510,11 +511,11 @@ rpc -D - -H 'mcp-protocol-version: 2025-11-25' \
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a1b4cd-c976-7b55-9c8f-f2f038097973
+x-request-id: 01a1d091-2aaa-71cb-a855-1434156fbdfd
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 96
-Date: Sat, 07 Nov 2026 06:59:07 GMT
+Date: Thu, 12 Nov 2026 16:22:17 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -570,12 +571,12 @@ rpc -D - -H 'mcp-protocol-version: 2026-07-28' -H 'mcp-method: tools/list' \
 
 ```
 HTTP/1.1 429 Too Many Requests
-x-request-id: 01a1b4cd-cfec-7bbc-89d6-6637ca10054c
+x-request-id: 01a1d091-3233-7301-980b-ba4b53602733
 cache-control: no-store
-retry-after: 52
+retry-after: 43
 content-type: application/json; charset=utf-8
 content-length: 81
-Date: Sat, 07 Nov 2026 06:59:09 GMT
+Date: Thu, 12 Nov 2026 16:22:18 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

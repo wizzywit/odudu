@@ -38,7 +38,7 @@ odudu seed tenant --name reset-demo --set reset_password_allowed=true
 ```
 
 ```
-{"command":"tenant","created":false,"tenant":"reset-demo","tenantId":"01a0cb18-11ed-76ca-b9fc-f5244493d7c2","settings":["reset_password_allowed"]}
+{"command":"tenant","created":false,"tenant":"reset-demo","tenantId":"01a1d09c-629c-7e99-9850-cd23801dee58","settings":["reset_password_allowed"]}
 ```
 
 The token a request mints is valid for the tenant's
@@ -140,7 +140,7 @@ the same `/login-actions/action-token` endpoint answers with a form instead
 of completing an action:
 
 ```bash
-curl -sS 'http://localhost:3000/tenants/reset-demo/login-actions/action-token?key=Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0'
+curl -sS 'http://localhost:3000/tenants/reset-demo/login-actions/action-token?key=Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE'
 ```
 
 ```
@@ -163,7 +163,7 @@ curl -sS 'http://localhost:3000/tenants/reset-demo/login-actions/action-token?ke
 <p class="tenant"><bdi>reset-demo</bdi></p>
 </header>
 <form method="post" action="/tenants/reset-demo/login-actions/action-token">
-  <input type="hidden" name="key" value="Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0">
+  <input type="hidden" name="key" value="Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE">
   <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
@@ -172,7 +172,7 @@ curl -sS 'http://localhost:3000/tenants/reset-demo/login-actions/action-token?ke
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="MU+sMh7d0dSKDCEIEWvqJg==">(function () {
+  <script nonce="H9a9ieOSxJnRWnWRh+/oAQ==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -223,8 +223,8 @@ alone rather than spent — it is still the same unconsumed token, so trying
 again with a compliant password on the very same link works:
 
 ```bash
-curl -sS -X POST http://localhost:3195/tenants/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0' \
+curl -sS -X POST http://localhost:3000/tenants/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE' \
   --data-urlencode 'password=weak'
 ```
 
@@ -253,7 +253,7 @@ curl -sS -X POST http://localhost:3195/tenants/reset-demo/login-actions/action-t
 </ul>
 </div>
 <form method="post" action="/tenants/reset-demo/login-actions/action-token">
-  <input type="hidden" name="key" value="Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0">
+  <input type="hidden" name="key" value="Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE">
   <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 password-rules-list" autofocus></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
@@ -262,7 +262,7 @@ curl -sS -X POST http://localhost:3195/tenants/reset-demo/login-actions/action-t
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="IGE2kMFxuU4Wr7KdAYqgUQ==">(function () {
+  <script nonce="TYhSEVBdEvn+mg5k5kXSZw==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -427,8 +427,8 @@ read and written.
 Submitting a compliant password on the `reset-demo` link above sets it:
 
 ```bash
-curl -sS -X POST http://localhost:3195/tenants/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0' \
+curl -sS -X POST http://localhost:3000/tenants/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE' \
   --data-urlencode 'password=a brand new password'
 ```
 
@@ -505,10 +505,11 @@ curl -sS -i -X POST http://localhost:3000/tenants/reset-demo/login-actions/authe
 
 ```
 HTTP/1.1 302 Found
-set-cookie: reset-demo-session=01a17a94-2e98-…:frBZEYIu2fH3…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: reset-demo-session=01a1d09c-6731-…:-YupE_beLNoI…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: reset-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: reset-demo-device=Ifaw679Sisxq0ODAGdO3AA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/reset-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=OF6tNtIVtws0…&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Freset-demo
+location: http://localhost:8080/callback?code=9AhrvZyTNiy1…&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Freset-demo
 ```
 
 (Session entry and code truncated.)
@@ -518,7 +519,7 @@ same as a verify-email token, and `action_tokens.consumed_at` is now set:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3000/tenants/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0' \
+  --data-urlencode 'key=Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE' \
   --data-urlencode 'password=another password'
 ```
 

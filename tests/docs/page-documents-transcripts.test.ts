@@ -8,6 +8,7 @@ import {
   renderAuthorizeErrorPage,
   type WayOn,
 } from '../../packages/protocol-oidc/src/view/authorize-html.js';
+import { type ClientSource } from '../../packages/protocol-oidc/src/service/client-source.js';
 import { renderConsentPage } from '../../packages/protocol-oidc/src/view/consent-html.js';
 import { page } from '../../packages/protocol-oidc/src/view/document.js';
 import {
@@ -381,6 +382,14 @@ const elidesOnlyTheQr = (block: Recorded): boolean =>
     .filter((line) => line.includes('…'))
     .every((line) => line === QR_ELIDED);
 
+// The consent screen's note for a client that registered itself, read back
+// from the recorded body as the ClientSource the renderer made it from.
+function selfRegisteredSource(body: string): ClientSource | null {
+  if (!body.includes('This application registered itself.')) return null;
+  const sentTo = /sent back to:<\/p>\n<p class="context"><bdi>(.*?)<\/bdi><\/p>/u.exec(body);
+  return { kind: 'self-registered', sentTo: sentTo?.[1] ?? null, origins: [], more: 0 };
+}
+
 // What the recorded markup says its inputs were, put back through the real
 // renderer: a page whose text or markup the server no longer produces for the
 // same inputs is named here. It cannot see a branch no recording takes, the
@@ -525,6 +534,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
           clientUri: link(/About <bdi>.*?<\/bdi>/u),
           policyUri: link(/Privacy policy/u),
           tosUri: link(/Terms of service/u),
+          source: selfRegisteredSource(body),
         },
         defaultScopes: all(body.slice(body.indexOf('<ul>')), /^ {2}<li><bdi>(.*)<\/bdi><\/li>$/gmu),
         optionalScopes: optional.map((m) => unescaped(m[1] ?? '')),

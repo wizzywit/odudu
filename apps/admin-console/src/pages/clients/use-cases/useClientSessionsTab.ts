@@ -1,3 +1,4 @@
+import { deviceCaptionOf, groupByDevice } from '#/entities/session';
 import type { Client } from '#/entities/client';
 import type { ClientSession } from '#/pages/clients/types/clientSession';
 import { useState } from 'react';
@@ -49,6 +50,7 @@ export interface ClientSessions extends Removal {
   revokeHeading: string;
   revokeRule: string;
   list: ResourceListState<ClientSession>;
+  deviceCaption: (device: string | null) => string | null;
   open: (subjectId: string) => void;
   // How a session names its subject: the username, or the ID when it has none.
   subjectLabel: (session: ClientSession) => string;
@@ -93,7 +95,8 @@ export function useClientSessionsTab(
     capability: SESSIONS_CAPABILITY,
     revokeHeading: REVOKE_HEADING,
     revokeRule: REVOKE_RULE,
-    list,
+    list: { ...list, rows: groupByDevice(list.rows) },
+    deviceCaption: deviceCaptionOf(list.rows),
     open: (subjectId) => {
       go(subjectHref(tenant, subjectId));
     },

@@ -674,6 +674,8 @@ describeFields(sessionSchema, {
   remembered:
     'Whether the user chose to stay signed in, which gives the session the longer remember-me lifetimes.',
   client_ids: 'The clients the session has signed the user in to.',
+  device:
+    'An opaque id shared by the sessions opened on one browser, or null for a session opened before it was recorded.',
 });
 describeFields(tenantSessionSchema, {
   id: 'The session’s identifier.',
@@ -682,6 +684,8 @@ describeFields(tenantSessionSchema, {
   remembered:
     'Whether the user chose to stay signed in, which gives the session the longer remember-me lifetimes.',
   client_ids: 'The clients the session has signed the user in to.',
+  device:
+    'An opaque id shared by the sessions opened on one browser, or null for a session opened before it was recorded.',
   subject_id: 'The user the session belongs to.',
   username: 'That user’s username, or null.',
 });

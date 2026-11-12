@@ -10,6 +10,13 @@ export {
 } from '#/service/session-cookie';
 export { SessionEntry } from '#/service/session-entry';
 export {
+  deviceCookie,
+  deviceCookieName,
+  deviceDigest,
+  newDeviceId,
+  readDeviceId,
+} from '#/service/device-id';
+export {
   readSignInHandle,
   signInHandleCookie,
   clearedSignInHandleCookie,

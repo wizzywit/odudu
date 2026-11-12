@@ -204,7 +204,8 @@ DELETE 2
 ```
 
 The sessions are the person's live ones. The one the token was issued for is marked `current`; the other is the sign-in
-whose code the page did not redeem. `device` is `null` because nothing records one yet:
+whose code the page did not redeem. `device` is `null` here because this block was captured before sessions recorded the
+device they were opened on; [A session's device](#a-sessions-device) below is a run on a build that does:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $TOKEN" $ME/sessions
@@ -240,6 +241,106 @@ Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"items":[{"client_id":"me-app","scope_names":["openid","me:read"],"granted_at":"2026-11-11T17:53:07.217Z"}],"next_cursor":null}
+```
+
+## A session's device
+
+A sign-in that ends in a redirect also sets a cookie, `me-doc-device`, on the browser that made it, and every later sign-in
+from that browser sends it back. It is random, `HttpOnly`, same-site and good for 400 days, and it names no one: it only lets
+the server say which sessions were opened on one browser. What a session row stores, and every list shows as `device`, is the
+SHA-256 of the cookie's value, so a list never yields a value a browser sends. Each command below is one run of the sign-in
+helper above, changed to keep the cookie jar it is given (`JAR`) instead of deleting it, and to ask for `prompt=login`, so a
+second sign-in in a jar that already holds a session asks for the password instead of reusing it. The run was on a freshly
+built stack (see [how the transcripts were made](../../../contributing/transcripts.md)), so its ids and times are not those of
+the blocks above. Two sign-ins in `browser-a`; the second sends the cookie the first set and is given the same one back:
+
+```bash
+JAR=browser-a signin_code me-app "openid me:read" "$ME"; grep -i "^set-cookie: me-doc-device" login.headers
+```
+
+```
+set-cookie: me-doc-device=-qVhJgEOSiPjX2l6avCZUg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+```
+
+```bash
+JAR=browser-a signin_code me-app "openid me:read" "$ME"; grep -i "^set-cookie: me-doc-device" login.headers
+```
+
+```
+set-cookie: me-doc-device=-qVhJgEOSiPjX2l6avCZUg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+```
+
+A third sign-in, in a jar of its own, is another browser and is given another cookie:
+
+```bash
+JAR=browser-b signin_code me-app "openid me:read" "$ME"; grep -i "^set-cookie: me-doc-device" login.headers
+```
+
+```
+set-cookie: me-doc-device=Mf-gEgqNezCRv3a8MQT84g; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+```
+
+The sessions read, in full, then reduced to what matters. Two of the three sessions share a `device`, and the one for the other
+browser does not:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $TOKEN" $ME/sessions
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1d03a-3fd0-7f26-93b0-8bb679479639
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 872
+Date: Thu, 12 Nov 2026 14:47:20 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a1d03a-3eb4-77bc-847c-c5f913e40407","created_at":"2026-11-12T14:47:20.497Z","last_active_at":"2026-11-12T14:47:20.497Z","expires_at":"2026-11-13T00:47:20.500Z","remembered":false,"current":false,"device":"b1e91d2a3fe59667ae750cd5f150a208386932606ff940e25a142f85a3b53843"},{"id":"01a1d03a-3f22-7b77-af49-36fb0c653252","created_at":"2026-11-12T14:47:20.607Z","last_active_at":"2026-11-12T14:47:20.607Z","expires_at":"2026-11-13T00:47:20.610Z","remembered":false,"current":true,"device":"b1e91d2a3fe59667ae750cd5f150a208386932606ff940e25a142f85a3b53843"},{"id":"01a1d03a-3fbc-76ff-983e-c02cab33f0fa","created_at":"2026-11-12T14:47:20.761Z","last_active_at":"2026-11-12T14:47:20.761Z","expires_at":"2026-11-13T00:47:20.764Z","remembered":false,"current":false,"device":"446bbe4c0a44e7c53b45d2fe0e36bc985c720234a41cec1de91212caae3aaffa"}],"next_cursor":null}
+```
+
+```bash
+curl -sS -H "Authorization: Bearer $TOKEN" $ME/sessions | jq -c ".items[] | {current, device}"
+```
+
+```
+{"current":false,"device":"b1e91d2a3fe59667ae750cd5f150a208386932606ff940e25a142f85a3b53843"}
+{"current":true,"device":"b1e91d2a3fe59667ae750cd5f150a208386932606ff940e25a142f85a3b53843"}
+{"current":false,"device":"446bbe4c0a44e7c53b45d2fe0e36bc985c720234a41cec1de91212caae3aaffa"}
+```
+
+The `device` of `browser-a` is the SHA-256 of the value its jar holds, not the value:
+
+```bash
+printf "%s" "$(awk '$6 == "me-doc-device" {print $7}' browser-a | head -1)" | openssl dgst -sha256 -r | cut -d" " -f1
+```
+
+```
+b1e91d2a3fe59667ae750cd5f150a208386932606ff940e25a142f85a3b53843
+```
+
+The admin API's lists of sessions carry the same field, so an operator reads the same grouping, for one subject and for the
+whole tenant:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN" $BASE/admin/tenants/me-doc/subjects/$GRACE/sessions | jq -c ".items[] | {device}"
+```
+
+```
+{"device":"b1e91d2a3fe59667ae750cd5f150a208386932606ff940e25a142f85a3b53843"}
+{"device":"b1e91d2a3fe59667ae750cd5f150a208386932606ff940e25a142f85a3b53843"}
+{"device":"446bbe4c0a44e7c53b45d2fe0e36bc985c720234a41cec1de91212caae3aaffa"}
+```
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN" $BASE/admin/tenants/me-doc/sessions | jq -c ".items[] | {username, device}"
+```
+
+```
+{"username":"grace","device":"b1e91d2a3fe59667ae750cd5f150a208386932606ff940e25a142f85a3b53843"}
+{"username":"grace","device":"b1e91d2a3fe59667ae750cd5f150a208386932606ff940e25a142f85a3b53843"}
+{"username":"grace","device":"446bbe4c0a44e7c53b45d2fe0e36bc985c720234a41cec1de91212caae3aaffa"}
 ```
 
 ## Paging

@@ -113,7 +113,7 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   'GET /tenants/:tenant/me/sessions': {
     auth: 'Access token',
     purpose:
-      'The person’s own live sessions, marking the one the token was issued for as `current`; `device` is `null` until a session records one. A page of `limit` rows after `cursor`, returned as `items` and `next_cursor`, with the same bearer token and refusals as the profile.',
+      'The person’s own live sessions, marking the one the token was issued for as `current`; `device` is an opaque id shared by the sessions opened on one browser, `null` for a session opened before it was recorded. A page of `limit` rows after `cursor`, returned as `items` and `next_cursor`, with the same bearer token and refusals as the profile.',
   },
   'GET /tenants/:tenant/me/consents': {
     auth: 'Access token',
