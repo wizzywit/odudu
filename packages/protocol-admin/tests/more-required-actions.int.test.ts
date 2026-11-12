@@ -181,8 +181,6 @@ describe('GET …/terms-acceptances', () => {
       headers: { authorization: `Bearer ${await fixture.adminToken(t.name, ['view-users'])}` },
     });
     expect(unknown.statusCode).toBe(404);
-    expect((await get('', await fixture.adminToken(t.name, ['view-audit']))).statusCode).toBe(
-      403,
-    );
+    expect((await get('', await fixture.adminToken(t.name, ['view-audit']))).statusCode).toBe(403);
   });
 });
