@@ -74,6 +74,13 @@ export const ar: Readonly<Record<string, string>> = {
   'own.totpAdded.text': 'أُعدّ تطبيق مصادقة على حسابك في {tenant}.',
   'own.totpAdded.reason':
     'وصلتك هذه الرسالة لأن إحدى طرق تسجيل الدخول إلى حسابك لدى {tenant} تغيّرت.',
+  'own.totpReplaced.subject': 'استُبدل تطبيق مصادقة على حسابك في {tenant}',
+  'own.totpReplaced.preheader': 'لم يعد بالإمكان استخدام التطبيق السابق لتسجيل الدخول.',
+  'own.totpReplaced.heading': 'استُبدل تطبيق مصادقة',
+  'own.totpReplaced.text':
+    'حلّ تطبيق مصادقة جديد محل التطبيق على حسابك في {tenant}. لم يعد التطبيق السابق يعمل.',
+  'own.totpReplaced.reason':
+    'وصلتك هذه الرسالة لأن إحدى طرق تسجيل الدخول إلى حسابك لدى {tenant} تغيّرت.',
   'own.passkeyAdded.subject': 'أُضيف مفتاح مرور إلى حسابك في {tenant}',
   'own.passkeyAdded.preheader': 'يمكنك الآن استخدامه لتسجيل الدخول.',
   'own.passkeyAdded.heading': 'أُضيف مفتاح مرور',

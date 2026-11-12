@@ -88,7 +88,7 @@ export async function completeTotpEnrolment(
   const notice = await noticeOwnChange(
     tx,
     { ...input, now },
-    { kind: 'totp_added' },
+    { kind: existing.length > 0 ? 'totp_replaced' : 'totp_added' },
     input.resolveMailLook,
   );
   await auditRepository(tx).record({

@@ -173,6 +173,31 @@ describe('an authenticator app enrolled by the subject', () => {
     expect(await noticeOf(a, 'otp.enrolled')).toBe('skipped_none');
   });
 
+  it('says it was replaced, once, when a swap removes the one held', async () => {
+    const a = await account(VERIFIED);
+    await enrolTotp(a);
+    const before = (await mail(a)).length;
+    const second = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+    const outcome = await withTenant(app.db, a.tenantId, (tx) =>
+      completeTotpEnrolment(
+        tx,
+        {
+          ...a,
+          secret: second,
+          code: totpCode(second, totpCounter(clock.now())),
+          authSessionId: newId(),
+          replace: true,
+        },
+        clock,
+      ),
+    );
+    expect(outcome).toEqual({ kind: 'enrolled' });
+    const added = (await mail(a)).slice(before);
+    expect(added.map((row) => row.subject)).toEqual([
+      'An authenticator app was replaced on your Northwind account',
+    ]);
+  });
+
   it('sends nothing when the code is wrong', async () => {
     const a = await account(VERIFIED);
     const outcome = await withTenant(app.db, a.tenantId, (tx) =>

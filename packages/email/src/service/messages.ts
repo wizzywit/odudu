@@ -77,13 +77,20 @@ export const en = {
     'You received this because the recovery codes on your account at {tenant} were changed.',
   'own.when': 'This happened on {when}.',
   'own.notYou':
-    'If this was not you, sign in and change your password, or contact your administrator right away.',
+    'If this was not you, sign in and review your sign-in methods, change your password if you use one, or contact your administrator right away.',
   'own.codesRemoved': 'Your recovery codes were removed with it, and no longer work.',
   'own.totpAdded.subject': 'An authenticator app was added to your {tenant} account',
   'own.totpAdded.preheader': 'You can now use it to sign in.',
   'own.totpAdded.heading': 'An authenticator app was added',
   'own.totpAdded.text': 'An authenticator app was set up on your {tenant} account.',
   'own.totpAdded.reason':
+    'You received this because a sign-in method on your account at {tenant} was changed.',
+  'own.totpReplaced.subject': 'An authenticator app was replaced on your {tenant} account',
+  'own.totpReplaced.preheader': 'The previous one can no longer be used to sign in.',
+  'own.totpReplaced.heading': 'An authenticator app was replaced',
+  'own.totpReplaced.text':
+    'A new authenticator app replaced the one on your {tenant} account. The previous one no longer works.',
+  'own.totpReplaced.reason':
     'You received this because a sign-in method on your account at {tenant} was changed.',
   'own.passkeyAdded.subject': 'A passkey was added to your {tenant} account',
   'own.passkeyAdded.preheader': 'You can now use it to sign in.',

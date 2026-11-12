@@ -24,6 +24,7 @@ const ACTIONS = [
 
 const OWN_CHANGES = [
   { kind: 'totp_added' },
+  { kind: 'totp_replaced' },
   { kind: 'passkey_added' },
   { kind: 'totp_removed', codes: true },
   { kind: 'passkey_removed' },

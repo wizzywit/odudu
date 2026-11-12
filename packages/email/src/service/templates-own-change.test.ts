@@ -7,6 +7,7 @@ const input = { to: 'ada@example.test', tenantDisplayName: 'Demo', now: NOW };
 
 const CHANGES: readonly OwnChange[] = [
   { kind: 'totp_added' },
+  { kind: 'totp_replaced' },
   { kind: 'passkey_added' },
   { kind: 'totp_removed', codes: false },
   { kind: 'totp_removed', codes: true },
@@ -28,6 +29,12 @@ describe('renderOwnChange', () => {
   it.each(CHANGES)('carries no link, no code and no secret for %j', (change) => {
     const msg = renderOwnChange({ ...input, change });
     expect(msg.text + msg.html).not.toMatch(/https?:|<a |[0-9A-Z]{5}-[0-9A-Z]{5}/u);
+  });
+
+  it('says an authenticator app was replaced, not added', () => {
+    const msg = renderOwnChange({ ...input, change: { kind: 'totp_replaced' } });
+    expect(msg.subject).toBe('An authenticator app was replaced on your Demo account');
+    expect(msg.text).toContain('replaced');
   });
 
   it('names the factor in the subject', () => {

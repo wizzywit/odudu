@@ -372,6 +372,7 @@ export function renderRecoveryCodesRevoked(input: RecoveryCodesRevokedInput): Em
 
 export type OwnChange =
   | { readonly kind: 'totp_added' }
+  | { readonly kind: 'totp_replaced' }
   | { readonly kind: 'passkey_added' }
   | { readonly kind: 'totp_removed'; readonly codes: boolean }
   | { readonly kind: 'passkey_removed' }
@@ -384,6 +385,7 @@ export interface OwnChangeInput extends NoticeInput {
 
 const OWN_CHANGE_PREFIX = {
   totp_added: 'own.totpAdded',
+  totp_replaced: 'own.totpReplaced',
   passkey_added: 'own.passkeyAdded',
   totp_removed: 'own.totpRemoved',
   passkey_removed: 'own.passkeyRemoved',

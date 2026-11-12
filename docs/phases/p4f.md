@@ -349,4 +349,5 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 
 ### At volume
 
-- One extra primary-key read of the user and one of the tenant per change that sends, none when no mail is sent; no list grew.
+- A change that sends reads the user row, the tenant's name and display name, and the tenant's mail settings (language, theme and
+  wording, through `tenantMailContext`): one primary-key read of the user and two of the tenant. None is read when no mail is sent; no list grew.
