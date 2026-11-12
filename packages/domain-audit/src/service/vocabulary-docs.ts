@@ -67,6 +67,8 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'Someone tried to register an email address that already has an account. `resource_id` names that account.',
   'account.address_proved':
     "A reset link proved an unverified address. The account's second factors, passkeys and recovery codes were removed.",
+  'account.reconciled':
+    'An account that held the same address as another, apart from its case, was folded into the one that stayed. `resource_id` is the retired account; `detail` names the survivor, whether anything was carried over and how many rows of each kind moved. It holds no address, and moved rows are not recorded one by one, so a merge is not reversed mechanically.',
   'email.verified': 'A user verified their email address through the mailed link.',
   'email.verification_resent':
     'A new verification link was mailed because the one a person held was spent or expired. Written once for each request that queued a mail, with no actor, and without the address.',
@@ -188,8 +190,6 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'subject.actions_email_send':
     'A mail asking a subject to complete required actions was sent by an admin.',
   'subject.profile_amend': 'A subject’s profile claims were amended.',
-  'subject.reconcile':
-    'An account that held the same address as another, apart from its case, was folded into the one that stayed.',
   'subject.recovery_codes_revoke': 'A subject’s recovery codes were revoked.',
   'subject.required_actions_set': 'The required actions of a subject were replaced.',
   'subject.roles_set': 'The roles of a subject were replaced.',

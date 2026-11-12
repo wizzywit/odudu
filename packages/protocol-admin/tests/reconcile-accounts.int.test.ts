@@ -115,6 +115,31 @@ async function audit(tenantId: string, subjectId: string): Promise<void> {
             'subject', ${subjectId})`;
 }
 
+async function loginEvent(tenantId: string, subjectId: string): Promise<void> {
+  await owner.sql`
+    insert into audit_events
+      (id, tenant_id, event_type, action, outcome, actor_subject_id, resource_type, resource_id)
+    values (${randomUUID()}, ${tenantId}, 'authentication', 'login.password', 'allowed',
+            ${subjectId}, 'authentication_session', 'digest')`;
+}
+
+async function pendingLinks(tenantId: string, subjectId: string): Promise<void> {
+  await owner.sql`
+    insert into action_tokens (id, tenant_id, subject_id, type, token_hash, expires_at)
+    values (${randomUUID()}, ${tenantId}, ${subjectId}, 'verify_email', ${randomUUID()},
+            '2027-01-01T00:00:00Z')`;
+  await owner.sql`
+    insert into pending_email_changes (tenant_id, subject_id, email)
+    values (${tenantId}, ${subjectId}, 'elsewhere@example.test')`;
+}
+
+async function linksHeld(subjectId: string): Promise<number> {
+  const [row] = await owner.sql<{ n: number }[]>`
+    select ((select count(*) from action_tokens where subject_id = ${subjectId})
+          + (select count(*) from pending_email_changes where subject_id = ${subjectId}))::int n`;
+  return row?.n ?? 0;
+}
+
 async function owned(table: string, subjectId: string): Promise<string[]> {
   const rows = await owner.sql<{ id: string }[]>`
     select id::text from ${owner.sql(table)} where subject_id = ${subjectId} order by id`;
@@ -132,7 +157,7 @@ async function state(subjectId: string) {
 
 async function auditRows(tenantId: string): Promise<string> {
   const rows = await owner.sql`
-    select * from audit_events where tenant_id = ${tenantId} and action <> 'subject.reconcile'
+    select * from audit_events where tenant_id = ${tenantId} and action <> 'account.reconciled'
      order by id`;
   return JSON.stringify(rows);
 }
@@ -147,14 +172,24 @@ function run(tenantIds: readonly string[], options: { dryRun?: boolean; chunk?: 
 describe('reconciling accounts that hold one address', () => {
   it('moves what the person set up to the account that stays, and leaves the audit trail alone', async () => {
     const t = await tenant();
-    const stays = await user(t, { email: 'Ada@Example.test', createdAt: '2026-01-01T00:00:00Z' });
-    const goes = await user(t, { email: 'ada@example.test', createdAt: '2026-02-01T00:00:00Z' });
+    const stays = await user(t, {
+      email: 'Ada@Example.test',
+      verified: true,
+      createdAt: '2026-01-01T00:00:00Z',
+    });
+    const goes = await user(t, {
+      email: 'ada@example.test',
+      verified: true,
+      createdAt: '2026-02-01T00:00:00Z',
+    });
+    await pendingLinks(t, goes);
+    await pendingLinks(t, stays);
     const c1 = await client(t);
     const c2 = await client(t);
-    const password = await credential(t, goes, 'password', true);
+    const password = await credential(t, goes, 'password');
     const passkey = await credential(t, goes, 'webauthn');
-    const live = await session(t, goes);
-    const granted = await grant(t, goes, c1);
+    const live = await session(t, stays);
+    const granted = await grant(t, stays, c1);
     await consent(t, goes, c1);
     await consent(t, goes, c2);
     await consent(t, stays, c1);
@@ -170,7 +205,7 @@ describe('reconciling accounts that hold one address', () => {
       accounts_retired: 1,
       refused: 0,
       failed: 0,
-      moved: { credentials: 2, sessions: 1, grants: 1, consents: 1 },
+      moved: { credentials: 2, sessions: 0, grants: 0, consents: 1 },
     });
     expect(await owned('user_credentials', stays)).toEqual([password, passkey].sort());
     expect(await owned('user_credentials', goes)).toEqual([]);
@@ -183,17 +218,24 @@ describe('reconciling accounts that hold one address', () => {
     expect(await state(goes)).toEqual({ email: null, verified: false, disabled: true });
     expect((await state(stays)).disabled).toBe(false);
     expect(await auditRows(t)).toBe(before);
+    expect(await linksHeld(goes)).toBe(0);
+    expect(await linksHeld(stays)).toBe(2);
     const [row] = await owner.sql<{ n: number; detail: Record<string, unknown> }[]>`
       select count(*) over ()::int n, detail from audit_events
-       where tenant_id = ${t} and action = 'subject.reconcile' and resource_id = ${goes}`;
+       where tenant_id = ${t} and action = 'account.reconciled' and resource_id = ${goes}`;
     expect(row?.n).toBe(1);
-    expect(row?.detail).toMatchObject({ survivor: stays });
+    expect(row?.detail).toMatchObject({ survivor: stays, loser: goes, carried_over: true });
+    expect(JSON.stringify(row?.detail)).not.toContain('example.test');
   });
 
   it('keeps the survivor’s own password, second factor and codes, and moves a passkey', async () => {
     const t = await tenant();
-    const stays = await user(t, { email: 'a@x.test' });
-    const goes = await user(t, { email: 'A@x.test', createdAt: '2026-03-01T00:00:00Z' });
+    const stays = await user(t, { email: 'a@x.test', verified: true });
+    const goes = await user(t, {
+      email: 'A@x.test',
+      verified: true,
+      createdAt: '2026-03-01T00:00:00Z',
+    });
     const mine = await credential(t, stays, 'password');
     const theirs = await credential(t, goes, 'password');
     const key = await credential(t, goes, 'webauthn');
@@ -246,30 +288,46 @@ describe('reconciling accounts that hold one address', () => {
 
   it('merges a group of three into one, in one pass', async () => {
     const t = await tenant();
-    const a = await user(t, { email: 'e@x.test', createdAt: '2026-01-01T00:00:00Z' });
-    const b = await user(t, { email: 'E@x.test', createdAt: '2026-02-01T00:00:00Z' });
-    const c = await user(t, { email: 'e@X.test', createdAt: '2026-03-01T00:00:00Z' });
+    const a = await user(t, {
+      email: 'e@x.test',
+      verified: true,
+      createdAt: '2026-01-01T00:00:00Z',
+    });
+    const b = await user(t, {
+      email: 'E@x.test',
+      verified: true,
+      createdAt: '2026-02-01T00:00:00Z',
+    });
+    const c = await user(t, {
+      email: 'e@X.test',
+      verified: true,
+      createdAt: '2026-03-01T00:00:00Z',
+    });
     await session(t, c);
     const report = await run([t]);
     expect(report).toMatchObject({ groups: 1, merged: 1, accounts_retired: 2 });
-    expect((await state(a)).disabled).toBe(false);
+    expect((await state(c)).disabled).toBe(false);
+    expect((await state(a)).disabled).toBe(true);
     expect((await state(b)).disabled).toBe(true);
-    expect((await state(c)).disabled).toBe(true);
-    expect(await owned('sessions', a)).toHaveLength(1);
+    expect(await owned('sessions', c)).toHaveLength(1);
   });
 
   it('finds nothing the second time', async () => {
     const t = await tenant();
-    await user(t, { email: 'f@x.test' });
-    await user(t, { email: 'F@x.test', createdAt: '2026-02-01T00:00:00Z' });
+    await user(t, { email: 'f@x.test', verified: true });
+    await user(t, { email: 'F@x.test', verified: true, createdAt: '2026-02-01T00:00:00Z' });
     expect((await run([t])).merged).toBe(1);
     expect(await run([t])).toMatchObject({ groups: 0, merged: 0, refused: 0, accounts_retired: 0 });
   });
 
   it('changes nothing on a dry run and says what it would do', async () => {
     const t = await tenant();
-    const a = await user(t, { email: 'g@x.test' });
-    const b = await user(t, { email: 'G@x.test', createdAt: '2026-02-01T00:00:00Z' });
+    const a = await user(t, { email: 'g@x.test', verified: true });
+    const b = await user(t, {
+      email: 'G@x.test',
+      verified: true,
+      createdAt: '2026-02-01T00:00:00Z',
+    });
     await session(t, b);
     const before = await owner.sql`select * from users where tenant_id = ${t} order by subject_id`;
     const report = await run([t], { dryRun: true });
@@ -287,15 +345,19 @@ describe('reconciling accounts that hold one address', () => {
     expect((await state(a)).disabled).toBe(false);
     expect((await state(b)).disabled).toBe(false);
     const [none] = await owner.sql<{ n: number }[]>`
-      select count(*)::int n from audit_events where tenant_id = ${t} and action = 'subject.reconcile'`;
+      select count(*)::int n from audit_events where tenant_id = ${t} and action = 'account.reconciled'`;
     expect(none?.n).toBe(0);
   });
 
   it('walks every group when the pages are smaller than the number of groups', async () => {
     const t = await tenant();
     for (let n = 0; n < 5; n += 1) {
-      await user(t, { email: `page${String(n)}@x.test` });
-      await user(t, { email: `PAGE${String(n)}@x.test`, createdAt: '2026-02-01T00:00:00Z' });
+      await user(t, { email: `page${String(n)}@x.test`, verified: true });
+      await user(t, {
+        email: `PAGE${String(n)}@x.test`,
+        verified: true,
+        createdAt: '2026-02-01T00:00:00Z',
+      });
     }
     const report = await run([t], { chunk: 2 });
     expect(report).toMatchObject({ groups: 5, merged: 5, accounts_retired: 5 });
@@ -304,10 +366,14 @@ describe('reconciling accounts that hold one address', () => {
   it('leaves another tenant’s accounts alone', async () => {
     const mine = await tenant();
     const theirs = await tenant();
-    await user(mine, { email: 'h@x.test' });
-    await user(mine, { email: 'H@x.test', createdAt: '2026-02-01T00:00:00Z' });
-    const a = await user(theirs, { email: 'h@x.test' });
-    const b = await user(theirs, { email: 'H@x.test', createdAt: '2026-02-01T00:00:00Z' });
+    await user(mine, { email: 'h@x.test', verified: true });
+    await user(mine, { email: 'H@x.test', verified: true, createdAt: '2026-02-01T00:00:00Z' });
+    const a = await user(theirs, { email: 'h@x.test', verified: true });
+    const b = await user(theirs, {
+      email: 'H@x.test',
+      verified: true,
+      createdAt: '2026-02-01T00:00:00Z',
+    });
     await run([mine]);
     expect((await state(a)).disabled).toBe(false);
     expect((await state(b)).disabled).toBe(false);
@@ -321,10 +387,114 @@ describe('reconciling accounts that hold one address', () => {
     expect(await run([one, two])).toMatchObject({ groups: 0 });
   });
 
+  it('keeps the verified account that has signed in, though it is younger', async () => {
+    const t = await tenant();
+    const older = await user(t, { email: 'n@x.test', verified: true });
+    const younger = await user(t, {
+      email: 'N@x.test',
+      verified: true,
+      createdAt: '2026-06-01T00:00:00Z',
+    });
+    await session(t, younger);
+    await run([t]);
+    expect((await state(younger)).disabled).toBe(false);
+    expect((await state(older)).disabled).toBe(true);
+  });
+
+  it('refuses two unverified accounts, and moves nothing', async () => {
+    const t = await tenant();
+    const a = await user(t, { email: 'o@x.test' });
+    const b = await user(t, { email: 'O@x.test', createdAt: '2026-02-01T00:00:00Z' });
+    const password = await credential(t, b, 'password');
+    const report = await run([t]);
+    expect(report.refusals).toEqual([
+      { tenant_id: t, reason: 'no_verified_account', subject_ids: [a, b].sort() },
+    ]);
+    expect(await owned('user_credentials', b)).toEqual([password]);
+    expect((await state(a)).disabled).toBe(false);
+    expect((await state(b)).email).toBe('O@x.test');
+  });
+
+  it('sees a password-only person by their audited sign-in once the sessions are reaped', async () => {
+    const t = await tenant();
+    await user(t, { email: 'p@x.test', verified: true });
+    const left = await user(t, {
+      email: 'P@x.test',
+      createdAt: '2026-02-01T00:00:00Z',
+    });
+    await credential(t, left, 'password');
+    await loginEvent(t, left);
+    const report = await run([t]);
+    expect(report.refusals[0]?.reason).toBe('unverified_account_has_sign_ins');
+    expect((await state(left)).disabled).toBe(false);
+  });
+
+  it('refuses two verified accounts when one has only an audited sign-in and the other a session', async () => {
+    const t = await tenant();
+    const a = await user(t, { email: 'q@x.test', verified: true });
+    const b = await user(t, {
+      email: 'Q@x.test',
+      verified: true,
+      createdAt: '2026-02-01T00:00:00Z',
+    });
+    await session(t, a);
+    await loginEvent(t, b);
+    const report = await run([t]);
+    expect(report.refusals[0]?.reason).toBe('several_have_sign_ins');
+    expect((await state(a)).disabled).toBe(false);
+    expect((await state(b)).disabled).toBe(false);
+  });
+
+  it('merges when there is no sign-in evidence anywhere, and a sign-in by another subject is not evidence', async () => {
+    const t = await tenant();
+    const a = await user(t, { email: 'r@x.test', verified: true });
+    const b = await user(t, {
+      email: 'R@x.test',
+      verified: true,
+      createdAt: '2026-02-01T00:00:00Z',
+    });
+    const stranger = await user(t, { email: 'stranger@x.test' });
+    await loginEvent(t, stranger);
+    const report = await run([t]);
+    expect(report).toMatchObject({ merged: 1, refused: 0 });
+    expect((await state(a)).disabled).toBe(false);
+    expect((await state(b)).disabled).toBe(true);
+  });
+
+  it('hands each committed pair to the caller with the address that was cleared', async () => {
+    const t = await tenant();
+    const a = await user(t, { email: 's@x.test', verified: true });
+    const b = await user(t, {
+      email: 'S@x.test',
+      verified: true,
+      createdAt: '2026-02-01T00:00:00Z',
+    });
+    const pairs: unknown[] = [];
+    await reconcileDuplicateAccounts(app.db, [t], NOW, {
+      dryRun: false,
+      onPair: (pair) => pairs.push(pair),
+    });
+    expect(pairs).toEqual([
+      {
+        event: 'merged',
+        tenant_id: t,
+        survivor: a,
+        loser: b,
+        former_address: 'S@x.test',
+        carried_over: true,
+        moved: { credentials: 0, sessions: 0, grants: 0, consents: 0 },
+      },
+    ]);
+  });
+
   it('puts a pair back as it was when any step of it fails', async () => {
     const t = await tenant();
-    const stays = await user(t, { email: 'j@x.test' });
-    const goes = await user(t, { email: 'J@x.test', createdAt: '2026-02-01T00:00:00Z' });
+    const stays = await user(t, { email: 'j@x.test', verified: true });
+    const goes = await user(t, {
+      email: 'J@x.test',
+      verified: true,
+      createdAt: '2026-02-01T00:00:00Z',
+    });
     const c = await client(t);
     const password = await credential(t, goes, 'password');
     await consent(t, goes, c);
@@ -358,6 +528,7 @@ describe('every repository method, called for another tenant', () => {
     await session(mine, b);
     await grant(mine, b, c);
     await consent(mine, b, c);
+    await pendingLinks(mine, b);
     await withTenant(app.db, stranger, async (tx) => {
       const repository = accountReconcileRepository(tx, stranger);
       expect(await repository.duplicateAddresses(null, 10)).toEqual([]);
@@ -367,10 +538,12 @@ describe('every repository method, called for another tenant', () => {
       expect(await repository.moveSessions(b, a)).toBe(0);
       expect(await repository.moveGrants(b, a)).toBe(0);
       expect(await repository.moveConsents(b, a, NOW)).toBe(0);
+      await repository.clearPendingLinks(b);
     });
     expect(await owned('user_credentials', b)).toHaveLength(1);
     expect(await owned('sessions', b)).toHaveLength(1);
     expect(await owned('token_grants', b)).toHaveLength(1);
+    expect(await linksHeld(b)).toBe(2);
   });
 
   it('is refused by the policy as well, on a statement that names the other tenant', async () => {
@@ -405,8 +578,8 @@ describe('the unique index on an address, held back to a later release', () => {
 
   it('cannot be built over a duplicate, and can once the command has run', async () => {
     const t = await tenant();
-    await user(t, { email: 'm@x.test' });
-    await user(t, { email: 'M@x.test', createdAt: '2026-02-01T00:00:00Z' });
+    await user(t, { email: 'm@x.test', verified: true });
+    await user(t, { email: 'M@x.test', verified: true, createdAt: '2026-02-01T00:00:00Z' });
     await user(t, { email: null });
     expect(await buildOver(t)).toBe('23505');
     await run([t]);

@@ -61,7 +61,6 @@ export const ADMIN_MUTATION_ACTIONS = [
   'subject.password_issue',
   'subject.password_reset_send',
   'subject.profile_amend',
-  'subject.reconcile',
   'subject.recovery_codes_revoke',
   'subject.required_actions_set',
   'subject.roles_set',

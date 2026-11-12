@@ -59,7 +59,14 @@ beforeAll(async () => {
         from (select id, tenant_id, row_number() over () as n
                 from subjects where tenant_id = ${id}) s`;
   }
+  await owner.sql`
+    insert into audit_events
+      (id, tenant_id, event_type, action, outcome, actor_subject_id, resource_type, resource_id)
+    select gen_random_uuid(), tenant_id, 'admin_mutation', 'client.create', 'allowed',
+           subject_id, 'client', 'x'
+      from users where username not like 'u1%'`;
   await owner.sql`analyze users`;
+  await owner.sql`analyze audit_events`;
 }, 300_000);
 
 afterAll(async () => {
@@ -148,6 +155,18 @@ describe('the plans of the reconcile command', () => {
     );
     const scan = plan.find((n) => n.relation === 'users');
     expect(scan?.index).toBe('users_email_search');
+    expect(plan.map((n) => n.type)).not.toContain('Seq Scan');
+  });
+
+  it('probes the audit trail for a sign-in through the actor index, never a scan', async () => {
+    const plan = await planOf(() =>
+      withTenant(app.db, tenantId, (tx) =>
+        accountReconcileRepository(tx, tenantId).lockAccounts('dup7@example.com'),
+      ),
+    );
+    const audit = plan.filter((n) => n.relation === 'audit_events');
+    expect(audit.length).toBeGreaterThan(0);
+    expect(audit.every((n) => n.index === 'audit_events_actor')).toBe(true);
     expect(plan.map((n) => n.type)).not.toContain('Seq Scan');
   });
 

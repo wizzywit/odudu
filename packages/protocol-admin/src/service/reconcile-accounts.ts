@@ -1,59 +1,106 @@
 import { type CredentialType } from '@odudu/domain-identity';
 
-export interface AccountFacts {
+/**
+ * What a sign-in leaves behind that outlives it. A password sign-in stamps
+ * no credential, and the reaper deletes expired sessions and grants, so a
+ * person who only ever used a password is seen through the audit trail,
+ * which retention can also empty: an old enough sign-in may be invisible.
+ */
+export interface SignInTraces {
+  readonly session: boolean;
+  readonly grant: boolean;
+  readonly usedCredential: boolean;
+  readonly loginEvent: boolean;
+}
+
+export function hasSignedIn(traces: SignInTraces): boolean {
+  return traces.session || traces.grant || traces.usedCredential || traces.loginEvent;
+}
+
+export interface AccountRecord {
   readonly subjectId: string;
+  readonly email: string | null;
   readonly createdAt: Date;
   readonly emailVerified: boolean;
-  /** A session, a grant or a credential that has been used. */
+  readonly traces: SignInTraces;
+}
+
+export interface AccountFacts {
+  readonly subjectId: string;
+  readonly email: string | null;
+  readonly createdAt: Date;
+  readonly emailVerified: boolean;
   readonly hasSignIns: boolean;
 }
 
-export type RefusalReason = 'several_have_sign_ins' | 'unverified_account_has_sign_ins';
+export function accountFacts(record: AccountRecord): AccountFacts {
+  return {
+    subjectId: record.subjectId,
+    email: record.email,
+    createdAt: record.createdAt,
+    emailVerified: record.emailVerified,
+    hasSignIns: hasSignedIn(record.traces),
+  };
+}
+
+export type RefusalReason =
+  'several_have_sign_ins' | 'no_verified_account' | 'unverified_account_has_sign_ins';
 
 export interface Loser {
   readonly subjectId: string;
-  /**
-   * False when the survivor's address is verified and this account's is not:
-   * whoever made it never proved the address, so what they set up is not
-   * handed to the account that did.
-   */
+  readonly email: string | null;
+  /** False for an unverified account: whoever made it never proved the address. */
   readonly carriesOver: boolean;
 }
 
 export type GroupPlan =
-  | { readonly kind: 'merge'; readonly survivorId: string; readonly losers: readonly Loser[] }
+  | { readonly kind: 'gone' }
+  | {
+      readonly kind: 'merge';
+      readonly survivorId: string;
+      readonly losers: readonly Loser[];
+    }
   | { readonly kind: 'refused'; readonly reason: RefusalReason };
 
+// A verified address first; then the account that has signed in, which is
+// the one the person uses when exactly one has (a group where two have is
+// refused before this is asked); then the oldest, then the lowest id.
 function precedes(a: AccountFacts, b: AccountFacts): boolean {
   if (a.emailVerified !== b.emailVerified) return a.emailVerified;
+  if (a.hasSignIns !== b.hasSignIns) return a.hasSignIns;
   const byAge = a.createdAt.getTime() - b.createdAt.getTime();
   return byAge === 0 ? a.subjectId < b.subjectId : byAge < 0;
 }
 
-/** The account with a verified address, then the oldest, then the lowest id. */
 export function chooseSurvivor(members: readonly AccountFacts[]): AccountFacts {
   const [first, ...rest] = members;
   if (first === undefined) throw new Error('a group of accounts has at least one member');
   return rest.reduce((best, candidate) => (precedes(candidate, best) ? candidate : best), first);
 }
 
+function refusal(members: readonly AccountFacts[]): RefusalReason | null {
+  if (members.filter((member) => member.hasSignIns).length > 1) return 'several_have_sign_ins';
+  if (!members.some((member) => member.emailVerified)) return 'no_verified_account';
+  if (members.some((member) => !member.emailVerified && member.hasSignIns)) {
+    return 'unverified_account_has_sign_ins';
+  }
+  return null;
+}
+
 export function planGroup(members: readonly AccountFacts[]): GroupPlan {
-  if (members.filter((member) => member.hasSignIns).length > 1) {
-    return { kind: 'refused', reason: 'several_have_sign_ins' };
-  }
+  if (members.length < 2) return { kind: 'gone' };
+  const reason = refusal(members);
+  if (reason !== null) return { kind: 'refused', reason };
   const survivor = chooseSurvivor(members);
-  const others = members
+  const losers = members
     .filter((member) => member.subjectId !== survivor.subjectId)
-    .sort((a, b) => (a.subjectId < b.subjectId ? -1 : 1));
-  const left = (loser: AccountFacts): boolean => survivor.emailVerified && !loser.emailVerified;
-  if (others.some((loser) => left(loser) && loser.hasSignIns)) {
-    return { kind: 'refused', reason: 'unverified_account_has_sign_ins' };
-  }
-  return {
-    kind: 'merge',
-    survivorId: survivor.subjectId,
-    losers: others.map((loser) => ({ subjectId: loser.subjectId, carriesOver: !left(loser) })),
-  };
+    .sort((a, b) => (a.subjectId < b.subjectId ? -1 : 1))
+    .map((loser) => ({
+      subjectId: loser.subjectId,
+      email: loser.email,
+      carriesOver: loser.emailVerified,
+    }));
+  return { kind: 'merge', survivorId: survivor.subjectId, losers };
 }
 
 const ONE_PER_PERSON: ReadonlySet<CredentialType> = new Set([
@@ -74,6 +121,26 @@ export function credentialTypesToMove(
   return [...loserHolds].filter((type) => !ONE_PER_PERSON.has(type) || !survivorHolds.has(type));
 }
 
+export interface MovePlan {
+  readonly moveRows: boolean;
+  readonly credentialTypes: readonly CredentialType[];
+  readonly moveRecoveryStamp: boolean;
+}
+
+export function movePlan(
+  carriesOver: boolean,
+  survivorHolds: ReadonlySet<CredentialType>,
+  loserHolds: ReadonlySet<CredentialType>,
+): MovePlan {
+  if (!carriesOver) return { moveRows: false, credentialTypes: [], moveRecoveryStamp: false };
+  const credentialTypes = credentialTypesToMove(survivorHolds, loserHolds);
+  return {
+    moveRows: true,
+    credentialTypes,
+    moveRecoveryStamp: credentialTypes.includes('recovery-code'),
+  };
+}
+
 export interface MovedCounts {
   readonly credentials: number;
   readonly sessions: number;
@@ -92,11 +159,29 @@ export function addMoved(a: MovedCounts, b: MovedCounts): MovedCounts {
   };
 }
 
+/**
+ * One account folded into the survivor, or one a dry run would fold. It is
+ * the only place the retired account's former address is written down.
+ */
+export interface PairEvent {
+  readonly event: 'merged' | 'would_merge';
+  readonly tenant_id: string;
+  readonly survivor: string;
+  readonly loser: string;
+  readonly former_address: string | null;
+  readonly carried_over: boolean;
+  readonly moved: MovedCounts;
+}
+
 /** What became of one address that several accounts held. */
 export type GroupOutcome =
   | { readonly kind: 'gone' }
-  | { readonly kind: 'merged'; readonly retired: number; readonly moved: MovedCounts }
-  | { readonly kind: 'would_merge'; readonly retired: number }
+  | {
+      readonly kind: 'merged';
+      readonly moved: MovedCounts;
+      readonly pairs: readonly PairEvent[];
+    }
+  | { readonly kind: 'would_merge'; readonly pairs: readonly PairEvent[] }
   | {
       readonly kind: 'refused';
       readonly reason: RefusalReason;
@@ -169,7 +254,7 @@ export function tally(
         ...report,
         groups: report.groups + 1,
         merged: report.merged + 1,
-        accounts_retired: report.accounts_retired + outcome.retired,
+        accounts_retired: report.accounts_retired + outcome.pairs.length,
         moved: addMoved(report.moved, outcome.moved),
       };
     case 'would_merge':

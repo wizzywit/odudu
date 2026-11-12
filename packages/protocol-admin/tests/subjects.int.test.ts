@@ -1272,6 +1272,25 @@ describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () =>
     expect(await readSubjectBody(t.name, id)).toEqual(before);
   });
 
+  it('does not count an address another tenant holds in another case', async () => {
+    const mine = await fixture.createTenant(`amend-email-mine-${newId()}`);
+    const theirs = await fixture.createTenant(`amend-email-theirs-${newId()}`);
+    const local = `abroad-${newId()}`;
+    const { id: foreign } = await fixture.createSubject(theirs.name, `holder-${newId()}`);
+    const theirToken = await fixture.adminToken(theirs.name, ['manage-users']);
+    expect(
+      (await patchSubject(theirs.name, foreign, theirToken, { email: `${local}@example.com` }))
+        .statusCode,
+    ).toBe(200);
+    const { id } = await fixture.createSubject(mine.name, `mine-${newId()}`);
+    const myToken = await fixture.adminToken(mine.name, ['manage-users']);
+
+    const res = await patchSubject(mine.name, id, myToken, {
+      email: `${local.toUpperCase()}@Example.COM`,
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
   it('lets a subject change the case of the address it holds itself', async () => {
     const t = await fixture.createTenant(`amend-email-own-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);

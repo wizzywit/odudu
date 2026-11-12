@@ -301,7 +301,7 @@ export {
   RECONCILE_CHUNK_GROUPS,
   type ReconcileOptions,
 } from '#/usecase/reconcile-accounts';
-export { type ReconcileReport } from '#/service/reconcile-accounts';
+export { type PairEvent, type ReconcileReport } from '#/service/reconcile-accounts';
 export { composeUserSubject, type ComposeUserSubjectInput } from '#/usecase/subjects';
 export { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 export { resolveHostAddresses } from '#/adapter/host-addresses';

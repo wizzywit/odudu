@@ -28,6 +28,7 @@ export const AUDIT_ACTIONS = {
     'account.registered',
     'account.registration_duplicate',
     'account.address_proved',
+    'account.reconciled',
     'email.verified',
     'email.verification_resent',
     'email.changed',
@@ -224,6 +225,18 @@ type CredentialInput =
         | 'recovery_codes.refused';
       readonly detail?: ReasonOnly;
     })
+  // One account folded into another: the survivor, the account that went,
+  // whether its rows were carried over and how many of each moved.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'account.reconciled';
+      readonly detail: Readonly<{
+        survivor: string;
+        loser: string;
+        carried_over: boolean;
+        moved: Readonly<Record<'credentials' | 'sessions' | 'grants' | 'consents', number>>;
+      }>;
+    })
   // `detail.breached_check` says what the breached-password check decided.
   | (EventCommon & {
       readonly eventType: 'credential';
@@ -289,6 +302,7 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'otp.enrolled': ['notice'],
   'passkey.enrolled': ['notice'],
   'recovery_codes.issued': ['notice'],
+  'account.reconciled': ['survivor', 'loser', 'carried_over', 'moved'],
 };
 
 const KNOWN_VOCABULARY_ACTIONS: ReadonlySet<string> = new Set(Object.values(AUDIT_ACTIONS).flat());
@@ -333,7 +347,10 @@ function isValidDetailValue(key: string, value: unknown): boolean {
     return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }
   if (key === 'breached_check') return BREACHED_CHECK_OUTCOMES.includes(String(value));
-  if (key === 'user_verified' || key === 'ended_other_sessions') return typeof value === 'boolean';
+  if (key === 'user_verified' || key === 'ended_other_sessions' || key === 'carried_over') {
+    return typeof value === 'boolean';
+  }
+  if (key === 'survivor' || key === 'loser') return typeof value === 'string';
   if (STRING_DETAIL_KEYS.has(key)) return typeof value === 'string';
   return true;
 }

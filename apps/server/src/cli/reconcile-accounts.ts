@@ -43,9 +43,11 @@ async function assertRolesAreRight(owner: DatabaseHandle, serving: DatabaseHandl
 }
 
 /**
- * Reads its own configuration and opens its own connections, like `odudu
- * reap`: the owner lists the tenants and the serving role does every read
- * and write under each tenant's policy.
+ * Prints one JSON line for each pair merged (on a dry run, that would be),
+ * with the former address, then the caller prints the report. The lines are
+ * the one place a cleared address is written down. Like `odudu reap`, it
+ * reads its own configuration: the owner lists the tenants and the serving
+ * role does every read and write under each tenant's policy.
  */
 export async function reconcileAccountsCommand(argv: readonly string[]): Promise<ReconcileReport> {
   const options = parseReconcileArguments(argv);
@@ -62,7 +64,12 @@ export async function reconcileAccountsCommand(argv: readonly string[]): Promise
   const serving = createDatabase(appUrl);
   try {
     await assertRolesAreRight(owner, serving);
-    return await reconcileDuplicateAccounts(serving.db, allTenantIds(owner), new Date(), options);
+    return await reconcileDuplicateAccounts(serving.db, allTenantIds(owner), new Date(), {
+      ...options,
+      onPair: (pair) => {
+        console.log(JSON.stringify(pair));
+      },
+    });
   } finally {
     await serving.close();
     await owner.close();

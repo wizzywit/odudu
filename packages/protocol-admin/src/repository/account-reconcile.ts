@@ -1,14 +1,26 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { type CredentialType } from '@odudu/domain-identity';
 import { sql, type SQL } from 'drizzle-orm';
-import { type AccountFacts } from '#/service/reconcile-accounts';
+import { type AccountRecord } from '#/service/reconcile-accounts';
 
 interface MemberRow {
   subject_id: string;
+  email: string | null;
   email_verified: boolean;
   created_at: Date;
-  has_sign_ins: boolean;
+  session: boolean;
+  grant_exists: boolean;
+  used_credential: boolean;
+  login_event: boolean;
 }
+
+const SIGN_IN_ACTIONS = [
+  'login.password',
+  'login.otp',
+  'login.recovery_code',
+  'login.passkey',
+  'session.created',
+] as const;
 
 // Every statement names the tenant itself as well as running under its
 // row-level policy, so a call made with another tenant's ids finds nothing
@@ -36,19 +48,30 @@ export function accountReconcileRepository(tx: TenantScopedDatabase, tenantId: s
 
     /**
      * The accounts that hold `address`, locked in id order for the rest of
-     * the transaction. `hasSignIns` is read from what a sign-in leaves
-     * behind: a session, a grant, or a credential that has been used.
+     * the transaction, with what a sign-in leaves behind for each: a
+     * session, a grant, a used credential, and an audit row recording a
+     * successful sign-in by the account. The audit probe is one index read
+     * of `audit_events_actor` that stops at its first match, and the
+     * reaper and audit retention can both have removed an old sign-in.
      */
-    async lockAccounts(address: string): Promise<AccountFacts[]> {
+    async lockAccounts(address: string): Promise<AccountRecord[]> {
       const rows = await tx.execute(sql`
-        select u.subject_id, u.email_verified, s.created_at,
-               (exists (select 1 from sessions x
-                         where x.tenant_id = ${tenantId} and x.subject_id = u.subject_id)
-                or exists (select 1 from token_grants g
-                            where g.tenant_id = ${tenantId} and g.subject_id = u.subject_id)
-                or exists (select 1 from user_credentials c
-                            where c.tenant_id = ${tenantId} and c.subject_id = u.subject_id
-                              and c.last_used_at is not null)) as has_sign_ins
+        select u.subject_id, u.email, u.email_verified, s.created_at,
+               exists (select 1 from sessions x
+                        where x.tenant_id = ${tenantId} and x.subject_id = u.subject_id) as session,
+               exists (select 1 from token_grants g
+                        where g.tenant_id = ${tenantId} and g.subject_id = u.subject_id)
+                 as grant_exists,
+               exists (select 1 from user_credentials c
+                        where c.tenant_id = ${tenantId} and c.subject_id = u.subject_id
+                          and c.last_used_at is not null) as used_credential,
+               exists (select 1 from audit_events e
+                        where e.tenant_id = ${tenantId} and e.actor_subject_id = u.subject_id
+                          and e.outcome = 'allowed'
+                          and e.action in (${sql.join(
+                            SIGN_IN_ACTIONS.map((action) => sql`${action}`),
+                            sql`, `,
+                          )})) as login_event
           from users u
           join subjects s on s.id = u.subject_id and s.tenant_id = u.tenant_id
          where u.tenant_id = ${tenantId} and u.email_search = ${address} collate "C"
@@ -57,10 +80,26 @@ export function accountReconcileRepository(tx: TenantScopedDatabase, tenantId: s
            for no key update of s`);
       return (rows as unknown as MemberRow[]).map((row) => ({
         subjectId: row.subject_id,
+        email: row.email,
         createdAt: new Date(row.created_at),
         emailVerified: row.email_verified,
-        hasSignIns: row.has_sign_ins,
+        traces: {
+          session: row.session,
+          grant: row.grant_exists,
+          usedCredential: row.used_credential,
+          loginEvent: row.login_event,
+        },
       }));
+    },
+
+    // A mailed link or a pending address of the account that goes would
+    // otherwise be completable later; the account is disabled as well.
+    async clearPendingLinks(subjectId: string): Promise<void> {
+      await tx.execute(sql`
+        delete from action_tokens where tenant_id = ${tenantId} and subject_id = ${subjectId}`);
+      await tx.execute(sql`
+        delete from pending_email_changes
+         where tenant_id = ${tenantId} and subject_id = ${subjectId}`);
     },
 
     async credentialTypes(subjectId: string): Promise<Set<CredentialType>> {
