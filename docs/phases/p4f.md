@@ -870,5 +870,6 @@ migration back, which is what the order is for. `docs/NEXT.md` and `RELEASING.md
 - **Every empty profile field must be filled** is the ruling as given, and it is hard for the twenty claims a person may never have had
   (a picture address, a region). A tenant naming which fields it needs is the declarative user profile of **P7**, which this form reads
   from when it exists.
-- `branding-selectors` of the console screenshots lists the theme hooks, and three more now exist; the capture shows them at the next
-  `pnpm docs:screenshots`, and the check named in the report below says whether the frame differs.
+- None else. The console frames that name the new settings, actions and theme hooks (`settings`, `client-actions`,
+  `branding-selectors` and the records of the branding frames) were captured again with `pnpm docs:screenshots` on the build of this
+  branch.
