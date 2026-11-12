@@ -647,11 +647,18 @@ describe('what the browser holds', () => {
     });
     expect(signedIn.res.statusCode).toBe(302);
 
-    const cookieValues = [signedIn.res.headers['set-cookie'] ?? []]
-      .flat()
-      .map((header) => /^[^=]+=([^;]*)/.exec(header)?.[1] ?? '')
+    const setCookies = [signedIn.res.headers['set-cookie'] ?? []].flat();
+    const valueOf = (header: string) => /^[^=]+=([^;]*)/.exec(header)?.[1] ?? '';
+    const cookieValues = setCookies
+      .filter((header) => /-session=/u.test(header))
+      .map(valueOf)
+      .filter((value) => value.length > 0);
+    const deviceValues = setCookies
+      .filter((header) => /-device=/u.test(header))
+      .map(valueOf)
       .filter((value) => value.length > 0);
     expect(cookieValues).toHaveLength(1);
+    expect(deviceValues).toHaveLength(1);
     const secrets = cookieValues.flatMap((value) =>
       value.split('.').map((entry) => entry.split(':')[1] ?? ''),
     );
@@ -664,7 +671,7 @@ describe('what the browser holds', () => {
       rows.some((row) => row.action === 'session.created' && row.requestId === signedIn.requestId),
     ).toBe(true);
     const serialised = JSON.stringify(rows);
-    for (const held of [authSessionId, ...cookieValues, ...secrets]) {
+    for (const held of [authSessionId, ...cookieValues, ...secrets, ...deviceValues]) {
       expect(serialised).not.toContain(held);
     }
     const digest = createHash('sha256').update(authSessionId).digest('hex');
