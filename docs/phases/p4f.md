@@ -641,5 +641,5 @@ that never configures a step behaves as it does today.
 - None. The remote path has not been run against a live stack, because the real host must not be contacted: its wire is asserted
   with a capturing fake and against a TLS server of the test's own, and the transcripts show the dataset path and the settings.
 - The settings screen record (`record/settings-*.txt`) was edited by hand for the two new fields: `pnpm docs:screenshots` refused to
-  finish on the stack used, because the screen guard found the admin password's value on the new-subject page. The console-shots job
-  recaptures it in CI and reports any difference.
+  finish on the stack used: its screen guard refused the new-subject screen ("the page shows a value it was given to refuse") and
+  the cause was not traced. The console-shots job recaptures it in CI and reports any difference.
