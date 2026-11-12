@@ -337,6 +337,49 @@ describe('asking for a new verification link', () => {
     expect(none.body).toBe(reference);
   });
 
+  it.each([
+    ['no body and no content type', undefined, undefined],
+    ['an empty urlencoded body', '', 'application/x-www-form-urlencoded'],
+    ['a JSON null body', 'null', 'application/json'],
+  ] as const)('answers the same page for %s', async (_label, payload, contentType) => {
+    const reference = await resend(tenant, 'never-issued');
+    const res = await http.inject({
+      method: 'POST',
+      url: `/tenants/${tenant.tenantName}/login-actions/resend-verification`,
+      ...(payload === undefined ? {} : { payload }),
+      ...(contentType === undefined ? {} : { headers: { 'content-type': contentType } }),
+    });
+    expect(res.statusCode).toBe(reference.statusCode);
+    expect(res.body).toBe(reference.body);
+  });
+
+  it.each([
+    ['no body and no content type', undefined, undefined],
+    ['a JSON null body', 'null', 'application/json'],
+  ] as const)(
+    'answers %s on the completion address as it answers an empty form',
+    async (_label, payload, contentType) => {
+      const tenantName = tenant.tenantName;
+      const url = `/tenants/${tenantName}/login-actions/action-token`;
+      const empty = await http.inject({
+        method: 'POST',
+        url,
+        payload: '',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      });
+      const res = await http.inject({
+        method: 'POST',
+        url,
+        ...(payload === undefined ? {} : { payload }),
+        ...(contentType === undefined ? {} : { headers: { 'content-type': contentType } }),
+      });
+      expect(res.statusCode).toBe(empty.statusCode);
+      expect(res.statusCode).toBeLessThan(500);
+      const bare = (html: string): string => html.replace(/nonce="[^"]*"/g, 'nonce=""');
+      expect(bare(res.body)).toBe(bare(empty.body));
+    },
+  );
+
   it('a mail scanner opening the resend address changes nothing', async () => {
     const res = await http.inject({
       url: `/tenants/${tenant.tenantName}/login-actions/resend-verification`,

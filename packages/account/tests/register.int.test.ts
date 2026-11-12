@@ -257,6 +257,30 @@ beforeEach(async () => {
 });
 
 describe('self-registration', () => {
+  it.each([
+    ['no body and no content type', undefined, undefined],
+    ['a JSON null body', 'null', 'application/json'],
+  ] as const)('answers %s as it answers an empty form', async (_label, payload, contentType) => {
+    const { tenantName } = await seedTenant(`tenant-${newId()}`, { registrationAllowed: true });
+    const url = `/tenants/${tenantName}/login-actions/registration`;
+    const empty = await httpApp.inject({
+      method: 'POST',
+      url,
+      payload: '',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    const res = await httpApp.inject({
+      method: 'POST',
+      url,
+      ...(payload === undefined ? {} : { payload }),
+      ...(contentType === undefined ? {} : { headers: { 'content-type': contentType } }),
+    });
+    expect(res.statusCode).toBe(empty.statusCode);
+    expect(res.statusCode).toBeLessThan(500);
+    const bare = (html: string): string => html.replace(/nonce="[^"]*"/g, 'nonce=""');
+    expect(bare(res.body)).toBe(bare(empty.body));
+  });
+
   it('is not served at all when the tenant has not enabled it', async () => {
     const { tenantName } = await seedTenant(`tenant-${newId()}`, { registrationAllowed: false });
 

@@ -206,7 +206,7 @@ async function resumeAt(
 async function completeActionsLink(
   request: FastifyRequest<{
     Params: { tenant: string };
-    Body: Record<string, string | string[] | undefined>;
+    Body: Record<string, string | string[] | undefined> | null | undefined;
   }>,
   reply: FastifyReply,
   deps: ActionTokenRouteDeps,
@@ -251,7 +251,7 @@ async function completeActionsLink(
       ),
     );
   }
-  const candidate = readPasswordField(request.body.password);
+  const candidate = readPasswordField(request.body?.password);
   if (candidate.kind === 'too_long') {
     return again([PASSWORD_TOO_LONG]);
   }
@@ -527,9 +527,9 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
 
   app.post<{
     Params: { tenant: string };
-    Body: Record<string, string | string[] | undefined>;
+    Body: Record<string, string | string[] | undefined> | null | undefined;
   }>('/tenants/:tenant/login-actions/action-token', async (request, reply) => {
-    const body = request.body;
+    const body = request.body ?? {};
     const key = firstNonEmptyString(body.key);
     const candidate = readPasswordField(body.password);
     const tenant = key === undefined ? null : await deps.findTenant(request.params.tenant);
