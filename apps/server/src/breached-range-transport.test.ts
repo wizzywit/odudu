@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createBreachedRangeFetch } from '#/breached-range-transport';
+import { DEFAULT_POOL_MAX } from '@odudu/db';
+import { BREACHED_LOOKUPS_IN_PROCESS, createBreachedRangeFetch } from '#/breached-range-transport';
 
 const URL_OF = new URL('https://api.pwnedpasswords.com/range/5BAA6');
 const LIMIT = { timeoutMs: 3000, maxBytes: 4096 };
@@ -82,5 +83,12 @@ describe('createBreachedRangeFetch', () => {
     });
 
     expect((await fetchRange(URL_OF, LIMIT)).status).toBe(200);
+  });
+});
+
+describe('BREACHED_LOOKUPS_IN_PROCESS', () => {
+  it('is at least one and below the pool size', () => {
+    expect(BREACHED_LOOKUPS_IN_PROCESS).toBeGreaterThan(0);
+    expect(BREACHED_LOOKUPS_IN_PROCESS).toBeLessThan(DEFAULT_POOL_MAX);
   });
 });

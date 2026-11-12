@@ -1,7 +1,16 @@
+import { DEFAULT_POOL_MAX } from '@odudu/db';
 import { REMOTE_BREACHED_HOST, type RangeFetch, type RangeLimit } from '@odudu/domain-identity';
 import { assertPublicAddresses, type ClientKeyRequest } from '@odudu/protocol-oidc';
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { createClientKeyRequest } from '#/client-key-transport';
+
+/**
+ * Remote lookups in flight across every tenant. A lookup holds no database
+ * connection, so this bounds the outbound requests, and the sockets and timers
+ * they hold, that anonymous forms can start at once; it sits below the pool
+ * size so lookups never outnumber the work the pool serves.
+ */
+export const BREACHED_LOOKUPS_IN_PROCESS = DEFAULT_POOL_MAX - 2;
 
 export interface BreachedRangeFetchOptions {
   /** Every address the host resolves to, checked before any is connected to. */

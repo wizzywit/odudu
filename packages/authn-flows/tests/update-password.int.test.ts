@@ -37,6 +37,7 @@ import {
 
 // The dataset and no egress: a lookup the test did not expect fails loudly.
 const breachedCheck = createBreachedPasswordCheck({
+  concurrencyInProcess: 8,
   fetchRange: () => Promise.reject(new Error('no remote lookup expected')),
 });
 
@@ -758,6 +759,7 @@ describe('the breached-password check on a change', () => {
 
   it('refuses a remote check that could not finish when the tenant fails closed', async () => {
     const down = createBreachedPasswordCheck({
+      concurrencyInProcess: 8,
       fetchRange: () => Promise.reject(new Error('unreachable')),
     });
     const closed = await seedAccount({ breachedCheck: 'remote', breachedOnError: 'closed' });

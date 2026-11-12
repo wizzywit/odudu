@@ -6,8 +6,9 @@ import {
 } from '@odudu/db';
 import { breachedPasswordRepository } from '#/repository/breached-passwords';
 import {
-  BreachedLookupFailed,
   judgeBreached,
+  remoteOutcomeOf,
+  settleEmptiness,
   sourceOfOutcome,
   type BreachedSettings,
   type BreachedVerdict,
@@ -16,7 +17,6 @@ import {
 import {
   concurrencyLimiter,
   REMOTE_BREACHED_CONCURRENCY_PER_TENANT,
-  REMOTE_BREACHED_PROCESS_CAP,
   remoteBreachedSource,
   type RangeFetch,
 } from '#/service/breached-range-source';
@@ -60,7 +60,8 @@ export interface BreachedPasswordCheck {
 export interface BreachedPasswordCheckDeps {
   fetchRange: RangeFetch;
   concurrencyPerTenant?: number;
-  concurrencyInProcess?: number;
+  /** Lookups in flight across every tenant, chosen by the composition root. */
+  concurrencyInProcess: number;
 }
 
 export function createBreachedPasswordCheck(
@@ -69,9 +70,7 @@ export function createBreachedPasswordCheck(
   const limiter = concurrencyLimiter(
     deps.concurrencyPerTenant ?? REMOTE_BREACHED_CONCURRENCY_PER_TENANT,
   );
-  const processLimiter = concurrencyLimiter(
-    deps.concurrencyInProcess ?? REMOTE_BREACHED_PROCESS_CAP,
-  );
+  const processLimiter = concurrencyLimiter(deps.concurrencyInProcess);
 
   const prepare: BreachedPasswordCheck['prepare'] = async (
     database,
@@ -85,19 +84,15 @@ export function createBreachedPasswordCheck(
       (tx) => breachedPasswordRepository(tx).settings(tenantId),
       request,
     );
-    if (settings.check !== 'remote') return { settings, remote: null };
-    try {
-      const breached = await remoteBreachedSource({
+    const remote = await remoteOutcomeOf(settings, () =>
+      remoteBreachedSource({
         tenantId,
         fetchRange: deps.fetchRange,
         limiter,
         processLimiter,
-      }).isBreached(password);
-      return { settings, remote: { kind: 'answered', breached } };
-    } catch (err) {
-      if (!(err instanceof BreachedLookupFailed)) throw err;
-      return { settings, remote: { kind: 'failed' } };
-    }
+      }).isBreached(password),
+    );
+    return { settings, remote };
   };
 
   const judge: BreachedPasswordCheck['judge'] = async (tx, _tenantId, password, prepared) => {
@@ -110,10 +105,7 @@ export function createBreachedPasswordCheck(
       },
       password,
     );
-    if (verdict.audit === 'passed' && prepared.settings.check === 'dataset') {
-      if (await repository.datasetIsEmpty()) return { audit: 'dataset_empty', violations: [] };
-    }
-    return verdict;
+    return settleEmptiness(verdict, prepared.settings, () => repository.datasetIsEmpty());
   };
 
   return {

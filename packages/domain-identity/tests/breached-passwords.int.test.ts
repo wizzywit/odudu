@@ -1,6 +1,5 @@
 import {
   createDatabase,
-  DEFAULT_POOL_MAX,
   MIGRATIONS_DIR,
   runMigrations,
   tenants,
@@ -13,7 +12,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { breachedPasswordRepository, insertBreachedHashes } from '#/repository/breached-passwords';
 import { breachedHash } from '#/service/breached-password';
-import { REMOTE_BREACHED_PROCESS_CAP, type RangeFetch } from '#/service/breached-range-source';
+import { type RangeFetch } from '#/service/breached-range-source';
 import { createBreachedPasswordCheck } from '#/usecase/breached-password-check';
 
 let container: TestDatabase;
@@ -101,7 +100,7 @@ describe('the check a password write calls', () => {
   it('does nothing for a tenant that switched it off', async () => {
     const tenantId = await tenantWith({ breachedCheck: 'off', breachedOnError: 'open' });
     const { fetchRange, urls } = fetchCapturing('');
-    const check = createBreachedPasswordCheck({ fetchRange });
+    const check = createBreachedPasswordCheck({ concurrencyInProcess: 8, fetchRange });
     const verdict = await check.run(app.db, tenantId, KNOWN);
     expect(verdict).toEqual({ audit: 'off', violations: [] });
     expect(urls).toEqual([]);
@@ -110,7 +109,7 @@ describe('the check a password write calls', () => {
   it('judges by the dataset and sends nothing out', async () => {
     const tenantId = await tenantWith({ breachedCheck: 'dataset', breachedOnError: 'open' });
     const { fetchRange, urls } = fetchCapturing('');
-    const check = createBreachedPasswordCheck({ fetchRange });
+    const check = createBreachedPasswordCheck({ concurrencyInProcess: 8, fetchRange });
     const verdict = await check.run(app.db, tenantId, KNOWN);
     expect(verdict.audit).toBe('breached');
     expect(verdict.violations.map((v) => v.rule)).toEqual(['breached-password']);
@@ -121,7 +120,7 @@ describe('the check a password write calls', () => {
     const tenantId = await tenantWith({ breachedCheck: 'remote', breachedOnError: 'open' });
     const { prefix, suffix } = breachedHash(UNKNOWN);
     const { fetchRange, urls } = fetchCapturing(`${suffix}:12\r\n${'A'.repeat(35)}:0`);
-    const check = createBreachedPasswordCheck({ fetchRange });
+    const check = createBreachedPasswordCheck({ concurrencyInProcess: 8, fetchRange });
     const verdict = await check.run(app.db, tenantId, UNKNOWN);
     expect(verdict.audit).toBe('breached');
     expect(urls).toEqual([`https://api.pwnedpasswords.com/range/${prefix}`]);
@@ -129,7 +128,7 @@ describe('the check a password write calls', () => {
 
   it('settles a failed lookup by the tenant’s setting', async () => {
     const down: RangeFetch = () => Promise.reject(new Error('unreachable'));
-    const check = createBreachedPasswordCheck({ fetchRange: down });
+    const check = createBreachedPasswordCheck({ concurrencyInProcess: 8, fetchRange: down });
     const open = await tenantWith({ breachedCheck: 'remote', breachedOnError: 'open' });
     const closed = await tenantWith({ breachedCheck: 'remote', breachedOnError: 'closed' });
     expect((await check.run(app.db, open, UNKNOWN)).audit).toBe('error_open');
@@ -150,7 +149,7 @@ describe('a remote lookup holds no pooled connection', () => {
             resolve({ status: 200, body: `${'0'.repeat(35)}:1` });
           });
         });
-      const check = createBreachedPasswordCheck({ fetchRange });
+      const check = createBreachedPasswordCheck({ concurrencyInProcess: 8, fetchRange });
       const tenants3 = await Promise.all(
         [1, 2, 3].map(() => tenantWith({ breachedCheck: 'remote', breachedOnError: 'open' })),
       );
@@ -199,15 +198,12 @@ describe('a remote lookup holds no pooled connection', () => {
     blocked[0]?.();
     expect((await again).remote?.kind).toBe('answered');
   });
-
-  it('keeps the process cap below the pool', () => {
-    expect(REMOTE_BREACHED_PROCESS_CAP).toBeLessThan(DEFAULT_POOL_MAX);
-  });
 });
 
 describe('an empty dataset', () => {
   it('is recorded as such when nothing was found, and not when something was', async () => {
     const check = createBreachedPasswordCheck({
+      concurrencyInProcess: 8,
       fetchRange: () => Promise.reject(new Error('no remote lookup expected')),
     });
     const tenantId = await tenantWith({ breachedCheck: 'dataset', breachedOnError: 'open' });

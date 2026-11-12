@@ -101,3 +101,27 @@ export async function judgeBreached(
       : { audit: 'error_closed', violations: [BREACH_CHECK_UNAVAILABLE] };
   }
 }
+
+/** Runs the lookup for a remote tenant only; a failed lookup is an outcome, any other error is not. */
+export async function remoteOutcomeOf(
+  settings: BreachedSettings,
+  ask: () => Promise<boolean>,
+): Promise<RemoteOutcome | null> {
+  if (settings.check !== 'remote') return null;
+  try {
+    return { kind: 'answered', breached: await ask() };
+  } catch (err) {
+    if (!(err instanceof BreachedLookupFailed)) throw err;
+    return { kind: 'failed' };
+  }
+}
+
+/** A dataset that found nothing is told apart from one that holds nothing; asked only then. */
+export async function settleEmptiness(
+  verdict: BreachedVerdict,
+  settings: BreachedSettings,
+  datasetIsEmpty: () => Promise<boolean>,
+): Promise<BreachedVerdict> {
+  if (verdict.audit !== 'passed' || settings.check !== 'dataset') return verdict;
+  return (await datasetIsEmpty()) ? { audit: 'dataset_empty', violations: [] } : verdict;
+}

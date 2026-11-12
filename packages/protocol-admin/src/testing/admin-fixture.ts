@@ -342,6 +342,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   await http.register(
     oidcRoutes({
       breachedPasswordCheck: createBreachedPasswordCheck({
+        concurrencyInProcess: 8,
         fetchRange: () => Promise.reject(new Error('no remote lookup expected')),
       }),
       tls: false,

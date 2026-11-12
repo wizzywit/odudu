@@ -23,7 +23,7 @@ import formbody from '@fastify/formbody';
 import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { accountTestDeps } from '#/testing/support';
+import { accountTestDeps, breachedLookups } from '#/testing/support';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { actionTokens } from '#/schema/action-tokens';
 import { enqueueActionsLink } from '#/usecase/execute-actions';
@@ -327,6 +327,16 @@ describe('a link that takes its subject through required actions', () => {
     const weak = await submit(seeded, keyOf(link), 'short');
     expect(weak.statusCode).toBe(400);
     expect((await submit(seeded, keyOf(link), NEW_PASSWORD)).statusCode).toBe(200);
+  });
+
+  it('never looks up a password a rule refused, and looks up one it accepted', async () => {
+    const seeded = await seed(true);
+    const link = await mail(seeded, ['update-password']);
+    breachedLookups.length = 0;
+    expect((await submit(seeded, keyOf(link), 'short')).statusCode).toBe(400);
+    expect(breachedLookups).toEqual([]);
+    expect((await submit(seeded, keyOf(link), NEW_PASSWORD)).statusCode).toBe(200);
+    expect(breachedLookups).toEqual([NEW_PASSWORD]);
   });
 
   it('puts the actions form back in place, with the list, the key and the reasons', async () => {

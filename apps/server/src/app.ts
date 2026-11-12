@@ -103,7 +103,7 @@ import Fastify, {
 import { randomBytes } from 'node:crypto';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
-import { createBreachedRangeFetch } from '#/breached-range-transport';
+import { BREACHED_LOOKUPS_IN_PROCESS, createBreachedRangeFetch } from '#/breached-range-transport';
 import { findHeldSignInIn } from '#/held-sign-in';
 import { findReturnClient } from '#/return-client';
 import {
@@ -560,6 +560,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // One check for every password write; its per-tenant concurrency limit is
   // held in this instance, so it is built once per process.
   const breachedPasswordCheck = createBreachedPasswordCheck({
+    concurrencyInProcess: BREACHED_LOOKUPS_IN_PROCESS,
     fetchRange:
       deps.breachedRangeFetch ??
       createBreachedRangeFetch({ allowPrivate: deps.allowPrivateClientUrls ?? false }),

@@ -1,4 +1,3 @@
-import { DEFAULT_POOL_MAX } from '@odudu/db';
 import {
   BreachedLookupFailed,
   breachedHash,
@@ -12,9 +11,6 @@ export const REMOTE_BREACHED_TIMEOUT_MS = 3_000;
 // A padded answer is about a thousand 37-byte lines.
 export const REMOTE_BREACHED_MAX_BYTES = 128 * 1024;
 export const REMOTE_BREACHED_CONCURRENCY_PER_TENANT = 4;
-// Lookups in flight across every tenant. A lookup holds no database connection,
-// but it holds a request, so the cap stays below the pool a request then needs.
-export const REMOTE_BREACHED_PROCESS_CAP = DEFAULT_POOL_MAX - 2;
 
 export interface RangeLimit {
   timeoutMs: number;

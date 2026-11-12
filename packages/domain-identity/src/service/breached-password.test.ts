@@ -5,7 +5,10 @@ import {
   BreachedLookupFailed,
   breachedHash,
   judgeBreached,
+  remoteOutcomeOf,
+  settleEmptiness,
   type BreachedPasswordSource,
+  type BreachedVerdict,
 } from '#/service/breached-password';
 
 // SHA-1("password") is the best-known entry of the public corpus.
@@ -102,5 +105,54 @@ describe('judgeBreached', () => {
       'breached-password',
       'breach-check-unavailable',
     ]);
+  });
+});
+
+describe('remoteOutcomeOf', () => {
+  const remote = { check: 'remote', onError: 'open' } as const;
+
+  it('asks nothing of a tenant that is not remote', async () => {
+    let asked = false;
+    const outcome = await remoteOutcomeOf({ check: 'dataset', onError: 'open' }, () => {
+      asked = true;
+      return Promise.resolve(true);
+    });
+    expect([outcome, asked]).toEqual([null, false]);
+  });
+
+  it('answers, fails on a failed lookup, and lets any other error through', async () => {
+    expect(await remoteOutcomeOf(remote, () => Promise.resolve(true))).toEqual({
+      kind: 'answered',
+      breached: true,
+    });
+    expect(
+      await remoteOutcomeOf(remote, () => Promise.reject(new BreachedLookupFailed('down'))),
+    ).toEqual({ kind: 'failed' });
+    await expect(
+      remoteOutcomeOf(remote, () => Promise.reject(new Error('defect'))),
+    ).rejects.toThrow('defect');
+  });
+});
+
+describe('settleEmptiness', () => {
+  const passed: BreachedVerdict = { audit: 'passed', violations: [] };
+  const dataset = { check: 'dataset', onError: 'open' } as const;
+
+  it('says an empty dataset found nothing because it held nothing', async () => {
+    expect(await settleEmptiness(passed, dataset, () => Promise.resolve(true))).toEqual({
+      audit: 'dataset_empty',
+      violations: [],
+    });
+    expect(await settleEmptiness(passed, dataset, () => Promise.resolve(false))).toEqual(passed);
+  });
+
+  it('asks only of a passed dataset verdict', async () => {
+    const fail = () => Promise.reject(new Error('must not be asked'));
+    const breached: BreachedVerdict = { audit: 'breached', violations: [BREACHED_PASSWORD] };
+    expect(await settleEmptiness(breached, dataset, fail)).toEqual(breached);
+    expect(await settleEmptiness(passed, { check: 'remote', onError: 'open' }, fail)).toEqual(
+      passed,
+    );
+    expect(await settleEmptiness(passed, { check: 'off', onError: 'open' }, fail)).toEqual(passed);
   });
 });

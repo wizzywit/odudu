@@ -31,7 +31,7 @@ import formbody from '@fastify/formbody';
 import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { accountTestDeps } from '#/testing/support';
+import { accountTestDeps, breachedLookups } from '#/testing/support';
 import { registerActionTokenRoute } from '#/view/routes/action-token';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
@@ -513,6 +513,23 @@ describe('password reset', () => {
     expect(submitted.statusCode).toBe(200);
 
     expect(await passwordWorksFor(tenantId, 'ada', 'a brand new password')).toBe(true);
+  });
+
+  it('never looks up a password a rule refused, and looks up one it accepted', async () => {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
+      resetPasswordAllowed: true,
+    });
+    await seedAda(tenantId);
+    await requestReset(tenantName, 'ada@example.test');
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    const link = extractLink(message);
+    breachedLookups.length = 0;
+
+    expect((await submitNewPassword(link, 'short')).statusCode).toBe(400);
+    expect(breachedLookups).toEqual([]);
+    expect((await submitNewPassword(link, 'a compliant password')).statusCode).toBe(200);
+    expect(breachedLookups).toEqual(['a compliant password']);
   });
 
   it('refuses a password that fails the tenant policy, without spending the link', async () => {

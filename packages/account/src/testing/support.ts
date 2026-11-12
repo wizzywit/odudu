@@ -11,6 +11,7 @@ import {
   userRepository,
 } from '@odudu/domain-identity';
 import { roleRepository } from '@odudu/domain-authz';
+import { type BreachedCheck } from '#/service/breached-check';
 import { type MailGate } from '#/service/mail-gate';
 import { type VerifiedAccountInput } from '#/usecase/complete-registration';
 import { type TakenIdentifiers } from '#/usecase/register';
@@ -61,9 +62,26 @@ export async function lockAddress(
 }
 
 // The dataset and no egress: a remote lookup is a failure to see, not a pass.
-export const breachedCheck = createBreachedPasswordCheck({
+const realBreachedCheck = createBreachedPasswordCheck({
+  concurrencyInProcess: 8,
   fetchRange: () => Promise.reject(new Error('no remote lookup expected')),
 });
+
+// Every candidate the check was asked about, so a test can show that one a rule
+// refused never reached it.
+export const breachedLookups: string[] = [];
+
+export const breachedCheck: BreachedCheck = {
+  ...realBreachedCheck,
+  prepare: (database, tenantId, password, request) => {
+    breachedLookups.push(password);
+    return realBreachedCheck.prepare(database, tenantId, password, request);
+  },
+  run: (database, tenantId, password, request) => {
+    breachedLookups.push(password);
+    return realBreachedCheck.run(database, tenantId, password, request);
+  },
+};
 
 export const openMailGate: MailGate = () => true;
 
