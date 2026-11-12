@@ -146,15 +146,18 @@ export async function passkeyRegistrationOptions(
       residentKey: request.policy.residentKey,
       userVerification: request.policy.userVerification,
     },
+    // Asks the client whether the credential came out discoverable, which
+    // nothing else in the ceremony reveals.
+    extensions: { credProps: true },
   });
   return { options, challenge: options.challenge };
 }
 
 // What the browser posts back is JSON from outside, so it arrives as
 // `unknown` and is narrowed here rather than asserted. Only the fields the
-// verification reads are kept: the extension outputs and the attachment
-// hint are the browser's own commentary on the ceremony, and nothing
-// downstream of this parse consults them.
+// verification and the discoverability check read are kept: the rest of the
+// extension outputs and the attachment hint are the browser's own
+// commentary on the ceremony.
 const registrationResponseShape = z.object({
   id: z.string().min(1),
   rawId: z.string().min(1),
@@ -164,17 +167,21 @@ const registrationResponseShape = z.object({
     attestationObject: z.string().min(1),
     transports: z.array(z.string()).optional(),
   }),
+  clientExtensionResults: z
+    .object({ credProps: z.object({ rk: z.boolean().optional() }).optional() })
+    .optional(),
 });
 
 export function parseRegistrationResponse(value: unknown): RegistrationResponseJSON | null {
   const parsed = registrationResponseShape.safeParse(value);
   if (!parsed.success) return null;
-  const { id, rawId, response } = parsed.data;
+  const { id, rawId, response, clientExtensionResults } = parsed.data;
+  const rk = clientExtensionResults?.credProps?.rk;
   return {
     id,
     rawId,
     type: 'public-key',
-    clientExtensionResults: {},
+    clientExtensionResults: rk === undefined ? {} : { credProps: { rk } },
     response: {
       clientDataJSON: response.clientDataJSON,
       attestationObject: response.attestationObject,
@@ -250,17 +257,17 @@ export interface PasskeyAuthenticationOffer {
 // No allowCredentials, which is what tells a browser to offer every
 // discoverable credential it holds rather than a list the server had to
 // know a username to build — the whole of "sign in with a passkey, type
-// nothing". The assertion asks for verification where the tenant requires
-// it for new passkeys, and otherwise lets the browser verify when it can: no
-// credential is known yet, and one made under a stricter policy must still
-// be able to answer.
+// nothing". The assertion asks for verification when the authenticator can
+// give it and never insists: no credential is known yet, and the browser
+// refuses an authenticator that cannot verify before the server sees it, so
+// `required` would lock out a passkey made under a looser policy. Whether
+// the assertion was verified is judged per credential when it is checked.
 export async function passkeyAuthenticationOptions(
   relyingParty: RelyingParty,
-  userVerification: WebauthnRequirement,
 ): Promise<PasskeyAuthenticationOffer> {
   const options = await generateAuthenticationOptions({
     rpID: relyingParty.id,
-    userVerification: userVerification === 'required' ? 'required' : 'preferred',
+    userVerification: 'preferred',
   });
   return { options, challenge: options.challenge };
 }

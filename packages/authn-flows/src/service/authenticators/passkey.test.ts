@@ -62,7 +62,7 @@ function registrationJson(
 }
 
 async function offeredChallenge(): Promise<string> {
-  const { challenge } = await passkeyAuthenticationOptions(RELYING_PARTY, 'required');
+  const { challenge } = await passkeyAuthenticationOptions(RELYING_PARTY);
   return challenge;
 }
 
@@ -301,11 +301,11 @@ describe('counterAdvanced', () => {
 
 describe('passkeyAuthenticationOptions', () => {
   it('[WEBAUTHN2-7.2.1-01] names no credentials, so a browser offers every discoverable one it holds', async () => {
-    const { options, challenge } = await passkeyAuthenticationOptions(RELYING_PARTY, 'required');
+    const { options, challenge } = await passkeyAuthenticationOptions(RELYING_PARTY);
 
     expect(options.rpId).toBe(RP_ID);
     expect(options.allowCredentials).toBeUndefined();
-    expect(options.userVerification).toBe('required');
+    expect(options.userVerification).toBe('preferred');
     expect(options.challenge).toBe(challenge);
   });
 });
