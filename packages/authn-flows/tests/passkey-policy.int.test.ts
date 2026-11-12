@@ -99,6 +99,7 @@ async function enrolPasskey(
   subjectId: string,
   authenticator: SoftwareAuthenticator,
   userVerified: boolean,
+  discoverable?: boolean,
 ) {
   return withTenant(app.db, tenantId, async (tx) => {
     const { authSessionId } = await startAuthentication(tx, tenantId, request);
@@ -120,6 +121,7 @@ async function enrolPasskey(
         rpId: RP_ID,
         origin: PUBLIC_BASE_URL,
         userVerified,
+        ...(discoverable === undefined ? {} : { discoverable }),
       }),
     });
     return { offer, outcome };
@@ -210,6 +212,83 @@ describe('a passkey enrolled under the tenant’s policy', () => {
     const { outcome } = await signInWithPasskey(tenantId, authenticator, 1, false);
 
     expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+  });
+
+  it('still refuses it when the tenant has since moved to required', async () => {
+    const tenantId = newId();
+    const subjectId = await seedTenant(tenantId);
+    const authenticator = softwareAuthenticator();
+    await enrolPasskey(tenantId, subjectId, authenticator, true);
+    await setPolicy(tenantId, { webauthnUserVerification: 'required' });
+
+    const { offer, outcome } = await signInWithPasskey(tenantId, authenticator, 1, false);
+
+    expect(offer.options.userVerification).toBe('preferred');
+    expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+  });
+
+  it('lets a passkey made under preferred answer after the tenant moves to required', async () => {
+    const tenantId = newId();
+    const subjectId = await seedTenant(tenantId, { webauthnUserVerification: 'preferred' });
+    const authenticator = softwareAuthenticator();
+    await enrolPasskey(tenantId, subjectId, authenticator, false);
+    await setPolicy(tenantId, { webauthnUserVerification: 'required' });
+
+    const { offer, outcome } = await signInWithPasskey(tenantId, authenticator, 1, false);
+
+    expect(offer.options.userVerification).toBe('preferred');
+    expect(outcome).toEqual({
+      kind: 'success',
+      subjectId,
+      authenticators: ['passkey', 'passkey-unverified'],
+    });
+  });
+});
+
+describe('a passkey that cannot be discovered', () => {
+  it.each(['required', 'preferred', 'discouraged'] as const)(
+    'is refused at enrolment under resident key %s, and nothing is stored',
+    async (webauthnResidentKey) => {
+      const tenantId = newId();
+      const subjectId = await seedTenant(tenantId, {
+        webauthnResidentKey,
+        webauthnUserVerification: 'preferred',
+      });
+
+      const { outcome } = await enrolPasskey(
+        tenantId,
+        subjectId,
+        softwareAuthenticator(),
+        true,
+        false,
+      );
+
+      expect(outcome).toEqual({ kind: 'rejected', reason: 'not_discoverable' });
+      const rows = await withTenant(app.db, tenantId, (tx) =>
+        credentialRepository(tx).listFor(subjectId, 'webauthn'),
+      );
+      expect(rows).toEqual([]);
+    },
+  );
+
+  it('is accepted when the client reports it discoverable or reports nothing', async () => {
+    const tenantId = newId();
+    const subjectId = await seedTenant(tenantId);
+
+    const reported = await enrolPasskey(tenantId, subjectId, softwareAuthenticator(), true, true);
+    const silent = await enrolPasskey(tenantId, subjectId, softwareAuthenticator(), true);
+
+    expect(reported.outcome.kind).toBe('enrolled');
+    expect(silent.outcome.kind).toBe('enrolled');
+  });
+
+  it('asks the client to report discoverability', async () => {
+    const tenantId = newId();
+    const subjectId = await seedTenant(tenantId);
+
+    const { offer } = await enrolPasskey(tenantId, subjectId, softwareAuthenticator(), true);
+
+    expect(offer.options.extensions).toEqual({ credProps: true });
   });
 });
 

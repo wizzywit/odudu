@@ -70,7 +70,12 @@ export type PasskeyEnrolmentOutcome =
   // ever offered, or a previous response already spent the one that was,
   // which is where a replay lands, before any signature is looked at.
   // already_enrolled: this tenant already holds that credential id.
-  | { kind: 'rejected'; reason: 'no_challenge' | 'invalid_response' | 'already_enrolled' };
+  // not_discoverable: the client reports the credential cannot be offered
+  // without a username, and a passkey sign-in names none.
+  | {
+      kind: 'rejected';
+      reason: 'no_challenge' | 'invalid_response' | 'already_enrolled' | 'not_discoverable';
+    };
 
 const DEFAULT_LABEL = 'Passkey';
 
@@ -106,6 +111,9 @@ export async function completePasskeyEnrolment(
     response,
   });
   if (verified.kind === 'rejected') return { kind: 'rejected', reason: 'invalid_response' };
+  if (response.clientExtensionResults.credProps?.rk === false) {
+    return { kind: 'rejected', reason: 'not_discoverable' };
+  }
 
   // user_credentials_lookup_key (migration 0034) is unique per tenant and
   // remains the actual guarantee. This read only turns the case

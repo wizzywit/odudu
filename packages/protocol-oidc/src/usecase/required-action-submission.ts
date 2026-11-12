@@ -25,7 +25,10 @@ export type RejectedRequiredAction = {
   subjectId: string;
 } & (
   | { action: 'configure-totp'; reason: Extract<EnrolmentRefusal, 'code_mismatch'> }
-  | { action: 'configure-passkey'; reason: Extract<EnrolmentRefusal, 'passkey_not_added'> }
+  | {
+      action: 'configure-passkey';
+      reason: Extract<EnrolmentRefusal, 'passkey_not_added' | 'passkey_not_discoverable'>;
+    }
   | { action: 'generate-recovery-codes'; reason: Extract<EnrolmentRefusal, 'codes_not_saved'> }
 );
 
@@ -356,6 +359,7 @@ async function completePasskey(
     authSessionId,
     subjectId,
     action: 'configure-passkey',
-    reason: 'passkey_not_added',
+    reason:
+      outcome.reason === 'not_discoverable' ? 'passkey_not_discoverable' : 'passkey_not_added',
   };
 }

@@ -39,6 +39,8 @@ export const en = {
   'refusal.codeMismatch': 'That code did not match. Try the next one your app shows.',
   'refusal.codesNotSaved': 'Save these codes before continuing.',
   'refusal.passkeyNotAdded': 'That passkey could not be added. Try again.',
+  'refusal.passkeyNotDiscoverable':
+    'That passkey is not stored on your device, so it cannot sign you in without a username. Add one that can be stored on the device.',
 
   'updatePassword.title': 'Change your password',
   'updatePassword.intro': 'This account needs a new password before you can continue.',
