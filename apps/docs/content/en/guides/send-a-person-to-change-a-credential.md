@@ -56,7 +56,7 @@ The browser returns to the redirect address with `code`, `state` and `iss` as fo
 ```
 page: Save your recovery codes
 cancel control: no
-location: http://127.0.0.1:8080/callback?code=DiPd6RbLKYadpr1a2PblolafG2NdE2MCCzSpRwkpySw&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+location: http://127.0.0.1:8080/callback?code=zfR5htoE5dLbr9IiLhxU1z39ajtefQaB4osd2sEu1fM&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 ```
 
 A person who closes the tab sends nothing, so an application that waits for this redirect must be able to go on without it.
@@ -70,7 +70,10 @@ sends nothing at all. The authority is the me API: read `GET /me/credentials` wi
 What to read depends on the action:
 
 - `configure-totp` and `configure-passkey`: the credential list. The new authenticator is there by its type.
-- `generate-recovery-codes`: `recovery_codes_left` in the same answer.
+- `generate-recovery-codes`: `recovery_codes_left` in the same answer. It also carries `recovery_codes_low`, `true` once a person's
+  set has fewer unspent codes than the tenant's `recovery_code_warn_below` (3 by default, 0 turns it off) and `false` when they hold
+  no set. Odudu shows no page after sign-in to warn on, so an application shows the warning from that field and sends the person
+  here; the sign-in never asks for a step on its account.
 - `update-password`: the list shows the password by type either way, so it cannot show a change. Each credential lists when it was
   made, and a new password is dated from the change, so compare the password's `created_at` from before the action with the one
   after it. Section 5 shows it.
@@ -90,13 +93,27 @@ Full transcript: [Changing an authenticator](../reference/transcripts/request-pa
 
 ## 5. Know what the person is asked
 
-Recovery codes the person already holds are not replaced until they confirm, and leaving the question changes nothing. The page that
-shows the new codes has no way to cancel, because it would then say `cancelled` of a set that has changed.
+Recovery codes the person already holds are not replaced until they confirm, and leaving the question changes nothing. A person with
+an authenticator and no set is asked before a first set is made, too: nothing is issued while the question is on the screen, a reload
+included. The page that shows the new codes has no way to cancel, because it would then say `cancelled` of a set that has changed.
 
 ```
 answered: HTTP/1.1 200 OK
 This replaces your current recovery codes. The old ones stop working as soon as you confirm.
-location: http://127.0.0.1:8080/callback?code=lQIoRIkD8ArS6vM17vKwylvG-wMKqo9NA08CWbhnANk&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=D6IgHbs8vOO_N-E2foHf5WlYnlb2sE1CcdYtzkN0YeI&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+```
+
+A set can be replaced once an hour, counted from when the last was made, because each set costs ten password hashes. A person who
+asks inside the hour, while they still have codes to spend, is shown how many minutes to wait, with the way out, and the answer is
+`429`. The first set, a set with no code left to spend, and a set the person's sign-in is waiting for are never held back. The refusal is written to the audit trail as
+`recovery_codes.refused`:
+
+```
+answered: HTTP/1.1 429 Too Many Requests
+Your recovery codes were issued recently and still work. You can replace them in 60 minutes.
+page: Save your recovery codes
+cancel control: yes
+location: http://127.0.0.1:8080/callback?code=kmEQWjHN8yCykJQoNC_2k_0opAfHOQrA1gZ5iJII2Q0&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 Full transcript: [Replacing the recovery codes](../reference/transcripts/request-paths/sending-a-person-to-change-a-credential.md#replacing-the-recovery-codes).
@@ -107,10 +124,10 @@ password and ends the run of failures. The last line shows the check of section 
 password read before the action and after it:
 
 ```
-{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-11T22:09:56.650Z"}
-location: http://127.0.0.1:8080/callback?code=cBZPvpnOQI6zTdAoK3MlJ8U_2GkPpHb5ZinXvcqgGAo&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-12T09:55:36.751Z"}
+location: http://127.0.0.1:8080/callback?code=IpCAl6roFrKNPmDJKAfPsF7JdN2DooBICPc9U9PamqA&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 {"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
-password made: before 2026-11-11T22:09:54.186Z, after 2026-11-11T22:09:56.728Z
+password made: before 2026-11-12T09:55:31.521Z, after 2026-11-12T09:55:36.826Z
 ```
 
 Full transcript: [Changing the password](../reference/transcripts/request-paths/sending-a-person-to-change-a-credential.md#changing-the-password).

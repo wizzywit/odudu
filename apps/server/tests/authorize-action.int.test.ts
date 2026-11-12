@@ -574,11 +574,27 @@ const issuedRows = async (w: World): Promise<number> =>
   )[0]?.n ?? 0;
 
 const CONFIRM = 'This replaces your current recovery codes';
+const CONFIRM_FIRST = 'This creates a set of recovery codes';
+
+// The enrolment above issued a set a moment ago; a replacement is bounded to
+// one an hour, so a test that replaces it first lets that hour pass.
+async function letTheBoundPass(w: World): Promise<void> {
+  await owner.sql`update subjects set recovery_codes_issued_at = now() - interval '2 hours'
+                   where tenant_id = ${w.tenantId} and id = ${w.subjectId}`;
+}
+
+const refusedRows = async (w: World): Promise<number> =>
+  (
+    await owner.sql<{ n: number }[]>`
+      select count(*)::int as n from audit_events
+       where tenant_id = ${w.tenantId} and action = 'recovery_codes.refused'`
+  )[0]?.n ?? 0;
 
 describe('recovery codes requested by an application', () => {
   it('asks before replacing a held set, and cancelling leaves it untouched', async () => {
     const w = await world();
     const secret = await enrolAuthenticator(w);
+    await letTheBoundPass(w);
     const before = await recoveryRows(w);
     const issuedBefore = await issuedRows(w);
     expect(before.length).toBeGreaterThan(0);
@@ -605,6 +621,7 @@ describe('recovery codes requested by an application', () => {
   it('replaces the set once, on confirmation, and shows the new codes', async () => {
     const w = await world();
     const secret = await enrolAuthenticator(w);
+    await letTheBoundPass(w);
     const before = await recoveryRows(w);
     const issuedBefore = await issuedRows(w);
 
@@ -632,6 +649,7 @@ describe('recovery codes requested by an application', () => {
   it('shows no way to cancel when an acknowledgement finds no set and a fresh one is issued', async () => {
     const w = await world();
     const secret = await enrolAuthenticator(w);
+    await letTheBoundPass(w);
     const cookie = await signInWithTotp(w, secret);
     const page = await authorize(w, { action: 'generate-recovery-codes' }, cookie);
     const shown = await form(w, 'required-action?action=generate-recovery-codes', {
@@ -649,7 +667,33 @@ describe('recovery codes requested by an application', () => {
     expect(retry.body).not.toContain('name="cancel"');
   });
 
-  it('issues at render when no set is held, since nothing is lost', async () => {
+  it('asks before creating a first set too: nothing is issued at render, a reload included', async () => {
+    const w = await world();
+    const secret = await enrolAuthenticator(w);
+    const cookie = await signInWithTotp(w, secret);
+    await owner.sql`delete from user_credentials
+                     where tenant_id = ${w.tenantId} and subject_id = ${w.subjectId}
+                       and type = 'recovery-code'`;
+    const issuedBefore = await issuedRows(w);
+
+    const page = await authorize(w, { action: 'generate-recovery-codes' }, cookie);
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain(CONFIRM_FIRST);
+    expect(page.body).toContain('name="cancel"');
+    expect(page.body).not.toContain('<ol>');
+    await authorize(w, { action: 'generate-recovery-codes' }, cookie);
+    expect(await recoveryRows(w)).toEqual([]);
+
+    const done = await form(w, 'required-action?action=generate-recovery-codes', {
+      auth_session_id: field(page, 'auth_session_id'),
+      cancel: '1',
+    });
+    expect(locationOf(done).searchParams.get('action_status')).toBe('cancelled');
+    expect(await recoveryRows(w)).toEqual([]);
+    expect(await issuedRows(w)).toBe(issuedBefore);
+  });
+
+  it('issues the first set when confirmed', async () => {
     const w = await world();
     const secret = await enrolAuthenticator(w);
     const cookie = await signInWithTotp(w, secret);
@@ -657,9 +701,53 @@ describe('recovery codes requested by an application', () => {
                      where tenant_id = ${w.tenantId} and subject_id = ${w.subjectId}
                        and type = 'recovery-code'`;
     const page = await authorize(w, { action: 'generate-recovery-codes' }, cookie);
-    expect(page.body).toContain('<ol>');
-    expect(page.body).not.toContain('name="cancel"');
+    const shown = await form(w, 'required-action?action=generate-recovery-codes', {
+      auth_session_id: field(page, 'auth_session_id'),
+      confirm: '1',
+    });
+    expect(shown.body).toContain('<ol>');
     expect((await recoveryRows(w)).length).toBeGreaterThan(0);
+  });
+
+  it('refuses a replacement within the hour of the last, says when, and can be left', async () => {
+    const w = await world();
+    const secret = await enrolAuthenticator(w);
+    const before = await recoveryRows(w);
+    const cookie = await signInWithTotp(w, secret);
+
+    const page = await authorize(w, { action: 'generate-recovery-codes' }, cookie);
+    expect(page.statusCode).toBe(429);
+    expect(page.body).toMatch(/\d+ minutes?\./u);
+    expect(page.body).toContain('name="cancel"');
+    expect(page.body).not.toContain('<ol>');
+    expect(await recoveryRows(w)).toEqual(before);
+    expect(await refusedRows(w)).toBe(1);
+
+    const done = await form(w, 'required-action?action=generate-recovery-codes', {
+      auth_session_id: field(page, 'auth_session_id'),
+      cancel: '1',
+    });
+    expect(locationOf(done).searchParams.get('action_status')).toBe('cancelled');
+  });
+
+  it('refuses a confirmation that arrives inside the hour of another issue', async () => {
+    const w = await world();
+    const secret = await enrolAuthenticator(w);
+    await letTheBoundPass(w);
+    const cookie = await signInWithTotp(w, secret);
+    const page = await authorize(w, { action: 'generate-recovery-codes' }, cookie);
+    expect(page.body).toContain(CONFIRM);
+    await owner.sql`update subjects set recovery_codes_issued_at = now()
+                     where tenant_id = ${w.tenantId} and id = ${w.subjectId}`;
+    const before = await recoveryRows(w);
+
+    const refused = await form(w, 'required-action?action=generate-recovery-codes', {
+      auth_session_id: field(page, 'auth_session_id'),
+      confirm: '1',
+    });
+    expect(refused.statusCode).toBe(429);
+    expect(refused.body).toMatch(/\d+ minutes?\./u);
+    expect(await recoveryRows(w)).toEqual(before);
   });
 });
 

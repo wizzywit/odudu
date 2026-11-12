@@ -17,5 +17,8 @@ export type MeCredential = z.infer<typeof meCredentialSchema>;
 
 export const meCredentialsResponseSchema = mePage(meCredentialSchema).extend({
   recovery_codes_left: z.number().int().nonnegative(),
+  // Whether the person holds a recovery set that has run below the tenant's
+  // threshold; false for a person with no set.
+  recovery_codes_low: z.boolean(),
 });
 export type MeCredentialsResponse = z.infer<typeof meCredentialsResponseSchema>;

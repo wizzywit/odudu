@@ -294,7 +294,7 @@ export function registerMeRoutes(app: FastifyInstance, deps: MeDeps): void {
     return respond(reply, 200, profileDto(outcome.profile));
   });
   listRoute(app, deps, 'credentials', listCredentials, (o) =>
-    credentialsDto(o.items, o.next, o.recoveryCodesLeft),
+    credentialsDto(o.items, o.next, o.recoveryCodesLeft, o.recoveryCodesLow),
   );
   listRoute(app, deps, 'sessions', listSessions, (o) => sessionsDto(o.items, o.next));
   listRoute(app, deps, 'consents', listConsents, (o) => consentsDto(o.items, o.next));

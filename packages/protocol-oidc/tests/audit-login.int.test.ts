@@ -598,7 +598,7 @@ describe('second factors', () => {
     await enrolTotp(otpTenant, 'rita');
     const rita = subjectOf(otpTenant, 'rita');
     const outcome = await withTenant(app.db, otpTenant.id, (tx) =>
-      beginRecoveryCodes(tx, { tenantId: otpTenant.id, subjectId: rita }),
+      beginRecoveryCodes(tx, { tenantId: otpTenant.id, subjectId: rita, now: new Date() }),
     );
     if (outcome.kind !== 'issued') throw new Error('expected a set to be issued');
     const recoveryCode = outcome.offer.codes[0] ?? '';

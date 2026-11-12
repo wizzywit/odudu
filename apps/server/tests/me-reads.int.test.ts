@@ -1,12 +1,13 @@
 import { SessionEntry, sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository, signJwt } from '@odudu/crypto';
-import { createDatabase, MIGRATIONS_DIR, runMigrations, withTenant } from '@odudu/db';
+import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants, withTenant } from '@odudu/db';
 import type { DatabaseHandle } from '@odudu/db';
 import { MAX_LIMIT } from '@odudu/contracts/me';
 import { credentialRepository, subjectRepository, userRepository } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-tenant';
 import { loadConfig, mcpAudienceOfIssuer, meAudienceOfIssuer, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { eq } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
@@ -252,6 +253,35 @@ describe('each read answers with the token’s own subject’s rows', () => {
     expect(body.recovery_codes_left).toBe(2);
   });
 
+  describe('recovery_codes_low', () => {
+    const low = async (w: World, below: number, sub?: string): Promise<boolean> => {
+      await owner.db
+        .update(tenants)
+        .set({ recoveryCodeWarnBelow: below })
+        .where(eq(tenants.id, w.tenantId));
+      const res = await get(w, 'credentials', await sign(w, sub === undefined ? {} : { sub }));
+      return res.json<{ recovery_codes_low: boolean }>().recovery_codes_low;
+    };
+
+    it('is true for two unspent codes under the default threshold of 3', async () => {
+      expect(await low(await world(), 3)).toBe(true);
+    });
+
+    it('is false at a threshold the unspent count meets, and with the warning off', async () => {
+      const w = await world();
+      expect(await low(w, 2)).toBe(false);
+      expect(await low(w, 0)).toBe(false);
+    });
+
+    it('is false for a person who holds no set', async () => {
+      const w = await world();
+      await withTenant(appDb.db, w.tenantId, (tx) =>
+        credentialRepository(tx).deleteRecoveryCodes(w.otherSubjectId),
+      );
+      expect(await low(w, 10, w.otherSubjectId)).toBe(false);
+    });
+  });
+
   it('the live sessions, marking the token’s own', async () => {
     const w = await world();
     const res = await get(w, 'sessions', await sign(w));
@@ -402,6 +432,8 @@ describe('the reads, asked in another tenant, find nothing', () => {
     expect(await reads.credentials(stranger.tenantId, w.subjectId, page)).toEqual({
       rows: [],
       recoveryCodesLeft: 0,
+      recoveryCodesHeld: 0,
+      recoveryCodeWarnBelow: 3,
     });
     expect(
       await reads.sessions(stranger.tenantId, w.subjectId, lifespans, new Date(), page),

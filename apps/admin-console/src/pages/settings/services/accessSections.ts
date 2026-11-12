@@ -118,6 +118,14 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         control: 'seconds',
         description: 'A reset link stops working after this long.',
       },
+      {
+        name: 'recovery_code_warn_below',
+        label: 'Recovery code warning',
+        control: 'count',
+        unit: 'codes',
+        description:
+          'The credential list of the "me" API flags a person with fewer unspent recovery codes than this, so an application can ask them to issue a new set. 0 turns the flag off.',
+      },
     ],
   },
   {

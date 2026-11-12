@@ -47,6 +47,7 @@ export const SETTINGS = {
   verify_email_ttl_seconds: 43200,
   reset_password_ttl_seconds: 300,
   session_freshness_seconds: 300,
+  recovery_code_warn_below: 3,
   login_with_email: false,
   audit_event_types: [
     'admin_mutation',

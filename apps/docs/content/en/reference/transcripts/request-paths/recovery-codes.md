@@ -33,10 +33,11 @@ owes drops an owed set from somebody with no TOTP, so a correct sign-in goes on
 instead of meeting a page that cannot be shown; the one page door that can still
 meet the race continues the parked login the same way.
 
-Every render of the page writes one `credential` audit row,
+Every set issued writes one `credential` audit row,
 `recovery_codes.issued`, in the transaction that stores the hashes — the
-forced first set included, and again for each set a re-render issues in
-its place. The row carries no code.
+forced first set included, and again for each set issued in its place. A
+replacement the hourly bound refuses writes `recovery_codes.refused` instead.
+Neither row carries a code.
 
 Every command and response below continues the same stack, the same
 `otp-demo` tenant and, to begin with, the same `auth_session_id`.
@@ -76,20 +77,24 @@ docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 Reloading the page is therefore not a way to see them twice: the render is a
-`POST` result, and repeating it issues a _different_ ten and retires the set
-it just displayed. Whatever was on the screen the first time is gone either
-way.
+`POST` result, and a reload while the action is still owed issues a
+_different_ ten and retires the set it just displayed: a sign-in that cannot
+finish without a set is never refused one. A person who asks for a set on their
+own, while one with codes left to spend was issued less than an hour ago, is
+refused with a page that says how many minutes to wait, and the set they hold
+stays. After the hour, or once every code is spent, a repeat issues a
+_different_ ten.
 
-That reload is not free, and the cost is worth naming: each one is ten
-Argon2id hashes (about 40 ms, run together), a delete and ten inserts, and it
-is repeatable for as long as the action is owed by anybody holding a valid
-password for the account. It is bounded — a password gets past the first
-factor, and acknowledging the page ends it — but it is a heavier multiplier
-than verification's, and the per-account lockout does not reach it: that
-counts failures, and this path needs a password that works
-([the roadmap](../../../roadmap.md#next) plans the self-service fix). Re-serving the same
-set instead would cost less and be worse: a second render of a live secret
-is the one thing this page must not do.
+The bound keeps the voluntary path cheap. Each set is ten Argon2id hashes (about
+40 ms, run together), a delete and ten inserts, and the lockout does not reach
+it, because that counts failures and this path needs a password that works; the
+owed path is limited by the sign-in itself, which acknowledging the page ends. The
+hour is counted from `subjects.recovery_codes_issued_at`, claimed by one
+conditional `UPDATE` under the subject's row lock, so two requests at once
+cannot both pass. A refusal costs that lock, a read and one audit insert, and no hash. Re-serving
+the same set instead would cost less and be worse: a second render of a live
+secret is the one thing this page must not do. The refusal itself is shown, run
+live, in [Replacing the recovery codes](./sending-a-person-to-change-a-credential.md#replacing-the-recovery-codes).
 
 The acknowledgement carries no code back — only the session id. It says the
 page was read, and it is what completes the action. With nothing else owed,
@@ -486,11 +491,13 @@ reading the row count finds them provided for and owes nothing, which is a
 locked-out account with no page to show it. Keycloak re-presents its own
 setup at the same moment, for the same reason.
 
-Two ways out that this does not provide, both needing a page this server does
-not have yet: asking for a fresh set _before_ running out, and a warning as
-the list gets short. Both are self-service, which [the roadmap](../../../roadmap.md#next) plans: an
-application-initiated action for the fresh set, and the "me" API's count for
-the warning.
+A fresh set _before_ running out is asked for by an application, with the
+`generate-recovery-codes` action ([Sending a person to change a credential](./sending-a-person-to-change-a-credential.md)),
+and replaces the set only when the person confirms and the last was issued more
+than an hour ago. `GET /me/credentials` ([The me API](./the-me-api.md#the-four-reads)) returns
+`recovery_codes_low`, true when the person holds fewer unspent codes than the
+tenant setting `recovery_code_warn_below` (3 by default, 0 turns it off). The
+application is what shows the warning to the person.
 
 ## Where the step sits in the flow
 

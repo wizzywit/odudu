@@ -77,6 +77,7 @@ Each line gives the label, then the name the admin API and `odudu seed tenant --
 - **Verification link lifetime** (`verify_email_ttl_seconds`): how long that link works, up to 7 days.
 - **Password reset by mail** (`reset_password_allowed`): a person who forgot their password may ask for a reset link.
 - **Reset link lifetime** (`reset_password_ttl_seconds`): how long a reset link works, up to 24 hours.
+- **Recovery code warning** (`recovery_code_warn_below`): a person left with fewer unspent recovery codes than this is flagged by `recovery_codes_low` in the "me" API's credentials answer. 3 by default, 0 to 10, and 0 turns the warning off.
 
 When somebody sets a new password from a mailed link, whether a reset link or an administrator's link that asks for one, every session they hold ends and every token grant they gave is revoked, offline ones too. Anyone else signed in to that account is signed out.
 

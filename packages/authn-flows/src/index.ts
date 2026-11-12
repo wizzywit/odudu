@@ -88,6 +88,7 @@ export { recordActionStep, type ActionStep, type RecordActionStep } from '#/usec
 export { type ActionPageVariant } from '#/view/action-cancel';
 export {
   renderRecoveryCodesPage,
+  renderRecoveryCodesTooSoonPage,
   renderRequestedRecoveryCodesConfirmPage,
   renderRequestedRecoveryCodesPage,
   type RecoveryCodesOffer,

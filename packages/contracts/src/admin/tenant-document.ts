@@ -88,6 +88,9 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   // Absent from a document exported before the setting existed, which
   // imports with the default window.
   session_freshness_seconds: count.default(300),
+  // Absent from a document exported before the setting existed, which
+  // imports with the default threshold.
+  recovery_code_warn_below: count.default(3),
   login_with_email: z.boolean(),
   // Absent from a document exported before the setting existed, which
   // imports with it off.

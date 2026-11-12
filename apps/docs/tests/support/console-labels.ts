@@ -868,6 +868,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'settings/services/accessSections.ts',
     "label: 'Recent sign-in window'",
   ),
+  'Recovery code warning': page(
+    'settings/services/accessSections.ts',
+    "label: 'Recovery code warning'",
+  ),
   'Offer remember me': page('settings/services/accessSections.ts', "label: 'Offer remember me'"),
   'Verification link lifetime': page(
     'settings/services/accessSections.ts',

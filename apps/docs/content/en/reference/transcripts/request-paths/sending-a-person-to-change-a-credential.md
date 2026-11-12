@@ -32,7 +32,7 @@ nothing below uses. The helpers do the sign-in every client does, with the me UR
 that API:
 
 ```bash
-odudu() { docker compose -p odudu-p4f-i33 -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
+odudu() { docker compose -p odudu-p4f-i51 -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
 BASE=http://localhost:3000
 T=$BASE/tenants/actions-demo
 ME=$T/me
@@ -86,11 +86,11 @@ curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/cli
 ```
 
 ```
-{"created":true,"tenant":"actions-demo","tenantId":"01a1cca9-0daf-74c3-b765-5e1e4c75d3f6","clientId":"demo-spa","userSubjectId":"01a1cca9-0e78-71cb-8fcd-b1be74d7aeff"}
-{"command":"user","tenant":"actions-demo","tenantId":"01a1cca9-0daf-74c3-b765-5e1e4c75d3f6","username":"lin","userSubjectId":"01a1cca9-100f-7a7b-b660-faa87b4a62c4"}
-{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cca9-0daf-74c3-b765-5e1e4c75d3f6","clientId":"plain-app","clientDbId":"01a1cca9-11ac-73b8-afb1-9f7a4bc25be2"}
-{"command":"assign-scope","tenant":"actions-demo","tenantId":"01a1cca9-0daf-74c3-b765-5e1e4c75d3f6","clientId":"plain-app","scope":"me:read","assignment":"optional"}
-{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cca9-0daf-74c3-b765-5e1e4c75d3f6","clientId":"profile-app","clientDbId":"01a1cca9-14bf-76c4-a2bb-315702b0e7f7"}
+{"created":true,"tenant":"actions-demo","tenantId":"01a1cf2f-11bb-720e-9a25-da20113e2658","clientId":"demo-spa","userSubjectId":"01a1cf2f-128a-75e8-b244-0643911aa7ec"}
+{"command":"user","tenant":"actions-demo","tenantId":"01a1cf2f-11bb-720e-9a25-da20113e2658","username":"lin","userSubjectId":"01a1cf2f-1447-77da-998e-1daa9212b05a"}
+{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cf2f-11bb-720e-9a25-da20113e2658","clientId":"plain-app","clientDbId":"01a1cf2f-15e8-7e6f-957f-934d120705fe"}
+{"command":"assign-scope","tenant":"actions-demo","tenantId":"01a1cf2f-11bb-720e-9a25-da20113e2658","clientId":"plain-app","scope":"me:read","assignment":"optional"}
+{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cf2f-11bb-720e-9a25-da20113e2658","clientId":"profile-app","clientDbId":"01a1cf2f-1953-70aa-856c-9f518e0a61d9"}
 {"client_id":"profile-app","type":"public","allowed_actions":["update-password","configure-totp","configure-passkey","generate-recovery-codes"],"scopes":["me:read"]}
 ```
 
@@ -160,7 +160,7 @@ back
 ```
 page: Save your recovery codes
 cancel control: no
-location: http://127.0.0.1:8080/callback?code=DiPd6RbLKYadpr1a2PblolafG2NdE2MCCzSpRwkpySw&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+location: http://127.0.0.1:8080/callback?code=zfR5htoE5dLbr9IiLhxU1z39ajtefQaB4osd2sEu1fM&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 ```
 
 `action_status` is a hint that travelled through the browser, and anyone can type it into an address. The outcome is in the credential
@@ -177,10 +177,35 @@ credentials "$GRACE"
 
 ## Replacing the recovery codes
 
-`grace` holds a set now, so the page asks before it replaces anything, and the set is still the old one while the question is
-on the screen. Leaving it changes nothing and comes back as `cancelled`:
+A set of recovery codes can be replaced once an hour: it costs ten password hashes, and an application that could ask for one in a
+loop would be asking for a cheap way to burn them. `grace` was issued a set a moment ago, so a request now is refused. The page says
+how many minutes to wait, offers the way out and leaves the set alone. Leaving comes back as `cancelled`:
 
 ```bash
+GRACE_ID=$(curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/subjects?username=grace" | jq -r '.items[0].id')
+authorize profile-app "action=generate-recovery-codes"
+echo "answered: $(head -1 auth.headers | tr -d '\r')"
+grep -o 'Your recovery codes were issued recently[^<]*' auth.html
+shown auth.html
+step "required-action?action=generate-recovery-codes" --data-urlencode cancel=1
+back
+```
+
+```
+answered: HTTP/1.1 429 Too Many Requests
+Your recovery codes were issued recently and still work. You can replace them in 60 minutes.
+page: Save your recovery codes
+cancel control: yes
+location: http://127.0.0.1:8080/callback?code=kmEQWjHN8yCykJQoNC_2k_0opAfHOQrA1gZ5iJII2Q0&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+```
+
+The run does not wait an hour. It writes the recorded time of the last set an hour and a half back, which is the one thing the wait
+would change (`psql` prints `t`, the time is now more than an hour back), and asks again. `grace` holds a set now, so the page asks before it replaces anything, and the set is still the old
+one while the question is on the screen. Leaving it changes nothing and comes back as `cancelled`:
+
+```bash
+docker compose -p odudu-p4f-i51 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -qtc \
+  "update subjects set recovery_codes_issued_at = now() - interval '90 minutes' where id = '$GRACE_ID' returning recovery_codes_issued_at < now() - interval '1 hour' as an_hour_ago"
 authorize profile-app "action=generate-recovery-codes"
 echo "answered: $(head -1 auth.headers | tr -d '\r')"
 grep -o 'This replaces[^<]*' auth.html
@@ -189,9 +214,11 @@ back
 ```
 
 ```
+ t
+
 answered: HTTP/1.1 200 OK
 This replaces your current recovery codes. The old ones stop working as soon as you confirm.
-location: http://127.0.0.1:8080/callback?code=lQIoRIkD8ArS6vM17vKwylvG-wMKqo9NA08CWbhnANk&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=D6IgHbs8vOO_N-E2foHf5WlYnlb2sE1CcdYtzkN0YeI&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 Asked again, and this time confirmed, the page replaces the set and shows the new codes once. It has no control to leave, because
@@ -210,7 +237,54 @@ back
 page: Save your recovery codes
 cancel control: no
 codes shown: 10
-location: http://127.0.0.1:8080/callback?code=0bgzlc1oMRF8fpTwfMuu8c94o3rX_Lxd5b6Q8cJp3u8&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+location: http://127.0.0.1:8080/callback?code=NRxpWX61vTtkNvrZskpjJFQ78vSX3UaKNJlVwv0VAZY&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+```
+
+A person with an authenticator and no set is asked before a first set is made, too, and nothing is made while the question is on the
+screen: reloading it, which is another request, still leaves no codes, and leaving it makes none. An administrator revokes `grace`'s
+set without asking for a new one, and the application asks again:
+
+```bash
+curl -sS -o /dev/null -w 'revoked: %{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN" \
+  "$BASE/admin/tenants/actions-demo/subjects/$GRACE_ID/recovery-codes?require_new_set=false"
+authorize profile-app "action=generate-recovery-codes"
+echo "answered: $(head -1 auth.headers | tr -d '\r')"
+grep -o 'This creates[^<]*' auth.html
+shown auth.html
+authorize profile-app "action=generate-recovery-codes"
+step "required-action?action=generate-recovery-codes" --data-urlencode cancel=1
+back
+credentials "$(token)"
+```
+
+```
+revoked: 204
+answered: HTTP/1.1 200 OK
+This creates a set of recovery codes. Each signs you in once, in place of your second factor, if you lose it.
+page: Save your recovery codes
+cancel control: yes
+location: http://127.0.0.1:8080/callback?code=GFR21a01LHj-XlIxA1BOt8nW29j619NUpirH8KoFjV8&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+{"types":["password","totp"],"recovery_codes_left":0}
+```
+
+Confirmed, the first set is made and shown, and the acknowledgement ends the action:
+
+```bash
+authorize profile-app "action=generate-recovery-codes"
+step "required-action?action=generate-recovery-codes" --data-urlencode confirm=1
+shown
+echo "codes shown: $(grep -c '<li>' step.html)"
+step "required-action?action=generate-recovery-codes"
+back
+credentials "$(token)"
+```
+
+```
+page: Save your recovery codes
+cancel control: no
+codes shown: 10
+location: http://127.0.0.1:8080/callback?code=eX3nxSi5c7M1W6Wzd8xz9rVMRxN8ExbU-8q_INCzcwA&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+{"types":["password","totp"],"recovery_codes_left":10}
 ```
 
 ## Changing the password
@@ -251,10 +325,10 @@ cancel control: yes
 name="current_password"
 HTTP/1.1 400 Bad Request
 The current password is not correct.
-{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-11T22:09:56.650Z"}
-location: http://127.0.0.1:8080/callback?code=cBZPvpnOQI6zTdAoK3MlJ8U_2GkPpHb5ZinXvcqgGAo&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-12T09:55:36.751Z"}
+location: http://127.0.0.1:8080/callback?code=IpCAl6roFrKNPmDJKAfPsF7JdN2DooBICPc9U9PamqA&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 {"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
-password made: before 2026-11-11T22:09:54.186Z, after 2026-11-11T22:09:56.728Z
+password made: before 2026-11-12T09:55:31.521Z, after 2026-11-12T09:55:36.826Z
 ```
 
 ## A sign-in older than the window
@@ -302,11 +376,11 @@ back
 ```
 
 ```
-location: http://127.0.0.1:8080/callback?code=aiS6wogZGnDqbsdofwHDysRVryBYQVkG_4bUZ80fU5Y&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=QPO_mJgJ5UqVV3QMalwpGIPLzCT3ofnozyvPNmTxEpI&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 {"types":["password"],"recovery_codes_left":0}
 page: Add a passkey
 cancel control: yes
-location: http://127.0.0.1:8080/callback?code=0_97O8es2KpJBl7CAjK-Zq3NW6cFr3UvQPGHwT0OJQ0&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=X2d3Oc-Xw49Cwjw_uKcnyuhLbP3epRnBjF3WQ5j2ACg&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 ## An action the account cannot take
@@ -339,7 +413,7 @@ page made, oldest first, with the other rows of the sign-ins left out:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/audit?limit=100" \
-  | jq -c '.items | reverse | .[] | select(.action | startswith("action.") or . == "login.password" or . == "recovery_codes.issued") | {action, outcome, actor: .actor_name, detail}'
+  | jq -c '.items | reverse | .[] | select(.action | startswith("action.") or . == "login.password" or startswith("recovery_codes.")) | {action, outcome, actor: .actor_name, detail}'
 ```
 
 ```
@@ -347,6 +421,15 @@ curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/aud
 {"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"configure-totp"}}
 {"action":"action.completed","outcome":"allowed","actor":"grace","detail":{"action":"configure-totp"}}
 {"action":"recovery_codes.issued","outcome":"allowed","actor":"grace","detail":{}}
+{"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
+{"action":"recovery_codes.refused","outcome":"refused","actor":"grace","detail":{"reason":"rate_limited"}}
+{"action":"action.cancelled","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
+{"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
+{"action":"action.cancelled","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
+{"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
+{"action":"recovery_codes.issued","outcome":"allowed","actor":"grace","detail":{}}
+{"action":"action.completed","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
+{"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"action.cancelled","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}

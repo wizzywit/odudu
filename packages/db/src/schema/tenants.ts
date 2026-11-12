@@ -95,6 +95,9 @@ export const tenants = pgTable('tenants', {
   // How recent a sign-in must be for the "me" API to accept a sensitive change
   // (packages/db/drizzle/0126_session_freshness.sql).
   sessionFreshnessSeconds: integer('session_freshness_seconds').notNull().default(300),
+  // How few unspent recovery codes a person may hold before they are warned
+  // (packages/db/drizzle/0131_recovery_code_warn_below.sql); 0 turns it off.
+  recoveryCodeWarnBelow: integer('recovery_code_warn_below').notNull().default(3),
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),

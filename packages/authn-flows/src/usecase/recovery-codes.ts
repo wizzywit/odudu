@@ -4,22 +4,33 @@ import { credentialRepository, hashPassword, subjectRepository } from '@odudu/do
 import { requiredActionRepository } from '#/repository/required-actions';
 import { type RequiredAction } from '#/schema/required-action';
 import { generateRecoveryCodes, normaliseRecoveryCode } from '#/service/authenticators/recovery';
+import {
+  bypassesBound,
+  reissueAllowed,
+  reissueCutoff,
+  retryInMinutes,
+} from '#/service/authenticators/recovery-reissue';
 import { type RecoveryCodesOffer } from '#/view/recovery-codes-html';
 
 export interface IssueRecoveryCodes {
   tenantId: string;
   subjectId: string;
-  // Leave a set the subject already holds alone and say so, for a caller that
-  // must ask before replacing it.
-  keepHeld?: boolean;
+  now: Date;
+  // Issue nothing and say what confirming would do, for a caller that must
+  // ask before issuing or replacing a set.
+  askFirst?: boolean;
 }
 
 export type BeginRecoveryCodesOutcome =
-  { kind: 'issued'; offer: RecoveryCodesOffer } | { kind: 'no_second_factor' } | { kind: 'held' };
+  | { kind: 'issued'; offer: RecoveryCodesOffer }
+  | { kind: 'ask'; replaces: boolean }
+  | { kind: 'too_soon'; retryAt: Date; retryInMinutes: number }
+  | { kind: 'no_second_factor' };
 
 // Returns the plaintext codes exactly once, to the page that shows them:
 // one Argon2id hash per code is stored, and a reload issues a different ten,
-// replacing the set it just displayed.
+// replacing the set it just displayed. A replacement is bounded to one an
+// hour (reissueAllowed), and refused with the time it opens.
 //
 // Taken under the subject's row lock, the one a factor removal holds, and
 // only while a TOTP is held: a set that raced the removal of the last one is
@@ -28,14 +39,57 @@ export async function beginRecoveryCodes(
   tx: TenantScopedDatabase,
   input: IssueRecoveryCodes,
 ): Promise<BeginRecoveryCodesOutcome> {
-  const held = await subjectRepository(tx).lock(input.subjectId);
+  const subjects = subjectRepository(tx);
+  const held = await subjects.lock(input.subjectId);
   const standing = held ? await credentialRepository(tx).recoveryStanding(input.subjectId) : null;
   if (!standing?.hasTotp) {
     await requiredActionRepository(tx).complete(input.subjectId, 'generate-recovery-codes');
     return { kind: 'no_second_factor' };
   }
 
-  if (input.keepHeld === true && standing.held > 0) return { kind: 'held' };
+  const reissue = {
+    spentAll: standing.unspent === 0,
+    owed: (await requiredActionRepository(tx).pendingFor(input.subjectId)).includes(
+      'generate-recovery-codes',
+    ),
+  };
+  const refusal = async (): Promise<BeginRecoveryCodesOutcome | null> => {
+    const verdict = reissueAllowed(
+      await subjects.recoveryIssuedAt(input.subjectId),
+      reissue,
+      input.now,
+    );
+    if (verdict.ok) return null;
+    await auditRepository(tx).record({
+      eventType: 'credential',
+      action: 'recovery_codes.refused',
+      outcome: 'refused',
+      actorSubjectId: input.subjectId,
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      detail: { reason: 'rate_limited' },
+    });
+    return {
+      kind: 'too_soon',
+      retryAt: verdict.retryAt,
+      retryInMinutes: retryInMinutes(verdict.retryAt, input.now),
+    };
+  };
+
+  if (input.askFirst === true) {
+    return (await refusal()) ?? { kind: 'ask', replaces: standing.held > 0 };
+  }
+  const claimed = await subjects.claimRecoveryIssue(
+    input.subjectId,
+    input.now,
+    reissueCutoff(input.now),
+    bypassesBound(reissue),
+  );
+  if (!claimed) {
+    const refused = await refusal();
+    if (refused === null) throw new Error('recovery issue claim lost to no recorded issue');
+    return refused;
+  }
 
   const codes = generateRecoveryCodes();
   const hashes = await Promise.all(codes.map((code) => hashPassword(normaliseRecoveryCode(code))));

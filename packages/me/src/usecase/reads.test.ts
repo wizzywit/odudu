@@ -53,7 +53,12 @@ function reads(seen: Seen, over: Partial<MeReads> = {}): MeReads {
     },
     credentials: (t, s, page) => {
       note(t, s, page);
-      return Promise.resolve({ rows: [], recoveryCodesLeft: 0 });
+      return Promise.resolve({
+        rows: [],
+        recoveryCodesLeft: 0,
+        recoveryCodesHeld: 0,
+        recoveryCodeWarnBelow: 3,
+      });
     },
     sessions: (t, s, _lifespans, _now, page) => {
       note(t, s, page);
@@ -148,12 +153,40 @@ describe('listCredentials', () => {
     const store = reads(
       {},
       {
-        credentials: () => Promise.resolve({ rows: [row(ID_A, 'totp')], recoveryCodesLeft: 4 }),
+        credentials: () =>
+          Promise.resolve({
+            rows: [row(ID_A, 'totp')],
+            recoveryCodesLeft: 4,
+            recoveryCodesHeld: 10,
+            recoveryCodeWarnBelow: 3,
+          }),
       },
     );
     const outcome = await listCredentials({ reads: store, now: () => NOW }, CALLER, {});
     expect(outcome).toMatchObject({ kind: 'ok', recoveryCodesLeft: 4 });
     if (outcome.kind === 'ok') expect(outcome.items.map((c) => c.type)).toEqual(['totp']);
+  });
+
+  it.each([
+    { left: 2, held: 10, below: 3, low: true },
+    { left: 3, held: 10, below: 3, low: false },
+    { left: 0, held: 0, below: 3, low: false },
+    { left: 0, held: 10, below: 0, low: false },
+  ])('reports low as $low for $left of $held left under a threshold of $below', async (c) => {
+    const store = reads(
+      {},
+      {
+        credentials: () =>
+          Promise.resolve({
+            rows: [],
+            recoveryCodesLeft: c.left,
+            recoveryCodesHeld: c.held,
+            recoveryCodeWarnBelow: c.below,
+          }),
+      },
+    );
+    const outcome = await listCredentials({ reads: store, now: () => NOW }, CALLER, {});
+    expect(outcome).toMatchObject({ kind: 'ok', recoveryCodesLow: c.low });
   });
 
   it('does not return a row of a kind a person is not shown', async () => {
@@ -164,6 +197,8 @@ describe('listCredentials', () => {
           Promise.resolve({
             rows: [row(ID_A, 'recovery-code'), row(ID_B, 'password')],
             recoveryCodesLeft: 0,
+            recoveryCodesHeld: 0,
+            recoveryCodeWarnBelow: 3,
           }),
       },
     );

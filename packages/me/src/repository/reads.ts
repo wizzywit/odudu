@@ -17,7 +17,14 @@ export interface MeReads {
     tenantId: string,
     subjectId: string,
     page: Page,
-  ): Promise<{ readonly rows: readonly CredentialSummary[]; readonly recoveryCodesLeft: number }>;
+  ): Promise<{
+    readonly rows: readonly CredentialSummary[];
+    readonly recoveryCodesLeft: number;
+    // Recovery codes held, spent or not: zero is a person with no set.
+    readonly recoveryCodesHeld: number;
+    // The tenant's `recovery_code_warn_below`.
+    readonly recoveryCodeWarnBelow: number;
+  }>;
   sessions(
     tenantId: string,
     subjectId: string,

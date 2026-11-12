@@ -1,4 +1,5 @@
 import {
+  renderRecoveryCodesTooSoonPage,
   renderRequestedRecoveryCodesConfirmPage,
   renderRequiredActionPage,
   type PasskeyEnrolmentOffer,
@@ -44,12 +45,12 @@ export interface RequiredActionResponseDeps extends ContinuationDeps {
     subjectId: string,
     authSessionId: string,
   ): Promise<PasskeyEnrolmentOffer>;
-  // `keepHeld` leaves a set the subject already holds alone, answering `held`.
+  // `askFirst` issues nothing and answers `ask`, for a person who must confirm.
   beginRecoveryCodes(
     tenantId: string,
     subjectId: string,
     request: RequestContext,
-    keepHeld?: boolean,
+    askFirst?: boolean,
   ): Promise<BeginRecoveryCodesOutcome>;
   // What the tenant itself still owes the subject: an action it owes is never
   // offered a way out, whoever else asked for it.
@@ -120,8 +121,9 @@ export async function sendRequiredActionPage(
   if (action === 'generate-recovery-codes') {
     const tenant = await deps.findTenant(tenantName);
     if (tenant !== null) {
-      // The page replaces the subject's codes as it renders, so a session
-      // the flow does not yet count as finished must not reach it.
+      // The page issues the subject's codes as it renders, unless it asks
+      // first, so a session the flow does not yet count as finished must not
+      // reach it.
       if ((await deps.authenticatedSubject(tenant.id, authSessionId)) !== subjectId) {
         return sendSignInExpired(reply, deps, tenantName, authSessionId);
       }
@@ -138,15 +140,31 @@ export async function sendRequiredActionPage(
         await record('error');
         return sendActionUnavailable(reply, deps, tenantName, authSessionId);
       }
-      // An application asked, and the person holds a set: nothing is replaced
-      // until they say so.
-      if (issued.kind === 'held') {
+      // An application asked: nothing is issued or replaced until they say so.
+      if (issued.kind === 'ask') {
         return send(
           renderRequestedRecoveryCodesConfirmPage(
             tenantName,
             tenantAddressOf(reply.request),
             authSessionId,
+            issued.replaces,
             locale,
+          ),
+        );
+      }
+      if (issued.kind === 'too_soon') {
+        return sendHtml(
+          reply,
+          429,
+          continuing(
+            renderRecoveryCodesTooSoonPage(
+              tenantName,
+              tenantAddressOf(reply.request),
+              authSessionId,
+              issued.retryInMinutes,
+              variant,
+              locale,
+            ),
           ),
         );
       }

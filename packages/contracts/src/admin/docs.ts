@@ -1012,6 +1012,8 @@ describeFields(tenantSettingsDocumentSchema, {
   reset_password_ttl_seconds: 'How long a mailed password-reset link works.',
   session_freshness_seconds:
     'How recent a sign-in must be, in seconds, for the "me" API to accept removing a credential, ending other sessions in bulk, revoking a consent or changing a username.',
+  recovery_code_warn_below:
+    'How few unspent recovery codes a person may hold before the "me" API reports recovery_codes_low; 0 turns the warning off.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',

@@ -240,10 +240,6 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 - `update-password` for a person with no password, and the passkey ceremony, are covered by integration tests and not by a
   transcript, which cannot reach them from a shell.
 - The close-of-phase pass (the roadmap, section 11 and `docs/NEXT.md` read against each other) still owns the P4f row.
-- A requested `generate-recovery-codes` for a person who holds no set issues one when the page renders, so a reload shows the
-  confirmation page with a cancel control, and cancelling then records `cancelled` after the set changed. It is the remaining
-  case of the render-time change that the confirmation step removed for a held set. It is placed on Increment 5, the
-  recovery-code increment, which decides whether a first set also waits for a confirmation.
 
 ## Increment 4: a place to return to for an administrator-issued link
 
@@ -268,3 +264,64 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 ### Open placements
 
 - A link that is used from the sign-in that mailed it keeps the way back to that sign-in and names no client.
+
+## Increment 5: recovery codes, early re-issue and the bound
+
+### What shipped
+
+- **Where the marker lives.** Migration 0130 adds `subjects.recovery_codes_issued_at timestamptz`, null until a set is
+  made. A set has no row of its own (it is the subject's `recovery-code` credential rows, deleted and inserted together),
+  so a `recovery_sets` table would have held one row per subject to carry one timestamp, with its own foreign key, policy
+  and cascade. The subject row is already the lock every issue and every factor removal takes, so the claim needs no second
+  lock. A subject whose set predates the column reads null, so it can be replaced once at once.
+- **The claim is one conditional `UPDATE`** (`subjectRepository.claimRecoveryIssue`) that sets the time only where it is
+  null, at or before `now` minus an hour, or the caller says the set is used up. `reissueAllowed` (a pure service
+  function) decides the same thing from a read and names the retry time, which the claim cannot return. Two calls at the
+  same instant: one claims, one reads the claimed time and is refused (tested with two concurrent transactions).
+- **The one issuer** is `beginRecoveryCodes`; the sign-in page, a reload of it and the requested action all pass through
+  it, so the bound holds for each. The bound does not apply while the action is owed (see Ruling). A refusal writes `recovery_codes.refused` (outcome `refused`, reason `rate_limited`),
+  carries `retryAt` and the minutes to wait, and renders a page with a `429`. A page an application sent the person to
+  has the cancel control; the page a tenant owes has none.
+- **A first set waits for a confirmation too.** `askFirst` replaces `keepHeld`: a requested action issues nothing at
+  render, and answers `ask` (with whether it replaces a set) or `too_soon`. The first-set confirmation has its own
+  wording and button. The Increment 3 placement is closed.
+- Documentation: the action guide, the action transcript replayed whole on a live stack, the
+  recovery-code transcript's prose, the audit vocabulary, the changelog. The sessions concept page is at the 900-word
+  limit its test holds, so the rule is stated in the guide and the transcripts.
+
+### Found while building
+
+- `beginRecoveryCodes` had no clock, and the bound needs one. It takes `now` as a required input, so the callers in
+  four test suites pass one rather than the function reading the wall clock.
+
+### Ruling
+
+- A person whose sign-in waits for a set (the `generate-recovery-codes` action is owed) is exempt from the bound, as the
+  first set and a used-up set are, so a reload of the owed page issues a fresh set and the bound never blocks a sign-in.
+  It is one input of the pure `reissueAllowed` (`owed`), read from the person's pending actions. A set asked for
+  voluntarily, by an application or otherwise, keeps the bound.
+
+### Open placements
+
+- While the recovery-codes action is owed, each reload of its page issues a set: ten Argon2id hashes, bound to a signed-in
+  session, with no limit on the count. Placed on P11 (load and p99). The cheap bound is a short cooldown that still lets the
+  sign-in finish.
+
+### The low-count warning
+
+- **The setting.** Migration 0131 adds `tenants.recovery_code_warn_below integer NOT NULL DEFAULT 3`, held to 0..10 by a
+  CHECK; 0 turns the warning off, and ten is the size of a set. It follows `session_freshness_seconds` end to end: the
+  column, `SETTINGS`, the contract range, the tenant document (absent in an older export, imports as 3), the audit detail
+  allowlist, the console's Settings (Registration and recovery) and the settings page.
+- **The flag.** `GET /me/credentials` carries `recovery_codes_low`. `recoveryWarning(unspent, threshold)` is the pure
+  rule (`unspent < threshold`, so a threshold of 0 never warns); `recoveryCodesLow` adds that a person holding no set
+  (no recovery-code row at all, spent or not) is `false`. The read takes the held count from `recoveryStanding` and the
+  threshold from the tenant row inside the one tenant-scoped transaction, so no `MeTenant` or `TenantLookup` field was added.
+- **Where it shows.** Odudu serves no page a person lands on after signing in (the sign-in ends in a redirect to the
+  application), and the recovery-codes page is shown only while a set is being made. So the warning is surfaced where the
+  person's credentials are read, the "me" API, and an application shows it and sends the person to `generate-recovery-codes`.
+  No server page gained a string, so no catalogue entry was added. The spec's "on the next page the person sees" is amended
+  to say this. The sign-in's steps are pinned by a test of `BROWSER_FLOW_DEFAULT` (passkey, password, otp, recovery-code).
+- **Owed to the closing pass.** `docs/NEXT.md`'s paragraph "Two recovery-code gaps that need self-service" is stale: both
+  gaps (early re-issue, the low-count warning) are closed.
+- **At volume.** One extra primary-key read of the tenant row beside the credentials page's existing queries; no list grew.
