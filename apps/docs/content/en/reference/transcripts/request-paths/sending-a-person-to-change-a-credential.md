@@ -32,7 +32,7 @@ nothing below uses. The helpers do the sign-in every client does, with the me UR
 that API:
 
 ```bash
-odudu() { docker compose -p odudu-p4f-i33 -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
+odudu() { docker compose -p odudu-p4f-i51 -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
 BASE=http://localhost:3000
 T=$BASE/tenants/actions-demo
 ME=$T/me
