@@ -5,8 +5,6 @@ description: 'The full interactive flow. Every client uses PKCE, public and conf
 
 # Path A: authorization code with PKCE
 
-> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](the-me-api.md#a-sessions-device) is a live capture of the cookie.
-
 The full interactive flow. Every client uses PKCE, public and confidential
 alike, with no exception and no per-client opt-out (ADR 0016).
 
@@ -377,10 +375,11 @@ curl -sS -D - -o /dev/null \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=01a0de0f-e0c1-…:ymX2RgGntNQX…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=01a1d09d-b8ea-…:-f-lehfJxhKV…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-device=C74Nzrm4yL83SYBrNJWgWg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/demo/; Max-Age=0
-location: http://localhost:8080/callback?code=BHGxL9ZKCpm7…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
+location: http://localhost:8080/callback?code=7Dk1_YDCRJAn…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
@@ -395,10 +394,12 @@ alone, or with any secret but this one, resolves to no session at all, at
 the same cost as an id that names none. A browser holding several sessions
 carries several entries, joined with `.`.
 
-Three `set-cookie` headers, not one: the ephemeral `demo-session` this login
+Four `set-cookie` headers, not one: the ephemeral `demo-session` this login
 just established, `demo-session-persistent` cleared to empty with
-`Max-Age=0` because this submission carried no `remember_me` field, and
-`odudu-sign-in`, the cookie the form's page set, cleared too because the
+`Max-Age=0` because this submission carried no `remember_me` field,
+`demo-device`, the browser's device cookie (a random value that names no one;
+[A session's device](./the-me-api.md#a-sessions-device) shows what it does),
+and `odudu-sign-in`, the cookie the form's page set, cleared too because the
 request it named is spent. The first two are always sent so a browser holding
 a stale persistent cookie from before this pair existed loses it on the next
 login rather than carrying it forward unnoticed. [A remembered
@@ -701,9 +702,10 @@ curl -sS -D - -o /dev/null \
 ```
 HTTP/1.1 302 Found
 set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: demo-session-persistent=01a0de10-6e0f-…:_VOQ7Kojly1r…; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
+set-cookie: demo-session-persistent=01a1d09d-b96b-…:GdO1oO9zZD_V…; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
+set-cookie: demo-device=O_6pQxUENAmIo6kkDHAZrw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/demo/; Max-Age=0
-location: http://localhost:8080/callback?code=8DehL4bWBMqb…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
+location: http://localhost:8080/callback?code=fqoFC5lEuP9m…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 

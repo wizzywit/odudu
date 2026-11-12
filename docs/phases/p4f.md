@@ -509,10 +509,10 @@ that never configures a step behaves as it does today.
 
 ### Open placements
 
-- Transcripts that show the redirect ending a sign-in (21 pages, listed in `contributing/transcripts.md`) and the session blocks of
-  five admin and console pages predate the cookie and the field. They were not run again: the new section "A session's device" of
-  `the-me-api.md` is the live capture, and each of those pages says it predates. Re-running them is a replay of every transcript's
-  sign-in, which belongs to the phase's closing pass over the documents.
+- Five transcript pages still carry the on-page note that they predate the device cookie or field: `the-tenants-own-sign-in.md`,
+  `get-consoleauthcallback-refused.md`, `get-consoleauthcallback-restarted.md`, `a-refresh-the-server-refuses.md` and
+  `guides/admin-signs-in-and-changes-a-user.md`. They continue one console sign-in across pages, so they need that whole run replayed
+  in order. The other nineteen were replayed or cleared, below.
 - The roadmap's P4f bullet still names the device and the orphan; it is closed by the phase's closing pass, which reconciles the
   roadmap and section 11.
 
@@ -524,5 +524,12 @@ that never configures a step behaves as it does today.
   appear, no device last), `deviceCaptionOf` words the count, and the use cases only call them. Grouping applies to the rows loaded.
 - The cap test asserts the orphan bound; `query-plans.plan.test.ts` asserts the device read uses `sessions_by_subject` with no Seq Scan.
 - The concept page keeps its checked facts (cookie lifetime, grants route and `offline`, both revocation-mail triggers).
-- Transcripts were not replayed: 24 pages carry an on-page note that they predate the device cookie or field. A replay is one
-  scenario per page and belongs to the closing pass; that placement stays open.
+- Transcripts replayed on 2026-11-12 on the compose project `odudu-p4f-i8-replay` from `ce1b37221`: `the-mcp-endpoint`,
+  `getting-the-token`, `two-factor-authentication-with-totp`, `recovery-codes`, `brute-force-lockout`, `password-reset`,
+  `password-expiry-and-changing-a-password`, `path-a-authorization-code-with-pkce`, `rp-initiated-logout`, `the-branches` (the session
+  cap), the consents and recovery-codes admin pages, `delete-subjectsidsessions` and `delete-sessions`; the Path A excerpt in
+  `guides/sign-a-user-in`. Four pages show no sign-in's cookie list and only lost the note: `self-registration`,
+  `a-themed-sign-in-and-the-brand-route`, `following-the-logout-redirect` and `guides/refresh-and-end-a-session`. The consent screen
+  in `rp-initiated-logout` now carries the self-registered client's notice, which
+  `tests/docs/page-documents-transcripts.test.ts` does not read back yet. The method and the page list are in
+  `contributing/transcripts.md`.

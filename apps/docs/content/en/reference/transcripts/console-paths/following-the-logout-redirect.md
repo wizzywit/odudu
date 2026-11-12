@@ -5,8 +5,6 @@ description: 'After a console logout the browser follows the redirect, and the c
 
 # Following the logout redirect
 
-> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
-
 `$REDIRECT` is the `redirect` above. The jar still holds `system-session` from
 the sign-in. The console's own client has `skip_logout_confirmation` on, and the
 ID token in the URL is its own, for the session in that cookie, so the tenant's

@@ -5,8 +5,6 @@ description: 'The read requires view-users, the delete manage-users.'
 
 # A subject's consents: list and revoke
 
-> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
-
 This page covers `GET /subjects/:id/consents` and `DELETE /subjects/:id/consents/:clientId`.
 
 The read requires `view-users`, the delete `manage-users`. A consent is what the
@@ -81,7 +79,7 @@ the one box the subject can grant:
 <p class="tenant"><bdi>consents-demo2</bdi></p>
 </header>
 <form method="post" action="/tenants/consents-demo2/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a0e558-b0a9-763b-84f8-f348efaacd53">
+  <input type="hidden" name="auth_session_id" value="01a1d0a2-0630-75e0-9538-6866ed7a4cc2">
   <ul>
   <li><bdi>openid</bdi></li>
   </ul>
@@ -106,26 +104,27 @@ curl -sS -D - -c jar -b jar \
 
 curl -sS -X POST \
   --data-urlencode "grant_type=authorization_code" \
-  --data-urlencode "code=SInvyBACjbt6xBEec6hT1Way6Fpm4tj_6SEyiZr3dEM" \
+  --data-urlencode "code=CkueuGwX6g9Wa8cRNwlRU3q-BKDihDVQYLY-9ful5f0" \
   --data-urlencode "redirect_uri=https://app.example/callback" \
   --data-urlencode "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk" \
-  -u "consents-demo-app2:PaTErX2vTk6H_-eAP-1xOIh2BHMOp6dPekxmkisf-gg" \
+  -u "consents-demo-app2:pby7vjx6uBmKsWQwJW8XSra6noM1aqObp2k4i2fG3Gs" \
   'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/token'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a0e558-ce27-7849-80eb-a2d2dcf6a18a
-set-cookie: consents-demo2-session=01a0e558-ce34-74a4-a8ac-7da0e3702e69:7pi1cgx3w7uKV4Afg2Aq_3M4snQunDoUOl7OmUaLNvc; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d0a2-067c-740f-be6e-930e59f22fe0
+set-cookie: consents-demo2-session=01a1d0a2-068c-78e6-9cf0-d6a366c7cfe2:Ccva_LRCETCCi_ghgMnKH1pew9G0kr3-ZqeG_PokelE; HttpOnly; SameSite=Lax; Path=/
 set-cookie: consents-demo2-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: consents-demo2-device=IZFOyN4FyRg9lcqNnF89AQ; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/consents-demo2/; Max-Age=0
-location: https://app.example/callback?code=SInvyBACjbt6xBEec6hT1Way6Fpm4tj_6SEyiZr3dEM&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsents-demo2
+location: https://app.example/callback?code=CkueuGwX6g9Wa8cRNwlRU3q-BKDihDVQYLY-9ful5f0&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsents-demo2
 content-length: 0
-Date: Mon, 28 Sep 2026 00:09:57 GMT
+Date: Thu, 12 Nov 2026 16:40:41 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"access_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsInN1YiI6IjAxYTBlMmM4LTRkNDctN2E4NC1iOTQ3LTVlZjFiOTZhN2M2ZSIsImF1ZCI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiJdLCJjbGllbnRfaWQiOiJjb25zZW50cy1kZW1vLWFwcDIiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDU1NDE5NywiZXhwIjoxNzkwNTU0NDk3LCJqdGkiOiIwMWEwZTU1OC1jZTZmLTczM2UtOWExYy0zNTkzYmE0MjVkM2YiLCJncmFudF9pZCI6IjAxYTBlNTU4LWNlNmYtNzMzZS05YTFjLTM1OTI3M2ZhMzNlOCJ9.SG-i141R0VlhhniXUdotW7d5S_lcEp_4DMsqjP6fnNA_njayv3T_Va1lTFpEHpfy40kvflSXqSNh6RjfQ1-ZlA","id_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiJ9.eyJzdWIiOiIwMWEwZTJjOC00ZDQ3LTdhODQtYjk0Ny01ZWYxYjk2YTdjNmUiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsImF1ZCI6ImNvbnNlbnRzLWRlbW8tYXBwMiIsImlhdCI6MTc5MDU1NDE5NywiZXhwIjoxNzkwNTU0NDk3fQ.ZMBPf8vMkVTBEoARSrjDmzaSu9cD8LWzySTs1sLPpeOoUce8Ox823BPia5FE-TuNfKvSC1U56Nic1VvZapFZvg","refresh_token":"D0_gfIdY5BVJ0_BebFj_wBD_Ze55TFnmc9pBbn1f_l8","token_type":"Bearer","expires_in":300,"scope":"openid offline_access"}
+{"access_token":"eyJhbGciOiJSUzI1NiIsImtpZCI6IjAxYTFkMGEyLTAyNGYtN2Q5Yy1hMjI0LWMwNTQxYTExNzViMCIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsInN1YiI6IjAxYTFkMGEyLTA0MjYtNzM4YS05ODU3LWVkMzUyNGM5N2VkNSIsImF1ZCI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiJdLCJjbGllbnRfaWQiOiJjb25zZW50cy1kZW1vLWFwcDIiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5NDUwMTY0MSwiZXhwIjoxNzk0NTAxOTQxLCJqdGkiOiIwMWExZDBhMi0wNmNhLTcxOTgtYjZiZS00MGY5OWEzNDZmNWUiLCJncmFudF9pZCI6IjAxYTFkMGEyLTA2Y2EtNzE5OC1iNmJlLTQwZjgyNmY2ZTI2YiJ9.S4C5EtFsf4gasRYciEiYOjAiRlsJPDvD6CDxiuiX4cKwCMO7OOyD0bEVgaor2NcF_w_M7JiMy6gxmrPWnvTzRvERXau5Ssn989zpCXjm4AXlW5pwb7YS01ezRRM2_DPIwigw7AnnEinyaBeqsJXWxG-a-LPyspch2MQeqwgmKzZcRAmFPDo873uPFCd0qsMIhM3TOQnTg2s4JPbKaPSAWX2-NNsGYUHtkhSyt9geppXtxjEC_qdt9ohEPwVIIAz8vuNGr0CjD6UbFbWjotOTaHfZgz_wH-aYEbi_GJce_DOvE_1-LzuhLr9_cyZlVSKRFgG9nUlonKrBzfWA5KVW7g","id_token":"eyJhbGciOiJSUzI1NiIsImtpZCI6IjAxYTFkMGEyLTAyNGYtN2Q5Yy1hMjI0LWMwNTQxYTExNzViMCJ9.eyJzdWIiOiIwMWExZDBhMi0wNDI2LTczOGEtOTg1Ny1lZDM1MjRjOTdlZDUiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsImF1ZCI6ImNvbnNlbnRzLWRlbW8tYXBwMiIsImlhdCI6MTc5NDUwMTY0MSwiZXhwIjoxNzk0NTAxOTQxLCJhbXIiOlsicHdkIl0sImFjciI6IjEifQ.OJP-UjkT3Tyklczy9W-QcoTMBPF9koS-3ITgaPAxRksCB5h7cslLJwUuxrT1tJ5UyirNjsx0ThwVQjMWQaMaej6n-9Bn-QtxkNCK-n474kAWTtvpCcfxCevPxvXv0PHbQYjqmn4JXin1CyNMdz3GoDCifgXmuIo7cxhxstCDg9gYZnstZdXYIz1q6QdRUTHZ4j7sk_fxHoCoR2OB2ePLiOCgIFZe6wPCmtOfbcy7y3IkeIlLTein4LUoXc_r60VEmRd0E1RuQ0dgrZcgrM2H1UW3Uti1jwx4GiOX6V773kgm3r20w3-I0PeENOR4r0OIHbyiwrdLlng1NoqrWTl18Q","refresh_token":"dIYprjb33VbbgSKsw-8QU_1bq2TcXqemT0DL7STbksI","token_type":"Bearer","expires_in":300,"scope":"openid offline_access"}
 ```
 
 `GET /subjects/:id/consents` shows what was granted — `openid` is implied,
@@ -134,25 +133,25 @@ never ticked, and appears here anyway:
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a0e2c8-4d47-7a84-b947-5ef1b96a7c6e/consents
+  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a1d0a2-0426-738a-9857-ed3524c97ed5/consents
 ```
 
 ```
-{"items":[{"client_id":"01a0e2c8-35b0-7767-a5ee-d2b6f29258e2","client_key":"consents-demo-app2","scope_names":["openid","offline_access"],"granted_at":"2026-09-28T00:09:57.550Z"}]}
+{"items":[{"client_id":"01a1d0a2-05e5-74a3-b190-f212fe88703d","client_key":"consents-demo-app2","scope_names":["openid","offline_access"],"granted_at":"2026-11-12T16:40:41.861Z"}]}
 ```
 
 Revoking it:
 
 ```bash
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a0e2c8-4d47-7a84-b947-5ef1b96a7c6e/consents/01a0e2c8-35b0-7767-a5ee-d2b6f29258e2
+  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a1d0a2-0426-738a-9857-ed3524c97ed5/consents/01a1d0a2-05e5-74a3-b190-f212fe88703d
 ```
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a0e558-e849-7fb9-b904-65507dbb75a1
+x-request-id: 01a1d0a2-0701-7b1f-9568-2c0e5cfc16c1
 cache-control: no-store
-Date: Mon, 28 Sep 2026 00:10:04 GMT
+Date: Thu, 12 Nov 2026 16:40:42 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -163,20 +162,20 @@ the revoke reached it, not only the consent:
 ```bash
 curl -sS -D - -X POST \
   --data-urlencode "grant_type=refresh_token" \
-  --data-urlencode "refresh_token=D0_gfIdY5BVJ0_BebFj_wBD_Ze55TFnmc9pBbn1f_l8" \
-  -u "consents-demo-app2:PaTErX2vTk6H_-eAP-1xOIh2BHMOp6dPekxmkisf-gg" \
+  --data-urlencode "refresh_token=dIYprjb33VbbgSKsw-8QU_1bq2TcXqemT0DL7STbksI" \
+  -u "consents-demo-app2:pby7vjx6uBmKsWQwJW8XSra6noM1aqObp2k4i2fG3Gs" \
   'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/token'
 ```
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a0e559-025e-7e11-9dc2-daccca70dae4
+x-request-id: 01a1d0a2-071c-73ee-86d6-84f3d2f6c41e
 vary: Origin
 cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
 content-length: 79
-Date: Mon, 28 Sep 2026 00:10:10 GMT
+Date: Thu, 12 Nov 2026 16:40:42 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -188,8 +187,8 @@ The access token minted alongside it introspects inactive, ahead of its own
 
 ```bash
 curl -sS -X POST \
-  --data-urlencode "token=eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsInN1YiI6IjAxYTBlMmM4LTRkNDctN2E4NC1iOTQ3LTVlZjFiOTZhN2M2ZSIsImF1ZCI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiJdLCJjbGllbnRfaWQiOiJjb25zZW50cy1kZW1vLWFwcDIiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDU1NDE5NywiZXhwIjoxNzkwNTU0NDk3LCJqdGkiOiIwMWEwZTU1OC1jZTZmLTczM2UtOWExYy0zNTkzYmE0MjVkM2YiLCJncmFudF9pZCI6IjAxYTBlNTU4LWNlNmYtNzMzZS05YTFjLTM1OTI3M2ZhMzNlOCJ9.SG-i141R0VlhhniXUdotW7d5S_lcEp_4DMsqjP6fnNA_njayv3T_Va1lTFpEHpfy40kvflSXqSNh6RjfQ1-ZlA" \
-  -u "consents-demo-app2:PaTErX2vTk6H_-eAP-1xOIh2BHMOp6dPekxmkisf-gg" \
+  --data-urlencode "token=eyJhbGciOiJSUzI1NiIsImtpZCI6IjAxYTFkMGEyLTAyNGYtN2Q5Yy1hMjI0LWMwNTQxYTExNzViMCIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsInN1YiI6IjAxYTFkMGEyLTA0MjYtNzM4YS05ODU3LWVkMzUyNGM5N2VkNSIsImF1ZCI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiJdLCJjbGllbnRfaWQiOiJjb25zZW50cy1kZW1vLWFwcDIiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5NDUwMTY0MSwiZXhwIjoxNzk0NTAxOTQxLCJqdGkiOiIwMWExZDBhMi0wNmNhLTcxOTgtYjZiZS00MGY5OWEzNDZmNWUiLCJncmFudF9pZCI6IjAxYTFkMGEyLTA2Y2EtNzE5OC1iNmJlLTQwZjgyNmY2ZTI2YiJ9.S4C5EtFsf4gasRYciEiYOjAiRlsJPDvD6CDxiuiX4cKwCMO7OOyD0bEVgaor2NcF_w_M7JiMy6gxmrPWnvTzRvERXau5Ssn989zpCXjm4AXlW5pwb7YS01ezRRM2_DPIwigw7AnnEinyaBeqsJXWxG-a-LPyspch2MQeqwgmKzZcRAmFPDo873uPFCd0qsMIhM3TOQnTg2s4JPbKaPSAWX2-NNsGYUHtkhSyt9geppXtxjEC_qdt9ohEPwVIIAz8vuNGr0CjD6UbFbWjotOTaHfZgz_wH-aYEbi_GJce_DOvE_1-LzuhLr9_cyZlVSKRFgG9nUlonKrBzfWA5KVW7g" \
+  -u "consents-demo-app2:pby7vjx6uBmKsWQwJW8XSra6noM1aqObp2k4i2fG3Gs" \
   'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/token/introspect'
 ```
 
@@ -223,24 +222,24 @@ answers `404`:
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a0e2c8-4d47-7a84-b947-5ef1b96a7c6e/consents
+  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a1d0a2-0426-738a-9857-ed3524c97ed5/consents
 
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a0e2c8-4d47-7a84-b947-5ef1b96a7c6e/consents/01a0e2c8-35b0-7767-a5ee-d2b6f29258e2
+  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a1d0a2-0426-738a-9857-ed3524c97ed5/consents/01a1d0a2-05e5-74a3-b190-f212fe88703d
 ```
 
 ```
 {"items":[]}
 HTTP/1.1 404 Not Found
-x-request-id: 01a0e559-3dc0-7ac8-8559-3cd7fe3a816f
+x-request-id: 01a1d0a2-07e9-7ec5-9561-02038ae05504
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 105
-Date: Mon, 28 Sep 2026 00:10:26 GMT
+Date: Thu, 12 Nov 2026 16:40:42 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e559-3dc0-7ac8-8559-3cd7fe3a816f"}
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a1d0a2-07e9-7ec5-9561-02038ae05504"}
 ```
 
 An unknown subject on the read answers `404`:

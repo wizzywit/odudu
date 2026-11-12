@@ -5,8 +5,6 @@ description: 'A tenant’s published theme on the sign-in page, the stylesheet a
 
 # A themed sign-in and the brand route
 
-> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](the-me-api.md#a-sessions-device) is a live capture of the cookie.
-
 A tenant's published theme reaches a person in two parts: the page, filled with the
 tenant's colours, template, stylesheet link and logo, and the files that page links,
 which the server serves from `/tenants/{tenant}/brand/` under a content hash. This

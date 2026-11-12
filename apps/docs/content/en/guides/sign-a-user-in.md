@@ -6,8 +6,6 @@ sidebar_position: 1
 
 # Sign a user in
 
-> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../reference/transcripts/request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
-
 Your app sends a person to Odudu. They sign in on Odudu's own page. Your app then gets back tokens it can trust. This is the authorization code flow with PKCE, and every client uses it, public or confidential.
 
 The examples use a tenant called `demo`, a single-page app registered as `demo-spa`, and a user called `ada`. Use your own names. Each step shows a trimmed piece of a real run and links to the whole thing.
@@ -80,10 +78,11 @@ The person types a name and a password, or uses a passkey. You do nothing while 
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=01a0de0f-e0c1-…:ymX2RgGntNQX…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=01a1d09d-b8ea-…:-f-lehfJxhKV…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-device=C74Nzrm4yL83SYBrNJWgWg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/demo/; Max-Age=0
-location: http://localhost:8080/callback?code=BHGxL9ZKCpm7…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
+location: http://localhost:8080/callback?code=7Dk1_YDCRJAn…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 Check three things before you use the code. `state` must equal what you sent. `iss` must name the Odudu tenant you started with. The code lives for 60 seconds by default and works once.

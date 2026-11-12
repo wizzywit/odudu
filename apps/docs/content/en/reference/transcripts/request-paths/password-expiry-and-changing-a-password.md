@@ -5,8 +5,6 @@ description: "A tenant's password_max_age_days ages a password out."
 
 # Password expiry, and changing a password
 
-> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](the-me-api.md#a-sessions-device) is a live capture of the cookie.
-
 A tenant's `password_max_age_days` ages a password out. An expired password
 is **not** refused: the login authenticates exactly as it always did, and
 the `update-password` required action is what stops it from completing —
@@ -34,13 +32,13 @@ docker compose -p odudu-t8d -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 ```
-{"created":true,"tenant":"expiry-demo","tenantId":"01a10b6c-…","clientId":"expiry-spa","userSubjectId":"01a10b6c-…"}
-{"command":"tenant","created":false,"tenant":"expiry-demo","tenantId":"01a10b6c-99d6-7be3-8938-3d002dc8dc15","settings":["password_max_age_days","password_history_depth"]}
+{"created":true,"tenant":"expiry-demo","tenantId":"01a1d09b-…","clientId":"expiry-spa","userSubjectId":"01a1d09b-…"}
+{"command":"tenant","created":false,"tenant":"expiry-demo","tenantId":"01a1d09b-779c-740f-9959-29e74bda3571","settings":["password_max_age_days","password_history_depth"]}
 UPDATE 1
 ```
 
 `/authorize` parks the request and renders the ordinary password form; the
-`auth_session_id` in it — `01a10b6c-9d41-75c4-85f5-e18615bcb162` in this
+`auth_session_id` in it — `01a1d09b-7c0d-70ab-bc3d-021e0c22964a` in this
 run — is what every request below carries. The correct password answers
 `200` with a change-password form rather than `302` with a code: it was
 accepted, and the pending action is what holds the login (no `set-cookie`,
@@ -48,7 +46,7 @@ no `code`).
 
 ```bash
 curl -sS -X POST http://localhost:3086/tenants/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a10b6c-9d41-75c4-85f5-e18615bcb162' \
+  --data-urlencode 'auth_session_id=01a1d09b-7c0d-70ab-bc3d-021e0c22964a' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -74,7 +72,7 @@ curl -sS -X POST http://localhost:3086/tenants/expiry-demo/login-actions/authent
 </header>
 <p>This account needs a new password before you can continue.</p>
 <form method="post" action="/tenants/expiry-demo/login-actions/required-action?action=update-password">
-  <input type="hidden" name="auth_session_id" value="01a10b6c-9d41-75c4-85f5-e18615bcb162">
+  <input type="hidden" name="auth_session_id" value="01a1d09b-7c0d-70ab-bc3d-021e0c22964a">
   <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
@@ -83,7 +81,7 @@ curl -sS -X POST http://localhost:3086/tenants/expiry-demo/login-actions/authent
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="A9NPJYpWmxYUW8zXfjAHiQ==">(function () {
+  <script nonce="T55wgb2g6LbtxTHgh6URLA==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -135,7 +133,7 @@ bound by — `400`, with every rule it broke:
 ```bash
 curl -sS -X POST \
   'http://localhost:3086/tenants/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a10b6c-9d41-75c4-85f5-e18615bcb162' \
+  --data-urlencode 'auth_session_id=01a1d09b-7c0d-70ab-bc3d-021e0c22964a' \
   --data-urlencode 'password=short' \
   | grep -E 'role="alert"|<li id="form-error'
 ```
@@ -154,7 +152,7 @@ it is reported as a policy violation like the rest:
 ```bash
 curl -sS -X POST \
   'http://localhost:3086/tenants/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a10b6c-9d41-75c4-85f5-e18615bcb162' \
+  --data-urlencode 'auth_session_id=01a1d09b-7c0d-70ab-bc3d-021e0c22964a' \
   --data-urlencode 'password=correct-horse-battery'
 ```
 
@@ -184,7 +182,7 @@ answer is the code issued to the client:
 ```bash
 curl -sS -D - -o /dev/null -X POST \
   'http://localhost:3086/tenants/expiry-demo/login-actions/required-action?action=update-password' \
-  --data-urlencode 'auth_session_id=01a10b6c-9d41-75c4-85f5-e18615bcb162' \
+  --data-urlencode 'auth_session_id=01a1d09b-7c0d-70ab-bc3d-021e0c22964a' \
   --data-urlencode 'password=a-brand-new-passphrase'
 docker compose -p odudu-t8d -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
@@ -195,20 +193,21 @@ docker compose -p odudu-t8d -f infra/docker/compose.yaml exec -T postgres \
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a10b6c-9e27-7704-bf0a-d87e1a580945
-set-cookie: expiry-demo-session=01a10b6c-9e9a-7e01-94c9-b3e323ac2827:jzvh-oA-g-vYo4to48WNw7BB9g3eY-gyZlK_yf-MBHY; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d09b-7cf2-7e04-b2e4-35555999b2ac
+set-cookie: expiry-demo-session=01a1d09b-7d4a-720d-84a6-81d9c2e65ac3:JUwFpS6CV1QzxvXV-5bKyvV9amdeW-42WOS7w0fASc8; HttpOnly; SameSite=Lax; Path=/
 set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: expiry-demo-device=ttqyfnr6ImKOO7eNMnryeA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/expiry-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=Z2mgP39xHfH1nMBDl2Zo2TrkJU-AP0cnUHW85P-dS8E&state=xyz&iss=http%3A%2F%2Flocalhost%3A3086%2Ftenants%2Fexpiry-demo
+location: http://localhost:8080/callback?code=D7suWQeITwRBAEwowRkoZrE9uBZpKoLmggQt3L-iApk&state=xyz&iss=http%3A%2F%2Flocalhost%3A3086%2Ftenants%2Fexpiry-demo
 content-length: 0
-Date: Mon, 05 Oct 2026 09:37:10 GMT
+Date: Thu, 12 Nov 2026 16:33:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
        type       |          created_at
 ------------------+-------------------------------
- password         | 2026-10-05 09:37:10.190521+00
- password-history | 2026-10-05 09:37:10.190521+00
+ password         | 2026-11-12 16:33:33.432403+00
+ password-history | 2026-11-12 16:33:33.432403+00
 (2 rows)
 ```
 
@@ -234,7 +233,7 @@ fresh authentication session:
 
 ```bash
 curl -sS -D - -o /dev/null -X POST http://localhost:3086/tenants/expiry-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a10b6c-9f33-7c8c-9899-50a2af0044d4' \
+  --data-urlencode 'auth_session_id=01a1d09b-7dd3-7110-8187-cb652a7ad05e' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```

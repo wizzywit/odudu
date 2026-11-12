@@ -100,11 +100,35 @@ throttles at `10000`), built from the branch commit `01b0c3c70` with nothing unc
 tenant `me-doc`, its user `grace` and its client `me-app` were made as the page makes them. Each of its commands is a file run in
 one shell and its output is the file the page shows, with carriage returns removed. The sign-in helper used there keeps the
 cookie jar it is given and asks for `prompt=login`, as that section says. The stack and its image were removed afterwards. The
-blocks of `the-me-api.md` outside that section, and the session blocks of the admin pages (`get-subjectsidsessions-and-delete-subjectsidsessionssid.md`,
-`get-sessions-get-sessionscount-and-get-clientsidsessions.md`, `delete-subjectsidsessions.md`, `delete-sessions.md`) and of
-`a-refresh-the-server-refuses.md`, were not run again: each shows a session without `device`, and the response that ends a sign-in
-in the pages that show one now carries one more `set-cookie` (the device cookie) than they print. The pages that show a session
-cookie being set are `admin-signs-in-and-changes-a-user.md`, `refresh-and-end-a-session.md`, `sign-a-user-in.md`, `delete-subjectsidrecovery-codes.md`, `get-subjectsidconsents-and-delete-subjectsidconsentsclientid.md`, `getting-the-token.md`, `following-the-logout-redirect.md`, `get-consoleauthcallback-refused.md`, `get-consoleauthcallback-restarted.md`, `the-tenants-own-sign-in.md`, `a-themed-sign-in-and-the-brand-route.md`, `brute-force-lockout.md`, `password-expiry-and-changing-a-password.md`, `password-reset.md`, `path-a-authorization-code-with-pkce.md`, `recovery-codes.md`, `rp-initiated-logout.md`, `self-registration.md`, `the-branches.md`, `the-mcp-endpoint.md`, `two-factor-authentication-with-totp.md`.
+pages that show the redirect ending a sign-in, or a session list, were run again the same day on a compose project,
+`odudu-p4f-i8-replay` (server on `3081`, Postgres on `5482`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch
+commit `ce1b37221` with only documentation files uncommitted. The page's commands name their own ports; the stack's
+`ODUDU_PUBLIC_BASE_URL` was set to that port for the run and each `curl` was sent to `3081`, so issuers and redirects print the
+page's port. Each page ran its blocks in order, on a database that held none of its own tenants (the stack's volume was dropped whenever a
+page needed a name or a system tenant an earlier one had made), after the setup the page describes (the `seed`
+commands, a token as in Getting the token, the sign-ins that buy a code or a session), and each output is what came back with
+carriage returns removed and the cuts the page already made (a session entry or code cut to its first characters, the QR image, a
+long page cut to the lines the page shows). The ids, codes, secrets and keys one block hands to the next are that run's, in the
+commands and in the prose that names them. What ran: all of `the-mcp-endpoint.md`; in `getting-the-token.md`, the seed to the token
+exchange; in `two-factor-authentication-with-totp.md`, the enrolment to the second sign-in, and in `recovery-codes.md`, its
+sign-ins and counts, on the same database; the lockout block of `brute-force-lockout.md` (125 seconds long), `password-reset.md`
+from the reset request to the sign-in with the new password, all of `password-expiry-and-changing-a-password.md`, the login POST and
+the remembered login of `path-a-authorization-code-with-pkce.md`, the consent decision of `rp-initiated-logout.md` with the client
+registered before it, the three logins of the session cap in `the-branches.md`,
+`get-subjectsidconsents-and-delete-subjectsidconsentsclientid.md` from the consent to the revoked grant, the last block of
+`delete-subjectsidrecovery-codes.md` on a tenant, client and person made as that page makes them, `delete-subjectsidsessions.md`,
+and `delete-sessions.md` (a tenant `sess-demo` with the four people and two clients the page names). `guides/sign-a-user-in.md`
+takes its excerpt from the new Path A block. Where a page's setup is only described, the run made it as the description reads, so a
+page may show a field a later build added (the `issuerTenantName` of a `whoami`, the notice a self-registered client's consent
+screen carries).
+
+Four pages kept their earlier capture because no block of theirs shows the response: `self-registration.md` filters the sign-in to
+the session cookie's line, `a-themed-sign-in-and-the-brand-route.md` prints its status code, and
+`following-the-logout-redirect.md` and `guides/refresh-and-end-a-session.md` show only a logout. Five still carry the note and were
+not replayed: `the-tenants-own-sign-in.md`, `get-consoleauthcallback-refused.md`, `get-consoleauthcallback-restarted.md`,
+`a-refresh-the-server-refuses.md` and `guides/admin-signs-in-and-changes-a-user.md`. They continue one console sign-in across
+several pages (a `state` and a login cookie the page before made) or wait out a login's lifetime, so they need the console's whole
+run replayed in order. The stack and its image were removed afterwards.
 
 The first block of `get-adminopenapijson.md` was run again on 2026-11-12 on a freshly built compose project, `odudu-p4f-i8` (port `3081`), built from the branch commit `01b0c3c70` with the documentation changes uncommitted, because the `device` field made the document 519 bytes longer (816,440 to 816,959). The stack and its image were removed afterwards.
 

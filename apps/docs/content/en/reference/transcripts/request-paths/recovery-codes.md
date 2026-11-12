@@ -5,8 +5,6 @@ description: 'Enrolling a TOTP creates a way to be locked out: lose the phone an
 
 # Recovery codes
 
-> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](the-me-api.md#a-sessions-device) is a live capture of the cookie.
-
 Enrolling a TOTP creates a way to be locked out: lose the phone and
 the password alone no longer signs anybody in. So completing `configure-totp`
 adds the `generate-recovery-codes` required action to a subject who holds no
@@ -112,13 +110,13 @@ end of [Confirming the secret](./two-factor-authentication-with-totp.md#confirmi
 A fresh attempt, and this time the authenticator is gone. The request is
 parked and the password form rendered exactly as
 [Path A](./path-a-authorization-code-with-pkce.md) shows, for a new
-`auth_session_id`, `01a137d3-9df0-76d0-b626-fe71c6edce91`. The password step runs as always, and answers
+`auth_session_id`, `01a1d098-5090-7813-9f66-7dc57934cd6b`. The password step runs as always, and answers
 with the code form — the same two fields, because nothing about this
 submission says the authenticator is gone:
 
 ```bash
 curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a137d3-9df0-76d0-b626-fe71c6edce91' \
+  --data-urlencode 'auth_session_id=01a1d098-5090-7813-9f66-7dc57934cd6b' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -144,7 +142,7 @@ curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authentica
 <p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a137d3-9df0-76d0-b626-fe71c6edce91">
+  <input type="hidden" name="auth_session_id" value="01a1d098-5090-7813-9f66-7dc57934cd6b">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -158,19 +156,20 @@ The second field is what gets filled:
 
 ```bash
 curl -sS -i -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a137d3-9df0-76d0-b626-fe71c6edce91' \
-  --data-urlencode 'recovery_code=TKBYN-J8QGH'
+  --data-urlencode 'auth_session_id=01a1d098-5090-7813-9f66-7dc57934cd6b' \
+  --data-urlencode 'recovery_code=GTHNV-QXZB8'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a137d3-9ea5-72a6-b4d1-3d451af1a220
-set-cookie: otp-demo-session=01a137d3-9ee4-774c-a1f0-7b51a53740c3:j1qO2TJFYsDsCP29koTcK5BgwzgDtSYtdpuBiFsEXD4; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d098-50dd-7af0-9b11-212d43478da1
+set-cookie: otp-demo-session=01a1d098-5114-7fea-8ecb-dd3cc9dcd3b7:g73yHX0cH5J_fdhGWN4d9zZ3FGMRjySWupOMyfaCKC4; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: otp-demo-device=jjo6OVZ03BpaWeT-vAc9xg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/otp-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=5I3UGs_lZLJ8IzO16HHeB478eel2UUMkRKTQ7rbbDQs&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Fotp-demo
+location: http://localhost:8080/callback?code=XyFUNU5TLGOGY22A6blNiljp-gandfg8h2f_sbjkFuk&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Fotp-demo
 content-length: 0
-Date: Wed, 14 Oct 2026 00:32:58 GMT
+Date: Thu, 12 Nov 2026 16:30:05 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -190,7 +189,7 @@ The ID token says less about this login than the two-factor one above:
   "aud": "otp-spa",
   "iat": 1791937978,
   "exp": 1791938278,
-  "sid": "01a137d3-9ee4-774c-a1f0-7b51a53740c3",
+  "sid": "01a1d098-5114-7fea-8ecb-dd3cc9dcd3b7",
   "amr": ["pwd"],
   "acr": "2"
 }
@@ -361,19 +360,20 @@ unspent behind it:
 
 ```bash
 curl -sS -i -X POST http://localhost:3094/tenants/rc8-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a137d4-5cca-713b-903c-d3ce599a19c2' \
-  --data-urlencode 'recovery_code=ZBA0Z-8N4XS'
+  --data-urlencode 'auth_session_id=01a1d098-5195-7db3-8f23-20079f733ef0' \
+  --data-urlencode 'recovery_code=43XY4-8EJRF'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a137d4-5d60-7709-a701-0194a352560d
-set-cookie: rc8-demo-session=01a137d4-5e4e-7a32-826d-3d83b7545e54:-Z5iI7GF488P51f-1HRCTMKKXHGGsUyCG8mZF2ES0Ao; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d098-51e1-756b-bb3e-4e5373e4de29
+set-cookie: rc8-demo-session=01a1d098-52e4-7368-b17e-2db54818b2a6:NDT2xLEGKYZntoF6BesakFRZCq0Cr0G-y9DCwXJZNqU; HttpOnly; SameSite=Lax; Path=/
 set-cookie: rc8-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: rc8-demo-device=otJtFLQiJUWifAlJmvyiDA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/rc8-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=4ClFExsSD-g_CG_ClPjfnaN3kBwgHoorQMiZiJELTvE&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Frc8-demo
+location: http://localhost:8080/callback?code=gytRpnZUOxud7FYQdKkdr9kvJMpAUjhGLYP5HwJTVTc&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Frc8-demo
 content-length: 0
-Date: Wed, 14 Oct 2026 00:33:47 GMT
+Date: Thu, 12 Nov 2026 16:30:06 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -382,8 +382,8 @@ The tenth authenticates just as well, and does not redirect:
 
 ```bash
 curl -sS -i -X POST http://localhost:3094/tenants/rc8-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a137d4-5f25-7dd5-b54e-f530dd226d0d' \
-  --data-urlencode 'recovery_code=W7762-A4QFZ'
+  --data-urlencode 'auth_session_id=01a1d098-5364-7e03-8fef-5a36cd6c9609' \
+  --data-urlencode 'recovery_code=43HNC-B8PXY'
 ```
 
 The codes themselves are elided here — the set shown above is the one this
@@ -391,7 +391,7 @@ document prints, and a test holds it to exactly one:
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a137d4-5faf-7d4c-867b-86e075e0ac38
+x-request-id: 01a1d098-53a6-7be0-baa7-02b81aba7680
 content-type: text/html
 content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self' http://localhost:8080; base-uri 'none'
 x-frame-options: DENY
@@ -400,7 +400,7 @@ cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
 content-length: 2107
-Date: Wed, 14 Oct 2026 00:33:47 GMT
+Date: Thu, 12 Nov 2026 16:30:06 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -428,7 +428,7 @@ Keep-Alive: timeout=72
   …ten of them…
 </ol>
 <form method="post" action="/tenants/rc8-demo/login-actions/required-action?action=generate-recovery-codes">
-  <input type="hidden" name="auth_session_id" value="01a137d4-5f25-7dd5-b54e-f530dd226d0d">
+  <input type="hidden" name="auth_session_id" value="01a1d098-5364-7e03-8fef-5a36cd6c9609">
   <button type="submit">I have saved these codes</button>
 </form>
 </main>
@@ -443,18 +443,19 @@ finishes the login, exactly as it did there:
 ```bash
 curl -sS -i -X POST \
   'http://localhost:3094/tenants/rc8-demo/login-actions/required-action?action=generate-recovery-codes' \
-  --data-urlencode 'auth_session_id=01a137d4-5f25-7dd5-b54e-f530dd226d0d'
+  --data-urlencode 'auth_session_id=01a1d098-5364-7e03-8fef-5a36cd6c9609'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a137d4-6212-702f-98e3-e260b931935c
-set-cookie: rc8-demo-session=01a137d4-6228-72ef-acce-7825c414d1ce:s-AxqiUj8ccFNiWeaAltx-kfFz_ZHL4TTnKs6mn1xvk; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d098-55cf-7cc9-809f-09ee0ed8c87e
+set-cookie: rc8-demo-session=01a1d098-55ee-793d-abe5-900f5cfdab4d:CuQjseXFw2A60boDHe1EMX2iw2KjfLgHs99-PCIFlZw; HttpOnly; SameSite=Lax; Path=/
 set-cookie: rc8-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: rc8-demo-device=5MBYFcweeea6duDHr0p6JA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/rc8-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=0X0v6AqfNZkZMfluApYongAIiQ1N0ovrRGryRx984X0&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Frc8-demo
+location: http://localhost:8080/callback?code=4YumKeuBtJOHNle5mYoslLikelwxA8WFcDTPSsI0XhY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Frc8-demo
 content-length: 0
-Date: Wed, 14 Oct 2026 00:33:48 GMT
+Date: Thu, 12 Nov 2026 16:30:06 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```

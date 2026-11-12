@@ -6,8 +6,6 @@ sidebar_position: 2
 
 # Refresh and end a session
 
-> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../reference/transcripts/request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
-
 Access tokens are short on purpose. This guide shows how to get new ones without asking the person to sign in again, how Odudu catches a stolen refresh token, and how to end the session so that nothing it issued works afterwards.
 
 It carries on from [Sign a user in](./sign-a-user-in.md), with the same tenant `demo` and client `demo-spa`.
