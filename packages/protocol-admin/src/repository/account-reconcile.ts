@@ -136,20 +136,6 @@ export function accountReconcileRepository(tx: TenantScopedDatabase, tenantId: s
          where tenant_id = ${tenantId} and id = ${to}`);
     },
 
-    async moveSessions(from: string, to: string): Promise<number> {
-      const result = await tx.execute(sql`
-        update sessions set subject_id = ${to}
-         where tenant_id = ${tenantId} and subject_id = ${from}`);
-      return result.count;
-    },
-
-    async moveGrants(from: string, to: string): Promise<number> {
-      const result = await tx.execute(sql`
-        update token_grants set subject_id = ${to}
-         where tenant_id = ${tenantId} and subject_id = ${from}`);
-      return result.count;
-    },
-
     // A client the survivor already consented to keeps the survivor's own.
     async moveConsents(from: string, to: string, now: Date): Promise<number> {
       const result = await tx.execute(sql`

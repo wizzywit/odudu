@@ -6,6 +6,7 @@ import {
   hasSignedIn,
   movePlan,
   planGroup,
+  planHolds,
   type AccountFacts,
 } from '#/service/reconcile-accounts';
 
@@ -256,5 +257,23 @@ describe('which credentials move to the survivor', () => {
 
   it('moves nothing the loser does not hold', () => {
     expect(credentialTypesToMove(new Set(), new Set())).toEqual([]);
+  });
+});
+
+describe('whether a second read of a group still holds the first plan', () => {
+  const a = account('a', '2026-01-01T00:00:00Z', { emailVerified: true });
+  const b = account('b', '2026-02-01T00:00:00Z', { emailVerified: true });
+
+  it('holds when nothing changed', () => {
+    expect(planHolds(planGroup([a, b]), planGroup([a, b]))).toBe(true);
+  });
+
+  it('breaks when the account to retire has since signed in', () => {
+    expect(planHolds(planGroup([a, b]), planGroup([a, { ...b, hasSignIns: true }]))).toBe(false);
+  });
+
+  it('breaks when either read is not a merge', () => {
+    expect(planHolds(planGroup([a, b]), planGroup([a]))).toBe(false);
+    expect(planHolds(planGroup([a]), planGroup([a, b]))).toBe(false);
   });
 });

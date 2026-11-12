@@ -68,7 +68,7 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'account.address_proved':
     "A reset link proved an unverified address. The account's second factors, passkeys and recovery codes were removed.",
   'account.reconciled':
-    'An account that held the same address as another, apart from its case, was folded into the one that stayed. `resource_id` is the retired account; `detail` names the survivor, whether anything was carried over and how many rows of each kind moved. It holds no address, and moved rows are not recorded one by one, so a merge is not reversed mechanically.',
+    'An account that held the same address as another, apart from its case, was folded into the one that stayed. `resource_id` is the retired account; `detail` names the survivor, whether anything was carried over and how many credentials and consents moved. It holds no address, and moved rows are not recorded one by one, so a merge is not reversed mechanically.',
   'email.verified': 'A user verified their email address through the mailed link.',
   'email.verification_resent':
     'A new verification link was mailed because the one a person held was spent or expired. Written once for each request that queued a mail, with no actor, and without the address.',

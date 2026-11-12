@@ -44,7 +44,10 @@ export function accountFacts(record: AccountRecord): AccountFacts {
 }
 
 export type RefusalReason =
-  'several_have_sign_ins' | 'no_verified_account' | 'unverified_account_has_sign_ins';
+  | 'several_have_sign_ins'
+  | 'no_verified_account'
+  | 'unverified_account_has_sign_ins'
+  | 'loser_signed_in';
 
 export interface Loser {
   readonly subjectId: string;
@@ -85,6 +88,19 @@ function refusal(members: readonly AccountFacts[]): RefusalReason | null {
     return 'unverified_account_has_sign_ins';
   }
   return null;
+}
+
+/**
+ * Whether a plan made from a second read of the same group is the plan the
+ * first read made: the same survivor, the same accounts to retire, and still
+ * mergeable. A sign-in that lands between the two reads breaks it.
+ */
+export function planHolds(first: GroupPlan, second: GroupPlan): boolean {
+  if (first.kind !== 'merge' || second.kind !== 'merge') return false;
+  return (
+    first.survivorId === second.survivorId &&
+    first.losers.map((l) => l.subjectId).join() === second.losers.map((l) => l.subjectId).join()
+  );
 }
 
 export function planGroup(members: readonly AccountFacts[]): GroupPlan {
@@ -143,18 +159,14 @@ export function movePlan(
 
 export interface MovedCounts {
   readonly credentials: number;
-  readonly sessions: number;
-  readonly grants: number;
   readonly consents: number;
 }
 
-export const NOTHING_MOVED: MovedCounts = { credentials: 0, sessions: 0, grants: 0, consents: 0 };
+export const NOTHING_MOVED: MovedCounts = { credentials: 0, consents: 0 };
 
 export function addMoved(a: MovedCounts, b: MovedCounts): MovedCounts {
   return {
     credentials: a.credentials + b.credentials,
-    sessions: a.sessions + b.sessions,
-    grants: a.grants + b.grants,
     consents: a.consents + b.consents,
   };
 }
@@ -170,7 +182,8 @@ export interface PairEvent {
   readonly loser: string;
   readonly former_address: string | null;
   readonly carried_over: boolean;
-  readonly moved: MovedCounts;
+  /** Absent on a dry run: what would move is not computed. */
+  readonly moved?: MovedCounts;
 }
 
 /** What became of one address that several accounts held. */

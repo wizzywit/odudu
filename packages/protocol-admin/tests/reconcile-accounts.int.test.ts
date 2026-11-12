@@ -9,7 +9,7 @@ import {
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { accountReconcileRepository } from '#/repository/account-reconcile';
-import { reconcileDuplicateAccounts } from '#/usecase/reconcile-accounts';
+import { reconcileDuplicateAccounts, reconcileGroup } from '#/usecase/reconcile-accounts';
 
 // The statement the later release's migration carries, built here against
 // the real schema so that what the operating notes say is what runs.
@@ -205,7 +205,7 @@ describe('reconciling accounts that hold one address', () => {
       accounts_retired: 1,
       refused: 0,
       failed: 0,
-      moved: { credentials: 2, sessions: 0, grants: 0, consents: 1 },
+      moved: { credentials: 2, consents: 1 },
     });
     expect(await owned('user_credentials', stays)).toEqual([password, passkey].sort());
     expect(await owned('user_credentials', goes)).toEqual([]);
@@ -330,7 +330,14 @@ describe('reconciling accounts that hold one address', () => {
     });
     await session(t, b);
     const before = await owner.sql`select * from users where tenant_id = ${t} order by subject_id`;
-    const report = await run([t], { dryRun: true });
+    const lines: Record<string, unknown>[] = [];
+    const report = await reconcileDuplicateAccounts(app.db, [t], NOW, {
+      dryRun: true,
+      onPair: (pair) => lines.push({ ...pair }),
+    });
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ event: 'would_merge', survivor: expect.any(String) });
+    expect(lines[0]).not.toHaveProperty('moved');
     expect(report).toMatchObject({
       dry_run: true,
       groups: 1,
@@ -482,9 +489,37 @@ describe('reconciling accounts that hold one address', () => {
         loser: b,
         former_address: 'S@x.test',
         carried_over: true,
-        moved: { credentials: 0, sessions: 0, grants: 0, consents: 0 },
+        moved: { credentials: 0, consents: 0 },
       },
     ]);
+  });
+
+  it('refuses a pair whose account signs in after it was read, and writes nothing', async () => {
+    const t = await tenant();
+    const stays = await user(t, { email: 'u@x.test', verified: true });
+    const goes = await user(t, {
+      email: 'U@x.test',
+      verified: true,
+      createdAt: '2026-02-01T00:00:00Z',
+    });
+    const c = await client(t);
+    await consent(t, goes, c);
+    const outcome = await withTenant(app.db, t, (tx) =>
+      reconcileGroup(tx, t, 'u@x.test', NOW, false, () => loginEvent(t, goes)),
+    );
+    expect(outcome).toMatchObject({ kind: 'refused', reason: 'loser_signed_in' });
+    expect((await state(goes)).disabled).toBe(false);
+    expect((await state(goes)).email).toBe('U@x.test');
+    expect(await owned('consents', goes)).toHaveLength(1);
+    const [none] = await owner.sql<{ n: number }[]>`
+      select count(*)::int n from audit_events where tenant_id = ${t} and action = 'account.reconciled'`;
+    expect(none?.n).toBe(0);
+    // Read again, the account has signed in and is now the one that stays.
+    const rerun = await run([t]);
+    expect(rerun).toMatchObject({ merged: 1 });
+    expect((await state(goes)).disabled).toBe(false);
+    expect((await state(stays)).disabled).toBe(true);
+    expect(await run([t])).toMatchObject({ groups: 0 });
   });
 
   it('puts a pair back as it was when any step of it fails', async () => {
@@ -535,8 +570,6 @@ describe('every repository method, called for another tenant', () => {
       expect(await repository.lockAccounts('k@x.test')).toEqual([]);
       expect(await repository.credentialTypes(b)).toEqual(new Set());
       expect(await repository.moveCredentials(b, a, ['password'])).toBe(0);
-      expect(await repository.moveSessions(b, a)).toBe(0);
-      expect(await repository.moveGrants(b, a)).toBe(0);
       expect(await repository.moveConsents(b, a, NOW)).toBe(0);
       await repository.clearPendingLinks(b);
     });
@@ -550,11 +583,12 @@ describe('every repository method, called for another tenant', () => {
     const mine = await tenant();
     const stranger = await tenant();
     const b = await user(mine, { email: 'l@x.test' });
-    await session(mine, b);
+    const c = await client(mine);
+    await consent(mine, b, c);
     await withTenant(app.db, stranger, async (tx) => {
-      expect(await accountReconcileRepository(tx, mine).moveSessions(b, randomUUID())).toBe(0);
+      expect(await accountReconcileRepository(tx, mine).moveConsents(b, randomUUID(), NOW)).toBe(0);
     });
-    expect(await owned('sessions', b)).toHaveLength(1);
+    expect(await owned('consents', b)).toHaveLength(1);
   });
 });
 

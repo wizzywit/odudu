@@ -234,7 +234,7 @@ type CredentialInput =
         survivor: string;
         loser: string;
         carried_over: boolean;
-        moved: Readonly<Record<'credentials' | 'sessions' | 'grants' | 'consents', number>>;
+        moved: Readonly<Record<'credentials' | 'consents', number>>;
       }>;
     })
   // `detail.breached_check` says what the breached-password check decided.

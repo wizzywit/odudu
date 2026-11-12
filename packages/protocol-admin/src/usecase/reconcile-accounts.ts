@@ -11,6 +11,7 @@ import {
   movePlan,
   NOTHING_MOVED,
   planGroup,
+  planHolds,
   tally,
   type GroupOutcome,
   type Loser,
@@ -44,8 +45,6 @@ async function carryOver(
   if (plan.moveRecoveryStamp) await repository.moveRecoveryCodeStamp(loser.subjectId, survivorId);
   return {
     credentials,
-    sessions: await repository.moveSessions(loser.subjectId, survivorId),
-    grants: await repository.moveGrants(loser.subjectId, survivorId),
     consents: await repository.moveConsents(loser.subjectId, survivorId, now),
   };
 }
@@ -55,7 +54,7 @@ function pairOf(
   tenantId: string,
   survivorId: string,
   loser: Loser,
-  moved: MovedCounts,
+  moved: MovedCounts | null,
 ): PairEvent {
   return {
     event,
@@ -64,7 +63,7 @@ function pairOf(
     loser: loser.subjectId,
     former_address: loser.email,
     carried_over: loser.carriesOver,
-    moved,
+    ...(moved === null ? {} : { moved }),
   };
 }
 
@@ -99,7 +98,10 @@ async function retire(
 /**
  * Folds the accounts that hold one address into the one that stays, in the
  * caller's transaction. The address is read again under lock, so a group
- * that changed since it was found is judged as it is now.
+ * that changed since it was found is judged as it is now. Nothing moves from
+ * an account that has signed in, so no session or grant is ever carried over.
+ * `afterRead` runs between the first read and the check just before the
+ * writes; only a test needs it.
  */
 export async function reconcileGroup(
   tx: TenantScopedDatabase,
@@ -107,6 +109,7 @@ export async function reconcileGroup(
   address: string,
   now: Date,
   dryRun: boolean,
+  afterRead?: (tx: TenantScopedDatabase) => Promise<void>,
 ): Promise<GroupOutcome> {
   await lockEmailForCreation(tx, tenantId, address);
   const repository = accountReconcileRepository(tx, tenantId);
@@ -124,8 +127,20 @@ export async function reconcileGroup(
     return {
       kind: 'would_merge',
       pairs: plan.losers.map((loser) =>
-        pairOf('would_merge', tenantId, plan.survivorId, loser, NOTHING_MOVED),
+        pairOf('would_merge', tenantId, plan.survivorId, loser, null),
       ),
+    };
+  }
+  // A sign-in that landed since the read above would leave a live session
+  // on an account about to be disabled, so the group is read again, under the
+  // same locks, immediately before anything is written.
+  await afterRead?.(tx);
+  const again = planGroup((await repository.lockAccounts(address)).map(accountFacts));
+  if (!planHolds(plan, again)) {
+    return {
+      kind: 'refused',
+      reason: 'loser_signed_in',
+      subjectIds: members.map((member) => member.subjectId),
     };
   }
   const pairs: PairEvent[] = [];
@@ -134,7 +149,7 @@ export async function reconcileGroup(
   }
   return {
     kind: 'merged',
-    moved: pairs.reduce((sum, pair) => addMoved(sum, pair.moved), NOTHING_MOVED),
+    moved: pairs.reduce((sum, pair) => addMoved(sum, pair.moved ?? NOTHING_MOVED), NOTHING_MOVED),
     pairs,
   };
 }
