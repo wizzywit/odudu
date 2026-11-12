@@ -13,6 +13,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { REISSUE_INTERVAL_MS } from '#/service/authenticators/recovery-reissue';
+import { requiredActionRepository } from '#/repository/required-actions';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 import { beginRecoveryCodes, type BeginRecoveryCodesOutcome } from '#/usecase/recovery-codes';
 import { completeTotpEnrolment } from '#/usecase/totp-enrolment';
@@ -65,6 +66,8 @@ async function seedAccount(): Promise<Account> {
       clock,
     );
     expect(enrolled).toEqual({ kind: 'enrolled' });
+    // The enrolment owes a set; these accounts start with nothing owed.
+    await requiredActionRepository(tx).complete(subject.id, 'generate-recovery-codes');
     return subject.id;
   });
   return { tenantId, subjectId };
@@ -137,6 +140,21 @@ describe('bounding the re-issue of a recovery set', () => {
       { action: 'recovery_codes.issued', outcome: 'allowed' },
       { action: 'recovery_codes.refused', outcome: 'refused' },
     ]);
+  });
+
+  it('does not hold back a set the sign-in is waiting for, a reload included', async () => {
+    const account = await seedAccount();
+    await begin(account, T0);
+    await withTenant(app.db, account.tenantId, (tx) =>
+      requiredActionRepository(tx).add(
+        account.tenantId,
+        account.subjectId,
+        'generate-recovery-codes',
+      ),
+    );
+    const first = await hashes(account);
+    expect((await begin(account, at(1000))).kind).toBe('issued');
+    expect(await hashes(account)).not.toEqual(first);
   });
 
   it('does not hold back a set with nothing left to spend', async () => {

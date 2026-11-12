@@ -11,23 +11,29 @@ const ago = (ms: number): Date => new Date(NOW.getTime() - ms);
 
 describe('reissueAllowed', () => {
   it('lets the first set through', () => {
-    expect(reissueAllowed(null, false, NOW)).toEqual({ ok: true });
+    expect(reissueAllowed(null, { spentAll: false, owed: false }, NOW)).toEqual({ ok: true });
   });
 
   it('lets a used-up set be replaced at once, however recent the last issue', () => {
-    expect(reissueAllowed(ago(1000), true, NOW)).toEqual({ ok: true });
+    expect(reissueAllowed(ago(1000), { spentAll: true, owed: false }, NOW)).toEqual({ ok: true });
   });
 
   it('refuses a replacement inside the hour and names when it opens', () => {
     const last = ago(10 * 60_000);
-    expect(reissueAllowed(last, false, NOW)).toEqual({
+    expect(reissueAllowed(last, { spentAll: false, owed: false }, NOW)).toEqual({
       ok: false,
       retryAt: new Date(last.getTime() + REISSUE_INTERVAL_MS),
     });
   });
 
+  it('lets a set the sign-in is waiting for through at once', () => {
+    expect(reissueAllowed(ago(1000), { spentAll: false, owed: true }, NOW)).toEqual({ ok: true });
+  });
+
   it('allows one exactly an hour after the last', () => {
-    expect(reissueAllowed(ago(REISSUE_INTERVAL_MS), false, NOW)).toEqual({ ok: true });
+    expect(reissueAllowed(ago(REISSUE_INTERVAL_MS), { spentAll: false, owed: false }, NOW)).toEqual(
+      { ok: true },
+    );
   });
 });
 

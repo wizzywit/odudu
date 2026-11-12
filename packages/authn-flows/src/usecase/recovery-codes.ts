@@ -47,10 +47,13 @@ export async function beginRecoveryCodes(
   }
 
   const spentAll = standing.unspent === 0;
+  const owed = (await requiredActionRepository(tx).pendingFor(input.subjectId)).includes(
+    'generate-recovery-codes',
+  );
   const refusal = async (): Promise<BeginRecoveryCodesOutcome | null> => {
     const verdict = reissueAllowed(
       await subjects.recoveryIssuedAt(input.subjectId),
-      spentAll,
+      { spentAll, owed },
       input.now,
     );
     if (verdict.ok) return null;
@@ -77,7 +80,7 @@ export async function beginRecoveryCodes(
     input.subjectId,
     input.now,
     reissueCutoff(input.now),
-    spentAll,
+    spentAll || owed,
   );
   if (!claimed) {
     const refused = await refusal();
