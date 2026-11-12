@@ -242,6 +242,18 @@ describe('each read answers with the token’s own subject’s rows', () => {
     expect(res.json()).toMatchObject({ username: 'grace' });
   });
 
+  it('nothing, for a token whose subject has been disabled', async () => {
+    const w = await world();
+    const token = await sign(w);
+    expect((await get(w, 'profile', token)).statusCode).toBe(200);
+    await withTenant(appDb.db, w.tenantId, (tx) =>
+      subjectRepository(tx).setEnabled(w.subjectId, false),
+    );
+    const res = await get(w, 'profile', token);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toContain('invalid_token');
+  });
+
   it('the credentials, with the recovery codes left and no recovery code listed', async () => {
     const w = await world();
     const res = await get(w, 'credentials', await sign(w));

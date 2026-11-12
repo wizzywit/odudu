@@ -116,6 +116,7 @@ function build(
     ...over.reads,
   };
   const deps: MeDeps = {
+    subjectEnabled: () => Promise.resolve(true),
     acceptedIssuers: () => Promise.resolve([ISSUER]),
     verifyAccessToken: () =>
       Promise.resolve({

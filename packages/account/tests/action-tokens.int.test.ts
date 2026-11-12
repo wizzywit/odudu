@@ -716,3 +716,46 @@ describe('lifetimeOf', () => {
     });
   });
 });
+
+describe('a link for a disabled subject', () => {
+  async function disable(): Promise<void> {
+    await withTenant(app.db, tenantId, (tx) =>
+      tx.execute(sql`update subjects set disabled_at = now() where id = ${subject}`),
+    );
+  }
+
+  it('is refused by consume and left unspent, as an expired link is', async () => {
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    await disable();
+    await expect(consume(token, 'reset_password')).resolves.toBeNull();
+    const rows = await rawSelectAllActionTokens();
+    expect(rows.every((row) => row.consumedAt === null)).toBe(true);
+  });
+
+  it('is not shown by peek', async () => {
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'verify_email',
+      email: 'ada@example.test',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    await disable();
+    await expect(
+      withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).peek(token)),
+    ).resolves.toBeNull();
+  });
+
+  it('is still honoured for a subject that is enabled', async () => {
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'verify_email',
+      email: 'ada@example.test',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    await expect(consume(token, 'verify_email')).resolves.toMatchObject({ subjectId: subject });
+  });
+});

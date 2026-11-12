@@ -68,6 +68,13 @@ function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
   };
 }
 
+// A link for a subject an administrator disabled, or a merge retired, is
+// refused as an expired one is. Written against the table by name because
+// this package does not import the identity package.
+const subjectIsEnabled = sql`not exists (
+  select 1 from subjects s
+   where s.id = ${actionTokens.subjectId} and s.disabled_at is not null)`;
+
 export function actionTokenRepository(tx: TenantScopedDatabase) {
   return {
     // The tenant's lifetime for a link of this type
@@ -121,6 +128,7 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
             eq(actionTokens.type, type),
             isNull(actionTokens.consumedAt),
             gt(actionTokens.expiresAt, new Date()),
+            subjectIsEnabled,
           ),
         )
         .returning();
@@ -145,6 +153,7 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
             eq(actionTokens.tokenHash, hash),
             isNull(actionTokens.consumedAt),
             gt(actionTokens.expiresAt, new Date()),
+            subjectIsEnabled,
           ),
         );
       const row = rows[0];
