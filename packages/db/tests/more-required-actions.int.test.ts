@@ -59,6 +59,27 @@ describe('the tenant terms settings', () => {
   });
 });
 
+describe('the required profile fields', () => {
+  it('start as given name and family name', async () => {
+    const rows = await handle().sql<{ required_profile_fields: string[] }[]>`
+      select required_profile_fields from tenants where id = ${tenantId}`;
+    expect(rows[0]?.required_profile_fields).toEqual(['given_name', 'family_name']);
+  });
+
+  it('take any claims or none, and nothing that is not one', async () => {
+    await handle().sql`update tenants set required_profile_fields = '{}' where id = ${tenantId}`;
+    await handle()
+      .sql`update tenants set required_profile_fields = ${['name', 'address_country']}::text[] where id = ${tenantId}`;
+    for (const bad of [['email'], ['username'], ['name', 'nope']]) {
+      await expect(
+        handle()
+          .sql`update tenants set required_profile_fields = ${bad}::text[] where id = ${tenantId}`,
+      ).rejects.toMatchObject({ constraint_name: 'tenants_required_profile_fields_check' });
+    }
+    await handle().sql`update tenants set required_profile_fields = default where id = ${tenantId}`;
+  });
+});
+
 describe('user_required_actions', () => {
   async function owe(action: string): Promise<void> {
     await handle().sql`

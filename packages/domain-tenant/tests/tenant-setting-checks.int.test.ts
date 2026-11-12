@@ -51,6 +51,7 @@ const NOT_RANGES = new Set([
   ...Object.keys(TENANT_SETTING_CHOICES),
   'client_registration_policy',
   'audit_event_types',
+  'required_profile_fields',
   'supported_locales',
   'default_locale',
   'terms_version',

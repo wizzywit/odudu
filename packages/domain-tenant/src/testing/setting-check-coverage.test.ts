@@ -18,6 +18,7 @@ const COLUMNS = new Set([
   'supported_locales',
   'default_locale',
   'terms_version',
+  'required_profile_fields',
 ]);
 
 // As pg_get_constraintdef prints the CHECKs on `tenants` today

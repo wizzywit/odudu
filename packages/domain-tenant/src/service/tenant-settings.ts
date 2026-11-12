@@ -3,6 +3,8 @@ import {
   TENANT_SETTING_CHOICES,
   TENANT_SETTING_ORDERINGS,
   TENANT_SETTING_RANGES,
+  PROFILE_CLAIM_NAMES,
+  characterCount,
 } from '@odudu/contracts/admin';
 import { type tenants } from '@odudu/db';
 import { isValidWebPageUri } from '@odudu/kernel';
@@ -92,6 +94,12 @@ const SETTINGS = {
   // where one is set.
   terms_uri: { column: 'termsUri', type: 'text', trimmed: true, nullable: true },
   terms_version: { column: 'termsVersion', type: 'text', trimmed: true },
+  // The claims `update-profile` needs a person to have; an empty list needs none.
+  required_profile_fields: {
+    column: 'requiredProfileFields',
+    type: 'list',
+    values: PROFILE_CLAIM_NAMES,
+  },
   login_with_email: { column: 'loginWithEmail', type: 'boolean' },
   cimd_enabled: { column: 'cimdEnabled', type: 'boolean' },
   // The audit trail's admin pair can never be left out: a security trail an
@@ -296,20 +304,31 @@ function localeProblems(
   return problems;
 }
 
+/** The longest address the terms may be published at. */
+export const MAX_TERMS_URI_LENGTH = 2048;
+
+// A page a person is asked to read before they go on: the shared web page rule,
+// and no credentials in the address, which would be shown as a link.
+function isValidTermsUri(uri: string): boolean {
+  if (uri.length > MAX_TERMS_URI_LENGTH || !isValidWebPageUri(uri)) return false;
+  const url = new URL(uri);
+  return url.username === '' && url.password === '';
+}
+
 function termsProblems(values: Readonly<Partial<Record<string, unknown>>>): TenantSettingProblem[] {
   const problems: TenantSettingProblem[] = [];
   const uri = values.terms_uri;
-  if (typeof uri === 'string' && !isValidWebPageUri(uri)) {
+  if (typeof uri === 'string' && !isValidTermsUri(uri)) {
     problems.push({
       name: 'terms_uri',
-      message: 'must be an https address, or an http one to this machine, with no fragment',
+      message:
+        'must be an https address, or an http one to this machine, of at most 2048 characters, with no fragment and no user name or password',
     });
   }
   const version = values.terms_version;
-  if (
-    typeof version === 'string' &&
-    (version.length === 0 || version.length > MAX_TERMS_VERSION_LENGTH)
-  ) {
+  // Counted in characters, as the CHECK counts them, not in UTF-16 units.
+  const characters = typeof version === 'string' ? characterCount(version) : 0;
+  if (typeof version === 'string' && (characters === 0 || characters > MAX_TERMS_VERSION_LENGTH)) {
     problems.push({
       name: 'terms_version',
       message: `must be between 1 and ${String(MAX_TERMS_VERSION_LENGTH)} characters`,

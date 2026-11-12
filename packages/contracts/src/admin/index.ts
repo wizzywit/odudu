@@ -83,6 +83,10 @@ export {
   profileSchema,
   type Profile,
   amendProfileRequestSchema,
+  characterCount,
+  DEFAULT_REQUIRED_PROFILE_FIELDS,
+  PROFILE_CLAIM_NAMES,
+  type ProfileClaimName,
   type AmendProfileRequest,
 } from '#/admin/profile';
 export {

@@ -118,6 +118,12 @@ export const tenants = pgTable('tenants', {
   // (packages/db/drizzle/0136_more_required_actions.sql).
   termsUri: text('terms_uri'),
   termsVersion: text('terms_version').notNull().default('1'),
+  // The profile claims the update-profile action needs a person to have
+  // (packages/db/drizzle/0136_more_required_actions.sql).
+  requiredProfileFields: text('required_profile_fields')
+    .array()
+    .notNull()
+    .default(sql`ARRAY['given_name', 'family_name']`),
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),

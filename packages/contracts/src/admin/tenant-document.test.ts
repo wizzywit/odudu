@@ -102,6 +102,7 @@ const DOCUMENT: TenantDocument = {
     breached_on_error: 'open',
     terms_uri: null,
     terms_version: '1',
+    required_profile_fields: ['given_name', 'family_name'],
     login_with_email: false,
     cimd_enabled: false,
     audit_event_types: ['admin_mutation', 'admin_access'],
@@ -286,6 +287,25 @@ describe('tenantDocumentSchema', () => {
     expect(result.success).toBe(true);
     expect(result.data?.settings.terms_uri).toBeNull();
     expect(result.data?.settings.terms_version).toBe('1');
+  });
+
+  it('imports a document from before the required profile fields with the default two', () => {
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => name !== 'required_profile_fields'),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings.required_profile_fields).toEqual(['given_name', 'family_name']);
+  });
+
+  it('refuses a required profile field that is no claim, and the address', () => {
+    for (const bad of ['email', 'username', 'nope']) {
+      const result = tenantDocumentSchema.safeParse({
+        ...DOCUMENT,
+        settings: { ...DOCUMENT.settings, required_profile_fields: [bad] },
+      });
+      expect(result.success, bad).toBe(false);
+    }
   });
 
   it('refuses a terms version that is empty or past 64 characters', () => {

@@ -211,3 +211,17 @@ describe('the terms settings', () => {
     });
   });
 });
+
+describe('the required profile fields', () => {
+  it('show by value, so a change of what a profile needs is on the trail', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        { required_profile_fields: ['given_name', 'family_name'] },
+        { required_profile_fields: ['name'] },
+      ),
+    ).toEqual({
+      required_profile_fields: { before: ['given_name', 'family_name'], after: ['name'] },
+    });
+  });
+});

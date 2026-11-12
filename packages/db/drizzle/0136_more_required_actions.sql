@@ -3,13 +3,27 @@
 -- the record of an acceptance. Every statement can run again to no effect.
 ALTER TABLE tenants
   ADD COLUMN IF NOT EXISTS terms_uri text,
-  ADD COLUMN IF NOT EXISTS terms_version text NOT NULL DEFAULT '1';
+  ADD COLUMN IF NOT EXISTS terms_version text NOT NULL DEFAULT '1',
+  ADD COLUMN IF NOT EXISTS required_profile_fields text[] NOT NULL
+    DEFAULT ARRAY['given_name', 'family_name'];
 
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tenants_terms_version_length') THEN
     ALTER TABLE tenants ADD CONSTRAINT tenants_terms_version_length
       CHECK (char_length(terms_version) BETWEEN 1 AND 64);
+  END IF;
+  -- The profile claims a person writes about themselves, and nothing else.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'tenants_required_profile_fields_check'
+  ) THEN
+    ALTER TABLE tenants ADD CONSTRAINT tenants_required_profile_fields_check
+      CHECK (required_profile_fields <@ ARRAY[
+        'name', 'given_name', 'family_name', 'middle_name', 'nickname', 'preferred_username',
+        'profile', 'picture', 'website', 'gender', 'birthdate', 'zoneinfo', 'locale',
+        'phone_number', 'address_formatted', 'address_street', 'address_locality',
+        'address_region', 'address_postal_code', 'address_country'
+      ]);
   END IF;
 END $$;
 
@@ -39,6 +53,10 @@ CREATE TABLE IF NOT EXISTS subject_terms_acceptances (
   CONSTRAINT subject_terms_acceptances_subject_fk
     FOREIGN KEY (tenant_id, subject_id) REFERENCES subjects (tenant_id, id) ON DELETE CASCADE
 );
+
+-- A subject's acceptances, newest first, in pages.
+CREATE INDEX IF NOT EXISTS subject_terms_acceptances_recent
+  ON subject_terms_acceptances (tenant_id, subject_id, accepted_at DESC, version DESC);
 
 ALTER TABLE subject_terms_acceptances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subject_terms_acceptances FORCE ROW LEVEL SECURITY;

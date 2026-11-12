@@ -14,6 +14,11 @@ import {
   localisedTextSchema,
   type FieldError,
 } from '#/admin/shared';
+import {
+  characterCount,
+  DEFAULT_REQUIRED_PROFILE_FIELDS,
+  PROFILE_CLAIM_NAMES,
+} from '#/admin/profile';
 import { applicationActionSchema, requiredActionSchema } from '#/admin/subjects';
 import { tenantSchema } from '#/admin/tenants';
 
@@ -109,7 +114,15 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   // Absent from a document exported before the terms existed, which imports
   // with none, at version 1. The address is judged by the settings checks.
   terms_uri: z.string().nullable().default(null),
-  terms_version: z.string().min(1).max(64).default('1'),
+  terms_version: z
+    .string()
+    .refine((version) => characterCount(version) >= 1 && characterCount(version) <= 64)
+    .default('1'),
+  // Absent from a document exported before the setting existed, which imports
+  // with the default.
+  required_profile_fields: z
+    .array(z.enum(PROFILE_CLAIM_NAMES))
+    .default([...DEFAULT_REQUIRED_PROFILE_FIELDS]),
   login_with_email: z.boolean(),
   // Absent from a document exported before the setting existed, which
   // imports with it off.

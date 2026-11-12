@@ -78,6 +78,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     breached_on_error: 'value',
     terms_uri: 'value',
     terms_version: 'value',
+    required_profile_fields: 'value',
     display_name: 'value',
     supported_locales: 'value',
     default_locale: 'value',

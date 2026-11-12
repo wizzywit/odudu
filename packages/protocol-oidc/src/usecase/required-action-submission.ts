@@ -446,7 +446,10 @@ async function runVerifyEmail(
   });
   if (submission.send) {
     const sent = await deps.sendVerificationLink(tenantId, subjectId, request);
-    if (sent === 'verified') return { kind: 'completed', authSessionId };
+    if (sent === 'verified') {
+      await deps.completeVerifyEmail(tenantId, subjectId);
+      return { kind: 'completed', authSessionId };
+    }
     return pending(sent === 'queued' ? 'sent' : sent);
   }
   const checked = await deps.completeVerifyEmail(tenantId, subjectId);

@@ -969,13 +969,14 @@ describe('handleRequiredActionSubmission — verifying the address', () => {
   );
 
   it('completes instead of sending when the address turns out to be verified already', async () => {
-    const { deps, pendingActions, sendVerificationLink } = harness();
+    const { deps, pendingActions, sendVerificationLink, completeVerifyEmail } = harness();
     pendingActions.mockResolvedValue(['verify-email']);
     sendVerificationLink.mockResolvedValue('verified');
 
     expect(
       await handleRequiredActionSubmission(deps, 'acme', { ...verify, send: true }, REQUEST),
     ).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+    expect(completeVerifyEmail).toHaveBeenCalledWith('tenant-1', 'subject-1');
   });
 
   it('carries on when the link proved the address and cleared the action meanwhile', async () => {

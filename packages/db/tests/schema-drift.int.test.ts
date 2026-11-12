@@ -174,6 +174,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK ((recovery_code_warn_below <= recovery_code_count))',
   'tenants.tenants_breached_check_check':
     "CHECK ((breached_check = ANY (ARRAY['off'::text, 'dataset'::text, 'remote'::text])))",
+  'tenants.tenants_required_profile_fields_check':
+    "CHECK ((required_profile_fields <@ ARRAY['name'::text, 'given_name'::text, 'family_name'::text, 'middle_name'::text, 'nickname'::text, 'preferred_username'::text, 'profile'::text, 'picture'::text, 'website'::text, 'gender'::text, 'birthdate'::text, 'zoneinfo'::text, 'locale'::text, 'phone_number'::text, 'address_formatted'::text, 'address_street'::text, 'address_locality'::text, 'address_region'::text, 'address_postal_code'::text, 'address_country'::text]))",
   'tenants.tenants_terms_version_length':
     'CHECK (((char_length(terms_version) >= 1) AND (char_length(terms_version) <= 64)))',
   'tenants.tenants_breached_on_error_check':

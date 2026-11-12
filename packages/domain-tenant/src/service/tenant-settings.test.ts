@@ -400,3 +400,46 @@ describe('the terms settings', () => {
     expect(problems('x'.repeat(65))).toEqual(['terms_version']);
   });
 });
+
+describe('the required profile fields', () => {
+  it('read as the list of claims they name, in the order a form lays them out', () => {
+    expect(coerceTenantSetting('required_profile_fields', ['family_name', 'name'])).toEqual({
+      kind: 'coerced',
+      column: 'requiredProfileFields',
+      value: ['name', 'family_name'],
+    });
+  });
+
+  it('may be empty, and name nothing that is not a claim', () => {
+    expect(coerceTenantSetting('required_profile_fields', [])).toMatchObject({
+      kind: 'coerced',
+      value: [],
+    });
+    for (const bad of ['email', 'username', 'nope']) {
+      expect(coerceTenantSetting('required_profile_fields', [bad]).kind).toBe('invalid_value');
+    }
+  });
+});
+
+describe('the terms limits beyond the shared ones', () => {
+  it('count a version in characters, as the CHECK does, not in UTF-16 units', () => {
+    const astral = '\u{1F600}'.repeat(64);
+    expect(astral.length).toBe(128);
+    expect(tenantSettingProblems({ terms_version: astral })).toEqual([]);
+    expect(tenantSettingProblems({ terms_version: `${astral}x` }).map((p) => p.name)).toEqual([
+      'terms_version',
+    ]);
+  });
+
+  it('refuse an address past 2048 characters, or one that carries a user name or password', () => {
+    const long = `https://example.com/${'a'.repeat(2030)}`;
+    expect(tenantSettingProblems({ terms_uri: long }).map((p) => p.name)).toEqual(['terms_uri']);
+    expect(
+      tenantSettingProblems({ terms_uri: 'https://user:pw@example.com/terms' }).map((p) => p.name),
+    ).toEqual(['terms_uri']);
+    expect(
+      tenantSettingProblems({ terms_uri: 'https://user@example.com/terms' }).map((p) => p.name),
+    ).toEqual(['terms_uri']);
+    expect(tenantSettingProblems({ terms_uri: 'https://example.com/terms' })).toEqual([]);
+  });
+});

@@ -622,6 +622,27 @@ describe('the terms settings', () => {
   });
 });
 
+describe('the required profile fields', () => {
+  it('start as given and family name, change as a list, may be empty and refuse a non-claim', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const url = `/admin/tenants/${t.name}/settings`;
+    const headers = { authorization: `Bearer ${token}` };
+    const patch = (payload: Record<string, unknown>) =>
+      fixture.http.inject({ method: 'PATCH', url, headers, payload });
+    const read = () => fixture.http.inject({ method: 'GET', url, headers });
+    expect((await read()).json()).toMatchObject({
+      required_profile_fields: ['given_name', 'family_name'],
+    });
+    expect((await patch({ required_profile_fields: ['birthdate', 'name'] })).statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({ required_profile_fields: ['name', 'birthdate'] });
+    expect((await patch({ required_profile_fields: [] })).statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({ required_profile_fields: [] });
+    expect((await patch({ required_profile_fields: ['email'] })).statusCode).toBe(400);
+    expect((await patch({ required_profile_fields: 'name' })).statusCode).toBe(400);
+  });
+});
+
 describe('the language settings', () => {
   async function setup() {
     const t = await fixture.createTenant(`acme-${newId()}`);

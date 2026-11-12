@@ -1041,6 +1041,8 @@ describeFields(tenantSettingsDocumentSchema, {
     'The address of the terms the `accept-terms` required action asks a person to accept: https, or http to this machine, with no fragment. Null when the tenant has none; send an empty string to clear it. Setting it asks nobody: an administrator owes the action to each person.',
   terms_version:
     'The version of the terms, 1 to 64 characters, `1` by default. A person accepts one version; changing it does not add the action to anyone, so an administrator owes it again when the terms change.',
+  required_profile_fields:
+    'The profile claims the `update-profile` required action needs a person to have before it ends, by wire name: any of the claims `PATCH …/profile` writes (`given_name` and `family_name` by default). The page lists every claim a person can edit and marks these; the others are optional. An empty list makes it a page that is reviewed and submitted.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',
