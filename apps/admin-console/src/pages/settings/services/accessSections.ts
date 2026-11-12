@@ -180,6 +180,29 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         unit: 'days',
         description: 'A password older than this has to be changed. 0 never expires one.',
       },
+      {
+        name: 'breached_check',
+        label: 'Check against known breaches',
+        control: 'choice',
+        description:
+          'A new password that passed the rules above is refused if it is a password known from breaches. The dataset is the hash list an operator loaded into the server, and nothing leaves it. Remote asks a range service for the first five characters of the SHA-1 hash and nothing else. Off skips the check, and the audit trail records that.',
+        options: [
+          { id: 'off', label: 'Off' },
+          { id: 'dataset', label: 'Dataset loaded on the server' },
+          { id: 'remote', label: 'Remote range lookup' },
+        ],
+      },
+      {
+        name: 'breached_on_error',
+        label: 'When a remote lookup fails',
+        control: 'choice',
+        description:
+          'Applies to the remote lookup only, when it times out, is refused or is too busy. The dataset has no such failure.',
+        options: [
+          { id: 'open', label: 'Accept the password' },
+          { id: 'closed', label: 'Refuse it and ask to try again' },
+        ],
+      },
     ],
   },
   {
