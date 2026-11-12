@@ -50,6 +50,7 @@ describe('the list responses', () => {
       ],
       next_cursor: null,
       recovery_codes_left: 3,
+      recovery_codes_low: false,
     });
     expect(parsed.items[0]).not.toHaveProperty('secret_data');
   });

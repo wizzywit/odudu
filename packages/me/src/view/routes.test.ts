@@ -90,6 +90,8 @@ function build(
       return Promise.resolve({
         rows: [{ id: ID, type: 'totp', label: 'Phone', createdAt: AT, lastUsedAt: null }],
         recoveryCodesLeft: 7,
+        recoveryCodesHeld: 10,
+        recoveryCodeWarnBelow: 8,
       });
     },
     sessions: (t, s, _l, _n, page) => {
@@ -282,6 +284,7 @@ describe('the lists', () => {
       ],
       next_cursor: null,
       recovery_codes_left: 7,
+      recovery_codes_low: true,
     });
   });
 
@@ -789,7 +792,13 @@ describe('DELETE /me/credentials/:id', () => {
 
   it('asks a person who holds none for a recent sign-in and names no context', async () => {
     const reads = {
-      credentials: () => Promise.resolve({ rows: [PASSWORD], recoveryCodesLeft: 0 }),
+      credentials: () =>
+        Promise.resolve({
+          rows: [PASSWORD],
+          recoveryCodesLeft: 0,
+          recoveryCodesHeld: 0,
+          recoveryCodeWarnBelow: 3,
+        }),
     };
     const res = await remove(build({ signedInAt: STALE, reads }));
     expect(res.statusCode).toBe(401);

@@ -62,11 +62,13 @@ export function credentialsDto(
   views: readonly CredentialView[],
   next: string | null,
   recoveryCodesLeft: number,
+  recoveryCodesLow: boolean,
 ): MeCredentialsResponse {
   return {
     items: views.map(credentialDto),
     next_cursor: next,
     recovery_codes_left: recoveryCodesLeft,
+    recovery_codes_low: recoveryCodesLow,
   };
 }
 

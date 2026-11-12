@@ -62,9 +62,12 @@ export function meReadsFor(database: DatabaseHandle): MeReads {
     credentials: (tenantId, subjectId, page) =>
       withTenant(database.db, tenantId, async (tx) => {
         const credentials = credentialRepository(tx);
+        const standing = await credentials.recoveryStanding(subjectId);
         return {
           rows: await credentials.summariesFor(subjectId, page),
-          recoveryCodesLeft: await credentials.countUnspentRecoveryCodes(subjectId),
+          recoveryCodesLeft: standing.unspent,
+          recoveryCodesHeld: standing.held,
+          recoveryCodeWarnBelow: await recoveryWarnBelow(tx, tenantId),
         };
       }),
     sessions: (tenantId, subjectId, lifespans, now, page) =>
@@ -74,6 +77,16 @@ export function meReadsFor(database: DatabaseHandle): MeReads {
     consents: (tenantId, subjectId, page) =>
       withTenant(database.db, tenantId, (tx) => consentRepository(tx).forSubject(subjectId, page)),
   };
+}
+
+async function recoveryWarnBelow(tx: TenantScopedDatabase, tenantId: string): Promise<number> {
+  const rows = await tx
+    .select({ below: tenants.recoveryCodeWarnBelow })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId));
+  const row = rows[0];
+  if (row === undefined) throw new Error(`tenant ${tenantId} is not visible here`);
+  return row.below;
 }
 
 // The tenant's own name and display name, for the mail that names it.

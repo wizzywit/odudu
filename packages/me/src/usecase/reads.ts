@@ -4,6 +4,7 @@ import type { MeReads } from '#/repository/reads';
 import { credentialViews, type CredentialView } from '#/service/credential-view';
 import { nextCursor, startAfter } from '#/service/cursor';
 import { fetchLimit, pageLimit, splitPage } from '#/service/page';
+import { recoveryCodesLow } from '#/service/recovery-warning';
 import { sessionView, type SessionView } from '#/service/session-view';
 import type { MeCaller } from '#/usecase/admit-me';
 
@@ -30,6 +31,7 @@ export type CredentialsRead =
       readonly items: readonly CredentialView[];
       readonly next: string | null;
       readonly recoveryCodesLeft: number;
+      readonly recoveryCodesLow: boolean;
     };
 
 export async function readProfile(
@@ -58,6 +60,11 @@ export async function listCredentials(
     items: credentialViews(items),
     next: nextCursor('credentials', hasMore, items.at(-1)?.id),
     recoveryCodesLeft: read.recoveryCodesLeft,
+    recoveryCodesLow: recoveryCodesLow({
+      held: read.recoveryCodesHeld,
+      unspent: read.recoveryCodesLeft,
+      threshold: read.recoveryCodeWarnBelow,
+    }),
   };
 }
 
