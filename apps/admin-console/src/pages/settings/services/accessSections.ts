@@ -124,7 +124,7 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         control: 'count',
         unit: 'codes',
         description:
-          'A person left with fewer unspent recovery codes than this is told to issue a new set. 0 turns the warning off.',
+          'The credential list of the "me" API flags a person with fewer unspent recovery codes than this, so an application can ask them to issue a new set. 0 turns the flag off.',
       },
     ],
   },

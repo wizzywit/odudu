@@ -322,4 +322,6 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
   person's credentials are read, the "me" API, and an application shows it and sends the person to `generate-recovery-codes`.
   No server page gained a string, so no catalogue entry was added. The spec's "on the next page the person sees" is amended
   to say this. The sign-in's steps are pinned by a test of `BROWSER_FLOW_DEFAULT` (passkey, password, otp, recovery-code).
+- **Owed to the closing pass.** `docs/NEXT.md`'s paragraph "Two recovery-code gaps that need self-service" is stale: both
+  gaps (early re-issue, the low-count warning) are closed.
 - **At volume.** One extra primary-key read of the tenant row beside the credentials page's existing queries; no list grew.
