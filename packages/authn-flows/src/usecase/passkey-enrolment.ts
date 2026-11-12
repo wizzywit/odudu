@@ -1,8 +1,11 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
+import { type MailLookResolver } from '@odudu/email';
+import { systemClock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
+import { noticeOwnChange } from '#/usecase/own-change-notice';
 import { relyingPartyOfTenant } from '#/usecase/passkey-relying-party';
 import {
   parseRegistrationResponse,
@@ -53,6 +56,9 @@ export interface CompletePasskeyEnrolment {
   // The JSON navigator.credentials.create() produced, as it arrived.
   response: unknown;
   label?: string;
+  // How the owner's notice is dressed; absent, it is unthemed.
+  resolveMailLook?: MailLookResolver;
+  now?: Date;
 }
 
 export type PasskeyEnrolmentOutcome =
@@ -125,6 +131,12 @@ export async function completePasskeyEnrolment(
     },
   });
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-passkey');
+  const notice = await noticeOwnChange(
+    tx,
+    { ...input, now: input.now ?? systemClock.now() },
+    { kind: 'passkey_added' },
+    input.resolveMailLook,
+  );
   await auditRepository(tx).record({
     eventType: 'credential',
     action: 'passkey.enrolled',
@@ -132,6 +144,7 @@ export async function completePasskeyEnrolment(
     actorSubjectId: input.subjectId,
     resourceType: 'subject',
     resourceId: input.subjectId,
+    detail: { notice },
   });
   return { kind: 'enrolled', credentialId: verified.credentialId };
 }
