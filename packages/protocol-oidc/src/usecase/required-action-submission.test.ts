@@ -30,6 +30,9 @@ const SUBMISSION = {
   currentPassword: undefined,
   cancel: false,
   confirm: false,
+  send: false,
+  accept: false,
+  form: {},
   endOtherSessions: false,
   issuer: 'https://idp.test/tenants/acme',
 };
@@ -45,6 +48,10 @@ interface Harness {
   completeUpdatePassword: Mock;
   loadPendingRequest: Mock;
   recordActionStep: Mock;
+  completeVerifyEmail: Mock;
+  sendVerificationLink: Mock;
+  completeUpdateProfile: Mock;
+  completeAcceptTerms: Mock;
 }
 
 function harness(): Harness {
@@ -59,6 +66,10 @@ function harness(): Harness {
   const completeUpdatePassword = vi.fn().mockResolvedValue({ kind: 'updated' });
   const loadPendingRequest = vi.fn().mockResolvedValue({});
   const recordActionStep = vi.fn().mockResolvedValue(undefined);
+  const completeVerifyEmail = vi.fn().mockResolvedValue({ kind: 'verified' });
+  const sendVerificationLink = vi.fn().mockResolvedValue('queued');
+  const completeUpdateProfile = vi.fn().mockResolvedValue({ kind: 'completed' });
+  const completeAcceptTerms = vi.fn().mockResolvedValue({ kind: 'accepted' });
   return {
     deps: {
       findTenant,
@@ -70,7 +81,15 @@ function harness(): Harness {
       completeUpdatePassword,
       loadPendingRequest,
       recordActionStep,
+      completeVerifyEmail,
+      sendVerificationLink,
+      completeUpdateProfile,
+      completeAcceptTerms,
     },
+    completeVerifyEmail,
+    sendVerificationLink,
+    completeUpdateProfile,
+    completeAcceptTerms,
     loadPendingRequest,
     recordActionStep,
     findTenant,
@@ -336,6 +355,11 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
       completeTotpEnrolment: (input, request) => deps.completeTotpEnrolment(input, request),
       completeRecoveryCodes: (input) => deps.completeRecoveryCodes(input),
       completeUpdatePassword: (input, request) => deps.completeUpdatePassword(input, request),
+      completeVerifyEmail: (tenantId, subjectId) => deps.completeVerifyEmail(tenantId, subjectId),
+      sendVerificationLink: (tenantId, subjectId, request) =>
+        deps.sendVerificationLink(tenantId, subjectId, request),
+      completeUpdateProfile: (input, request) => deps.completeUpdateProfile(input, request),
+      completeAcceptTerms: (input, request) => deps.completeAcceptTerms(input, request),
       loadPendingRequest: (tenantId, authSessionId) =>
         deps.loadPendingRequest(tenantId, authSessionId),
       recordActionStep: (input, request) => deps.recordActionStep(input, request),
@@ -890,5 +914,263 @@ describe('handleRequiredActionSubmission — ending the other sessions on a pass
       REQUEST,
     );
     expect(completeTotpEnrolment.mock.calls[0]?.[0]).not.toHaveProperty('endOtherSessions');
+  });
+});
+
+describe('handleRequiredActionSubmission — verifying the address', () => {
+  const verify = { ...SUBMISSION, action: 'verify-email' };
+
+  it('completes when the address is verified, for the bound subject', async () => {
+    const { deps, pendingActions, completeVerifyEmail } = harness();
+    pendingActions.mockResolvedValue(['verify-email']);
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', verify, REQUEST);
+
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+    expect(completeVerifyEmail).toHaveBeenCalledWith('tenant-1', 'subject-1');
+  });
+
+  it('goes back to the page, saying so, while the address is not verified', async () => {
+    const { deps, pendingActions, completeVerifyEmail } = harness();
+    pendingActions.mockResolvedValue(['verify-email']);
+    completeVerifyEmail.mockResolvedValue({ kind: 'not_verified' });
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', verify, REQUEST)).toEqual({
+      kind: 'verify_pending',
+      authSessionId: AUTH_SESSION_ID,
+      subjectId: 'subject-1',
+      notice: 'not_verified',
+    });
+  });
+
+  it.each(['queued', 'limited', 'unavailable'] as const)(
+    'asks for a link when the send control was used, and reports %s',
+    async (result) => {
+      const { deps, pendingActions, sendVerificationLink, completeVerifyEmail } = harness();
+      pendingActions.mockResolvedValue(['verify-email']);
+      sendVerificationLink.mockResolvedValue(result);
+
+      const outcome = await handleRequiredActionSubmission(
+        deps,
+        'acme',
+        { ...verify, send: true },
+        REQUEST,
+      );
+
+      expect(outcome).toEqual({
+        kind: 'verify_pending',
+        authSessionId: AUTH_SESSION_ID,
+        subjectId: 'subject-1',
+        notice: result === 'queued' ? 'sent' : result,
+      });
+      expect(sendVerificationLink).toHaveBeenCalledWith('tenant-1', 'subject-1', REQUEST);
+      expect(completeVerifyEmail).not.toHaveBeenCalled();
+    },
+  );
+
+  it('completes instead of sending when the address turns out to be verified already', async () => {
+    const { deps, pendingActions, sendVerificationLink } = harness();
+    pendingActions.mockResolvedValue(['verify-email']);
+    sendVerificationLink.mockResolvedValue('verified');
+
+    expect(
+      await handleRequiredActionSubmission(deps, 'acme', { ...verify, send: true }, REQUEST),
+    ).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+  });
+
+  it('carries on when the link proved the address and cleared the action meanwhile', async () => {
+    const { deps, pendingActions, completeVerifyEmail } = harness();
+    pendingActions.mockResolvedValue([]);
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', verify, REQUEST)).toEqual({
+      kind: 'completed',
+      authSessionId: AUTH_SESSION_ID,
+    });
+    expect(completeVerifyEmail).toHaveBeenCalledWith('tenant-1', 'subject-1');
+  });
+
+  it('does not carry on for an address that is not verified, owed or not', async () => {
+    const { deps, pendingActions, completeVerifyEmail } = harness();
+    pendingActions.mockResolvedValue([]);
+    completeVerifyEmail.mockResolvedValue({ kind: 'not_verified' });
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', verify, REQUEST)).toEqual({
+      kind: 'not_owed',
+      action: 'verify-email',
+    });
+  });
+
+  it('lets the sign-in decide what is owed next after the address was proved elsewhere', async () => {
+    const { deps, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', verify, REQUEST)).toEqual({
+      kind: 'completed',
+      authSessionId: AUTH_SESSION_ID,
+    });
+  });
+
+  it('is refused for a subject who does not owe it, and sends nothing', async () => {
+    const { deps, pendingActions, sendVerificationLink, completeVerifyEmail } = harness();
+    pendingActions.mockResolvedValue(['configure-totp']);
+    completeVerifyEmail.mockResolvedValue({ kind: 'not_verified' });
+
+    expect(
+      await handleRequiredActionSubmission(deps, 'acme', { ...verify, send: true }, REQUEST),
+    ).toEqual({ kind: 'not_owed', action: 'verify-email' });
+    expect(sendVerificationLink).not.toHaveBeenCalled();
+  });
+
+  it('runs before the password change when both are owed', async () => {
+    const { deps, pendingActions, completeUpdatePassword } = harness();
+    pendingActions.mockResolvedValue(['update-password', 'verify-email']);
+
+    expect(
+      await handleRequiredActionSubmission(
+        deps,
+        'acme',
+        { ...SUBMISSION, action: 'update-password', password: 'x' },
+        REQUEST,
+      ),
+    ).toEqual({ kind: 'not_owed', action: 'update-password' });
+    expect(completeUpdatePassword).not.toHaveBeenCalled();
+  });
+
+  it('is recorded as a success when an application asked for it and the address is verified', async () => {
+    const { deps, pendingActions, loadPendingRequest, recordActionStep } = harness();
+    pendingActions.mockResolvedValue([]);
+    loadPendingRequest.mockResolvedValue({ action: 'verify-email' });
+
+    await handleRequiredActionSubmission(deps, 'acme', verify, REQUEST);
+
+    expect(recordActionStep).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'verify-email', step: 'success' }),
+      REQUEST,
+    );
+  });
+});
+
+describe('handleRequiredActionSubmission — completing the profile', () => {
+  const profile = {
+    ...SUBMISSION,
+    action: 'update-profile',
+    form: { name: 'Ada', birthdate: '1815-12-10', email: 'x@example.com' },
+  };
+
+  it('hands the form on for the bound subject and completes', async () => {
+    const { deps, pendingActions, completeUpdateProfile } = harness();
+    pendingActions.mockResolvedValue(['update-profile']);
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', profile, REQUEST);
+
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+    expect(completeUpdateProfile).toHaveBeenCalledWith(
+      { tenantId: 'tenant-1', subjectId: 'subject-1', posted: profile.form },
+      REQUEST,
+    );
+  });
+
+  it('goes back to the form with every problem and what was typed', async () => {
+    const { deps, pendingActions, completeUpdateProfile } = harness();
+    pendingActions.mockResolvedValue(['update-profile']);
+    const problems = [{ kind: 'unfilled', fields: ['birthdate'] }];
+    completeUpdateProfile.mockResolvedValue({
+      kind: 'rejected',
+      problems,
+      values: { name: 'Ada', birthdate: '' },
+    });
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', profile, REQUEST)).toEqual({
+      kind: 'profile_rejected',
+      authSessionId: AUTH_SESSION_ID,
+      subjectId: 'subject-1',
+      problems,
+      values: { name: 'Ada', birthdate: '' },
+    });
+  });
+
+  it('writes nothing for a subject who does not owe it', async () => {
+    const { deps, pendingActions, completeUpdateProfile } = harness();
+    pendingActions.mockResolvedValue([]);
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', profile, REQUEST)).toEqual({
+      kind: 'not_owed',
+      action: 'update-profile',
+    });
+    expect(completeUpdateProfile).not.toHaveBeenCalled();
+  });
+
+  it('carries the requested mark back to the form an application sent the person to', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeUpdateProfile } = harness();
+    pendingActions.mockResolvedValue([]);
+    loadPendingRequest.mockResolvedValue({ action: 'update-profile' });
+    completeUpdateProfile.mockResolvedValue({ kind: 'rejected', problems: [], values: {} });
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', profile, REQUEST)).toMatchObject({
+      kind: 'profile_rejected',
+      requested: true,
+    });
+  });
+});
+
+describe('handleRequiredActionSubmission — accepting the terms', () => {
+  const terms = { ...SUBMISSION, action: 'accept-terms', accept: true };
+
+  it('records an acceptance for the bound subject and completes', async () => {
+    const { deps, pendingActions, completeAcceptTerms } = harness();
+    pendingActions.mockResolvedValue(['accept-terms']);
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', terms, REQUEST)).toEqual({
+      kind: 'completed',
+      authSessionId: AUTH_SESSION_ID,
+    });
+    expect(completeAcceptTerms).toHaveBeenCalledWith(
+      { tenantId: 'tenant-1', subjectId: 'subject-1', accepted: true },
+      REQUEST,
+    );
+  });
+
+  it('goes back to the page when the box was not ticked', async () => {
+    const { deps, pendingActions, completeAcceptTerms } = harness();
+    pendingActions.mockResolvedValue(['accept-terms']);
+    completeAcceptTerms.mockResolvedValue({ kind: 'not_accepted' });
+
+    expect(
+      await handleRequiredActionSubmission(deps, 'acme', { ...terms, accept: false }, REQUEST),
+    ).toEqual({ kind: 'terms_refused', authSessionId: AUTH_SESSION_ID, subjectId: 'subject-1' });
+  });
+
+  it('reports a tenant that dropped its terms as an action it cannot offer', async () => {
+    const { deps, pendingActions, completeAcceptTerms } = harness();
+    pendingActions.mockResolvedValue(['accept-terms']);
+    completeAcceptTerms.mockResolvedValue({ kind: 'not_configured' });
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', terms, REQUEST)).toEqual({
+      kind: 'unsupported',
+      action: 'accept-terms',
+    });
+  });
+
+  it('records nothing for a subject who does not owe it, whatever an application asked', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeAcceptTerms } = harness();
+    pendingActions.mockResolvedValue([]);
+    loadPendingRequest.mockResolvedValue({ action: 'accept-terms' });
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', terms, REQUEST)).toEqual({
+      kind: 'not_owed',
+      action: 'accept-terms',
+    });
+    expect(completeAcceptTerms).not.toHaveBeenCalled();
+  });
+
+  it('is owed after the profile when both are owed', async () => {
+    const { deps, pendingActions, completeAcceptTerms } = harness();
+    pendingActions.mockResolvedValue(['accept-terms', 'update-profile']);
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', terms, REQUEST)).toEqual({
+      kind: 'not_owed',
+      action: 'accept-terms',
+    });
+    expect(completeAcceptTerms).not.toHaveBeenCalled();
   });
 });

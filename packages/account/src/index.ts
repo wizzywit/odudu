@@ -1,5 +1,6 @@
 export { type FindHeldSignIn, type HeldSignIn } from '#/service/sign-in-resume';
 export { type MailGate, type MailKind } from '#/service/mail-gate';
+export { ownVerificationVerdict, type OwnVerificationVerdict } from '#/service/own-verification';
 export { actionTokens, type ActionTokenRecord, type ActionTokenType } from '#/schema/action-tokens';
 export { type ReturnClient } from '#/service/return-link';
 export { actionTokenRepository, type IssueActionToken } from '#/repository/action-tokens';

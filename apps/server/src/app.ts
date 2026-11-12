@@ -118,6 +118,7 @@ import { registerDomainCheck } from '#/domain-check';
 import { configureHostResolution } from '#/host-resolution';
 import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
+import { queueOwnVerification } from '#/own-verification';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
 import { mcpRouteDepsFor } from '#/mcp-deps';
@@ -774,6 +775,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
       breachedPasswordCheck,
+      queueVerificationLink: (tenantId, subjectId, request) =>
+        queueOwnVerification(
+          {
+            database: deps.database,
+            publicBaseUrl: deps.publicBaseUrl,
+            deploymentSmtp: deps.deploymentSmtp ?? false,
+            mailGate,
+            resolveMailLook: mailLook,
+            now: () => systemClock.now(),
+          },
+          tenantId,
+          subjectId,
+          request,
+        ),
       clientSecretLimiter,
       mcpRegistrationLimiter: mcpRegistrations,
       auditRefusalBudget: auditRefusalBudget(() => new Date()),
@@ -873,8 +888,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
     getCurrentEmail: async (tx, subjectId) =>
       (await userRepository(tx).bySubjectId(subjectId))?.email ?? null,
+    // Proving the address ends the action that asked for it, whichever tab the
+    // link was opened in.
     markVerified: async (tx, subjectId) => {
       await userRepository(tx).markEmailVerified(subjectId);
+      await requiredActionRepository(tx).complete(subjectId, 'verify-email');
     },
     changeAddress: {
       lockAddress: (tx, tenantId, email) => lockEmailForCreation(tx, tenantId, email),
@@ -882,6 +900,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       holderOf: (tx, email) => userRepository(tx).holderOfEmail(email),
       replaceVerified: async (tx, subjectId, email) => {
         await userRepository(tx).replaceVerifiedEmail(subjectId, email);
+        await requiredActionRepository(tx).complete(subjectId, 'verify-email');
       },
     },
     // A subject an administrator created has no password until a link gives

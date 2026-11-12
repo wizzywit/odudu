@@ -5,8 +5,12 @@ import {
   renderRequestedRecoveryCodesPage,
   renderRequestedTotpEnrolmentPage,
   renderRequestedUpdatePasswordPage,
+  renderRequestedUpdateProfilePage,
+  renderRequestedVerifyEmailPage,
   renderTotpEnrolmentPage,
   renderUpdatePasswordPage,
+  renderUpdateProfilePage,
+  renderVerifyEmailPage,
   type ActionPageVariant,
 } from '@odudu/authn-flows';
 
@@ -15,6 +19,8 @@ export interface ActionPages {
   readonly totp: typeof renderTotpEnrolmentPage;
   readonly passkey: typeof renderPasskeyEnrolmentPage;
   readonly recoveryCodes: typeof renderRecoveryCodesPage;
+  readonly verifyEmail: typeof renderVerifyEmailPage;
+  readonly updateProfile: typeof renderUpdateProfilePage;
 }
 
 const OWED: ActionPages = {
@@ -22,6 +28,8 @@ const OWED: ActionPages = {
   totp: renderTotpEnrolmentPage,
   passkey: renderPasskeyEnrolmentPage,
   recoveryCodes: renderRecoveryCodesPage,
+  verifyEmail: renderVerifyEmailPage,
+  updateProfile: renderUpdateProfilePage,
 };
 
 const REQUESTED: ActionPages = {
@@ -29,6 +37,8 @@ const REQUESTED: ActionPages = {
   totp: renderRequestedTotpEnrolmentPage,
   passkey: renderRequestedPasskeyEnrolmentPage,
   recoveryCodes: renderRequestedRecoveryCodesPage,
+  verifyEmail: renderRequestedVerifyEmailPage,
+  updateProfile: renderRequestedUpdateProfilePage,
 };
 
 // The pages of the actions a tenant owes, which cannot be left, or of the

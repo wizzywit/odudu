@@ -1,6 +1,7 @@
 import {
   type ActionPageVariant,
   type RequiredAction,
+  renderAcceptTermsPage,
   renderRecoveryCodesTooSoonPage,
   renderRequiredActionPage,
 } from '@odudu/authn-flows';
@@ -47,6 +48,16 @@ async function variantFor(
   const subjectId = await deps.authenticatedSubject(tenantId, authSessionId);
   const owed = subjectId === null ? [] : await deps.pendingActions(tenantId, subjectId);
   return requestedVariant(requestedAction, owed) === action ? 'requested' : undefined;
+}
+
+// Every field the browser posted as text, for the profile form, which picks
+// out the ones it asked for and ignores the rest.
+function textFields(body: Record<string, string | string[] | undefined>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(body).flatMap(([name, value]) =>
+      typeof value === 'string' ? [[name, value]] : [],
+    ),
+  );
 }
 
 // The password in force, as typed to prove it. One too long to be hashed is a
@@ -125,6 +136,9 @@ export function registerRequiredActionRoute(
         currentPassword: currentPasswordOf(body.current_password),
         cancel: body.cancel !== undefined,
         confirm: body.confirm !== undefined,
+        send: body.send !== undefined,
+        accept: body.accept === 'true',
+        form: textFields(body),
         endOtherSessions: body.end_other_sessions === 'true',
         issuer: tenantIssuerFor(request, tenantName),
         credential: firstString(body.credential),
@@ -258,9 +272,64 @@ export function registerRequiredActionRoute(
       reply,
       { subject: outcome.subjectId },
     );
+    if (outcome.kind === 'terms_refused') {
+      const offer = await deps.beginAcceptTerms(tenant.id);
+      return offer === null
+        ? sendActionUnavailable(reply, deps, tenantName, outcome.authSessionId)
+        : sendHtml(
+            reply,
+            400,
+            continuing(
+              renderAcceptTermsPage(
+                tenantName,
+                tenantAddressOf(request),
+                outcome.authSessionId,
+                offer,
+                true,
+                locale,
+              ),
+            ),
+          );
+    }
+
     const variant: ActionPageVariant | undefined =
       outcome.requested === true ? 'requested' : undefined;
     const pages = actionPages(variant);
+
+    if (outcome.kind === 'verify_pending') {
+      return sendHtml(
+        reply,
+        200,
+        continuing(
+          pages.verifyEmail(
+            tenantName,
+            tenantAddressOf(request),
+            outcome.authSessionId,
+            await deps.beginVerifyEmail(tenant.id, outcome.subjectId),
+            outcome.notice,
+            locale,
+          ),
+        ),
+      );
+    }
+
+    if (outcome.kind === 'profile_rejected') {
+      const offer = await deps.beginUpdateProfile(tenant.id, outcome.subjectId);
+      return sendHtml(
+        reply,
+        400,
+        continuing(
+          pages.updateProfile(
+            tenantName,
+            tenantAddressOf(request),
+            outcome.authSessionId,
+            { fields: offer.fields, values: outcome.values },
+            outcome.problems,
+            locale,
+          ),
+        ),
+      );
+    }
 
     if (outcome.action === 'generate-recovery-codes') {
       const issued = await deps.beginRecoveryCodes(tenant.id, outcome.subjectId, context);

@@ -92,6 +92,25 @@ describe('allowed_actions on a client', () => {
     expect((await s.read()).json()).toMatchObject({ allowed_actions: [] });
   });
 
+  it('may start the address check and the profile, and never the tenant’s terms', async () => {
+    const s = await setup();
+    await s.assign('me:read');
+    const started = await s.patch({ allowed_actions: ['verify-email', 'update-profile'] });
+    expect(started.statusCode, started.body).toBe(200);
+    expect((await s.read()).json()).toMatchObject({
+      allowed_actions: ['verify-email', 'update-profile'],
+    });
+
+    const terms = await s.patch({ allowed_actions: ['verify-email', 'accept-terms'] });
+    expect(terms.statusCode, terms.body).toBe(400);
+    const errors = terms.json<Refusal>().errors ?? [];
+    expect(errors.map((error) => error.path)).toEqual(['allowed_actions']);
+    expect(errors[0]?.message).toContain('accept-terms');
+    expect((await s.read()).json()).toMatchObject({
+      allowed_actions: ['verify-email', 'update-profile'],
+    });
+  });
+
   it('refuses a value that is not a list of strings', async () => {
     const s = await setup();
     for (const value of ['update-password', [1], null]) {

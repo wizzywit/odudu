@@ -39,6 +39,8 @@ const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank#last-administrator',
   'about:blank#service-account',
   'about:blank#no-email',
+  'about:blank#no-editable-profile-fields',
+  'about:blank#terms-not-configured',
   'about:blank#no-mail-relay',
   'about:blank#reset-password-off',
   'about:blank#return-client-unknown',

@@ -354,7 +354,7 @@ describeFields(clientFieldsSchema, {
     'The longest age in seconds a sign-in may have before the user must sign in again, when the request does not say. Null sets none.',
   require_auth_time: 'Whether ID tokens always carry the `auth_time` claim.',
   allowed_actions:
-    'The required actions the client may start for a signed-in person through `/authorize`: `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
+    'The required actions the client may start for a signed-in person through `/authorize`: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`. `accept-terms` is not among them: it records consent to the tenant\u2019s own terms and has to come from the tenant. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
   previous_secret_expires_at:
     'When the secret that a rotation replaced stops authenticating, or null when no rotation kept one. The secret itself is never shown.',
   builtin_admin:
@@ -760,12 +760,13 @@ const RETURN_FIELDS = {
 };
 describeFields(sendAccountLinkRequestSchema, RETURN_FIELDS);
 describeFields(sendActionsEmailRequestSchema, {
-  actions: 'The actions the mailed link asks the user to complete; at least one.',
+  actions:
+    'The actions the mailed link asks the user to complete; at least one of `update-password`, `configure-totp`, `configure-passkey` and `generate-recovery-codes`.',
   ...RETURN_FIELDS,
 });
 describeFields(setRequiredActionsRequestSchema, {
   actions:
-    'The steps the user must complete at their next sign-in: `update-password`, `configure-totp`, `configure-passkey` or `generate-recovery-codes`. Replaces the current list.',
+    'The steps the user must complete at their next sign-in, in the order a sign-in asks for them: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`, `accept-terms`. Replaces the current list. `verify-email` is refused with `no-email` for a subject with no address, and `accept-terms` with `terms-not-configured` while the tenant has no `terms_uri`; a subject whose address is already verified, or who has accepted the version in force, is not asked at their next sign-in.',
 });
 describeFields(setRequiredActionsResponseSchema, {
   actions: 'The required actions after the change.',
@@ -890,7 +891,7 @@ describeFields(exportedClientSchema, {
     'The longest age in seconds a sign-in may have before the user must sign in again, when the request does not say. Null sets none.',
   require_auth_time: 'Whether ID tokens always carry the `auth_time` claim.',
   allowed_actions:
-    'The required actions the client may start for a signed-in person through `/authorize`: `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
+    'The required actions the client may start for a signed-in person through `/authorize`: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`. `accept-terms` is not among them: it records consent to the tenant\u2019s own terms and has to come from the tenant. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
 });
 describeFields(exportedFlowStepSchema, {
   authenticator: 'The sign-in step to run.',

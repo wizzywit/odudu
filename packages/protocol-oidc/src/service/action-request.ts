@@ -1,14 +1,11 @@
+import { applicationActionSchema } from '@odudu/contracts/admin';
 import { AUTHORIZE_REQUEST_DESCRIPTIONS } from '#/service/oauth-errors';
 import { type ActionStatus, type PendingRequest, type RequiredAction } from '@odudu/authn-flows';
 
-// The names the `action` parameter takes: the required actions the server
-// already knows, in the order they are owed.
-const ACTIONS: readonly string[] = [
-  'update-password',
-  'configure-totp',
-  'configure-passkey',
-  'generate-recovery-codes',
-];
+// The names the `action` parameter takes: the required actions an application
+// may start, in the order they are owed. The tenant's own terms are not among
+// them: accepting them has to be asked by the tenant.
+const ACTIONS: readonly string[] = applicationActionSchema.options;
 
 function isAction(value: unknown): value is RequiredAction {
   return typeof value === 'string' && ACTIONS.includes(value);
@@ -62,7 +59,11 @@ type ParkedAction = Pick<PendingRequest, 'action' | 'actionStatus'>;
 
 // The action still to be shown: asked for, and not yet ended.
 export function requestedActionOf(pending: ParkedAction): RequiredAction | null {
-  return pending.action !== undefined && pending.actionStatus === undefined ? pending.action : null;
+  return pending.action !== undefined &&
+    pending.actionStatus === undefined &&
+    isAction(pending.action)
+    ? pending.action
+    : null;
 }
 
 // The action whose page may be left: asked for by the application and not

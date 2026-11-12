@@ -94,7 +94,7 @@ export const en = {
   'verifyEmail.sent':
     'We sent a link to this address. Open it, then come back and choose "I have verified it".',
   'verifyEmail.limited':
-    'A link was sent to this address a moment ago. Wait a few minutes before asking for another.',
+    'Links have been sent to this address several times already. Wait a while before asking for another.',
   'verifyEmail.unavailable':
     'This server cannot send mail right now. Ask an administrator to verify the address.',
   'verifyEmail.alreadyVerified': 'This address is already verified.',

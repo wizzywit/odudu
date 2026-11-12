@@ -623,7 +623,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: sendActionsEmailRequestSchema,
     description:
       'Queues a link to the subject\u2019s own address that takes them through `actions`, ' +
-      'a non-empty subset of the required actions `PUT …/required-actions` takes. Following ' +
+      'a non-empty subset of `update-password`, `configure-totp`, `configure-passkey` and ' +
+      '`generate-recovery-codes`, the required actions a link can finish. Following ' +
       'it sets a new password where `update-password` is named, and owes the rest, so the ' +
       'next sign-in asks for each; the link alone never enrols a factor. The ' +
       'link is never in this response or the audit trail. ' +
@@ -686,7 +687,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: setRequiredActionsResponseSchema,
     bodySchema: setRequiredActionsRequestSchema,
     description:
-      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
+      'Replaces the whole list, which names any of `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile` and `accept-terms`. `409` where an action cannot be owed: `no-email` for `verify-email` on a subject with no address, `terms-not-configured` for `accept-terms` while the tenant has no `terms_uri` (changing `terms_version` adds the action to nobody, so an administrator owes it again when the terms change), and `no-editable-profile-fields` for `update-profile` where a person may edit no profile field, which no tenant does yet. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       TARGET_CEILING,
   },
   // The capability ceiling this route enforces — a caller may never assign
@@ -708,7 +709,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: setRolesRequestSchema,
     description:
       'More than 200 entries is refused with `400`. ' +
-      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
+      'Replaces the whole list, which names any of `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile` and `accept-terms`. `409` where an action cannot be owed: `no-email` for `verify-email` on a subject with no address, `terms-not-configured` for `accept-terms` while the tenant has no `terms_uri` (changing `terms_version` adds the action to nobody, so an administrator owes it again when the terms change), and `no-editable-profile-fields` for `update-profile` where a person may edit no profile field, which no tenant does yet. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       TARGET_CEILING +
       LAST_ADMINISTRATOR,
   },
@@ -1564,7 +1565,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: setGroupRolesRequestSchema,
     description:
       'More than 200 entries is refused with `400`. ' +
-      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
+      'Replaces the whole list, which names any of `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile` and `accept-terms`. `409` where an action cannot be owed: `no-email` for `verify-email` on a subject with no address, `terms-not-configured` for `accept-terms` while the tenant has no `terms_uri` (changing `terms_version` adds the action to nobody, so an administrator owes it again when the terms change), and `no-editable-profile-fields` for `update-profile` where a person may edit no profile field, which no tenant does yet. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       DELTA_CEILING +
       LAST_ADMINISTRATOR,
   },
@@ -1686,7 +1687,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'More than 200 entries is refused with `400`. ' +
       'The answer carries each role’s `admin_reach`, as the `GET` does. ' +
-      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
+      'Replaces the whole list, which names any of `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile` and `accept-terms`. `409` where an action cannot be owed: `no-email` for `verify-email` on a subject with no address, `terms-not-configured` for `accept-terms` while the tenant has no `terms_uri` (changing `terms_version` adds the action to nobody, so an administrator owes it again when the terms change), and `no-editable-profile-fields` for `update-profile` where a person may edit no profile field, which no tenant does yet. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       DELTA_CEILING,
   },
   // The registry names come from the same ClaimMapperRegistry the issuance
@@ -1709,7 +1710,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Replaces the whole binding set for the scope. Binding an unregistered mapper name is ' +
       'refused with 400, listing the registry’s own known names. ' +
       'The answer carries `declared` as the `GET` does. ' +
-      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
+      'Replaces the whole list, which names any of `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile` and `accept-terms`. `409` where an action cannot be owed: `no-email` for `verify-email` on a subject with no address, `terms-not-configured` for `accept-terms` while the tenant has no `terms_uri` (changing `terms_version` adds the action to nobody, so an administrator owes it again when the terms change), and `no-editable-profile-fields` for `update-profile` where a person may edit no profile field, which no tenant does yet. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
   {
     method: 'GET',
@@ -1905,7 +1906,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'login (`#flow-no-first-challenge`), an authenticator name the registry does not resolve ' +
       '(`#flow-unknown-authenticator`), or the same authenticator named twice ' +
       '(`#flow-duplicate-authenticator`); the last two carry `errors[]` naming the step. ' +
-      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
+      'Replaces the whole list, which names any of `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile` and `accept-terms`. `409` where an action cannot be owed: `no-email` for `verify-email` on a subject with no address, `terms-not-configured` for `accept-terms` while the tenant has no `terms_uri` (changing `terms_version` adds the action to nobody, so an administrator owes it again when the terms change), and `no-editable-profile-fields` for `update-profile` where a person may edit no profile field, which no tenant does yet. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
   // Read-only: view-audit carries no manage- counterpart, since nothing
   // ever amends a row here — reap is the only other writer, and it deletes

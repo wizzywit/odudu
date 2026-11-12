@@ -27,6 +27,7 @@ import { tenantIssuerFor, type TenantLookup } from '@odudu/protocol-oidc';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
+import { type RequiredActionRefusal } from '#/service/required-action-refusal';
 import { lifespansOf } from '#/usecase/authenticate-admin';
 import { listAdminCapabilities, listEffectiveRoles } from '#/usecase/effective-roles';
 import {
@@ -766,6 +767,32 @@ export function listEffectiveRolesHandler(deps: SubjectsRouteDeps): AdminRouteHa
   };
 }
 
+function requiredActionRefusalProblem(reason: RequiredActionRefusal) {
+  switch (reason) {
+    case 'no_email':
+      return problem(
+        409,
+        'about:blank#no-email',
+        'Conflict',
+        'the subject has no email address, so verify-email cannot be owed',
+      );
+    case 'no_editable_profile_fields':
+      return problem(
+        409,
+        'about:blank#no-editable-profile-fields',
+        'Conflict',
+        'the tenant lets a person edit no profile field, so update-profile cannot be owed',
+      );
+    case 'terms_not_configured':
+      return problem(
+        409,
+        'about:blank#terms-not-configured',
+        'Conflict',
+        'the tenant has no terms_uri, so accept-terms cannot be owed; set it with PATCH /settings first',
+      );
+  }
+}
+
 export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const id = request.params.id;
@@ -812,6 +839,8 @@ export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHa
         );
       case 'precondition_failed':
         return sendProblem(reply, request, ifMatchStale());
+      case 'refused':
+        return sendProblem(reply, request, requiredActionRefusalProblem(outcome.reason));
       case 'ok': {
         reply.header('etag', outcome.etag);
         const wire: SetRequiredActionsResponse = { actions: [...outcome.actions] };

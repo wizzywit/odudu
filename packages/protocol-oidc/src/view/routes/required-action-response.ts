@@ -1,10 +1,14 @@
 import {
+  renderAcceptTermsPage,
   renderRecoveryCodesTooSoonPage,
   renderRequestedRecoveryCodesConfirmPage,
   renderRequiredActionPage,
   type PasskeyEnrolmentOffer,
+  type AcceptTermsOffer,
   type ActionPageVariant,
   type BeginRecoveryCodesOutcome,
+  type ProfileOffer,
+  type VerifyEmailOffer,
   type RecordActionStep,
   type RequiredAction,
   type TotpEnrolmentOffer,
@@ -45,6 +49,11 @@ export interface RequiredActionResponseDeps extends ContinuationDeps {
     subjectId: string,
     authSessionId: string,
   ): Promise<PasskeyEnrolmentOffer>;
+  // What the address, profile and terms pages show: the address held, the
+  // fields the person may edit with what they hold, and the terms in force.
+  beginVerifyEmail(tenantId: string, subjectId: string): Promise<VerifyEmailOffer>;
+  beginUpdateProfile(tenantId: string, subjectId: string): Promise<ProfileOffer>;
+  beginAcceptTerms(tenantId: string): Promise<AcceptTermsOffer | null>;
   // `askFirst` issues nothing and answers `ask`, for a person who must confirm.
   beginRecoveryCodes(
     tenantId: string,
@@ -204,6 +213,60 @@ export async function sendRequiredActionPage(
       );
     }
     return sendHtml(reply, 200, renderRequiredActionPage(action, signInPath, locale));
+  }
+  if (action === 'verify-email') {
+    const tenant = await deps.findTenant(tenantName);
+    if (tenant !== null) {
+      const offer = await deps.beginVerifyEmail(tenant.id, subjectId);
+      // The tenant's own is cleared when there is no address, so this is an
+      // application's, which cannot be done for a person with none.
+      if (offer.email === null) {
+        await record('error');
+        return sendActionUnavailable(reply, deps, tenantName, authSessionId);
+      }
+      return send(
+        pages.verifyEmail(
+          tenantName,
+          tenantAddressOf(reply.request),
+          authSessionId,
+          offer,
+          undefined,
+          locale,
+        ),
+      );
+    }
+  }
+  if (action === 'update-profile') {
+    const tenant = await deps.findTenant(tenantName);
+    if (tenant !== null) {
+      const offer = await deps.beginUpdateProfile(tenant.id, subjectId);
+      return send(
+        pages.updateProfile(
+          tenantName,
+          tenantAddressOf(reply.request),
+          authSessionId,
+          offer,
+          [],
+          locale,
+        ),
+      );
+    }
+  }
+  if (action === 'accept-terms') {
+    const tenant = await deps.findTenant(tenantName);
+    const offer = tenant === null ? null : await deps.beginAcceptTerms(tenant.id);
+    if (offer !== null) {
+      return send(
+        renderAcceptTermsPage(
+          tenantName,
+          tenantAddressOf(reply.request),
+          authSessionId,
+          offer,
+          false,
+          locale,
+        ),
+      );
+    }
   }
   if (action !== 'configure-totp') {
     return sendHtml(reply, 200, renderRequiredActionPage(action, signInPath, locale));

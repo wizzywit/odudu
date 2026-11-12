@@ -2118,7 +2118,7 @@ exports[`the verify-email page under the default template > renders the limited 
 <form method="post" action="/tenants/acme/login-actions/required-action?action=verify-email">
   <input type="hidden" name="auth_session_id" value="sess-1">
   <p>Address: <bdi>ada@example.com</bdi></p>
-  <p role="status">A link was sent to this address a moment ago. Wait a few minutes before asking for another.</p>
+  <p role="status">Links have been sent to this address several times already. Wait a while before asking for another.</p>
   <button type="submit" name="send" value="1" formnovalidate>Send me a link</button> <button type="submit">I have verified it</button>
 </form>
 </main>

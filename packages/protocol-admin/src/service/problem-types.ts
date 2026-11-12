@@ -110,7 +110,22 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
   },
   'no-email': {
     status: 409,
-    summary: 'The subject has no email address to send the message to.',
+    summary:
+      'The subject has no email address, which the write needs: to send the message to, or ' +
+      'for the `verify-email` required action to verify.',
+  },
+  'no-editable-profile-fields': {
+    status: 409,
+    summary:
+      'The tenant lets a person edit none of the profile fields, so the `update-profile` ' +
+      'required action could never be completed. Every tenant lets a person edit them today, ' +
+      'so this does not occur yet.',
+  },
+  'terms-not-configured': {
+    status: 409,
+    summary:
+      'The tenant has no `terms_uri`, so the `accept-terms` required action has no terms to ' +
+      'show. Set `terms_uri` with `PATCH …/settings` first.',
   },
   'no-mail-relay': {
     status: 409,

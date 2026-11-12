@@ -13,7 +13,7 @@ import {
   listLimitMessage,
   type Client,
   type ClientFields,
-  type RequiredAction,
+  type ApplicationAction,
   type ListClientsQuery,
 } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
@@ -189,7 +189,7 @@ export interface ClientView {
   readonly idTokenSignedResponseAlg: string | null;
   readonly defaultMaxAge: number | null;
   readonly requireAuthTime: boolean;
-  readonly allowedActions: RequiredAction[];
+  readonly allowedActions: ApplicationAction[];
   readonly previousSecretExpiresAt: Date | null;
   readonly scopes: readonly ClientScopeAssignmentView[];
   // Derived on every read and outside the ETag; empty without a service account.
@@ -971,7 +971,7 @@ function checkedStringArray(field: string, value: unknown): string[] | FieldErro
     : value;
 }
 
-function checkedAllowedActions(value: unknown): RequiredAction[] | FieldError {
+function checkedAllowedActions(value: unknown): ApplicationAction[] | FieldError {
   const listed = checkedStringArray('allowed_actions', value);
   if (isFieldError(listed)) return listed;
   const [unknown] = unknownAllowedActions(listed);
@@ -1096,7 +1096,7 @@ interface AdminFieldPatches {
     webOrigins?: string[];
     postLogoutRedirectUris?: string[];
     clientCredentialsScopes?: string[];
-    allowedActions?: RequiredAction[];
+    allowedActions?: ApplicationAction[];
     accessTokenTtlSeconds?: number | null;
     idTokenTtlSeconds?: number | null;
     refreshTokenTtlSeconds?: number | null;

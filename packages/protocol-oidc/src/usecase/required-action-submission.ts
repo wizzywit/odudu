@@ -1,5 +1,10 @@
 import {
   nextRequiredAction,
+  type AcceptTermsOutcome,
+  type ProfileProblem,
+  type UpdateProfileOutcome,
+  type VerifyEmailNotice,
+  type VerifyEmailOutcome,
   SUPERSEDED_PASSWORD,
   type ActionStep,
   type EnrolmentRefusal,
@@ -61,6 +66,26 @@ export type RequiredActionOutcome =
   // The person confirmed replacing the recovery codes they hold: the route
   // issues the new set and shows it.
   | { kind: 'confirmed'; authSessionId: string; subjectId: string; requested: true }
+  // The address page, back with what happened: a link was asked for, or the
+  // address is still not verified.
+  | {
+      kind: 'verify_pending';
+      authSessionId: string;
+      subjectId: string;
+      notice: VerifyEmailNotice;
+      requested?: true;
+    }
+  // The profile form, back with every problem and what was typed.
+  | {
+      kind: 'profile_rejected';
+      authSessionId: string;
+      subjectId: string;
+      problems: readonly ProfileProblem[];
+      values: Record<string, string>;
+      requested?: true;
+    }
+  // The terms page, back because the box was not ticked.
+  | { kind: 'terms_refused'; authSessionId: string; subjectId: string }
   | (RejectedRequiredAction & { requested?: true });
 
 export interface RequiredActionSubmission {
@@ -78,6 +103,13 @@ export interface RequiredActionSubmission {
   cancel: boolean;
   // The confirm control of the recovery-code replacement page was used.
   confirm: boolean;
+  // The send control of the address page was used.
+  send: boolean;
+  // The box of the terms page was ticked.
+  accept: boolean;
+  // Every field the browser posted as text, for the form of the profile page,
+  // which reads only the fields it asked for.
+  form: Readonly<Record<string, string>>;
   // The box on the change-password page that ends the person's other sessions
   // was checked. An unchecked box sends nothing, so a submission without the
   // field leaves them.
@@ -145,6 +177,23 @@ export interface RequiredActionSubmissionDeps {
     },
     request: RequestContext,
   ): Promise<UpdatePasswordOutcome>;
+  // Whether the subject's address is verified now, read again here.
+  completeVerifyEmail(tenantId: string, subjectId: string): Promise<VerifyEmailOutcome>;
+  // Queues the mail that proves the address on file, within the limit on mail to
+  // one address. `verified` where there is nothing left to prove.
+  sendVerificationLink(
+    tenantId: string,
+    subjectId: string,
+    request: RequestContext,
+  ): Promise<'queued' | 'limited' | 'unavailable' | 'verified'>;
+  completeUpdateProfile(
+    input: { tenantId: string; subjectId: string; posted: Readonly<Record<string, string>> },
+    request: RequestContext,
+  ): Promise<UpdateProfileOutcome>;
+  completeAcceptTerms(
+    input: { tenantId: string; subjectId: string; accepted: boolean },
+    request: RequestContext,
+  ): Promise<AcceptTermsOutcome>;
   // Absent when no relying party can be derived — see relyingPartyId in
   // @odudu/authn-flows. A passkey enrolled against a guessed RP ID is
   // unusable and silently so, so the action is reported unsupported rather
@@ -205,6 +254,17 @@ export async function handleRequiredActionSubmission(
   const owed = owedWithRequested(tenantOwes, pending ?? {});
   const next = nextRequiredAction(owed);
   if (next === null || action !== next) {
+    // The link that proves the address clears the action wherever it is opened,
+    // so the person who comes back to this page and says they verified it finds
+    // nothing owed. The address is checked, and the sign-in carries on: what
+    // it still owes is its own gates' to decide.
+    if (
+      action === 'verify-email' &&
+      !owed.includes('verify-email') &&
+      (await deps.completeVerifyEmail(tenant.id, subjectId)).kind === 'verified'
+    ) {
+      return { kind: 'completed', authSessionId };
+    }
     return { kind: 'not_owed', action: action ?? '' };
   }
   // Asked for by the application, and ended by this submission either way. It
@@ -240,9 +300,21 @@ export async function handleRequiredActionSubmission(
     pending?.reuseSessionId ?? null,
   );
   if (asked && outcome.kind === 'completed') await step('success');
-  return requested && (outcome.kind === 'password_rejected' || outcome.kind === 'rejected')
-    ? { ...outcome, requested: true }
-    : outcome;
+  return requested && carriesRequestedMark(outcome) ? { ...outcome, requested: true } : outcome;
+}
+
+function carriesRequestedMark(
+  outcome: RequiredActionOutcome,
+): outcome is Extract<
+  RequiredActionOutcome,
+  { kind: 'password_rejected' | 'rejected' | 'verify_pending' | 'profile_rejected' }
+> {
+  return (
+    outcome.kind === 'password_rejected' ||
+    outcome.kind === 'rejected' ||
+    outcome.kind === 'verify_pending' ||
+    outcome.kind === 'profile_rejected'
+  );
 }
 
 // Runs the executor the action is owed through. An action an application asked
@@ -262,6 +334,37 @@ async function performAction(
 ): Promise<RequiredActionOutcome> {
   if (action === 'configure-passkey') {
     return completePasskey(deps, tenantId, subjectId, authSessionId, submission, request);
+  }
+
+  if (action === 'verify-email') {
+    return runVerifyEmail(deps, tenantId, subjectId, authSessionId, submission, request);
+  }
+
+  if (action === 'update-profile') {
+    const done = await deps.completeUpdateProfile(
+      { tenantId, subjectId, posted: submission.form },
+      request,
+    );
+    if (done.kind === 'completed') return { kind: 'completed', authSessionId };
+    return {
+      kind: 'profile_rejected',
+      authSessionId,
+      subjectId,
+      problems: done.problems,
+      values: done.values,
+    };
+  }
+
+  if (action === 'accept-terms') {
+    const done = await deps.completeAcceptTerms(
+      { tenantId, subjectId, accepted: submission.accept },
+      request,
+    );
+    if (done.kind === 'accepted') return { kind: 'completed', authSessionId };
+    // Terms the tenant no longer has: nothing to show, and the sign-in
+    // clears the action the next time it reads what is owed.
+    if (done.kind === 'not_configured') return { kind: 'unsupported', action: 'accept-terms' };
+    return { kind: 'terms_refused', authSessionId, subjectId };
   }
 
   if (action === 'generate-recovery-codes') {
@@ -323,6 +426,33 @@ async function performAction(
     action: 'configure-totp',
     reason: 'code_mismatch',
   };
+}
+
+// A link is asked for with the send control, and the address is checked with
+// the other: either can find it verified, which ends the action.
+async function runVerifyEmail(
+  deps: RequiredActionSubmissionDeps,
+  tenantId: string,
+  subjectId: string,
+  authSessionId: string,
+  submission: RequiredActionSubmission,
+  request: RequestContext,
+): Promise<RequiredActionOutcome> {
+  const pending = (notice: VerifyEmailNotice): RequiredActionOutcome => ({
+    kind: 'verify_pending',
+    authSessionId,
+    subjectId,
+    notice,
+  });
+  if (submission.send) {
+    const sent = await deps.sendVerificationLink(tenantId, subjectId, request);
+    if (sent === 'verified') return { kind: 'completed', authSessionId };
+    return pending(sent === 'queued' ? 'sent' : sent);
+  }
+  const checked = await deps.completeVerifyEmail(tenantId, subjectId);
+  return checked.kind === 'verified'
+    ? { kind: 'completed', authSessionId }
+    : pending('not_verified');
 }
 
 // The only refusal is none_issued: the acknowledgement arrived for a

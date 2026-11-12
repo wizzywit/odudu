@@ -1,6 +1,6 @@
 import { boolean, integer, jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { type TokenEndpointAuthMethod } from '@odudu/contracts';
-import { type RequiredAction } from '@odudu/contracts/admin';
+import { type ApplicationAction } from '@odudu/contracts/admin';
 import { clients } from '@odudu/domain-tenant';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
@@ -93,7 +93,11 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   // The required actions this client may start through /authorize; empty
   // allows none. Held only with the me:read scope
   // (packages/db/drizzle/0128_client_allowed_actions.sql).
-  allowedActions: text('allowed_actions').array().$type<RequiredAction[]>().notNull().default([]),
+  allowedActions: text('allowed_actions')
+    .array()
+    .$type<ApplicationAction[]>()
+    .notNull()
+    .default([]),
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
@@ -132,5 +136,5 @@ export interface ClientOidcConfig {
   idTokenSignedResponseAlg: 'RS256' | 'ES256' | null;
   defaultMaxAge: number | null;
   requireAuthTime: boolean;
-  allowedActions: RequiredAction[];
+  allowedActions: ApplicationAction[];
 }

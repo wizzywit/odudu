@@ -79,7 +79,8 @@ export const ar: Readonly<Record<string, string>> = {
   'verifyEmail.sendLink': 'أرسل لي رابطًا',
   'verifyEmail.confirm': 'لقد أكّدته',
   'verifyEmail.sent': 'أرسلنا رابطًا إلى هذا العنوان. افتحه، ثم عُد واختر "لقد أكّدته".',
-  'verifyEmail.limited': 'أُرسل رابط إلى هذا العنوان قبل قليل. انتظر بضع دقائق قبل طلب رابط آخر.',
+  'verifyEmail.limited':
+    'أُرسلت روابط إلى هذا العنوان عدة مرات بالفعل. انتظر بعض الوقت قبل طلب رابط آخر.',
   'verifyEmail.unavailable':
     'تعذّر على هذا الخادم إرسال البريد الآن. اطلب من أحد المسؤولين تأكيد العنوان.',
   'verifyEmail.alreadyVerified': 'هذا العنوان مؤكَّد بالفعل.',

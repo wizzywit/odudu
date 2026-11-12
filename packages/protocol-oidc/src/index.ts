@@ -11,8 +11,14 @@ import {
   pendingActionsFor,
   beginTotpEnrolment,
   completePasskeyEnrolment,
+  completeAcceptTerms,
   completeRecoveryCodes,
   completeTotpEnrolment,
+  completeUpdateProfile,
+  completeVerifyEmail,
+  profileOffer,
+  termsOffer,
+  verifyEmailOffer,
   type MailLookResolver,
   completeUpdatePassword,
   prepareUpdatePassword,
@@ -203,6 +209,15 @@ export interface OidcRoutesDeps {
   // The tenant's own wording for the language a page is shown in; the server
   // wires the reader here. None means every page reads the catalogue alone.
   resolveOverrides?: OverridesResolver;
+  // Queues the mail that proves the address a person holds, for the page that
+  // asks them to prove it, within the limit on mail to one address; answers
+  // `verified` where there is nothing left to prove. Absent, no link can be
+  // sent and the page says so.
+  queueVerificationLink?: (
+    tenantId: string,
+    subjectId: string,
+    request: RequestContext,
+  ) => Promise<'queued' | 'limited' | 'unavailable' | 'verified'>;
   // How the mail that tells a person of a change to their own sign-in methods
   // is dressed and worded; the server wires the same resolver its other mail
   // uses. Absent, that mail is unthemed.
@@ -699,6 +714,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const holdsPasswordFor = (tenantId: string, subjectId: string) =>
       withTenant(deps.database.db, tenantId, (tx) => holdsPassword(tx, subjectId));
 
+    // What the address, profile and terms pages show, for every door that can
+    // render them and for the submission that has to render them again.
+    const startVerifyEmail = (tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => verifyEmailOffer(tx, subjectId));
+    const startUpdateProfile = (tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => profileOffer(tx, tenantId, subjectId));
+    const startAcceptTerms = (tenantId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => termsOffer(tx, tenantId));
+
     // One definition for every door that shows an action an application
     // requested, and for the submission that ends it.
     const recordActionStepFor = (
@@ -778,7 +802,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // action is owed, and the required-action route that will not act on
     // one that is not.
     const pendingActions = (tenantId: string, subjectId: string) =>
-      withTenant(deps.database.db, tenantId, (tx) => pendingActionsFor(tx, subjectId));
+      withTenant(deps.database.db, tenantId, (tx) => pendingActionsFor(tx, tenantId, subjectId));
 
     const recoverPendingRequest = (tenantId: string, authSessionId: string) =>
       withTenant(deps.database.db, tenantId, (tx) => loadPendingRequest(tx, authSessionId));
@@ -882,6 +906,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       beginRecoveryCodes: startRecoveryCodes,
       recordActionStep: recordActionStepFor,
       holdsPassword: holdsPasswordFor,
+      beginVerifyEmail: startVerifyEmail,
+      beginUpdateProfile: startUpdateProfile,
+      beginAcceptTerms: startAcceptTerms,
       ...passkeyEnrolment,
       consentContext,
       grantedScopeIds,
@@ -969,6 +996,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       beginRecoveryCodes: startRecoveryCodes,
       recordActionStep: recordActionStepFor,
       holdsPassword: holdsPasswordFor,
+      beginVerifyEmail: startVerifyEmail,
+      beginUpdateProfile: startUpdateProfile,
+      beginAcceptTerms: startAcceptTerms,
       ...passkeyEnrolment,
       resetAuthenticationProgress: (tenantId: string, authSessionId: string) =>
         withTenant(deps.database.db, tenantId, (tx) =>
@@ -1036,6 +1066,26 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         ),
       completeRecoveryCodes: (input) =>
         withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
+      completeVerifyEmail: (tenantId, subjectId) =>
+        withTenant(deps.database.db, tenantId, (tx) => completeVerifyEmail(tx, subjectId)),
+      sendVerificationLink: (tenantId, subjectId, request) =>
+        deps.queueVerificationLink === undefined
+          ? Promise.resolve('unavailable')
+          : deps.queueVerificationLink(tenantId, subjectId, request),
+      completeUpdateProfile: (input, request) =>
+        withTenant(
+          deps.database.db,
+          input.tenantId,
+          (tx) => completeUpdateProfile(tx, input),
+          request,
+        ),
+      completeAcceptTerms: (input, request) =>
+        withTenant(
+          deps.database.db,
+          input.tenantId,
+          (tx) => completeAcceptTerms(tx, { ...input, now: clock.now() }),
+          request,
+        ),
       completeUpdatePassword: async ({ endOtherSessions: ending, ...input }, request) => {
         const breachedPrepared = await prepareUpdatePassword(
           deps.database.db,
@@ -1090,6 +1140,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       beginRecoveryCodes: startRecoveryCodes,
       recordActionStep: recordActionStepFor,
       holdsPassword: holdsPasswordFor,
+      beginVerifyEmail: startVerifyEmail,
+      beginUpdateProfile: startUpdateProfile,
+      beginAcceptTerms: startAcceptTerms,
       ...passkeyEnrolment,
       ...branding,
       subjectLocale,

@@ -91,6 +91,9 @@ function deps(): LoginRouteDeps {
     beginRecoveryCodes: vi.fn(),
     recordActionStep: vi.fn().mockResolvedValue(undefined),
     holdsPassword: vi.fn().mockResolvedValue(true),
+    beginVerifyEmail: vi.fn().mockResolvedValue({ email: 'ada@example.com', verified: false }),
+    beginUpdateProfile: vi.fn().mockResolvedValue({ fields: ['name'], values: { name: '' } }),
+    beginAcceptTerms: vi.fn().mockResolvedValue(null),
   };
 }
 
