@@ -665,13 +665,12 @@ port.
 
 The command that folds accounts holding one address in different cases, `reconciling-accounts-odudu-reconcile-accounts.md`, was run
 on 2026-11-12 on a compose project, `odudu-p4f-i11` (port `3000`, Postgres on `5443`, `ODUDU_REAP_ENABLED=false`,
-`ODUDU_OUTBOX_ENABLED=false`, throttles at `10000`), built from the branch commit `326348c13` with only documentation files
+`ODUDU_OUTBOX_ENABLED=false`, throttles at `10000`), built from the branch commit `196ecba23` with only documentation files
 uncommitted, on a database that began empty. Nothing was driven before the page's own steps: no administrator was seeded and nobody
 signed in, so the evidence of a sign-in (a session and audit rows) is written with `psql`, as the page says. The page's commands are
 shell commands run in one shell, each output written to the page as it came back (carriage returns and trailing spaces removed);
-every id on it is that run's. An earlier run of the page on a build before the audit trail was read for sign-ins was replaced by
-this one, and a dry run in this one that ran before the `psql` evidence was written (a mistake in the script) was discarded: the
-page's outputs are from the pass after it. The stack and its image were removed afterwards.
+every id on it is that run's. Earlier runs of the page, on builds before the audit trail was read for sign-ins and before the group was read a second time, were
+replaced by this one; the page's outputs are all from this run. The stack and its image were removed afterwards.
 
 ## Admin path transcripts
 

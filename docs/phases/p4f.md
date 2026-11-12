@@ -718,7 +718,7 @@ that never configures a step behaves as it does today.
 - `odudu reconcile-accounts [--dry-run]` finds, in every tenant, the accounts that hold one address apart from its case and folds
   each group into one account. It prints one JSON line for each pair merged (or, on a dry run, that would be) with the former
   address of the account that goes, which is the only place that address is written down, then one JSON report: groups found,
-  merged, would merge, accounts retired, the rows moved by kind, and the groups refused or failed (the first hundred of each, by
+  merged, would merge, accounts retired, the rows moved by kind (credentials and consents), and the groups refused or failed (the first hundred of each, by
   tenant and subject id, never by address). It exits
   `1` when a group failed or the run could not start, and `0` otherwise, refused groups included: a refusal is the operator's to
   settle, not a fault. A second run finds only what is left.
@@ -727,7 +727,7 @@ that never configures a step behaves as it does today.
   changed since the page was read is judged as it is now. `reconcileGroup(tx, …)` is the one-group step a test or another caller
   can run in its own transaction.
 - The audit trail gains `account.reconciled` (credential), one row for each retired account, resource the retired subject, `detail`
-  naming the survivor and the loser, whether anything was carried over and the rows moved of each kind, and no address. Existing
+  naming the survivor and the loser, whether anything was carried over and the credentials and consents moved, and no address. Existing
   rows are not read or rewritten (a test holds them byte-identical). A merge is not mechanically reversible: the rows that moved
   stay with the survivor and are not listed one by one.
 - A mailed link (`verify_email`, `reset_password`, `execute_actions`) for a disabled subject is refused as an expired one is
@@ -753,9 +753,12 @@ that never configures a step behaves as it does today.
   of it. With no evidence anywhere it is the spec's rule.
 - **What moves, from each verified loser to the survivor:** the credentials (a passkey always; a password, second factor,
   recovery-code set or retired-hash set only where the survivor holds none of that kind, and the time the recovery set was made
-  goes with it), `sessions`, `token_grants` (refresh tokens follow their grant) and consents for a client the survivor has none
-  for. Because the account that has signed in survives, sessions and grants move only in a race; the code keeps the spec's move.
-  What an unverified loser had is not moved (it is only retired, and only when it has not signed in).
+  goes with it) and consents for a client the survivor has none for. **Sessions and grants never move.** An account that has
+  signed in always survives (or the group is refused), so a loser has none by definition, and the group is read a second time,
+  under the same locks, immediately before anything is written: if a loser has signed in since the first read, nothing is written
+  and the group is refused as `loser_signed_in`. The spec's list of credentials, sessions, grants and consents is therefore
+  credentials and consents in practice. What an unverified loser had is not moved (it is only retired, and only when it has not
+  signed in). A sign-in that lands after the second read leaves its session on the disabled loser, where it is unusable.
 - **What is left on the loser on purpose:** roles, groups and required actions (administrative standing is never handed over by
   a merge); `login_failures` (lockout state of a disabled account, harmless and reaped); `authentication_sessions` in flight (the
   sign-in checks the account is enabled before it completes); authorization codes, console sessions (short-lived, reaped). What is
@@ -763,8 +766,10 @@ that never configures a step behaves as it does today.
 - **What becomes of the loser:** disabled (`subjects.disabled_at`, the one switch an administrator uses) and its address cleared
   (`users.email` null, so `email_search` is null and it stops colliding). Nothing is deleted. An administrator can set an address
   and enable it again, but that does not take back what moved to the survivor. The former address is in the command's output only.
+- **A dry run prints no `moved`** on its `would_merge` lines and a total of zero in its report: what would move is not computed, so
+  a zero there is not a prediction.
 - **Failure:** a group whose transaction fails is rolled back whole (a trigger that refuses the consent update in the test leaves
-  its credentials, sessions and address as they were), counted, and the run goes on; the report carries the error's kind and
+  its credentials and address as they were), counted, and the run goes on; the report carries the error's kind and
   database code and never its message, which quotes an address.
 
 ### The unique index, held back to the next release
@@ -791,8 +796,8 @@ migration back, which is what the order is for. `docs/NEXT.md` and `RELEASING.md
   accounts each. A tenant with no duplicate costs one pass over its own index entries and nothing else; the command visits tenants
   in id order, a page of 500 at a time.
 - A group of `n` accounts is a constant number of statements for each account: a lock read by `users_email_search` and the
-  subjects primary key (with, for each account, the four existence probes, the audit one on `audit_events_actor`), then at most six updates by `tenant_id`, `subject_id` on `sessions_by_subject`, `token_grants_by_subject`,
-  `user_credentials_by_subject` and the consents key.
+  subjects primary key (with, for each account, the four existence probes, the audit one on `audit_events_actor`), then at most four statements by `tenant_id`, `subject_id` on `user_credentials_by_subject` and the consents key, and the
+  second read of the group.
 
 ### Open placements
 

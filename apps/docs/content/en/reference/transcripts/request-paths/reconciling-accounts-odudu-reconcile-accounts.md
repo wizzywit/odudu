@@ -35,7 +35,7 @@ odudu seed user --tenant recon-demo --username solo     --password "$PW" --email
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"recon-demo","tenantId":"01a1d17b-db18-796d-a70b-ba17f4d30a73"}
+{"command":"tenant","created":true,"tenant":"recon-demo","tenantId":"01a1d186-9cec-756c-99d8-469e1b652f67"}
 ```
 
 Each `seed user` prints one line of JSON naming the user, left out here. The page does
@@ -95,17 +95,19 @@ both unverified; `judy` is verified and `judy2` is not and has signed in.
 ## A dry run
 
 `--dry-run` reads and plans and writes nothing. It prints one line for each pair it would
-merge, with the address that would be cleared, and then a report that counts the groups
-and lists each group it refuses by tenant, reason and subject id.
+merge, with the address that would be cleared and no `moved` member, since what would move is
+not computed, and then a report that counts the groups and lists each group it refuses by
+tenant, reason and subject id. The report's `moved` totals are zero on a dry run and are not a
+prediction.
 
 ```bash
 odudu reconcile-accounts --dry-run
 ```
 
 ```
-{"event":"would_merge","tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","survivor":"01a1d17b-dd31-749a-b6a6-3058b7b94a25","loser":"01a1d17b-e311-7903-9f27-fa96caa87b2c","former_address":"grace@example.com","carried_over":true,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0}}
-{"event":"would_merge","tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","survivor":"01a1d17b-ef55-7dc0-899b-607939fcb5dd","loser":"01a1d17b-e8e7-74eb-aa8b-95c307a676c6","former_address":"Lin@Example.com","carried_over":false,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0}}
-{"dry_run":true,"tenants":1,"groups":5,"merged":0,"would_merge":2,"accounts_retired":0,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0},"refused":3,"failed":0,"refusals":[{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"several_have_sign_ins","subject_ids":["01a1d17b-f519-7c5e-a9e2-7803c7321edf","01a1d17b-fb00-7fb0-8cd7-429b62837044"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"no_verified_account","subject_ids":["01a1d17c-00b4-73ec-b2ce-0495675b36ec","01a1d17c-0718-7744-bd2e-3e1406a4322a"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"unverified_account_has_sign_ins","subject_ids":["01a1d17c-0cdd-7d3e-b8af-03267b4b8dda","01a1d17c-12ab-789d-9ab4-0f988fcc4797"]}],"failures":[]}
+{"event":"would_merge","tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","survivor":"01a1d186-9f5b-7846-8262-946cbc39576f","loser":"01a1d186-a533-75dd-89c3-62fb7055f8fb","former_address":"grace@example.com","carried_over":true}
+{"event":"would_merge","tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","survivor":"01a1d186-b16a-7ef0-82e1-561048a1e967","loser":"01a1d186-ab9c-73b1-ba29-ab945db7a583","former_address":"Lin@Example.com","carried_over":false}
+{"dry_run":true,"tenants":1,"groups":5,"merged":0,"would_merge":2,"accounts_retired":0,"moved":{"credentials":0,"consents":0},"refused":3,"failed":0,"refusals":[{"tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","reason":"several_have_sign_ins","subject_ids":["01a1d186-b726-7511-8d0c-eda654969552","01a1d186-bd13-785a-a35b-b5c1c4331dd5"]},{"tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","reason":"no_verified_account","subject_ids":["01a1d186-c2d6-7cc7-bf0f-bcd1dbe83886","01a1d186-c87c-7df7-949a-cd0e858421fd"]},{"tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","reason":"unverified_account_has_sign_ins","subject_ids":["01a1d186-ce2a-71a2-b658-e38880a78967","01a1d186-d408-7385-a1f9-f8409099f5a5"]}],"failures":[]}
 ```
 
 Two pairs would merge, and the other three groups are refused:
@@ -144,9 +146,9 @@ odudu reconcile-accounts
 ```
 
 ```
-{"event":"merged","tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","survivor":"01a1d17b-dd31-749a-b6a6-3058b7b94a25","loser":"01a1d17b-e311-7903-9f27-fa96caa87b2c","former_address":"grace@example.com","carried_over":true,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0}}
-{"event":"merged","tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","survivor":"01a1d17b-ef55-7dc0-899b-607939fcb5dd","loser":"01a1d17b-e8e7-74eb-aa8b-95c307a676c6","former_address":"Lin@Example.com","carried_over":false,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0}}
-{"dry_run":false,"tenants":1,"groups":5,"merged":2,"would_merge":0,"accounts_retired":2,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0},"refused":3,"failed":0,"refusals":[{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"several_have_sign_ins","subject_ids":["01a1d17b-f519-7c5e-a9e2-7803c7321edf","01a1d17b-fb00-7fb0-8cd7-429b62837044"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"no_verified_account","subject_ids":["01a1d17c-00b4-73ec-b2ce-0495675b36ec","01a1d17c-0718-7744-bd2e-3e1406a4322a"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"unverified_account_has_sign_ins","subject_ids":["01a1d17c-0cdd-7d3e-b8af-03267b4b8dda","01a1d17c-12ab-789d-9ab4-0f988fcc4797"]}],"failures":[]}
+{"event":"merged","tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","survivor":"01a1d186-9f5b-7846-8262-946cbc39576f","loser":"01a1d186-a533-75dd-89c3-62fb7055f8fb","former_address":"grace@example.com","carried_over":true,"moved":{"credentials":0,"consents":0}}
+{"event":"merged","tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","survivor":"01a1d186-b16a-7ef0-82e1-561048a1e967","loser":"01a1d186-ab9c-73b1-ba29-ab945db7a583","former_address":"Lin@Example.com","carried_over":false,"moved":{"credentials":0,"consents":0}}
+{"dry_run":false,"tenants":1,"groups":5,"merged":2,"would_merge":0,"accounts_retired":2,"moved":{"credentials":0,"consents":0},"refused":3,"failed":0,"refusals":[{"tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","reason":"several_have_sign_ins","subject_ids":["01a1d186-b726-7511-8d0c-eda654969552","01a1d186-bd13-785a-a35b-b5c1c4331dd5"]},{"tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","reason":"no_verified_account","subject_ids":["01a1d186-c2d6-7cc7-bf0f-bcd1dbe83886","01a1d186-c87c-7df7-949a-cd0e858421fd"]},{"tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","reason":"unverified_account_has_sign_ins","subject_ids":["01a1d186-ce2a-71a2-b658-e38880a78967","01a1d186-d408-7385-a1f9-f8409099f5a5"]}],"failures":[]}
 ```
 
 The command exits `0`: a refused group is the operator's to settle, and only a group that
@@ -176,12 +178,15 @@ failed, or a run that could not start, exits `1`. The same query again:
   from `lin`: an unverified account's credentials are not handed to the account that
   proved the address.
 - The three refused groups are untouched. Neither of the retired accounts had signed in,
-  so no row moved. Credentials and consents move from a verified account to the survivor
+  so nothing moved. Credentials and consents move from a verified account to the survivor
   when the survivor lacks them (a passkey always; a password only where the survivor has
   none), which this page has no passkey or consent to show; the integration tests do.
+  Sessions and grants never move: the account that has signed in always survives, and the
+  group is read again just before anything is written, so one that signs in meanwhile is
+  refused as `loser_signed_in`.
 
 Each retired account leaves one `account.reconciled` audit row naming the one that stayed
-and how many rows of each kind moved. It holds no address, and the rows already in the
+and how many credentials and consents moved. It holds no address, and the rows already in the
 trail are not touched. A merge is not undone by enabling the account again: what moved
 stays with the survivor.
 
@@ -199,10 +204,10 @@ SQL
 ```
 
 ```
-       action       | retired | survivor | carried_over |                             moved
---------------------+---------+----------+--------------+---------------------------------------------------------------
- account.reconciled | grace2  | grace    | true         | {"grants": 0, "consents": 0, "sessions": 0, "credentials": 0}
- account.reconciled | lin     | lin-work | false        | {"grants": 0, "consents": 0, "sessions": 0, "credentials": 0}
+       action       | retired | survivor | carried_over |               moved
+--------------------+---------+----------+--------------+-----------------------------------
+ account.reconciled | grace2  | grace    | true         | {"consents": 0, "credentials": 0}
+ account.reconciled | lin     | lin-work | false        | {"consents": 0, "credentials": 0}
 (2 rows)
 ```
 
@@ -213,7 +218,7 @@ odudu reconcile-accounts
 ```
 
 ```
-{"dry_run":false,"tenants":1,"groups":3,"merged":0,"would_merge":0,"accounts_retired":0,"moved":{"credentials":0,"sessions":0,"grants":0,"consents":0},"refused":3,"failed":0,"refusals":[{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"several_have_sign_ins","subject_ids":["01a1d17b-f519-7c5e-a9e2-7803c7321edf","01a1d17b-fb00-7fb0-8cd7-429b62837044"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"no_verified_account","subject_ids":["01a1d17c-00b4-73ec-b2ce-0495675b36ec","01a1d17c-0718-7744-bd2e-3e1406a4322a"]},{"tenant_id":"01a1d17b-db18-796d-a70b-ba17f4d30a73","reason":"unverified_account_has_sign_ins","subject_ids":["01a1d17c-0cdd-7d3e-b8af-03267b4b8dda","01a1d17c-12ab-789d-9ab4-0f988fcc4797"]}],"failures":[]}
+{"dry_run":false,"tenants":1,"groups":3,"merged":0,"would_merge":0,"accounts_retired":0,"moved":{"credentials":0,"consents":0},"refused":3,"failed":0,"refusals":[{"tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","reason":"several_have_sign_ins","subject_ids":["01a1d186-b726-7511-8d0c-eda654969552","01a1d186-bd13-785a-a35b-b5c1c4331dd5"]},{"tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","reason":"no_verified_account","subject_ids":["01a1d186-c2d6-7cc7-bf0f-bcd1dbe83886","01a1d186-c87c-7df7-949a-cd0e858421fd"]},{"tenant_id":"01a1d186-9cec-756c-99d8-469e1b652f67","reason":"unverified_account_has_sign_ins","subject_ids":["01a1d186-ce2a-71a2-b658-e38880a78967","01a1d186-d408-7385-a1f9-f8409099f5a5"]}],"failures":[]}
 ```
 
 A second run finds only what was refused. Settle those groups by hand, for example by
