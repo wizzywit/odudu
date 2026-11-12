@@ -142,6 +142,25 @@ describe('restartAuthorizeLocation', () => {
   // The hint token itself is not stored, only whom it named; a request
   // rebuilt without it would let anybody sign in where the original
   // demanded one subject.
+  it('asks again for an action that has not ended, and not for one that has', () => {
+    const address = pathAddress('https://idp.example', 'acme');
+    const asked = parse(
+      restartAuthorizeLocation(address, { ...PENDING, action: 'configure-totp' }),
+    );
+    expect(asked.searchParams.get('action')).toBe('configure-totp');
+    const ended = parse(
+      restartAuthorizeLocation(address, {
+        ...PENDING,
+        action: 'configure-totp',
+        actionStatus: 'cancelled',
+      }),
+    );
+    expect(ended.searchParams.has('action')).toBe(false);
+    expect(parse(restartAuthorizeLocation(address, PENDING)).searchParams.has('action')).toBe(
+      false,
+    );
+  });
+
   it('refuses to rebuild a request that was constrained to one subject', () => {
     expect(
       restartAuthorizeLocation(pathAddress('https://idp.example', 'acme'), {

@@ -26,6 +26,9 @@ import {
 import { CLAIM_KEY, isEmailAddress, isValidE164, shapeInvalidityFor } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  ALLOWED_ACTIONS_NEED_ME_READ,
+  ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
+  allowedActionsHaveMeRead,
   WIRE_CLIENTS_PER_TENANT,
   MCP_CLIENT_ID,
   MCP_CLIENT_REDIRECT_URIS,
@@ -117,10 +120,15 @@ function metadataInput(client: ExportedClient): Record<string, unknown> {
 
 class Problems {
   readonly list: ImportError[] = [];
-  add(path: string, message: string): void {
-    this.list.push(
-      message === BIDI_REFUSED_MESSAGE ? { path, message, code: BIDI_REFUSED } : { path, message },
-    );
+  add(path: string, message: string, code?: string): void {
+    if (code !== undefined) this.list.push({ path, message, code });
+    else {
+      this.list.push(
+        message === BIDI_REFUSED_MESSAGE
+          ? { path, message, code: BIDI_REFUSED }
+          : { path, message },
+      );
+    }
   }
 }
 
@@ -548,8 +556,21 @@ function clientProblems(
         `and a tenant admits ${String(WIRE_CLIENTS_PER_TENANT)}`,
     );
   }
+  const heldScopes = new Map<string, string[]>();
+  for (const scope of document.scopes) {
+    for (const entry of scope.clients) {
+      heldScopes.set(entry.client_id, [...(heldScopes.get(entry.client_id) ?? []), scope.name]);
+    }
+  }
   document.clients.forEach((client, index) => {
     const path = `document.clients[${String(index)}]`;
+    if (!allowedActionsHaveMeRead(client.allowed_actions, heldScopes.get(client.client_id) ?? [])) {
+      problems.add(
+        `${path}.allowed_actions`,
+        ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
+        ALLOWED_ACTIONS_NEED_ME_READ,
+      );
+    }
     if (client.client_id === ADMIN_CLIENT_ID) {
       problems.add(`${path}.client_id`, `${ADMIN_CLIENT_ID} is provisioned by every new tenant`);
     }

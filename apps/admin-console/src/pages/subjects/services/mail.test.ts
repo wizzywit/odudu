@@ -9,7 +9,7 @@ import {
   mailRefusal,
 } from '#/pages/subjects/services/mail';
 import { failure, refusal } from '#/testing/failures';
-import { actionsMailProblem } from '#/pages/subjects/services/requiredActions';
+import { actionsMailProblem } from '#/entities/subject';
 
 describe('a mail the server would not send', () => {
   it('explains each refusal in words, naming where it is fixed', () => {

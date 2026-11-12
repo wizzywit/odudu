@@ -8,6 +8,7 @@ import { Installation } from '#/pages/clients/ui/Installation';
 import type { ClientTabProps } from '#/pages/clients/ui/ClientTabProps';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { Button } from '#/shared/ui/Button';
+import { ChecklistField } from '#/shared/ui/ChecklistField';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import {
   NumberWithUnitField,
@@ -93,7 +94,7 @@ function Fixed({ title, items }: { title: string; items: ClientAdvanced['fixedBy
 export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabProps) {
   const page = useClientAdvanced({ tenant, client, etag, gone });
   const secret = useClientSecret(tenant, client);
-  const { auth, keys, userinfo, audiences, exchange } = page;
+  const { auth, keys, userinfo, audiences, exchange, actions } = page;
   const method = auth.values.token_endpoint_auth_method;
   const source = keys.values.key_source;
   return (
@@ -256,6 +257,23 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
             changed={exchange.changed.includes('token_exchange_actor_from_other_client')}
             onChange={(value) => {
               exchange.edit('token_exchange_actor_from_other_client', value);
+            }}
+          />
+        </SaveSection>
+        <SaveSection
+          title={page.sections.actions}
+          description={page.actionsRule}
+          save={actions}
+          blocked={page.actionsBlocked}
+        >
+          <ChecklistField
+            label={page.actionsLabel}
+            options={page.actionOptions}
+            value={actions.values.allowed_actions}
+            error={actions.fieldErrors.allowed_actions}
+            changed={actions.changed.includes('allowed_actions')}
+            onChange={(value) => {
+              actions.edit('allowed_actions', value);
             }}
           />
         </SaveSection>

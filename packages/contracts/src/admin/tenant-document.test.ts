@@ -49,6 +49,7 @@ const CLIENT: ExportedClient = {
   id_token_signed_response_alg: null,
   default_max_age: null,
   require_auth_time: false,
+  allowed_actions: [],
   service_account_roles: [{ name: 'billing-reader', client: null }],
 };
 
@@ -191,6 +192,22 @@ describe('tenantDocumentSchema', () => {
       token_exchange_allowed_for_public: false,
       token_exchange_actor_from_other_client: false,
     });
+  });
+
+  it('imports a client of a document from before allowed actions with none', () => {
+    const older: Record<string, unknown> = { ...CLIENT };
+    delete older.allowed_actions;
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, clients: [older] });
+    expect(result.success).toBe(true);
+    expect(result.data?.clients[0]?.allowed_actions).toEqual([]);
+  });
+
+  it('refuses an allowed action that is not a required action', () => {
+    const result = tenantDocumentSchema.safeParse({
+      ...DOCUMENT,
+      clients: [{ ...CLIENT, allowed_actions: ['delete-account'] }],
+    });
+    expect(result.success).toBe(false);
   });
 
   it('imports a document from before languages and overrides: English only, no default, none', () => {

@@ -88,6 +88,8 @@ function deps(): LoginRouteDeps {
     pendingChallenge: vi.fn(),
     beginTotpEnrolment: vi.fn(),
     beginRecoveryCodes: vi.fn(),
+    recordActionStep: vi.fn().mockResolvedValue(undefined),
+    holdsPassword: vi.fn().mockResolvedValue(true),
   };
 }
 

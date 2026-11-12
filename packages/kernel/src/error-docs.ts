@@ -86,6 +86,14 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
   seed_unknown_grant_type: command(
     '`--grant-type` names a grant type this server does not implement.',
   ),
+  allowed_actions_need_me_read: command(
+    'A client is given actions it may start without the scope `me:read`, which is how it ' +
+      'reads the outcome. Refused by the admin API (a create or amend, or removing `me:read` ' +
+      'or deleting it while a client holds actions), by a tenant import, and by ' +
+      '`odudu seed client --allow-action` when the tenant has no `me:read` scope to assign. ' +
+      'Through the admin API, assign `me:read` to the client first or make it a default ' +
+      'assignment; the seed flag assigns it itself.',
+  ),
   seed_admin_exists: command(
     '`odudu seed admin` found a subject with that name already in the system tenant.',
   ),

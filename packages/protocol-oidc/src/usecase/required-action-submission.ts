@@ -1,9 +1,12 @@
 import {
   nextRequiredAction,
   SUPERSEDED_PASSWORD,
+  type ActionStep,
   type EnrolmentRefusal,
   type PasskeyEnrolmentOutcome,
   type PasswordViolation,
+  type PendingRequest,
+  type RecordActionStep,
   type RecoveryCodesOutcome,
   type RequiredAction,
   type TotpEnrolmentOutcome,
@@ -12,6 +15,7 @@ import {
 import { type RequestContext } from '@odudu/domain-audit';
 import { isUuid } from '@odudu/kernel';
 import { type TenantLookup } from '#/repository/tenant-lookup';
+import { owedWithRequested, requestedActionOf, requestedVariant } from '#/service/action-request';
 
 // The page an action goes back to, and the reason it says it is back; each
 // action has one reason, so one cannot carry another's.
@@ -45,8 +49,16 @@ export type RequiredActionOutcome =
   // The candidate password did not satisfy the tenant's policy. Every rule
   // it broke is carried, not just the first, so the form it goes back to
   // can list them at once.
-  | { kind: 'password_rejected'; authSessionId: string; violations: readonly PasswordViolation[] }
-  | RejectedRequiredAction;
+  | {
+      kind: 'password_rejected';
+      authSessionId: string;
+      violations: readonly PasswordViolation[];
+      requested?: true;
+    }
+  // The person confirmed replacing the recovery codes they hold: the route
+  // issues the new set and shows it.
+  | { kind: 'confirmed'; authSessionId: string; subjectId: string; requested: true }
+  | (RejectedRequiredAction & { requested?: true });
 
 export interface RequiredActionSubmission {
   authSessionId: string | undefined;
@@ -56,6 +68,13 @@ export interface RequiredActionSubmission {
   // The candidate for the update-password action. Judged against the
   // tenant's policy where it is written, never here.
   password: string | undefined;
+  // What proves the password in force, read only for a password change an
+  // application asked for.
+  currentPassword: string | undefined;
+  // The page's cancel control was used.
+  cancel: boolean;
+  // The confirm control of the recovery-code replacement page was used.
+  confirm: boolean;
   // The JSON navigator.credentials.create() produced, as the passkey page's
   // hidden field carried it back, and the name the user gave it.
   credential: string | undefined;
@@ -77,6 +96,15 @@ export interface RequiredActionSubmissionDeps {
   pendingActions(tenantId: string, subjectId: string): Promise<readonly RequiredAction[]>;
   // `authSessionId` is the login the code was typed into, which a verified
   // code counts towards as its otp factor.
+  // The parked request: what an application asked of this sign-in, and how
+  // that has ended so far.
+  loadPendingRequest(tenantId: string, authSessionId: string): Promise<PendingRequest | null>;
+  // How an action an application requested ended, written to the parked
+  // request and the audit trail in one step.
+  recordActionStep(
+    input: RecordActionStep & { tenantId: string },
+    request: RequestContext,
+  ): Promise<void>;
   completeTotpEnrolment(
     input: {
       tenantId: string;
@@ -84,6 +112,7 @@ export interface RequiredActionSubmissionDeps {
       secret: string;
       code: string;
       authSessionId: string;
+      replace?: boolean;
     },
     request: RequestContext,
   ): Promise<TotpEnrolmentOutcome>;
@@ -98,7 +127,7 @@ export interface RequiredActionSubmissionDeps {
   // registration, reset redemption and the seed CLI — and the only one that
   // refuses a password the subject has had before.
   completeUpdatePassword(
-    input: { tenantId: string; subjectId: string; password: string },
+    input: { tenantId: string; subjectId: string; password: string; currentPassword?: string },
     request: RequestContext,
   ): Promise<UpdatePasswordOutcome>;
   // Absent when no relying party can be derived — see relyingPartyId in
@@ -156,25 +185,79 @@ export async function handleRequiredActionSubmission(
   // not mere membership — the order nextRequiredAction imposes is what keeps
   // an expired password from enrolling a second factor, and a submission
   // naming a later action would otherwise walk straight past it.
-  const owed = await deps.pendingActions(tenant.id, subjectId);
-  if (action === undefined || action !== nextRequiredAction(owed)) {
+  const pending = await deps.loadPendingRequest(tenant.id, authSessionId);
+  const tenantOwes = await deps.pendingActions(tenant.id, subjectId);
+  const owed = owedWithRequested(tenantOwes, pending ?? {});
+  const next = nextRequiredAction(owed);
+  if (next === null || action !== next) {
     return { kind: 'not_owed', action: action ?? '' };
   }
+  // Asked for by the application, and ended by this submission either way. It
+  // may be left only where the tenant does not also owe it.
+  const asked = pending !== null && requestedActionOf(pending) === next;
+  const requested = asked && requestedVariant(next, tenantOwes) === next;
+  const step = (kind: ActionStep) =>
+    deps.recordActionStep(
+      { tenantId: tenant.id, authSessionId, subjectId, action: next, step: kind },
+      request,
+    );
 
+  // The person left an action an application sent them to: nothing is
+  // changed, and the sign-in carries on with the ending parked for the response.
+  if (submission.cancel && requested) {
+    await step('cancelled');
+    return { kind: 'completed', authSessionId };
+  }
+  if (submission.cancel) return { kind: 'not_owed', action: next };
+  if (requested && next === 'generate-recovery-codes' && submission.confirm) {
+    return { kind: 'confirmed', authSessionId, subjectId, requested: true };
+  }
+
+  const outcome = await performAction(
+    deps,
+    tenant.id,
+    subjectId,
+    authSessionId,
+    next,
+    submission,
+    request,
+    requested,
+  );
+  if (asked && outcome.kind === 'completed') await step('success');
+  return requested && (outcome.kind === 'password_rejected' || outcome.kind === 'rejected')
+    ? { ...outcome, requested: true }
+    : outcome;
+}
+
+// Runs the executor the action is owed through. An action an application asked
+// for is run with what makes it safe to offer outside a sign-in: the current
+// password for a password change, and a swap, not a refusal, for an
+// authenticator already held.
+async function performAction(
+  deps: RequiredActionSubmissionDeps,
+  tenantId: string,
+  subjectId: string,
+  authSessionId: string,
+  action: RequiredAction,
+  submission: RequiredActionSubmission,
+  request: RequestContext,
+  requested: boolean,
+): Promise<RequiredActionOutcome> {
   if (action === 'configure-passkey') {
-    return completePasskey(deps, tenant.id, subjectId, authSessionId, submission, request);
+    return completePasskey(deps, tenantId, subjectId, authSessionId, submission, request);
   }
 
   if (action === 'generate-recovery-codes') {
-    return acknowledgeRecoveryCodes(deps, tenant.id, subjectId, authSessionId);
+    return acknowledgeRecoveryCodes(deps, tenantId, subjectId, authSessionId);
   }
 
   if (action === 'update-password') {
     const changed = await deps.completeUpdatePassword(
       {
-        tenantId: tenant.id,
+        tenantId,
         subjectId,
         password: submission.password ?? '',
+        ...(requested ? { currentPassword: submission.currentPassword ?? '' } : {}),
       },
       request,
     );
@@ -197,11 +280,12 @@ export async function handleRequiredActionSubmission(
   // and the four the order names are the four handled.
   const outcome = await deps.completeTotpEnrolment(
     {
-      tenantId: tenant.id,
+      tenantId,
       subjectId,
       secret: submission.secret ?? '',
       code: submission.code ?? '',
       authSessionId,
+      ...(requested ? { replace: true } : {}),
     },
     request,
   );

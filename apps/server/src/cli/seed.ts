@@ -25,6 +25,7 @@ import {
 } from '#/cli/seed-domain';
 import {
   CLIENT_LIST_LIMIT,
+  CLIENT_SCOPE_LIMIT,
   GROUP_LIMIT,
   groupLimitMessage,
   listLimitProblem,
@@ -59,7 +60,11 @@ import {
 } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  ALLOWED_ACTION_NAMES,
+  ALLOWED_ACTIONS_NEED_ME_READ,
+  ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
   MCP_CLIENT_ID,
+  ME_READ_SCOPE,
   clientRegistrationTokenRepository,
   clientRepository,
   ClientScopeLimitError,
@@ -75,6 +80,9 @@ import {
   TENANT_ADMIN,
   TENANT_NAME_RULE,
   ClientIdConflictError,
+  distinctAllowedActions,
+  isAllowedAction,
+  unknownAllowedActions,
   type ClientRecord,
   type ClientScopeAssignment,
   coerceTenantSetting,
@@ -1323,6 +1331,16 @@ async function runClientCommand(
   const postLogoutRedirectUris = values['post-logout-redirect-uri'] ?? [];
   const webOrigins = values['web-origin'] ?? [];
   const clientCredentialsScopes = [...new Set(values['client-credentials-scope'] ?? [])];
+  const requestedActions = values['allow-action'] ?? [];
+  const unknownActions = unknownAllowedActions(requestedActions);
+  if (unknownActions.length > 0) {
+    throw new OduduError(
+      'seed_invalid_options',
+      `--allow-action names ${unknownActions.join(', ')}, which is not an action a client may start: ` +
+        ALLOWED_ACTION_NAMES.join(', '),
+    );
+  }
+  const allowedActions = distinctAllowedActions(requestedActions.filter(isAllowedAction));
   const audiences = [...new Set(values.audience ?? [])];
   for (const [field, entries] of [
     ['redirect_uris', redirectUris],
@@ -1429,6 +1447,20 @@ async function runClientCommand(
       );
     }
 
+    // The flag gives the client me:read itself, which the actions need, so the
+    // tenant must still define it and the client must have room for it.
+    let meReadScopeId: string | null = null;
+    if (allowedActions.length > 0) {
+      const tenantScopes = await clientScopeRepository(tx).allForTenant();
+      const given = tenantScopes.filter((scope) => scope.defaultClientAssignment !== null);
+      const meRead = tenantScopes.find((scope) => scope.name === ME_READ_SCOPE);
+      const holds = given.some((scope) => scope.name === ME_READ_SCOPE);
+      if (meRead === undefined || (!holds && given.length >= CLIENT_SCOPE_LIMIT)) {
+        throw new OduduError(ALLOWED_ACTIONS_NEED_ME_READ, ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE);
+      }
+      if (!holds) meReadScopeId = meRead.id;
+    }
+
     const secretHash = clientSecret === undefined ? null : await hashPassword(clientSecret);
 
     const client = await refuseRepeat(
@@ -1446,6 +1478,9 @@ async function runClientCommand(
     // The tenant's standard OIDC vocabulary, without which /authorize would
     // refuse `openid` on this client's very first request.
     await provisionClientDefaults(tx, client.id);
+    if (meReadScopeId !== null) {
+      await clientScopeRepository(tx).assign(client.id, meReadScopeId, 'optional');
+    }
 
     await clientOidcConfigRepository(tx).create({
       clientId: client.id,
@@ -1464,6 +1499,7 @@ async function runClientCommand(
       clientCredentialsScopes,
       webOrigins,
       postLogoutRedirectUris,
+      allowedActions,
     });
     if (needsServiceAccount(type, grantTypes)) await ensureServiceAccount(tx, client);
 

@@ -407,6 +407,7 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
       idTokenSignedResponseAlg: clientOidcConfig.idTokenSignedResponseAlg,
       defaultMaxAge: clientOidcConfig.defaultMaxAge,
       requireAuthTime: clientOidcConfig.requireAuthTime,
+      allowedActions: clientOidcConfig.allowedActions,
     })
     .from(clients)
     .innerJoin(clientOidcConfig, eq(clients.id, clientOidcConfig.clientId))
@@ -463,6 +464,7 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
         id_token_signed_response_alg: row.idTokenSignedResponseAlg,
         default_max_age: row.defaultMaxAge,
         require_auth_time: row.requireAuthTime,
+        allowed_actions: row.allowedActions,
       },
     };
   });

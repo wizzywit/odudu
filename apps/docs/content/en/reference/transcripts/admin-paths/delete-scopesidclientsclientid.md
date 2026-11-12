@@ -48,15 +48,15 @@ curl -sS -D - -X DELETE -H "$A" $G/scopes/$GUARD_OPENID/clients/$GUARD_ADMIN
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a18729-cf3d-7b5d-a742-bcac5cb1d3a0
+x-request-id: 01a1cc87-3058-7c09-a131-51039218aa96
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 284
-Date: Thu, 29 Oct 2026 10:17:06 GMT
+Date: Wed, 11 Nov 2026 21:32:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"the scope openid on odudu-admin, this tenant’s built-in admin client, cannot be unassigned: it could leave every administrator of this tenant locked out of /authorize","instance":"01a18729-cf3d-7b5d-a742-bcac5cb1d3a0"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the scope openid on odudu-admin, this tenant’s built-in admin client, cannot be unassigned: it could leave every administrator of this tenant locked out of /authorize","instance":"01a1cc87-3058-7c09-a131-51039218aa96"}
 ```
 
 In a tenant `scope-unassign-demo` made for this section, on a public client
@@ -98,27 +98,25 @@ curl -sS -D - -X DELETE -H "$A" $U/scopes/$OPENID/clients/$APP
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a1adb4-ce59-78a7-96f5-c2a0dfeecd0a
+x-request-id: 01a1cc87-313b-77a1-ab0b-a78f1a3fea97
 cache-control: no-store
-etag: "8ee32ae0ba1b2e7d7be53986abc7dd29e709c554e5b4ca8ceec879d1700ed927"
-Date: Thu, 05 Nov 2026 21:54:30 GMT
+etag: "0785937633506e60f5da50ee1d5b2ffc4c91f16061f7f9ea02be8e5a3dff8d2f"
+Date: Wed, 11 Nov 2026 21:32:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a1adb4-ce0a-7b36-8d73-24d04dbeecc7","client_id":"scope-unassign-app","name":"scope-unassign-app","description":null,"name_i18n":{},"description_i18n":{},"type":"public","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-11-05T21:54:30.025Z","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":null,"scopes":[{"id":"01a1adb4-cdc2-7883-8979-a3c010b59aef","name":"profile","assignment":"default"},{"id":"01a1adb4-cdc3-7cdd-af5d-a391eb4d0628","name":"email","assignment":"default"},{"id":"01a1adb4-cdc4-739f-a6bd-5bfc8ea28e9f","name":"address","assignment":"default"},{"id":"01a1adb4-cdc5-7d35-90e7-ab745f9a10e4","name":"phone","assignment":"default"},{"id":"01a1adb4-cdc6-7262-932f-d6be512a754a","name":"roles","assignment":"default"},{"id":"01a1adb4-cdc8-71c8-ae07-e57677b4a972","name":"groups","assignment":"default"},{"id":"01a1adb4-cdc9-767b-875e-0793285b6bb3","name":"offline_access","assignment":"optional"}],"service_account_admin_reach":[],"supported_locales":["en"]}
+{"id":"01a1cc87-30d4-77dd-832d-43a0c1dac83e","client_id":"scope-unassign-app","name":"scope-unassign-app","description":null,"name_i18n":{},"description_i18n":{},"type":"public","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-11-11T21:32:54.353Z","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"allowed_actions":[],"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":null,"scopes":[{"id":"01a1cc87-307e-7e6f-985c-b0698f5b905c","name":"address","assignment":"default"},{"id":"01a1cc87-307d-76d6-82bc-c641bec0c70c","name":"email","assignment":"default"},{"id":"01a1cc87-3081-7a7e-aa91-408c26009c98","name":"groups","assignment":"default"},{"id":"01a1cc87-3083-789b-85e7-8e0a4e44115b","name":"offline_access","assignment":"optional"},{"id":"01a1cc87-307f-7b95-877d-19c1668b2842","name":"phone","assignment":"default"},{"id":"01a1cc87-307b-7e18-a3b3-d14339a6e1b2","name":"profile","assignment":"default"},{"id":"01a1cc87-3080-7bc2-aed1-804ef855885e","name":"roles","assignment":"default"}],"service_account_admin_reach":[],"supported_locales":["en"]}
 HTTP/1.1 404 Not Found
-x-request-id: 01a1adb4-ce87-7cd5-b5b8-a4e3c94ca4a2
+x-request-id: 01a1cc87-316b-7e27-bf3a-59d5fcf11212
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 222
-Date: Thu, 05 Nov 2026 21:54:30 GMT
+Date: Wed, 11 Nov 2026 21:32:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"scope 01a1adb4-cdc0-7d40-aa26-b9a16e0d2dc7 is not assigned to client 01a1adb4-ce0a-7b36-8d73-24d04dbeecc7","instance":"01a1adb4-ce87-7cd5-b5b8-a4e3c94ca4a2"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"scope 01a1cc87-307a-76b7-8ff4-0dcdbefae2b4 is not assigned to client 01a1cc87-30d4-77dd-832d-43a0c1dac83e","instance":"01a1cc87-316b-7e27-bf3a-59d5fcf11212"}
 ```
-
-This block was run again after the token exchange limits joined the client, so its ids and times are not those of the blocks around it.
 
 `/authorize`, asked for `openid` again, now refuses it the same way an
 unregistered scope would — `state` and `iss` still carried back, the same
@@ -130,10 +128,63 @@ curl -sS -D - -o /dev/null "$AUTHORIZE"
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a18729-d211-766a-8c4f-9f682f72cc3a
+x-request-id: 01a1cc87-3181-7a59-8982-baebdd227c8c
 location: https://app.example/callback?error=invalid_scope&error_description=A+requested+scope+is+not+available+to+this+client.&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fscope-unassign-demo
 content-length: 0
-Date: Thu, 29 Oct 2026 10:17:07 GMT
+Date: Wed, 11 Nov 2026 21:32:54 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+```
+
+## A client that may start an action keeps `me:read`
+
+A client that may start an action through `/authorize` (`allowed_actions`, on [`PATCH /clients/{id}`](./patch-clientsid.md#the-actions-a-client-may-start))
+reads the outcome through the scope `me:read`, so the scope cannot be taken from it while the allowance stands. Unassigning it
+answers `409` with the code `allowed_actions_need_me_read`, and it says to clear the actions first. Deleting the scope itself is
+refused the same way while any client that holds it may start an action, which [the scope's own page](./get-scopes-post-scopes-get-scopesid-patch-scopesid-and-delete-scopesid.md) shows.
+In the tenant `scope-unassign-demo` above, a client `actions-app` is given `me:read`, then an action:
+
+```bash
+ME_READ=$(curl -sS -H "$A" "$U/scopes?name=me:read" | jq -r '.items[0].id')
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"actions-app","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none"}' \
+  $U/clients -o /dev/null
+ACTIONS=$(curl -sS -H "$A" "$U/clients?client_id_exact=actions-app" | jq -r '.items[0].id')
+curl -sS -X PUT -H "$A" -H "$J" -d '{"assignment":"optional"}' $U/scopes/$ME_READ/clients/$ACTIONS -o /dev/null
+etag() { curl -sS -D - -o /dev/null -H "$A" $U/clients/$ACTIONS | tr -d '\r' | sed -n 's/^etag: //p'; }
+curl -sS -X PATCH -H "$A" -H "$J" -H "If-Match: $(etag)" -d '{"allowed_actions":["configure-totp"]}' $U/clients/$ACTIONS | jq -c '{allowed_actions}'
+curl -sS -D - -X DELETE -H "$A" $U/scopes/$ME_READ/clients/$ACTIONS
+```
+
+```
+{"allowed_actions":["configure-totp"]}
+HTTP/1.1 409 Conflict
+x-request-id: 01a1cc87-321f-779c-b44b-92cba0982cc1
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 501
+Date: Wed, 11 Nov 2026 21:32:54 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the scope me:read stays while a client may start an action, since that client reads the outcome through it: clear the client's allowed_actions first","errors":[{"path":"allowed_actions","message":"the scope me:read stays while a client may start an action, since that client reads the outcome through it: clear the client's allowed_actions first","code":"allowed_actions_need_me_read"}],"instance":"01a1cc87-321f-779c-b44b-92cba0982cc1"}
+```
+
+Once the actions are cleared the scope comes off, with the `204` every unassignment answers:
+
+```bash
+curl -sS -X PATCH -H "$A" -H "$J" -H "If-Match: $(etag)" -d '{"allowed_actions":[]}' $U/clients/$ACTIONS | jq -c '{allowed_actions}'
+curl -sS -D - -X DELETE -H "$A" $U/scopes/$ME_READ/clients/$ACTIONS
+```
+
+```
+{"allowed_actions":[]}
+HTTP/1.1 204 No Content
+x-request-id: 01a1cc87-326a-7803-9993-ed50d89abfea
+cache-control: no-store
+etag: "42f94d64d60608bf099f9cafa97d0ccdd4d171dde6fa44341c0337c1685f2693"
+Date: Wed, 11 Nov 2026 21:32:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

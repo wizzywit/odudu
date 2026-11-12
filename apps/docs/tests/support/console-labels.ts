@@ -842,6 +842,14 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'clients/services/tokenExchange.ts',
     "EXCHANGE_ACTOR_LABEL = 'Accept an actor token issued to another client'",
   ),
+  'Application actions': page(
+    'clients/services/sectionTitles.ts',
+    "actions: 'Application actions'",
+  ),
+  'Actions an application may start': page(
+    'clients/services/applicationActions.ts',
+    "ACTIONS_LABEL = 'Actions an application may start'",
+  ),
   'New subjects': page('roles/use-cases/useRoleGeneral.ts', "label: 'New subjects'"),
   'Tenant or client': page('roles/ui/RolesPage/RolesPage.tsx', "label: 'Tenant or client'"),
   'New clients': page('scopes/use-cases/useScopeGeneral.ts', "label: 'New clients'"),
@@ -978,17 +986,20 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/services/credentialAsk.ts',
     "label: 'Ask for a new set at next sign-in'",
   ),
-  'Choose a new password': page(
-    'subjects/services/requiredActions.ts',
+  'Choose a new password': entity(
+    'subject/services/requiredActions.ts',
     "label: 'Choose a new password'",
   ),
-  'Set up an authenticator app': page(
-    'subjects/services/requiredActions.ts',
+  'Set up an authenticator app': entity(
+    'subject/services/requiredActions.ts',
     "label: 'Set up an authenticator app'",
   ),
-  'Register a passkey': page('subjects/services/requiredActions.ts', "label: 'Register a passkey'"),
-  'Generate recovery codes': page(
-    'subjects/services/requiredActions.ts',
+  'Register a passkey': entity(
+    'subject/services/requiredActions.ts',
+    "label: 'Register a passkey'",
+  ),
+  'Generate recovery codes': entity(
+    'subject/services/requiredActions.ts',
     "label: 'Generate recovery codes'",
   ),
   'Required actions to email': page(

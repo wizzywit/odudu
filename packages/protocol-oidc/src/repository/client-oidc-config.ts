@@ -43,6 +43,7 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
       row.idTokenSignedResponseAlg as ClientOidcConfig['idTokenSignedResponseAlg'],
     defaultMaxAge: row.defaultMaxAge,
     requireAuthTime: row.requireAuthTime,
+    allowedActions: row.allowedActions,
   };
 }
 
@@ -78,6 +79,7 @@ export type NewClientOidcConfig = Omit<
   | 'idTokenSignedResponseAlg'
   | 'defaultMaxAge'
   | 'requireAuthTime'
+  | 'allowedActions'
 > & {
   idTokenTtlSeconds?: number | null;
   clientCredentialsScopes?: string[];
@@ -103,6 +105,7 @@ export type NewClientOidcConfig = Omit<
   idTokenSignedResponseAlg?: ClientOidcConfig['idTokenSignedResponseAlg'];
   defaultMaxAge?: number | null;
   requireAuthTime?: boolean;
+  allowedActions?: ClientOidcConfig['allowedActions'];
 };
 
 // The origins a client allows, rewritten from its lists as the server compares
@@ -184,6 +187,7 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
           idTokenSignedResponseAlg: input.idTokenSignedResponseAlg ?? null,
           defaultMaxAge: input.defaultMaxAge ?? null,
           requireAuthTime: input.requireAuthTime ?? false,
+          allowedActions: input.allowedActions ?? [],
         })
         .returning();
       const row = rows[0];
@@ -198,7 +202,7 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
     // Every amendable `client_oidc_config` column
     // (client-patch.ts's `AMENDABLE_CLIENT_FIELDS`) in one statement — a
     // list field (`redirectUris`, `grantTypes`, `audiences`, `webOrigins`,
-    // `postLogoutRedirectUris`, `clientCredentialsScopes`) replaces the
+    // `postLogoutRedirectUris`, `clientCredentialsScopes`, `allowedActions`) replaces the
     // column wholesale, since `patch` carries exactly the arrays the
     // caller wants to keep, never a delta to append.
     async update(

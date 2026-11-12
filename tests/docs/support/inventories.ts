@@ -258,6 +258,8 @@ export const PROTOCOL_TERMS: readonly (readonly [string, string])[] = [
   ['claims', 'claims'],
   ['ui_locales', 'ui_locales'],
   ['response_mode', 'response_mode'],
+  ['action', 'action'],
+  ['action_status', 'action_status'],
 ];
 
 function protocolTerms(): Item[] {

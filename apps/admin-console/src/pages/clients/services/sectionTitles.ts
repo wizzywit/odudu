@@ -6,6 +6,7 @@ export const SECTIONS_ADVANCED = {
   userinfo: 'UserInfo response',
   audiences: 'Audiences',
   exchange: 'Token exchange',
+  actions: 'Application actions',
   secret: 'Client secret',
   fixed: 'Fixed by design',
 } as const;

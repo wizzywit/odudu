@@ -1,4 +1,3 @@
-import type { RequiredAction } from '#/entities/subject';
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';
@@ -16,8 +15,11 @@ import {
   actionsMailProblem,
   REQUIRED_ACTION_OPTIONS,
   requiredActionsInOrder,
-} from '#/pages/subjects/services/requiredActions';
-import { type Subject, subjectName, subjectTabHref } from '#/entities/subject';
+  type RequiredAction,
+  type Subject,
+  subjectName,
+  subjectTabHref,
+} from '#/entities/subject';
 
 export type { MailOutcome };
 

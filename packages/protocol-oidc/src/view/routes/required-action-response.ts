@@ -1,19 +1,20 @@
 import {
-  renderPasskeyEnrolmentPage,
-  renderRecoveryCodesPage,
+  renderRequestedRecoveryCodesConfirmPage,
   renderRequiredActionPage,
-  renderTotpEnrolmentPage,
-  renderUpdatePasswordPage,
   type PasskeyEnrolmentOffer,
+  type ActionPageVariant,
   type BeginRecoveryCodesOutcome,
+  type RecordActionStep,
   type RequiredAction,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
 import { requestContextFrom, type RequestContext } from '@odudu/domain-audit';
 import { type PasswordRules, type RenderedPage, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
+import { requestedVariant } from '#/service/action-request';
 import { sendHtml } from '#/view/html-response';
-import { sendSignInExpired } from '#/view/routes/expired-sign-in';
+import { actionPages } from '#/view/routes/action-pages';
+import { sendActionUnavailable, sendSignInExpired } from '#/view/routes/expired-sign-in';
 import {
   continuation,
   type ContinuationDeps,
@@ -43,11 +44,24 @@ export interface RequiredActionResponseDeps extends ContinuationDeps {
     subjectId: string,
     authSessionId: string,
   ): Promise<PasskeyEnrolmentOffer>;
+  // `keepHeld` leaves a set the subject already holds alone, answering `held`.
   beginRecoveryCodes(
     tenantId: string,
     subjectId: string,
     request: RequestContext,
+    keepHeld?: boolean,
   ): Promise<BeginRecoveryCodesOutcome>;
+  // What the tenant itself still owes the subject: an action it owes is never
+  // offered a way out, whoever else asked for it.
+  pendingActions(tenantId: string, subjectId: string): Promise<readonly RequiredAction[]>;
+  // Whether the subject has a password at all.
+  holdsPassword(tenantId: string, subjectId: string): Promise<boolean>;
+  // The step an action an application requested has reached: audited, and
+  // when it is an ending, parked for the response.
+  recordActionStep(
+    input: RecordActionStep & { tenantId: string },
+    request: RequestContext,
+  ): Promise<void>;
 }
 
 // The one place a 'required_action' outcome becomes a response, so login.ts,
@@ -63,13 +77,28 @@ export async function sendRequiredActionPage(
 ): Promise<FastifyReply> {
   // The first factor is verified by the time an action is owed, so the
   // subject's own locale may choose the page's language.
-  const { locale, continuing, signInPath } = await continuation(
+  const { locale, continuing, signInPath, requestedAction } = await continuation(
     deps,
     tenantName,
     authSessionId,
     reply,
     { subject: subjectId },
   );
+  // The page of an action an application sent the person to may be left; the
+  // page of one the tenant owes may not.
+  const asked = requestedAction === action ? await deps.findTenant(tenantName) : null;
+  const owedByTenant = asked === null ? [] : await deps.pendingActions(asked.id, subjectId);
+  const variant: ActionPageVariant | undefined =
+    requestedVariant(requestedAction, owedByTenant) === action ? 'requested' : undefined;
+  const pages = actionPages(variant);
+  const record = (step: RecordActionStep['step']) =>
+    asked === null
+      ? Promise.resolve()
+      : deps.recordActionStep(
+          { tenantId: asked.id, authSessionId, subjectId, action, step },
+          requestContextFrom(reply.request),
+        );
+  await record('requested');
   const send = (page: RenderedPage) => sendHtml(reply, 200, continuing(page));
   const beginPasskey = deps.beginPasskeyEnrolment?.bind(deps);
   if (action === 'configure-passkey' && beginPasskey !== undefined) {
@@ -77,7 +106,7 @@ export async function sendRequiredActionPage(
     if (tenant !== null) {
       const offer = await beginPasskey(tenantName, tenant.id, subjectId, authSessionId);
       return send(
-        renderPasskeyEnrolmentPage(
+        pages.passkey(
           tenantName,
           tenantAddressOf(reply.request),
           authSessionId,
@@ -100,14 +129,29 @@ export async function sendRequiredActionPage(
         tenant.id,
         subjectId,
         requestContextFrom(reply.request),
+        variant === 'requested',
       );
       // The set was refused because no second factor is held any more, and the
       // action is cleared: signing in again goes on without it.
       if (issued.kind === 'no_second_factor') {
-        return sendSignInExpired(reply, deps, tenantName, authSessionId);
+        if (variant === undefined) return sendSignInExpired(reply, deps, tenantName, authSessionId);
+        await record('error');
+        return sendActionUnavailable(reply, deps, tenantName, authSessionId);
+      }
+      // An application asked, and the person holds a set: nothing is replaced
+      // until they say so.
+      if (issued.kind === 'held') {
+        return send(
+          renderRequestedRecoveryCodesConfirmPage(
+            tenantName,
+            tenantAddressOf(reply.request),
+            authSessionId,
+            locale,
+          ),
+        );
       }
       return send(
-        renderRecoveryCodesPage(
+        actionPages(undefined).recoveryCodes(
           tenantName,
           tenantAddressOf(reply.request),
           authSessionId,
@@ -120,9 +164,18 @@ export async function sendRequiredActionPage(
   }
   if (action === 'update-password') {
     const tenant = await deps.findTenant(tenantName);
+    // A person who signs in without a password has none to prove or change.
+    if (
+      tenant !== null &&
+      variant === 'requested' &&
+      !(await deps.holdsPassword(tenant.id, subjectId))
+    ) {
+      await record('error');
+      return sendActionUnavailable(reply, deps, tenantName, authSessionId);
+    }
     if (tenant !== null) {
       return send(
-        renderUpdatePasswordPage(
+        pages.updatePassword(
           tenantName,
           tenantAddressOf(reply.request),
           authSessionId,
@@ -143,13 +196,6 @@ export async function sendRequiredActionPage(
   }
   const offer = await deps.beginTotpEnrolment(tenantName, tenant.id, subjectId);
   return send(
-    renderTotpEnrolmentPage(
-      tenantName,
-      tenantAddressOf(reply.request),
-      authSessionId,
-      offer,
-      undefined,
-      locale,
-    ),
+    pages.totp(tenantName, tenantAddressOf(reply.request), authSessionId, offer, undefined, locale),
   );
 }

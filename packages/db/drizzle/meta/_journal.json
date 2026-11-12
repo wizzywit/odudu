@@ -897,6 +897,13 @@
       "when": 1790889383737,
       "tag": "0127_pending_email_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1790975783737,
+      "tag": "0128_client_allowed_actions",
+      "breakpoints": true
     }
   ]
 }

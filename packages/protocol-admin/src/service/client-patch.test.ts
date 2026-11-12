@@ -13,8 +13,8 @@ describe('the client amendment allowlist', () => {
   // column, `builtin_admin`, which needs its own refusal reason rather
   // than falling silently into either list — the fourth test below is
   // what catches a column like it.
-  it('admits the five mutable columns on clients and 28 of 31 on client_oidc_config', () => {
-    expect(AMENDABLE_CLIENT_FIELDS).toHaveLength(37);
+  it('admits the five mutable columns on clients and 29 of 32 on client_oidc_config', () => {
+    expect(AMENDABLE_CLIENT_FIELDS).toHaveLength(38);
     for (const field of [
       'name',
       'enabled',
@@ -93,9 +93,10 @@ describe('the narrower allowlist the built-in admin client is amended through', 
   // `client_oidc_config` is refused on this one client by default, and
   // this is what forces somebody to say so deliberately instead of
   // discovering it when an administrator is locked out.
-  it('guards the other twenty-two, admission-bearing or not yet judged', () => {
+  it('guards the other twenty-three, admission-bearing or not yet judged', () => {
     expect([...BUILTIN_ADMIN_GUARDED_FIELDS].sort()).toEqual([
       'access_token_ttl_seconds',
+      'allowed_actions',
       'audiences',
       'client_credentials_scopes',
       'default_max_age',

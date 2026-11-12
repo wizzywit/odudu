@@ -22,6 +22,9 @@ import {
   pendingSession,
   readSessionEntries,
   recordRememberMe,
+  holdsPassword,
+  recordActionStep,
+  type RecordActionStep,
   resetAuthenticationProgress,
   sessionRepository,
   startAuthentication,
@@ -650,13 +653,27 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
     // One definition for the same two doors: the login that discovers the
     // action is owed, and the acknowledgement that has to re-render it.
-    const startRecoveryCodes = (tenantId: string, subjectId: string, request: RequestContext) =>
+    const startRecoveryCodes = (
+      tenantId: string,
+      subjectId: string,
+      request: RequestContext,
+      keepHeld = false,
+    ) =>
       withTenant(
         deps.database.db,
         tenantId,
-        (tx) => beginRecoveryCodes(tx, { tenantId, subjectId }),
+        (tx) => beginRecoveryCodes(tx, { tenantId, subjectId, keepHeld }),
         request,
       );
+    const holdsPasswordFor = (tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => holdsPassword(tx, subjectId));
+
+    // One definition for every door that shows an action an application
+    // requested, and for the submission that ends it.
+    const recordActionStepFor = (
+      input: { tenantId: string } & RecordActionStep,
+      request: RequestContext,
+    ) => withTenant(deps.database.db, input.tenantId, (tx) => recordActionStep(tx, input), request);
 
     // Both halves of passkey enrolment exist only where a relying party can
     // be derived; where it cannot, the routes have nothing to call and say
@@ -824,6 +841,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       pendingActions,
       beginTotpEnrolment: startTotpEnrolment,
       beginRecoveryCodes: startRecoveryCodes,
+      recordActionStep: recordActionStepFor,
+      holdsPassword: holdsPasswordFor,
       ...passkeyEnrolment,
       consentContext,
       grantedScopeIds,
@@ -909,6 +928,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       subjectLocale,
       beginTotpEnrolment: startTotpEnrolment,
       beginRecoveryCodes: startRecoveryCodes,
+      recordActionStep: recordActionStepFor,
+      holdsPassword: holdsPasswordFor,
       ...passkeyEnrolment,
       resetAuthenticationProgress: (tenantId: string, authSessionId: string) =>
         withTenant(deps.database.db, tenantId, (tx) =>
@@ -990,6 +1011,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       pendingActions,
       beginTotpEnrolment: startTotpEnrolment,
       beginRecoveryCodes: startRecoveryCodes,
+      recordActionStep: recordActionStepFor,
+      holdsPassword: holdsPasswordFor,
       ...passkeyEnrolment,
       ...branding,
       subjectLocale,

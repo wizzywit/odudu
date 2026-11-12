@@ -35,6 +35,10 @@ export const AUDIT_ACTIONS = {
     'otp.enrolled',
     'passkey.enrolled',
     'recovery_codes.issued',
+    'action.requested',
+    'action.completed',
+    'action.cancelled',
+    'action.failed',
   ],
 } as const;
 
@@ -190,21 +194,30 @@ type TokenInput =
       readonly detail?: ReasonOnly;
     });
 
-type CredentialInput = EventCommon & {
-  readonly eventType: 'credential';
-  readonly action:
-    | 'account.registered'
-    | 'account.registration_duplicate'
-    | 'account.address_proved'
-    | 'email.verified'
-    | 'email.changed'
-    | 'password.reset'
-    | 'password.changed'
-    | 'otp.enrolled'
-    | 'passkey.enrolled'
-    | 'recovery_codes.issued';
-  readonly detail?: ReasonOnly;
-};
+type CredentialInput =
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action:
+        | 'account.registered'
+        | 'account.registration_duplicate'
+        | 'account.address_proved'
+        | 'email.verified'
+        | 'email.changed'
+        | 'password.reset'
+        | 'password.changed'
+        | 'otp.enrolled'
+        | 'passkey.enrolled'
+        | 'recovery_codes.issued';
+      readonly detail?: ReasonOnly;
+    })
+  // An application sent the person to change a credential; `detail.action` is
+  // the required action it named and `actorClientId` the application.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action:
+        'action.requested' | 'action.completed' | 'action.cancelled' | 'action.failed';
+      readonly detail: WithReason<{ action: string }>;
+    });
 
 export type VocabularyEventInput =
   AdminAccessInput | AuthenticationInput | SessionInput | TokenInput | CredentialInput;
@@ -231,6 +244,10 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'token.issue': ['grant_type', 'scope'],
   'token.refresh': ['scope'],
   'token.exchange': ['mode', 'scope', 'requested_token_type'],
+  'action.requested': ['action'],
+  'action.completed': ['action'],
+  'action.cancelled': ['action'],
+  'action.failed': ['action'],
 };
 
 const KNOWN_VOCABULARY_ACTIONS: ReadonlySet<string> = new Set(Object.values(AUDIT_ACTIONS).flat());
@@ -244,6 +261,7 @@ export function isAuditReason(value: unknown): value is AuditReason {
 }
 
 const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
+  'action',
   'factor',
   'scope',
   'method',

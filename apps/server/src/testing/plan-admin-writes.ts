@@ -82,6 +82,10 @@ export async function driveAdminWrites(
     sql`select id from client_scopes where tenant_id = ${t} and name = 'phone'`,
     'built-in scope',
   );
+  const meReadVictim = await pick(
+    sql`select id from client_scopes where tenant_id = ${t} and name = 'me:read'`,
+    'me:read scope',
+  );
   const victimScope = await pick(
     sql`select id from client_scopes where tenant_id = ${t} and name ~ '^scope-9[0-9]+$' order by name limit 1`,
     'scope',
@@ -279,6 +283,10 @@ export async function driveAdminWrites(
     [
       'delete a built-in scope, naming it',
       { method: 'DELETE', url: `${T}/scopes/${builtinVictim}?confirm=phone` },
+    ],
+    [
+      'delete me:read, checking the clients that hold it',
+      { method: 'DELETE', url: `${T}/scopes/${meReadVictim}?confirm=me:read` },
     ],
     ['restore the built-in scopes', { method: 'POST', url: `${T}/scopes/restore-builtins` }],
     [

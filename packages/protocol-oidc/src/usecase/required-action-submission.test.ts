@@ -27,6 +27,9 @@ const SUBMISSION = {
   credential: undefined,
   label: undefined,
   password: undefined,
+  currentPassword: undefined,
+  cancel: false,
+  confirm: false,
 };
 
 interface Harness {
@@ -38,6 +41,8 @@ interface Harness {
   completePasskeyEnrolment: Mock;
   completeRecoveryCodes: Mock;
   completeUpdatePassword: Mock;
+  loadPendingRequest: Mock;
+  recordActionStep: Mock;
 }
 
 function harness(): Harness {
@@ -50,6 +55,8 @@ function harness(): Harness {
     .mockResolvedValue({ kind: 'enrolled', credentialId: 'credential-1' });
   const completeRecoveryCodes = vi.fn().mockResolvedValue({ kind: 'acknowledged' });
   const completeUpdatePassword = vi.fn().mockResolvedValue({ kind: 'updated' });
+  const loadPendingRequest = vi.fn().mockResolvedValue({});
+  const recordActionStep = vi.fn().mockResolvedValue(undefined);
   return {
     deps: {
       findTenant,
@@ -59,7 +66,11 @@ function harness(): Harness {
       completePasskeyEnrolment,
       completeRecoveryCodes,
       completeUpdatePassword,
+      loadPendingRequest,
+      recordActionStep,
     },
+    loadPendingRequest,
+    recordActionStep,
     findTenant,
     authenticatedSubject,
     pendingActions,
@@ -323,6 +334,9 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
       completeTotpEnrolment: (input, request) => deps.completeTotpEnrolment(input, request),
       completeRecoveryCodes: (input) => deps.completeRecoveryCodes(input),
       completeUpdatePassword: (input, request) => deps.completeUpdatePassword(input, request),
+      loadPendingRequest: (tenantId, authSessionId) =>
+        deps.loadPendingRequest(tenantId, authSessionId),
+      recordActionStep: (input, request) => deps.recordActionStep(input, request),
     };
 
     const outcome = await handleRequiredActionSubmission(
@@ -591,5 +605,205 @@ describe('handleRequiredActionSubmission — enrolling a passkey', () => {
       subjectId: 'subject-1',
       action: 'configure-passkey',
     });
+  });
+});
+
+describe('handleRequiredActionSubmission — an action an application requested', () => {
+  const ASKED = { action: 'configure-totp' };
+
+  it('is owed although the tenant owes nothing, and is recorded as a success', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeTotpEnrolment, recordActionStep } =
+      harness();
+    pendingActions.mockResolvedValue([]);
+    loadPendingRequest.mockResolvedValue(ASKED);
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
+
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+    expect(completeTotpEnrolment).toHaveBeenCalledWith(
+      expect.objectContaining({ replace: true }),
+      REQUEST,
+    );
+    expect(recordActionStep).toHaveBeenCalledWith(
+      {
+        tenantId: 'tenant-1',
+        authSessionId: AUTH_SESSION_ID,
+        subjectId: 'subject-1',
+        action: 'configure-totp',
+        step: 'success',
+      },
+      REQUEST,
+    );
+  });
+
+  it('is not recorded as a success while the code is refused', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeTotpEnrolment, recordActionStep } =
+      harness();
+    pendingActions.mockResolvedValue([]);
+    loadPendingRequest.mockResolvedValue(ASKED);
+    completeTotpEnrolment.mockResolvedValue({ kind: 'rejected', reason: 'invalid_code' });
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
+
+    expect(outcome).toMatchObject({ kind: 'rejected', action: 'configure-totp' });
+    expect(recordActionStep).not.toHaveBeenCalled();
+  });
+
+  it('is not owed once it ended, so a second submission changes nothing', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeTotpEnrolment } = harness();
+    pendingActions.mockResolvedValue([]);
+    loadPendingRequest.mockResolvedValue({ ...ASKED, actionStatus: 'success' });
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
+
+    expect(outcome).toEqual({ kind: 'not_owed', action: 'configure-totp' });
+    expect(completeTotpEnrolment).not.toHaveBeenCalled();
+  });
+
+  it('is cancelled by the cancel control, changing nothing', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeTotpEnrolment, recordActionStep } =
+      harness();
+    pendingActions.mockResolvedValue([]);
+    loadPendingRequest.mockResolvedValue(ASKED);
+
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, cancel: true },
+      REQUEST,
+    );
+
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+    expect(completeTotpEnrolment).not.toHaveBeenCalled();
+    expect(recordActionStep).toHaveBeenCalledWith(
+      expect.objectContaining({ step: 'cancelled', action: 'configure-totp' }),
+      REQUEST,
+    );
+  });
+
+  it('cannot be cancelled into skipping an action the tenant owes', async () => {
+    const { deps, pendingActions, recordActionStep } = harness();
+    pendingActions.mockResolvedValue(['configure-totp']);
+
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, cancel: true },
+      REQUEST,
+    );
+
+    expect(outcome).toEqual({ kind: 'not_owed', action: 'configure-totp' });
+    expect(recordActionStep).not.toHaveBeenCalled();
+  });
+
+  it('owes the tenant’s own action first, then this one', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeTotpEnrolment } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+    loadPendingRequest.mockResolvedValue(ASKED);
+
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
+
+    expect(outcome).toEqual({ kind: 'not_owed', action: 'configure-totp' });
+    expect(completeTotpEnrolment).not.toHaveBeenCalled();
+  });
+
+  it('asks the password change for the current password, an empty one when none came', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeUpdatePassword } = harness();
+    pendingActions.mockResolvedValue([]);
+    loadPendingRequest.mockResolvedValue({ action: 'update-password' });
+    const change = { ...SUBMISSION, action: 'update-password', password: 'new passphrase here' };
+
+    await handleRequiredActionSubmission(deps, 'acme', change, REQUEST);
+    await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...change, currentPassword: 'old one' },
+      REQUEST,
+    );
+
+    const calls = completeUpdatePassword.mock.calls as [{ currentPassword?: string }][];
+    const asked = calls.map(([input]) => input.currentPassword);
+    expect(asked).toEqual(['', 'old one']);
+  });
+
+  it('asks an owed password change for no current password', async () => {
+    const { deps, completeUpdatePassword, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+
+    await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, action: 'update-password', password: 'new passphrase here' },
+      REQUEST,
+    );
+
+    expect(completeUpdatePassword.mock.calls[0]?.[0]).not.toHaveProperty('currentPassword');
+  });
+
+  it('records nothing for an action nobody requested', async () => {
+    const { deps, recordActionStep } = harness();
+
+    await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
+
+    expect(recordActionStep).not.toHaveBeenCalled();
+  });
+
+  it('offers no way out of an action the tenant also owes, and records a success', async () => {
+    const { deps, pendingActions, loadPendingRequest, recordActionStep, completeTotpEnrolment } =
+      harness();
+    pendingActions.mockResolvedValue(['configure-totp']);
+    loadPendingRequest.mockResolvedValue(ASKED);
+
+    const cancelled = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, cancel: true },
+      REQUEST,
+    );
+    expect(cancelled).toEqual({ kind: 'not_owed', action: 'configure-totp' });
+    expect(recordActionStep).not.toHaveBeenCalled();
+
+    await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
+    expect(completeTotpEnrolment.mock.calls[0]?.[0]).not.toHaveProperty('replace');
+    expect(recordActionStep).toHaveBeenCalledWith(
+      expect.objectContaining({ step: 'success' }),
+      REQUEST,
+    );
+  });
+
+  it('passes the confirmation of a recovery-code replacement on, issuing nothing itself', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeRecoveryCodes } = harness();
+    pendingActions.mockResolvedValue([]);
+    loadPendingRequest.mockResolvedValue({ action: 'generate-recovery-codes' });
+
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, action: 'generate-recovery-codes', confirm: true },
+      REQUEST,
+    );
+
+    expect(outcome).toEqual({
+      kind: 'confirmed',
+      authSessionId: AUTH_SESSION_ID,
+      subjectId: 'subject-1',
+      requested: true,
+    });
+    expect(completeRecoveryCodes).not.toHaveBeenCalled();
+  });
+
+  it('ignores a confirmation for a set the tenant owes', async () => {
+    const { deps, pendingActions, loadPendingRequest } = harness();
+    pendingActions.mockResolvedValue(['generate-recovery-codes']);
+    loadPendingRequest.mockResolvedValue({ action: 'generate-recovery-codes' });
+
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, action: 'generate-recovery-codes', confirm: true },
+      REQUEST,
+    );
+
+    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
   });
 });

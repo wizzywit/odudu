@@ -265,6 +265,28 @@ export const SCREENS: readonly Screen[] = [
     },
   },
   {
+    name: 'client-actions',
+    alt: "my-app's record on its Advanced tab, scrolled to Application actions: a checklist of the four credential changes the client may start for a signed-in person, none chosen, with the section's save control.",
+    caption:
+      'The credential changes a client may send a signed-in person to. None is chosen until an administrator chooses.',
+    signedIn: true,
+    expect: [
+      { heading: CLIENT },
+      { role: 'tab', name: 'Advanced' },
+      { label: 'Register a passkey' },
+    ],
+    open: async (page, context) => {
+      await openList(page, context, 'clients');
+      await page.getByRole('row', { name: new RegExp(CLIENT, 'u') }).click();
+      await page.getByRole('tab', { name: 'Advanced' }).click();
+      const label = page.getByText('Actions an application may start', { exact: true });
+      await label.waitFor();
+      await label.evaluate((element) => {
+        element.scrollIntoView({ block: 'center' });
+      });
+    },
+  },
+  {
     name: 'scopes',
     alt: "The demo tenant's Scopes list: openid, profile, email, address, phone, roles, groups, offline_access, mcp:read, mcp:write, me:read and me:write, with Restore built-in scopes and Create a scope buttons.",
     caption: 'The twelve scopes every tenant starts with.',

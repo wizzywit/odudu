@@ -13,7 +13,7 @@ import { isUniqueViolation, type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
-import { DefaultScopeLimitError } from '@odudu/domain-tenant';
+import { ALLOWED_ACTIONS_NEED_ME_READ, DefaultScopeLimitError } from '@odudu/domain-tenant';
 import {
   amendScope,
   assignScopeToClient,
@@ -42,6 +42,7 @@ import {
   ifMatchStale,
   problem,
   sendProblem,
+  type Problem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { serviceAccountCeilingProblem } from '#/view/routes/clients';
@@ -245,6 +246,13 @@ export function amendScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
   };
 }
 
+function allowedActionsProblem(message: string): Problem {
+  return {
+    ...problem(409, 'about:blank', 'Conflict', message),
+    errors: [{ path: 'allowed_actions', message, code: ALLOWED_ACTIONS_NEED_ME_READ }],
+  };
+}
+
 export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const id = request.params.id;
@@ -277,6 +285,14 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'openid_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'me_scope_incoherent':
+        return sendProblem(
+          reply,
+          request,
+          problem(409, 'about:blank', 'Conflict', outcome.message),
+        );
+      case 'allowed_actions_need_me_read':
+        return sendProblem(reply, request, allowedActionsProblem(outcome.message));
       case 'capability_ceiling':
         return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'builtin_confirmation_required':
@@ -544,6 +560,8 @@ export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRout
           request,
           problem(409, 'about:blank', 'Conflict', outcome.message),
         );
+      case 'allowed_actions_need_me_read':
+        return sendProblem(reply, request, allowedActionsProblem(outcome.message));
       case 'not_assigned':
         return sendProblem(
           reply,

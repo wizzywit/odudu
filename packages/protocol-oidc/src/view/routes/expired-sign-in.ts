@@ -2,6 +2,7 @@ import { type PendingRequest } from '@odudu/authn-flows';
 import { negotiatePageLocale } from '@odudu/i18n';
 import { brandLocale, withPageTheme, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
+import { requestedActionOf } from '#/service/action-request';
 import { restartAuthorizeLocation } from '#/service/restart-request';
 import { errorRedirect } from '#/usecase/login-submission';
 import { renderAuthorizeErrorPage, type WayOn } from '#/view/authorize-html';
@@ -24,14 +25,58 @@ async function returnToApplication(
   deps: ContinuationDeps,
   tenantId: string,
   pending: PendingRequest,
+  actionFailed = false,
 ): Promise<WayOn | undefined> {
   if (!(await deps.redirectStillRegistered(tenantId, pending.clientId, pending.redirectUri))) {
     return undefined;
   }
-  return {
-    kind: 'return',
-    href: errorRedirect(pending, tenantAddressOf(reply.request), NOT_COMPLETED),
-  };
+  return { kind: 'return', href: returnHref(reply, pending, actionFailed) };
+}
+
+// Back to the client with the refusal, and, where an action was asked for and
+// has not ended, the word that it did not complete.
+function returnHref(reply: FastifyReply, pending: PendingRequest, actionFailed: boolean): string {
+  const href = errorRedirect(pending, tenantAddressOf(reply.request), NOT_COMPLETED);
+  if (!actionFailed && requestedActionOf(pending) === null) return href;
+  const target = new URL(href);
+  target.searchParams.set('action_status', 'error');
+  return target.toString();
+}
+
+// An action an application asked for that this person's account cannot take:
+// recorded as failed, and the page says so and offers the way back.
+export async function sendActionUnavailable(
+  reply: FastifyReply,
+  deps: ContinuationDeps,
+  tenantName: string,
+  authSessionId: string,
+): Promise<FastifyReply> {
+  const tenant = await deps.findTenant(tenantName);
+  const pending = tenant === null ? null : await deps.loadPendingRequest(tenant.id, authSessionId);
+  const wayOn =
+    tenant === null || pending === null
+      ? undefined
+      : await returnToApplication(reply, deps, tenant.id, pending, true);
+  const locale = await brandLocale(
+    withPageTheme(
+      negotiatePageLocale({
+        uiLocales: pending?.uiLocales ?? [],
+        acceptLanguage: reply.request.headers['accept-language'],
+        ...tenantNegotiation(tenant),
+      }),
+      reply.request.headers.cookie,
+    ),
+    deps.resolveBranding,
+    tenant === null
+      ? null
+      : { tenantId: tenant.id, tenantName, clientId: pending?.clientId ?? null },
+    deps.resolveOverrides,
+  );
+  return sendHtml(
+    reply,
+    400,
+    renderAuthorizeErrorPage('access_denied', t(locale, 'error.actionUnavailable'), wayOn, locale),
+  );
 }
 
 // The one answer for a submission whose authentication session is no longer

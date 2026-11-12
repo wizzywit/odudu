@@ -44,6 +44,7 @@ export interface ClientAnswer {
   id_token_signed_response_alg: string | null;
   default_max_age: number | null;
   require_auth_time: boolean;
+  allowed_actions: readonly string[];
   previous_secret_expires_at: string | null;
   builtin_admin: boolean;
   skip_logout_confirmation: boolean;
@@ -106,6 +107,7 @@ export function client(
     id_token_signed_response_alg: null,
     default_max_age: null,
     require_auth_time: false,
+    allowed_actions: [],
     previous_secret_expires_at: null,
     builtin_admin: false,
     skip_logout_confirmation: false,

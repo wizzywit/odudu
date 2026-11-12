@@ -59,4 +59,12 @@ export const ar: Readonly<Record<string, string>> = {
     'يجب ألا تكون كلمة المرور من كلمات المرور التي استخدمتها من قبل.',
   'updatePassword.rule.superseded':
     'تم تغيير كلمة مرورك في مكان آخر قبل إرسال هذا النموذج. سجّل الدخول مرة أخرى بكلمة المرور التي عيّنتها هناك.',
+  'updatePassword.currentPassword': 'كلمة المرور الحالية',
+  'updatePassword.rule.currentPassword': 'كلمة المرور الحالية غير صحيحة.',
+  'action.cancel': 'إلغاء والعودة',
+  'updatePassword.requestedIntro':
+    'طلب منك أحد التطبيقات تغيير كلمة المرور. أدخل كلمة المرور الحالية أولًا.',
+  'recoveryCodes.confirmReplace':
+    'سيحل هذا محل رموز الاسترداد الحالية. تتوقف الرموز القديمة عن العمل بمجرد التأكيد.',
+  'recoveryCodes.confirm': 'استبدال رموز الاسترداد',
 };

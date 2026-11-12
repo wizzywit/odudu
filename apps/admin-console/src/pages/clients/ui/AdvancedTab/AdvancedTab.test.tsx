@@ -106,6 +106,75 @@ it('says a client that authenticates with a key has no secret, and offers no rot
   expect(screen.queryByRole('button', { name: /^Rotate the secret/u })).toBeNull();
 });
 
+const WITH_ME_READ = {
+  scopes: [{ id: 's-me-read', name: 'me:read', assignment: 'optional' }],
+};
+
+function holding(extra: Record<string, unknown>) {
+  return clientRoutes(undefined, {
+    [`GET ${C}/c-bill`]: json({ ...BILLING, ...extra }, 200, { etag: '"c-bill-1"' }),
+    [`PATCH ${C}/c-bill`]: json(
+      { ...BILLING, ...extra, allowed_actions: ['configure-totp'] },
+      200,
+      {
+        etag: '"b2"',
+      },
+    ),
+  });
+}
+
+it('offers the four required actions, none chosen, and saves the ones chosen in the server order', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(AT, holding(WITH_ME_READ));
+  await open();
+  const section = screen.getByRole('region', { name: 'Application actions' });
+  const boxes = within(section).getAllByRole('checkbox');
+  expect(boxes).toHaveLength(4);
+  for (const box of boxes) expect(box).not.toBeChecked();
+  await user.click(within(section).getByRole('checkbox', { name: /authenticator app/u }));
+  await user.click(within(section).getByRole('checkbox', { name: /new password/u }));
+  await user.click(within(section).getByRole('button', { name: 'Save Application actions' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')).toMatchObject({
+      ifMatch: '"c-bill-1"',
+      body: { allowed_actions: ['update-password', 'configure-totp'] },
+    });
+  });
+});
+
+it('holds an action back while the client lacks me:read, and says where to assign it', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, holding({ scopes: [] }));
+  await open();
+  const section = screen.getByRole('region', { name: 'Application actions' });
+  await user.click(within(section).getByRole('checkbox', { name: /passkey/u }));
+  expect(within(section).getByRole('button', { name: 'Save Application actions' })).toBeDisabled();
+  expect(within(section).getByText(/Assign me:read under Scopes first/u)).toBeVisible();
+});
+
+it("shows the server's refusal of an action under the choices, in its words", async () => {
+  const user = userEvent.setup();
+  const reason =
+    'a client that may start an action holds the scope me:read, which is how it reads the outcome';
+  renderConsoleAt(
+    AT,
+    clientRoutes(undefined, {
+      [`GET ${C}/c-bill`]: json({ ...BILLING, ...WITH_ME_READ }, 200, { etag: '"c-bill-1"' }),
+      [`PATCH ${C}/c-bill`]: problem(400, 'about:blank', 'Bad Request', {
+        detail: reason,
+        errors: [
+          { path: 'allowed_actions', message: reason, code: 'allowed_actions_need_me_read' },
+        ],
+      }),
+    }),
+  );
+  await open();
+  const section = screen.getByRole('region', { name: 'Application actions' });
+  await user.click(within(section).getByRole('checkbox', { name: /recovery codes/u }));
+  await user.click(within(section).getByRole('button', { name: 'Save Application actions' }));
+  expect(await within(section).findByText(reason)).toBeVisible();
+});
+
 it('publishes a key set pasted here, and clears the address with it', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(AT, patching({ jwks: { keys: [] } }));

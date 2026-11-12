@@ -1930,3 +1930,101 @@ describe('seed admin', () => {
     expect(result).not.toHaveProperty('password');
   });
 });
+
+describe('seed client --allow-action', () => {
+  async function allowedActionsOf(tenantId: string, oauthClientId: string): Promise<string[]> {
+    return withTenant(owner.db, tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(oauthClientId);
+      if (client === null) throw new Error(`no client ${oauthClientId}`);
+      const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+      if (config === null) throw new Error(`no oidc config for ${oauthClientId}`);
+      return config.allowedActions;
+    });
+  }
+
+  async function tenantWith(meReadForNewClients: boolean): Promise<{ name: string; id: string }> {
+    const name = `acts-${newId()}`;
+    const made = await seed(['tenant', '--name', name]);
+    const id = made.tenantId;
+    if (meReadForNewClients) {
+      await owner.sql`
+        update client_scopes set default_client_assignment = 'optional'
+        where tenant_id = ${id} and name = 'me:read'`;
+    }
+    return { name, id };
+  }
+
+  const client = (tenant: string, clientId: string, ...extra: string[]) =>
+    seed([
+      'client',
+      '--tenant',
+      tenant,
+      '--client-id',
+      clientId,
+      '--public',
+      '--redirect-uri',
+      'https://app.example/callback',
+      ...extra,
+    ]);
+
+  it('keeps no action by default', async () => {
+    const tenant = await tenantWith(false);
+    await client(tenant.name, 'plain');
+    expect(await allowedActionsOf(tenant.id, 'plain')).toEqual([]);
+  });
+
+  it('refuses a name that is not a required action, listing the four', async () => {
+    const tenant = await tenantWith(true);
+    const before = await countClients(tenant.id);
+    await expect(client(tenant.name, 'odd', '--allow-action', 'delete-account')).rejects.toThrow(
+      /delete-account.*update-password, configure-totp, configure-passkey, generate-recovery-codes/s,
+    );
+    expect(await countClients(tenant.id)).toBe(before);
+  });
+
+  it('assigns me:read to the client itself where the tenant does not', async () => {
+    const tenant = await tenantWith(false);
+    await client(tenant.name, 'bare', '--allow-action', 'update-password');
+    expect(await allowedActionsOf(tenant.id, 'bare')).toEqual(['update-password']);
+    expect(await assignedScopes(tenant.id, 'bare')).toContain('me:read');
+  });
+
+  it('keeps the assignment the tenant already gives, and assigns nothing without the flag', async () => {
+    const tenant = await tenantWith(true);
+    await client(tenant.name, 'given', '--allow-action', 'configure-totp');
+    expect(await assignedScopes(tenant.id, 'given')).toContain('me:read');
+    await client(tenant.name, 'plain');
+    expect((await assignedScopes(tenant.id, 'plain')).includes('me:read')).toBe(true);
+    const bare = await tenantWith(false);
+    await client(bare.name, 'plain');
+    expect(await assignedScopes(bare.id, 'plain')).not.toContain('me:read');
+  });
+
+  it('refuses, writing nothing, in a tenant that has no me:read scope to assign', async () => {
+    const tenant = await tenantWith(false);
+    await owner.sql`delete from client_scopes where tenant_id = ${tenant.id} and name = 'me:read'`;
+    const before = await countClients(tenant.id);
+    await expect(
+      client(tenant.name, 'orphan', '--allow-action', 'update-password'),
+    ).rejects.toMatchObject({ code: 'allowed_actions_need_me_read' });
+    expect(await countClients(tenant.id)).toBe(before);
+  });
+
+  it('stores each action once where the tenant assigns me:read to new clients', async () => {
+    const tenant = await tenantWith(true);
+    await client(
+      tenant.name,
+      'portal',
+      '--allow-action',
+      'configure-totp',
+      '--allow-action',
+      'update-password',
+      '--allow-action',
+      'configure-totp',
+    );
+    expect(await allowedActionsOf(tenant.id, 'portal')).toEqual([
+      'configure-totp',
+      'update-password',
+    ]);
+  });
+});

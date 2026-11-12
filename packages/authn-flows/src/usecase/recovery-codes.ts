@@ -9,10 +9,13 @@ import { type RecoveryCodesOffer } from '#/view/recovery-codes-html';
 export interface IssueRecoveryCodes {
   tenantId: string;
   subjectId: string;
+  // Leave a set the subject already holds alone and say so, for a caller that
+  // must ask before replacing it.
+  keepHeld?: boolean;
 }
 
 export type BeginRecoveryCodesOutcome =
-  { kind: 'issued'; offer: RecoveryCodesOffer } | { kind: 'no_second_factor' };
+  { kind: 'issued'; offer: RecoveryCodesOffer } | { kind: 'no_second_factor' } | { kind: 'held' };
 
 // Returns the plaintext codes exactly once, to the page that shows them:
 // one Argon2id hash per code is stored, and a reload issues a different ten,
@@ -31,6 +34,8 @@ export async function beginRecoveryCodes(
     await requiredActionRepository(tx).complete(input.subjectId, 'generate-recovery-codes');
     return { kind: 'no_second_factor' };
   }
+
+  if (input.keepHeld === true && standing.held > 0) return { kind: 'held' };
 
   const codes = generateRecoveryCodes();
   const hashes = await Promise.all(codes.map((code) => hashPassword(normaliseRecoveryCode(code))));

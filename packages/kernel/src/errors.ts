@@ -23,6 +23,7 @@ export const ERROR_CODES = [
   'seed_unknown_command',
   'seed_unknown_setting',
   'seed_unknown_grant_type',
+  'allowed_actions_need_me_read',
   'seed_admin_exists',
   'init_invalid_options',
   'init_roles_without_secrets',

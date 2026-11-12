@@ -1,5 +1,6 @@
 import {
   useClientConfigSaves,
+  type ActionValues,
   type AudienceValues,
   type AuthValues,
   type ExchangeValues,
@@ -33,6 +34,13 @@ import {
   keySourceOf,
   type KeysProblem,
 } from '#/pages/clients/services/clientKeys';
+import {
+  ACTIONS_LABEL,
+  ACTIONS_RULE,
+  actionOptions,
+  actionsBlock,
+  type ActionOption,
+} from '#/pages/clients/services/applicationActions';
 import { SECTIONS_ADVANCED } from '#/pages/clients/services/sectionTitles';
 import {
   USERINFO_RULE,
@@ -47,6 +55,7 @@ import {
   useClientSection,
   type ClientRecordRead,
 } from '#/pages/clients/use-cases/useClientSection';
+import { describeActions, REQUIRED_ACTIONS } from '#/entities/subject';
 import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
 import type { Choice } from '#/shared/lib/services/choice';
 import { namesOrNone, orBlank, spaced } from '#/shared/lib/services/format';
@@ -88,6 +97,12 @@ export interface ClientAdvanced {
   encrypted: boolean;
   audiences: SectionSave<AudienceValues>;
   exchange: SectionSave<ExchangeValues>;
+  actions: SectionSave<ActionValues>;
+  actionsLabel: string;
+  actionsRule: string;
+  actionOptions: ActionOption[];
+  // Why Save is held while an action is chosen and the client lacks me:read.
+  actionsBlocked: string | undefined;
 }
 
 export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
@@ -183,6 +198,20 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     },
     save: saves.exchange,
   });
+  const actions = useSectionSave({
+    ...shared,
+    section: 'actions',
+    label: SECTIONS_ADVANCED.actions,
+    fields: {
+      allowed_actions: {
+        value: client.allowed_actions,
+        label: ACTIONS_LABEL,
+        kind: 'plain',
+        describe: describeActions,
+      },
+    },
+    save: saves.actions,
+  });
   const problem = keysProblem(keys.values, keys.dirty);
   return {
     sections: SECTIONS_ADVANCED,
@@ -217,5 +246,10 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     encrypted: encryptsUserinfo(userinfo.values.userinfo_encrypted_response_alg),
     audiences,
     exchange,
+    actions,
+    actionsLabel: ACTIONS_LABEL,
+    actionsRule: ACTIONS_RULE,
+    actionOptions: actionOptions(REQUIRED_ACTIONS),
+    actionsBlocked: actionsBlock(actions.values.allowed_actions, client.scopes),
   };
 }
