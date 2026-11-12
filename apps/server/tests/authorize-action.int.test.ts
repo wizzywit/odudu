@@ -894,7 +894,9 @@ describe('ending the other sessions with a password change', () => {
     const live = await liveSessionIds(w);
     expect(live).toContain(keep);
     expect(live).not.toContain(other);
-    expect(await changeAudits(w)).toEqual([{ ended_other_sessions: true }]);
+    expect(await changeAudits(w)).toEqual([
+      { ended_other_sessions: true, breached_check: 'passed' },
+    ]);
   });
 
   it('leaves the other sessions when the box is unchecked', async () => {
@@ -903,7 +905,9 @@ describe('ending the other sessions with a password change', () => {
     const live = await liveSessionIds(w);
     expect(live).toContain(keep);
     expect(live).toContain(other);
-    expect(await changeAudits(w)).toEqual([{ ended_other_sessions: false }]);
+    expect(await changeAudits(w)).toEqual([
+      { ended_other_sessions: false, breached_check: 'passed' },
+    ]);
   });
 
   it('ends every earlier session when the change is owed at sign-in, and the new one lives', async () => {
