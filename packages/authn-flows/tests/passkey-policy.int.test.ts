@@ -14,6 +14,7 @@ import {
   userCredentials,
   users,
 } from '@odudu/domain-identity';
+import { auditRepository } from '@odudu/domain-audit';
 import { newId } from '@odudu/kernel';
 import {
   createAppRole,
@@ -213,6 +214,13 @@ describe('a passkey enrolled under the tenant’s policy', () => {
   });
 });
 
+async function passkeyRow(tenantId: string) {
+  const rows = await withTenant(app.db, tenantId, (tx) =>
+    auditRepository(tx).list({ eventType: 'authentication', limit: 50 }),
+  );
+  return rows.find((row) => row.action === 'login.passkey' && row.outcome === 'allowed');
+}
+
 describe('a passkey that did not verify the person', () => {
   async function seedWeakPasskey(otpRequired: boolean) {
     const tenantId = newId();
@@ -247,5 +255,27 @@ describe('a passkey that did not verify the person', () => {
     const { outcome } = await signInWithPasskey(tenantId, authenticator, 1, true);
 
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['passkey'] });
+  });
+
+  it('records that the person was not verified on the audit row, under the same action', async () => {
+    const { tenantId, authenticator } = await seedWeakPasskey(false);
+
+    await signInWithPasskey(tenantId, authenticator, 1, false);
+
+    expect((await passkeyRow(tenantId))?.detail).toEqual({
+      factor: 'passkey',
+      user_verified: false,
+    });
+  });
+
+  it('records that the person was verified when the assertion verified them', async () => {
+    const { tenantId, authenticator } = await seedWeakPasskey(false);
+
+    await signInWithPasskey(tenantId, authenticator, 1, true);
+
+    expect((await passkeyRow(tenantId))?.detail).toEqual({
+      factor: 'passkey',
+      user_verified: true,
+    });
   });
 });

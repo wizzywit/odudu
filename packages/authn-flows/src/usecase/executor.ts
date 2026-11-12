@@ -988,7 +988,11 @@ export async function advance(
   }
 
   const subjectId = result.subjectId;
-  await audit.allowed(authenticator, subjectId);
+  await audit.allowed(
+    authenticator,
+    subjectId,
+    authenticator === PASSKEY ? !(result.also ?? []).includes(PASSKEY_UNVERIFIED) : undefined,
+  );
   await authenticationSessionRepository(tx).bindSubject(authSessionId, subjectId);
 
   // Everything after this point is decided for this subject, so the flow is

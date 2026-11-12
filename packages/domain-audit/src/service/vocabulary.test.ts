@@ -83,6 +83,18 @@ describe('assertDetailAllowed', () => {
     }).not.toThrow();
   });
 
+  it('accepts a boolean user_verified on login.passkey only', () => {
+    expect(() => {
+      assertDetailAllowed('login.passkey', { factor: 'passkey', user_verified: false });
+    }).not.toThrow();
+    expect(() => {
+      assertDetailAllowed('login.passkey', { factor: 'passkey', user_verified: 'no' });
+    }).toThrow(/user_verified/);
+    expect(() => {
+      assertDetailAllowed('login.password', { factor: 'password', user_verified: true });
+    }).toThrow(/user_verified/);
+  });
+
   it('rejects a key login.password does not name', () => {
     expect(() => {
       assertDetailAllowed('login.password', {

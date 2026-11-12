@@ -134,9 +134,13 @@ type AdminAccessInput =
 type AuthenticationInput =
   | (EventCommon & {
       readonly eventType: 'authentication';
-      readonly action:
-        'login.password' | 'login.otp' | 'login.recovery_code' | 'login.passkey' | 'factor.offered';
+      readonly action: 'login.password' | 'login.otp' | 'login.recovery_code' | 'factor.offered';
       readonly detail?: WithReason<{ factor: string }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'authentication';
+      readonly action: 'login.passkey';
+      readonly detail?: WithReason<{ factor: string; user_verified?: boolean }>;
     })
   | (EventCommon & {
       readonly eventType: 'authentication';
@@ -242,7 +246,7 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'login.password': ['factor'],
   'login.otp': ['factor'],
   'login.recovery_code': ['factor'],
-  'login.passkey': ['factor'],
+  'login.passkey': ['factor', 'user_verified'],
   'factor.offered': ['factor'],
   'client.authenticate': ['method'],
   'session.ended': ['via'],
@@ -299,6 +303,7 @@ function isValidDetailValue(key: string, value: unknown): boolean {
   if (key === 'also_admits') {
     return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }
+  if (key === 'user_verified') return typeof value === 'boolean';
   if (STRING_DETAIL_KEYS.has(key)) return typeof value === 'string';
   return true;
 }
