@@ -325,3 +325,14 @@ describe('the authenticator policy settings', () => {
     );
   });
 });
+
+describe('the passkey switch', () => {
+  it('reads as the boolean column it is stored in', () => {
+    expect(coerceTenantSetting('require_passkey', 'true')).toEqual({
+      kind: 'coerced',
+      column: 'requirePasskey',
+      value: true,
+    });
+    expect(coerceTenantSetting('require_passkey', 'maybe').kind).toBe('invalid_value');
+  });
+});

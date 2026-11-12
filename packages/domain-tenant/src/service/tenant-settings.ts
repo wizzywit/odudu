@@ -76,6 +76,7 @@ const SETTINGS = {
     values: TENANT_SETTING_CHOICES.webauthn_resident_key as readonly string[],
   },
   recovery_code_count: { column: 'recoveryCodeCount', type: 'integer' },
+  require_passkey: { column: 'requirePasskey', type: 'boolean' },
   login_with_email: { column: 'loginWithEmail', type: 'boolean' },
   cimd_enabled: { column: 'cimdEnabled', type: 'boolean' },
   // The audit trail's admin pair can never be left out: a security trail an

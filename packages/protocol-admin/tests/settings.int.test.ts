@@ -538,6 +538,29 @@ describe('the authenticator policy settings', () => {
   });
 });
 
+describe('the passkey switch', () => {
+  it('starts off, turns on through the settings and reads back', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const read = () =>
+      fixture.http.inject({
+        method: 'GET',
+        url: `/admin/tenants/${t.name}/settings`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+    expect((await read()).json()).toMatchObject({ require_passkey: false });
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { require_passkey: true },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ require_passkey: true });
+    expect((await read()).json()).toMatchObject({ require_passkey: true });
+  });
+});
+
 describe('the language settings', () => {
   async function setup() {
     const t = await fixture.createTenant(`acme-${newId()}`);

@@ -99,6 +99,9 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   webauthn_user_verification: z.enum(['required', 'preferred', 'discouraged']).default('required'),
   webauthn_resident_key: z.enum(['required', 'preferred', 'discouraged']).default('required'),
   recovery_code_count: count.min(8).max(16).default(10),
+  // Absent from a document exported before the switch existed, which
+  // imports with it off.
+  require_passkey: z.boolean().default(false),
   login_with_email: z.boolean(),
   // Absent from a document exported before the setting existed, which
   // imports with it off.
