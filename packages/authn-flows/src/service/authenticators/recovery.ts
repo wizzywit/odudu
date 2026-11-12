@@ -1,6 +1,6 @@
 import { type CredentialSecret, verifyPassword } from '@odudu/domain-identity';
 import { randomBytes } from 'node:crypto';
-import { PASSKEY, RECOVERY_CODE } from '#/service/authenticators/names';
+import { PASSKEY, PASSKEY_UNVERIFIED, RECOVERY_CODE } from '#/service/authenticators/names';
 
 export type RecoveryCodeSecret = Extract<CredentialSecret, { kind: 'recovery-code' }>;
 
@@ -139,6 +139,6 @@ export function recoveryApplicable(
 ): boolean {
   // Never after a passkey, for the reason otpApplicable gives: an assertion
   // is already two factors, so there is no second factor left to recover.
-  if (satisfied.has(PASSKEY)) return false;
+  if (satisfied.has(PASSKEY) && !satisfied.has(PASSKEY_UNVERIFIED)) return false;
   return offered && subject.hasRecoveryCodes && secondFactorInPlay;
 }

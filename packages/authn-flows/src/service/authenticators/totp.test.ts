@@ -118,6 +118,12 @@ describe('otpApplicable', () => {
     expect(otpApplicable({ hasTotp: false }, { otpRequired: true }, AFTER_A_PASSKEY)).toBe(false);
   });
 
+  it('still applies after a passkey that did not verify the person, which is one factor', () => {
+    const weak: ReadonlySet<string> = new Set(['passkey', 'passkey-unverified']);
+    expect(otpApplicable({ hasTotp: true }, { otpRequired: false }, weak)).toBe(true);
+    expect(otpApplicable({ hasTotp: false }, { otpRequired: true }, weak)).toBe(true);
+  });
+
   it('still applies after a password, which is one', () => {
     expect(otpApplicable({ hasTotp: true }, { otpRequired: false }, new Set(['password']))).toBe(
       true,

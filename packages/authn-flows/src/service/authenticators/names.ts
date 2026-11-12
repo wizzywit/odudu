@@ -9,5 +9,9 @@ export const PASSKEY = 'passkey';
 export const OTP = 'otp';
 export const RECOVERY_CODE = 'recovery-code';
 
+// Recorded beside PASSKEY when the assertion did not verify the person: the
+// passkey is then one factor, not two, and the second factor still applies.
+export const PASSKEY_UNVERIFIED = 'passkey-unverified';
+
 export type AuthenticatorName =
   typeof PASSWORD | typeof PASSKEY | typeof OTP | typeof RECOVERY_CODE;

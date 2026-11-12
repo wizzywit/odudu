@@ -6,6 +6,7 @@ import { systemClock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { noticeOwnChange } from '#/usecase/own-change-notice';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { relyingPartyOfTenant } from '#/usecase/passkey-relying-party';
 import {
   parseRegistrationResponse,
@@ -32,7 +33,9 @@ export async function beginPasskeyEnrolment(
 ): Promise<PasskeyEnrolmentOffer> {
   const user = await userRepository(tx).bySubjectId(input.subjectId);
   const existing = await credentialRepository(tx).listFor(input.subjectId, 'webauthn');
+  const { webauthn } = await tenantSettingsRepository(tx).authenticatorPolicy(input.tenantId);
   const offer = await passkeyRegistrationOptions({
+    policy: webauthn,
     relyingParty: await relyingPartyOfTenant(tx, input.tenantId, input.publicBaseUrl),
     tenantName: input.tenantName,
     username: user?.username ?? input.subjectId,
@@ -95,9 +98,11 @@ export async function completePasskeyEnrolment(
   if (response === null) return { kind: 'rejected', reason: 'invalid_response' };
 
   const relyingParty = await relyingPartyOfTenant(tx, input.tenantId, input.publicBaseUrl);
+  const { webauthn } = await tenantSettingsRepository(tx).authenticatorPolicy(input.tenantId);
   const verified = await verifyPasskeyRegistration({
     relyingParty,
     expectedChallenge: challenge,
+    userVerification: webauthn.userVerification,
     response,
   });
   if (verified.kind === 'rejected') return { kind: 'rejected', reason: 'invalid_response' };
@@ -128,6 +133,8 @@ export async function completePasskeyEnrolment(
       publicKey: verified.publicKey,
       counter: verified.counter,
       transports: verified.transports,
+      userVerification: webauthn.userVerification,
+      residentKey: webauthn.residentKey,
     },
   });
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-passkey');

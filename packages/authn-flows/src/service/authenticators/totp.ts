@@ -1,6 +1,6 @@
 import { verifyTotp, type TotpAlgorithm } from '@odudu/crypto';
 import { type CredentialSecret } from '@odudu/domain-identity';
-import { OTP, PASSKEY } from '#/service/authenticators/names';
+import { OTP, PASSKEY, PASSKEY_UNVERIFIED } from '#/service/authenticators/names';
 
 export type TotpSecret = Extract<CredentialSecret, { kind: 'totp' }>;
 
@@ -139,7 +139,8 @@ export function otpApplicable(
   // user verification, so an assertion is possession of the key and the
   // authenticator's own check of whoever held it — two factors, which is
   // what FACTOR_COUNT (protocol-oidc's service/acr.ts) also counts it as.
-  // A tenant's otp_required is a floor, not a tax.
-  if (satisfied.has(PASSKEY)) return false;
+  // A tenant's otp_required is a floor, not a tax. A passkey whose assertion
+  // did not verify the person is one factor, so the floor still applies.
+  if (satisfied.has(PASSKEY) && !satisfied.has(PASSKEY_UNVERIFIED)) return false;
   return subject.hasTotp || tenant.otpRequired;
 }

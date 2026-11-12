@@ -6,6 +6,8 @@ describe('amrFor', () => {
     expect(amrFor(['password'])).toEqual(['pwd']);
     expect(amrFor(['otp'])).toEqual(['otp']);
     expect(amrFor(['passkey'])).toEqual(['hwk', 'user']);
+    // Without verification there is no `user` to report.
+    expect(amrFor(['passkey', 'passkey-unverified'])).toEqual(['hwk']);
   });
 
   it('de-duplicates and keeps a stable order for a multi-factor login', () => {
@@ -30,6 +32,11 @@ describe('acrFor', () => {
   it('is 1 for one factor and 2 for two', () => {
     expect(acrFor(['password'])).toBe('1');
     expect(acrFor(['password', 'otp'])).toBe('2');
+  });
+
+  it('is 1 for a passkey that did not verify the person, which is one factor', () => {
+    expect(acrFor(['passkey', 'passkey-unverified'])).toBe('1');
+    expect(acrFor(['passkey', 'passkey-unverified', 'otp'])).toBe('2');
   });
 
   it('is 2 for a passkey alone, which is already two factors', () => {

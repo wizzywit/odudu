@@ -20,6 +20,7 @@ import {
   type TenantAddress,
 } from '@odudu/kernel';
 import { z } from 'zod';
+import { type AuthenticatorPolicy, type WebauthnRequirement } from '#/service/authenticator-policy';
 
 // WebAuthn §5.1.3 binds a credential to the relying party's identifier, and
 // a browser will not offer a credential whose RP ID is not a registrable
@@ -115,6 +116,8 @@ export interface PasskeyRegistrationRequest {
   // second way to resolve whose credential answered.
   userHandle: string;
   existingCredentialIds: readonly string[];
+  // What the tenant asks of a new passkey; the stored row keeps it.
+  policy: AuthenticatorPolicy['webauthn'];
 }
 
 export interface PasskeyRegistrationOffer {
@@ -135,15 +138,14 @@ export async function passkeyRegistrationOptions(
     // A subject who already has a passkey enrols a second one on a
     // different authenticator, not a duplicate on the same one.
     excludeCredentials: request.existingCredentialIds.map((id) => ({ id })),
-    // Both required rather than the library's "preferred" defaults, and
-    // both for a property of what this credential is for. A passkey stands
-    // alone as a factor that counts as two, which is only true if the
-    // authenticator actually verified the person holding it — unverified,
-    // it is one factor wearing two factors' authority. And a credential
-    // that is not discoverable cannot answer an assertion that names no
-    // username, which is the only way a passkey is offered as a first
-    // factor. Neither can be retrofitted: both are fixed at creation.
-    authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+    // Fixed at creation and stored with the row, so a later change of policy
+    // cannot change how this passkey verifies. A credential that is not
+    // discoverable cannot answer an assertion naming no username, and one
+    // made without user verification signs in as a single factor.
+    authenticatorSelection: {
+      residentKey: request.policy.residentKey,
+      userVerification: request.policy.userVerification,
+    },
   });
   return { options, challenge: options.challenge };
 }
@@ -184,6 +186,9 @@ export function parseRegistrationResponse(value: unknown): RegistrationResponseJ
 export interface PasskeyRegistrationVerification {
   relyingParty: RelyingParty;
   expectedChallenge: string;
+  // The policy the options were offered under: only `required` refuses a
+  // response whose user-verified flag is clear.
+  userVerification: WebauthnRequirement;
   response: RegistrationResponseJSON;
 }
 
@@ -211,11 +216,10 @@ export async function verifyPasskeyRegistration(
       expectedChallenge: input.expectedChallenge,
       expectedOrigin: input.relyingParty.origin,
       expectedRPID: input.relyingParty.id,
-      // Stated rather than inherited, and it is the same requirement the
-      // options ask the authenticator for: a response whose user-verified
-      // flag is clear is refused here, so the two sides cannot drift into
-      // asking for verification and then accepting its absence.
-      requireUserVerification: true,
+      // The same requirement the options ask the authenticator for, so the
+      // two sides cannot drift into asking for verification and then
+      // accepting its absence.
+      requireUserVerification: input.userVerification === 'required',
     });
   } catch {
     // Every refusal the library makes by throwing — a challenge that does
@@ -246,16 +250,17 @@ export interface PasskeyAuthenticationOffer {
 // No allowCredentials, which is what tells a browser to offer every
 // discoverable credential it holds rather than a list the server had to
 // know a username to build — the whole of "sign in with a passkey, type
-// nothing". userVerification is stated rather than inherited from the
-// library's 'preferred' default, and matches what enrolment demanded:
-// a passkey counts as two factors only where the authenticator verified
-// whoever held it.
+// nothing". The assertion asks for verification where the tenant requires
+// it for new passkeys, and otherwise lets the browser verify when it can: no
+// credential is known yet, and one made under a stricter policy must still
+// be able to answer.
 export async function passkeyAuthenticationOptions(
   relyingParty: RelyingParty,
+  userVerification: WebauthnRequirement,
 ): Promise<PasskeyAuthenticationOffer> {
   const options = await generateAuthenticationOptions({
     rpID: relyingParty.id,
-    userVerification: 'required',
+    userVerification: userVerification === 'required' ? 'required' : 'preferred',
   });
   return { options, challenge: options.challenge };
 }
@@ -308,10 +313,13 @@ export interface PasskeyAssertionVerification {
   response: AuthenticationResponseJSON;
   // The credential row this assertion named, as enrolment stored it.
   credential: { id: string; publicKey: string; counter: number; transports: string[] };
+  // True for a passkey made under a policy that required user verification.
+  requireUserVerification: boolean;
 }
 
 export type PasskeyAssertionOutcome =
-  { kind: 'verified'; credentialId: string; counter: number } | { kind: 'rejected' };
+  | { kind: 'verified'; credentialId: string; counter: number; userVerified: boolean }
+  | { kind: 'rejected' };
 
 export async function verifyPasskeyAssertion(
   input: PasskeyAssertionVerification,
@@ -329,10 +337,7 @@ export async function verifyPasskeyAssertion(
         counter: input.credential.counter,
         transports: input.credential.transports,
       },
-      // Stated rather than inherited, exactly as verifyPasskeyRegistration
-      // states it: the two halves of one ceremony must not be able to drift
-      // into asking for user verification and then accepting its absence.
-      requireUserVerification: true,
+      requireUserVerification: input.requireUserVerification,
     });
   } catch {
     // Every refusal the library makes by throwing — a challenge that does
@@ -342,6 +347,6 @@ export async function verifyPasskeyAssertion(
   }
   if (!verification.verified) return { kind: 'rejected' };
 
-  const { credentialID, newCounter } = verification.authenticationInfo;
-  return { kind: 'verified', credentialId: credentialID, counter: newCounter };
+  const { credentialID, newCounter, userVerified } = verification.authenticationInfo;
+  return { kind: 'verified', credentialId: credentialID, counter: newCounter, userVerified };
 }

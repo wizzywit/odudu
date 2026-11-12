@@ -32,6 +32,7 @@ async function enrol(
   const registered = await verifyPasskeyRegistration({
     relyingParty: RELYING_PARTY,
     expectedChallenge: challenge,
+    userVerification: 'required',
     response: registrationJson(authenticator, challenge, signCount),
   });
   if (registered.kind !== 'verified') throw new Error('expected the fixture to enrol');
@@ -61,7 +62,7 @@ function registrationJson(
 }
 
 async function offeredChallenge(): Promise<string> {
-  const { challenge } = await passkeyAuthenticationOptions(RELYING_PARTY);
+  const { challenge } = await passkeyAuthenticationOptions(RELYING_PARTY, 'required');
   return challenge;
 }
 
@@ -123,6 +124,7 @@ describe('passkeyStep', () => {
       subjectId: SUBJECT_ID,
       credentialId: CREDENTIAL_ROW_ID,
       counter: 5,
+      userVerified: true,
     });
   });
 
@@ -166,6 +168,7 @@ describe('passkeyStep', () => {
       subjectId: SUBJECT_ID,
       credentialId: CREDENTIAL_ROW_ID,
       counter: 0,
+      userVerified: true,
     });
   });
 
@@ -298,11 +301,72 @@ describe('counterAdvanced', () => {
 
 describe('passkeyAuthenticationOptions', () => {
   it('[WEBAUTHN2-7.2.1-01] names no credentials, so a browser offers every discoverable one it holds', async () => {
-    const { options, challenge } = await passkeyAuthenticationOptions(RELYING_PARTY);
+    const { options, challenge } = await passkeyAuthenticationOptions(RELYING_PARTY, 'required');
 
     expect(options.rpId).toBe(RP_ID);
     expect(options.allowCredentials).toBeUndefined();
     expect(options.userVerification).toBe('required');
     expect(options.challenge).toBe(challenge);
+  });
+});
+
+describe('a passkey verifies under the user verification it was made with', () => {
+  async function assertUnverified(secret: WebauthnSecret, authenticator: SoftwareAuthenticator) {
+    const challenge = await offeredChallenge();
+    return passkeyStep(
+      {
+        assertion: authenticator.assertion({
+          challenge,
+          rpId: RP_ID,
+          origin: PUBLIC_BASE_URL,
+          signCount: secret.counter + 1,
+          userVerified: false,
+        }),
+      },
+      verificationFor(secret, challenge),
+    );
+  }
+
+  it('refuses an unverified assertion from a passkey made with verification required', async () => {
+    const { authenticator, secret } = await enrol(0);
+    const outcome = await assertUnverified(
+      { ...secret, userVerification: 'required' },
+      authenticator,
+    );
+    expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+  });
+
+  it('reads a passkey that records no parameter as made with verification required', async () => {
+    const { authenticator, secret } = await enrol(0);
+    expect(await assertUnverified(secret, authenticator)).toEqual({
+      kind: 'failure',
+      reason: 'invalid_credentials',
+    });
+  });
+
+  it('accepts an unverified assertion from one made under a policy that allowed it, and says so', async () => {
+    const { authenticator, secret } = await enrol(0);
+    const outcome = await assertUnverified(
+      { ...secret, userVerification: 'preferred' },
+      authenticator,
+    );
+    expect(outcome).toMatchObject({ kind: 'success', userVerified: false });
+  });
+
+  it('reports a verified assertion as verified', async () => {
+    const { authenticator, secret } = await enrol(0);
+    const challenge = await offeredChallenge();
+    const outcome = await passkeyStep(
+      {
+        assertion: authenticator.assertion({
+          challenge,
+          rpId: RP_ID,
+          origin: PUBLIC_BASE_URL,
+          signCount: 1,
+        }),
+      },
+      verificationFor({ ...secret, userVerification: 'preferred' }, challenge),
+    );
+    expect(outcome).toMatchObject({ kind: 'success', userVerified: true });
   });
 });
