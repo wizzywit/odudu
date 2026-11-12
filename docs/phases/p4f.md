@@ -660,3 +660,55 @@ that never configures a step behaves as it does today.
   random password passed that guard, then the run needed a database holding only the `system` and `demo` tenants.
 - In the change-password transcript, a candidate that fails the current-password proof is still looked up when it passes the rules,
   since the proof writes failures and cannot run before the lookup; the lookup sends only the hash prefix.
+
+## Increment 10: a new verification link, and a confirmation that names who
+
+### What shipped
+
+- `POST /tenants/<name>/login-actions/resend-verification` takes the `key` of a refused verification link and queues a new mail for
+  the address that link was minted for, with the client it returned to. The page a refused link shows carries the form for it.
+  Every request is answered by one page, `renderVerificationResentPage`, so an unknown key, a verified address, a spent budget, a
+  link of another kind and a tenant that does not exist cannot be told apart.
+- `email.verification_resent` (credential), written once for each request that queued a mail, no actor, no detail. A `verification`
+  kind of mail budget joins the in-process limiter: three an hour for each tenant and address, apart from the other kinds.
+- The confirmation page names the address and the tenant, and for a registration link also the account name. `peekActionToken`
+  returns the address of a verification link; `registrationWaiting` returns the address of a waiting registration.
+- `actionTokenRepository.lookup(key)`, a read of a link in any state; `addressToProveAgain`, the pure rule for which address a
+  refused link may ask for again.
+
+### Ruling
+
+- **The handle is the spent key itself.** The form posts the key of the refused link, the server hashes it and reads the row, which
+  the reaper keeps for `actionTokenSeconds` after the link is spent or expires. Nothing is signed or minted: whoever holds the key
+  received that mail, the form names no address, and the lookup is by the unique `token_hash` under the tenant's row-level
+  security, so another tenant's key finds nothing. A key the reaper has taken, or never issued, gets the same page.
+- **The form is on every refused page that holds a key, known or not.** A page that offered it only for a key the server knew would
+  tell the two apart. A registration key gets none: its link is asked for again by registering again, and a pending registration
+  holds a password hash that a verification link has no business carrying.
+- **A budget is spent only when a mail is owed.** The order is the key, the kind of link, whether the address still needs proving
+  (`proofOwed`: the person's current address while unverified, or their pending address while it is still the pending one), then the
+  budget. A verified address costs nothing, so a person cannot be locked out of asking by asking about an address that needs no mail.
+  A refused budget gives the same page. The route is also in the per-origin throttle's page set.
+- **No new page kind.** The confirmation page was already the `verification` kind with one form, and it already completed nothing
+  on a visit: the plan's new kind would have copied a manifest the console and the theme contract also hold. The refused page now
+  uses that kind when it carries the form, and the kind gains an optional `links` part for the way back to sign-in, so a theme that
+  omits it loses only that link. The answer to a request is a `notice`.
+- **The mailed link behaves as before for every link already sent.** The visit renders the confirmation page and the press spends
+  the link; the page is the same with two more lines. The CHANGELOG says so under Changed.
+- **No session field beside the key.** The key is the capability, as it is on the confirmation form; there is no cookie to bind a
+  token to.
+- **Timing is not hidden.** The theme is read before the key is looked up, as a reset reads it before the address, so that read tells
+  nothing. A request that queues a mail also writes a token, an outbox row and an audit row, which the others do not, as a reset's
+  does. It is not claimed to be constant time.
+- The mail is written in the person's own language (`proofOwed` returns it), and the new token keeps the client the first named; the
+  page that opens it checks that registration again, as for the first.
+
+### At volume
+
+- A request is one read by the unique `token_hash`, one by subject and one by subject for a pending address, then the token, the
+  outbox row and the audit row: a constant number whatever the table holds. The budget is the in-process limiter's, bounded at 100,000
+  addresses for each kind as the others are.
+
+### Open placements
+
+- None. A registration link that expired is not resent: its refused page has no form, and the person registers again.

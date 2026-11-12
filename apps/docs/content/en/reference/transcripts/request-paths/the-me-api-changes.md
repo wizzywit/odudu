@@ -250,9 +250,11 @@ curl -sS -H "Authorization: Bearer $TOKEN" $ME/profile | jq -c '{email, email_ve
 
 ```
 <h1>Confirm your email address</h1>
+<p>Email address: <bdi>grace.hopper@example.com</bdi></p>
+<p>Account at <bdi>me-edit</bdi></p>
 <p>Press the button to confirm this address.</p>
 <form method="post" action="/tenants/me-edit/login-actions/action-token">
-  <input type="hidden" name="key" value="VTxQVR09adKPRAU2O11Zk1gta_nDl8EyjbzJSp4jMxA">
+  <input type="hidden" name="key" value="d6oNgV9puBSzh3rSSy-OGQ6N5cjMvILmCelwNdxrGDI">
   <button type="submit">Confirm my email</button>
 </form>
 HTTP/1.1 200 OK

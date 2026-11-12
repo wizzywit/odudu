@@ -6,6 +6,7 @@
   "path-a-authorization-code-with-pkce.md",
   "path-a-as-a-confidential-client.md",
   "self-registration.md",
+  "asking-for-a-new-verification-link.md",
   "two-factor-authentication-with-totp.md",
   "recovery-codes.md",
   "enrolling-a-passkey.md",

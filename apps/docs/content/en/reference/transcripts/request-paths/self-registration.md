@@ -359,6 +359,29 @@ referrer-policy: no-referrer
 cache-control: no-store
 ```
 
+The page also says what the press would make: the address, the account name and the tenant, so a link nobody asked for can be
+recognised and left alone. The block below read a link from a mail relay instead of the log, on a stack that had the tenant made as
+this page makes it (`register-demo`, with `registration_allowed`, `verify_email` and `reset_password_allowed` on) and `ada`
+registered as above, and shows the page from its heading to the form, the key cut to its prefix:
+
+```bash
+ID=$(curl -sS localhost:8092/api/v1/messages | jq -r '.messages[0].ID')
+LINK=$(curl -sS localhost:8092/api/v1/message/$ID | jq -r .Text | grep -o 'http://[^ ]*action-token?key=[^ ]*' | tr -d '\r')
+curl -sS "$LINK" | sed -n '/<h1>/,/<\/form>/p' | sed 's/value="reg_[^"]*"/value="reg_…"/'
+```
+
+```
+<h1>Confirm your email address</h1>
+<p>Email address: <bdi>ada@example.com</bdi></p>
+<p>Account name: <bdi>ada</bdi></p>
+<p>Account at <bdi>register-demo</bdi></p>
+<p>Press the button to confirm this address.</p>
+<form method="post" action="/tenants/register-demo/login-actions/action-token">
+  <input type="hidden" name="key" value="reg_…">
+  <button type="submit">Confirm my email</button>
+</form>
+```
+
 Pressing the button posts the key, and that creates the account. A second press, like any
 link nothing holds, is refused, and the tenant holds the one account:
 

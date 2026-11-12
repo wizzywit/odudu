@@ -19,6 +19,7 @@ How they were captured is in [How the transcripts are captured and checked](../.
 - [Path A: authorization code with PKCE](./path-a-authorization-code-with-pkce.md)
 - [Path A, as a confidential client](./path-a-as-a-confidential-client.md)
 - [Self-registration](./self-registration.md)
+- [Asking for a new verification link](./asking-for-a-new-verification-link.md)
 - [Two-factor authentication with TOTP](./two-factor-authentication-with-totp.md)
 - [Recovery codes](./recovery-codes.md)
 - [Enrolling a passkey](./enrolling-a-passkey.md)

@@ -1272,3 +1272,19 @@ was not run: its row is the one written when a mailed link is used, and that row
 stands. The remote source is not run on any page, because it would contact a host outside the stack;
 `apps/server/tests/breached-range-transport.int.test.ts` runs it against a TLS server of its own and asserts what goes on the wire.
 The stacks and their images were removed afterwards.
+
+The page for asking for a new verification link, `asking-for-a-new-verification-link.md`, was run whole on 2026-11-12 on a compose
+project, `odudu-p4f-i10` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, the mail relay of `the-me-api-changes.md`
+added), built from the branch commit `67ad66976` with only documentation files uncommitted, on a database that began empty and had
+served no tenant. Its commands ran in one shell, each block's output written as it came back. A link was made to expire with a
+statement run as the database owner, since the tenant's lifetime is an hour or more. Two blocks of other pages ran on the same stack
+afterwards, with the tenants and the people those pages make, and are the only things of those pages that were run again. The block
+of `the-me-api-changes.md` that opens the mailed link for a new address and presses its button ran on a tenant `me-edit`, with its
+people `grace` and `lin` and its client `me-app` made by `odudu seed` and `seed client` instead of the admin API (the audience, the
+consent requirement and the two scopes are the same; the `session_freshness_seconds` of 30 was not set, and the address change
+followed the sign-in by seconds); the answer of its request to change the address and the mail it sent are shown above the block on
+that page as the earlier run left them, and the block's own output is this run's. The block of `self-registration.md` that shows the
+page a registration link opens, from its heading to the form, ran on a tenant `register-demo` made as that page makes it, with `ada`
+registered by the form, and reads the link from the relay. The two blocks of that page that open the link and press its button were
+not run again: the first filters the page to the lines it names, which this change leaves as they were. The stack and its image
+were removed afterwards.
