@@ -265,3 +265,87 @@ weaker mode excludes exactly what `for update` did among themselves.
 `clients.int.test.ts`'s "lockCapacity under concurrent transactions" shows
 both halves: the lock is taken within a 500 ms `lock_timeout` beside an open
 audit row, and a second capacity lock still times out behind the first.
+
+## Amendment, 2026-11-12 — a device cookie, and an exact cap
+
+The identifier the amendments above defer now exists, and the decision the
+`cap + (k - 1)` residual waited on is taken: the cap is **exact** for a browser
+that holds it, and the orphan it leaves is **bounded and reachable, not
+closed**.
+
+**The identifier.** A sign-in that ends in a redirect sets a cookie,
+`<tenant>-device` (`__Host-<tenant>-device` under TLS), carrying 16 random
+bytes as 22 base64url characters (`newDeviceId`,
+`packages/authn-flows/src/service/device-id.ts`). It is `HttpOnly`,
+`SameSite=Lax`, `Path=/`, `Secure` where the session cookie is, and lives 400
+days, the longest a browser keeps one; every sign-in sends it back and sets it
+again, so it lasts as long as the browser is used. It is per tenant address like
+the session cookie, is read by no client script and is never put in a token.
+`sessions.device_id` (migration `0134_session_device.sql`, nullable, no
+backfill) stores `sha256` of its value, so no list and no database read yields
+a value a browser sends. `/me/sessions` and the admin session lists return that
+digest as `device`.
+
+**What it is trusted for.** Grouping and the count below, nothing else. It
+authenticates no one and resolves no session: a session is still found only by
+the id and secret in the session cookie, because making the device value a way
+to find sessions would make a value a person's own list shows into a bearer
+credential. A forged value can only group the forger's own sessions: admission
+reads sessions on a device only for the subject signing in
+(`sessionRepository.liveByDevice` filters on `subject_id`), so a value copied
+from somebody else's cookie reaches none of their sessions.
+
+**Measurement.** `apps/server/tests/session-cap-k.int.test.ts` seeds a subject
+with `cap = 3` live sessions on one browser, runs `k` concurrent admissions
+from it against the real database (each reading the same cookie snapshot, as
+concurrent requests do) and counts the live sessions afterwards and the live
+sessions the last response's cookie does not name. Ten races per `k`, every
+race giving the same number:
+
+| k   | cookie list only: live, orphaned | device cookie: live, orphaned |
+| --- | -------------------------------- | ----------------------------- |
+| 2   | 4, 1                             | 3, 1                          |
+| 3   | 5, 2                             | 3, 2                          |
+| 4   | 6, 3                             | 3, 2                          |
+| 6   | 8, 5                             | 3, 2                          |
+
+The left column is the code of the amendments above, `cap + (k - 1)` live and
+`k - 1` orphaned, as they say. Admission now also reads the subject's live
+sessions on the device the cookie names, in the same transaction and after the
+tenant-row lock, and evicts from the union of that and the cookie's entries. The
+read is a new statement taken after the lock, so it sees every row a racer
+committed, which the fixed id list of the cookie could not: the cap holds at
+exactly 3 for every `k`.
+
+**The orphan.** It is not closed, and cannot be by this identifier. A racer's
+session is named by no cookie the browser keeps, because a browser keeps the
+last `Set-Cookie` of a name and the server stores no secret to write it again
+(a session row holds a hash). What changes is that the orphan is bounded by the
+cap, never more than `cap - 1` (two of three above), counts against it, and so
+is the first thing admission evicts once it is the least recently active.
+The lists, which already showed it (the 2026-09-25 amendment), now group it
+under its device, so a person or an operator sees which browser it came from. A
+remembered orphan still lives until its idle window or until an admission finds
+the cap full and it is the oldest. Logout through the cookie still cannot reach it.
+
+**Where the cap stays bounded.** A browser with no device cookie yet, which is
+its first sign-in or one after the person cleared cookies, has no device to
+read, and each of `k` simultaneous first sign-ins draws its own value. The
+cookie's list is then all the cap knows, as before, and it is empty for a first
+sign-in: `k` simultaneous first sign-ins leave `k` sessions, which passes a cap
+of 25 only when 26 or more arrive at one instant. A session opened before this amendment has no device and
+is counted through the cookie as before.
+
+**Cost.** One more read in the admission transaction: `liveByDevice` filters
+on `subject_id` and `device_id` and is served by `sessions_by_subject`; it takes
+at most a hundred rows, so it is bounded at any volume. No index on `device_id`
+is added, since no read filters on it alone. The tenant-row lock is unchanged,
+so the accepted cost above stands.
+
+**Rejected.** A per-device advisory lock to narrow the tenant-row lock: the
+count is exact without it and narrowing the lock is the separate decision the
+accepted cost already names. Evicting by device alone, without the subject
+filter: a forged value could end another person's sessions. Finding a session
+by device: see "What it is trusted for". Writing every entry into a cookie per
+session, to remove the orphan: a larger change to the cookie than a size guard
+justifies, and not needed for the cap.

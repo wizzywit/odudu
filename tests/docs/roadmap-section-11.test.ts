@@ -377,11 +377,6 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       'a volume measurement of the audit tables, covered by partitioning',
     ],
     ['RFC 7523 has no clause table', ['P13'], 'protocol-note bookkeeping, no product behaviour'],
-    [
-      'The session cap is per browser',
-      ['P4f'],
-      'an internal race on the cap, no product behaviour',
-    ],
     ['Migrations are hard cutovers', ['P11'], ['migrations run at boot with no lock']],
     ['`audit_events` at 100,000,000 rows', ['P11'], ['partitioned by month']],
     ['Tenant delete is one transaction', ['P11'], ['chunked and resumable']],

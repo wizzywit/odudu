@@ -468,3 +468,50 @@ that never configures a step behaves as it does today.
 ### Open placements
 
 - Moving the authenticator settings onto flow steps is increment 13b's work.
+
+## Increment 8: session device identity and ADR 0033
+
+### What shipped
+
+- A device cookie, `<tenant>-device`, set (and set again) by every sign-in that ends in a redirect, in both doors that write the
+  session cookies (`login-response.ts`, `consent.ts`); `newDeviceId`, `deviceDigest`, `deviceCookie` and `readDeviceId` are one
+  file (`packages/authn-flows/src/service/device-id.ts`). `sessions.device_id` (migration `0134`) stores the digest, never the
+  cookie value. `admitSession` takes the digest and reads the subject's live sessions on it, in the same transaction under the
+  tenant-row lock, beside the cookie's own entries.
+- `device` on `/me/sessions` (was a constant `null`) and on the admin API's session lists: `sessionSchema` is shared by the
+  subject list and, extended, the tenant and client lists, so one field covers all three. A Device column on the console's
+  three session lists (`shared/ui/DeviceCell`, reusing `CopyValue`).
+- `login.passkey` audit rows carry `user_verified` (boolean, passkey only, stated by the executor from `PASSKEY_UNVERIFIED`). The
+  generated audit events page names it.
+- ADR 0033's amendment, with the measurement.
+
+### Ruling
+
+- The cap is exact when the browser holds the cookie; the orphan is bounded and visible, not closed. The measurement
+  (`apps/server/tests/session-cap-k.int.test.ts`, ten races per k, cap 3) gave `cap + (k - 1)` live and `k - 1` orphaned without
+  the device read, and exactly the cap live with it, for k of 2, 3, 4 and 6; orphaned stays up to `cap - 1`, because no cookie can
+  name a session whose secret the server never stored. The device is read only for the subject signing in, so a forged cookie value
+  groups nothing of anybody else's.
+- The lists show a digest, not the cookie value, so reading a list never yields a value a browser sends.
+- No index: the new read filters on `subject_id` and `device_id` and `sessions_by_subject` narrows it to one subject's rows.
+
+### Found while building
+
+- The brief names a `(tenant_id, subject_id)` index on `sessions`; there is none. The index is `sessions_by_subject (subject_id, id)`
+  (`0095_lookup_indexes.sql`), and tenant isolation is the row-level policy.
+- The `-session` cookie lint (`session-cookie-authority.test.ts`) only reads the route files, so the device cookie's attributes live
+  in `device-id.ts` and the routes call `deviceCookie`.
+
+### At volume
+
+- Admission gains one bounded read (at most 100 rows) by subject and device. The sessions lists are unchanged queries with one more
+  selected column. The cookie adds one `Set-Cookie` of about 90 bytes to a sign-in's redirect.
+
+### Open placements
+
+- Transcripts that show the redirect ending a sign-in (21 pages, listed in `contributing/transcripts.md`) and the session blocks of
+  five admin and console pages predate the cookie and the field. They were not run again: the new section "A session's device" of
+  `the-me-api.md` is the live capture, and each of those pages says it predates. Re-running them is a replay of every transcript's
+  sign-in, which belongs to the phase's closing pass over the documents.
+- The roadmap's P4f bullet still names the device and the orphan; it is closed by the phase's closing pass, which reconciles the
+  roadmap and section 11.

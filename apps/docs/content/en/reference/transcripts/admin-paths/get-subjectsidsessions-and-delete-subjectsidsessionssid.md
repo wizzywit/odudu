@@ -19,8 +19,11 @@ place an operator can see a session the cookie no longer names — a second
 concurrent login can orphan one, and a remembered orphan idles for
 `remember_me_idle_seconds` before it stops appearing (ADR 0033's
 amendment). Each entry carries `id`, `created_at`, `last_active_at`,
-`remembered`, and `client_ids` — the OAuth `client_id` of every enabled
-client the session holds a grant for. Paginated the same way every other
+`remembered`, `client_ids` — the OAuth `client_id` of every enabled
+client the session holds a grant for — and `device`, an opaque id shared by
+the sessions opened on one browser, `null` for one opened before it was
+recorded. The blocks on this page were captured before `device` existed;
+[A session's device](../request-paths/the-me-api.md#a-sessions-device) runs it. Paginated the same way every other
 list in this API is: `?limit=` and `?cursor=`, a `Link: rel="next"` header
 and a body `next` while more remain, ordered by `id` — a subject's sessions
 are bounded per browser by `max_sessions_per_browser`, but unbounded across

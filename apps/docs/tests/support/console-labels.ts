@@ -347,6 +347,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/ui/SubjectRecordPage/GrantsTab.tsx',
     'confirmLabel="Revoke grants"',
   ),
+  Device: several(
+    page('subjects/ui/SubjectRecordPage/SessionsTab.tsx', "header: 'Device'"),
+    page('tenant-sessions/ui/TenantSessionsPage/TenantSessionsPage.tsx', "header: 'Device'"),
+    page('clients/ui/SessionsTab/SessionsTab.tsx', "header: 'Device'"),
+  ),
   'End session': page(
     'subjects/ui/SubjectRecordPage/SessionsTab.tsx',
     'confirmLabel="End session"',

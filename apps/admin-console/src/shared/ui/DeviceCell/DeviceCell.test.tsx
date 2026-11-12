@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { DeviceCell } from '#/shared/ui/DeviceCell';
+import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
 const DEVICE = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
 
@@ -15,4 +16,15 @@ it('shows a dash for a session opened before the id was recorded', () => {
   render(<DeviceCell device={null} />);
   expect(screen.getByText('—')).toBeInTheDocument();
   expect(screen.queryByRole('button')).toBeNull();
+});
+
+it('passes axe in both themes, with and without a device', async () => {
+  expect(
+    await axeInBothThemes(() => (
+      <>
+        <DeviceCell device={DEVICE} />
+        <DeviceCell device={null} />
+      </>
+    )),
+  ).toEqual({ light: [], dark: [] });
 });

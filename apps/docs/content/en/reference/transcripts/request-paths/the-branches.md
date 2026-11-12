@@ -557,8 +557,11 @@ session is named by neither. That session is still live, but
 can end, so it cannot be reached that way — an orphan, not a size problem.
 It idles out at `sso_session_idle_seconds` (thirty minutes by default), or
 at `remember_me_idle_seconds` (seven days by default) if the losing login
-was a remembered one. ADR 0033's amendment has the full account and why it
-is accepted rather than fixed now.
+was a remembered one. ADR 0033's amendments have the full account. Since the
+device cookie, admission also counts the subject's sessions on the browser's
+device, so such a race no longer admits more than the cap, and the orphan is
+listed under its device in the session lists; it is still not reachable
+through logout. This page was captured before the device cookie.
 
 ### Choosing among sessions
 

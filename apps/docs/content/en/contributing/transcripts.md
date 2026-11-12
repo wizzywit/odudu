@@ -94,6 +94,20 @@ The blocks that show the tenant settings after the authenticator policy joined t
 
 The blocks that show the tenant settings after the passkey switch joined them were run on 2026-11-12 on a compose project, `odudu-p4f-i7b` (port `3000`, Postgres on `5443`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit `1b6bb733b` with only documentation files uncommitted, on a database that began empty: `seed admin`, a token as in Getting the token, then shell scripts that wrote each output as it came back (carriage returns and trailing spaces removed). The first three blocks of `get-settings-and-patch-settings.md`, its new passkey switch section, the first export block of `get-export.md` (made as that page makes it, 10,913 bytes) and `GET /admin/openapi.json` (816,121 to 816,440 bytes) were run again. The new section of `enrolling-a-passkey.md` ran on the same stack with a tenant `switch-demo`; its authorization codes are shown as `CODE`. The passkey ceremony itself is not run, since a browser makes it. The stack and its image were removed afterwards.
 
+The device cookie and the `device` field of the session lists began on 2026-11-12. The section "A session's device" of
+`the-me-api.md` was run that day on a compose project, `odudu-p4f-i8` (port `3081`, Postgres on `5482`, `ODUDU_REAP_ENABLED=false`,
+throttles at `10000`), built from the branch commit `01b0c3c70` with nothing uncommitted, on a freshly built stack where the page's
+tenant `me-doc`, its user `grace` and its client `me-app` were made as the page makes them. Each of its commands is a file run in
+one shell and its output is the file the page shows, with carriage returns removed. The sign-in helper used there keeps the
+cookie jar it is given and asks for `prompt=login`, as that section says. The stack and its image were removed afterwards. The
+blocks of `the-me-api.md` outside that section, and the session blocks of the admin pages (`get-subjectsidsessions-and-delete-subjectsidsessionssid.md`,
+`get-sessions-get-sessionscount-and-get-clientsidsessions.md`, `delete-subjectsidsessions.md`, `delete-sessions.md`) and of
+`a-refresh-the-server-refuses.md`, were not run again: each shows a session without `device`, and the response that ends a sign-in
+in the pages that show one now carries one more `set-cookie` (the device cookie) than they print. The pages that show a session
+cookie being set are `admin-signs-in-and-changes-a-user.md`, `refresh-and-end-a-session.md`, `sign-a-user-in.md`, `delete-subjectsidrecovery-codes.md`, `get-subjectsidconsents-and-delete-subjectsidconsentsclientid.md`, `getting-the-token.md`, `following-the-logout-redirect.md`, `get-consoleauthcallback-refused.md`, `get-consoleauthcallback-restarted.md`, `the-tenants-own-sign-in.md`, `a-themed-sign-in-and-the-brand-route.md`, `brute-force-lockout.md`, `password-expiry-and-changing-a-password.md`, `password-reset.md`, `path-a-authorization-code-with-pkce.md`, `recovery-codes.md`, `rp-initiated-logout.md`, `self-registration.md`, `the-branches.md`, `the-mcp-endpoint.md`, `two-factor-authentication-with-totp.md`.
+
+The first block of `get-adminopenapijson.md` was run again on 2026-11-12 on a freshly built compose project, `odudu-p4f-i8` (port `3081`), built from the branch commit `01b0c3c70` with the documentation changes uncommitted, because the `device` field made the document 519 bytes longer (816,440 to 816,959). The stack and its image were removed afterwards.
+
 The discovery document and authorization server metadata began to list `me:read` and `me:write` on 2026-11-11, and every tenant now
 starts with twelve scopes. On the compose project `odudu-p4f-i15` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`,
 built from the branch commit `019dd64be`), a freshly built stack with `demo`, `demo-spa` and `ada` seeded as Bootstrap seeds them, the

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { deviceCookieName } from '../../packages/authn-flows/src/service/device-id.js';
 import { sessionCookieName } from '../../packages/authn-flows/src/service/session-cookie.js';
 import { signInHandleName } from '../../packages/authn-flows/src/service/sign-in-handle.js';
 import {
@@ -37,6 +38,7 @@ describe('the cookie names the configuration page lists', () => {
     expect([...table.keys()]).toEqual([
       'Sign-in session',
       'Remembered sign-in',
+      'Browser device',
       'Sign-in in progress',
       'Console session',
       'Console sign-in in progress',
@@ -47,6 +49,7 @@ describe('the cookie names the configuration page lists', () => {
   it.each([
     ['Sign-in session', (tls: boolean) => sessionCookieName('<tenant>', tls)],
     ['Remembered sign-in', (tls: boolean) => `${sessionCookieName('<tenant>', tls)}-persistent`],
+    ['Browser device', (tls: boolean) => deviceCookieName('<tenant>', tls)],
     ['Sign-in in progress', (tls: boolean) => signInHandleName(tls)],
     ['Console session', (tls: boolean) => consoleSessionCookieName(tls)],
   ])('%s is named as the code names it', (label, name) => {
