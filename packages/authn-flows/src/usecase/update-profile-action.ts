@@ -1,6 +1,7 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import { isUniqueViolation, type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
-import { planProfileAmend, userRepository } from '@odudu/domain-identity';
+import { planProfileAmend, userRepository, type UserRecord } from '@odudu/domain-identity';
+import { sql } from 'drizzle-orm';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import {
@@ -32,6 +33,38 @@ export interface UpdateProfile {
   subjectId: string;
   // The form as posted; only the editable fields are read from it.
   posted: Readonly<Record<string, string>>;
+}
+
+// What the form goes back with: what was typed, over what is held.
+function redisplayed(
+  current: UserRecord,
+  fields: readonly string[],
+  posted: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const shown = { ...prefilledValues(current, fields) };
+  for (const field of fields) {
+    const typed = posted[field];
+    if (typed !== undefined) shown[field] = typed;
+  }
+  return shown;
+}
+
+// False where the index refused the name, with the transaction left usable.
+async function renamed(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+  username: string,
+): Promise<boolean> {
+  await tx.execute(sql`savepoint rename_user`);
+  try {
+    await userRepository(tx).updateUsername(subjectId, username);
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    await tx.execute(sql`rollback to savepoint rename_user`);
+    return false;
+  }
+  await tx.execute(sql`release savepoint rename_user`);
+  return true;
 }
 
 export async function profileOffer(
@@ -77,18 +110,22 @@ export async function completeUpdateProfile(
     }
   }
   if (problems.length > 0) {
-    const shown = { ...prefilledValues(current, fields) };
-    for (const field of fields) {
-      const typed = input.posted[field];
-      if (typed !== undefined) shown[field] = typed;
-    }
-    return { kind: 'rejected', problems, values: shown };
+    return { kind: 'rejected', problems, values: redisplayed(current, fields, input.posted) };
   }
 
   if (plan.kind === 'change') {
+    // The username first, in a savepoint: a name another person claimed since
+    // it was looked at is refused by the index, and nothing of the form is
+    // written then.
+    if (plan.username !== null && !(await renamed(tx, input.subjectId, plan.username))) {
+      return {
+        kind: 'rejected',
+        problems: [{ kind: 'username_taken' }],
+        values: redisplayed(current, fields, input.posted),
+      };
+    }
     // Unverified first: the row never holds a verified number it is changing.
     if (plan.verification !== null) await users.setVerification(input.subjectId, plan.verification);
-    if (plan.username !== null) await users.updateUsername(input.subjectId, plan.username);
     if (plan.profile !== null) await users.updateProfile(input.subjectId, plan.profile);
     await auditRepository(tx).record({
       eventType: 'admin_mutation',

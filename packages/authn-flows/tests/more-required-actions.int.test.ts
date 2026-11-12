@@ -263,6 +263,10 @@ const FILLED: Record<string, string> = {
   address_country: 'GB',
 };
 
+function without(form: Record<string, string>, field: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(form).filter(([name]) => name !== field));
+}
+
 describe('update-profile', () => {
   it('offers every editable field with what the person holds', async () => {
     const made = await owing({}, ['update-profile']);
@@ -299,7 +303,7 @@ describe('update-profile', () => {
 
   it('writes nothing and stays owed while an empty field is left empty', async () => {
     const made = await owing({}, ['update-profile']);
-    const { birthdate: _left, ...posted } = FILLED;
+    const posted = without(FILLED, 'birthdate');
     const outcome = await inTenant(made, (tx) =>
       completeUpdateProfile(tx, { tenantId: made.tenantId, subjectId: made.subjectId, posted }),
     );
@@ -331,7 +335,7 @@ describe('update-profile', () => {
   it('does not require a field that is already filled to be sent again', async () => {
     const made = await owing({}, ['update-profile']);
     await inTenant(made, (tx) => userRepository(tx).updateProfile(made.subjectId, { name: 'Ada' }));
-    const { name: _held, ...posted } = FILLED;
+    const posted = without(FILLED, 'name');
     const outcome = await inTenant(made, (tx) =>
       completeUpdateProfile(tx, { tenantId: made.tenantId, subjectId: made.subjectId, posted }),
     );
@@ -381,6 +385,37 @@ describe('update-profile', () => {
       }),
     );
     expect(refused).toMatchObject({ kind: 'rejected', problems: [{ kind: 'username_taken' }] });
+  });
+
+  it('refuses a username another person claims at the same moment, writing nothing of the form', async () => {
+    const first = await owing({ usernameEditable: true }, ['update-profile']);
+    const second = await withTenant(app.db, first.tenantId, async (tx) => {
+      const subject = await subjectRepository(tx).create({
+        tenantId: first.tenantId,
+        type: 'user',
+      });
+      await tx
+        .insert(users)
+        .values({ subjectId: subject.id, tenantId: first.tenantId, username: 'grace-b' });
+      await requiredActionRepository(tx).add(first.tenantId, subject.id, 'update-profile');
+      return { tenantId: first.tenantId, subjectId: subject.id };
+    });
+    const submit = (made: Seed) =>
+      inTenant(made, (tx) =>
+        completeUpdateProfile(tx, {
+          tenantId: made.tenantId,
+          subjectId: made.subjectId,
+          posted: { ...FILLED, username: 'ada-new' },
+        }),
+      );
+    const outcomes = await Promise.all([submit(first), submit(second)]);
+    expect(outcomes.filter((outcome) => outcome.kind === 'completed')).toHaveLength(1);
+    const refused = outcomes.find((outcome) => outcome.kind === 'rejected');
+    expect(refused).toMatchObject({ problems: [{ kind: 'username_taken' }] });
+    const loser = outcomes[0].kind === 'rejected' ? first : second;
+    expect(await ownerRows(loser)).toEqual(['update-profile']);
+    const row = await inTenant(loser, (tx) => userRepository(tx).bySubjectId(loser.subjectId));
+    expect(row?.name).toBeNull();
   });
 
   it('records which fields changed and none of their values', async () => {
