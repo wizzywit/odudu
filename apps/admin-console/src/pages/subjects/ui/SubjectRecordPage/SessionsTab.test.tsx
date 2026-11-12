@@ -134,6 +134,12 @@ it('groups the sessions of one device together, with a count, and the ones with 
     '10:00',
     '07:00',
   ]);
-  expect(within(rows[0]!).getByText('2 sessions on this device')).toBeVisible();
-  expect(within(rows[2]!).getByText('1 session on this device')).toBeVisible();
+  expect(
+    rows.map((row) => within(row).queryByText(/sessions? on this device/u)?.textContent),
+  ).toEqual([
+    '2 sessions on this device',
+    '2 sessions on this device',
+    '1 session on this device',
+    undefined,
+  ]);
 });
