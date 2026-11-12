@@ -73,6 +73,11 @@ export const en = {
   'recoveryCodes.confirmReplace':
     'This replaces your current recovery codes. The old ones stop working as soon as you confirm.',
   'recoveryCodes.confirm': 'Replace my recovery codes',
+  'recoveryCodes.confirmIssue':
+    'This creates a set of recovery codes. Each signs you in once, in place of your second factor, if you lose it.',
+  'recoveryCodes.confirmCreate': 'Create my recovery codes',
+  'recoveryCodes.tooSoon':
+    'Your recovery codes were issued recently and still work. You can replace them in {minutes, plural, one {{minutes, number, ::group-off} minute} other {{minutes, number, ::group-off} minutes}}.',
 };
 
 // A Latin token (a secret, a key URI, a recovery code) keeps its own

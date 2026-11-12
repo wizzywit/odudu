@@ -72,6 +72,8 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'otp.enrolled': 'A user enrolled a one-time-code authenticator.',
   'passkey.enrolled': 'A user enrolled a passkey.',
   'recovery_codes.issued': 'A user was issued a new set of recovery codes.',
+  'recovery_codes.refused':
+    'A new set of recovery codes was refused because the last was issued less than an hour ago and still has codes to spend.',
   'action.requested':
     'An application sent a signed-in person to change a credential. `detail.action` names the ' +
     'action and the actor client is the application. Written each time the page is shown, so a reload can add another.',

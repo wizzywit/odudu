@@ -79,12 +79,13 @@ export function renderRequestedRecoveryCodesPage(
   return recoveryCodesPage(tenant, address, authSessionId, offer, error, locale, 'requested');
 }
 
-// The question put to a person who already holds a set, before anything is
-// issued: the set is replaced by confirming, not by being shown this page.
+// The question put to a person before anything is issued: a set is created
+// or replaced by confirming, not by being shown this page.
 export function renderRequestedRecoveryCodesConfirmPage(
   tenant: string,
   address: TenantAddress,
   authSessionId: string,
+  replaces: boolean,
   locale: PageLocale,
 ): RenderedPage {
   const target = escapeHtml(
@@ -95,14 +96,50 @@ export function renderRequestedRecoveryCodesConfirmPage(
     {
       intro: intro(tHtml(locale, 'recoveryCodes.title'), tenant),
       error: '',
-      instructions: `<p>${tHtml(locale, 'recoveryCodes.confirmReplace')}</p>`,
+      instructions: `<p>${tHtml(locale, replaces ? 'recoveryCodes.confirmReplace' : 'recoveryCodes.confirmIssue')}</p>`,
       notice: '',
       codes: '',
       'form.open': `<form method="post" action="${target}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   <input type="hidden" name="confirm" value="1">`,
-      submit: `<button type="submit">${tHtml(locale, 'recoveryCodes.confirm')}</button>${cancelButton('requested', locale)}`,
+      submit: `<button type="submit">${tHtml(locale, replaces ? 'recoveryCodes.confirm' : 'recoveryCodes.confirmCreate')}</button>${cancelButton('requested', locale)}`,
       'form.close': '</form>',
+    },
+    locale,
+  );
+  return page(t(locale, 'recoveryCodes.title'), body, null, [], locale, 'recovery-codes');
+}
+
+// A replacement the hourly bound refuses: the codes the person holds still
+// work. Only a page an application sent them to has a way out, as the others do.
+export function renderRecoveryCodesTooSoonPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  retryInMinutes: number,
+  variant: ActionPageVariant | undefined,
+  locale: PageLocale,
+): RenderedPage {
+  const target = escapeHtml(
+    addressPath(address, '/login-actions/required-action?action=generate-recovery-codes'),
+  );
+  const body = fillPage(
+    'recovery-codes',
+    {
+      intro: intro(tHtml(locale, 'recoveryCodes.title'), tenant),
+      error: problemSummary([
+        { fields: [], html: tHtml(locale, 'recoveryCodes.tooSoon', { minutes: retryInMinutes }) },
+      ]),
+      instructions: '',
+      notice: '',
+      codes: '',
+      'form.open':
+        variant === undefined
+          ? ''
+          : `<form method="post" action="${target}">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
+      submit: cancelButton(variant, locale).trimStart(),
+      'form.close': variant === undefined ? '' : '</form>',
     },
     locale,
   );

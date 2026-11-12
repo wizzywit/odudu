@@ -657,12 +657,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       tenantId: string,
       subjectId: string,
       request: RequestContext,
-      keepHeld = false,
+      askFirst = false,
     ) =>
       withTenant(
         deps.database.db,
         tenantId,
-        (tx) => beginRecoveryCodes(tx, { tenantId, subjectId, keepHeld }),
+        (tx) => beginRecoveryCodes(tx, { tenantId, subjectId, askFirst, now: clock.now() }),
         request,
       );
     const holdsPasswordFor = (tenantId: string, subjectId: string) =>

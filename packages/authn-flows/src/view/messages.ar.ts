@@ -67,4 +67,9 @@ export const ar: Readonly<Record<string, string>> = {
   'recoveryCodes.confirmReplace':
     'سيحل هذا محل رموز الاسترداد الحالية. تتوقف الرموز القديمة عن العمل بمجرد التأكيد.',
   'recoveryCodes.confirm': 'استبدال رموز الاسترداد',
+  'recoveryCodes.confirmIssue':
+    'سينشئ هذا مجموعة من رموز الاسترداد. يتيح كل رمز تسجيل الدخول مرة واحدة بدلًا من عامل التحقق الثاني إذا فقدته.',
+  'recoveryCodes.confirmCreate': 'إنشاء رموز الاسترداد',
+  'recoveryCodes.tooSoon':
+    'صدرت رموز الاسترداد الخاصة بك مؤخرًا وما زالت صالحة. يمكنك استبدالها بعد {minutes, plural, zero {{minutes, number, ::group-off} دقيقة} one {دقيقة واحدة} two {دقيقتين} few {{minutes, number, ::group-off} دقائق} many {{minutes, number, ::group-off} دقيقة} other {{minutes, number, ::group-off} دقيقة}}.',
 };

@@ -35,6 +35,7 @@ export const AUDIT_ACTIONS = {
     'otp.enrolled',
     'passkey.enrolled',
     'recovery_codes.issued',
+    'recovery_codes.refused',
     'action.requested',
     'action.completed',
     'action.cancelled',
@@ -207,7 +208,8 @@ type CredentialInput =
         | 'password.changed'
         | 'otp.enrolled'
         | 'passkey.enrolled'
-        | 'recovery_codes.issued';
+        | 'recovery_codes.issued'
+        | 'recovery_codes.refused';
       readonly detail?: ReasonOnly;
     })
   // An application sent the person to change a credential; `detail.action` is

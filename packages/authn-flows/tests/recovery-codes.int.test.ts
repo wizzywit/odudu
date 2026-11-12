@@ -116,12 +116,17 @@ async function enrolTotp(
   expect(outcome).toEqual({ kind: 'enrolled' });
 }
 
+// Each issue is two hours after the last, so the hourly bound never refuses
+// the sets these tests replace one another with.
+let issueClock = Date.UTC(2032, 0, 1);
+
 // The offer of a set the subject was entitled to, or a failure naming why not.
 async function issued(
   tx: TenantScopedDatabase,
   input: { tenantId: string; subjectId: string },
 ): Promise<RecoveryCodesOffer> {
-  const outcome = await beginRecoveryCodes(tx, input);
+  issueClock += 2 * 3_600_000;
+  const outcome = await beginRecoveryCodes(tx, { ...input, now: new Date(issueClock) });
   if (outcome.kind !== 'issued') throw new Error('expected a set to be issued');
   return outcome.offer;
 }

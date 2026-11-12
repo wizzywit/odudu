@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import { subjects, type SubjectRecord } from '#/schema/subjects';
 
 export type { SubjectRecord } from '#/schema/subjects';
@@ -39,6 +39,43 @@ export function subjectRepository(tx: TenantScopedDatabase) {
         .from(subjects)
         .where(eq(subjects.id, id))
         .for('no key update');
+      return rows.length > 0;
+    },
+
+    // When the subject's recovery set was last issued; null before the first,
+    // and for a subject the tenant's row-level policy hides.
+    async recoveryIssuedAt(id: string): Promise<Date | null> {
+      const rows = await tx
+        .select({ at: subjects.recoveryCodesIssuedAt })
+        .from(subjects)
+        .where(eq(subjects.id, id));
+      return rows[0]?.at ?? null;
+    },
+
+    // The gate on issuing a set, in one statement so that two callers cannot
+    // both pass it: records `now` as the time of issue only if the last was
+    // no later than `cutoff`, or `exempt` says the bound does not apply.
+    async claimRecoveryIssue(
+      id: string,
+      now: Date,
+      cutoff: Date,
+      exempt: boolean,
+    ): Promise<boolean> {
+      const rows = await tx
+        .update(subjects)
+        .set({ recoveryCodesIssuedAt: now })
+        .where(
+          and(
+            eq(subjects.id, id),
+            exempt
+              ? undefined
+              : or(
+                  isNull(subjects.recoveryCodesIssuedAt),
+                  lte(subjects.recoveryCodesIssuedAt, cutoff),
+                ),
+          ),
+        )
+        .returning({ id: subjects.id });
       return rows.length > 0;
     },
 

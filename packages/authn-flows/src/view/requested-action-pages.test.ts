@@ -7,6 +7,7 @@ import {
 } from '#/view/passkey-enrolment-html';
 import {
   renderRecoveryCodesPage,
+  renderRecoveryCodesTooSoonPage,
   renderRequestedRecoveryCodesConfirmPage,
   renderRequestedRecoveryCodesPage,
 } from '#/view/recovery-codes-html';
@@ -136,6 +137,7 @@ describe('a page an application sent the person to', () => {
       'acme',
       ADDRESS,
       's1',
+      true,
       DEFAULT_PAGE_LOCALE,
     );
     expect(page.body).toContain(en['recoveryCodes.confirmReplace']);
@@ -144,6 +146,52 @@ describe('a page an application sent the person to', () => {
     expect(page.body).not.toContain('<ol>');
     expect(ar['recoveryCodes.confirmReplace']).toBeTruthy();
     expect(ar['recoveryCodes.confirm']).toBeTruthy();
+  });
+
+  it('the confirmation for a person with no set offers to create one, not to replace', () => {
+    const page = renderRequestedRecoveryCodesConfirmPage(
+      'acme',
+      ADDRESS,
+      's1',
+      false,
+      DEFAULT_PAGE_LOCALE,
+    );
+    expect(page.body).toContain(en['recoveryCodes.confirmIssue']);
+    expect(page.body).toContain(en['recoveryCodes.confirmCreate']);
+    expect(page.body).not.toContain(en['recoveryCodes.confirmReplace']);
+    expect(page.body).toContain('name="confirm" value="1"');
+    expect(page.body).toMatch(CANCEL);
+    expect(ar['recoveryCodes.confirmIssue']).toBeTruthy();
+    expect(ar['recoveryCodes.confirmCreate']).toBeTruthy();
+  });
+
+  it('the refusal names the wait in minutes and shows no codes', () => {
+    const page = renderRecoveryCodesTooSoonPage(
+      'acme',
+      ADDRESS,
+      's1',
+      23,
+      undefined,
+      DEFAULT_PAGE_LOCALE,
+    );
+    expect(page.body).toContain('23 minutes');
+    expect(page.body).not.toContain('<ol>');
+    expect(page.body).not.toContain('name="confirm"');
+    expect(page.body).not.toMatch(CANCEL);
+    expect(ar['recoveryCodes.tooSoon']).toBeTruthy();
+  });
+
+  it('the refusal of a requested action can be left, and a lone minute is singular', () => {
+    const page = renderRecoveryCodesTooSoonPage(
+      'acme',
+      ADDRESS,
+      's1',
+      1,
+      'requested',
+      DEFAULT_PAGE_LOCALE,
+    );
+    expect(page.body).toContain('1 minute.');
+    expect(page.body).toMatch(CANCEL);
   });
 
   it('says cancel in Arabic too', () => {

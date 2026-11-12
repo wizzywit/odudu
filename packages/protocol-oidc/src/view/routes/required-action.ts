@@ -1,6 +1,7 @@
 import {
   type ActionPageVariant,
   type RequiredAction,
+  renderRecoveryCodesTooSoonPage,
   renderRequiredActionPage,
 } from '@odudu/authn-flows';
 import { requestContextFrom } from '@odudu/domain-audit';
@@ -196,6 +197,25 @@ export function registerRequiredActionRoute(
     // Confirmed: the set the person holds is replaced now, and shown once.
     if (outcome.kind === 'confirmed') {
       const issued = await deps.beginRecoveryCodes(tenant.id, outcome.subjectId, context);
+      if (issued.kind === 'too_soon') {
+        const shown = await continuation(deps, tenantName, outcome.authSessionId, reply, {
+          subject: outcome.subjectId,
+        });
+        return sendHtml(
+          reply,
+          429,
+          shown.continuing(
+            renderRecoveryCodesTooSoonPage(
+              tenantName,
+              tenantAddressOf(request),
+              outcome.authSessionId,
+              issued.retryInMinutes,
+              'requested',
+              shown.locale,
+            ),
+          ),
+        );
+      }
       if (issued.kind !== 'issued') {
         await deps.recordActionStep(
           {
@@ -269,6 +289,22 @@ export function registerRequiredActionRoute(
           pending?.rememberMe ?? false,
         );
         return sendLoginOutcome(reply, deps, tenantName, resumed, authSessionId);
+      }
+      if (issued.kind === 'too_soon') {
+        return sendHtml(
+          reply,
+          429,
+          continuing(
+            renderRecoveryCodesTooSoonPage(
+              tenantName,
+              tenantAddressOf(request),
+              outcome.authSessionId,
+              issued.retryInMinutes,
+              variant,
+              locale,
+            ),
+          ),
+        );
       }
       if (issued.kind !== 'issued') {
         return sendSignInExpired(reply, deps, tenantName, outcome.authSessionId);
