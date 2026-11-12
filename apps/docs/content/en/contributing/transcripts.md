@@ -130,7 +130,7 @@ not replayed: `the-tenants-own-sign-in.md`, `get-consoleauthcallback-refused.md`
 several pages (a `state` and a login cookie the page before made) or wait out a login's lifetime, so they need the console's whole
 run replayed in order. The stack and its image were removed afterwards.
 
-The first block of `get-adminopenapijson.md` was run again on 2026-11-12 on a freshly built compose project, `odudu-p4f-merge` (port `3083`, Postgres on `5483`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the merge commit `300c6bf5d` with nothing uncommitted, on a database that began empty and with nothing seeded, since the route needs no token. Two changes met in that build: the `device` field of the session lists made the document 519 bytes longer (816,440 to 816,959) and the longer `require_passkey` field description added 133 bytes, so the merged document is 817,092 bytes. The block's output is what came back with carriage returns removed, and the stack and its image were removed afterwards. The `ADA` assignment added to `enrolling-a-passkey.md` is the `userSubjectId` that page's seed printed; no output of that page was run again.
+The first block of `get-adminopenapijson.md` was run again on 2026-11-12 on a freshly built compose project, `odudu-p4f-i9m` (port `3093`, Postgres on `5493`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the merge commit `e82a7178b` with only documentation files uncommitted, on a database that began empty and with nothing seeded, since the route needs no token. Three changes met in that build: the `device` field of the session lists made the document 519 bytes longer (816,440 to 816,959), the longer `require_passkey` field description added 133 bytes (817,092), and the two breached-password settings added 784 more, so the document is 817,876 bytes and holds 109 paths. The block's output is what came back with carriage returns removed, and the stack and its image were removed afterwards. The `ADA` assignment added to `enrolling-a-passkey.md` is the `userSubjectId` that page's seed printed; no output of that page was run again.
 
 The discovery document and authorization server metadata began to list `me:read` and `me:write` on 2026-11-11, and every tenant now
 starts with twelve scopes. On the compose project `odudu-p4f-i15` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`,
@@ -1261,8 +1261,8 @@ The breached-password check was run on 2026-11-12 on a compose project, `odudu-p
 throttles at `10000`), twice on a database that began empty: `seed admin`, a token as in Getting the token, then one script per page
 that wrote each block's output as it came back (carriage returns and trailing spaces removed). The first run, built from the branch
 commit `6533a26aa`, ran the first three blocks of `get-settings-and-patch-settings.md`, its new last section and the audit read
-after it, the export block of `get-export.md` (10,913 to 10,967 bytes, made as that page makes it) and `GET /admin/openapi.json`
-(816,959 to 817,743 bytes); those are from it. The second run, built from the commit after the fix that stopped a remote lookup
+after it, the export block of `get-export.md` (10,913 to 10,967 bytes, made as that page makes it); those are from it. `GET /admin/openapi.json` is from
+the later run described above. The second run, built from the commit after the fix that stopped a remote lookup
 holding a database connection and made an empty dataset read `dataset_empty`, ran `password-expiry-and-changing-a-password.md`
 whole (its commands naming port `3092` and the project `odudu-p4f-i92`) and its new last section, which reads the dataset's
 `status`, loads a two-line file with `odudu breached-passwords load` and shows a refusal, an acceptance and a tenant with the check
