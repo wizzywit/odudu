@@ -120,6 +120,10 @@ Reset link lifetime
 s
 300 s · 5 minutes
 A reset link stops working after this long. Between 60 s · 1 minute and 86400 s · 1 day.
+Recovery code warning
+codes
+3 codes
+A person left with fewer unspent recovery codes than this is told to issue a new set. 0 turns the warning off. Between 0 and 10 codes.
 Usernames
 How a person is named, and what they type to sign in.
 Usernames can be renamed

@@ -149,7 +149,8 @@ Keep-Alive: timeout=72
 ```
 
 The credentials are the ways to sign in the person has, by type and label, with when each was made and last used, and the
-number of recovery codes left unspent. `grace` has a password and nothing else. No hash, key, seed or code is in it:
+number of recovery codes left unspent, and `recovery_codes_low`, which says whether that number has run below the tenant's
+threshold. `grace` has a password and nothing else, so it is `false`. No hash, key, seed or code is in it:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $TOKEN" $ME/credentials
@@ -157,15 +158,49 @@ curl -sS -D - -H "Authorization: Bearer $TOKEN" $ME/credentials
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1cbbd-f978-7e4d-b7c0-1e52890ef8e4
+x-request-id: 01a1cf4e-c49b-7d5c-9338-0e74bfcb57df
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 191
-Date: Wed, 11 Nov 2026 17:53:07 GMT
+content-length: 218
+Date: Thu, 12 Nov 2026 10:30:08 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a1cbbd-f4e2-7ff3-8ffe-d9d1cc38d9b2","type":"password","label":null,"created_at":"2026-11-11T17:53:06.072Z","last_used_at":null}],"next_cursor":null,"recovery_codes_left":0}
+{"items":[{"id":"01a1cf4e-0e3c-76e4-8da8-b8dc2e009109","type":"password","label":null,"created_at":"2026-11-12T10:29:21.399Z","last_used_at":null}],"next_cursor":null,"recovery_codes_left":0,"recovery_codes_low":false}
+```
+
+`recovery_codes_low` is `true` for a person who holds a recovery set with fewer unspent codes than the tenant's
+`recovery_code_warn_below` setting, 3 by default and `0` to `10`, and `false` for a person who holds no set, whatever the
+threshold. The sign-in never asks for a step on its account: an application reads the flag and shows its own warning. This
+page does not run the ceremony that makes a set, so two rows written with `psql` stand in for a set with two codes left. The threshold is then moved with the admin API, to 2, to 0, which turns the warning off, and back to 3, and the
+rows are deleted again, which leaves `grace` as before:
+
+```bash
+psql() { docker compose -p odudu-p4f-i52 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu "$@"; }
+GRACE="(select u.subject_id from users u join tenants t on t.id = u.tenant_id where t.name = 'me-doc' and u.username = 'grace')"
+psql -c "insert into user_credentials (id, tenant_id, subject_id, type, secret_data) select gen_random_uuid(), s.tenant_id, s.id, 'recovery-code', '{\"kind\":\"recovery-code\",\"hash\":\"stand-in\"}'::jsonb from subjects s, generate_series(1, 2) where s.id = $GRACE"
+creds() { curl -sS -H "Authorization: Bearer $TOKEN" $ME/credentials | jq -c '{recovery_codes_left, recovery_codes_low}'; }
+set_below() { curl -sS -X PATCH -H "Authorization: Bearer $ADMIN" -H 'content-type: application/json' -d "{\"recovery_code_warn_below\": $1}" $BASE/admin/tenants/me-doc/settings | jq -c '{recovery_code_warn_below}'; }
+creds
+set_below 2
+creds
+set_below 0
+creds
+set_below 3
+psql -c "delete from user_credentials where type = 'recovery-code' and subject_id = $GRACE"
+creds
+```
+
+```
+INSERT 0 2
+{"recovery_codes_left":2,"recovery_codes_low":true}
+{"recovery_code_warn_below":2}
+{"recovery_codes_left":2,"recovery_codes_low":false}
+{"recovery_code_warn_below":0}
+{"recovery_codes_left":2,"recovery_codes_low":false}
+{"recovery_code_warn_below":3}
+DELETE 2
+{"recovery_codes_left":0,"recovery_codes_low":false}
 ```
 
 The sessions are the person's live ones. The one the token was issued for is marked `current`; the other is the sign-in

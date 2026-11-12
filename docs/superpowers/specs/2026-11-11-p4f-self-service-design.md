@@ -148,8 +148,8 @@ runs both against a live session before the gate is written.
 ### 5.4 Recovery codes
 
 A person can ask for a fresh set through the `generate-recovery-codes` action
-before the old set is spent. The tenant sets a threshold; below it the sign-in
-page and the "me" API's count both say so. The re-issue is bounded: the
+before the old set is spent. The tenant sets a threshold; below it the "me" API's
+credential list says so (`recovery_codes_low`). The re-issue is bounded: the
 `generate-recovery-codes` action costs ten Argon2id hashes, so a person may
 request one per hour and the limit is recorded in the audit trail; this closes
 the bound the row asks a decision on and replaces the per-origin throttle as
@@ -348,8 +348,8 @@ My calls, marked so they can be overruled:
   of its own), never from the audit table. It does not apply to the first
   generation, to a set that is used up, or to a set issued while the
   recovery-codes step is owed, since a sign-in must never wait on it.
-  The low-count warning is shown after sign-in on the next page the
-  person sees, never mid-login.
+  The low-count warning is the "me" API's `recovery_codes_low`, never a
+  step of the sign-in: Odudu has no page a person lands on after signing in.
 - **Increments 7 and 13 are planned as several increments each**, one per
   settings group (TOTP, WebAuthn, recovery count; the passkey switch;
   per-step) and one for the flow model, its admin surface and its override.

@@ -306,4 +306,20 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 - While the recovery-codes action is owed, each reload of its page issues a set: ten Argon2id hashes, bound to a signed-in
   session, with no limit on the count. Placed on P11 (load and p99). The cheap bound is a short cooldown that still lets the
   sign-in finish.
-- The low-count warning is the next task of this increment.
+
+### The low-count warning
+
+- **The setting.** Migration 0131 adds `tenants.recovery_code_warn_below integer NOT NULL DEFAULT 3`, held to 0..10 by a
+  CHECK; 0 turns the warning off, and ten is the size of a set. It follows `session_freshness_seconds` end to end: the
+  column, `SETTINGS`, the contract range, the tenant document (absent in an older export, imports as 3), the audit detail
+  allowlist, the console's Settings (Registration and recovery) and the settings page.
+- **The flag.** `GET /me/credentials` carries `recovery_codes_low`. `recoveryWarning(unspent, threshold)` is the pure
+  rule (`unspent < threshold`, so a threshold of 0 never warns); `recoveryCodesLow` adds that a person holding no set
+  (no recovery-code row at all, spent or not) is `false`. The read takes the held count from `recoveryStanding` and the
+  threshold from the tenant row inside the one tenant-scoped transaction, so no `MeTenant` or `TenantLookup` field was added.
+- **Where it shows.** Odudu serves no page a person lands on after signing in (the sign-in ends in a redirect to the
+  application), and the recovery-codes page is shown only while a set is being made. So the warning is surfaced where the
+  person's credentials are read, the "me" API, and an application shows it and sends the person to `generate-recovery-codes`.
+  No server page gained a string, so no catalogue entry was added. The spec's "on the next page the person sees" is amended
+  to say this. The sign-in's steps are pinned by a test of `BROWSER_FLOW_DEFAULT` (passkey, password, otp, recovery-code).
+- **At volume.** One extra primary-key read of the tenant row beside the credentials page's existing queries; no list grew.

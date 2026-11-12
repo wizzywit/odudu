@@ -70,7 +70,10 @@ sends nothing at all. The authority is the me API: read `GET /me/credentials` wi
 What to read depends on the action:
 
 - `configure-totp` and `configure-passkey`: the credential list. The new authenticator is there by its type.
-- `generate-recovery-codes`: `recovery_codes_left` in the same answer.
+- `generate-recovery-codes`: `recovery_codes_left` in the same answer. It also carries `recovery_codes_low`, `true` once a person's
+  set has fewer unspent codes than the tenant's `recovery_code_warn_below` (3 by default, 0 turns it off) and `false` when they hold
+  no set. Odudu shows no page after sign-in to warn on, so an application shows the warning from that field and sends the person
+  here; the sign-in never asks for a step on its account.
 - `update-password`: the list shows the password by type either way, so it cannot show a change. Each credential lists when it was
   made, and a new password is dated from the change, so compare the password's `created_at` from before the action with the one
   after it. Section 5 shows it.

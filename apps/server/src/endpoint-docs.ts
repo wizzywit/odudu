@@ -108,7 +108,7 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   'GET /tenants/:tenant/me/credentials': {
     auth: 'Access token',
     purpose:
-      'The person’s own ways to sign in (password, authenticator app, passkey) with a label, when each was created and last used, and `recovery_codes_left`; no secret, seed, key or hash. A page of `limit` rows after `cursor`, returned as `items` and `next_cursor`, with the same bearer token and refusals as the profile.',
+      'The person’s own ways to sign in (password, authenticator app, passkey) with a label, when each was created and last used, `recovery_codes_left` and `recovery_codes_low` (true when a recovery set has run below the tenant’s `recovery_code_warn_below`); no secret, seed, key or hash. A page of `limit` rows after `cursor`, returned as `items` and `next_cursor`, with the same bearer token and refusals as the profile.',
   },
   'GET /tenants/:tenant/me/sessions': {
     auth: 'Access token',
