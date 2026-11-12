@@ -249,7 +249,7 @@ describe('registration writes one account.registered row', () => {
       'account.registered',
       subjectId,
       requestId,
-      { breached_check: 'passed' },
+      { breached_check: 'dataset_empty' },
     );
     expect(await credentialRows(tenant.id)).toHaveLength(1);
   });
@@ -371,7 +371,9 @@ describe('redeeming a reset link writes one password.reset row', () => {
 
     expect(res.statusCode).toBe(200);
     const rows = await rowsFor(tenant.id, requestId);
-    expectSubjectRow(rows, 'password.reset', subjectId, requestId, { breached_check: 'passed' });
+    expectSubjectRow(rows, 'password.reset', subjectId, requestId, {
+      breached_check: 'dataset_empty',
+    });
     const everything = JSON.stringify(await credentialRows(tenant.id));
     expect(everything).not.toContain(newPassword);
     expect(everything).not.toContain(key);

@@ -6,7 +6,27 @@ export type BreachedCheckMode = 'off' | 'dataset' | 'remote';
 export type BreachedOnError = 'open' | 'closed';
 
 /** What the audit row of a password write records about the check, never more. */
-export type BreachedCheckAudit = 'passed' | 'breached' | 'error_open' | 'error_closed' | 'off';
+export type BreachedCheckAudit =
+  | 'passed'
+  | 'breached'
+  | 'error_open'
+  | 'error_closed'
+  | 'off'
+  // Nothing was found because the dataset holds no hash at all.
+  | 'dataset_empty';
+
+/** What a lookup made before the writing transaction opened came back with. */
+export type RemoteOutcome = { kind: 'answered'; breached: boolean } | { kind: 'failed' };
+
+/** The source a precomputed remote outcome stands in for; no outcome counts as a failed lookup. */
+export function sourceOfOutcome(outcome: RemoteOutcome | null): BreachedPasswordSource {
+  return {
+    isBreached: () =>
+      outcome?.kind === 'answered'
+        ? Promise.resolve(outcome.breached)
+        : Promise.reject(new BreachedLookupFailed('no answer')),
+  };
+}
 
 export interface BreachedPasswordSource {
   isBreached(password: string): Promise<boolean>;

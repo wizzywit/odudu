@@ -126,6 +126,15 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
         subcommands: NONE,
         example: 'odudu breached-passwords load pwned-passwords-sha1-ordered-by-hash.txt',
       },
+      {
+        name: 'status',
+        summary:
+          'Print whether the dataset holds any hash and how many, counted up to a million, as JSON. ' +
+          'An empty dataset refuses no password, and the audit trail records it as dataset_empty.',
+        options: [],
+        subcommands: NONE,
+        example: 'odudu breached-passwords status',
+      },
     ],
     example: 'odudu breached-passwords load pwned-passwords-sha1-ordered-by-hash.txt',
   },

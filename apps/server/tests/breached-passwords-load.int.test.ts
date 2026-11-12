@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
-import { breachedHash } from '@odudu/domain-identity';
+import { breachedDatasetSize, breachedHash } from '@odudu/domain-identity';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadBreachedPasswordFile } from '#/cli/breached-passwords';
+import { breachedDatasetStatus, loadBreachedPasswordFile } from '#/cli/breached-passwords';
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
@@ -73,5 +73,13 @@ describe('odudu breached-passwords load', () => {
     await expect(loadBreachedPasswordFile(app, fileOf(hashOf('x')))).rejects.toThrow(
       /bypasses row-level security/u,
     );
+  });
+
+  it('reports whether the dataset holds anything, and how many', async () => {
+    await owner.sql`delete from breached_password_hashes`;
+    expect(await breachedDatasetStatus(owner)).toEqual({ loaded: false, rows: 0, capped: false });
+    await loadBreachedPasswordFile(owner, fileOf(hashOf('one'), hashOf('two')));
+    expect(await breachedDatasetStatus(owner)).toEqual({ loaded: true, rows: 2, capped: false });
+    expect(await breachedDatasetSize(owner.db, 1)).toEqual({ rows: 1, capped: true });
   });
 });

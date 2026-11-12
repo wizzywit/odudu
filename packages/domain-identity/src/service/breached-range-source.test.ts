@@ -51,9 +51,20 @@ describe('parseRange', () => {
   });
 
   it('refuses a line that is not a suffix and a count', () => {
-    for (const bad of ['', 'not a line', OTHER, `${OTHER}:x`, `${OTHER.slice(1)}:1`]) {
+    for (const bad of ['not a line', OTHER, `${OTHER}:x`, `${OTHER.slice(1)}:1`]) {
       expect(() => parseRange(body(`${OTHER}:3`, bad), suffix)).toThrow(BreachedLookupFailed);
     }
+  });
+
+  it('reads a body with a terminated last line, with CRLF, and with none', () => {
+    expect(parseRange(`${OTHER}:3\n${suffix}:2\n`, suffix)).toBe(true);
+    expect(parseRange(`${OTHER}:3\r\n${suffix}:2\r\n`, suffix)).toBe(true);
+    expect(parseRange(`${OTHER}:3\n${suffix}:2`, suffix)).toBe(true);
+    expect(parseRange(`${OTHER}:3\n\n${OTHER}:0\n`, suffix)).toBe(false);
+  });
+
+  it('still refuses a body of nothing but line ends', () => {
+    expect(() => parseRange('\r\n\n', suffix)).toThrow(BreachedLookupFailed);
   });
 
   it('refuses an empty body, which a padded answer never is', () => {
@@ -161,5 +172,66 @@ describe('the lookup bounds', () => {
     release?.();
     expect(limiter.tryAcquire('a')).not.toBeNull();
     expect(limiter.tryAcquire('a')).toBeNull();
+  });
+});
+
+describe('the process-wide limit', () => {
+  const answer = { status: 200, body: `${OTHER}:1` };
+
+  it('refuses beyond it as a failed lookup and gives the tenant slot back', async () => {
+    const tenant = concurrencyLimiter(4);
+    const process = concurrencyLimiter(1);
+    const release: ((value: typeof answer) => void)[] = [];
+    const pending: RangeFetch = () =>
+      new Promise((resolve) => {
+        release.push(resolve);
+      });
+    const a = remoteBreachedSource({
+      tenantId: 'a',
+      fetchRange: pending,
+      limiter: tenant,
+      processLimiter: process,
+    });
+    const b = remoteBreachedSource({
+      tenantId: 'b',
+      fetchRange: pending,
+      limiter: tenant,
+      processLimiter: process,
+    });
+    const first = a.isBreached(PASSWORD);
+    await expect(b.isBreached(PASSWORD)).rejects.toThrow(BreachedLookupFailed);
+    expect(tenant.tenantsInFlight()).toBe(1);
+    for (const resolve of release) resolve(answer);
+    expect(await first).toBe(false);
+    expect(tenant.tenantsInFlight()).toBe(0);
+    expect(process.tryAcquire('process')).not.toBeNull();
+  });
+
+  it('takes no slot when the password cannot even be hashed', async () => {
+    const tenant = concurrencyLimiter(1);
+    const process = concurrencyLimiter(1);
+    const source = remoteBreachedSource({
+      tenantId: 'a',
+      fetchRange: () => Promise.resolve(answer),
+      limiter: tenant,
+      processLimiter: process,
+    });
+    await expect(source.isBreached(undefined as never)).rejects.toThrow();
+    expect(tenant.tenantsInFlight() + process.tenantsInFlight()).toBe(0);
+  });
+
+  it('frees both slots when the lookup throws', async () => {
+    const tenant = concurrencyLimiter(1);
+    const process = concurrencyLimiter(1);
+    const failing: RangeFetch = () => Promise.reject(new Error('boom'));
+    const source = remoteBreachedSource({
+      tenantId: 'a',
+      fetchRange: failing,
+      limiter: tenant,
+      processLimiter: process,
+    });
+    await expect(source.isBreached(PASSWORD)).rejects.toThrow(BreachedLookupFailed);
+    expect(tenant.tenantsInFlight()).toBe(0);
+    expect(process.tenantsInFlight()).toBe(0);
   });
 });

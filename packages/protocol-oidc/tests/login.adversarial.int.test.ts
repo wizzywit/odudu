@@ -26,6 +26,7 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodes } from '#/schema/authorization-codes';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -73,6 +74,7 @@ async function buildHttp(deps: {
   await instance.register(formbody);
   await instance.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       database: deps.database,
       ownerDatabase: owner,
       kek: KEK,

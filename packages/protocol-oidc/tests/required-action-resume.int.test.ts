@@ -31,6 +31,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 // A required action is one more page inside the login that owes it, never a
 // second login. Each walk below answers whatever page the server shows, the
@@ -317,6 +318,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

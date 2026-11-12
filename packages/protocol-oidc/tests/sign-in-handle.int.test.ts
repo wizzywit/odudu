@@ -20,6 +20,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 const CLIENT_ID = 'handle-client';
 const REDIRECT_URI = 'https://app.example/callback';
@@ -111,6 +112,7 @@ beforeAll(async () => {
     await server.register(formbody);
     await server.register(
       oidcRoutes({
+        breachedPasswordCheck: noBreachedLookup,
         database: app,
         ownerDatabase: owner,
         kek: Buffer.alloc(32, 3),

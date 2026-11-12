@@ -87,6 +87,7 @@ describe('the authenticator policy', () => {
 
   it('offers exactly the values the server accepts, digits and period as numbers', () => {
     for (const [name, choices] of Object.entries(TENANT_SETTING_CHOICES)) {
+      // These two live in the password policy, which has its own test below.
       if (name.startsWith('breached_')) continue;
       const field = named(name);
       expect(field?.control).toBe('choice');

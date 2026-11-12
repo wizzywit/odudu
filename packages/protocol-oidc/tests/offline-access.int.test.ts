@@ -23,6 +23,7 @@ import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttl
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrants } from '#/schema/token-grants';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -393,6 +394,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

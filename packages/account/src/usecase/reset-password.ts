@@ -15,7 +15,7 @@ import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
 import { type TenantAddress } from '@odudu/kernel';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { type MailGate } from '#/service/mail-gate';
-import { type BreachedCheck } from '#/service/breached-check';
+import { type BreachedCheck, type BreachedPrepared } from '#/service/breached-check';
 import { withMinimum } from '#/service/password-violations';
 
 // Re-exported so the view layer can reach these without importing the
@@ -253,6 +253,42 @@ export async function completePasswordReset(
   key: string,
   newPassword: string,
 ): Promise<CompletePasswordResetResult> {
+  // Read-only, so the rules decide before anything is asked of a remote
+  // service, and the service is asked with no connection held.
+  const ready = await withTenant(
+    deps.database.db,
+    deps.tenantId,
+    async (tx): Promise<CompletePasswordResetResult | null> => {
+      const peeked = await actionTokenRepository(tx).peek(key);
+      if (peeked?.type !== 'reset_password') return { kind: 'invalid' };
+      const violations = deps.evaluatePassword(newPassword, deps.passwordPolicy, {
+        username: await deps.getUsername(tx, peeked.subjectId),
+        email: peeked.email,
+      });
+      if (violations.length === 0) return null;
+      return {
+        kind: 'invalid_password',
+        violations: withMinimum(violations, deps.passwordPolicy.minLength),
+      };
+    },
+    deps.request,
+  );
+  if (ready !== null) return ready;
+  const prepared = await deps.breachedCheck.prepare(
+    deps.database.db,
+    deps.tenantId,
+    newPassword,
+    deps.request,
+  );
+  return writeReset(deps, key, newPassword, prepared);
+}
+
+async function writeReset(
+  deps: CompletePasswordResetDeps,
+  key: string,
+  newPassword: string,
+  prepared: BreachedPrepared,
+): Promise<CompletePasswordResetResult> {
   return withTenant(
     deps.database.db,
     deps.tenantId,
@@ -272,7 +308,7 @@ export async function completePasswordReset(
         };
       }
 
-      const breached = await deps.breachedCheck(tx, deps.tenantId, newPassword);
+      const breached = await deps.breachedCheck.judge(tx, deps.tenantId, newPassword, prepared);
       if (breached.violations.length > 0) {
         return { kind: 'invalid_password', violations: [...breached.violations] };
       }

@@ -1,7 +1,14 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import {
+  type Database,
+  type RequestContext,
+  type TenantScopedDatabase,
+  withTenant,
+} from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import {
+  BREACH_CHECK_UNAVAILABLE,
   type BreachedPasswordCheck,
+  type BreachedPrepared,
   credentialRepository,
   evaluatePassword,
   hashUserPassword,
@@ -49,7 +56,10 @@ export interface UpdatePassword {
   password: string;
   // Asked of a candidate that passed the tenant's other rules, before the
   // reuse check: one lookup, where the reuse check can be twenty-five hashes.
+  // `breachedPrepared` is what `prepareUpdatePassword` learned before this
+  // transaction opened; null when it found the candidate already refused.
   breachedCheck: BreachedPasswordCheck;
+  breachedPrepared: BreachedPrepared | null;
   // Present where the person has to prove the password in force before
   // choosing a new one, an empty string included: a form that left the field
   // out is a wrong answer, not an exemption. Absent for the action a tenant
@@ -117,6 +127,33 @@ async function currentPasswordProved(
   return false;
 }
 
+// Read-only, before the writing transaction: judges the candidate by the
+// tenant's rules and, only if they pass, asks the breached-password check to
+// prepare, so a remote service is asked while no connection is held.
+export async function prepareUpdatePassword(
+  database: Database,
+  input: { tenantId: string; subjectId: string; password: string },
+  check: BreachedPasswordCheck,
+  request: RequestContext,
+): Promise<BreachedPrepared | null> {
+  const clean = await withTenant(
+    database,
+    input.tenantId,
+    async (tx) => {
+      const policy = await tenantSettingsRepository(tx).passwordPolicy(input.tenantId);
+      const user = await userRepository(tx).bySubjectId(input.subjectId);
+      if (user === null) return false;
+      return (
+        evaluatePassword(input.password, policy, { username: user.username, email: user.email })
+          .length === 0
+      );
+    },
+    request,
+  );
+  if (!clean) return null;
+  return check.prepare(database, input.tenantId, input.password, request);
+}
+
 // The fourth writer of a password in a tenant, bound by the same policy as
 // registration, reset redemption and the seed CLI — and the only one that
 // consults history, which is why it is the only one that keeps any.
@@ -155,7 +192,17 @@ export async function completeUpdatePassword(
     };
   }
 
-  const breached = await input.breachedCheck(tx, input.tenantId, input.password);
+  // Rules passed here but not when it was prepared: the policy changed in
+  // between, so nothing was asked and the person is told to try again.
+  if (input.breachedPrepared === null) {
+    return { kind: 'rejected', violations: [{ ...BREACH_CHECK_UNAVAILABLE }] };
+  }
+  const breached = await input.breachedCheck.judge(
+    tx,
+    input.tenantId,
+    input.password,
+    input.breachedPrepared,
+  );
   if (breached.violations.length > 0) {
     return {
       kind: 'rejected',

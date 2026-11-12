@@ -199,7 +199,8 @@ type TokenInput =
       readonly detail?: ReasonOnly;
     });
 
-export type BreachedCheckOutcome = 'passed' | 'breached' | 'error_open' | 'error_closed' | 'off';
+export type BreachedCheckOutcome =
+  'passed' | 'breached' | 'error_open' | 'error_closed' | 'off' | 'dataset_empty';
 
 const BREACHED_CHECK_OUTCOMES: readonly string[] = [
   'passed',
@@ -207,6 +208,7 @@ const BREACHED_CHECK_OUTCOMES: readonly string[] = [
   'error_open',
   'error_closed',
   'off',
+  'dataset_empty',
 ];
 
 type CredentialInput =

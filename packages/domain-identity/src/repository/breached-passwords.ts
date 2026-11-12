@@ -44,6 +44,15 @@ export function breachedPasswordRepository(tx: TenantScopedDatabase) {
       };
     },
 
+    /** One row probe, read only when a lookup found nothing. */
+    async datasetIsEmpty(): Promise<boolean> {
+      const rows = await tx
+        .select({ one: sql<number>`1` })
+        .from(breachedPasswordHashes)
+        .limit(1);
+      return rows.length === 0;
+    },
+
     async settings(tenantId: string): Promise<BreachedSettings> {
       const [row] = await tx
         .select({ check: tenants.breachedCheck, onError: tenants.breachedOnError })
@@ -74,4 +83,16 @@ export async function insertBreachedHashes(
     .onConflictDoNothing()
     .returning({ prefix: breachedPasswordHashes.prefix });
   return inserted.length;
+}
+
+/** Rows the dataset holds, counted up to `cap`; `capped` says there are more. */
+export async function breachedDatasetSize(
+  db: Database,
+  cap: number,
+): Promise<{ rows: number; capped: boolean }> {
+  const found = await db.execute<{ n: number }>(
+    sql`select count(*)::int as n from (select 1 from ${breachedPasswordHashes} limit ${cap + 1}) s`,
+  );
+  const n = found[0]?.n ?? 0;
+  return n > cap ? { rows: cap, capped: true } : { rows: n, capped: false };
 }

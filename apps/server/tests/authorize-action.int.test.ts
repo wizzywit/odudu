@@ -895,7 +895,7 @@ describe('ending the other sessions with a password change', () => {
     expect(live).toContain(keep);
     expect(live).not.toContain(other);
     expect(await changeAudits(w)).toEqual([
-      { ended_other_sessions: true, breached_check: 'passed' },
+      { ended_other_sessions: true, breached_check: 'dataset_empty' },
     ]);
   });
 
@@ -906,7 +906,7 @@ describe('ending the other sessions with a password change', () => {
     expect(live).toContain(keep);
     expect(live).toContain(other);
     expect(await changeAudits(w)).toEqual([
-      { ended_other_sessions: false, breached_check: 'passed' },
+      { ended_other_sessions: false, breached_check: 'dataset_empty' },
     ]);
   });
 

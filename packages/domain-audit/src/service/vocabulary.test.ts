@@ -144,7 +144,14 @@ describe('assertDetailAllowed', () => {
 
   it('accepts what the breached-password check decided on the writes that run it', () => {
     for (const action of ['password.changed', 'password.reset', 'account.registered']) {
-      for (const decided of ['passed', 'breached', 'error_open', 'error_closed', 'off']) {
+      for (const decided of [
+        'passed',
+        'breached',
+        'error_open',
+        'error_closed',
+        'off',
+        'dataset_empty',
+      ]) {
         expect(() => {
           assertDetailAllowed(action, { breached_check: decided });
         }).not.toThrow();

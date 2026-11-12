@@ -14,14 +14,14 @@ import { mailAddressOf } from '#/usecase/mail-address';
 import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
 import { pendingRegistrationRepository } from '#/repository/pending-registrations';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
-import { type BreachedCheck } from '#/service/breached-check';
+import { type BreachedCheck, type BreachedPrepared } from '#/service/breached-check';
 import { withMinimum } from '#/service/password-violations';
 
 // Re-exported so the view layer can reach these without importing the
 // repository directly (no-view-to-repository, .dependency-cruiser.cjs):
 // view → usecase is permitted, usecase → repository is where the type
 // actually lives.
-export type { BreachedCheck, PasswordPolicy, PolicyViolation };
+export type { BreachedCheck, BreachedPrepared, PasswordPolicy, PolicyViolation };
 
 export interface NewAccountInput {
   readonly username: string;
@@ -188,10 +188,10 @@ export async function register(
     };
   }
 
-  const breached = await withTenant(
+  const breached = await deps.breachedCheck.run(
     deps.database.db,
     deps.tenantId,
-    (tx) => deps.breachedCheck(tx, deps.tenantId, input.password),
+    input.password,
     deps.request,
   );
   if (breached.violations.length > 0) {

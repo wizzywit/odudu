@@ -15,6 +15,7 @@ import {
   completeTotpEnrolment,
   type MailLookResolver,
   completeUpdatePassword,
+  prepareUpdatePassword,
   consumeAuthenticationSession,
   initialChallenge,
   loadPendingRequest,
@@ -41,7 +42,6 @@ import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
   type BreachedPasswordCheck,
-  createBreachedPasswordCheck,
   hashPassword,
   subjectIsEnabled,
   subjectRepository,
@@ -123,10 +123,6 @@ import { registerRevokeRoute } from '#/view/routes/revoke';
 import { registerTokenRoute } from '#/view/routes/token';
 import { registerUserinfoRoute } from '#/view/routes/userinfo';
 
-const datasetOnlyBreachedCheck = createBreachedPasswordCheck({
-  fetchRange: () => Promise.reject(new Error('no remote lookup is wired')),
-});
-
 export interface OidcRoutesDeps {
   database: DatabaseHandle;
   // The owner (RLS-bypassing) connection — see repository/tenant-lookup.ts
@@ -137,10 +133,9 @@ export interface OidcRoutesDeps {
   // safe placeholder for a key-encryption key.
   kek: Uint8Array;
   // What a password written through the required-action form is checked
-  // against after the tenant's other rules. Absent, the dataset alone is
-  // asked and a tenant's remote source counts as a failed lookup, so a
-  // caller that wires none can neither skip the check nor reach out.
-  breachedPasswordCheck?: BreachedPasswordCheck;
+  // against after the tenant's other rules. Required: a deployment that
+  // wires none would silently skip a tenant's remote source.
+  breachedPasswordCheck: BreachedPasswordCheck;
   // Whether this process serves over TLS (ODUDU_TLS): the __Host- prefix and
   // Secure attribute of every cookie these routes write. No default, so a
   // caller cannot lose it silently.
@@ -1041,14 +1036,21 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         ),
       completeRecoveryCodes: (input) =>
         withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
-      completeUpdatePassword: ({ endOtherSessions: ending, ...input }, request) =>
-        withTenant(
+      completeUpdatePassword: async ({ endOtherSessions: ending, ...input }, request) => {
+        const breachedPrepared = await prepareUpdatePassword(
+          deps.database.db,
+          input,
+          deps.breachedPasswordCheck,
+          request,
+        );
+        return withTenant(
           deps.database.db,
           input.tenantId,
           (tx) =>
             completeUpdatePassword(tx, {
               ...input,
-              breachedCheck: deps.breachedPasswordCheck ?? datasetOnlyBreachedCheck,
+              breachedCheck: deps.breachedPasswordCheck,
+              breachedPrepared,
               ...(ending === undefined
                 ? {}
                 : {
@@ -1066,7 +1068,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
                   }),
             }),
           request,
-        ),
+        );
+      },
     });
     registerLoginRoute(app, { ...loginSubmission, ...passkeyAssertion });
     registerConsentRoute(app, {

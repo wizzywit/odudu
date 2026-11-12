@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CHUNK_ROWS, loadHashLines, parseHashLine, type HashRow } from '#/cli/breached-passwords';
+import {
+  breachedPasswordsCommand,
+  CHUNK_ROWS,
+  loadHashLines,
+  parseHashLine,
+  type HashRow,
+} from '#/cli/breached-passwords';
 
 const A = '5BAA61E4C9B93F3F0682250B6CF8331B7EE68FD8';
 
@@ -92,5 +98,13 @@ describe('loadHashLines', () => {
       }),
     ).rejects.toThrow(/line 4/u);
     expect(inserted).toEqual([]);
+  });
+});
+
+describe('breachedPasswordsCommand', () => {
+  it('refuses anything but load with one file, or status with none', async () => {
+    for (const argv of [[], ['load'], ['load', 'a', 'b'], ['status', 'a'], ['other']]) {
+      await expect(breachedPasswordsCommand(argv), argv.join(' ')).rejects.toThrow(/usage/u);
+    }
   });
 });

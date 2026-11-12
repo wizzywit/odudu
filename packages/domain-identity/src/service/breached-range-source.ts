@@ -1,3 +1,4 @@
+import { DEFAULT_POOL_MAX } from '@odudu/db';
 import {
   BreachedLookupFailed,
   breachedHash,
@@ -11,6 +12,9 @@ export const REMOTE_BREACHED_TIMEOUT_MS = 3_000;
 // A padded answer is about a thousand 37-byte lines.
 export const REMOTE_BREACHED_MAX_BYTES = 128 * 1024;
 export const REMOTE_BREACHED_CONCURRENCY_PER_TENANT = 4;
+// Lookups in flight across every tenant. A lookup holds no database connection,
+// but it holds a request, so the cap stays below the pool a request then needs.
+export const REMOTE_BREACHED_PROCESS_CAP = DEFAULT_POOL_MAX - 2;
 
 export interface RangeLimit {
   timeoutMs: number;
@@ -58,30 +62,51 @@ const RANGE_LINE = /^([0-9A-F]{35}):([0-9]+)$/;
  * suffix is public data, so a plain comparison is enough.
  */
 export function parseRange(body: string, suffix: string): boolean {
-  if (body.length === 0) throw new BreachedLookupFailed('empty answer');
   let found = false;
+  let lines = 0;
   for (const raw of body.split('\n')) {
     const line = raw.replace(/\r$/, '');
+    // A terminated last line leaves an empty piece after it; blank lines carry nothing.
+    if (line === '') continue;
+    lines += 1;
     const match = RANGE_LINE.exec(line.toUpperCase());
     if (match === null) throw new BreachedLookupFailed('unreadable answer');
     if (match[1] === suffix && Number(match[2]) > 0) found = true;
   }
+  if (lines === 0) throw new BreachedLookupFailed('empty answer');
   return found;
 }
 
 export interface RemoteBreachedDeps {
   tenantId: string;
   fetchRange: RangeFetch;
+  /** Counted per tenant. */
   limiter: ConcurrencyLimiter;
+  /** Counted for the whole process, so many tenants together stay bounded. */
+  processLimiter?: ConcurrencyLimiter;
 }
+
+const PROCESS_KEY = 'process';
 
 /** Sends the five-character prefix of the hash and nothing else of the password. */
 export function remoteBreachedSource(deps: RemoteBreachedDeps): BreachedPasswordSource {
   return {
     async isBreached(password) {
-      const release = deps.limiter.tryAcquire(deps.tenantId);
-      if (release === null) throw new BreachedLookupFailed('too many lookups in flight');
       const { prefix, suffix } = breachedHash(password);
+      const tenantSlot = deps.limiter.tryAcquire(deps.tenantId);
+      if (tenantSlot === null) throw new BreachedLookupFailed('too many lookups in flight');
+      const processSlot =
+        deps.processLimiter === undefined
+          ? () => undefined
+          : deps.processLimiter.tryAcquire(PROCESS_KEY);
+      if (processSlot === null) {
+        tenantSlot();
+        throw new BreachedLookupFailed('too many lookups in flight in this process');
+      }
+      const release = (): void => {
+        processSlot();
+        tenantSlot();
+      };
       let timer: NodeJS.Timeout | undefined;
       try {
         const timedOut = new Promise<never>((_resolve, reject) => {

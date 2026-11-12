@@ -199,19 +199,6 @@ Password lifetime
 days
 0 days
 A password older than this has to be changed. 0 never expires one. Between 0 and 3650 days.
-Check against known breaches
-Dataset loaded on the server
-▾
-A new password that passed the rules above is refused if it is a password known from breaches. The dataset is the hash list an operator loaded into the server, and nothing leaves it. Remote asks a range service for the first five characters of the SHA-1 hash and nothing else. Off skips the check, and the audit trail records that.
-Off
-Dataset loaded on the server
-Remote range lookup
-When a remote lookup fails
-Accept the password
-▾
-Applies to the remote lookup only, when it times out, is refused or is too busy. The dataset has no such failure.
-Accept the password
-Refuse it and ask to try again
 Brute force
 When repeated wrong passwords or wrong second-factor codes lock an account, and for how long.
 Failures before a lockout

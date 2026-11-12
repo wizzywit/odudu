@@ -19,6 +19,7 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { OAUTH_ERROR_DESCRIPTIONS } from '#/service/oauth-errors';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 // An OAuth error says in a few plain words what went wrong, where RFC 6749
 // allows it, and the sentence is never built from the request.
@@ -69,6 +70,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       database: app,
       ownerDatabase: owner,
       kek: Buffer.alloc(32, 3),

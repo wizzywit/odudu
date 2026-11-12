@@ -1,7 +1,11 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { bypassesRowLevelSecurity, createDatabase, type DatabaseHandle } from '@odudu/db';
-import { insertBreachedHashes, type BreachedHashRow } from '@odudu/domain-identity';
+import {
+  breachedDatasetSize,
+  insertBreachedHashes,
+  type BreachedHashRow,
+} from '@odudu/domain-identity';
 import { loadConfig, OduduError } from '@odudu/kernel';
 
 export type HashRow = BreachedHashRow;
@@ -89,18 +93,40 @@ export async function loadBreachedPasswordFile(
   }
 }
 
-/** `odudu breached-passwords load <file>`. */
-export async function breachedPasswordsCommand(argv: readonly string[]): Promise<LoadReport> {
+/** Counting stops here, so `status` costs a bounded index scan however large the table is. */
+export const STATUS_COUNT_CAP = 1_000_000;
+
+export interface DatasetStatus {
+  loaded: boolean;
+  rows: number;
+  /** True when the table holds more than `rows`, which is then the cap. */
+  capped: boolean;
+}
+
+export async function breachedDatasetStatus(owner: DatabaseHandle): Promise<DatasetStatus> {
+  const { rows, capped } = await breachedDatasetSize(owner.db, STATUS_COUNT_CAP);
+  return { loaded: rows > 0, rows, capped };
+}
+
+/** `odudu breached-passwords load <file>` and `odudu breached-passwords status`. */
+export async function breachedPasswordsCommand(
+  argv: readonly string[],
+): Promise<LoadReport | DatasetStatus> {
   const [subcommand, path, ...rest] = argv;
-  if (subcommand !== 'load' || path === undefined || rest.length > 0) {
+  const valid =
+    (subcommand === 'load' && path !== undefined && rest.length === 0) ||
+    (subcommand === 'status' && path === undefined);
+  if (!valid) {
     throw new OduduError(
       'breached_passwords_usage',
-      'usage: odudu breached-passwords load <file>; see odudu help breached-passwords',
+      'usage: odudu breached-passwords load <file> | status; see odudu help breached-passwords',
     );
   }
   const owner = createDatabase(loadConfig().ODUDU_DATABASE_URL);
   try {
-    return await loadBreachedPasswordFile(owner, path);
+    return subcommand === 'status'
+      ? await breachedDatasetStatus(owner)
+      : await loadBreachedPasswordFile(owner, path ?? '');
   } finally {
     await owner.close();
   }

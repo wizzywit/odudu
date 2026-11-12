@@ -27,6 +27,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 const TENANT_LIFESPANS = {
   ssoSessionIdleSeconds: 1_800,
@@ -202,6 +203,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

@@ -62,7 +62,7 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'grant.revoked_on_code_replay':
     'An authorization code was redeemed a second time, so the grant it produced was revoked.',
   'account.registered':
-    'A user registered their own account. `detail.breached_check` says what the breached-password check decided: `passed`, `breached`, `error_open`, `error_closed` or `off`.',
+    'A user registered their own account. `detail.breached_check` says what the breached-password check decided: `passed`, `breached`, `error_open`, `error_closed`, `off` or `dataset_empty`.',
   'account.registration_duplicate':
     'Someone tried to register an email address that already has an account. `resource_id` names that account.',
   'account.address_proved':

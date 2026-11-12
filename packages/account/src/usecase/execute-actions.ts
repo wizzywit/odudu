@@ -9,7 +9,7 @@ import { mailContext, outboxRepository, renderRequiredActions } from '@odudu/ema
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { mailAddressOf } from '#/usecase/mail-address';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
-import { type BreachedCheck } from '#/service/breached-check';
+import { type BreachedCheck, type BreachedPrepared } from '#/service/breached-check';
 import { withMinimum } from '#/service/password-violations';
 import { orderedActions, type LinkedRequiredAction } from '#/service/required-actions';
 import {
@@ -120,6 +120,46 @@ export async function completeRequiredActions(
   key: string,
   newPassword: string | undefined,
 ): Promise<CompleteRequiredActionsResult> {
+  // Read-only: the rules decide first, and a remote service is asked, if the
+  // tenant uses one, with no connection held.
+  const early = await withTenant(
+    deps.database.db,
+    deps.tenantId,
+    async (tx): Promise<{ stop: CompleteRequiredActionsResult } | { sets: boolean }> => {
+      const peeked = await actionTokenRepository(tx).peek(key);
+      if (peeked?.type !== 'execute_actions') return { stop: { kind: 'invalid' } };
+      if (!orderedActions(peeked.actions ?? []).includes('update-password')) {
+        return { sets: false };
+      }
+      if (newPassword === undefined) return { stop: { kind: 'password_required' } };
+      const violations = deps.evaluatePassword(newPassword, deps.passwordPolicy, {
+        username: await deps.getUsername(tx, peeked.subjectId),
+        email: peeked.email,
+      });
+      if (violations.length === 0) return { sets: true };
+      return {
+        stop: {
+          kind: 'invalid_password',
+          violations: withMinimum(violations, deps.passwordPolicy.minLength),
+        },
+      };
+    },
+    deps.request,
+  );
+  if ('stop' in early) return early.stop;
+  const prepared =
+    early.sets && newPassword !== undefined
+      ? await deps.breachedCheck.prepare(deps.database.db, deps.tenantId, newPassword, deps.request)
+      : null;
+  return writeActions(deps, key, newPassword, prepared);
+}
+
+async function writeActions(
+  deps: CompleteRequiredActionsDeps,
+  key: string,
+  newPassword: string | undefined,
+  prepared: BreachedPrepared | null,
+): Promise<CompleteRequiredActionsResult> {
   return withTenant(
     deps.database.db,
     deps.tenantId,
@@ -144,7 +184,9 @@ export async function completeRequiredActions(
             violations: withMinimum(violations, deps.passwordPolicy.minLength),
           };
         }
-        const breached = await deps.breachedCheck(tx, deps.tenantId, newPassword);
+        // The link changed under the read above: nothing was asked, so nothing is judged.
+        if (prepared === null) return { kind: 'invalid' };
+        const breached = await deps.breachedCheck.judge(tx, deps.tenantId, newPassword, prepared);
         if (breached.violations.length > 0) {
           return { kind: 'invalid_password', violations: [...breached.violations] };
         }

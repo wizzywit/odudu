@@ -485,9 +485,12 @@ describe('self-registration', () => {
       instance.register(formbody);
       registerRegistrationRoute(instance, {
         ...accountTestDeps,
-        breachedCheck: (tx, tenantId, password) => {
-          asked.push(password);
-          return accountTestDeps.breachedCheck(tx, tenantId, password);
+        breachedCheck: {
+          ...accountTestDeps.breachedCheck,
+          run: (database, tenantId, password, request) => {
+            asked.push(password);
+            return accountTestDeps.breachedCheck.run(database, tenantId, password, request);
+          },
         },
         findHeldSignIn: () => Promise.resolve(null),
         database: app,

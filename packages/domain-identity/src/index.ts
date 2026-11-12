@@ -43,6 +43,7 @@ export {
   type BreachedPasswordSource,
   type BreachedSettings,
   type BreachedVerdict,
+  type RemoteOutcome,
 } from '#/service/breached-password';
 export {
   concurrencyLimiter,
@@ -51,6 +52,7 @@ export {
   REMOTE_BREACHED_CONCURRENCY_PER_TENANT,
   REMOTE_BREACHED_HOST,
   REMOTE_BREACHED_MAX_BYTES,
+  REMOTE_BREACHED_PROCESS_CAP,
   REMOTE_BREACHED_TIMEOUT_MS,
   type ConcurrencyLimiter,
   type RangeFetch,
@@ -59,6 +61,7 @@ export {
 export { breachedPasswordHashes } from '#/schema/breached-password-hashes';
 export {
   breachedPasswordRepository,
+  breachedDatasetSize,
   insertBreachedHashes,
   type BreachedHashRow,
 } from '#/repository/breached-passwords';
@@ -66,6 +69,7 @@ export {
   createBreachedPasswordCheck,
   type BreachedPasswordCheck,
   type BreachedPasswordCheckDeps,
+  type BreachedPrepared,
 } from '#/usecase/breached-password-check';
 export { COMMON_PASSWORD_COUNT } from '#/service/common-password';
 export { passwordExpired } from '#/service/password-age';

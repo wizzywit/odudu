@@ -29,7 +29,11 @@ import { requiredActionRepository } from '#/repository/required-actions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
 import { advance, startAuthentication, type AdvanceOutcome } from '#/usecase/executor';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
-import { completeUpdatePassword, type UpdatePasswordOutcome } from '#/usecase/update-password';
+import {
+  completeUpdatePassword,
+  prepareUpdatePassword,
+  type UpdatePasswordOutcome,
+} from '#/usecase/update-password';
 
 // The dataset and no egress: a lookup the test did not expect fails loudly.
 const breachedCheck = createBreachedPasswordCheck({
@@ -152,18 +156,21 @@ function pending(account: Account): Promise<string[]> {
   );
 }
 
-function change(
+const NO_REQUEST = { requestId: null, ip: null };
+
+async function change(
   account: Account,
   password: string,
   endOtherSessions?: (tx: TenantScopedDatabase) => Promise<void>,
   check: BreachedPasswordCheck = breachedCheck,
 ): Promise<UpdatePasswordOutcome> {
+  const input = { tenantId: account.tenantId, subjectId: account.subjectId, password };
+  const breachedPrepared = await prepareUpdatePassword(app.db, input, check, NO_REQUEST);
   return withTenant(app.db, account.tenantId, (tx) =>
     completeUpdatePassword(tx, {
-      tenantId: account.tenantId,
-      subjectId: account.subjectId,
-      password,
+      ...input,
       breachedCheck: check,
+      breachedPrepared,
       ...(endOtherSessions === undefined ? {} : { endOtherSessions }),
     }),
   );
@@ -417,8 +424,11 @@ describe('the change-password action writes one password.changed row', () => {
       .filter((row) => row.action === 'password.changed')
       .map((row) => row.detail);
     expect(details).toHaveLength(2);
-    expect(details).toContainEqual({ ended_other_sessions: true, breached_check: 'passed' });
-    expect(details).toContainEqual({ ended_other_sessions: false, breached_check: 'passed' });
+    expect(details).toContainEqual({ ended_other_sessions: true, breached_check: 'dataset_empty' });
+    expect(details).toContainEqual({
+      ended_other_sessions: false,
+      breached_check: 'dataset_empty',
+    });
   });
 
   it('ends no session for a refused candidate', async () => {
@@ -633,13 +643,14 @@ describe('a hash made before passwords were normalised is upgraded at the next s
 describe('a password change that must prove the current password', () => {
   const NEW = 'a whole new passphrase';
 
-  function changeProving(account: Account, current: string): Promise<UpdatePasswordOutcome> {
+  async function changeProving(account: Account, current: string): Promise<UpdatePasswordOutcome> {
+    const input = { tenantId: account.tenantId, subjectId: account.subjectId, password: NEW };
+    const breachedPrepared = await prepareUpdatePassword(app.db, input, breachedCheck, NO_REQUEST);
     return withTenant(app.db, account.tenantId, (tx) =>
       completeUpdatePassword(tx, {
-        tenantId: account.tenantId,
-        subjectId: account.subjectId,
-        password: NEW,
+        ...input,
         breachedCheck,
+        breachedPrepared,
         currentPassword: current,
       }),
     );
@@ -730,9 +741,12 @@ describe('the breached-password check on a change', () => {
   it('asks only a password that passed the other rules', async () => {
     const account = await seedAccount({ minLength: 40 });
     const asked: string[] = [];
-    const spy: BreachedPasswordCheck = (tx, tenantId, password) => {
-      asked.push(password);
-      return breachedCheck(tx, tenantId, password);
+    const spy: BreachedPasswordCheck = {
+      ...breachedCheck,
+      prepare: (database, tenantId, password, request) => {
+        asked.push(password);
+        return breachedCheck.prepare(database, tenantId, password, request);
+      },
     };
 
     expect(await change(account, LEAKED, undefined, spy)).toMatchObject({

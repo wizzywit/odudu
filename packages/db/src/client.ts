@@ -26,10 +26,13 @@ export interface DatabaseOptions {
   ) => void;
 }
 
+/** The connections a handle holds unless a caller says otherwise. */
+export const DEFAULT_POOL_MAX = 10;
+
 export function createDatabase(url: string, options: DatabaseOptions = {}): DatabaseHandle {
   const onQuery = options.onQueryForTests;
   const sql = postgres(url, {
-    max: options.max ?? 10,
+    max: options.max ?? DEFAULT_POOL_MAX,
     // A closure over roles or groups is costed above jit_above_cost whatever it
     // reads, and compiling ~400 functions for a seventeen-row lookup took 1.2 s.
     connection: { jit: 'off' },
