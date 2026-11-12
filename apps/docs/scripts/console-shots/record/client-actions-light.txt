@@ -136,6 +136,8 @@ An actor token issued to another client is refused unless this is on. It has no 
 Application actions
 The account changes this client may ask Odudu to run for a person who is signed in, through a parameter of its authorization request. A client may start none until one is chosen here.
 Actions an application may start
+Verify the email address
+Asks the person to prove the address on file with a link sent to it.
 Choose a new password
 Asks for the current password, then a new one.
 Set up an authenticator app
@@ -144,6 +146,8 @@ Register a passkey
 Registers a passkey on the device in use.
 Generate recovery codes
 Shows a fresh set of recovery codes once, replacing any held.
+Complete the profile
+Asks the person to fill in every profile field that is still empty.
 A public client has no secret to rotate.
 Fixed by design
 Response type

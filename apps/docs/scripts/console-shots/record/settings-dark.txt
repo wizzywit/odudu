@@ -54,6 +54,7 @@ General
 Sessions
 Remember me
 Registration and recovery
+Terms
 Authenticators
 Usernames
 Password policy
@@ -121,6 +122,12 @@ Reset link lifetime
 s
 300 s · 5 minutes
 A reset link stops working after this long. Between 60 s · 1 minute and 86400 s · 1 day.
+Terms
+The terms a person accepts when asked to. Setting them asks nobody: an administrator asks a person under Required actions, and again when the terms change.
+Terms address
+An https address, or http to this machine, with no fragment. Leave it empty for no terms.
+Terms version
+Up to 64 characters. A person accepts one version. Changing it asks nobody again by itself.
 Authenticators
 What a new authenticator app, passkey or recovery set is made with, and whether sign-in asks everyone for a passkey. One already enrolled keeps the values it was made with.
 Authenticator app algorithm
