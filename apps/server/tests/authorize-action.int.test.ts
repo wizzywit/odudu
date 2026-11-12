@@ -831,9 +831,11 @@ describe('the notice an enrolment through an application sends', () => {
       secret,
       code: totpCode(secret, totpCounter(new Date())),
     });
-    await form(w, 'required-action?action=generate-recovery-codes', {
+    const done = await form(w, 'required-action?action=generate-recovery-codes', {
       auth_session_id: field(confirmed, 'auth_session_id'),
     });
+    expect(done.statusCode).toBe(302);
+    expect(locationOf(done).searchParams.get('action_status')).toBe('success');
   }
 
   it('tells a verified address once for the authenticator app and once for the codes', async () => {
