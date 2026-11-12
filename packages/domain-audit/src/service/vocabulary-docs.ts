@@ -69,9 +69,12 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'A user changed their email address by proving the new one through the mailed link.',
   'password.reset': 'A password was set through a reset link.',
   'password.changed': 'A user changed their password.',
-  'otp.enrolled': 'A user enrolled a one-time-code authenticator.',
-  'passkey.enrolled': 'A user enrolled a passkey.',
-  'recovery_codes.issued': 'A user was issued a new set of recovery codes.',
+  'otp.enrolled':
+    'A user enrolled a one-time-code authenticator. `detail.notice` says whether the owner was told by mail.',
+  'passkey.enrolled':
+    'A user enrolled a passkey. `detail.notice` says whether the owner was told by mail.',
+  'recovery_codes.issued':
+    'A user was issued a new set of recovery codes. `detail.notice` says whether the owner was told by mail.',
   'recovery_codes.refused':
     'A new set of recovery codes was refused because the last was issued less than an hour ago and still has codes to spend.',
   'action.requested':
