@@ -58,9 +58,10 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     enabled: 'value',
   },
   // The settings that decide who may become a client of the tenant, how fresh
-  // a sign-in must be, what a new authenticator is made with, whether a passkey is required, and the wording
-  // people read: the display name and the languages. Every other setting
-  // stays out of the audit detail, as an unlisted field does.
+  // a sign-in must be, what a new authenticator is made with, whether a
+  // passkey is required, and the wording people read: the display name and
+  // the languages. Every other setting stays out of the audit detail, as an
+  // unlisted field does.
   tenant_settings: {
     client_registration_policy: 'value',
     cimd_enabled: 'value',
