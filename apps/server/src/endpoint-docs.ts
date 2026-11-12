@@ -233,7 +233,13 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   },
   [`POST ${LOGIN}/action-token`]: {
     auth: 'Mailed link token',
-    purpose: 'Submits a new password, or the required actions, against a mailed link.',
+    purpose:
+      'Confirms an email address, submits a new password, or submits the required actions, against a mailed link.',
+  },
+  [`POST ${LOGIN}/resend-verification`]: {
+    auth: 'Mailed link token',
+    purpose:
+      'Asks for a new verification link when the one mailed was used or expired. Answers the same page whether or not a mail was queued.',
   },
   [`GET ${LOGIN}/reset-password`]: {
     auth: 'None',

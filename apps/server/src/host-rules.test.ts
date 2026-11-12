@@ -206,6 +206,7 @@ describe('previousAddressServes', () => {
     '/login-actions/registration',
     '/login-actions/reset-password',
     '/login-actions/action-token',
+    '/login-actions/resend-verification',
     '/login-actions/consent',
     '/clients-registrations/openid-connect',
     '/protocol/openid-connect/token/',

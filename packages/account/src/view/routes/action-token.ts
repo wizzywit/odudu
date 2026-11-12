@@ -57,6 +57,8 @@ import { brandedLocale, type BrandedLocaleDeps } from '#/view/request-locale';
 
 export interface ActionTokenTenantLookup {
   readonly id: string;
+  readonly name: string;
+  readonly displayName: string | null;
   readonly supportedLocales: readonly string[];
   readonly defaultLocale: string | null;
   readonly enabled: boolean;
@@ -169,6 +171,18 @@ function firstNonEmptyString(value: string | string[] | undefined): string | und
 // own request form, offered only while the tenant still allows resets.
 function newResetLink(address: TenantAddress, tenant: ActionTokenTenantLookup): string | null {
   return tenant.resetPasswordAllowed ? addressPath(address, '/login-actions/reset-password') : null;
+}
+
+// What a refused verification link's page offers: the form that asks for a new
+// link, for any key alike, so the page does not say whether it was ever issued.
+// A registration key has none: its mail is asked for again by registering again.
+function resendFor(
+  request: FastifyRequest<{ Params: { tenant: string } }>,
+  key: string | undefined,
+): { address: TenantAddress; key: string } | null {
+  return key === undefined || isRegistrationKey(key)
+    ? null
+    : { address: tenantAddressOf(request), key };
 }
 
 // Where this link's page may send the browser: the original sign-in, only
@@ -329,7 +343,7 @@ async function finishRegistration(
     );
   }
   if (result.kind === 'invalid') {
-    return sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, null, locale));
+    return sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, null, null, locale));
   }
   return sendVerificationHtml(
     reply,
@@ -370,7 +384,11 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     // that tenant's users table, and disabling a tenant is meant to stop all
     // of those, not just the ones a client can see.
     if (key === undefined || !tenant?.enabled) {
-      return sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, null, locale));
+      return sendVerificationHtml(
+        reply,
+        400,
+        renderVerificationFailedPage(null, null, resendFor(request, key), locale),
+      );
     }
 
     // A visit changes nothing: mail scanners and link previews open mailed
@@ -383,11 +401,20 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
           )
         : null;
       return waiting === null
-        ? sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, null, locale))
+        ? sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, null, null, locale))
         : sendVerificationHtml(
             reply,
             200,
-            renderEmailConfirmPage(tenantAddressOf(request), key, waiting.username, locale),
+            renderEmailConfirmPage(
+              tenantAddressOf(request),
+              key,
+              {
+                tenant: tenant.displayName ?? tenant.name,
+                email: waiting.email,
+                username: waiting.username,
+              },
+              locale,
+            ),
           );
     }
 
@@ -419,7 +446,12 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
       return sendVerificationHtml(
         reply,
         400,
-        renderVerificationFailedPage(await resume(), returnHref(peeked.returnTo, 'error'), locale),
+        renderVerificationFailedPage(
+          await resume(),
+          returnHref(peeked.returnTo, 'error'),
+          resendFor(request, key),
+          locale,
+        ),
       );
     }
 
@@ -484,7 +516,12 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     return sendVerificationHtml(
       reply,
       200,
-      renderEmailConfirmPage(tenantAddressOf(request), key, null, locale),
+      renderEmailConfirmPage(
+        tenantAddressOf(request),
+        key,
+        { tenant: tenant.displayName ?? tenant.name, email: peeked.email, username: null },
+        locale,
+      ),
     );
   });
 
@@ -541,6 +578,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
             renderVerificationFailedPage(
               await resume(),
               returnHref(peeked.returnTo, 'error'),
+              resendFor(request, key),
               locale,
             ),
           )
@@ -558,7 +596,12 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
       return sendVerificationHtml(
         reply,
         400,
-        renderVerificationFailedPage(await resume(), returnHref(peeked.returnTo, 'error'), locale),
+        renderVerificationFailedPage(
+          await resume(),
+          returnHref(peeked.returnTo, 'error'),
+          resendFor(request, key),
+          locale,
+        ),
       );
     }
     if (peeked.kind === 'usable' && peeked.type === 'execute_actions') {

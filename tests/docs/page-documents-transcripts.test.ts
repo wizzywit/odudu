@@ -43,6 +43,7 @@ import {
 import {
   renderVerificationFailedPage,
   renderEmailConfirmPage,
+  renderVerificationResentPage,
   renderVerificationSucceededPage,
 } from '../../packages/account/src/view/verification-html.js';
 import { renderSignInRefused } from '../../packages/console-gateway/src/view/refusal-html.js';
@@ -452,7 +453,16 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
     renderRegistrationFailedPage(pathAddress(ORIGIN, tenantOf(body)), null, LOCALE).body,
   'Account created': () => renderRegistrationSucceededPage(false, null, LOCALE).body,
   'Email confirmed': (body) => renderVerificationSucceededPage(continueOf(body), null, LOCALE).body,
-  "Can't verify this link": (body) => renderVerificationFailedPage(backOf(body), null, LOCALE).body,
+  "Can't verify this link": (body) =>
+    renderVerificationFailedPage(
+      backOf(body),
+      null,
+      body.includes('/login-actions/resend-verification')
+        ? { address: pathAddress(ORIGIN, tenantOf(body)), key: keyOf(body) }
+        : null,
+      LOCALE,
+    ).body,
+  'Verification link requested': () => renderVerificationResentPage(LOCALE).body,
   'Forgot your password?': (body) => {
     const email = valueOf(body, 'email');
     return renderResetRequestForm(
@@ -474,7 +484,15 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
     renderEmailConfirmPage(
       pathAddress(ORIGIN, tenantOf(body)),
       keyOf(body),
-      body.includes('Account name:') ? first(body, /Account name: <bdi>(.*)<\/bdi>/u) : null,
+      {
+        tenant: first(body, /Account at <bdi>(.*)<\/bdi>/u),
+        email: body.includes('Email address:')
+          ? first(body, /Email address: <bdi>(.*)<\/bdi>/u)
+          : null,
+        username: body.includes('Account name:')
+          ? first(body, /Account name: <bdi>(.*)<\/bdi>/u)
+          : null,
+      },
       LOCALE,
     ).body,
   'Your account is ready': (body) => renderRegistrationReadyPage(continueOf(body), LOCALE).body,

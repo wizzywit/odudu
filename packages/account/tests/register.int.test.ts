@@ -1408,10 +1408,15 @@ describe('a registration that waits for its mailed link', () => {
     const unknown = await follow(tenant.tenantName, 'reg_nothing-holds-this');
     const plain = await follow(tenant.tenantName, 'not-a-registration-key');
 
-    for (const res of [foreign, spent, expired, unknown, plain]) {
+    for (const res of [foreign, spent, expired, unknown]) {
       expect(res.statusCode).toBe(400);
-      expect(res.body).toBe(plain.body);
+      expect(res.body).toBe(unknown.body);
     }
+    // A key that is no registration's is a verification link's to refuse, so
+    // its page also offers a new one: no form here, which is the one difference.
+    expect(plain.statusCode).toBe(400);
+    expect(unknown.body).not.toContain('<form');
+    expect(plain.body).toContain('resend-verification');
     expect(await holder(other.tenantId, 'ada')).toBeNull();
   });
 
@@ -1448,7 +1453,7 @@ describe('a registration that waits for its mailed link', () => {
     const res = await follow(tenant.tenantName, key);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body).toBe((await follow(tenant.tenantName, 'not-a-registration-key')).body);
+    expect(res.body).toBe((await follow(tenant.tenantName, 'reg_nothing-holds-this')).body);
     expect(await holder(tenant.tenantId, 'ada')).toBeNull();
   });
 

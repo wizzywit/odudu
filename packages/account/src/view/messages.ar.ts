@@ -17,6 +17,13 @@ export const ar: Readonly<Record<string, string>> = {
   'confirm.account': 'اسم الحساب: {username}',
   'confirm.next': 'اضغط على الزر لتأكيد هذا العنوان.',
   'confirm.button': 'تأكيد بريدي الإلكتروني',
+  'confirm.address': 'عنوان البريد الإلكتروني: {email}',
+  'confirm.tenant': 'حساب لدى {tenant}',
+  'verification.resend.button': 'أرسل رابطًا جديدًا',
+  'verification.resent.title': 'تم طلب رابط التحقق',
+  'verification.resent.heading': 'تم طلب رابط التحقق',
+  'verification.resent.next':
+    'إذا كان هذا العنوان بحاجة إلى التحقق، فهناك رابط جديد في طريقه إليك.',
   'registration.title': 'إنشاء حساب',
   'registration.username': 'اسم المستخدم',
   'registration.email': 'البريد الإلكتروني',

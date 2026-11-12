@@ -32,6 +32,8 @@ export type PeekActionTokenResult =
       authenticationSessionId: string | null;
       /** The registered address an administrator's link returns to, while it still is one. */
       returnTo: string | null;
+      /** The address a verification link proves; none for another kind. */
+      email: string | null;
     }
   // `type` says what an unusable link was for when the row is still held, so
   // the refusal can offer the step that fits it.
@@ -80,5 +82,6 @@ function usable(peeked: ActionTokenRecord, returnTo: string | null): PeekActionT
     setsPassword: actions.includes('update-password'),
     authenticationSessionId: peeked.authenticationSessionId,
     returnTo,
+    email: peeked.type === 'verify_email' ? peeked.email : null,
   };
 }

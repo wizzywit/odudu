@@ -47,6 +47,7 @@ function markup(page: RenderedPage): string {
   return page.html.replace(/nonce="[^"]+"/gu, 'nonce="NONCE"');
 }
 
+const PLAIN = { username: null, email: 'ada@example.test', tenant: 'Acme' };
 const HOSTILE = '<script>alert("x")</script>\'o\' & co';
 const SIGN_IN = '/tenants/acme/protocol/openid-connect/auth?response_type=code&client_id=a&state=1';
 const RULES = {
@@ -266,8 +267,8 @@ describe('the verification pages under the default template', () => {
   it('renders the succeeded and failed pages with and without a way back', () => {
     const pages = [
       renderVerificationSucceededPage(SIGN_IN, null, DEFAULT_PAGE_LOCALE),
-      renderVerificationFailedPage(null, null, DEFAULT_PAGE_LOCALE),
-      renderVerificationFailedPage(SIGN_IN, null, ARABIC_DARK),
+      renderVerificationFailedPage(null, null, null, DEFAULT_PAGE_LOCALE),
+      renderVerificationFailedPage(SIGN_IN, null, null, ARABIC_DARK),
     ];
     expect(pages.map(markup)).toMatchSnapshot();
   });
@@ -276,7 +277,12 @@ describe('the verification pages under the default template', () => {
     it(`renders the confirmation page byte-identically (${name})`, () => {
       expect(
         markup(
-          renderEmailConfirmPage(pathAddress('https://idp.example', 'acme'), 'key-1', null, locale),
+          renderEmailConfirmPage(
+            pathAddress('https://idp.example', 'acme'),
+            'key-1',
+            PLAIN,
+            locale,
+          ),
         ),
       ).toMatchSnapshot();
     });
@@ -287,13 +293,13 @@ describe('the verification pages under the default template', () => {
       renderEmailConfirmPage(
         pathAddress('https://idp.example', 'acme'),
         'key-1',
-        'ann',
+        { ...PLAIN, username: 'ann' },
         DEFAULT_PAGE_LOCALE,
       ),
       renderEmailConfirmPage(
         pathAddress('https://idp.example', HOSTILE),
         HOSTILE,
-        HOSTILE,
+        { username: HOSTILE, email: HOSTILE, tenant: HOSTILE },
         DEFAULT_PAGE_LOCALE,
       ),
     ];

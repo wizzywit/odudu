@@ -91,7 +91,7 @@ export const MANIFESTS: Readonly<Record<PageKind, Manifest>> = {
   },
   verification: {
     required: ['message', 'form.open', 'submit', 'form.close'],
-    optional: [],
+    optional: ['links'],
     inForm: ['submit'],
   },
   'required-actions': {
