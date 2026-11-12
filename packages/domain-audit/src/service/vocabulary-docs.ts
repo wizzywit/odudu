@@ -61,7 +61,8 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'A refresh token was presented again after rotation, so its whole grant was revoked.',
   'grant.revoked_on_code_replay':
     'An authorization code was redeemed a second time, so the grant it produced was revoked.',
-  'account.registered': 'A user registered their own account.',
+  'account.registered':
+    'A user registered their own account. `detail.breached_check` says what the breached-password check decided: `passed`, `breached`, `error_open`, `error_closed` or `off`.',
   'account.registration_duplicate':
     'Someone tried to register an email address that already has an account. `resource_id` names that account.',
   'account.address_proved':
@@ -69,9 +70,10 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'email.verified': 'A user verified their email address through the mailed link.',
   'email.changed':
     'A user changed their email address by proving the new one through the mailed link.',
-  'password.reset': 'A password was set through a reset link.',
+  'password.reset':
+    'A password was set through a reset link. `detail.breached_check` says what the breached-password check decided.',
   'password.changed':
-    'A user changed their password. `detail.ended_other_sessions` says whether they ended their other sessions with it.',
+    'A user changed their password. `detail.ended_other_sessions` says whether they ended their other sessions with it, and `detail.breached_check` what the breached-password check decided.',
   'otp.enrolled':
     'A user enrolled a one-time-code authenticator. `detail.notice` says whether the owner was told by mail.',
   'passkey.enrolled':

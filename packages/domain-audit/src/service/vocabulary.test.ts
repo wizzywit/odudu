@@ -142,6 +142,25 @@ describe('assertDetailAllowed', () => {
     }).toThrow(/ended_other_sessions/);
   });
 
+  it('accepts what the breached-password check decided on the writes that run it', () => {
+    for (const action of ['password.changed', 'password.reset', 'account.registered']) {
+      for (const decided of ['passed', 'breached', 'error_open', 'error_closed', 'off']) {
+        expect(() => {
+          assertDetailAllowed(action, { breached_check: decided });
+        }).not.toThrow();
+      }
+    }
+  });
+
+  it('rejects a breached_check outside the five outcomes, or on another action', () => {
+    expect(() => {
+      assertDetailAllowed('password.changed', { breached_check: 'maybe' });
+    }).toThrow(/breached_check/);
+    expect(() => {
+      assertDetailAllowed('email.changed', { breached_check: 'passed' });
+    }).toThrow(/breached_check/);
+  });
+
   it('rejects a mode outside delegation|impersonation', () => {
     expect(() => {
       assertDetailAllowed('token.exchange', {

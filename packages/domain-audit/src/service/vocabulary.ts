@@ -199,24 +199,41 @@ type TokenInput =
       readonly detail?: ReasonOnly;
     });
 
+export type BreachedCheckOutcome = 'passed' | 'breached' | 'error_open' | 'error_closed' | 'off';
+
+const BREACHED_CHECK_OUTCOMES: readonly string[] = [
+  'passed',
+  'breached',
+  'error_open',
+  'error_closed',
+  'off',
+];
+
 type CredentialInput =
   | (EventCommon & {
       readonly eventType: 'credential';
       readonly action:
-        | 'account.registered'
         | 'account.registration_duplicate'
         | 'account.address_proved'
         | 'email.verified'
         | 'email.changed'
-        | 'password.reset'
         | 'recovery_codes.refused';
       readonly detail?: ReasonOnly;
+    })
+  // `detail.breached_check` says what the breached-password check decided.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'account.registered' | 'password.reset';
+      readonly detail?: WithReason<{ breached_check?: BreachedCheckOutcome }>;
     })
   // `detail.ended_other_sessions` says whether the change ended the person's other sessions.
   | (EventCommon & {
       readonly eventType: 'credential';
       readonly action: 'password.changed';
-      readonly detail?: WithReason<{ ended_other_sessions: boolean }>;
+      readonly detail?: WithReason<{
+        ended_other_sessions: boolean;
+        breached_check?: BreachedCheckOutcome;
+      }>;
     })
   // `detail.notice` says whether the subject was told of the change by mail.
   | (EventCommon & {
@@ -255,7 +272,9 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'factor.offered': ['factor'],
   'client.authenticate': ['method'],
   'session.ended': ['via'],
-  'password.changed': ['ended_other_sessions'],
+  'password.changed': ['ended_other_sessions', 'breached_check'],
+  'password.reset': ['breached_check'],
+  'account.registered': ['breached_check'],
   'token.issue': ['grant_type', 'scope'],
   'token.refresh': ['scope'],
   'token.exchange': ['mode', 'scope', 'requested_token_type'],
@@ -309,6 +328,7 @@ function isValidDetailValue(key: string, value: unknown): boolean {
   if (key === 'also_admits') {
     return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }
+  if (key === 'breached_check') return BREACHED_CHECK_OUTCOMES.includes(String(value));
   if (key === 'user_verified' || key === 'ended_other_sessions') return typeof value === 'boolean';
   if (STRING_DETAIL_KEYS.has(key)) return typeof value === 'string';
   return true;
