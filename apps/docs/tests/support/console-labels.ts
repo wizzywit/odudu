@@ -872,6 +872,40 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'settings/services/accessSections.ts',
     "label: 'Recovery code warning'",
   ),
+  Authenticators: page('settings/services/accessSections.ts', "title: 'Authenticators'"),
+  'Authenticator app algorithm': page(
+    'settings/services/accessSections.ts',
+    "label: 'Authenticator app algorithm'",
+  ),
+  SHA1: page('settings/services/accessSections.ts', "label: 'SHA1'"),
+  SHA256: page('settings/services/accessSections.ts', "label: 'SHA256'"),
+  SHA512: page('settings/services/accessSections.ts', "label: 'SHA512'"),
+  'Authenticator app code length': page(
+    'settings/services/accessSections.ts',
+    "label: 'Authenticator app code length'",
+  ),
+  '6 digits': page('settings/services/accessSections.ts', "label: '6 digits'"),
+  '8 digits': page('settings/services/accessSections.ts', "label: '8 digits'"),
+  'Authenticator app code period': page(
+    'settings/services/accessSections.ts',
+    "label: 'Authenticator app code period'",
+  ),
+  '30 seconds': page('settings/services/accessSections.ts', "label: '30 seconds'"),
+  '60 seconds': page('settings/services/accessSections.ts', "label: '60 seconds'"),
+  'Passkey user verification': page(
+    'settings/services/accessSections.ts',
+    "label: 'Passkey user verification'",
+  ),
+  Preferred: page('settings/services/accessSections.ts', "label: 'Preferred'"),
+  Discouraged: page('settings/services/accessSections.ts', "label: 'Discouraged'"),
+  'Passkey stored on the device': page(
+    'settings/services/accessSections.ts',
+    "label: 'Passkey stored on the device'",
+  ),
+  'Recovery codes in a set': page(
+    'settings/services/accessSections.ts',
+    "label: 'Recovery codes in a set'",
+  ),
   'Offer remember me': page('settings/services/accessSections.ts', "label: 'Offer remember me'"),
   'Verification link lifetime': page(
     'settings/services/accessSections.ts',
