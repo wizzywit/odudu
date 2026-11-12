@@ -382,13 +382,6 @@ const elidesOnlyTheQr = (block: Recorded): boolean =>
     .filter((line) => line.includes('…'))
     .every((line) => line === QR_ELIDED);
 
-// What the recorded markup says its inputs were, put back through the real
-// renderer: a page whose text or markup the server no longer produces for the
-// same inputs is named here. It cannot see a branch no recording takes, the
-// login forms (too many inputs to read back), the passkey and pending-action
-// pages of authn-flows (recorded nowhere), the account forms nothing records,
-// a rule or action wording that two sentences share, or a value the markup
-// does not show.
 // The consent screen's note for a client that registered itself, read back
 // from the recorded body as the ClientSource the renderer made it from.
 function selfRegisteredSource(body: string): ClientSource | null {
@@ -397,6 +390,13 @@ function selfRegisteredSource(body: string): ClientSource | null {
   return { kind: 'self-registered', sentTo: sentTo?.[1] ?? null, origins: [], more: 0 };
 }
 
+// What the recorded markup says its inputs were, put back through the real
+// renderer: a page whose text or markup the server no longer produces for the
+// same inputs is named here. It cannot see a branch no recording takes, the
+// login forms (too many inputs to read back), the passkey and pending-action
+// pages of authn-flows (recorded nowhere), the account forms nothing records,
+// a rule or action wording that two sentences share, or a value the markup
+// does not show.
 const RENDER_BACK: Record<string, (body: string) => string> = {
   'Set up your authenticator': (body: string) =>
     renderTotpEnrolmentPage(
