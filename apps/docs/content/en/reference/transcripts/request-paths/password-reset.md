@@ -681,8 +681,8 @@ odudu seed tenant --name reset-audit --set reset_password_allowed=true
 ```
 
 ```
-{"created":true,"tenant":"reset-audit","tenantId":"01a0dc50-7654-75c9-a070-33faf7d67368","clientId":"reset-audit-spa","userSubjectId":"01a0dc50-76c6-7e00-9086-ac84f6c1a2f2"}
-{"command":"tenant","created":false,"tenant":"reset-audit","tenantId":"01a0dc50-7654-75c9-a070-33faf7d67368","settings":["reset_password_allowed"]}
+{"created":true,"tenant":"reset-audit","tenantId":"01a1d113-6bda-7e80-b49f-e9e8f18e45fb","clientId":"reset-audit-spa","userSubjectId":"01a1d113-6cfa-7493-8adf-78cda82424ea"}
+{"command":"tenant","created":false,"tenant":"reset-audit","tenantId":"01a1d113-6bda-7e80-b49f-e9e8f18e45fb","settings":["reset_password_allowed"]}
 ```
 
 The first link was left unredeemed past its five minutes. That it is
@@ -692,7 +692,7 @@ message's `email_outbox` row:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/reset-password \
   -H 'x-request-id: reset-audit-request-1' --data-urlencode 'email=ada@example.com'
 
 # … five minutes later
@@ -701,9 +701,9 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
      from action_tokens a join tenants t on t.id = a.tenant_id
     where t.name = 'reset-audit';"
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-expired' \
-  --data-urlencode 'key=1TPp8NWSSuC3EVyQOjd2dNllZ1QpWHC6urrquiB2D0M' \
+  --data-urlencode 'key=xUIR1fCWgmk6eaefSUSo7S8DZrQFfNckJDY8INObRX4' \
   --data-urlencode 'password=a brand new password'
 ```
 
@@ -722,7 +722,7 @@ queued — the newest of the two `reset-audit` has:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/reset-password \
   -H 'x-request-id: reset-audit-request-2' --data-urlencode 'email=ada@example.com'
 docker compose exec -T postgres psql -U odudu -d odudu -At -c \
   "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
@@ -732,23 +732,23 @@ docker compose exec -T postgres psql -U odudu -d odudu -At -c \
 
 ```
 200
-lA0JiQk1PNRbz9m_LTUP2PWGcFpQfukwqpn1Ig4euuc
+IBAVeKULTmDC5Y1_ntwUJU5g58nTSGyNy-MOozbik2E
 ```
 
 That link is then submitted with a password the policy refuses, with one it
 accepts, and once more after it is spent:
 
 ```bash
-KEY=lA0JiQk1PNRbz9m_LTUP2PWGcFpQfukwqpn1Ig4euuc
+KEY=IBAVeKULTmDC5Y1_ntwUJU5g58nTSGyNy-MOozbik2E
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-weak' --data-urlencode "key=$KEY" --data-urlencode 'password=weak'
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-ada' --data-urlencode "key=$KEY" \
   --data-urlencode 'password=a brand new password'
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-replay' --data-urlencode "key=$KEY" \
   --data-urlencode 'password=another password'
 
@@ -773,10 +773,10 @@ request_id       | reset-audit-ada
 event_type       | credential
 action           | password.reset
 outcome          | allowed
-actor_subject_id | 01a0dc50-76c6-7e00-9086-ac84f6c1a2f2
+actor_subject_id | 01a1d113-6cfa-7493-8adf-78cda82424ea
 resource_type    | subject
-resource_id      | 01a0dc50-76c6-7e00-9086-ac84f6c1a2f2
-detail           | {}
+resource_id      | 01a1d113-6cfa-7493-8adf-78cda82424ea
+detail           | {"breached_check": "dataset_empty"}
 
  rows_naming_either
 --------------------
@@ -784,6 +784,83 @@ detail           | {}
 (1 row)
 ```
 
-Six requests, one row. The last query reads every audit row this stack
+Six requests, one row. Its `detail` says what the breached-password check decided: `dataset_empty`, since no dataset had been loaded on this stack, so the check found nothing in a table that holds nothing. The last query reads every audit row this stack
 holds, in every tenant, as text: none carries the password that was set or
 the key that set it.
+
+## A password known from breaches
+
+A password a person chooses through a reset link has to pass the tenant's breached-password check as well as its rules, so
+a link cannot be used to set one that is in the dataset, and a refusal leaves the link unspent. This ran in its own tenant,
+`reset-breach`, after the file in [Password expiry, and changing a password](./password-expiry-and-changing-a-password.md#a-password-known-from-breaches)
+was loaded, on the same stack. The check is the tenant's default, the dataset in its own database; nothing here is sent to any
+other host:
+
+```bash
+odudu seed \
+  --tenant reset-breach --client reset-breach-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+odudu seed tenant --name reset-breach --set reset_password_allowed=true
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3092/tenants/reset-breach/login-actions/reset-password \
+  --data-urlencode 'email=ada@example.com'
+docker compose exec -T postgres psql -U odudu -d odudu -At -c \
+  "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'reset-breach' order by o.created_at desc limit 1;"
+```
+
+```
+{"created":true,"tenant":"reset-breach","tenantId":"01a1d11e-a4cb-7d21-8a92-ff277d1a4310","clientId":"reset-breach-spa","userSubjectId":"01a1d11e-a5f6-7183-ac67-83b766e712dd"}
+{"command":"tenant","created":false,"tenant":"reset-breach","tenantId":"01a1d11e-a4cb-7d21-8a92-ff277d1a4310","settings":["reset_password_allowed"]}
+200
+L73HGBvDeXlFe6FR9kDAYiaGVp7fB56DT-i0sqIn-ic
+```
+
+The link is submitted with a password in the file, which is refused with `400` and the form's own message, and the table shows
+the link is still unspent:
+
+```bash
+KEY=L73HGBvDeXlFe6FR9kDAYiaGVp7fB56DT-i0sqIn-ic
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3092/tenants/reset-breach/login-actions/action-token \
+  --data-urlencode "key=$KEY" --data-urlencode 'password=a leaked passphrase from a breach'
+curl -sS -X POST http://localhost:3092/tenants/reset-breach/login-actions/action-token \
+  --data-urlencode "key=$KEY" --data-urlencode 'password=a leaked passphrase from a breach' \
+  | grep -E 'role="alert"|<li id="form-error'
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select a.type, a.consumed_at is null as unspent
+     from action_tokens a join tenants t on t.id = a.tenant_id
+    where t.name = 'reset-breach';"
+```
+
+```
+400
+<div class="alert" role="alert" id="form-error">
+<li id="form-error-0">That password has appeared in a data breach. Choose a different one.</li>
+      type      | unspent
+----------------+---------
+ reset_password | t
+(1 row)
+```
+
+The same link then takes a password that is in no list, and the `password.reset` row says the check passed:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3092/tenants/reset-breach/login-actions/action-token \
+  --data-urlencode "key=$KEY" --data-urlencode 'password=a brand new password'
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "SELECT action, detail FROM audit_events
+     WHERE tenant_id = (SELECT id FROM tenants WHERE name = 'reset-breach')
+       AND action = 'password.reset';"
+```
+
+```
+200
+     action     |            detail
+----------------+------------------------------
+ password.reset | {"breached_check": "passed"}
+(1 row)
+```

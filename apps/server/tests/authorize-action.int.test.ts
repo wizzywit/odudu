@@ -855,3 +855,76 @@ describe('the notice an enrolment through an application sends', () => {
     expect(await mailTo(w)).toEqual([]);
   });
 });
+
+const liveSessionIds = async (w: World): Promise<string[]> =>
+  (
+    await owner.sql<{ id: string }[]>`
+      select id from sessions
+       where tenant_id = ${w.tenantId} and subject_id = ${w.subjectId} and expires_at > now()`
+  ).map((row) => row.id);
+
+const changeAudits = async (w: World): Promise<unknown[]> =>
+  (
+    await owner.sql<{ detail: unknown }[]>`
+      select detail from audit_events
+       where tenant_id = ${w.tenantId} and action = 'password.changed'`
+  ).map((row) => row.detail);
+
+describe('ending the other sessions with a password change', () => {
+  async function changeFromLiveSession(w: World, extra: Record<string, string>) {
+    const keep = await signIn(w);
+    const other = await signIn(w);
+    const page = await authorize(w, { action: 'update-password' }, keep);
+    expect(page.body).toContain(
+      'name="end_other_sessions" id="end-other-sessions" value="true" checked',
+    );
+    const done = await form(w, 'required-action?action=update-password', {
+      auth_session_id: field(page, 'auth_session_id'),
+      current_password: PASSWORD,
+      password: NEW_PASSWORD,
+      ...extra,
+    });
+    expect(done.statusCode).toBe(302);
+    return { keep: sessionIdOf(keep), other: sessionIdOf(other) };
+  }
+
+  it('ends the other sessions and spares the one it was made from', async () => {
+    const w = await world();
+    const { keep, other } = await changeFromLiveSession(w, { end_other_sessions: 'true' });
+    const live = await liveSessionIds(w);
+    expect(live).toContain(keep);
+    expect(live).not.toContain(other);
+    expect(await changeAudits(w)).toEqual([
+      { ended_other_sessions: true, breached_check: 'dataset_empty' },
+    ]);
+  });
+
+  it('leaves the other sessions when the box is unchecked', async () => {
+    const w = await world();
+    const { keep, other } = await changeFromLiveSession(w, {});
+    const live = await liveSessionIds(w);
+    expect(live).toContain(keep);
+    expect(live).toContain(other);
+    expect(await changeAudits(w)).toEqual([
+      { ended_other_sessions: false, breached_check: 'dataset_empty' },
+    ]);
+  });
+
+  it('ends every earlier session when the change is owed at sign-in, and the new one lives', async () => {
+    const w = await world();
+    const before = [sessionIdOf(await signIn(w)), sessionIdOf(await signIn(w))];
+    await owner.sql`insert into user_required_actions (tenant_id, subject_id, action)
+                    values (${w.tenantId}, ${w.subjectId}, 'update-password')`;
+    const page = await submitPassword(w, await authorize(w));
+    expect(page.body).toContain('name="end_other_sessions"');
+    const done = await form(w, 'required-action?action=update-password', {
+      auth_session_id: field(page, 'auth_session_id'),
+      password: NEW_PASSWORD,
+      end_other_sessions: 'true',
+    });
+    expect(done.statusCode).toBe(302);
+    const live = await liveSessionIds(w);
+    expect(live).toEqual([sessionIdOf(sessionCookieOf(done))]);
+    expect(live).not.toEqual(expect.arrayContaining(before));
+  });
+});

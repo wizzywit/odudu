@@ -60,6 +60,8 @@ export const TENANT_SETTING_CHOICES: Readonly<Record<string, readonly (string | 
   totp_period: [30, 60],
   webauthn_user_verification: ['required', 'preferred', 'discouraged'],
   webauthn_resident_key: ['required', 'preferred', 'discouraged'],
+  breached_check: ['off', 'dataset', 'remote'],
+  breached_on_error: ['open', 'closed'],
 };
 
 /** Pairs `[lower, upper]` a CHECK holds `lower <= upper`. */

@@ -961,6 +961,13 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'settings/services/accessSections.ts',
     "label: 'Passwords remembered'",
   ),
+  Off: page(ACCESS, "label: 'Off'"),
+  'Check against known breaches': page(ACCESS, "label: 'Check against known breaches'"),
+  'When a remote lookup fails': page(ACCESS, "label: 'When a remote lookup fails'"),
+  'Dataset loaded on the server': page(ACCESS, "label: 'Dataset loaded on the server'"),
+  'Remote range lookup': page(ACCESS, "label: 'Remote range lookup'"),
+  'Accept the password': page(ACCESS, "label: 'Accept the password'"),
+  'Refuse it and ask to try again': page(ACCESS, "label: 'Refuse it and ask to try again'"),
   'First lockout': page('settings/services/accessSections.ts', "label: 'First lockout'"),
   'Longest lockout': page('settings/services/accessSections.ts', "label: 'Longest lockout'"),
   'Failures forgotten after': page(

@@ -272,6 +272,25 @@ describe('renderResetPasswordForm', () => {
     expect(body).not.toMatch(/name="password"[^>]*value=/u);
   });
 
+  it('words the two breach refusals from the catalogue, never the developer sentence', () => {
+    const { body } = renderResetPasswordForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      'token-key',
+      [
+        { rule: 'breached-password', message: 'dev-breached' },
+        { rule: 'breach-check-unavailable', message: 'dev-unavailable' },
+      ],
+      RULES,
+      EN,
+    );
+    expect(body).toContain('That password has appeared in a data breach. Choose a different one.');
+    expect(body).toContain(
+      'The password could not be checked against known breaches. Try again in a moment.',
+    );
+    expect(body).not.toContain('dev-');
+  });
+
   it('says a password is required, in French where the fixture has it', () => {
     expect(
       renderResetPasswordForm(

@@ -109,6 +109,7 @@ export {
   CURRENT_PASSWORD_REFUSED,
   holdsPassword,
   completeUpdatePassword,
+  prepareUpdatePassword,
   recordPasswordExpiryIfOwed,
   SUPERSEDED_PASSWORD,
   type UpdatePasswordOutcome,

@@ -23,6 +23,7 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 // RFC 8707 §2 at /token: the access token's `aud` is derived from what the
 // code (or, on a refresh, the grant it rotated) actually carries, never
@@ -277,6 +278,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

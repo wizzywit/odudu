@@ -23,6 +23,7 @@ import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttl
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { confirmLogoutPage } from '#/testing/logout-confirmation';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 // A hint's `aud` is the client it was issued to, not this server, so an
 // audience check on it is an additional guard this server chooses to make
@@ -250,6 +251,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

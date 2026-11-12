@@ -8,7 +8,7 @@ import { Diagram } from '@site/src/shared/ui/Diagram';
 
 # Sessions
 
-You sign in to one app in the morning, then open another that uses the same Odudu. It does not ask for your password again. That is a session: a record that you proved who you are.
+You sign in to one app, then open another that uses the same Odudu. It does not ask for your password again. That is a session: a record that you proved who you are.
 
 <Diagram
   name="sessions"
@@ -37,13 +37,14 @@ Two limits apply, and the earlier one ends the session:
 
 The idle limit cannot be longer than the absolute one. A tenant with `remember_me_allowed` offers a "stay signed in" box with its own pair of limits, `remember_me_idle_seconds` and `remember_me_max_seconds`.
 
-One browser can hold several sessions, such as two people's. The tenant's `max_sessions_per_browser` caps them at 25 sessions by default; a new one past the cap ends the one used longest ago.
+One browser can hold several sessions. The tenant's `max_sessions_per_browser` caps them at 25 sessions by default; a new one past the cap ends the one used longest ago.
 
 ## How a session ends
 
 - **By itself**, when a limit is reached.
 - **On purpose**, when an app sends the person to the tenant's end-session address. The person is asked to confirm unless the operator turned that off and the request carries the app's ID token for this session. [Refresh and end a session](../guides/refresh-and-end-a-session.md) shows it.
 - **By an administrator**, who can end one person's sessions, or call `DELETE /admin/tenants/{tenant}/sessions` to end a tenant's live sessions a few hundred at a time.
+- **By a password change**, when the person leaves "End my other sessions" checked: all but the session in use end.
 
 Ending a session ends the refresh tokens bound to it, which is what a browser sign-in produces. A grant made with `offline_access` has no session, so ending sessions leaves it alone. Its refresh tokens work until they expire or an administrator revokes them: `GET /admin/tenants/{tenant}/subjects/{id}/grants` lists what a person holds, with `offline` set on those grants, and `DELETE /admin/tenants/{tenant}/subjects/{id}/grants/{clientId}` revokes every grant through one client, offline ones included. An API that checks only a signature accepts an access token until it expires, which is why they are short; one that asks the introspection endpoint is told at once.
 
@@ -56,9 +57,9 @@ Each person who has set up an authenticator app is given **one set of ten recove
 A few rules are worth knowing:
 
 1. **Each code works once.** A code that has been used is refused if it is tried again.
-2. **A code stands in for an authenticator code, and only that.** It is accepted only on the step that asks for an authenticator code, never after a passkey assertion that included user verification, which already proves two things. After one that lacked it, the sign-in is one factor, so a code can stand in. Without an authenticator app, any codes a person holds are not accepted.
+2. **A code stands in for an authenticator code, and only that.** It is accepted only on the step that asks for an authenticator code, never after a passkey assertion that included user verification, which already proves two things. After one that lacked it, a code can stand in. Without an authenticator app, held codes are not accepted.
 3. **Removing the last authenticator app removes the whole set**, used codes included, and writes an entry to the audit trail with the action `subject.recovery_codes_revoke`. Otherwise a code that outlived its authenticator would work again with the next one.
-4. **An administrator can revoke a set**, with `DELETE /admin/tenants/{tenant}/subjects/{id}/recovery-codes`. If the person still has an authenticator, the next sign-in asks them to make a new set, unless the call says `require_new_set=false`. If they have none, nothing more is asked.
+4. **An administrator can revoke a set**, with `DELETE /admin/tenants/{tenant}/subjects/{id}/recovery-codes`. If the person still has an authenticator, the next sign-in asks them to make a new set, unless the call says `require_new_set=false`. With none, nothing is asked.
 5. **A wrong code counts** towards the lockout that follows too many wrong second-factor attempts.
 
 The person is told by email when their set is revoked, by an administrator or because the last authenticator went.

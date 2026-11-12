@@ -111,6 +111,34 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
     example: 'odudu domains recheck',
   },
   {
+    name: 'breached-passwords',
+    summary:
+      'Load a file of SHA-1 password hashes, one per line with an optional :count, into the ' +
+      "dataset a tenant's breached-password check reads, and print the counts as JSON.",
+    options: [],
+    subcommands: [
+      {
+        name: 'load',
+        summary:
+          'Read the file in chunks and add the hashes the dataset lacks. Safe to run again ' +
+          'with the same file. The one argument is the file path.',
+        options: [],
+        subcommands: NONE,
+        example: 'odudu breached-passwords load pwned-passwords-sha1-ordered-by-hash.txt',
+      },
+      {
+        name: 'status',
+        summary:
+          'Print whether the dataset holds any hash and how many, counted up to a million, as JSON. ' +
+          'An empty dataset refuses no password, and the audit trail records it as dataset_empty.',
+        options: [],
+        subcommands: NONE,
+        example: 'odudu breached-passwords status',
+      },
+    ],
+    example: 'odudu breached-passwords load pwned-passwords-sha1-ordered-by-hash.txt',
+  },
+  {
     name: 'send-mail',
     summary: 'Deliver the queued emails once and print the outcome as JSON.',
     options: [],

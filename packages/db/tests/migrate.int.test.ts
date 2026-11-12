@@ -44,6 +44,8 @@ describe('migrations', () => {
       'audit_event_types',
       'audit_retention_days',
       'authorization_code_ttl_seconds',
+      'breached_check',
+      'breached_on_error',
       'brute_force_failure_reset_seconds',
       'brute_force_lockout_seconds',
       'brute_force_max_failures',

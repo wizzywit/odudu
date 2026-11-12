@@ -13,6 +13,7 @@ import {
   type RequiredActionSubmissionDeps,
 } from '#/usecase/required-action-submission';
 import { requestedVariant } from '#/service/action-request';
+import { tenantIssuerFor } from '#/view/issuer';
 import { actionPages } from '#/view/routes/action-pages';
 import { sendActionUnavailable, sendSignInExpired } from '#/view/routes/expired-sign-in';
 import { sendHtml } from '#/view/html-response';
@@ -124,6 +125,8 @@ export function registerRequiredActionRoute(
         currentPassword: currentPasswordOf(body.current_password),
         cancel: body.cancel !== undefined,
         confirm: body.confirm !== undefined,
+        endOtherSessions: body.end_other_sessions === 'true',
+        issuer: tenantIssuerFor(request, tenantName),
         credential: firstString(body.credential),
         label: firstString(body.label),
       },

@@ -15,6 +15,7 @@ import {
   completeTotpEnrolment,
   type MailLookResolver,
   completeUpdatePassword,
+  prepareUpdatePassword,
   consumeAuthenticationSession,
   initialChallenge,
   loadPendingRequest,
@@ -40,6 +41,7 @@ import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
+  type BreachedPasswordCheck,
   hashPassword,
   subjectIsEnabled,
   subjectRepository,
@@ -105,7 +107,7 @@ import {
 } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
 import { type DiscoveryUsecaseDeps } from '#/usecase/discovery';
-import { endSession } from '#/usecase/end-session';
+import { endOtherSessions, endSession } from '#/usecase/end-session';
 import { registerAsMetadataRoutes } from '#/view/routes/as-metadata';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
 import { registerClientRegistrationRoute } from '#/view/routes/client-registration';
@@ -130,6 +132,10 @@ export interface OidcRoutesDeps {
   // can sign access and ID tokens. Required, not defaulted: there is no
   // safe placeholder for a key-encryption key.
   kek: Uint8Array;
+  // What a password written through the required-action form is checked
+  // against after the tenant's other rules. Required: a deployment that
+  // wires none would silently skip a tenant's remote source.
+  breachedPasswordCheck: BreachedPasswordCheck;
   // Whether this process serves over TLS (ODUDU_TLS): the __Host- prefix and
   // Secure attribute of every cookie these routes write. No default, so a
   // caller cannot lose it silently.
@@ -1030,13 +1036,40 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         ),
       completeRecoveryCodes: (input) =>
         withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
-      completeUpdatePassword: (input, request) =>
-        withTenant(
+      completeUpdatePassword: async ({ endOtherSessions: ending, ...input }, request) => {
+        const breachedPrepared = await prepareUpdatePassword(
+          deps.database.db,
+          input,
+          deps.breachedPasswordCheck,
+          request,
+        );
+        return withTenant(
           deps.database.db,
           input.tenantId,
-          (tx) => completeUpdatePassword(tx, input),
+          (tx) =>
+            completeUpdatePassword(tx, {
+              ...input,
+              breachedCheck: deps.breachedPasswordCheck,
+              breachedPrepared,
+              ...(ending === undefined
+                ? {}
+                : {
+                    endOtherSessions: (inTx) =>
+                      endOtherSessions(
+                        inTx,
+                        { kek: deps.kek },
+                        {
+                          tenantId: input.tenantId,
+                          subjectId: input.subjectId,
+                          now: clock.now(),
+                          ...ending,
+                        },
+                      ),
+                  }),
+            }),
           request,
-        ),
+        );
+      },
     });
     registerLoginRoute(app, { ...loginSubmission, ...passkeyAssertion });
     registerConsentRoute(app, {
@@ -1354,9 +1387,11 @@ export { refreshTokens } from '#/schema/refresh-tokens';
 export { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';
 export {
   endAllAccess,
+  endOtherSessions,
   endSession,
   endSessions,
   type EndAllAccessInput,
+  type EndOtherSessionsInput,
   type EndSessionDeps,
   type EndSessionInput,
   type EndSessionsInput,

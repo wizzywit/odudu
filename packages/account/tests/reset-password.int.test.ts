@@ -8,8 +8,10 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import {
+  breachedHash,
   credentialRepository,
   evaluatePassword,
+  insertBreachedHashes,
   hashPassword,
   REUSED_PASSWORD,
   subjectRepository,
@@ -29,7 +31,7 @@ import formbody from '@fastify/formbody';
 import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { accountTestDeps } from '#/testing/support';
+import { accountTestDeps, breachedLookups } from '#/testing/support';
 import { registerActionTokenRoute } from '#/view/routes/action-token';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
@@ -513,6 +515,23 @@ describe('password reset', () => {
     expect(await passwordWorksFor(tenantId, 'ada', 'a brand new password')).toBe(true);
   });
 
+  it('never looks up a password a rule refused, and looks up one it accepted', async () => {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
+      resetPasswordAllowed: true,
+    });
+    await seedAda(tenantId);
+    await requestReset(tenantName, 'ada@example.test');
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    const link = extractLink(message);
+    breachedLookups.length = 0;
+
+    expect((await submitNewPassword(link, 'short')).statusCode).toBe(400);
+    expect(breachedLookups).toEqual([]);
+    expect((await submitNewPassword(link, 'a compliant password')).statusCode).toBe(200);
+    expect(breachedLookups).toEqual(['a compliant password']);
+  });
+
   it('refuses a password that fails the tenant policy, without spending the link', async () => {
     const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,
@@ -557,6 +576,30 @@ describe('password reset', () => {
 
     const retried = await submitNewPassword(link, 'a compliant password');
     expect(retried.statusCode).toBe(200);
+  });
+
+  it('refuses a breached password without spending the link, and not when the check is off', async () => {
+    const leaked = 'a leaked reset passphrase here';
+    await insertBreachedHashes(owner.db, [breachedHash(leaked)]);
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
+      resetPasswordAllowed: true,
+    });
+    await seedAda(tenantId);
+    await requestReset(tenantName, 'ada@example.test');
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    const link = extractLink(message);
+
+    const rejected = await submitNewPassword(link, leaked);
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.body).toContain(
+      '>That password has appeared in a data breach. Choose a different one.</li>',
+    );
+    expect(await passwordWorksFor(tenantId, 'ada', 'correct horse battery')).toBe(true);
+
+    await owner.db.update(tenants).set({ breachedCheck: 'off' }).where(eq(tenants.id, tenantId));
+    expect((await submitNewPassword(link, leaked)).statusCode).toBe(200);
+    expect(await passwordWorksFor(tenantId, 'ada', leaked)).toBe(true);
   });
 
   it('stops the old password working', async () => {

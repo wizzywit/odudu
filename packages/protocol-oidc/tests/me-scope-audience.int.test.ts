@@ -29,6 +29,7 @@ import { authorizationCodeRepository } from '#/repository/codes';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 // me:read and me:write are asked for at a tenant's "me" API and nowhere else,
 // me:write only with me:read: refused at /authorize, and at /token for every
@@ -250,6 +251,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: ownerHandle,

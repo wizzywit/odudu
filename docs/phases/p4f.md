@@ -545,3 +545,118 @@ that never configures a step behaves as it does today.
   in `rp-initiated-logout` now carries the self-registered client's notice, which
   `tests/docs/page-documents-transcripts.test.ts` does not read back yet. The method and the page list are in
   `contributing/transcripts.md`.
+
+## Increment 9: ending the other sessions on a password change
+
+### What shipped
+
+- A checked box, `end_other_sessions` (`value="true"`), on the change-password page in both its variants, wording `updatePassword.endOtherSessions`
+  with an Arabic twin. The field is read as `=== 'true'`, the way `remember_me` is.
+- `endOtherSessions` in `protocol-oidc` (`usecase/end-session.ts`) shares one batch loop with `endAllAccess`, 100 sessions a round,
+  and ends the sessions the way a logout does (grants revoked, back-channel deliveries queued, `session.ended` with `via: 'self'`).
+  `completeUpdatePassword` takes it as a callback, runs it after the new hash is stored in the same transaction, and never for a
+  refused or superseded candidate. The `password.changed` row carries `ended_other_sessions`, in the audit vocabulary's allowlist.
+
+### Ruling
+
+- An absent field leaves the sessions. A cleared box sends nothing, so the rendered default (checked) is what makes ending the
+  usual answer; a script posting the form without the field is not assumed to want it.
+- The session in use is the parked request's `reuseSessionId`, present when an application sent a person who is already signed in.
+  On a sign-in the change interrupts there is no session yet, so every earlier one ends and the new one is made afterwards.
+- A password reset has no box. It already ends every session and revokes every grant of the person, unconditionally
+  (`recoverAccount`), because a reset is how an account is recovered; a box on it would let whoever holds the mailbox
+  choose to keep the previous holder signed in. `reset-ends-access.int.test.ts` holds it.
+- The "me" API has no password change, so there is no API path to cover. Grants no session holds (`offline_access`) are not
+  touched, as when a person ends sessions through the "me" API.
+- A refused candidate re-renders the page with the box checked again, whatever it was; the safer value on a retry.
+
+### Fix round
+
+- `getting-the-token` was replayed whole from its first block to the token's decoded payload on one stack (port `3082`, empty
+  volume), so the page, the posted `auth_session_id`, the code and the token share one run; its later sections keep their own
+  notes. The provenance paragraph in `contributing/transcripts.md` says so. The page's sentence on the unchecked box now says only
+  that the request sends nothing, so none is ended.
+- The sessions concept page names both triggers of the revocation mail again, with room made by tightening two other sentences.
+
+### At volume
+
+- One bounded read by subject (`sessions_by_subject`) and one batch of statements per 100 sessions; a subject with 250 live sessions
+  takes under 40 statements (`end-all-access.int.test.ts`).
+
+### Open placements
+
+- None.
+
+## Increment 9, part 2: the breached-password check
+
+### What shipped
+
+- Two tenant settings, `breached_check` (`off|dataset|remote`, default `dataset`) and `breached_on_error` (`open|closed`, default `open`),
+  with a CHECK each in migration 0135, import/export, the audit detail allowlist and a Password policy control in the console.
+- `BreachedPasswordSource { isBreached }` with two implementations in `domain-identity`: the dataset (one primary-key probe of
+  `breached_password_hashes`) and the remote range lookup (`breached-range-source.ts`). `judgeBreached` settles a
+  `BreachedLookupFailed` by `breached_on_error` and lets every other error through, so a defect is never read as an answer.
+  `createBreachedPasswordCheck` reads the tenant's settings through the caller's transaction and is injected into the four
+  writers: registration, reset redemption, actions-link redemption (`@odudu/account`) and `completeUpdatePassword`.
+- The remote request is `createBreachedRangeFetch` (`apps/server`), which reuses the pinned transport of ADR 0028: one fixed host,
+  a `/range/<five hex>` path and nothing else, every resolved address checked and the connection pinned to one, `Add-Padding: true`
+  and no other header, 3 s, 128 KiB, 4 lookups in flight per tenant.
+- `odudu breached-passwords load <file>`: a stream, chunks of 5,000, `on conflict do nothing`, the owner connection only.
+- Rules `breached-password` and `breach-check-unavailable`, worded in both catalogues and in Arabic; `detail.breached_check` on
+  `password.changed`, `password.reset` and `account.registered`.
+
+### Ruling
+
+- The dataset is one global table, not one per tenant: a corpus of hundreds of millions of rows cannot be copied into each of 10,000
+  tenants. Every other table is tenant-scoped, and `rls-policy.int.test.ts` demands a policy naming `app.tenant_id` on every one,
+  so the table has a read policy that admits any bound tenant context and nothing else, and `INSERT`, `UPDATE` and `DELETE` are
+  revoked from the serving role. The load runs as the owner and refuses a role that does not bypass row-level security.
+- The default is the dataset, as the spec says, and an empty dataset judges nothing breached, so no tenant's behaviour changes until
+  an operator loads one. A tenant is shown as checking whether or not a dataset has been loaded; the console cannot see the table.
+- The check runs after the other rules, on a candidate that passed them, and before the reuse check, which can be up to 25 Argon2id
+  verifications. A candidate refused by a rule is never looked up.
+- The check runs in the writer's own transaction, so it opens no second connection (a second would deadlock a saturated pool).
+  Registration has no transaction at that point and opens a short one. (Superseded: see the fix round, a remote lookup now holds none.)
+- An administrator never types a password: `POST .../subjects/:id/password` mails a link, and the link's page is the actions-link
+  writer. There is no fifth path to cover. `odudu seed` and `odudu init` check the policy rules only; they are operator-typed on a
+  command line and a remote lookup from a one-shot command has no bound.
+- A refusal is a form error, as a refused rule is, and writes no audit row. `breached` and `error_closed` are in the vocabulary because the
+  check reports them, and so no stored row ever carries either.
+- A registration that waits for a mailed link runs the check when the form is submitted. Its `account.registered` row, written when
+  the link is used, has no `breached_check`, since the verdict has nowhere to wait in `pending_registrations` without a column.
+- "Timeout honours the setting" is read as: a lookup that timed out is settled by `breached_on_error`. The timeout is a constant; a
+  tenant cannot lengthen the time a form submission can wait.
+- The suffix is compared with plain equality: it is public data, and the answer is the whole bucket the service sends anyway.
+- A count of zero in an answer is the service's padding and is not a hit. An empty answer is a failed lookup, not a pass.
+
+### At volume
+
+- Dataset: one probe of the primary key (`prefix`, `suffix`), constant whatever the table's size, no listing. Remote: bounded by
+  3 s, 128 KiB and 4 in flight per tenant; the limiter's map holds an entry only while a tenant has a lookup running.
+  10,000 tenants with one lookup each is 10,000 entries for at most 3 s.
+- The load streams and holds one chunk of 5,000 rows.
+
+### Open placements
+
+- None. The remote path has not been run against a live stack, because the real host must not be contacted: its wire is asserted
+  with a capturing fake and against a TLS server of the test's own, and the transcripts show the dataset path and the settings.
+
+### Fix round
+
+- A remote lookup holds no pooled connection. The check is two parts: `prepare` reads the tenant's settings in a short transaction of
+  its own, releases it and only then asks a remote service; `judge` runs inside the writing transaction and does at most one
+  primary-key read. Reset, actions-link and change-password run a read-only phase first (token, rules), so the rules still decide
+  before anything is asked and a refused candidate is never looked up; `prepareUpdatePassword` does the same ahead of
+  `completeUpdatePassword`. A process-wide cap of `DEFAULT_POOL_MAX - 2` (8) lookups joins the per-tenant 4; a lookup refused by
+  either is a failed lookup settled by `breached_on_error`. A test holds three blocked lookups against a pool of two connections and
+  shows both still answer.
+- `parseRange` skips empty lines, so a terminated last line and CRLF no longer fail a lookup; a body of nothing but line ends is
+  still a failed lookup. The hash is computed before a slot is taken.
+- A dataset holding no row reads `dataset_empty` in `detail.breached_check` (one `select 1 ... limit 1`, only when nothing was
+  found), and `odudu breached-passwords status` prints `{loaded, rows, capped}`, counting up to a million.
+- `breachedPasswordCheck` is required in `protocol-oidc`; the module-level default is gone.
+- The settings screen record was recaptured by `pnpm docs:screenshots` and is the tool's output. The earlier refusal was the run's
+  own admin password: a short, word-like one matched page text (the guard refuses a given string appearing anywhere). A 40-character
+  random password passed that guard, then the run needed a database holding only the `system` and `demo` tenants.
+- In the change-password transcript, a candidate that fails the current-password proof is still looked up when it passes the rules,
+  since the proof writes failures and cannot run before the lookup; the lookup sends only the hash prefix.

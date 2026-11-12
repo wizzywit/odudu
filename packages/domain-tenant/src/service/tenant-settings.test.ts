@@ -336,3 +336,20 @@ describe('the passkey switch', () => {
     expect(coerceTenantSetting('require_passkey', 'maybe').kind).toBe('invalid_value');
   });
 });
+
+describe('the breached-password settings', () => {
+  it('read as the text columns they are stored in, refusing a source nobody offers', () => {
+    expect(coerceTenantSetting('breached_check', 'remote')).toEqual({
+      kind: 'coerced',
+      column: 'breachedCheck',
+      value: 'remote',
+    });
+    expect(coerceTenantSetting('breached_on_error', 'closed')).toEqual({
+      kind: 'coerced',
+      column: 'breachedOnError',
+      value: 'closed',
+    });
+    expect(coerceTenantSetting('breached_check', 'always').kind).toBe('invalid_value');
+    expect(coerceTenantSetting('breached_on_error', 'maybe').kind).toBe('invalid_value');
+  });
+});

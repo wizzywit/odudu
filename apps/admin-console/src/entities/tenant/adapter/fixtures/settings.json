@@ -45,6 +45,8 @@
   "webauthn_resident_key": "required",
   "recovery_code_count": 10,
   "require_passkey": false,
+  "breached_check": "dataset",
+  "breached_on_error": "open",
   "login_with_email": false,
   "audit_event_types": [
     "admin_mutation",

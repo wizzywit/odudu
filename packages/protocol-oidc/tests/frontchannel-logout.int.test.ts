@@ -24,6 +24,7 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { confirmLogoutPage } from '#/testing/logout-confirmation';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -354,6 +355,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,
@@ -460,6 +462,7 @@ describe('the logout page frames each relying party that used the session', () =
     await configured.register(formbody);
     await configured.register(
       oidcRoutes({
+        breachedPasswordCheck: noBreachedLookup,
         tls: false,
         database: app,
         ownerDatabase: owner,

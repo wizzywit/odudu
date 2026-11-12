@@ -78,6 +78,12 @@ export interface RequiredActionSubmission {
   cancel: boolean;
   // The confirm control of the recovery-code replacement page was used.
   confirm: boolean;
+  // The box on the change-password page that ends the person's other sessions
+  // was checked. An unchecked box sends nothing, so a submission without the
+  // field leaves them.
+  endOtherSessions: boolean;
+  // The issuer the back-channel logout tokens of an ended session carry.
+  issuer: string;
   // The JSON navigator.credentials.create() produced, as the passkey page's
   // hidden field carried it back, and the name the user gave it.
   credential: string | undefined;
@@ -130,7 +136,13 @@ export interface RequiredActionSubmissionDeps {
   // registration, reset redemption and the seed CLI — and the only one that
   // refuses a password the subject has had before.
   completeUpdatePassword(
-    input: { tenantId: string; subjectId: string; password: string; currentPassword?: string },
+    input: {
+      tenantId: string;
+      subjectId: string;
+      password: string;
+      currentPassword?: string;
+      endOtherSessions?: { except: string | null; issuer: string };
+    },
     request: RequestContext,
   ): Promise<UpdatePasswordOutcome>;
   // Absent when no relying party can be derived — see relyingPartyId in
@@ -225,6 +237,7 @@ export async function handleRequiredActionSubmission(
     submission,
     request,
     requested,
+    pending?.reuseSessionId ?? null,
   );
   if (asked && outcome.kind === 'completed') await step('success');
   return requested && (outcome.kind === 'password_rejected' || outcome.kind === 'rejected')
@@ -245,6 +258,7 @@ async function performAction(
   submission: RequiredActionSubmission,
   request: RequestContext,
   requested: boolean,
+  sessionInUse: string | null,
 ): Promise<RequiredActionOutcome> {
   if (action === 'configure-passkey') {
     return completePasskey(deps, tenantId, subjectId, authSessionId, submission, request);
@@ -261,6 +275,9 @@ async function performAction(
         subjectId,
         password: submission.password ?? '',
         ...(requested ? { currentPassword: submission.currentPassword ?? '' } : {}),
+        ...(submission.endOtherSessions
+          ? { endOtherSessions: { except: sessionInUse, issuer: submission.issuer } }
+          : {}),
       },
       request,
     );

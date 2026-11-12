@@ -92,11 +92,39 @@ describe('the authenticator policy', () => {
 
   it('offers exactly the values the server accepts, digits and period as numbers', () => {
     for (const [name, choices] of Object.entries(TENANT_SETTING_CHOICES)) {
+      // These two live in the password policy, which has its own test below.
+      if (name.startsWith('breached_')) continue;
       const field = named(name);
       expect(field?.control).toBe('choice');
       expect(field?.options?.map((option) => option.id)).toEqual(choices.map(String));
       expect(field?.numeric === true).toBe(typeof choices[0] === 'number');
     }
+  });
+});
+
+describe('the breached-password check', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'password');
+  const named = (name: string) => home?.fields.find((field) => field.name === name);
+
+  it('sits in the password policy, after the rules it follows', () => {
+    const names = home?.fields.map((field) => field.name) ?? [];
+    expect(names.slice(-2)).toEqual(['breached_check', 'breached_on_error']);
+  });
+
+  it('offers exactly the values the server accepts', () => {
+    for (const name of ['breached_check', 'breached_on_error']) {
+      expect(named(name)?.control).toBe('choice');
+      expect(named(name)?.options?.map((option) => option.id)).toEqual(
+        TENANT_SETTING_CHOICES[name]?.map(String),
+      );
+    }
+  });
+
+  it('says that off means no check, and what a failed remote lookup does', () => {
+    expect(named('breached_check')?.options?.find((option) => option.id === 'off')?.label).toBe(
+      'Off',
+    );
+    expect(named('breached_on_error')?.description).toContain('remote');
   });
 });
 

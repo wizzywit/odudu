@@ -72,6 +72,9 @@ export const en = {
   'password.hint.summary': '{met} of {total} rules met',
   'password.rule.common': 'That password is too easy to guess. Choose a different one.',
   'password.rule.notReused': 'Password must not be one you have used before.',
+  'password.rule.breached': 'That password has appeared in a data breach. Choose a different one.',
+  'password.rule.breachCheckUnavailable':
+    'The password could not be checked against known breaches. Try again in a moment.',
   'reset.request.title': 'Forgot your password?',
   'reset.request.email': 'Email',
   'reset.request.submit': 'Send reset link',

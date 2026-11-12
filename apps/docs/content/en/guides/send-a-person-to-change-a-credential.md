@@ -134,6 +134,8 @@ password made: before 2026-11-12T11:13:48.048Z, after 2026-11-12T11:13:52.568Z
 
 Full transcript: [Changing the password](../reference/transcripts/request-paths/sending-a-person-to-change-a-credential.md#changing-the-password).
 
+The page also offers "End my other sessions", checked. Left checked it ends every session of the person but the one they are signed in with, which is the session the request came from; cleared, it ends none.
+
 ## 6. Know what is refused
 
 An action the client is not allowed, an unknown name, the parameter twice and the parameter empty are each refused with

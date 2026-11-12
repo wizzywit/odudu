@@ -561,6 +561,38 @@ describe('the passkey switch', () => {
   });
 });
 
+describe('the breached-password settings', () => {
+  it('start on the dataset and open, change through the settings and refuse a bad value', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const url = `/admin/tenants/${t.name}/settings`;
+    const headers = { authorization: `Bearer ${token}` };
+    const read = () => fixture.http.inject({ method: 'GET', url, headers });
+    expect((await read()).json()).toMatchObject({
+      breached_check: 'dataset',
+      breached_on_error: 'open',
+    });
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url,
+      headers,
+      payload: { breached_check: 'remote', breached_on_error: 'closed' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({
+      breached_check: 'remote',
+      breached_on_error: 'closed',
+    });
+    const bad = await fixture.http.inject({
+      method: 'PATCH',
+      url,
+      headers,
+      payload: { breached_check: 'always' },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+});
+
 describe('the language settings', () => {
   async function setup() {
     const t = await fixture.createTenant(`acme-${newId()}`);

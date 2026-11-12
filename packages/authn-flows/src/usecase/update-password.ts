@@ -1,6 +1,14 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import {
+  type Database,
+  type RequestContext,
+  type TenantScopedDatabase,
+  withTenant,
+} from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import {
+  BREACH_CHECK_UNAVAILABLE,
+  type BreachedPasswordCheck,
+  type BreachedPrepared,
   credentialRepository,
   evaluatePassword,
   hashUserPassword,
@@ -46,11 +54,21 @@ export interface UpdatePassword {
   tenantId: string;
   subjectId: string;
   password: string;
+  // Asked of a candidate that passed the tenant's other rules, before the
+  // reuse check: one lookup, where the reuse check can be twenty-five hashes.
+  // `breachedPrepared` is what `prepareUpdatePassword` learned before this
+  // transaction opened; null when it found the candidate already refused.
+  breachedCheck: BreachedPasswordCheck;
+  breachedPrepared: BreachedPrepared | null;
   // Present where the person has to prove the password in force before
   // choosing a new one, an empty string included: a form that left the field
   // out is a wrong answer, not an exemption. Absent for the action a tenant
   // owes the subject at sign-in, which has just proved it.
   currentPassword?: string;
+  // Ends the person's other sessions once the new password is stored, in this
+  // transaction. Absent, they are left; never run for a candidate that was
+  // refused or lost a race, since no password changed.
+  endOtherSessions?: (tx: TenantScopedDatabase) => Promise<void>;
 }
 
 // A subject's password, and the candidates a reuse check has to refuse:
@@ -109,6 +127,33 @@ async function currentPasswordProved(
   return false;
 }
 
+// Read-only, before the writing transaction: judges the candidate by the
+// tenant's rules and, only if they pass, asks the breached-password check to
+// prepare, so a remote service is asked while no connection is held.
+export async function prepareUpdatePassword(
+  database: Database,
+  input: { tenantId: string; subjectId: string; password: string },
+  check: BreachedPasswordCheck,
+  request: RequestContext,
+): Promise<BreachedPrepared | null> {
+  const clean = await withTenant(
+    database,
+    input.tenantId,
+    async (tx) => {
+      const policy = await tenantSettingsRepository(tx).passwordPolicy(input.tenantId);
+      const user = await userRepository(tx).bySubjectId(input.subjectId);
+      if (user === null) return false;
+      return (
+        evaluatePassword(input.password, policy, { username: user.username, email: user.email })
+          .length === 0
+      );
+    },
+    request,
+  );
+  if (!clean) return null;
+  return check.prepare(database, input.tenantId, input.password, request);
+}
+
 // The fourth writer of a password in a tenant, bound by the same policy as
 // registration, reset redemption and the seed CLI — and the only one that
 // consults history, which is why it is the only one that keeps any.
@@ -147,6 +192,24 @@ export async function completeUpdatePassword(
     };
   }
 
+  // Rules passed here but not when it was prepared: the policy changed in
+  // between, so nothing was asked and the person is told to try again.
+  if (input.breachedPrepared === null) {
+    return { kind: 'rejected', violations: [{ ...BREACH_CHECK_UNAVAILABLE }] };
+  }
+  const breached = await input.breachedCheck.judge(
+    tx,
+    input.tenantId,
+    input.password,
+    input.breachedPrepared,
+  );
+  if (breached.violations.length > 0) {
+    return {
+      kind: 'rejected',
+      violations: breached.violations.map(({ rule, message }) => ({ rule, message })),
+    };
+  }
+
   // Nothing in the tenant holds a password for this subject, so there is
   // nothing to rotate. Unreachable through the only thing that owes this
   // action today — expiry, which reads the credential it expires — so it is
@@ -177,6 +240,7 @@ export async function completeUpdatePassword(
   // on a false return it is the one the other transaction set.
   await requiredActionRepository(tx).complete(input.subjectId, 'update-password');
   if (!rotated) return { kind: 'superseded' };
+  await input.endOtherSessions?.(tx);
   await auditRepository(tx).record({
     eventType: 'credential',
     action: 'password.changed',
@@ -184,6 +248,10 @@ export async function completeUpdatePassword(
     actorSubjectId: input.subjectId,
     resourceType: 'subject',
     resourceId: input.subjectId,
+    detail: {
+      ended_other_sessions: input.endOtherSessions !== undefined,
+      breached_check: breached.audit,
+    },
   });
   return { kind: 'updated' };
 }

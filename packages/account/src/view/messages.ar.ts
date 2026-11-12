@@ -65,6 +65,9 @@ export const ar: Readonly<Record<string, string>> = {
   'password.hint.summary': 'استُوفي {met} من أصل {total} من القواعد',
   'password.rule.common': 'كلمة المرور هذه سهلة التخمين. اختر كلمة مرور أخرى.',
   'password.rule.notReused': 'يجب ألا تكون كلمة المرور من كلمات المرور التي استخدمتها من قبل.',
+  'password.rule.breached': 'ظهرت كلمة المرور هذه في تسريب بيانات. اختر كلمة مرور أخرى.',
+  'password.rule.breachCheckUnavailable':
+    'تعذّر فحص كلمة المرور مقابل التسريبات المعروفة. حاول مرة أخرى بعد قليل.',
   'reset.request.title': 'هل نسيت كلمة المرور؟',
   'reset.request.email': 'البريد الإلكتروني',
   'reset.request.submit': 'إرسال رابط إعادة التعيين',

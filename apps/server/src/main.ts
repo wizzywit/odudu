@@ -67,6 +67,22 @@ if (process.argv[2] === 'domains') {
   }
 }
 
+if (process.argv[2] === 'breached-passwords') {
+  try {
+    console.log(
+      JSON.stringify(
+        await (
+          await import('#/cli/breached-passwords')
+        ).breachedPasswordsCommand(process.argv.slice(3)),
+      ),
+    );
+    process.exit(0);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
 if (process.argv[2] === 'send-mail') {
   try {
     console.log(JSON.stringify(await (await import('#/cli/send-mail')).sendMailCommand()));
