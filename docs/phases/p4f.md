@@ -240,10 +240,6 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 - `update-password` for a person with no password, and the passkey ceremony, are covered by integration tests and not by a
   transcript, which cannot reach them from a shell.
 - The close-of-phase pass (the roadmap, section 11 and `docs/NEXT.md` read against each other) still owns the P4f row.
-- A requested `generate-recovery-codes` for a person who holds no set issues one when the page renders, so a reload shows the
-  confirmation page with a cancel control, and cancelling then records `cancelled` after the set changed. It is the remaining
-  case of the render-time change that the confirmation step removed for a held set. It is placed on Increment 5, the
-  recovery-code increment, which decides whether a first set also waits for a confirmation.
 
 ## Increment 4: a place to return to for an administrator-issued link
 
@@ -268,3 +264,40 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 ### Open placements
 
 - A link that is used from the sign-in that mailed it keeps the way back to that sign-in and names no client.
+
+## Increment 5: recovery codes, early re-issue and the bound
+
+### What shipped
+
+- **Where the marker lives.** Migration 0130 adds `subjects.recovery_codes_issued_at timestamptz`, null until a set is
+  made. A set has no row of its own (it is the subject's `recovery-code` credential rows, deleted and inserted together),
+  so a `recovery_sets` table would have held one row per subject to carry one timestamp, with its own foreign key, policy
+  and cascade. The subject row is already the lock every issue and every factor removal takes, so the claim needs no second
+  lock. A subject whose set predates the column reads null, so it can be replaced once at once.
+- **The claim is one conditional `UPDATE`** (`subjectRepository.claimRecoveryIssue`) that sets the time only where it is
+  null, at or before `now` minus an hour, or the caller says the set is used up. `reissueAllowed` (a pure service
+  function) decides the same thing from a read and names the retry time, which the claim cannot return. Two calls at the
+  same instant: one claims, one reads the claimed time and is refused (tested with two concurrent transactions).
+- **The one issuer** is `beginRecoveryCodes`; the sign-in page, a reload of it and the requested action all pass through
+  it, so the bound holds for each. A refusal writes `recovery_codes.refused` (outcome `refused`, reason `rate_limited`),
+  carries `retryAt` and the minutes to wait, and renders a page with a `429`. A page an application sent the person to
+  has the cancel control; the page a tenant owes has none.
+- **A first set waits for a confirmation too.** `askFirst` replaces `keepHeld`: a requested action issues nothing at
+  render, and answers `ask` (with whether it replaces a set) or `too_soon`. The first-set confirmation has its own
+  wording and button. The Increment 3 placement is closed.
+- Documentation: the action guide, the action transcript replayed whole on a live stack, the
+  recovery-code transcript's prose, the audit vocabulary, the changelog. The sessions concept page is at the 900-word
+  limit its test holds, so the rule is stated in the guide and the transcripts.
+
+### Found while building
+
+- `beginRecoveryCodes` had no clock, and the bound needs one. It takes `now` as a required input, so the callers in
+  four test suites pass one rather than the function reading the wall clock.
+
+### Open placements
+
+- A person at the page the tenant owes (a new authenticator, a set spent down to nothing) who reloads it while the set
+  just shown is unspent is refused for up to an hour, and that page has no way out, so the sign-in cannot finish until the
+  hour passes. The bound is doing what it says; whether the owed page should
+  offer a way on is the owner's call at the review of this increment.
+- The low-count warning is the next task of this increment.
