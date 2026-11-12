@@ -173,7 +173,7 @@ audit row says `skipped` (`address_in_use`, `unchanged` or `throttled`, the last
 per-address mail budget of its own kind). A pending row is one per subject and is cleared when the
 change completes, when a later request replaces it, when a later request is skipped, and when an
 administrator changes the address; it is deleted with the subject. It is not reaped by age and needs
-no such pass: the table cannot hold more rows than the tenant has subjects. The address being left is told when the request is made (increment 6).
+no such pass: the table cannot hold more rows than the tenant has subjects. The address being left is told when the request is made (increment 6), only when the request is not skipped and the old address is verified.
 
 ## Increment 3: which actions a client may start
 
