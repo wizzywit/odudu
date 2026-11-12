@@ -495,8 +495,10 @@ setup at the same moment, for the same reason.
 A fresh set _before_ running out is asked for by an application, with the
 `generate-recovery-codes` action ([Sending a person to change a credential](./sending-a-person-to-change-a-credential.md)),
 and replaces the set only when the person confirms and the last was issued more
-than an hour ago. A warning as the list gets short is not built yet, and
-[the roadmap](../../../roadmap.md#next) places it.
+than an hour ago. `GET /me/credentials` ([The me API](./the-me-api.md#the-four-reads)) returns
+`recovery_codes_low`, true when the person holds fewer unspent codes than the
+tenant setting `recovery_code_warn_below` (3 by default, 0 turns it off). The
+application is what shows the warning to the person.
 
 ## Where the step sits in the flow
 
