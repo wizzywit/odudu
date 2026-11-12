@@ -128,6 +128,18 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
     'The built-in admin client already holds as many redirect URIs as a client may, so the ' +
       'console’s address cannot be added.',
   ),
+  breached_passwords_usage: command(
+    '`odudu breached-passwords` was not given `load` and exactly one file path.',
+  ),
+  breached_passwords_bad_line: command(
+    'A line of the file given to `odudu breached-passwords load` is not a SHA-1 hash, so the ' +
+      'file is not a list of them. The message names the line; rows read before it stay loaded.',
+  ),
+  breached_passwords_cannot_load: command(
+    '`odudu breached-passwords load` writes a table the serving role may only read, which needs ' +
+      'a connection that bypasses row-level security, and `ODUDU_DATABASE_URL` names a role that ' +
+      'neither is a superuser nor has BYPASSRLS.',
+  ),
   reap_cannot_enumerate_tenants: pass(
     '`odudu reap` must list every tenant, which needs a connection that bypasses row-level ' +
       'security, and `ODUDU_DATABASE_URL` names a role that neither is a superuser nor has BYPASSRLS.',
