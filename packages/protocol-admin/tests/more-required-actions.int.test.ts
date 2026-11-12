@@ -82,6 +82,22 @@ describe('PUT …/required-actions with the three actions that ask more of a per
     expect(owed.json<{ actions: string[] }>().actions).toEqual(['accept-terms']);
   });
 
+  it('lets a list keep an action that has since become impossible, and refuses to add it', async () => {
+    const { put, patchSettings } = await setup();
+    expect((await patchSettings({ terms_uri: 'https://example.com/terms' })).statusCode).toBe(200);
+    expect((await put(['accept-terms'])).statusCode).toBe(200);
+    expect((await patchSettings({ terms_uri: '' })).statusCode).toBe(200);
+
+    const kept = await put(['accept-terms', 'update-password']);
+    expect(kept.statusCode).toBe(200);
+    expect(kept.json<{ actions: string[] }>().actions.sort()).toEqual([
+      'accept-terms',
+      'update-password',
+    ]);
+    expect((await put(['update-password'])).statusCode).toBe(200);
+    expect((await put(['update-password', 'accept-terms'])).statusCode).toBe(409);
+  });
+
   it('writes nothing when one action of the list is refused', async () => {
     const { put, id, t, token } = await setup({ email: null });
     expect((await put(['update-password', 'verify-email'])).statusCode).toBe(409);

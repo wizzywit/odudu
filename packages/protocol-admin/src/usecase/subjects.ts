@@ -59,9 +59,11 @@ import {
 import { type SelectedFields } from 'drizzle-orm/pg-core';
 import { redactedDiff } from '#/service/audit-detail';
 import {
+  addedActions,
+  readsNeeded,
   requiredActionRefusal,
-  type RequiredActionFacts,
   type RequiredActionRefusal,
+  type RequiredActionSources,
 } from '#/service/required-action-refusal';
 import {
   capabilitiesOfGroupsAndAncestors,
@@ -1111,30 +1113,27 @@ export async function readRequiredActions(
   return { kind: 'ok', actions, etag: requiredActionsEtag(actions) };
 }
 
-// Only what the list asks about is read: the address, the tenant's terms, or
-// the fields the tenant lets a person edit.
-async function requiredActionFacts(
+// Only what the actions being added ask about is read.
+async function requiredActionSources(
   tx: TenantScopedDatabase,
   tenantId: string,
   subjectId: string,
   actions: readonly RequiredAction[],
-): Promise<RequiredActionFacts> {
-  const settings =
-    actions.includes('accept-terms') || actions.includes('update-profile')
-      ? await tenantSettingsRepository(tx).byId(tenantId)
-      : null;
+): Promise<RequiredActionSources> {
+  const needed = readsNeeded(actions);
+  const user = needed.user ? await userRepository(tx).bySubjectId(subjectId) : null;
+  const tenant = needed.tenant ? await tenantSettingsRepository(tx).byId(tenantId) : null;
   return {
-    ...(actions.includes('verify-email')
-      ? { hasEmail: ((await userRepository(tx).bySubjectId(subjectId))?.email ?? null) !== null }
-      : {}),
-    ...(actions.includes('accept-terms')
-      ? { termsConfigured: typeof settings?.terms_uri === 'string' }
-      : {}),
-    ...(actions.includes('update-profile')
-      ? {
-          editableProfileFields: editableProfileFields(settings?.username_editable === true).length,
-        }
-      : {}),
+    ...(needed.user ? { email: user?.email ?? null } : {}),
+    ...(tenant === null
+      ? {}
+      : {
+          termsUri: typeof tenant.terms_uri === 'string' ? tenant.terms_uri : null,
+          requiredProfileFields: Array.isArray(tenant.required_profile_fields)
+            ? tenant.required_profile_fields
+            : [],
+          editableProfileFields: editableProfileFields(tenant.username_editable === true),
+        }),
   };
 }
 
@@ -1167,9 +1166,10 @@ export async function setRequiredActions(
       : { kind: 'precondition_failed' };
   }
 
+  const added = addedActions(current, input.actions);
   const refusal = requiredActionRefusal(
-    input.actions,
-    await requiredActionFacts(tx, input.tenantId, input.subjectId, input.actions),
+    added,
+    await requiredActionSources(tx, input.tenantId, input.subjectId, added),
   );
   if (refusal !== null) return { kind: 'refused', reason: refusal };
 
