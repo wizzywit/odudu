@@ -97,6 +97,8 @@ Recovery codes the person already holds are not replaced until they confirm, and
 an authenticator and no set is asked before a first set is made, too: nothing is issued while the question is on the screen, a reload
 included. The page that shows the new codes has no way to cancel, because it would then say `cancelled` of a set that has changed.
 
+A change the person completes is also told to them by mail: an authenticator or passkey set up, or a new set of recovery codes. The notice goes to a verified address only; for an address nobody verified the change still happens and the audit row says `skipped_unverified`.
+
 ```
 answered: HTTP/1.1 200 OK
 This replaces your current recovery codes. The old ones stop working as soon as you confirm.

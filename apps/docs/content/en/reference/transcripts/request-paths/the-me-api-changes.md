@@ -110,11 +110,11 @@ RUN_START=$(date -u +%FT%T.000Z)
 ```
 
 ```
-{"created":true,"tenant":"me-edit","tenantId":"01a1cbcf-78be-7af3-a050-c58ae022917a","clientId":"demo-spa","userSubjectId":"01a1cbcf-79b1-7d60-bd80-9485f5dd064d"}
-{"command":"user","tenant":"me-edit","tenantId":"01a1cbcf-78be-7af3-a050-c58ae022917a","username":"lin","userSubjectId":"01a1cbcf-7b77-7349-bae9-ad529906e2ee"}
+{"created":true,"tenant":"me-edit","tenantId":"01a1cf73-3eda-7d41-8a31-a20be2ded144","clientId":"demo-spa","userSubjectId":"01a1cf73-3fa8-700c-9ce7-39a0be53946d"}
+{"command":"user","tenant":"me-edit","tenantId":"01a1cf73-3eda-7d41-8a31-a20be2ded144","username":"lin","userSubjectId":"01a1cf73-41c4-7f5a-9718-a6897b380efb"}
 {"client_id":"me-app","name":"Account page","type":"public","audiences":["http://localhost:3000/tenants/me-edit/me"],"consent_required":true}
-{"command":"assign-scope","tenant":"me-edit","tenantId":"01a1cbcf-78be-7af3-a050-c58ae022917a","clientId":"me-app","scope":"me:read","assignment":"optional"}
-{"command":"assign-scope","tenant":"me-edit","tenantId":"01a1cbcf-78be-7af3-a050-c58ae022917a","clientId":"me-app","scope":"me:write","assignment":"optional"}
+{"command":"assign-scope","tenant":"me-edit","tenantId":"01a1cf73-3eda-7d41-8a31-a20be2ded144","clientId":"me-app","scope":"me:read","assignment":"optional"}
+{"command":"assign-scope","tenant":"me-edit","tenantId":"01a1cf73-3eda-7d41-8a31-a20be2ded144","clientId":"me-app","scope":"me:write","assignment":"optional"}
 {"session_freshness_seconds":30}
 ```
 
@@ -134,15 +134,15 @@ curl -sS -D - -X PATCH -H "Authorization: Bearer $TOKEN" -H 'content-type: appli
 ```
 {"scope":"openid me:read me:write","client_id":"me-app"}
 HTTP/1.1 200 OK
-x-request-id: 01a1cbcf-8013-74f3-92a3-ba25d2a873fa
+x-request-id: 01a1cf73-4750-763c-b3ea-889ee0682d3a
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 583
-Date: Wed, 11 Nov 2026 18:12:16 GMT
+Date: Thu, 12 Nov 2026 11:10:01 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"sub":"01a1cbcf-79b1-7d60-bd80-9485f5dd064d","username":"grace","email":"grace@example.com","email_verified":false,"name":"Grace Hopper","given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":"en","phone_number":null,"phone_number_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-11-11T18:12:16.026Z"}
+{"sub":"01a1cf73-3fa8-700c-9ce7-39a0be53946d","username":"grace","email":"grace@example.com","email_verified":false,"name":"Grace Hopper","given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":"en","phone_number":null,"phone_number_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-11-12T11:10:01.052Z"}
 ```
 
 A member that is not a claim a person may write is refused, not ignored: the verification flags are proved by a mail or a code,
@@ -175,11 +175,11 @@ curl -sS -D - -X PATCH -H "Authorization: Bearer $READ" -H 'content-type: applic
 
 ```
 HTTP/1.1 403 Forbidden
-x-request-id: 01a1cbcf-8106-78be-ae75-de33a3d720d0
+x-request-id: 01a1cf73-483e-7198-8611-f0d16dd7334b
 www-authenticate: Bearer error="insufficient_scope", scope="me:write"
 cache-control: no-store
 content-length: 0
-Date: Wed, 11 Nov 2026 18:12:16 GMT
+Date: Thu, 12 Nov 2026 11:10:01 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -212,11 +212,11 @@ curl -sS -H "Authorization: Bearer $TOKEN" $ME/profile | jq -c '{email, email_ve
 
 ```
 HTTP/1.1 202 Accepted
-x-request-id: 01a1cbcf-81bd-70f8-ac06-a172c36ad36e
+x-request-id: 01a1cf73-48fd-76ba-ba36-b7ea6e89cb3a
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 32
-Date: Wed, 11 Nov 2026 18:12:16 GMT
+Date: Thu, 12 Nov 2026 11:10:01 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -224,7 +224,7 @@ Keep-Alive: timeout=72
 {"email":"grace@example.com","email_verified":false}
 ```
 
-The mail is queued and goes out when the sender runs. It goes to the new address, and nothing is mailed to the old one:
+The mail is queued and goes out when the sender runs. It goes to the new address. Nothing is mailed to the old one, because `grace` never verified it; a verified address is told, as the section after this one shows:
 
 ```bash
 odudu send-mail
@@ -252,7 +252,7 @@ curl -sS -H "Authorization: Bearer $TOKEN" $ME/profile | jq -c '{email, email_ve
 <h1>Confirm your email address</h1>
 <p>Press the button to confirm this address.</p>
 <form method="post" action="/tenants/me-edit/login-actions/action-token">
-  <input type="hidden" name="key" value="-crvbJvHi569BX8KiEg8i4gaVbhh942YoVufmPY9fN0">
+  <input type="hidden" name="key" value="rlVaTYm2IOivQLSPzetWliUtHDe5reXYcBQ_xbJHYUA">
   <button type="submit">Confirm my email</button>
 </form>
 HTTP/1.1 200 OK
@@ -289,9 +289,48 @@ HTTP/1.1 202 Accepted
 {"ran":true,"sent":0,"failed":0}
 ["grace.hopper@example.com"]
 {"action":"subject.profile_amend","outcome":"allowed","detail":{"via":"me","fields":["email"],"skipped":"address_in_use"}}
-{"action":"subject.profile_amend","outcome":"allowed","detail":{"via":"me","fields":["email"],"pending":true}}
+{"action":"subject.profile_amend","outcome":"allowed","detail":{"via":"me","fields":["email"],"notice":"skipped_unverified","pending":true}}
 {"action":"email.changed","outcome":"allowed","detail":{}}
 ```
+
+### The address being left
+
+A person who has proved their address is told when a change to it is asked for, at the address that would be left, so that
+somebody who has taken over a session cannot move the account without the owner hearing of it. `grace` verified her address
+above, so the same kind of request now sends two mails: the link to the new address, and a notice to the old one. The notice
+names the change and the time, and carries no link:
+
+```bash
+signin grace "openid me:read me:write"
+NOTICED=$(token)
+curl -sS -o /dev/null -w '%{http_code}\n' -X PATCH -H "Authorization: Bearer $NOTICED" -H 'content-type: application/json' \
+  -d '{"email":"grace.second@example.com"}' $ME/profile
+odudu send-mail
+curl -sS localhost:8092/api/v1/messages | jq -c '[.messages[] | select(.Subject | test("requested")) | {to: [.To[].Address], subject: .Subject}][0]'
+ID=$(curl -sS localhost:8092/api/v1/messages | jq -r '[.messages[] | select(.Subject | test("requested"))][0].ID')
+curl -sS localhost:8092/api/v1/message/$ID | jq -r .Text | sed -n '1,8p'
+curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/me-edit/audit?action=subject.profile_amend&from=$RUN_START" \
+  | jq -c '.items[] | select(.detail.pending == true) | {action, detail}'
+```
+
+```
+202
+{"ran":true,"sent":2,"failed":0}
+{"to":["grace.hopper@example.com"],"subject":"A new email address was requested for your me-edit account"}
+Someone asked to change the email address on your ⁨me-edit⁩ account. This address stays on the account until the new one is confirmed.
+
+This happened on 2026-11-12 11:10 UTC.
+
+If this was not you, sign in and change your password, or contact your administrator right away.
+
+--
+You received this because the email address on your account at ⁨me-edit⁩ was asked to change.
+{"action":"subject.profile_amend","detail":{"via":"me","fields":["email"],"notice":"sent","pending":true}}
+{"action":"subject.profile_amend","detail":{"via":"me","fields":["email"],"notice":"skipped_unverified","pending":true}}
+```
+
+The audit row says whether anybody was told: `notice` is `sent`, `skipped_unverified` when the address on file was never verified,
+or `skipped_none` when the person has none. The change is allowed in every case; only the mail depends on it.
 
 ## A recent sign-in
 
@@ -306,11 +345,11 @@ curl -sS -D - -X PATCH -H "Authorization: Bearer $TOKEN" -H 'content-type: appli
 
 ```
 HTTP/1.1 401 Unauthorized
-x-request-id: 01a1cbd0-0fda-73a7-abee-d909cdd48622
+x-request-id: 01a1cf73-da28-7aa9-bc08-3f4b719f28a9
 www-authenticate: Bearer error="insufficient_user_authentication", error_description="A recent sign-in is required", max_age="30"
 cache-control: no-store
 content-length: 0
-Date: Wed, 11 Nov 2026 18:12:52 GMT
+Date: Thu, 12 Nov 2026 11:10:38 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -338,11 +377,11 @@ curl -sS -D - -X PATCH -H "Authorization: Bearer $FRESH" -H 'content-type: appli
 200
 <title>Sign in
 HTTP/1.1 202 Accepted
-x-request-id: 01a1cbd0-10ea-7fb1-9924-bd579a84ccc3
+x-request-id: 01a1cf73-db19-7216-9131-3d7f610216b4
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 32
-Date: Wed, 11 Nov 2026 18:12:53 GMT
+Date: Thu, 12 Nov 2026 11:10:38 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -374,13 +413,13 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $FRESH" $ME/sessions/$OTHER
 ```
 
 ```
-{"count":4,"current":["01a1cbd0-109e-7468-a17e-7c73a7e3a65c"]}
+{"count":5,"current":["01a1cf73-dae4-7cb7-9ec8-0e97af69003f"]}
 HTTP/1.1 200 OK
-x-request-id: 01a1cbd0-113b-7294-ad59-9d3000c59f06
+x-request-id: 01a1cf73-db76-7663-8d94-aa8b6d89e7b4
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 31
-Date: Wed, 11 Nov 2026 18:12:53 GMT
+Date: Thu, 12 Nov 2026 11:10:38 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -402,27 +441,27 @@ curl -sS -H "Authorization: Bearer $FRESH" "$ME/sessions" | jq -c '{count: (.ite
 ```
 
 ```
-{"count":103}
+{"count":104}
 HTTP/1.1 200 OK
-x-request-id: 01a1cbd0-3ade-7f84-b12e-8a0dd67e7788
+x-request-id: 01a1cf74-0756-78d0-accd-9fa210215d69
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 25
-Date: Wed, 11 Nov 2026 18:13:03 GMT
+Date: Thu, 12 Nov 2026 11:10:50 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"ended":100,"more":true}
 HTTP/1.1 200 OK
-x-request-id: 01a1cbd0-3b05-7f91-a156-b3e3fae0f4cb
+x-request-id: 01a1cf74-0779-7266-b576-9d2020436456
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 24
-Date: Wed, 11 Nov 2026 18:13:03 GMT
+Date: Thu, 12 Nov 2026 11:10:50 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"ended":2,"more":false}
+{"ended":3,"more":false}
 {"count":1,"current":[true]}
 ```
 
@@ -460,7 +499,7 @@ curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/me-edit/audit?ac
 ```
 
 ```
-{"action":"session.end_all","outcome":"allowed","detail":{"via":"me","more":false,"ended":2}}
+{"action":"session.end_all","outcome":"allowed","detail":{"via":"me","more":false,"ended":3}}
 {"action":"session.end_all","outcome":"allowed","detail":{"via":"me","more":true,"ended":100}}
 {"action":"session.end","outcome":"allowed","detail":{"via":"me","current":false}}
 {"event_type":"session","action":"session.ended","detail":{"via":"self"}}
@@ -480,21 +519,21 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $FRESH" $ME/consents/me-app
 ```
 
 ```
-{"items":[{"client_id":"me-app","scope_names":["openid","me:read","me:write"],"granted_at":"2026-11-11T18:12:15.931Z"}],"next_cursor":null}
+{"items":[{"client_id":"me-app","scope_names":["openid","me:read","me:write"],"granted_at":"2026-11-12T11:10:00.925Z"}],"next_cursor":null}
 HTTP/1.1 204 No Content
-x-request-id: 01a1cbd0-3ba4-7da6-8455-338ef945f5c1
+x-request-id: 01a1cf74-081d-765b-8e43-8dadc3aa059f
 cache-control: no-store
-Date: Wed, 11 Nov 2026 18:13:04 GMT
+Date: Thu, 12 Nov 2026 11:10:50 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"items":[],"next_cursor":null}
 HTTP/1.1 404 Not Found
-x-request-id: 01a1cbd0-3bc3-7d47-95a8-f72adc7f4b24
+x-request-id: 01a1cf74-083f-7f7e-a56b-4003a20e5a45
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 59
-Date: Wed, 11 Nov 2026 18:13:04 GMT
+Date: Thu, 12 Nov 2026 11:10:50 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -503,11 +542,13 @@ Keep-Alive: timeout=72
 
 ## An authenticator
 
-`lin` holds a password only. The tenant is now made to require a second factor, so her next sign-in asks her to set one up. The
-page does what an authenticator app does: it reads the secret off the setup page and computes the code
-([the TOTP page](./two-factor-authentication-with-totp.md) shows each step):
+`lin` holds a password only, and her address is marked verified now, so that the mails these changes send can be seen. The tenant
+is made to require a second factor, so her next sign-in asks her to set one up. The page does what an authenticator app does: it
+reads the secret off the setup page and computes the code ([the TOTP page](./two-factor-authentication-with-totp.md) shows each
+step):
 
 ```bash
+odudu seed profile --tenant me-edit --username lin --email-verified | jq -c '{command}'
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN" -H 'content-type: application/json' \
   -d '{"otp_required":true}' $BASE/admin/tenants/me-edit/settings | jq -c '{otp_required}'
 totp() { node --input-type=module -e "
@@ -535,6 +576,7 @@ curl -sS -H "Authorization: Bearer $LIN" $ME/credentials | jq -c '.items[] | {ty
 ```
 
 ```
+{"command":"profile"}
 {"otp_required":true}
 <h1>Set up your authenticator
 <h1>Save your recovery codes
@@ -557,15 +599,15 @@ curl -sS -D - -o /dev/null -X PATCH -H "Authorization: Bearer $LIN" -H 'content-
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1cbd0-3dae-798a-b987-63fe8f493e90
+x-request-id: 01a1cf74-0c9f-7857-b798-fef689ea470d
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 135
-Date: Wed, 11 Nov 2026 18:13:04 GMT
+Date: Thu, 12 Nov 2026 11:10:51 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a1cbd0-3ca9-70fd-8da6-c4eb95bac287","type":"totp","label":"Phone","created_at":"2026-11-11T18:13:04.296Z","last_used_at":null}
+{"id":"01a1cf74-0b85-7684-ab0b-97cec5087a9e","type":"totp","label":"Phone","created_at":"2026-11-12T11:10:51.267Z","last_used_at":null}
 HTTP/1.1 404 Not Found
 ```
 
@@ -580,11 +622,11 @@ curl -sS -H "Authorization: Bearer $LIN" $ME/credentials | jq -c '[.items[] | .t
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a1cbd0-3dcd-7d32-9c0e-1dfad1cfdc74
+x-request-id: 01a1cf74-0cc0-73fe-b9c6-c1bd73e6d4b0
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 146
-Date: Wed, 11 Nov 2026 18:13:04 GMT
+Date: Thu, 12 Nov 2026 11:10:51 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -603,11 +645,11 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $LIN" $ME/credentials/$TOTP_ID
 
 ```
 HTTP/1.1 401 Unauthorized
-x-request-id: 01a1cbd0-c6b2-7837-a851-80985dfbc57b
+x-request-id: 01a1cf74-95bc-7a8e-a37b-71a0c0261703
 www-authenticate: Bearer error="insufficient_user_authentication", error_description="A recent sign-in is required", max_age="30", acr_values="2"
 cache-control: no-store
 content-length: 0
-Date: Wed, 11 Nov 2026 18:13:39 GMT
+Date: Thu, 12 Nov 2026 11:11:26 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -637,11 +679,11 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $LIN" $ME/credentials/$TOTP_ID
 200
 name="code"
 HTTP/1.1 409 Conflict
-x-request-id: 01a1cbd0-c816-736f-8852-0b8aa0a86aa6
+x-request-id: 01a1cf74-96e3-7dcb-ae92-a1cc0a918b4f
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 146
-Date: Wed, 11 Nov 2026 18:13:40 GMT
+Date: Thu, 12 Nov 2026 11:11:26 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -658,23 +700,31 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $LIN" $ME/credentials/$TOTP_ID
 curl -sS -H "Authorization: Bearer $LIN" $ME/credentials | jq -c '[.items[] | .type]'
 curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/me-edit/audit?from=$RUN_START&limit=200" \
   | jq -c '.items[] | select(.action | test("credential|recovery")) | {action, detail}'
+odudu send-mail
+curl -sS localhost:8092/api/v1/messages | jq -c '[.messages[] | select(.To[].Address == "lin@example.com") | .Subject] | sort'
 ```
 
 ```
 {"otp_required":false}
 HTTP/1.1 204 No Content
-x-request-id: 01a1cbd0-c883-75e1-b5c4-edfd434f4e78
+x-request-id: 01a1cf74-970c-7aed-884d-08b9defc8d3a
 cache-control: no-store
-Date: Wed, 11 Nov 2026 18:13:40 GMT
+Date: Thu, 12 Nov 2026 11:11:27 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 ["password"]
 {"action":"subject.recovery_codes_revoke","detail":{"via":"me","reason":"last_factor_removed","revoked":10}}
-{"action":"subject.credential_delete","detail":{"via":"me","type":"totp","credential_id":"01a1cbd0-3ca9-70fd-8da6-c4eb95bac287"}}
-{"action":"subject.credential_rename","detail":{"via":"me","type":"totp","credential_id":"01a1cbd0-3ca9-70fd-8da6-c4eb95bac287"}}
-{"action":"recovery_codes.issued","detail":{}}
+{"action":"subject.credential_delete","detail":{"via":"me","type":"totp","notice":"sent","credential_id":"01a1cf74-0b85-7684-ab0b-97cec5087a9e"}}
+{"action":"subject.credential_rename","detail":{"via":"me","type":"totp","credential_id":"01a1cf74-0b85-7684-ab0b-97cec5087a9e"}}
+{"action":"recovery_codes.issued","detail":{"notice":"sent"}}
+{"ran":true,"sent":5,"failed":0}
+["An authenticator app was added to your me-edit account","An authenticator app was removed from your me-edit account","New recovery codes were saved on your me-edit account"]
 ```
+
+`lin` verified her address, so each change was told to her: the authenticator she set up, the recovery codes she saved and the
+authenticator she removed, and the audit rows of the removal and of the codes say `notice` `sent`. The third notice says the
+recovery codes went with the authenticator, because it was the last.
 
 The other refusal, `last_sign_in_method`, is for taking away a passkey that is the only way a person signs in. It cannot be
 reached here: a passkey is registered by a browser, and a person who has one and a password may remove either. The integration
@@ -713,14 +763,14 @@ curl -sS -D - -X PATCH -H "Authorization: Bearer $AGENT" -H 'content-type: appli
 UPDATE 1
 {"scope":"me:read"}
 {"scope":"me:write"}
-{"scope":"openid me:read me:write","aud":["http://localhost:3000/tenants/me-edit/me","http://localhost:3000/tenants/me-edit"],"act":{"sub":"01a1cbcf-7b77-7349-bae9-ad529906e2ee"}}
+{"scope":"openid me:read me:write","aud":["http://localhost:3000/tenants/me-edit/me","http://localhost:3000/tenants/me-edit"],"act":{"sub":"01a1cf73-41c4-7f5a-9718-a6897b380efb"}}
 200
 HTTP/1.1 403 Forbidden
-x-request-id: 01a1cbd0-d048-780d-ada1-0bdac2dc141e
+x-request-id: 01a1cf74-a058-76cb-9c39-efcb302c1b53
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 164
-Date: Wed, 11 Nov 2026 18:13:42 GMT
+Date: Thu, 12 Nov 2026 11:11:29 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
