@@ -6,7 +6,7 @@ export const AUTHENTICATORS: SettingsSection = {
   id: AUTHENTICATORS_SECTION,
   title: 'Authenticators',
   description:
-    'What a new authenticator app, passkey or recovery set is made with. One already enrolled keeps the values it was made with.',
+    'What a new authenticator app, passkey or recovery set is made with, and whether sign-in asks everyone for a passkey. One already enrolled keeps the values it was made with.',
   fields: [
     {
       name: 'totp_algorithm',
@@ -69,7 +69,7 @@ export const AUTHENTICATORS: SettingsSection = {
       label: 'Require a passkey',
       control: 'toggle',
       description:
-        'A person without one is asked to add a passkey at their next sign-in and cannot skip it. Sessions already open are not touched. Turning this off does not clear an action already owed; an administrator can clear it on the person’s record.',
+        'Does nothing where the deployment has no public base URL, or one that is an IP address, unless the tenant has a domain of its own: nobody is asked. A person without a passkey is asked to add one at their next sign-in and cannot skip it. Sessions already open are not touched. Turning this off does not clear an action already owed; clear it on the person’s record.',
     },
     {
       name: 'recovery_code_count',
