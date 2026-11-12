@@ -20,25 +20,33 @@ export async function termsOffer(
 }
 
 export type AcceptTermsOutcome =
-  { kind: 'accepted' } | { kind: 'not_accepted' } | { kind: 'not_configured' };
+  | { kind: 'accepted' }
+  | { kind: 'not_accepted' }
+  | { kind: 'not_configured' }
+  // The terms changed since the page was shown, or the form did not say which
+  // it showed: nothing is recorded.
+  | { kind: 'stale' };
 
 export interface AcceptTerms {
   tenantId: string;
   subjectId: string;
   // Whether the box was ticked.
   accepted: boolean;
+  // The version the page showed, as the form carried it back.
+  version: string | undefined;
   now: Date;
 }
 
-// The version recorded is the one in force when the box is ticked, read here
-// and not taken from the form, so a person cannot accept a version that was
-// never offered.
+// A person accepts the version they were shown: the form carries it back and it
+// has to be the one in force now, which is the one recorded, so a person
+// cannot accept terms they never saw.
 export async function completeAcceptTerms(
   tx: TenantScopedDatabase,
   input: AcceptTerms,
 ): Promise<AcceptTermsOutcome> {
   const offer = await termsOffer(tx, input.tenantId);
   if (offer === null) return { kind: 'not_configured' };
+  if (input.version !== offer.version) return { kind: 'stale' };
   if (!input.accepted) return { kind: 'not_accepted' };
   await termsAcceptanceRepository(tx).accept(
     input.tenantId,

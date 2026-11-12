@@ -77,11 +77,13 @@ function problemsOf(problems: readonly ProfileProblem[], locale: PageLocale): Pr
 function fieldHtml(
   field: string,
   value: string,
+  required: boolean,
   problems: readonly Problem[],
   locale: PageLocale,
 ): string {
   const kind = FIELD_KINDS[field] ?? PLAIN;
-  return `<label>${tHtml(locale, labelId(field))} <input type="${kind.type}" name="${field}" value="${escapeHtml(value)}" autocomplete="${kind.autocomplete}"${invalidAttributes(problems, field)}></label>`;
+  const mark = required ? ` (${tHtml(locale, 'updateProfile.required')})` : '';
+  return `<label>${tHtml(locale, labelId(field))}${mark} <input type="${kind.type}" name="${field}" value="${escapeHtml(value)}" autocomplete="${kind.autocomplete}"${invalidAttributes(problems, field)}></label>`;
 }
 
 function updateProfilePage(
@@ -105,7 +107,15 @@ function updateProfilePage(
       'form.open': `<form method="post" action="${target}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
       fields: offer.fields
-        .map((field) => fieldHtml(field, offer.values[field] ?? '', shown, locale))
+        .map((field) =>
+          fieldHtml(
+            field,
+            offer.values[field] ?? '',
+            offer.required.includes(field),
+            shown,
+            locale,
+          ),
+        )
         .join('\n  '),
       submit: `<button type="submit">${tHtml(locale, 'updateProfile.submit')}</button>${cancelButton(variant, locale)}`,
       'form.close': '</form>',

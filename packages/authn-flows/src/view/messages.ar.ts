@@ -87,10 +87,11 @@ export const ar: Readonly<Record<string, string>> = {
   'verifyEmail.notVerified':
     'لم يُؤكَّد هذا العنوان بعد. افتح الرابط الذي أرسلناه ثم حاول مرة أخرى.',
   'updateProfile.title': 'أكمل ملفك الشخصي',
-  'updateProfile.intro': 'املأ كل الحقول قبل المتابعة.',
+  'updateProfile.intro': 'راجع بياناتك واملأ الحقول المعلَّمة بأنها مطلوبة قبل المتابعة.',
+  'updateProfile.required': 'مطلوب',
   'updateProfile.requestedIntro': 'طلب منك أحد التطبيقات مراجعة ملفك الشخصي.',
   'updateProfile.submit': 'حفظ ومتابعة',
-  'updateProfile.unfilled': 'املأ كل الحقول.',
+  'updateProfile.unfilled': 'املأ الحقول المطلوبة.',
   'updateProfile.usernameTaken': 'اسم المستخدم هذا مستخدم بالفعل. اختر اسمًا آخر.',
   'updateProfile.invalid.value': 'القيمة في {field} ليست بصيغة يقبلها هذا الحقل.',
   'updateProfile.invalid.bidi': 'يجب ألا يحتوي {field} على محارف التحكم في الاتجاه.',
@@ -126,6 +127,8 @@ export const ar: Readonly<Record<string, string>> = {
   'acceptTerms.version': 'الإصدار {version}',
   'acceptTerms.accept': 'أقبل هذه الشروط',
   'acceptTerms.submit': 'متابعة',
+  'acceptTerms.stale':
+    'تغيّرت الشروط أثناء فتح هذه الصفحة. اقرأ الإصدار الجديد ووافق عليه إن كنت موافقًا.',
   'acceptTerms.required': 'ضع علامة في المربع لقبول الشروط والمتابعة.',
   'recoveryCodes.confirmReplace':
     'سيحل هذا محل رموز الاسترداد الحالية. تتوقف الرموز القديمة عن العمل بمجرد التأكيد.',

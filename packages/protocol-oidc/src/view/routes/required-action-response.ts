@@ -262,7 +262,7 @@ export async function sendRequiredActionPage(
           tenantAddressOf(reply.request),
           authSessionId,
           offer,
-          false,
+          undefined,
           locale,
         ),
       );

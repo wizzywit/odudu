@@ -2,6 +2,7 @@ import { type UserRecord } from '@odudu/domain-identity';
 import { describe, expect, it } from 'vitest';
 import {
   editableProfileFields,
+  invalidProfileFields,
   prefilledValues,
   submittedValues,
   unfilledFields,
@@ -63,19 +64,45 @@ describe('submittedValues', () => {
 });
 
 describe('unfilledFields', () => {
-  const fields = ['name', 'given_name', 'family_name', 'nickname'];
+  const required = ['name', 'family_name', 'nickname'];
 
-  it('names a field that was empty and still is', () => {
-    expect(unfilledFields(PERSON, { name: 'Ada' }, fields)).toEqual(['family_name', 'nickname']);
+  it('names a required field that is empty before and after the form', () => {
+    expect(unfilledFields(PERSON, { name: 'Ada' }, required)).toEqual(['family_name', 'nickname']);
   });
 
   it('counts a field the form filled', () => {
-    expect(unfilledFields(PERSON, { family_name: 'King', nickname: 'ada' }, fields)).toEqual([]);
+    expect(unfilledFields(PERSON, { family_name: 'King', nickname: 'ada' }, required)).toEqual([]);
   });
 
-  it('counts a field the form emptied that had a value', () => {
-    expect(unfilledFields(PERSON, { name: null, family_name: 'K', nickname: 'a' }, fields)).toEqual(
-      [],
-    );
+  it('names a required field the form emptied, though it had a value', () => {
+    expect(
+      unfilledFields(PERSON, { name: null, family_name: 'K', nickname: 'a' }, required),
+    ).toEqual(['name']);
+  });
+
+  it('asks nothing of a field that is not required, and nothing at all of an empty list', () => {
+    expect(unfilledFields(PERSON, {}, ['name'])).toEqual([]);
+    expect(unfilledFields(PERSON, {}, [])).toEqual([]);
+  });
+});
+
+describe('invalidProfileFields', () => {
+  it('names every value the me API would refuse, not only the first', () => {
+    expect(
+      invalidProfileFields(PERSON, {
+        birthdate: 'yesterday',
+        website: 'ftp://example.com',
+        name: 'Ada',
+        zoneinfo: '+1',
+      }),
+    ).toEqual([
+      { field: 'birthdate', reason: 'shape' },
+      { field: 'website', reason: 'shape' },
+      { field: 'zoneinfo', reason: 'shape' },
+    ]);
+  });
+
+  it('refuses nothing for a form of good values, or of empty ones', () => {
+    expect(invalidProfileFields(PERSON, { birthdate: '1815-12-10', nickname: null })).toEqual([]);
   });
 });

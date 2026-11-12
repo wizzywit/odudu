@@ -73,6 +73,7 @@ interface Options {
   readonly verified?: boolean;
   readonly terms?: string | null;
   readonly termsVersion?: string;
+  readonly requiredProfileFields?: readonly string[];
   readonly allowed?: readonly string[];
 }
 
@@ -103,6 +104,9 @@ async function world(options: Options = {}): Promise<World> {
      where tenant_id = ${tenantId}`;
   await owner.sql`update tenants set terms_uri = ${options.terms ?? null},
                   terms_version = ${options.termsVersion ?? '1'} where id = ${tenantId}`;
+  if (options.requiredProfileFields !== undefined) {
+    await owner.sql`update tenants set required_profile_fields = ${[...options.requiredProfileFields]}::text[] where id = ${tenantId}`;
+  }
   if (options.verified === true) {
     await owner.sql`update users set email_verified = true where subject_id = ${seeded.userSubjectId}`;
   }
@@ -329,7 +333,7 @@ describe('update-profile, owed by the tenant', () => {
   });
 
   it('comes back with an alert and what was typed while a field is empty', async () => {
-    const w = await world({ owes: ['update-profile'] });
+    const w = await world({ owes: ['update-profile'], requiredProfileFields: Object.keys(FILLED) });
     const page = await signIn(w);
     const rest = Object.fromEntries(
       Object.entries(FILLED).filter(([name]) => name !== 'birthdate'),
@@ -337,7 +341,7 @@ describe('update-profile, owed by the tenant', () => {
     const refused = await act(w, page, 'update-profile', rest);
     expect(refused.statusCode).toBe(400);
     expect(refused.body).toContain('role="alert"');
-    expect(refused.body).toContain('Fill in every field.');
+    expect(refused.body).toContain('Fill in the required fields.');
     expect(refused.body).toContain('value="Ada Lovelace"');
     expect(await owed(w)).toEqual(['update-profile']);
   });
@@ -361,17 +365,33 @@ describe('accept-terms, owed by the tenant', () => {
     expect(page.body).toContain('2026-01');
     expect(page.body).not.toContain('name="cancel"');
 
-    const refused = await act(w, page, 'accept-terms');
+    const refused = await act(w, page, 'accept-terms', { version: '2026-01' });
     expect(refused.statusCode).toBe(400);
     expect(refused.body).toContain('Tick the box');
     expect(await owed(w)).toEqual(['accept-terms']);
 
-    const done = await act(w, page, 'accept-terms', { accept: 'true' });
+    const done = await act(w, page, 'accept-terms', { accept: 'true', version: '2026-01' });
     expect(redirectedTo(done).searchParams.get('code')).toBeTruthy();
     expect(await owed(w)).toEqual([]);
     const accepted = await owner.sql<{ version: string }[]>`
       select version from subject_terms_acceptances where subject_id = ${w.subjectId}`;
     expect(accepted).toEqual([{ version: '2026-01' }]);
+  });
+
+  it('shows the page again at the new version when the terms changed under it, recording nothing', async () => {
+    const w = await world({ owes: ['accept-terms'], terms: TERMS, termsVersion: '2026-01' });
+    const page = await signIn(w);
+    await owner.sql`update tenants set terms_version = '2026-02' where id = ${w.tenantId}`;
+    const stale = await act(w, page, 'accept-terms', { accept: 'true', version: '2026-01' });
+    expect(stale.statusCode).toBe(400);
+    expect(stale.body).toContain('The terms changed while this page was open');
+    expect(stale.body).toContain('2026-02');
+    expect(await owed(w)).toEqual(['accept-terms']);
+    const none =
+      await owner.sql`select 1 from subject_terms_acceptances where subject_id = ${w.subjectId}`;
+    expect(none).toHaveLength(0);
+    const done = await act(w, stale, 'accept-terms', { accept: 'true', version: '2026-02' });
+    expect(redirectedTo(done).searchParams.get('code')).toBeTruthy();
   });
 
   it('is cleared, with no page, where the tenant has no terms', async () => {
@@ -404,11 +424,11 @@ describe('accept-terms, owed by the tenant', () => {
     await owner.sql`update users set email_verified = true where subject_id = ${w.subjectId}`;
     const second = await act(w, first, 'verify-email');
     expect(second.body).toContain('Complete your profile');
-    const early = await act(w, second, 'accept-terms', { accept: 'true' });
+    const early = await act(w, second, 'accept-terms', { accept: 'true', version: '1' });
     expect(early.statusCode).toBe(400);
     const third = await act(w, second, 'update-profile', FILLED);
     expect(third.body).toContain('Accept the terms');
-    const done = await act(w, third, 'accept-terms', { accept: 'true' });
+    const done = await act(w, third, 'accept-terms', { accept: 'true', version: '1' });
     expect(redirectedTo(done).searchParams.get('code')).toBeTruthy();
   });
 });

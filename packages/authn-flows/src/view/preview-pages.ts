@@ -93,6 +93,7 @@ export const PREVIEW_PAGES: Readonly<Record<AuthnKind, PreviewRender>> = {
       SESSION,
       {
         fields: ['name', 'given_name', 'family_name', 'birthdate', 'phone_number'],
+        required: ['given_name', 'family_name'],
         values: {
           name: 'Ada Example',
           given_name: 'Ada',
@@ -110,7 +111,7 @@ export const PREVIEW_PAGES: Readonly<Record<AuthnKind, PreviewRender>> = {
       pathAddress('', tenant),
       SESSION,
       { uri: 'https://example.com/terms', version: '1' },
-      false,
+      undefined,
       locale,
     ),
   'required-action': (_tenant, locale) =>

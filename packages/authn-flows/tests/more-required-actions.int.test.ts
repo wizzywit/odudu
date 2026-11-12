@@ -14,6 +14,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { requiredActionRepository } from '#/repository/required-actions';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { termsAcceptanceRepository } from '#/repository/terms-acceptances';
 import { completeAcceptTerms, termsOffer } from '#/usecase/accept-terms-action';
 import { pendingActionsFor } from '#/usecase/pending-actions';
@@ -53,6 +54,7 @@ async function seed(
     termsUri?: string | null;
     termsVersion?: string;
     usernameEditable?: boolean;
+    requiredProfileFields?: string[];
   } = {},
 ): Promise<Seed> {
   await tx.insert(tenants).values({
@@ -61,6 +63,9 @@ async function seed(
     termsUri: options.termsUri ?? null,
     termsVersion: options.termsVersion ?? '1',
     usernameEditable: options.usernameEditable ?? false,
+    ...(options.requiredProfileFields === undefined
+      ? {}
+      : { requiredProfileFields: options.requiredProfileFields }),
   });
   const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
   await tx.insert(users).values({
@@ -273,6 +278,7 @@ describe('update-profile', () => {
     await inTenant(made, (tx) => userRepository(tx).updateProfile(made.subjectId, { name: 'Ada' }));
     const offer = await inTenant(made, (tx) => profileOffer(tx, made.tenantId, made.subjectId));
     expect(offer.fields).toHaveLength(20);
+    expect(offer.required).toEqual(['given_name', 'family_name']);
     expect(offer.values.name).toBe('Ada');
     expect(offer.values.birthdate).toBe('');
   });
@@ -284,8 +290,8 @@ describe('update-profile', () => {
     expect(offer.values.username).toBe('ada');
   });
 
-  it('completes when every empty field is filled, and clears its row', async () => {
-    const made = await owing({}, ['update-profile']);
+  it('completes when every required field has a value, and clears its row', async () => {
+    const made = await owing({ requiredProfileFields: Object.keys(FILLED) }, ['update-profile']);
     const outcome = await inTenant(made, (tx) =>
       completeUpdateProfile(tx, {
         tenantId: made.tenantId,
@@ -301,8 +307,8 @@ describe('update-profile', () => {
     expect(user?.email).toBe('ada@example.com');
   });
 
-  it('writes nothing and stays owed while an empty field is left empty', async () => {
-    const made = await owing({}, ['update-profile']);
+  it('writes nothing and stays owed while a required field is left empty', async () => {
+    const made = await owing({ requiredProfileFields: Object.keys(FILLED) }, ['update-profile']);
     const posted = without(FILLED, 'birthdate');
     const outcome = await inTenant(made, (tx) =>
       completeUpdateProfile(tx, { tenantId: made.tenantId, subjectId: made.subjectId, posted }),
@@ -314,6 +320,78 @@ describe('update-profile', () => {
     expect(await ownerRows(made)).toEqual(['update-profile']);
     const user = await inTenant(made, (tx) => userRepository(tx).bySubjectId(made.subjectId));
     expect(user?.name).toBeNull();
+  });
+
+  it('needs only the given and family name by default, and leaves the rest as they are', async () => {
+    const made = await owing({}, ['update-profile']);
+    const outcome = await inTenant(made, (tx) =>
+      completeUpdateProfile(tx, {
+        tenantId: made.tenantId,
+        subjectId: made.subjectId,
+        posted: { given_name: 'Ada', family_name: 'Lovelace', picture: '' },
+      }),
+    );
+    expect(outcome).toEqual({ kind: 'completed' });
+    expect(await ownerRows(made)).toEqual([]);
+    const user = await inTenant(made, (tx) => userRepository(tx).bySubjectId(made.subjectId));
+    expect(user?.givenName).toBe('Ada');
+    expect(user?.picture).toBeNull();
+  });
+
+  it('asks a field it requires to be non-empty after the form, though it held a value', async () => {
+    const made = await owing({ requiredProfileFields: ['name'] }, ['update-profile']);
+    await inTenant(made, (tx) => userRepository(tx).updateProfile(made.subjectId, { name: 'Ada' }));
+    const outcome = await inTenant(made, (tx) =>
+      completeUpdateProfile(tx, {
+        tenantId: made.tenantId,
+        subjectId: made.subjectId,
+        posted: { name: '  ' },
+      }),
+    );
+    expect(outcome).toMatchObject({
+      kind: 'rejected',
+      problems: [{ kind: 'unfilled', fields: ['name'] }],
+    });
+    expect(await ownerRows(made)).toEqual(['update-profile']);
+  });
+
+  it('is a page reviewed and submitted when the tenant requires nothing', async () => {
+    const made = await owing({ requiredProfileFields: [] }, ['update-profile']);
+    const outcome = await inTenant(made, (tx) =>
+      completeUpdateProfile(tx, { tenantId: made.tenantId, subjectId: made.subjectId, posted: {} }),
+    );
+    expect(outcome).toEqual({ kind: 'completed' });
+    expect(await ownerRows(made)).toEqual([]);
+  });
+
+  it('names every invalid value at once', async () => {
+    const made = await owing({}, ['update-profile']);
+    const outcome = await inTenant(made, (tx) =>
+      completeUpdateProfile(tx, {
+        tenantId: made.tenantId,
+        subjectId: made.subjectId,
+        posted: { given_name: 'Ada', family_name: 'L', birthdate: 'x', zoneinfo: '+1' },
+      }),
+    );
+    expect(outcome).toMatchObject({
+      kind: 'rejected',
+      problems: [
+        { kind: 'invalid', field: 'birthdate' },
+        { kind: 'invalid', field: 'zoneinfo' },
+      ],
+    });
+  });
+
+  it('clears the row of a subject that has no user row, so a sign-in does not loop', async () => {
+    const made = await owing({}, ['update-profile']);
+    await withTenant(app.db, made.tenantId, (tx) =>
+      tx.delete(users).where(eq(users.subjectId, made.subjectId)),
+    );
+    const outcome = await inTenant(made, (tx) =>
+      completeUpdateProfile(tx, { tenantId: made.tenantId, subjectId: made.subjectId, posted: {} }),
+    );
+    expect(outcome).toEqual({ kind: 'completed' });
+    expect(await ownerRows(made)).toEqual([]);
   });
 
   it('refuses a value the me API would refuse, naming the field', async () => {
@@ -461,6 +539,7 @@ describe('accept-terms', () => {
         tenantId: made.tenantId,
         subjectId: made.subjectId,
         accepted: false,
+        version: '1',
         now: new Date(),
       }),
     );
@@ -480,6 +559,7 @@ describe('accept-terms', () => {
         tenantId: made.tenantId,
         subjectId: made.subjectId,
         accepted: true,
+        version: '2026-01',
         now: new Date('2026-11-12T10:00:00Z'),
       }),
     );
@@ -499,6 +579,28 @@ describe('accept-terms', () => {
     expect(audited[0]?.detail.version).toBe('2026-01');
   });
 
+  it('records nothing when the version shown is not the one in force, or none was sent', async () => {
+    const made = await owing({ termsUri: 'https://example.com/terms', termsVersion: '2' }, [
+      'accept-terms',
+    ]);
+    for (const version of ['1', undefined]) {
+      const outcome = await inTenant(made, (tx) =>
+        completeAcceptTerms(tx, {
+          tenantId: made.tenantId,
+          subjectId: made.subjectId,
+          accepted: true,
+          version,
+          now: new Date(),
+        }),
+      );
+      expect(outcome).toEqual({ kind: 'stale' });
+    }
+    expect(await ownerRows(made)).toEqual(['accept-terms']);
+    expect(
+      await inTenant(made, (tx) => termsAcceptanceRepository(tx).hasAccepted(made.subjectId, '2')),
+    ).toBe(false);
+  });
+
   it('says so when the tenant has no terms', async () => {
     const made = await owing({}, ['accept-terms']);
     const outcome = await inTenant(made, (tx) =>
@@ -506,6 +608,7 @@ describe('accept-terms', () => {
         tenantId: made.tenantId,
         subjectId: made.subjectId,
         accepted: true,
+        version: '1',
         now: new Date(),
       }),
     );
@@ -518,6 +621,7 @@ describe('accept-terms', () => {
       tenantId: made.tenantId,
       subjectId: made.subjectId,
       accepted: true,
+      version: '1',
       now: new Date(),
     };
     await inTenant(made, (tx) => completeAcceptTerms(tx, input));
@@ -532,6 +636,14 @@ describe('accept-terms', () => {
 });
 
 describe('the tenant row the actions read', () => {
+  it('is not read for another tenant', async () => {
+    const own = await owing({ termsUri: 'https://example.com/terms' }, []);
+    const other = await owing({}, []);
+    await expect(
+      inTenant(other, (tx) => tenantSettingsRepository(tx).accountActionSettings(own.tenantId)),
+    ).rejects.toThrow(/tenant_not_found|no tenant/u);
+  });
+
   it('holds the terms where the settings put them', async () => {
     const made = await owing({ termsUri: 'https://example.com/terms' }, []);
     const [row] = await inTenant(made, (tx) =>

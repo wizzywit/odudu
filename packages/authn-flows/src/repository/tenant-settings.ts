@@ -19,6 +19,7 @@ export interface AccountActionSettings {
   usernameEditable: boolean;
   termsUri: string | null;
   termsVersion: string;
+  requiredProfileFields: string[];
 }
 
 // The tenant switches the flow engine reads. `tenants` filters on `id` rather
@@ -96,6 +97,7 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
           usernameEditable: tenants.usernameEditable,
           termsUri: tenants.termsUri,
           termsVersion: tenants.termsVersion,
+          requiredProfileFields: tenants.requiredProfileFields,
         })
         .from(tenants)
         .where(eq(tenants.id, tenantId));

@@ -85,7 +85,12 @@ export type RequiredActionOutcome =
       requested?: true;
     }
   // The terms page, back because the box was not ticked.
-  | { kind: 'terms_refused'; authSessionId: string; subjectId: string }
+  | {
+      kind: 'terms_refused';
+      reason: 'unticked' | 'stale';
+      authSessionId: string;
+      subjectId: string;
+    }
   | (RejectedRequiredAction & { requested?: true });
 
 export interface RequiredActionSubmission {
@@ -107,6 +112,8 @@ export interface RequiredActionSubmission {
   send: boolean;
   // The box of the terms page was ticked.
   accept: boolean;
+  // The version the terms page showed, as its form carried it back.
+  termsVersion: string | undefined;
   // Every field the browser posted as text, for the form of the profile page,
   // which reads only the fields it asked for.
   form: Readonly<Record<string, string>>;
@@ -191,7 +198,7 @@ export interface RequiredActionSubmissionDeps {
     request: RequestContext,
   ): Promise<UpdateProfileOutcome>;
   completeAcceptTerms(
-    input: { tenantId: string; subjectId: string; accepted: boolean },
+    input: { tenantId: string; subjectId: string; accepted: boolean; version: string | undefined },
     request: RequestContext,
   ): Promise<AcceptTermsOutcome>;
   // Absent when no relying party can be derived — see relyingPartyId in
@@ -357,14 +364,19 @@ async function performAction(
 
   if (action === 'accept-terms') {
     const done = await deps.completeAcceptTerms(
-      { tenantId, subjectId, accepted: submission.accept },
+      { tenantId, subjectId, accepted: submission.accept, version: submission.termsVersion },
       request,
     );
     if (done.kind === 'accepted') return { kind: 'completed', authSessionId };
     // Terms the tenant no longer has: nothing to show, and the sign-in
     // clears the action the next time it reads what is owed.
     if (done.kind === 'not_configured') return { kind: 'unsupported', action: 'accept-terms' };
-    return { kind: 'terms_refused', authSessionId, subjectId };
+    return {
+      kind: 'terms_refused',
+      reason: done.kind === 'stale' ? 'stale' : 'unticked',
+      authSessionId,
+      subjectId,
+    };
   }
 
   if (action === 'generate-recovery-codes') {

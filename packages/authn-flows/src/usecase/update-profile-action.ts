@@ -6,6 +6,7 @@ import { requiredActionRepository } from '#/repository/required-actions';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import {
   editableProfileFields,
+  invalidProfileFields,
   prefilledValues,
   submittedValues,
   unfilledFields,
@@ -15,6 +16,8 @@ import {
 // order, and what they hold in each.
 export interface ProfileOffer {
   fields: readonly string[];
+  // The fields among them the tenant needs a person to have.
+  required: readonly string[];
   values: Record<string, string>;
 }
 
@@ -72,10 +75,15 @@ export async function profileOffer(
   tenantId: string,
   subjectId: string,
 ): Promise<ProfileOffer> {
-  const { usernameEditable } = await tenantSettingsRepository(tx).accountActionSettings(tenantId);
+  const { usernameEditable, requiredProfileFields } =
+    await tenantSettingsRepository(tx).accountActionSettings(tenantId);
   const user = await userRepository(tx).bySubjectId(subjectId);
   const fields = editableProfileFields(usernameEditable);
-  return { fields, values: user === null ? {} : prefilledValues(user, fields) };
+  return {
+    fields,
+    required: fields.filter((field) => requiredProfileFields.includes(field)),
+    values: user === null ? {} : prefilledValues(user, fields),
+  };
 }
 
 // Written only when the whole form is acceptable: every value the write would
@@ -86,23 +94,25 @@ export async function completeUpdateProfile(
   tx: TenantScopedDatabase,
   input: UpdateProfile,
 ): Promise<UpdateProfileOutcome> {
-  const { usernameEditable } = await tenantSettingsRepository(tx).accountActionSettings(
-    input.tenantId,
-  );
+  const { usernameEditable, requiredProfileFields } = await tenantSettingsRepository(
+    tx,
+  ).accountActionSettings(input.tenantId);
   const users = userRepository(tx);
   const current = await users.lockBySubjectId(input.subjectId);
   const fields = editableProfileFields(usernameEditable);
-  if (current === null) return { kind: 'completed' };
+  if (current === null) {
+    await requiredActionRepository(tx).complete(input.subjectId, 'update-profile');
+    return { kind: 'completed' };
+  }
 
   const submitted = submittedValues(input.posted, fields);
   const problems: ProfileProblem[] = [];
-  const unfilled = unfilledFields(current, submitted, fields);
+  const unfilled = unfilledFields(current, submitted, requiredProfileFields);
   if (unfilled.length > 0) problems.push({ kind: 'unfilled', fields: unfilled });
 
+  const invalid = invalidProfileFields(current, submitted);
+  for (const each of invalid) problems.push({ kind: 'invalid', ...each });
   const plan = planProfileAmend(current, submitted);
-  if (plan.kind === 'invalid_value') {
-    problems.push({ kind: 'invalid', field: plan.field, reason: plan.reason });
-  }
   if (plan.kind === 'change' && plan.username !== null) {
     const holder = await users.byUsername(plan.username);
     if (holder !== null && holder.user.subjectId !== input.subjectId) {

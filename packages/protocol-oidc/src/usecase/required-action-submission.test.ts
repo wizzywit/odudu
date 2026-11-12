@@ -32,6 +32,7 @@ const SUBMISSION = {
   confirm: false,
   send: false,
   accept: false,
+  termsVersion: undefined,
   form: {},
   endOtherSessions: false,
   issuer: 'https://idp.test/tenants/acme',
@@ -1115,7 +1116,7 @@ describe('handleRequiredActionSubmission — completing the profile', () => {
 });
 
 describe('handleRequiredActionSubmission — accepting the terms', () => {
-  const terms = { ...SUBMISSION, action: 'accept-terms', accept: true };
+  const terms = { ...SUBMISSION, action: 'accept-terms', accept: true, termsVersion: '2026-01' };
 
   it('records an acceptance for the bound subject and completes', async () => {
     const { deps, pendingActions, completeAcceptTerms } = harness();
@@ -1126,7 +1127,7 @@ describe('handleRequiredActionSubmission — accepting the terms', () => {
       authSessionId: AUTH_SESSION_ID,
     });
     expect(completeAcceptTerms).toHaveBeenCalledWith(
-      { tenantId: 'tenant-1', subjectId: 'subject-1', accepted: true },
+      { tenantId: 'tenant-1', subjectId: 'subject-1', accepted: true, version: '2026-01' },
       REQUEST,
     );
   });
@@ -1138,7 +1139,25 @@ describe('handleRequiredActionSubmission — accepting the terms', () => {
 
     expect(
       await handleRequiredActionSubmission(deps, 'acme', { ...terms, accept: false }, REQUEST),
-    ).toEqual({ kind: 'terms_refused', authSessionId: AUTH_SESSION_ID, subjectId: 'subject-1' });
+    ).toEqual({
+      kind: 'terms_refused',
+      reason: 'unticked',
+      authSessionId: AUTH_SESSION_ID,
+      subjectId: 'subject-1',
+    });
+  });
+
+  it('goes back to the page, saying the terms changed, when the version shown is stale', async () => {
+    const { deps, pendingActions, completeAcceptTerms } = harness();
+    pendingActions.mockResolvedValue(['accept-terms']);
+    completeAcceptTerms.mockResolvedValue({ kind: 'stale' });
+
+    expect(await handleRequiredActionSubmission(deps, 'acme', terms, REQUEST)).toEqual({
+      kind: 'terms_refused',
+      reason: 'stale',
+      authSessionId: AUTH_SESSION_ID,
+      subjectId: 'subject-1',
+    });
   });
 
   it('reports a tenant that dropped its terms as an action it cannot offer', async () => {

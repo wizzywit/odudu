@@ -9,6 +9,7 @@ import {
 
 const ADDRESS = pathAddress('https://idp.example', 'acme');
 const FIELDS = ['name', 'birthdate', 'website', 'phone_number'];
+const REQUIRED = ['name'];
 const VALUES = { name: 'Ada', birthdate: '', website: '', phone_number: '' };
 
 function page(
@@ -20,7 +21,7 @@ function page(
     'acme',
     ADDRESS,
     'sess-1',
-    { fields, values },
+    { fields, required: REQUIRED, values },
     problems,
     DEFAULT_PAGE_LOCALE,
   ).html;
@@ -43,6 +44,14 @@ describe('the update-profile page', () => {
     expect(names).toEqual(FIELDS);
     expect(html).toContain('value="Ada"');
     expect(html).toContain(en['updateProfile.field.birthdate']);
+  });
+
+  it('marks the required fields and no others', () => {
+    const html = page();
+    expect(html).toContain(
+      `${en['updateProfile.field.name']} (${en['updateProfile.required']}) <input`,
+    );
+    expect(html).not.toContain(`${en['updateProfile.field.birthdate']} (`);
   });
 
   it('types a web address as a url and a phone number as tel', () => {
@@ -91,7 +100,7 @@ describe('the update-profile page', () => {
       'acme',
       ADDRESS,
       'sess-1',
-      { fields: FIELDS, values: VALUES },
+      { fields: FIELDS, required: REQUIRED, values: VALUES },
       [],
       DEFAULT_PAGE_LOCALE,
     ).html;

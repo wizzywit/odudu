@@ -101,10 +101,12 @@ export const en = {
   'verifyEmail.notVerified':
     'That address is not verified yet. Open the link we sent, then try again.',
   'updateProfile.title': 'Complete your profile',
-  'updateProfile.intro': 'Fill in every field before you continue.',
+  'updateProfile.intro':
+    'Check your details and fill in the ones marked as required before you continue.',
+  'updateProfile.required': 'required',
   'updateProfile.requestedIntro': 'An application asked you to review your profile.',
   'updateProfile.submit': 'Save and continue',
-  'updateProfile.unfilled': 'Fill in every field.',
+  'updateProfile.unfilled': 'Fill in the required fields.',
   'updateProfile.usernameTaken': 'That username is taken. Choose another.',
   'updateProfile.invalid.value': '{field} is not in a form this field accepts.',
   'updateProfile.invalid.bidi': '{field} must not contain direction-control characters.',
@@ -139,6 +141,8 @@ export const en = {
   'acceptTerms.version': 'Version {version}',
   'acceptTerms.accept': 'I accept these terms',
   'acceptTerms.submit': 'Continue',
+  'acceptTerms.stale':
+    'The terms changed while this page was open. Read the new version, and accept it if you agree.',
   'acceptTerms.required': 'Tick the box to accept the terms and continue.',
   'recoveryCodes.tooSoon':
     'Your recovery codes were issued recently and still work. You can replace them in {minutes, plural, one {{minutes, number, ::group-off} minute} other {{minutes, number, ::group-off} minutes}}.',

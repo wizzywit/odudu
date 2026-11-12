@@ -7,8 +7,8 @@ import { ar } from '#/view/messages.ar';
 const ADDRESS = pathAddress('https://idp.example', 'acme');
 const OFFER = { uri: 'https://example.com/terms?lang=en', version: '2026-01' };
 
-function page(offer = OFFER, refused = false): string {
-  return renderAcceptTermsPage('acme', ADDRESS, 'sess-1', offer, refused, DEFAULT_PAGE_LOCALE).html;
+function page(offer = OFFER, notice?: 'unticked' | 'stale'): string {
+  return renderAcceptTermsPage('acme', ADDRESS, 'sess-1', offer, notice, DEFAULT_PAGE_LOCALE).html;
 }
 
 describe('the accept-terms page', () => {
@@ -43,9 +43,20 @@ describe('the accept-terms page', () => {
   });
 
   it('says so in the error slot when the box was not ticked', () => {
-    const html = page(OFFER, true);
+    const html = page(OFFER, 'unticked');
     expect(html).toContain('role="alert"');
     expect(html).toContain(en['acceptTerms.required']);
+  });
+
+  it('carries the version it shows, so a later change can be told', () => {
+    expect(page()).toContain('<input type="hidden" name="version" value="2026-01">');
+  });
+
+  it('says the terms changed while the page was open', () => {
+    const html = page(OFFER, 'stale');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain(en['acceptTerms.stale']);
+    expect(html).not.toContain(en['acceptTerms.required']);
   });
 
   it('has an Arabic twin for every sentence it uses', () => {

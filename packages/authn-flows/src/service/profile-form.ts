@@ -1,4 +1,4 @@
-import { CLAIM_KEY, type UserRecord } from '@odudu/domain-identity';
+import { CLAIM_KEY, planProfileAmend, type UserRecord } from '@odudu/domain-identity';
 
 // The fields a person edits: every claim `PATCH /me/profile` writes, in the
 // order the form lays them out, and the username where the tenant lets one
@@ -45,15 +45,33 @@ export function submittedValues(
   return values;
 }
 
-// The fields that were empty before the form and are still empty after it:
-// the form is finished only when there are none.
+// The required fields that are empty after the form: the form is finished only
+// when there are none. A field the form did not send keeps what is held.
 export function unfilledFields(
   user: UserRecord,
   submitted: Readonly<Record<string, string | null>>,
-  fields: readonly string[],
+  required: readonly string[],
 ): string[] {
-  return fields.filter((field) => {
-    if (!isEmpty(currentValue(user, field))) return false;
-    return isEmpty(Object.hasOwn(submitted, field) ? submitted[field] : null);
+  return required.filter((field) =>
+    isEmpty(Object.hasOwn(submitted, field) ? submitted[field] : currentValue(user, field)),
+  );
+}
+
+export interface InvalidField {
+  readonly field: string;
+  // A control that would reorder the text around it, or a shape the claim
+  // cannot take, for a page that words each in its own language.
+  readonly reason: 'bidi' | 'shape';
+}
+
+// Every submitted value the write would refuse, each judged as the me API
+// judges it on its own, so the page names them all at once.
+export function invalidProfileFields(
+  user: UserRecord,
+  submitted: Readonly<Record<string, string | null>>,
+): InvalidField[] {
+  return Object.entries(submitted).flatMap(([field, value]) => {
+    const plan = planProfileAmend(user, { [field]: value });
+    return plan.kind === 'invalid_value' ? [{ field: plan.field, reason: plan.reason }] : [];
   });
 }

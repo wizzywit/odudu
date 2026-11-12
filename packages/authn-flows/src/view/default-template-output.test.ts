@@ -372,6 +372,7 @@ describe('the required-action page under the default template', () => {
 const ADDRESS = pathAddress('https://idp.example', 'acme');
 const PROFILE_OFFER = {
   fields: ['username', 'name', 'birthdate', 'website', 'phone_number'],
+  required: ['name', 'birthdate'],
   values: { username: 'ada', name: 'Ada', birthdate: '', website: '', phone_number: '' },
 };
 
@@ -476,7 +477,7 @@ describe('the update-profile page under the default template', () => {
           HOSTILE,
           pathAddress('https://idp.example', HOSTILE),
           HOSTILE,
-          { fields: ['name'], values: { name: HOSTILE } },
+          { fields: ['name'], required: ['name'], values: { name: HOSTILE } },
           [{ kind: 'invalid', field: 'name', reason: 'bidi' }],
           ARABIC_DARK,
         ),
@@ -490,14 +491,16 @@ describe('the accept-terms page under the default template', () => {
   for (const [name, locale] of LOCALES) {
     it(`renders byte-identically (${name})`, () => {
       expect(
-        markup(renderAcceptTermsPage('acme', ADDRESS, 'sess-1', offer, false, locale)),
+        markup(renderAcceptTermsPage('acme', ADDRESS, 'sess-1', offer, undefined, locale)),
       ).toMatchSnapshot();
     });
   }
 
   it('renders a box left unticked byte-identically', () => {
     expect(
-      markup(renderAcceptTermsPage('acme', ADDRESS, 'sess-1', offer, true, DEFAULT_PAGE_LOCALE)),
+      markup(
+        renderAcceptTermsPage('acme', ADDRESS, 'sess-1', offer, 'unticked', DEFAULT_PAGE_LOCALE),
+      ),
     ).toMatchSnapshot();
   });
 
@@ -509,7 +512,7 @@ describe('the accept-terms page under the default template', () => {
           pathAddress('https://idp.example', HOSTILE),
           HOSTILE,
           { uri: 'https://example.com/?q=<script>', version: HOSTILE },
-          true,
+          'stale',
           ARABIC_DARK,
         ),
       ),

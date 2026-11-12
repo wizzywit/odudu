@@ -207,6 +207,7 @@ exports[`the accept-terms page under the default template > renders a box left u
 </div>
 <form method="post" action="/tenants/acme/login-actions/required-action?action=accept-terms">
   <input type="hidden" name="auth_session_id" value="sess-1">
+  <input type="hidden" name="version" value="2026-01">
   <p><a href="https://example.com/terms" rel="noopener noreferrer" target="_blank">Read the terms</a> (Version <bdi>2026-01</bdi>)</p>
   <label><input type="checkbox" name="accept" value="true" aria-invalid="true" aria-describedby="form-error-0" autofocus> I accept these terms</label>
   <button type="submit">Continue</button>
@@ -238,6 +239,7 @@ exports[`the accept-terms page under the default template > renders byte-identic
 <p>اقرأ الشروط، ثم أكّد قبولك لها للمتابعة.</p>
 <form method="post" action="/tenants/acme/login-actions/required-action?action=accept-terms">
   <input type="hidden" name="auth_session_id" value="sess-1">
+  <input type="hidden" name="version" value="2026-01">
   <p><a href="https://example.com/terms" rel="noopener noreferrer" target="_blank">اقرأ الشروط</a> (الإصدار <bdi>2026-01</bdi>)</p>
   <label><input type="checkbox" name="accept" value="true"> أقبل هذه الشروط</label>
   <button type="submit">متابعة</button>
@@ -269,6 +271,7 @@ exports[`the accept-terms page under the default template > renders byte-identic
 <p>Read the terms, then confirm that you accept them to continue.</p>
 <form method="post" action="/tenants/acme/login-actions/required-action?action=accept-terms">
   <input type="hidden" name="auth_session_id" value="sess-1">
+  <input type="hidden" name="version" value="2026-01">
   <p><a href="https://example.com/terms" rel="noopener noreferrer" target="_blank">Read the terms</a> (Version <bdi>2026-01</bdi>)</p>
   <label><input type="checkbox" name="accept" value="true"> I accept these terms</label>
   <button type="submit">Continue</button>
@@ -300,6 +303,7 @@ exports[`the accept-terms page under the default template > renders byte-identic
 <p>Read the terms, then confirm that you accept them to continue.</p>
 <form method="post" action="/tenants/acme/login-actions/required-action?action=accept-terms">
   <input type="hidden" name="auth_session_id" value="sess-1">
+  <input type="hidden" name="version" value="2026-01">
   <p><a href="https://example.com/terms" rel="noopener noreferrer" target="_blank">Read the terms</a> (Version <bdi>2026-01</bdi>)</p>
   <label><input type="checkbox" name="accept" value="true"> I accept these terms</label>
   <button type="submit">Continue</button>
@@ -331,11 +335,12 @@ exports[`the accept-terms page under the default template > renders hostile text
 <p>اقرأ الشروط، ثم أكّد قبولك لها للمتابعة.</p>
 <div class="alert" role="alert" id="form-error">
 <ul>
-<li id="form-error-0">ضع علامة في المربع لقبول الشروط والمتابعة.</li>
+<li id="form-error-0">تغيّرت الشروط أثناء فتح هذه الصفحة. اقرأ الإصدار الجديد ووافق عليه إن كنت موافقًا.</li>
 </ul>
 </div>
 <form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/required-action?action=accept-terms">
   <input type="hidden" name="auth_session_id" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
+  <input type="hidden" name="version" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
   <p><a href="https://example.com/?q=&lt;script&gt;" rel="noopener noreferrer" target="_blank">اقرأ الشروط</a> (الإصدار <bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi>)</p>
   <label><input type="checkbox" name="accept" value="true" aria-invalid="true" aria-describedby="form-error-0" autofocus> أقبل هذه الشروط</label>
   <button type="submit">متابعة</button>
@@ -1784,12 +1789,12 @@ exports[`the update-profile page under the default template > renders byte-ident
 <h1>أكمل ملفك الشخصي</h1>
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
-<p>املأ كل الحقول قبل المتابعة.</p>
+<p>راجع بياناتك واملأ الحقول المعلَّمة بأنها مطلوبة قبل المتابعة.</p>
 <form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
   <input type="hidden" name="auth_session_id" value="sess-1">
   <label>اسم المستخدم <input type="text" name="username" value="ada" autocomplete="username"></label>
-  <label>الاسم الكامل <input type="text" name="name" value="Ada" autocomplete="name"></label>
-  <label>تاريخ الميلاد <input type="text" name="birthdate" value="" autocomplete="bday"></label>
+  <label>الاسم الكامل (مطلوب) <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label>تاريخ الميلاد (مطلوب) <input type="text" name="birthdate" value="" autocomplete="bday"></label>
   <label>الموقع الإلكتروني <input type="url" name="website" value="" autocomplete="url"></label>
   <label>رقم الهاتف <input type="tel" name="phone_number" value="" autocomplete="tel"></label>
   <button type="submit">حفظ ومتابعة</button>
@@ -1818,12 +1823,12 @@ exports[`the update-profile page under the default template > renders byte-ident
 <h1>Complete your profile</h1>
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
-<p>Fill in every field before you continue.</p>
+<p>Check your details and fill in the ones marked as required before you continue.</p>
 <form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
   <input type="hidden" name="auth_session_id" value="sess-1">
   <label>Username <input type="text" name="username" value="ada" autocomplete="username"></label>
-  <label>Full name <input type="text" name="name" value="Ada" autocomplete="name"></label>
-  <label>Birthdate <input type="text" name="birthdate" value="" autocomplete="bday"></label>
+  <label>Full name (required) <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label>Birthdate (required) <input type="text" name="birthdate" value="" autocomplete="bday"></label>
   <label>Website <input type="url" name="website" value="" autocomplete="url"></label>
   <label>Phone number <input type="tel" name="phone_number" value="" autocomplete="tel"></label>
   <button type="submit">Save and continue</button>
@@ -1852,12 +1857,12 @@ exports[`the update-profile page under the default template > renders byte-ident
 <h1>Complete your profile</h1>
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
-<p>Fill in every field before you continue.</p>
+<p>Check your details and fill in the ones marked as required before you continue.</p>
 <form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
   <input type="hidden" name="auth_session_id" value="sess-1">
   <label>Username <input type="text" name="username" value="ada" autocomplete="username"></label>
-  <label>Full name <input type="text" name="name" value="Ada" autocomplete="name"></label>
-  <label>Birthdate <input type="text" name="birthdate" value="" autocomplete="bday"></label>
+  <label>Full name (required) <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label>Birthdate (required) <input type="text" name="birthdate" value="" autocomplete="bday"></label>
   <label>Website <input type="url" name="website" value="" autocomplete="url"></label>
   <label>Phone number <input type="tel" name="phone_number" value="" autocomplete="tel"></label>
   <button type="submit">Save and continue</button>
@@ -1886,7 +1891,7 @@ exports[`the update-profile page under the default template > renders hostile te
 <h1>أكمل ملفك الشخصي</h1>
 <p class="tenant"><bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
 </header>
-<p>املأ كل الحقول قبل المتابعة.</p>
+<p>راجع بياناتك واملأ الحقول المعلَّمة بأنها مطلوبة قبل المتابعة.</p>
 <div class="alert" role="alert" id="form-error">
 <ul>
 <li id="form-error-0">يجب ألا يحتوي الاسم الكامل على محارف التحكم في الاتجاه.</li>
@@ -1894,7 +1899,7 @@ exports[`the update-profile page under the default template > renders hostile te
 </div>
 <form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/required-action?action=update-profile">
   <input type="hidden" name="auth_session_id" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
-  <label>الاسم الكامل <input type="text" name="name" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co" autocomplete="name" aria-invalid="true" aria-describedby="form-error-0"></label>
+  <label>الاسم الكامل (مطلوب) <input type="text" name="name" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co" autocomplete="name" aria-invalid="true" aria-describedby="form-error-0"></label>
   <button type="submit">حفظ ومتابعة</button>
 </form>
 </main>
@@ -1921,10 +1926,10 @@ exports[`the update-profile page under the default template > renders refused fi
 <h1>Complete your profile</h1>
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
-<p>Fill in every field before you continue.</p>
+<p>Check your details and fill in the ones marked as required before you continue.</p>
 <div class="alert" role="alert" id="form-error">
 <ul>
-<li id="form-error-0">Fill in every field.</li>
+<li id="form-error-0">Fill in the required fields.</li>
 <li id="form-error-1">Phone number is not in a form this field accepts.</li>
 <li id="form-error-2">That username is taken. Choose another.</li>
 </ul>
@@ -1932,8 +1937,8 @@ exports[`the update-profile page under the default template > renders refused fi
 <form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
   <input type="hidden" name="auth_session_id" value="sess-1">
   <label>Username <input type="text" name="username" value="ada" autocomplete="username" aria-invalid="true" aria-describedby="form-error-2"></label>
-  <label>Full name <input type="text" name="name" value="Ada" autocomplete="name"></label>
-  <label>Birthdate <input type="text" name="birthdate" value="" autocomplete="bday" aria-invalid="true" aria-describedby="form-error-0"></label>
+  <label>Full name (required) <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label>Birthdate (required) <input type="text" name="birthdate" value="" autocomplete="bday" aria-invalid="true" aria-describedby="form-error-0"></label>
   <label>Website <input type="url" name="website" value="" autocomplete="url" aria-invalid="true" aria-describedby="form-error-0"></label>
   <label>Phone number <input type="tel" name="phone_number" value="" autocomplete="tel" aria-invalid="true" aria-describedby="form-error-1"></label>
   <button type="submit">Save and continue</button>
