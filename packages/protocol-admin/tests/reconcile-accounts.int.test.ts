@@ -336,7 +336,7 @@ describe('reconciling accounts that hold one address', () => {
       onPair: (pair) => lines.push({ ...pair }),
     });
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatchObject({ event: 'would_merge', survivor: expect.any(String) });
+    expect(lines[0]).toMatchObject({ event: 'would_merge', carried_over: true });
     expect(lines[0]).not.toHaveProperty('moved');
     expect(report).toMatchObject({
       dry_run: true,
