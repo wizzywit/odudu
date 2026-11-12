@@ -293,24 +293,35 @@ interface Notice {
   readonly reason: MessageId;
   // The sentences of the notice, the first naming the tenant.
   readonly lines: readonly MessageId[];
+  // What the reader is told to do if the change was not theirs.
+  readonly advice?: MessageId;
 }
 
 // Said to the address on file after an administrator changes how the
 // subject recovers or proves who they are. Never a link, a code or a secret:
 // whoever reads it may not be the subject, and nothing in it helps them.
-function renderNotice({ input, subject, heading, preheader, reason, lines }: Notice): EmailMessage {
+function renderNotice({
+  input,
+  subject,
+  heading,
+  preheader,
+  reason,
+  lines,
+  advice = 'notice.contact',
+}: Notice): EmailMessage {
   const locale = mailLocale(input);
   const tenant = clipName(input.tenantDisplayName);
+  const when = noticeWhen(input.now);
   const sentences = lines.map((id) => ({
-    text: t(locale, id, { tenant: inText(tenant) }),
-    html: tHtml(locale, id, {}, { tenant: stripBidiControls(tenant) }),
+    text: t(locale, id, { tenant: inText(tenant), when }),
+    html: tHtml(locale, id, {}, { tenant: stripBidiControls(tenant), when }),
   }));
   return {
     to: input.to,
     subject: inSubject(t(locale, subject, { tenant: inSubject(tenant) })),
     text: [
       ...sentences.map((line) => line.text),
-      t(locale, 'notice.contact'),
+      t(locale, advice),
       textFooter(locale, reason, tenant, input.now),
     ].join('\n\n'),
     html: renderShell({
@@ -324,9 +335,14 @@ function renderNotice({ input, subject, heading, preheader, reason, lines }: Not
         branding: input.branding,
       }),
       blocks: sentences.map((line) => paragraph(line.html)),
-      closing: [tHtml(locale, 'notice.contact')],
+      closing: [tHtml(locale, advice)],
     }),
   };
+}
+
+// The moment in UTC to the minute, so a mail client cannot reinterpret it.
+function noticeWhen(now: Date): string {
+  return `${now.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 }
 
 export function renderSecondFactorRemoved(input: SecondFactorRemovedInput): EmailMessage {
@@ -351,6 +367,49 @@ export function renderRecoveryCodesRevoked(input: RecoveryCodesRevokedInput): Em
     preheader: 'recoveryRevoked.preheader',
     reason: 'recoveryRevoked.reason',
     lines: ['recoveryRevoked.text', ...(input.newSet ? (['recoveryRevoked.newSet'] as const) : [])],
+  });
+}
+
+export type OwnChange =
+  | { readonly kind: 'totp_added' }
+  | { readonly kind: 'passkey_added' }
+  | { readonly kind: 'totp_removed'; readonly codes: boolean }
+  | { readonly kind: 'passkey_removed' }
+  | { readonly kind: 'recovery_set_issued' }
+  | { readonly kind: 'address_change_requested' };
+
+export interface OwnChangeInput extends NoticeInput {
+  readonly change: OwnChange;
+}
+
+const OWN_CHANGE_PREFIX = {
+  totp_added: 'own.totpAdded',
+  passkey_added: 'own.passkeyAdded',
+  totp_removed: 'own.totpRemoved',
+  passkey_removed: 'own.passkeyRemoved',
+  recovery_set_issued: 'own.recoverySet',
+  address_change_requested: 'own.addressChange',
+} as const;
+
+// Said to the address on file after the subject changed how they sign in or
+// recover, or asked to change the address. It names what changed and when and
+// carries no link, code or secret.
+export function renderOwnChange(input: OwnChangeInput): EmailMessage {
+  const prefix = OWN_CHANGE_PREFIX[input.change.kind];
+  return renderNotice({
+    input,
+    subject: `${prefix}.subject`,
+    heading: `${prefix}.heading`,
+    preheader: `${prefix}.preheader`,
+    reason: `${prefix}.reason`,
+    advice: 'own.notYou',
+    lines: [
+      `${prefix}.text`,
+      ...(input.change.kind === 'totp_removed' && input.change.codes
+        ? (['own.codesRemoved'] as const)
+        : []),
+      'own.when',
+    ],
   });
 }
 

@@ -9,6 +9,9 @@ export {
   type RegistrationDuplicateInput,
   renderSecondFactorRemoved,
   renderRecoveryCodesRevoked,
+  renderOwnChange,
+  type OwnChange,
+  type OwnChangeInput,
   type SecondFactorRemovedInput,
   type RecoveryCodesRevokedInput,
   renderSmtpTest,
@@ -17,6 +20,7 @@ export {
   type RequiredActionsInput,
   type SmtpTestInput,
 } from '#/service/templates';
+export { noticeRecipient, type NoticeRecipient } from '#/service/notice-recipient';
 export { smtpSender, type SmtpConfig } from '#/adapter/smtp';
 export { capturingSender } from '#/adapter/capturing';
 export { loggingSender } from '#/adapter/logging';
@@ -30,6 +34,11 @@ export {
   type SendPendingOptions,
   type SendPendingOutcome,
 } from '#/usecase/send-pending';
+export {
+  queueOwnChangeNotice,
+  type NoticeOutcome,
+  type OwnChangeNotice,
+} from '#/usecase/own-change-notice';
 export {
   mailContext,
   tenantMailContext,

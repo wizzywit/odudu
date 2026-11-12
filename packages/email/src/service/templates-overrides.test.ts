@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { en, isMailMessageKey, MAIL_MESSAGES } from '#/service/messages';
 import {
   renderFinishRegistration,
+  renderOwnChange,
   renderRecoveryCodesRevoked,
   renderRegistrationDuplicate,
   renderRequiredActions,
@@ -20,6 +21,15 @@ const ACTIONS = [
   'configure-passkey',
   'generate-recovery-codes',
 ];
+
+const OWN_CHANGES = [
+  { kind: 'totp_added' },
+  { kind: 'passkey_added' },
+  { kind: 'totp_removed', codes: true },
+  { kind: 'passkey_removed' },
+  { kind: 'recovery_set_issued' },
+  { kind: 'address_change_requested' },
+] as const;
 
 describe('the mail message keys', () => {
   it('are the English catalogue without the attribution a page does not carry either', () => {
@@ -49,6 +59,7 @@ describe('the mail message keys', () => {
       renderSecondFactorRemoved({ ...base, overrides, factor: 'webauthn', codes: false }),
       renderRecoveryCodesRevoked({ ...base, overrides, newSet: true }),
       renderSmtpTest({ ...base, overrides }),
+      ...OWN_CHANGES.map((change) => renderOwnChange({ ...base, overrides, change })),
     ]
       .map((mail) => mail.subject + mail.text + mail.html)
       .join('\n');

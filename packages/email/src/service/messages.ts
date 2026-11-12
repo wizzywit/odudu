@@ -75,6 +75,48 @@ export const en = {
   'recoveryRevoked.newSet': 'You will be asked to save a new set the next time you sign in.',
   'recoveryRevoked.reason':
     'You received this because the recovery codes on your account at {tenant} were changed.',
+  'own.when': 'This happened on {when}.',
+  'own.notYou':
+    'If this was not you, sign in and change your password, or contact your administrator right away.',
+  'own.codesRemoved': 'Your recovery codes were removed with it, and no longer work.',
+  'own.totpAdded.subject': 'An authenticator app was added to your {tenant} account',
+  'own.totpAdded.preheader': 'You can now use it to sign in.',
+  'own.totpAdded.heading': 'An authenticator app was added',
+  'own.totpAdded.text': 'An authenticator app was set up on your {tenant} account.',
+  'own.totpAdded.reason':
+    'You received this because a sign-in method on your account at {tenant} was changed.',
+  'own.passkeyAdded.subject': 'A passkey was added to your {tenant} account',
+  'own.passkeyAdded.preheader': 'You can now use it to sign in.',
+  'own.passkeyAdded.heading': 'A passkey was added',
+  'own.passkeyAdded.text': 'A passkey was added to your {tenant} account.',
+  'own.passkeyAdded.reason':
+    'You received this because a sign-in method on your account at {tenant} was changed.',
+  'own.totpRemoved.subject': 'An authenticator app was removed from your {tenant} account',
+  'own.totpRemoved.preheader': 'It can no longer be used to sign in.',
+  'own.totpRemoved.heading': 'An authenticator app was removed',
+  'own.totpRemoved.text': 'The authenticator app was removed from your {tenant} account.',
+  'own.totpRemoved.reason':
+    'You received this because a sign-in method on your account at {tenant} was changed.',
+  'own.passkeyRemoved.subject': 'A passkey was removed from your {tenant} account',
+  'own.passkeyRemoved.preheader': 'It can no longer be used to sign in.',
+  'own.passkeyRemoved.heading': 'A passkey was removed',
+  'own.passkeyRemoved.text': 'A passkey was removed from your {tenant} account.',
+  'own.passkeyRemoved.reason':
+    'You received this because a sign-in method on your account at {tenant} was changed.',
+  'own.recoverySet.subject': 'New recovery codes were saved on your {tenant} account',
+  'own.recoverySet.preheader': 'Any earlier codes no longer work.',
+  'own.recoverySet.heading': 'New recovery codes were saved',
+  'own.recoverySet.text':
+    'A new set of recovery codes was created for your {tenant} account. Any codes issued before it no longer work.',
+  'own.recoverySet.reason':
+    'You received this because the recovery codes on your account at {tenant} were changed.',
+  'own.addressChange.subject': 'A new email address was requested for your {tenant} account',
+  'own.addressChange.preheader': 'Your address stays as it is until the new one is confirmed.',
+  'own.addressChange.heading': 'A new email address was requested',
+  'own.addressChange.text':
+    'Someone asked to change the email address on your {tenant} account. This address stays on the account until the new one is confirmed.',
+  'own.addressChange.reason':
+    'You received this because the email address on your account at {tenant} was asked to change.',
   'smtpTest.subject': 'Odudu SMTP test',
   'smtpTest.preheader': 'This message was sent to check the mail settings.',
   'smtpTest.heading': 'SMTP test',

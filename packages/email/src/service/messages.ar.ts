@@ -65,6 +65,47 @@ export const ar: Readonly<Record<string, string>> = {
   'recoveryRevoked.newSet': 'سيُطلب منك حفظ مجموعة جديدة عند تسجيل الدخول في المرة القادمة.',
   'recoveryRevoked.reason':
     'وصلتك هذه الرسالة لأن رموز الاسترداد الخاصة بحسابك لدى {tenant} تغيّرت.',
+  'own.when': 'حدث ذلك في {when}.',
+  'own.notYou': 'إذا لم تكن أنت، فسجّل الدخول وغيّر كلمة مرورك، أو تواصل مع المسؤول فورًا.',
+  'own.codesRemoved': 'أُزيلت معه رموز الاسترداد الخاصة بك، ولم تعد تعمل.',
+  'own.totpAdded.subject': 'أُضيف تطبيق مصادقة إلى حسابك في {tenant}',
+  'own.totpAdded.preheader': 'يمكنك الآن استخدامه لتسجيل الدخول.',
+  'own.totpAdded.heading': 'أُضيف تطبيق مصادقة',
+  'own.totpAdded.text': 'أُعدّ تطبيق مصادقة على حسابك في {tenant}.',
+  'own.totpAdded.reason':
+    'وصلتك هذه الرسالة لأن إحدى طرق تسجيل الدخول إلى حسابك لدى {tenant} تغيّرت.',
+  'own.passkeyAdded.subject': 'أُضيف مفتاح مرور إلى حسابك في {tenant}',
+  'own.passkeyAdded.preheader': 'يمكنك الآن استخدامه لتسجيل الدخول.',
+  'own.passkeyAdded.heading': 'أُضيف مفتاح مرور',
+  'own.passkeyAdded.text': 'أُضيف مفتاح مرور إلى حسابك في {tenant}.',
+  'own.passkeyAdded.reason':
+    'وصلتك هذه الرسالة لأن إحدى طرق تسجيل الدخول إلى حسابك لدى {tenant} تغيّرت.',
+  'own.totpRemoved.subject': 'أُزيل تطبيق مصادقة من حسابك في {tenant}',
+  'own.totpRemoved.preheader': 'لم يعد بالإمكان استخدامه لتسجيل الدخول.',
+  'own.totpRemoved.heading': 'أُزيل تطبيق مصادقة',
+  'own.totpRemoved.text': 'أُزيل تطبيق المصادقة من حسابك في {tenant}.',
+  'own.totpRemoved.reason':
+    'وصلتك هذه الرسالة لأن إحدى طرق تسجيل الدخول إلى حسابك لدى {tenant} تغيّرت.',
+  'own.passkeyRemoved.subject': 'أُزيل مفتاح مرور من حسابك في {tenant}',
+  'own.passkeyRemoved.preheader': 'لم يعد بالإمكان استخدامه لتسجيل الدخول.',
+  'own.passkeyRemoved.heading': 'أُزيل مفتاح مرور',
+  'own.passkeyRemoved.text': 'أُزيل مفتاح مرور من حسابك في {tenant}.',
+  'own.passkeyRemoved.reason':
+    'وصلتك هذه الرسالة لأن إحدى طرق تسجيل الدخول إلى حسابك لدى {tenant} تغيّرت.',
+  'own.recoverySet.subject': 'حُفظت رموز استرداد جديدة لحسابك في {tenant}',
+  'own.recoverySet.preheader': 'لم تعد الرموز السابقة تعمل.',
+  'own.recoverySet.heading': 'حُفظت رموز استرداد جديدة',
+  'own.recoverySet.text':
+    'أُنشئت مجموعة جديدة من رموز الاسترداد لحسابك في {tenant}. لم تعد الرموز الصادرة قبلها تعمل.',
+  'own.recoverySet.reason':
+    'وصلتك هذه الرسالة لأن رموز الاسترداد الخاصة بحسابك لدى {tenant} تغيّرت.',
+  'own.addressChange.subject': 'طُلب عنوان بريد جديد لحسابك في {tenant}',
+  'own.addressChange.preheader': 'يبقى عنوانك كما هو إلى أن يُؤكَّد العنوان الجديد.',
+  'own.addressChange.heading': 'طُلب عنوان بريد إلكتروني جديد',
+  'own.addressChange.text':
+    'طلب أحدهم تغيير عنوان البريد الإلكتروني لحسابك في {tenant}. يبقى هذا العنوان على الحساب إلى أن يُؤكَّد العنوان الجديد.',
+  'own.addressChange.reason':
+    'وصلتك هذه الرسالة لأن عنوان البريد الإلكتروني لحسابك لدى {tenant} طُلب تغييره.',
   'smtpTest.subject': 'اختبار SMTP من Odudu',
   'smtpTest.preheader': 'أُرسلت هذه الرسالة للتحقق من إعدادات البريد.',
   'smtpTest.heading': 'اختبار SMTP',
