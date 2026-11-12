@@ -27,7 +27,9 @@ export function settingValue(
     case 'toggle':
       return value === true;
     case 'text':
+      return isText(value) ? value : '';
     case 'choice':
+      if (field.numeric === true) return typeof value === 'number' ? String(value) : '';
       return isText(value) ? value : '';
     case 'set':
       return Array.isArray(value) ? value.filter(isText) : [];
@@ -49,7 +51,7 @@ export function describeSetting(field: SettingField): (value: unknown) => string
       case 'text':
         return isText(value) && value !== '' ? value : 'none';
       case 'choice':
-        return field.options?.find((option) => option.id === value)?.label ?? String(value);
+        return field.options?.find((option) => option.id === String(value))?.label ?? String(value);
       case 'set': {
         const chosen = Array.isArray(value) ? value : [];
         const labels = (field.options ?? [])

@@ -29,7 +29,14 @@ export interface PasskeyVerification {
 // TotpStepOutcome does: the counter the authenticator reported is half of
 // clone detection, and storing it is the other half.
 export type PasskeyStepOutcome =
-  | { kind: 'success'; subjectId: string; credentialId: string; counter: number }
+  | {
+      kind: 'success';
+      subjectId: string;
+      credentialId: string;
+      counter: number;
+      // Whether the authenticator verified the person who held it.
+      userVerified: boolean;
+    }
   | { kind: 'challenge'; form: string }
   | { kind: 'failure'; reason: string };
 
@@ -88,6 +95,9 @@ export async function passkeyStep(
       counter: credential.secret.counter,
       transports: credential.secret.transports,
     },
+    // A passkey with no recorded policy was made when verification was always
+    // required.
+    requireUserVerification: (credential.secret.userVerification ?? 'required') === 'required',
   });
   if (verified.kind === 'rejected') return { kind: 'failure', reason: 'invalid_credentials' };
 
@@ -100,5 +110,6 @@ export async function passkeyStep(
     subjectId: credential.subjectId,
     credentialId: credential.id,
     counter: verified.counter,
+    userVerified: verified.userVerified,
   };
 }

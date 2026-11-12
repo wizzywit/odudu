@@ -7,6 +7,7 @@ import {
   ceremonyRelyingParty,
   credentialRelyingPartyId,
   parseRegistrationResponse,
+  passkeyAuthenticationOptions,
   passkeyRegistrationOptions,
   relyingPartyFor,
   relyingPartyId,
@@ -18,6 +19,7 @@ const RP_ID = 'localhost';
 const PATH_RP = relyingPartyFor(pathAddress(PUBLIC_BASE_URL, 'demo'));
 const DOMAIN_RP = relyingPartyFor(domainAddress('login.acme.com', true));
 const CHALLENGE = 'Zm9yLXJlZ2lzdHJhdGlvbi1vbmx5';
+const REQUIRED = { userVerification: 'required', residentKey: 'required' } as const;
 
 // A registration the software authenticator really signed, with the origin
 // and the RP ID overridable one at a time. It goes through the same
@@ -114,6 +116,7 @@ describe('passkeyRegistrationOptions', () => {
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
       existingCredentialIds: [],
+      policy: REQUIRED,
     });
 
     expect(offer.options.rp.id).toBe('id.example.com');
@@ -134,11 +137,28 @@ describe('passkeyRegistrationOptions', () => {
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
       existingCredentialIds: [],
+      policy: REQUIRED,
     });
 
     expect(offer.options.authenticatorSelection).toMatchObject({
       residentKey: 'required',
       userVerification: 'required',
+    });
+  });
+
+  it('asks for what the tenant’s policy says, not always for the strictest', async () => {
+    const offer = await passkeyRegistrationOptions({
+      relyingParty: relyingPartyFor(pathAddress('https://id.example.com', 'demo')),
+      tenantName: 'demo',
+      username: 'ada',
+      userHandle: '11111111-1111-1111-1111-111111111111',
+      existingCredentialIds: [],
+      policy: { userVerification: 'preferred', residentKey: 'discouraged' },
+    });
+
+    expect(offer.options.authenticatorSelection).toMatchObject({
+      residentKey: 'discouraged',
+      userVerification: 'preferred',
     });
   });
 
@@ -152,6 +172,7 @@ describe('passkeyRegistrationOptions', () => {
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
       existingCredentialIds: ['aaaa', 'bbbb'],
+      policy: REQUIRED,
     });
 
     expect(offer.options.excludeCredentials?.map((credential) => credential.id)).toEqual([
@@ -167,6 +188,7 @@ describe('passkeyRegistrationOptions', () => {
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
       existingCredentialIds: [],
+      policy: REQUIRED,
     };
     const first = await passkeyRegistrationOptions(input);
     const second = await passkeyRegistrationOptions(input);
@@ -183,6 +205,7 @@ describe('verifyPasskeyRegistration', () => {
     const outcome = await verifyPasskeyRegistration({
       relyingParty: PATH_RP,
       expectedChallenge: 'a-challenge',
+      userVerification: 'required',
       response: {
         id: 'nope',
         rawId: 'nope',
@@ -204,6 +227,7 @@ describe('verifyPasskeyRegistration', () => {
     const outcome = await verifyPasskeyRegistration({
       relyingParty: PATH_RP,
       expectedChallenge: CHALLENGE,
+      userVerification: 'required',
       response: registrationFor({ origin: 'https://attacker.example' }),
     });
 
@@ -214,6 +238,7 @@ describe('verifyPasskeyRegistration', () => {
     const outcome = await verifyPasskeyRegistration({
       relyingParty: PATH_RP,
       expectedChallenge: CHALLENGE,
+      userVerification: 'required',
       response: registrationFor({ rpId: 'attacker.example' }),
     });
 
@@ -224,10 +249,74 @@ describe('verifyPasskeyRegistration', () => {
     const outcome = await verifyPasskeyRegistration({
       relyingParty: PATH_RP,
       expectedChallenge: CHALLENGE,
+      userVerification: 'required',
       response: registrationFor({}),
     });
 
     expect(outcome.kind).toBe('verified');
+  });
+});
+
+describe('verifyPasskeyRegistration under a policy that does not require user verification', () => {
+  const unverified = () => {
+    const parsed = parseRegistrationResponse(
+      softwareRegistrationResponse({
+        challenge: CHALLENGE,
+        rpId: RP_ID,
+        origin: PUBLIC_BASE_URL,
+        userVerified: false,
+      }),
+    );
+    if (parsed === null) throw new Error('expected the fixture to produce a registration');
+    return parsed;
+  };
+
+  it.each(['required'] as const)('refuses an unverified registration when %s', async (mode) => {
+    const outcome = await verifyPasskeyRegistration({
+      relyingParty: PATH_RP,
+      expectedChallenge: CHALLENGE,
+      userVerification: mode,
+      response: unverified(),
+    });
+    expect(outcome).toEqual({ kind: 'rejected' });
+  });
+
+  it.each(['preferred', 'discouraged'] as const)(
+    'accepts an unverified registration when %s',
+    async (mode) => {
+      const outcome = await verifyPasskeyRegistration({
+        relyingParty: PATH_RP,
+        expectedChallenge: CHALLENGE,
+        userVerification: mode,
+        response: unverified(),
+      });
+      expect(outcome.kind).toBe('verified');
+    },
+  );
+});
+
+describe('credProps in a registration', () => {
+  const response = (discoverable?: boolean) =>
+    parseRegistrationResponse(
+      softwareRegistrationResponse({
+        challenge: CHALLENGE,
+        rpId: PATH_RP.id,
+        origin: PATH_RP.origin,
+        ...(discoverable === undefined ? {} : { discoverable }),
+      }),
+    );
+
+  it('keeps rk when the client reports it and nothing when it does not', () => {
+    expect(response(false)?.clientExtensionResults).toEqual({ credProps: { rk: false } });
+    expect(response(true)?.clientExtensionResults).toEqual({ credProps: { rk: true } });
+    expect(response()?.clientExtensionResults).toEqual({});
+  });
+});
+
+describe('passkeyAuthenticationOptions', () => {
+  it('asks for user verification as a preference, never as a requirement', async () => {
+    const { options } = await passkeyAuthenticationOptions(PATH_RP);
+    expect(options.userVerification).toBe('preferred');
   });
 });
 
@@ -245,6 +334,7 @@ describe('a passkey and the address it was registered at', () => {
       verifyPasskeyRegistration({
         relyingParty,
         expectedChallenge: CHALLENGE,
+        userVerification: 'required',
         response: atDomain,
       });
 
@@ -257,7 +347,12 @@ describe('a passkey and the address it was registered at', () => {
     if (atPath === null) throw new Error('expected the fixture to produce a registration');
 
     const at = (relyingParty: { id: string; origin: string }) =>
-      verifyPasskeyRegistration({ relyingParty, expectedChallenge: CHALLENGE, response: atPath });
+      verifyPasskeyRegistration({
+        relyingParty,
+        expectedChallenge: CHALLENGE,
+        userVerification: 'required',
+        response: atPath,
+      });
 
     expect(await at(DOMAIN_RP)).toEqual({ kind: 'rejected' });
     expect((await at(PATH_RP)).kind).toBe('verified');

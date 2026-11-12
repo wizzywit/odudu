@@ -4,6 +4,7 @@ import { credentialRepository, hashPassword, subjectRepository } from '@odudu/do
 import { type MailLookResolver } from '@odudu/email';
 import { noticeOwnChange } from '#/usecase/own-change-notice';
 import { requiredActionRepository } from '#/repository/required-actions';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { type RequiredAction } from '#/schema/required-action';
 import { generateRecoveryCodes, normaliseRecoveryCode } from '#/service/authenticators/recovery';
 import {
@@ -32,7 +33,7 @@ export type BeginRecoveryCodesOutcome =
   | { kind: 'no_second_factor' };
 
 // Returns the plaintext codes exactly once, to the page that shows them:
-// one Argon2id hash per code is stored, and a reload issues a different ten,
+// one Argon2id hash per code is stored, and a reload issues a different set,
 // replacing the set it just displayed. A replacement is bounded to one an
 // hour (reissueAllowed), and refused with the time it opens.
 //
@@ -95,12 +96,15 @@ export async function beginRecoveryCodes(
     return refused;
   }
 
-  const codes = generateRecoveryCodes();
+  const { recoveryCodeCount } = await tenantSettingsRepository(tx).authenticatorPolicy(
+    input.tenantId,
+  );
+  const codes = generateRecoveryCodes(recoveryCodeCount);
   const hashes = await Promise.all(codes.map((code) => hashPassword(normaliseRecoveryCode(code))));
 
   const repository = credentialRepository(tx);
-  // Regenerating replaces the set rather than adding to it: the old ten
-  // stop working the moment these are shown, which is the only honest
+  // Regenerating replaces the set rather than adding to it: the old set
+  // stops working the moment these are shown, which is the only honest
   // reading of a page that says "these are your codes".
   const replaced = await repository.deleteRecoveryCodes(input.subjectId);
   for (const hash of hashes) {
@@ -135,7 +139,7 @@ export type RecoveryCodesOutcome =
 // The action is completed by the acknowledgement, not by the page that
 // issued the codes: a subject who closed the tab before reading them still
 // owes the action, and the next login issues a fresh set rather than
-// leaving them with ten codes they never saw.
+// leaving them with a set they never saw.
 export async function completeRecoveryCodes(
   tx: TenantScopedDatabase,
   input: { subjectId: string },
@@ -151,8 +155,8 @@ export async function completeRecoveryCodes(
 // code is redeemed only at the TOTP code step, which a passkey skips. One with codes left is not
 // asked, because re-issuing would silently retire the copy on their paper.
 // Unspent rather than held is the whole point — spent rows are kept so a
-// replay can be refused as spent (ADR 0021), so a subject who has used all
-// ten still holds ten, and a guard counting rows leaves them owing nothing.
+// replay can be refused as spent (ADR 0021), so a subject who has used every
+// code still holds the whole set, and a guard counting rows leaves them owing nothing.
 export async function oweRecoveryCodesIfNoneUnspent(
   tx: TenantScopedDatabase,
   tenantId: string,

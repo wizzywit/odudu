@@ -32,6 +32,7 @@ it('has a section for each concern, each with its own save', async () => {
     'Remember me',
     'Registration and recovery',
     'Usernames',
+    'Authenticators',
     'Password policy',
     'Brute force',
     'Token lifetimes',
@@ -47,7 +48,7 @@ it('lists the sections, each a button that sends the focus to its heading', asyn
   renderConsoleAt(AT, settingsRoutes());
   await section('General');
   const nav = screen.getByRole('navigation', { name: 'On this page' });
-  expect(within(nav).getAllByRole('button')).toHaveLength(10);
+  expect(within(nav).getAllByRole('button')).toHaveLength(11);
   await user.click(within(nav).getByRole('button', { name: 'Password policy' }));
   expect(screen.getByRole('heading', { level: 2, name: 'Password policy' })).toHaveFocus();
   await user.tab();
@@ -123,6 +124,23 @@ it('sets a switch and a choice', async () => {
     expect(sent.filter((s) => s.method === 'PATCH').at(-1)?.body).toEqual({
       client_registration_policy: 'token',
     });
+  });
+});
+
+it('sets the number an authenticator app shows as a choice, and sends it as text the server reads', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, { [`PATCH ${ST}`]: settingsAnswer({}, '"s2"') }),
+  );
+  const authenticators = await section('Authenticators');
+  await user.click(
+    within(authenticators).getByRole('button', { name: /Authenticator app code length/u }),
+  );
+  await user.click(await screen.findByRole('option', { name: '8 digits' }));
+  await user.click(within(authenticators).getByRole('button', { name: 'Save Authenticators' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ totp_digits: '8' });
   });
 });
 

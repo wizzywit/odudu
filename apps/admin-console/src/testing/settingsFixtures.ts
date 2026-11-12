@@ -48,6 +48,12 @@ export const SETTINGS = {
   reset_password_ttl_seconds: 300,
   session_freshness_seconds: 300,
   recovery_code_warn_below: 3,
+  totp_algorithm: 'SHA1',
+  totp_digits: 6,
+  totp_period: 30,
+  webauthn_user_verification: 'required',
+  webauthn_resident_key: 'required',
+  recovery_code_count: 10,
   login_with_email: false,
   audit_event_types: [
     'admin_mutation',

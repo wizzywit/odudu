@@ -91,6 +91,14 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   // Absent from a document exported before the setting existed, which
   // imports with the default threshold.
   recovery_code_warn_below: count.default(3),
+  // Absent from a document exported before the authenticator policy existed,
+  // which imports with the values every enrolment was made under.
+  totp_algorithm: z.enum(['SHA1', 'SHA256', 'SHA512']).default('SHA1'),
+  totp_digits: z.union([z.literal(6), z.literal(8)]).default(6),
+  totp_period: z.union([z.literal(30), z.literal(60)]).default(30),
+  webauthn_user_verification: z.enum(['required', 'preferred', 'discouraged']).default('required'),
+  webauthn_resident_key: z.enum(['required', 'preferred', 'discouraged']).default('required'),
+  recovery_code_count: count.min(8).max(16).default(10),
   login_with_email: z.boolean(),
   // Absent from a document exported before the setting existed, which
   // imports with it off.

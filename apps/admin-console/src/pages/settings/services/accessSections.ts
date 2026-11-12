@@ -3,6 +3,7 @@ import type { SettingsSection } from '#/pages/settings/services/sectionTypes';
 export const GENERAL_SECTION = 'general';
 export const LOCKOUT_SECTION = 'brute-force';
 export const PASSWORD_SECTION = 'password';
+export const AUTHENTICATORS_SECTION = 'authenticators';
 
 export const ACCESS_SECTIONS: readonly SettingsSection[] = [
   {
@@ -117,6 +118,77 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         label: 'Reset link lifetime',
         control: 'seconds',
         description: 'A reset link stops working after this long.',
+      },
+    ],
+  },
+  {
+    id: AUTHENTICATORS_SECTION,
+    title: 'Authenticators',
+    description:
+      'What a new authenticator app, passkey or recovery set is made with. One already enrolled keeps the values it was made with.',
+    fields: [
+      {
+        name: 'totp_algorithm',
+        label: 'Authenticator app algorithm',
+        control: 'choice',
+        description:
+          'SHA1 works in every authenticator app. A person’s app must support another algorithm, digit count and period before they can use it; the enrolment page says so.',
+        options: [
+          { id: 'SHA1', label: 'SHA1' },
+          { id: 'SHA256', label: 'SHA256' },
+          { id: 'SHA512', label: 'SHA512' },
+        ],
+      },
+      {
+        name: 'totp_digits',
+        label: 'Authenticator app code length',
+        control: 'choice',
+        numeric: true,
+        options: [
+          { id: '6', label: '6 digits' },
+          { id: '8', label: '8 digits' },
+        ],
+      },
+      {
+        name: 'totp_period',
+        label: 'Authenticator app code period',
+        control: 'choice',
+        numeric: true,
+        options: [
+          { id: '30', label: '30 seconds' },
+          { id: '60', label: '60 seconds' },
+        ],
+      },
+      {
+        name: 'webauthn_user_verification',
+        label: 'Passkey user verification',
+        control: 'choice',
+        description:
+          'Whether a new passkey checks the person with a PIN or biometric. A passkey made without it signs in as one factor, so a second factor is still asked for.',
+        options: [
+          { id: 'required', label: 'Required' },
+          { id: 'preferred', label: 'Preferred' },
+          { id: 'discouraged', label: 'Discouraged' },
+        ],
+      },
+      {
+        name: 'webauthn_resident_key',
+        label: 'Passkey stored on the device',
+        control: 'choice',
+        description:
+          'A passkey that is not stored on the device cannot sign a person in who has not typed a username.',
+        options: [
+          { id: 'required', label: 'Required' },
+          { id: 'preferred', label: 'Preferred' },
+          { id: 'discouraged', label: 'Discouraged' },
+        ],
+      },
+      {
+        name: 'recovery_code_count',
+        label: 'Recovery codes in a set',
+        control: 'count',
+        unit: 'codes',
+        description: 'A set already issued keeps its size.',
       },
       {
         name: 'recovery_code_warn_below',

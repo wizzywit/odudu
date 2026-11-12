@@ -6,10 +6,16 @@ import { type MailLookResolver } from '@odudu/email';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { noticeOwnChange } from '#/usecase/own-change-notice';
 import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
 import { OTP } from '#/service/authenticators/names';
-import { isTotpSecretShape, totpEnrolmentUri } from '#/service/authenticators/totp';
+import {
+  isTotpSecretShape,
+  totpEnrolmentUri,
+  totpParameters,
+  type TotpSecret,
+} from '#/service/authenticators/totp';
 import { type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
 
 // A fresh secret every time the page is rendered, and nothing is written
@@ -17,10 +23,12 @@ import { type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
 // leaves nothing behind at all.
 export async function beginTotpEnrolment(
   tx: TenantScopedDatabase,
+  tenantId: string,
   tenantName: string,
   subjectId: string,
 ): Promise<TotpEnrolmentOffer> {
   const user = await userRepository(tx).bySubjectId(subjectId);
+  const { totp } = await tenantSettingsRepository(tx).authenticatorPolicy(tenantId);
   const secret = generateTotpSecret();
   return {
     secret,
@@ -28,7 +36,9 @@ export async function beginTotpEnrolment(
       issuer: tenantName,
       account: user?.username ?? subjectId,
       secret,
+      ...totp,
     }),
+    parameters: totp,
   };
 }
 
@@ -63,12 +73,22 @@ export async function completeTotpEnrolment(
   }
   if (!isTotpSecretShape(input.secret)) return { kind: 'rejected', reason: 'invalid_code' };
 
+  const { totp } = await tenantSettingsRepository(tx).authenticatorPolicy(input.tenantId);
+  const made: TotpSecret = {
+    kind: 'totp',
+    secret: input.secret,
+    digits: totp.digits,
+    lastStep: 0,
+    algorithm: totp.algorithm,
+    period: totp.period,
+  };
   const now = clock.now();
   const verified = verifyTotp({
     secret: input.secret,
     code: input.code,
     now,
     lastStep: null,
+    ...totpParameters(made),
   });
   if (!verified.ok) return { kind: 'rejected', reason: 'invalid_code' };
 
@@ -81,7 +101,7 @@ export async function completeTotpEnrolment(
     tenantId: input.tenantId,
     subjectId: input.subjectId,
     type: 'totp',
-    secret: { kind: 'totp', secret: input.secret, digits: 6, lastStep: verified.step },
+    secret: { ...made, lastStep: verified.step },
   });
   await authenticationSessionRepository(tx).recordSatisfied(input.authSessionId, OTP);
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-totp');

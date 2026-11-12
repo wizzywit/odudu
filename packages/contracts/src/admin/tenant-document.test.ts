@@ -91,6 +91,12 @@ const DOCUMENT: TenantDocument = {
     reset_password_ttl_seconds: 300,
     session_freshness_seconds: 300,
     recovery_code_warn_below: 3,
+    totp_algorithm: 'SHA1',
+    totp_digits: 6,
+    totp_period: 30,
+    webauthn_user_verification: 'required',
+    webauthn_resident_key: 'required',
+    recovery_code_count: 10,
     login_with_email: false,
     cimd_enabled: false,
     audit_event_types: ['admin_mutation', 'admin_access'],
@@ -222,6 +228,48 @@ describe('tenantDocumentSchema', () => {
     expect(result.data?.settings.supported_locales).toEqual(['en']);
     expect(result.data?.settings.default_locale).toBeNull();
     expect(result.data?.message_overrides).toEqual([]);
+  });
+
+  it('imports a document from before the authenticator policy with the values every enrolment used', () => {
+    const names = [
+      'totp_algorithm',
+      'totp_digits',
+      'totp_period',
+      'webauthn_user_verification',
+      'webauthn_resident_key',
+      'recovery_code_count',
+    ];
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => !names.includes(name)),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings).toMatchObject({
+      totp_algorithm: 'SHA1',
+      totp_digits: 6,
+      totp_period: 30,
+      webauthn_user_verification: 'required',
+      webauthn_resident_key: 'required',
+      recovery_code_count: 10,
+    });
+  });
+
+  it('refuses an authenticator parameter nobody offers', () => {
+    for (const bad of [
+      { totp_algorithm: 'MD5' },
+      { totp_digits: 7 },
+      { totp_period: 45 },
+      { webauthn_user_verification: 'maybe' },
+      { webauthn_resident_key: 'maybe' },
+      { recovery_code_count: 7 },
+      { recovery_code_count: 17 },
+    ]) {
+      const result = tenantDocumentSchema.safeParse({
+        ...DOCUMENT,
+        settings: { ...DOCUMENT.settings, ...bad },
+      });
+      expect(result.success).toBe(false);
+    }
   });
 
   it('imports a client and a scope from before per-language text with every map empty', () => {

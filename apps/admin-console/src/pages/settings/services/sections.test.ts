@@ -1,6 +1,7 @@
 import {
   REGISTRATION_POLICY_SETTINGS,
   tenantSettingsDocumentSchema,
+  TENANT_SETTING_CHOICES,
   TENANT_SETTING_ORDERINGS,
   TENANT_SETTING_RANGES,
 } from '@odudu/contracts/admin';
@@ -63,6 +64,32 @@ describe('SETTINGS_SECTIONS', () => {
         (field) => field.name === name,
       )?.control;
       expect(['seconds', 'count']).toContain(control);
+    }
+  });
+});
+
+describe('the authenticator policy', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'authenticators');
+  const named = (name: string) => home?.fields.find((field) => field.name === name);
+
+  it('sits in one section with the recovery warning its count bounds', () => {
+    expect(home?.fields.map((field) => field.name)).toEqual([
+      'totp_algorithm',
+      'totp_digits',
+      'totp_period',
+      'webauthn_user_verification',
+      'webauthn_resident_key',
+      'recovery_code_count',
+      'recovery_code_warn_below',
+    ]);
+  });
+
+  it('offers exactly the values the server accepts, digits and period as numbers', () => {
+    for (const [name, choices] of Object.entries(TENANT_SETTING_CHOICES)) {
+      const field = named(name);
+      expect(field?.control).toBe('choice');
+      expect(field?.options?.map((option) => option.id)).toEqual(choices.map(String));
+      expect(field?.numeric === true).toBe(typeof choices[0] === 'number');
     }
   });
 });

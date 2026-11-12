@@ -1,5 +1,9 @@
 import { canonicalLocale, isValidLocale } from '@odudu/contracts';
-import { TENANT_SETTING_ORDERINGS, TENANT_SETTING_RANGES } from '@odudu/contracts/admin';
+import {
+  TENANT_SETTING_CHOICES,
+  TENANT_SETTING_ORDERINGS,
+  TENANT_SETTING_RANGES,
+} from '@odudu/contracts/admin';
 import { type tenants } from '@odudu/db';
 
 type TenantColumn = keyof typeof tenants.$inferSelect;
@@ -54,6 +58,24 @@ const SETTINGS = {
   reset_password_ttl_seconds: { column: 'resetPasswordTtlSeconds', type: 'integer' },
   session_freshness_seconds: { column: 'sessionFreshnessSeconds', type: 'integer' },
   recovery_code_warn_below: { column: 'recoveryCodeWarnBelow', type: 'integer' },
+  totp_algorithm: {
+    column: 'totpAlgorithm',
+    type: 'text',
+    values: TENANT_SETTING_CHOICES.totp_algorithm as readonly string[],
+  },
+  totp_digits: { column: 'totpDigits', type: 'integer' },
+  totp_period: { column: 'totpPeriod', type: 'integer' },
+  webauthn_user_verification: {
+    column: 'webauthnUserVerification',
+    type: 'text',
+    values: TENANT_SETTING_CHOICES.webauthn_user_verification as readonly string[],
+  },
+  webauthn_resident_key: {
+    column: 'webauthnResidentKey',
+    type: 'text',
+    values: TENANT_SETTING_CHOICES.webauthn_resident_key as readonly string[],
+  },
+  recovery_code_count: { column: 'recoveryCodeCount', type: 'integer' },
   login_with_email: { column: 'loginWithEmail', type: 'boolean' },
   cimd_enabled: { column: 'cimdEnabled', type: 'boolean' },
   // The audit trail's admin pair can never be left out: a security trail an
@@ -262,6 +284,13 @@ export function tenantSettingProblems(
     } else if (value > INTEGER_CEILING) {
       problems.push({ name, message: `must be at most ${String(INTEGER_CEILING)}` });
     }
+  }
+  for (const [name, choices] of Object.entries(TENANT_SETTING_CHOICES)) {
+    const value = values[name];
+    if (value === undefined || !isSettingName(name) || choices.some((choice) => choice === value)) {
+      continue;
+    }
+    problems.push({ name, message: `must be one of ${choices.join(', ')}` });
   }
   for (const { name } of TENANT_SETTING_COLUMNS) {
     const value = values[name];

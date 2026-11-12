@@ -92,6 +92,32 @@ describe('renderTotpEnrolmentPage', () => {
     expect(page.html).toContain('<code>otpauth://x?a=&lt;script&gt;&amp;b=&quot;</code>');
   });
 
+  it('says what the app must support when the parameters are not the common ones', () => {
+    const page = renderTotpEnrolmentPage(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      'sess-1',
+      { ...OFFER, parameters: { algorithm: 'SHA256', digits: 8, period: 60 } },
+      undefined,
+      DEFAULT_PAGE_LOCALE,
+    );
+    expect(page.body).toContain(
+      'This authenticator uses SHA256, 8 digits and a 60-second period. Your app must support all three',
+    );
+  });
+
+  it('says nothing of the parameters every app supports', () => {
+    const page = renderTotpEnrolmentPage(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      'sess-1',
+      { ...OFFER, parameters: { algorithm: 'SHA1', digits: 6, period: 30 } },
+      undefined,
+      DEFAULT_PAGE_LOCALE,
+    );
+    expect(page.body).not.toContain('Your app must support');
+  });
+
   it('keeps the English markup exactly', () => {
     const { body } = renderTotpEnrolmentPage(
       'acme',

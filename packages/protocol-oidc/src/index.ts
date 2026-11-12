@@ -654,7 +654,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // submission that discovers the action is owed, and the enrolment
     // submission that has to re-render it after a wrong code.
     const startTotpEnrolment = (tenantName: string, tenantId: string, subjectId: string) =>
-      withTenant(deps.database.db, tenantId, (tx) => beginTotpEnrolment(tx, tenantName, subjectId));
+      withTenant(deps.database.db, tenantId, (tx) =>
+        beginTotpEnrolment(tx, tenantId, tenantName, subjectId),
+      );
 
     // One definition for the same two doors: the login that discovers the
     // action is owed, and the acknowledgement that has to re-render it.

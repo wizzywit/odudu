@@ -351,3 +351,66 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
 
 - A change that sends reads the user row, the tenant's name and display name, and the tenant's mail settings (language, theme and
   wording, through `tenantMailContext`): one primary-key read of the user and two of the tenant. None is read when no mail is sent; no list grew.
+
+## Increment 7a: the authenticator policy
+
+### What shipped
+
+- Six tenant settings, each a column with a CHECK (migration `0132`), a `SETTINGS` entry, a field of the tenant document with
+  today's value as its default, an audit-detail entry and a field in the console's new Authenticators section: `totp_algorithm`
+  (`SHA1`, `SHA256`, `SHA512`), `totp_digits` (6, 8), `totp_period` (30, 60), `webauthn_user_verification` and
+  `webauthn_resident_key` (`required`, `preferred`, `discouraged`) and `recovery_code_count` (8 to 16, default 10).
+  `TENANT_SETTING_CHOICES` in `@odudu/contracts` names the values of a list-shaped CHECK, as `TENANT_SETTING_RANGES` does for a
+  range, and `tests/tenant-setting-checks.int.test.ts` holds both to the database.
+- A TOTP row records `algorithm` and `period` beside the `digits` it already held, a passkey row `userVerification` and
+  `residentKey`. The migration writes the values every earlier row was made with (SHA1 and 30 seconds; both required) and
+  leaves a row that already has a key alone, so it runs again to no effect.
+- `verifyTotp` takes the credential's algorithm, digits and period; `totpStep` reads them from the row, never from the tenant.
+  A passkey assertion is verified by the row's own user verification, and a row without one reads as required.
+- The enrolment page says what the app must support when the parameters are not SHA1, 6 digits and 30 seconds (an English and an
+  Arabic entry), and the `otpauth://` address carries the three parameters.
+- A recovery set takes its size from the tenant at the moment it is issued.
+
+### Ruling
+
+- `recovery_code_warn_below` may not exceed `recovery_code_count` (CHECK `tenants_recovery_warn_within_count`, and an ordering
+  the console reads), so a tenant cannot flag every set as low. The warning moved to the Authenticators section with its count.
+- Digits and period are validated by the CHECK and `tenantSettingProblems` against `TENANT_SETTING_CHOICES`, and the console
+  offers them as a choice of two whose values are text; the admin API reads `"8"` as it reads `8`.
+- A passkey made without user verification is one factor. The assertion's user-verified flag decides: a passkey whose row did
+  not require verification and whose assertion lacked it records `passkey-unverified` beside `passkey`. The second factor then
+  applies (`otpApplicable`, `recoveryApplicable`), `acr` is `1` and `amr` has no `user`. Without this a tenant that chose
+  `preferred` would have turned a one-factor credential into the two the sign-in counts it as.
+- Sign-in always asks for `preferred`. No credential is known when the options are made, and a client refuses an authenticator
+  that cannot verify before the server sees it, so asking `required` because the tenant now requires it for new passkeys locked
+  out a passkey made earlier under `preferred`. Enforcement is per credential, at verification: `passkeyStep` reads
+  `requireUserVerification` from the row's own `userVerification`, so a passkey made under `required` is refused an assertion
+  without verification whatever the tenant has chosen since.
+- Facts for discoverability: `git grep -n "allowCredentials\|passkeyAuthenticationOptions" -- packages apps` finds one place an
+  assertion is requested, `beginPasskeyAuthentication`, and it sends no `allowCredentials`; a passkey is never used as a second
+  factor after a username. So only a discoverable credential can ever sign in. WebAuthn cannot be asked what the authenticator
+  did, but the `credProps` client extension reports `rk`. Registration now requests it and refuses `rk === false` under every
+  `webauthn_resident_key` value (`not_discoverable`, shown as `refusal.passkeyNotDiscoverable`, English and Arabic), with
+  nothing stored. A client that reports nothing is trusted, which is the one gap left; narrowing the setting's values was
+  rejected because `discouraged` and `preferred` still yield a discoverable credential on most authenticators, and no new
+  sign-in path was added.
+- A TOTP enrolment is checked by the tenant's parameters at the moment it is confirmed, not at the moment its page was drawn; a
+  change between the two makes the code refused and the person tries again.
+
+### Found while building
+
+- The brief assumed `digits` and `period` might already be stored. Only `digits` was, and no code read it: `verifyTotp` ignored
+  it and always compared six digits at 30 seconds. It is read now.
+- A passkey carries nothing in WebAuthn that says how its registration was asked for, so the row is the only place the
+  parameters can live; the table of 0132 is `user_credentials.secret_data`.
+
+### At volume
+
+- No path grew a list. An enrolment, an assertion and a recovery issue each read the tenant row once by primary key
+  (`authenticatorPolicy`), as the flow settings already do; `recovery_code_count` bounds the hashes a set costs at 16.
+
+### Open placements
+
+- The tenant-wide passkey switch and the per-step configuration are the next two parts of the increment, unchanged.
+- A weak-passkey sign-in audits as `login.passkey`, the same as a verified one; the token's `acr` and the session's satisfied list
+  are the only record. Placed on increment 8, where the session and audit detail are revisited.

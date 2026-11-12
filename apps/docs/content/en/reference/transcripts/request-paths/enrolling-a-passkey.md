@@ -48,6 +48,13 @@ What the flow is, stated rather than shown:
    parked login then resumes: the recovery codes the enrolment owes come next,
    and acknowledging them answers the `302` to the client, with no second
    password.
+   The creation options carry the tenant's `webauthn_resident_key` and
+   `webauthn_user_verification` (both `required` unless the tenant changed
+   them), and the credential's row records the two it was made under, beside
+   the key, the counter and the transports. A response without the user-verified
+   flag is refused only where verification was required; the row is then
+   verified at sign-in by what it recorded, and a change of the setting
+   afterwards applies to the next passkey only.
 5. The page's script is inline, because only a script can reach an
    authenticator. The response's `Content-Security-Policy` names a
    per-response `nonce` and that script carries it — not `unsafe-inline`, so

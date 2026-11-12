@@ -36,6 +36,7 @@ import {
 import {
   OTP,
   PASSKEY,
+  PASSKEY_UNVERIFIED,
   PASSWORD,
   RECOVERY_CODE,
   type AuthenticatorName,
@@ -381,6 +382,7 @@ async function runPasskeyStep(
   return {
     kind: 'success',
     subjectId: outcome.subjectId,
+    ...(outcome.userVerified ? {} : { also: [PASSKEY_UNVERIFIED] }),
     commit: () =>
       credentialRepository(tx).advanceWebauthnCounter(credentialId, counter, context.now),
   };
@@ -973,8 +975,8 @@ export async function advance(
   // succeeded counts as satisfied for that re-read — a passkey is two
   // factors, and whether a conditional OTP step still applies depends on
   // having seen it.
-  const updatedSatisfied = new Set(satisfied);
-  updatedSatisfied.add(authenticator);
+  const established = [authenticator, ...(result.also ?? [])];
+  const updatedSatisfied = new Set([...satisfied, ...established]);
   const { steps: stepsForSubject, facts } = await loadSteps(tx, record.tenantId, {
     subjectId,
     satisfied: updatedSatisfied,
@@ -988,7 +990,9 @@ export async function advance(
   // its completion waits for the change.
   await recordPasswordExpiryIfOwed(tx, record.tenantId, subjectId, facts.passwordMaxAgeDays, clock);
 
-  await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
+  for (const name of established) {
+    await authenticationSessionRepository(tx).recordSatisfied(authSessionId, name);
+  }
   const forSubject = bindRegistry(tx, {
     tenantId: record.tenantId,
     subjectId,
@@ -1009,7 +1013,7 @@ export async function advance(
       outcome = {
         kind: 'success',
         subjectId: settled.subjectId,
-        authenticators: [...new Set([...record.satisfied, authenticator, after.authenticator])],
+        authenticators: [...new Set([...record.satisfied, ...established, after.authenticator])],
       };
     } else if (settled.kind === 'failure') {
       outcome = { kind: 'failure', reason: settled.reason };
@@ -1022,7 +1026,7 @@ export async function advance(
     outcome = {
       kind: 'success',
       subjectId,
-      authenticators: [...new Set([...record.satisfied, authenticator])],
+      authenticators: [...new Set([...record.satisfied, ...established])],
     };
   }
 

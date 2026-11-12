@@ -18,7 +18,7 @@ Most of what makes one tenant behave differently from another is a setting: how 
 
 ## 1. Find the section
 
-Choose a name from the row at the top to jump to it: **General**, **Sessions**, **Remember me**, **Registration and recovery**, **Usernames**, **Password policy**, **Brute force**, **Token lifetimes**, **Client registration** and **Audit retention**. Each field says what it does and the range the server accepts. Durations show the plain reading beside the seconds, for example `1800 s · 30 minutes`.
+Choose a name from the row at the top to jump to it: **General**, **Sessions**, **Remember me**, **Registration and recovery**, **Authenticators**, **Usernames**, **Password policy**, **Brute force**, **Token lifetimes**, **Client registration** and **Audit retention**. Each field says what it does and the range the server accepts. Durations show the plain reading beside the seconds, for example `1800 s · 30 minutes`.
 
 ## 2. Change a section and save it
 
@@ -28,6 +28,7 @@ Some common changes:
 
 - To let people create their own accounts, turn on **Self-registration** under **Registration and recovery**, and turn on **Verify email addresses** if you want a link mailed to them. Mail needs an [Email relay](./email.mdx). The sign-in page then shows a link reading _Create an account_, and one reading _Forgot password?_ when password reset is on too. An app can send a person straight to the registration page with `prompt=create`; see [a sign-up button](../guides/sign-a-user-in.md#a-sign-up-button). A form that is refused comes back with the problem beside the field. A taken username is always named. With **Verify email addresses** on, the account is created when the person opens the link and confirms, and an address that already has an account is not named: the page says _Check your email_ as it does for a new address, and that address's owner gets a mail saying someone tried to register it. With it off, nothing can be mailed, so the form says the address is registered. Verification and registration links ask for one click, so mail scanners that open links cannot spend them. A mailed verification or reset link shows _Continue to sign in_ only in the browser where the person started, and only while that sign-in is open. Anywhere else the page says to return to the application and sign in again.
 - To change what a password must satisfy, edit **Minimum length** and the other fields under **Password policy**; [Choose a password policy](#4-choose-a-password-policy) says what to pick. A rule applies to the next password somebody sets, never to one already chosen.
+- To change what a new authenticator app, passkey or recovery set is made with, edit the fields under **Authenticators**; [Authenticators](#authenticators) says what each does. A change applies to the next enrolment, never to one that exists.
 - To shorten how long a person stays signed in, lower **Idle timeout** and **Maximum lifetime** under **Sessions**.
 - To let applications register themselves with a token, set **Policy** under **Client registration**; the [Registration tokens](./registration-tokens.mdx) page does the rest.
 - To keep the audit trail for longer or shorter, change **Keep events for** under **Audit retention**, and choose which kinds of event are recorded. Changes and reads by administrators are always recorded.
@@ -77,13 +78,28 @@ Each line gives the label, then the name the admin API and `odudu seed tenant --
 - **Verification link lifetime** (`verify_email_ttl_seconds`): how long that link works, up to 7 days.
 - **Password reset by mail** (`reset_password_allowed`): a person who forgot their password may ask for a reset link.
 - **Reset link lifetime** (`reset_password_ttl_seconds`): how long a reset link works, up to 24 hours.
-- **Recovery code warning** (`recovery_code_warn_below`): a person left with fewer unspent recovery codes than this is flagged by `recovery_codes_low` in the "me" API's credentials answer. 3 by default, 0 to 10, and 0 turns the warning off.
 
 When somebody sets a new password from a mailed link, whether a reset link or an administrator's link that asks for one, every session they hold ends and every token grant they gave is revoked, offline ones too. Anyone else signed in to that account is signed out.
 
 If the account registered itself and its address was never verified, the link also removes any authenticator app, passkey and recovery codes and marks the address verified. The page says so. Whoever registered the address first may have added them. In a tenant that does not verify addresses, that is every self-registered account until its first reset. Accounts an administrator created keep their factors.
 
 The link stops working once it is used, and it asks for one click first, so a mail scanner that opens it cannot spend it.
+
+### Authenticators
+
+- **Authenticator app algorithm** (`totp_algorithm`): **SHA1**, **SHA256** or **SHA512**. `SHA1` is the default and the one every authenticator app supports.
+- **Authenticator app code length** (`totp_digits`): **6 digits** or **8 digits**.
+- **Authenticator app code period** (`totp_period`): **30 seconds** or **60 seconds**.
+- **Passkey user verification** (`webauthn_user_verification`): **Required**, **Preferred** or **Discouraged**, the WebAuthn values of the same names (`required`, `preferred`, `discouraged`). Required is the default.
+- **Passkey stored on the device** (`webauthn_resident_key`): **Required**, **Preferred** or **Discouraged**, with the same three values. Required is the default.
+- **Recovery codes in a set** (`recovery_code_count`): how many codes a newly issued set holds, 8 to 16 and 10 by default.
+- **Recovery code warning** (`recovery_code_warn_below`): a person left with fewer unspent recovery codes than this is flagged by `recovery_codes_low` in the "me" API's credentials answer. 3 by default, 0 to 10 and no more than the size of a set, and 0 turns the warning off.
+
+Each setting applies to the next enrolment. An authenticator app keeps the algorithm, digits and period it was made with and is checked by them, so changing the tenant's choice strands nobody; a person who wants the new parameters enrols the app again. A passkey keeps the user verification and resident key it was made with, and a set of recovery codes keeps its size. A person who is enrolling an app is shown what it must support when the parameters are not `SHA1`, 6 digits and 30 seconds, because many apps do not support the others and a code the app cannot make never confirms. Choose them only for an app you know.
+
+A passkey made without user verification can still give a verified sign-in, but when an assertion lacks verification it proves possession of a key and nothing else, so that sign-in is one factor and not two. The person is still asked for an authenticator app code where they have one or the tenant requires one. A sign-in by that passkey alone reports `acr` `1` and no `user` method; with the authenticator app step also completed, the token reports `acr` `2`. Choose `preferred` or `discouraged` only if you accept that. Sign-in always asks the browser for `preferred` verification, and each passkey is then judged by the policy it was made under: a passkey made while verification was required is refused when its assertion lacks verification, whatever the tenant has chosen since, and a passkey made under `preferred` still signs in after the tenant moves to `required`.
+
+Passkey sign-in names no username, so only a passkey stored on the device can answer it. Odudu asks the browser to report whether a new passkey is stored on the device and refuses one reported as not, under every value of this setting, with a message asking the person to add one that can be stored. The value is what the authenticator is asked for. A browser that does not report is trusted, so a passkey that is not stored can still get through there and then cannot sign in.
 
 ### Usernames
 

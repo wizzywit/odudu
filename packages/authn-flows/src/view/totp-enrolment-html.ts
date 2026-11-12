@@ -14,6 +14,16 @@ import { fillPage } from '#/view/template';
 export interface TotpEnrolmentOffer {
   secret: string;
   uri: string;
+  // What the secret will be enrolled under. Said on the page only where an
+  // app may not support it.
+  parameters?: { algorithm: string; digits: number; period: number };
+}
+
+function parametersNote(locale: PageLocale, parameters: TotpEnrolmentOffer['parameters']): string {
+  if (parameters === undefined) return '';
+  const { algorithm, digits, period } = parameters;
+  if (algorithm === 'SHA1' && digits === 6 && period === 30) return '';
+  return `\n<p>${tHtml(locale, 'totp.parameters', { algorithm, digits, period })}</p>`;
 }
 
 // Error correction level M and an automatic version: an otpauth:// URI is
@@ -53,7 +63,7 @@ function totpEnrolmentPage(
       {
         intro: intro(tHtml(locale, 'totp.title'), tenant),
         error: problemSummary(problems),
-        offer: `<p>${tHtml(locale, 'totp.scan')}</p>
+        offer: `<p>${tHtml(locale, 'totp.scan')}</p>${parametersNote(locale, offer.parameters)}
 ${qrSvg(offer.uri)}
 <p>${token(offer.uri)}</p>
 <p>${tHtml(locale, 'totp.key')} ${token(offer.secret)}</p>`,

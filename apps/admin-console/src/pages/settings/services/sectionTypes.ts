@@ -17,6 +17,8 @@ export interface SettingField {
   // The unit a `count` is in.
   unit?: string;
   options?: readonly SettingOption[];
+  // A choice whose values are numbers on the server, spelled as text here.
+  numeric?: true;
 }
 
 export interface SettingsSection {

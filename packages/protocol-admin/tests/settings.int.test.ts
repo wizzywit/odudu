@@ -459,6 +459,85 @@ describe('PATCH /settings with nothing to set', () => {
   });
 });
 
+describe('the authenticator policy settings', () => {
+  interface RangeRefusal {
+    readonly errors?: readonly { readonly path: string; readonly message: string }[];
+  }
+
+  async function amend(tenantName: string, payload: Record<string, unknown>) {
+    const token = await fixture.adminToken(tenantName, ['manage-tenant']);
+    return fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${tenantName}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+      payload,
+    });
+  }
+
+  it('starts every tenant on the parameters every enrolment was made with', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const stored = await withTenant(fixture.app.db, t.id, (tx) =>
+      tenantSettingsRepository(tx).byId(t.id),
+    );
+    expect(stored).toMatchObject({
+      totp_algorithm: 'SHA1',
+      totp_digits: 6,
+      totp_period: 30,
+      webauthn_user_verification: 'required',
+      webauthn_resident_key: 'required',
+      recovery_code_count: 10,
+    });
+  });
+
+  it('stores a policy and audits it as values', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await amend(t.name, {
+      totp_algorithm: 'SHA256',
+      totp_digits: 8,
+      totp_period: 60,
+      webauthn_user_verification: 'preferred',
+      webauthn_resident_key: 'discouraged',
+      recovery_code_count: 12,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      totp_algorithm: 'SHA256',
+      totp_digits: 8,
+      totp_period: 60,
+      webauthn_user_verification: 'preferred',
+      webauthn_resident_key: 'discouraged',
+      recovery_code_count: 12,
+    });
+  });
+
+  it('refuses a digit count, a period or a count nobody offers, naming the values', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await amend(t.name, { totp_digits: 7, totp_period: 45, recovery_code_count: 20 });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<RangeRefusal>().errors).toEqual([
+      { path: 'recovery_code_count', message: 'must be between 8 and 16' },
+      { path: 'totp_digits', message: 'must be one of 6, 8' },
+      { path: 'totp_period', message: 'must be one of 30, 60' },
+    ]);
+  });
+
+  it('refuses an algorithm that is not offered, naming the three', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await amend(t.name, { totp_algorithm: 'MD5' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('SHA1, SHA256, SHA512');
+  });
+
+  it('keeps the recovery warning within the size of a set', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await amend(t.name, { recovery_code_count: 8, recovery_code_warn_below: 9 });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<RangeRefusal>().errors).toEqual([
+      { path: 'recovery_code_warn_below', message: 'must not exceed recovery_code_count' },
+    ]);
+  });
+});
+
 describe('the language settings', () => {
   async function setup() {
     const t = await fixture.createTenant(`acme-${newId()}`);

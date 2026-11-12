@@ -9,6 +9,8 @@ export const en = {
   'totp.title': 'Set up your authenticator',
   'totp.scan': 'Scan this with your authenticator app, or enter the key by hand.',
   'totp.key': 'Key:',
+  'totp.parameters':
+    'This authenticator uses {algorithm}, {digits, number, ::group-off} digits and a {period, number, ::group-off}-second period. Your app must support all three, or use a different one.',
   'totp.codeLabel': 'Code from your app',
   'totp.confirm': 'Confirm',
   'passkey.title': 'Add a passkey',
@@ -37,6 +39,8 @@ export const en = {
   'refusal.codeMismatch': 'That code did not match. Try the next one your app shows.',
   'refusal.codesNotSaved': 'Save these codes before continuing.',
   'refusal.passkeyNotAdded': 'That passkey could not be added. Try again.',
+  'refusal.passkeyNotDiscoverable':
+    'That passkey is not stored on your device, so it cannot sign you in without a username. Add one that can be stored on the device.',
 
   'updatePassword.title': 'Change your password',
   'updatePassword.intro': 'This account needs a new password before you can continue.',
