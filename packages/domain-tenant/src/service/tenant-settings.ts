@@ -322,7 +322,7 @@ function termsProblems(values: Readonly<Partial<Record<string, unknown>>>): Tena
     problems.push({
       name: 'terms_uri',
       message:
-        'must be an https address, or an http one to this machine, of at most 2048 characters, with no fragment and no credentials in it',
+        'must be an https address, or an http one to this machine, of up to 2048 characters, with no fragment and no credentials in it',
     });
   }
   const version = values.terms_version;
