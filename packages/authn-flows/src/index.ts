@@ -174,3 +174,5 @@ export { DEFAULT_TEMPLATES } from '#/view/templates/index';
 export { hasMessage as isAuthnMessageKey } from '#/view/template';
 export { en as AUTHN_PAGE_MESSAGES } from '#/view/messages';
 export { PREVIEW_PAGES as AUTHN_PREVIEW_PAGES } from '#/view/preview-pages';
+export { noticeOwnChange } from '#/usecase/own-change-notice';
+export { type MailLookResolver } from '@odudu/email';

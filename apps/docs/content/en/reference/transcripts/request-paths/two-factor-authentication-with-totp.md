@@ -107,7 +107,8 @@ second factor if the app never actually scanned it, so the credential is created
 by the submission that proves a code, not by the page that offers a secret. An
 abandoned enrolment leaves no row behind at all. The submission that proves a
 code also writes the one `credential` audit row, `otp.enrolled`, naming the
-subject; a wrong code writes none.
+subject, and queues a notice to the subject's verified address in the same transaction; its `detail.notice` says `sent`,
+`skipped_unverified` or `skipped_none`. A wrong code writes none and mails nothing.
 
 ## Confirming the secret enrols it, and is the login's second factor
 

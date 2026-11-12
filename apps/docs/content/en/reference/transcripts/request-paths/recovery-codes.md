@@ -37,7 +37,8 @@ Every set issued writes one `credential` audit row,
 `recovery_codes.issued`, in the transaction that stores the hashes — the
 forced first set included, and again for each set issued in its place. A
 replacement the hourly bound refuses writes `recovery_codes.refused` instead.
-Neither row carries a code.
+Neither row carries a code. A set issued also queues a notice to the subject's verified address, which carries no code either,
+and the row's `detail.notice` says `sent`, `skipped_unverified` or `skipped_none`.
 
 Every command and response below continues the same stack, the same
 `otp-demo` tenant and, to begin with, the same `auth_session_id`.

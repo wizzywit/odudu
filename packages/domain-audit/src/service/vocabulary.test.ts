@@ -197,3 +197,33 @@ describe('the steps of an application-requested action', () => {
     }).toThrow(/invalid value/);
   });
 });
+
+describe('the notice a change to a sign-in method records', () => {
+  it.each(['otp.enrolled', 'passkey.enrolled', 'recovery_codes.issued'])(
+    'is allowed on %s with the three outcomes a notice can have',
+    (action) => {
+      for (const notice of ['sent', 'skipped_unverified', 'skipped_none']) {
+        expect(() => {
+          assertDetailAllowed(action, { notice });
+        }).not.toThrow();
+      }
+    },
+  );
+
+  it.each(['otp.enrolled', 'passkey.enrolled', 'recovery_codes.issued'])(
+    'refuses any other value on %s, so no address can be recorded there',
+    (action) => {
+      for (const notice of ['ada@example.test', '', 'queued', 1]) {
+        expect(() => {
+          assertDetailAllowed(action, { notice });
+        }).toThrow(/invalid value/);
+      }
+    },
+  );
+
+  it('is not allowed on an action that sends no notice', () => {
+    expect(() => {
+      assertDetailAllowed('email.verified', { notice: 'sent' });
+    }).toThrow(/does not allow detail key/);
+  });
+});

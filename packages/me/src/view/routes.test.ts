@@ -165,6 +165,7 @@ function build(
             return Promise.resolve();
           },
           afterSecondFactorRemoved: () => Promise.resolve(0),
+          noticeOwnChange: () => Promise.resolve('sent'),
           mailIsAvailable: () => Promise.resolve(true),
           mailBudgetAllows: () => true,
           holderOfEmail: () => Promise.resolve(null),

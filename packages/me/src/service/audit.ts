@@ -1,5 +1,6 @@
 import type { AdminMutationAction } from '@odudu/domain-audit';
 import type { EmailChangePlan } from '#/service/email-change';
+import type { NoticeOutcome } from '#/service/notice';
 
 // An audit row for something a person did to their own account through the me
 // API. The actor is the subject themselves, acting through the client the token
@@ -93,10 +94,12 @@ export function credentialRemovedEvent(
   actor: Actor,
   credentialId: string,
   type: string,
+  notice: NoticeOutcome,
 ): MeAuditEvent {
   return onSubject(actor, 'subject.credential_delete', {
     credential_id: credentialId,
     type,
+    notice,
   });
 }
 
@@ -110,13 +113,18 @@ export function recoveryCodesRevokedEvent(actor: Actor, revoked: number): MeAudi
 
 // An address is asked for and not yet proved: the field is named and the
 // address never. A plan that skipped says why no mail went, for an address
-// that cannot be proved by mail to the person asking.
-export function emailChangeRequestedEvent(actor: Actor, plan: EmailChangePlan): MeAuditEvent {
+// that cannot be proved by mail to the person asking; one that sent says
+// whether the address being left was told.
+export function emailChangeRequestedEvent(
+  actor: Actor,
+  plan: EmailChangePlan,
+  notice: NoticeOutcome | null,
+): MeAuditEvent {
   return onSubject(
     actor,
     'subject.profile_amend',
     plan.kind === 'send'
-      ? { fields: ['email'], pending: true }
+      ? { fields: ['email'], pending: true, ...(notice === null ? {} : { notice }) }
       : { fields: ['email'], skipped: plan.reason },
   );
 }

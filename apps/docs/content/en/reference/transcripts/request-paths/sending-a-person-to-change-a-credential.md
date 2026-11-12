@@ -86,11 +86,11 @@ curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/cli
 ```
 
 ```
-{"created":true,"tenant":"actions-demo","tenantId":"01a1cf2f-11bb-720e-9a25-da20113e2658","clientId":"demo-spa","userSubjectId":"01a1cf2f-128a-75e8-b244-0643911aa7ec"}
-{"command":"user","tenant":"actions-demo","tenantId":"01a1cf2f-11bb-720e-9a25-da20113e2658","username":"lin","userSubjectId":"01a1cf2f-1447-77da-998e-1daa9212b05a"}
-{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cf2f-11bb-720e-9a25-da20113e2658","clientId":"plain-app","clientDbId":"01a1cf2f-15e8-7e6f-957f-934d120705fe"}
-{"command":"assign-scope","tenant":"actions-demo","tenantId":"01a1cf2f-11bb-720e-9a25-da20113e2658","clientId":"plain-app","scope":"me:read","assignment":"optional"}
-{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cf2f-11bb-720e-9a25-da20113e2658","clientId":"profile-app","clientDbId":"01a1cf2f-1953-70aa-856c-9f518e0a61d9"}
+{"created":true,"tenant":"actions-demo","tenantId":"01a1cf76-b9f0-7620-a09e-758c7c9017a8","clientId":"demo-spa","userSubjectId":"01a1cf76-bb1f-770b-b964-e78c6daa91c0"}
+{"command":"user","tenant":"actions-demo","tenantId":"01a1cf76-b9f0-7620-a09e-758c7c9017a8","username":"lin","userSubjectId":"01a1cf76-be16-7e98-95a8-13fd6f6cbf31"}
+{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cf76-b9f0-7620-a09e-758c7c9017a8","clientId":"plain-app","clientDbId":"01a1cf76-c10a-7b0a-af20-1560b4036b6b"}
+{"command":"assign-scope","tenant":"actions-demo","tenantId":"01a1cf76-b9f0-7620-a09e-758c7c9017a8","clientId":"plain-app","scope":"me:read","assignment":"optional"}
+{"command":"client","created":true,"tenant":"actions-demo","tenantId":"01a1cf76-b9f0-7620-a09e-758c7c9017a8","clientId":"profile-app","clientDbId":"01a1cf76-c503-7a9b-91a0-6718779a75cc"}
 {"client_id":"profile-app","type":"public","allowed_actions":["update-password","configure-totp","configure-passkey","generate-recovery-codes"],"scopes":["me:read"]}
 ```
 
@@ -160,7 +160,7 @@ back
 ```
 page: Save your recovery codes
 cancel control: no
-location: http://127.0.0.1:8080/callback?code=zfR5htoE5dLbr9IiLhxU1z39ajtefQaB4osd2sEu1fM&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+location: http://127.0.0.1:8080/callback?code=9L66TF1ZtawRU11zIydClrva7Dj15ScjtSMo3Zt9u6A&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 ```
 
 `action_status` is a hint that travelled through the browser, and anyone can type it into an address. The outcome is in the credential
@@ -196,7 +196,7 @@ answered: HTTP/1.1 429 Too Many Requests
 Your recovery codes were issued recently and still work. You can replace them in 60 minutes.
 page: Save your recovery codes
 cancel control: yes
-location: http://127.0.0.1:8080/callback?code=kmEQWjHN8yCykJQoNC_2k_0opAfHOQrA1gZ5iJII2Q0&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=NUpkJpwg86uVA3l5LLsCnlr13GOLZalv55gvZ0oW2dU&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 The run does not wait an hour. It writes the recorded time of the last set an hour and a half back, which is the one thing the wait
@@ -218,7 +218,7 @@ back
 
 answered: HTTP/1.1 200 OK
 This replaces your current recovery codes. The old ones stop working as soon as you confirm.
-location: http://127.0.0.1:8080/callback?code=D6IgHbs8vOO_N-E2foHf5WlYnlb2sE1CcdYtzkN0YeI&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=xe-Z4RBU3bKU8IJyy8Wyzxjy1wHDcqkWqj_YwEFwX7A&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 Asked again, and this time confirmed, the page replaces the set and shows the new codes once. It has no control to leave, because
@@ -237,7 +237,7 @@ back
 page: Save your recovery codes
 cancel control: no
 codes shown: 10
-location: http://127.0.0.1:8080/callback?code=NRxpWX61vTtkNvrZskpjJFQ78vSX3UaKNJlVwv0VAZY&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+location: http://127.0.0.1:8080/callback?code=nlwN4VczI3nrYd_vik498mfx3ZcDmaLvXEUd-STVXEc&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 ```
 
 A person with an authenticator and no set is asked before a first set is made, too, and nothing is made while the question is on the
@@ -263,7 +263,7 @@ answered: HTTP/1.1 200 OK
 This creates a set of recovery codes. Each signs you in once, in place of your second factor, if you lose it.
 page: Save your recovery codes
 cancel control: yes
-location: http://127.0.0.1:8080/callback?code=GFR21a01LHj-XlIxA1BOt8nW29j619NUpirH8KoFjV8&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=Mv0Kdp5JMMREYthpQ0iRzXqQy79N0AqFl18I1oCHNCY&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 {"types":["password","totp"],"recovery_codes_left":0}
 ```
 
@@ -283,7 +283,7 @@ credentials "$(token)"
 page: Save your recovery codes
 cancel control: no
 codes shown: 10
-location: http://127.0.0.1:8080/callback?code=eX3nxSi5c7M1W6Wzd8xz9rVMRxN8ExbU-8q_INCzcwA&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+location: http://127.0.0.1:8080/callback?code=LSMRxf784sluneQaVKeeJNMgEAWwBNq98wkjL7OiNJw&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 {"types":["password","totp"],"recovery_codes_left":10}
 ```
 
@@ -325,10 +325,10 @@ cancel control: yes
 name="current_password"
 HTTP/1.1 400 Bad Request
 The current password is not correct.
-{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-12T09:55:36.751Z"}
-location: http://127.0.0.1:8080/callback?code=IpCAl6roFrKNPmDJKAfPsF7JdN2DooBICPc9U9PamqA&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-12T11:13:52.487Z"}
+location: http://127.0.0.1:8080/callback?code=5wQR9HgWqTy2kIcVRRnWA15ESAG27OMlfXNBn_h1IAk&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 {"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
-password made: before 2026-11-12T09:55:31.521Z, after 2026-11-12T09:55:36.826Z
+password made: before 2026-11-12T11:13:48.048Z, after 2026-11-12T11:13:52.568Z
 ```
 
 ## A sign-in older than the window
@@ -376,11 +376,11 @@ back
 ```
 
 ```
-location: http://127.0.0.1:8080/callback?code=QPO_mJgJ5UqVV3QMalwpGIPLzCT3ofnozyvPNmTxEpI&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=pcivxTTgGb0ACzs19fLaLGksHJ07SmgishC33qPuLnU&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 {"types":["password"],"recovery_codes_left":0}
 page: Add a passkey
 cancel control: yes
-location: http://127.0.0.1:8080/callback?code=X2d3Oc-Xw49Cwjw_uKcnyuhLbP3epRnBjF3WQ5j2ACg&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=oU-Sy-FuYT0n_8sDs8Y63IU4krq4TE9SCShn6kyHnK8&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 ## An action the account cannot take
@@ -409,7 +409,8 @@ http://127.0.0.1:8080/callback?error=access_denied&error_description=The+user+di
 
 Each page shown is an `action.requested` row, and each ending is `action.completed`, `action.cancelled` or `action.failed`, with
 the action in `detail`. A sign-in refused for a wrong password is a refused `login.password`. The rows are the tenant's whole trail, which this
-page made, oldest first, with the other rows of the sign-ins left out:
+page made, oldest first, with the other rows of the sign-ins left out. `grace` has an address nobody verified, so each set she makes
+is allowed and mailed to no one, which `recovery_codes.issued` says in `detail.notice`:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/audit?limit=100" \
@@ -420,20 +421,20 @@ curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/aud
 {"action":"login.password","outcome":"allowed","actor":"grace","detail":{"factor":"password"}}
 {"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"configure-totp"}}
 {"action":"action.completed","outcome":"allowed","actor":"grace","detail":{"action":"configure-totp"}}
-{"action":"recovery_codes.issued","outcome":"allowed","actor":"grace","detail":{}}
+{"action":"recovery_codes.issued","outcome":"allowed","actor":"grace","detail":{"notice":"skipped_unverified"}}
 {"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"recovery_codes.refused","outcome":"refused","actor":"grace","detail":{"reason":"rate_limited"}}
 {"action":"action.cancelled","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"action.cancelled","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
-{"action":"recovery_codes.issued","outcome":"allowed","actor":"grace","detail":{}}
+{"action":"recovery_codes.issued","outcome":"allowed","actor":"grace","detail":{"notice":"skipped_unverified"}}
 {"action":"action.completed","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"action.cancelled","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"action.requested","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
-{"action":"recovery_codes.issued","outcome":"allowed","actor":"grace","detail":{}}
+{"action":"recovery_codes.issued","outcome":"allowed","actor":"grace","detail":{"notice":"skipped_unverified"}}
 {"action":"action.completed","outcome":"allowed","actor":"grace","detail":{"action":"generate-recovery-codes"}}
 {"action":"login.password","outcome":"allowed","actor":"lin","detail":{"factor":"password"}}
 {"action":"action.requested","outcome":"allowed","actor":"lin","detail":{"action":"update-password"}}

@@ -5,6 +5,7 @@ import type {
   VerificationUpdate,
 } from '@odudu/domain-identity';
 import type { MeAuditEvent } from '#/service/audit';
+import type { NoticeOutcome, OwnChange } from '#/service/notice';
 
 // What a change to the person's own account does inside one transaction, for
 // the subject the token names and nobody else. Each method takes the subject it
@@ -63,6 +64,9 @@ export interface MeWriteTx {
   // Revokes the recovery codes a subject has no TOTP left to use them with, and
   // answers how many went. Called once a TOTP or passkey has been deleted.
   afterSecondFactorRemoved(subjectId: string): Promise<number>;
+  // Tells the subject, at the address on file when it is verified, of a change
+  // they made, and says whether anyone was told.
+  noticeOwnChange(subjectId: string, change: OwnChange, now: Date): Promise<NoticeOutcome>;
 
   // Whether the deployment can queue and send the mail a change of address needs.
   mailIsAvailable(): Promise<boolean>;

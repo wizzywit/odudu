@@ -199,7 +199,12 @@ describe('PATCH /me/profile with an email', () => {
 
     const rows = await auditRows(w, 'subject.profile_amend');
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.detail).toEqual({ via: 'me', fields: ['email'], pending: true });
+    expect(rows[0]?.detail).toEqual({
+      via: 'me',
+      fields: ['email'],
+      pending: true,
+      notice: 'skipped_unverified',
+    });
     expect(JSON.stringify(rows)).not.toContain(NEW);
   });
 
@@ -251,6 +256,40 @@ describe('PATCH /me/profile with an email', () => {
     expect(await pendingOf(w)).toEqual([]);
     const rows = await auditRows(w, 'subject.profile_amend');
     expect(rows[0]?.detail).toEqual({ via: 'me', fields: ['email'], skipped: 'address_in_use' });
+  });
+
+  it('tells the verified address being left once, and sends the link only to the new one', async () => {
+    const w = await world();
+    await owner.sql`update users set email_verified = true where subject_id = ${w.subjectId}`;
+    expect((await ask(w, { email: NEW })).statusCode).toBe(202);
+    const queued = await mail(w);
+    expect(queued.map((row) => row.toAddress).sort()).toEqual(['ada@example.com', NEW].sort());
+    const notice = queued.find((row) => row.toAddress === 'ada@example.com');
+    expect(notice?.subject).toMatch(/^A new email address was requested for your/u);
+    expect(notice?.bodyText).not.toMatch(/action-token|https?:/u);
+    expect(notice?.bodyText).not.toContain(NEW);
+    const link = queued.find((row) => row.toAddress === NEW);
+    expect(link?.bodyText).toContain('action-token');
+    expect((await auditRows(w, 'subject.profile_amend'))[0]?.detail).toMatchObject({
+      pending: true,
+      notice: 'sent',
+    });
+  });
+
+  it('tells nobody when the address asked for is held by another account', async () => {
+    const w = await world();
+    await owner.sql`update users set email_verified = true where subject_id = ${w.subjectId}`;
+    await withTenant(appDb.db, w.tenantId, async (tx) => {
+      const second = await subjectRepository(tx).create({ tenantId: w.tenantId, type: 'user' });
+      await userRepository(tx).create({
+        subjectId: second.id,
+        tenantId: w.tenantId,
+        username: 'second',
+        email: 'second@example.com',
+      });
+    });
+    expect((await ask(w, { email: 'second@example.com' })).statusCode).toBe(202);
+    expect(await mail(w)).toEqual([]);
   });
 
   it('answers a free address and another account’s address with the same status, body and headers', async () => {

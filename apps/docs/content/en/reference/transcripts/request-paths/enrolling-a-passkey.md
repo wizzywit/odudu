@@ -43,7 +43,8 @@ What the flow is, stated rather than shown:
    COSE public key, the authenticator's signature counter at registration, and
    its transports. The `configure-passkey` action is cleared last, so a refused
    ceremony leaves it owed, and one `credential` audit row, `passkey.enrolled`,
-   is written in the same transaction; a refused ceremony writes none. The
+   is written in the same transaction, with the notice to the subject's verified address queued beside it (its `detail.notice`
+   says `sent`, `skipped_unverified` or `skipped_none`); a refused ceremony writes none. The
    parked login then resumes: the recovery codes the enrolment owes come next,
    and acknowledging them answers the `302` to the client, with no second
    password.

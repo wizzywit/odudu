@@ -56,7 +56,7 @@ The browser returns to the redirect address with `code`, `state` and `iss` as fo
 ```
 page: Save your recovery codes
 cancel control: no
-location: http://127.0.0.1:8080/callback?code=zfR5htoE5dLbr9IiLhxU1z39ajtefQaB4osd2sEu1fM&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+location: http://127.0.0.1:8080/callback?code=9L66TF1ZtawRU11zIydClrva7Dj15ScjtSMo3Zt9u6A&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 ```
 
 A person who closes the tab sends nothing, so an application that waits for this redirect must be able to go on without it.
@@ -97,10 +97,12 @@ Recovery codes the person already holds are not replaced until they confirm, and
 an authenticator and no set is asked before a first set is made, too: nothing is issued while the question is on the screen, a reload
 included. The page that shows the new codes has no way to cancel, because it would then say `cancelled` of a set that has changed.
 
+A change the person completes is also told to them by mail: an authenticator or passkey set up, or a new set of recovery codes. The notice goes to a verified address only; for an address nobody verified the change still happens and the audit row says `skipped_unverified`.
+
 ```
 answered: HTTP/1.1 200 OK
 This replaces your current recovery codes. The old ones stop working as soon as you confirm.
-location: http://127.0.0.1:8080/callback?code=D6IgHbs8vOO_N-E2foHf5WlYnlb2sE1CcdYtzkN0YeI&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=xe-Z4RBU3bKU8IJyy8Wyzxjy1wHDcqkWqj_YwEFwX7A&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 A set can be replaced once an hour, counted from when the last was made, because each set costs ten password hashes. A person who
@@ -113,7 +115,7 @@ answered: HTTP/1.1 429 Too Many Requests
 Your recovery codes were issued recently and still work. You can replace them in 60 minutes.
 page: Save your recovery codes
 cancel control: yes
-location: http://127.0.0.1:8080/callback?code=kmEQWjHN8yCykJQoNC_2k_0opAfHOQrA1gZ5iJII2Q0&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
+location: http://127.0.0.1:8080/callback?code=NUpkJpwg86uVA3l5LLsCnlr13GOLZalv55gvZ0oW2dU&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=cancelled
 ```
 
 Full transcript: [Replacing the recovery codes](../reference/transcripts/request-paths/sending-a-person-to-change-a-credential.md#replacing-the-recovery-codes).
@@ -124,10 +126,10 @@ password and ends the run of failures. The last line shows the check of section 
 password read before the action and after it:
 
 ```
-{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-12T09:55:36.751Z"}
-location: http://127.0.0.1:8080/callback?code=IpCAl6roFrKNPmDJKAfPsF7JdN2DooBICPc9U9PamqA&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
+{"locked":false,"locked_until":null,"failure_count":1,"last_failure_at":"2026-11-12T11:13:52.487Z"}
+location: http://127.0.0.1:8080/callback?code=5wQR9HgWqTy2kIcVRRnWA15ESAG27OMlfXNBn_h1IAk&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Factions-demo&action_status=success
 {"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
-password made: before 2026-11-12T09:55:31.521Z, after 2026-11-12T09:55:36.826Z
+password made: before 2026-11-12T11:13:48.048Z, after 2026-11-12T11:13:52.568Z
 ```
 
 Full transcript: [Changing the password](../reference/transcripts/request-paths/sending-a-person-to-change-a-credential.md#changing-the-password).

@@ -147,12 +147,10 @@ every change refused `401`.
 
 ### Open placements
 
-1. **The notice to the old address** when a way to sign in is removed or the address changes
-   goes with the notice-mail increment (spec section 5.5), and must land before the phase closes.
-2. **The administrator's `updateEmail` holder check is case-sensitive** where the address the
+1. **The administrator's `updateEmail` holder check is case-sensitive** where the address the
    verification link completes is not; the case-reconciliation increment places it.
-3. **Rate limit and CORS on the me routes**, as in increment 1, still open.
-4. **The gate and the write are separate transactions** (below), a limit recorded and not removed.
+2. **Rate limit and CORS on the me routes**, as in increment 1, still open.
+3. **The gate and the write are separate transactions** (below), a limit recorded and not removed.
 
 ### Known limits of the gated writes
 
@@ -161,9 +159,6 @@ every change refused `401`.
   still lets the write through; the check judges the moment it read, not the moment of the write.
 - **A username edit is gated on the member being present in the body**, not on the value
   changing, because knowing it is unchanged needs the profile read before the gate.
-- **No notice mail goes to the old address** when a way to sign in is removed or the address
-  is changed; the admin routes enqueue those mails, and the me routes' notices are placed on
-  spec section 5.5 (the notice-mail increment).
 
 ### Changing the address
 
@@ -178,7 +173,7 @@ audit row says `skipped` (`address_in_use`, `unchanged` or `throttled`, the last
 per-address mail budget of its own kind). A pending row is one per subject and is cleared when the
 change completes, when a later request replaces it, when a later request is skipped, and when an
 administrator changes the address; it is deleted with the subject. It is not reaped by age and needs
-no such pass: the table cannot hold more rows than the tenant has subjects. The notice to the old address is placed on spec section 5.5.
+no such pass: the table cannot hold more rows than the tenant has subjects. A notice to the address being left is queued when the request is made (increment 6), only when the request is not skipped and the old address is verified.
 
 ## Increment 3: which actions a client may start
 
@@ -325,3 +320,34 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 - **Owed to the closing pass.** `docs/NEXT.md`'s paragraph "Two recovery-code gaps that need self-service" is stale: both
   gaps (early re-issue, the low-count warning) are closed.
 - **At volume.** One extra primary-key read of the tenant row beside the credentials page's existing queries; no list grew.
+
+## Increment 6: notice mail on a change the person made
+
+### What shipped
+
+- `noticeRecipient(address, verified)` (`@odudu/email`) is the pure rule: a verified address is sent to, an unverified one
+  or none is not. `renderOwnChange` words six changes (an authenticator app or a passkey added or removed, a new set of
+  recovery codes, a new address asked for) with an English and an Arabic entry each, shared lines for the time and what to do,
+  and no link, code or secret. `queueOwnChangeNotice` queues it in the caller's transaction, themed through the same mail look
+  the admin mails use, and answers `sent`, `skipped_unverified` or `skipped_none`.
+- The sites, each one transaction with its change: `completeTotpEnrolment` (a swap included), `completePasskeyEnrolment` and
+  `beginRecoveryCodes` in `@odudu/authn-flows`, which every required-action page and every application-requested action
+  reaches; `removeCredential` and `requestEmailChange` in `@odudu/me`, wired in `apps/server/src/me-deps.ts`. The audit rows
+  `otp.enrolled`, `passkey.enrolled`, `recovery_codes.issued`, `subject.credential_delete` and the `subject.profile_amend`
+  that asks for an address carry `detail.notice`; the vocabulary refuses any other value on the first three.
+- Closes the open placement and the known limit of increment 2: the address that would be left is told.
+
+### Ruling
+
+- The address change is told at the request, not when the link is used: the person hears of it while the pending change can
+  still be cleared by asking again, and the new address already receives the link. A request that is skipped (address held,
+  unchanged, throttled) tells nobody, since nothing is pending.
+- The admin routes keep sending their notices to an address on file whether or not it is verified, as the administrator's
+  removal decided: the message carries nothing an unverified address could use. Only the person's own changes follow
+  section 5.5's verified rule.
+- Enrolling an authenticator app owes a recovery set, so a first enrolment sends two notices, one per change.
+
+### At volume
+
+- A change that sends reads the user row, the tenant's name and display name, and the tenant's mail settings (language, theme and
+  wording, through `tenantMailContext`): one primary-key read of the user and two of the tenant. None is read when no mail is sent; no list grew.

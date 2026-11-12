@@ -206,11 +206,14 @@ type CredentialInput =
         | 'email.changed'
         | 'password.reset'
         | 'password.changed'
-        | 'otp.enrolled'
-        | 'passkey.enrolled'
-        | 'recovery_codes.issued'
         | 'recovery_codes.refused';
       readonly detail?: ReasonOnly;
+    })
+  // `detail.notice` says whether the subject was told of the change by mail.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'otp.enrolled' | 'passkey.enrolled' | 'recovery_codes.issued';
+      readonly detail?: WithReason<{ notice?: 'sent' | 'skipped_unverified' | 'skipped_none' }>;
     })
   // An application sent the person to change a credential; `detail.action` is
   // the required action it named and `actorClientId` the application.
@@ -250,6 +253,9 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'action.completed': ['action'],
   'action.cancelled': ['action'],
   'action.failed': ['action'],
+  'otp.enrolled': ['notice'],
+  'passkey.enrolled': ['notice'],
+  'recovery_codes.issued': ['notice'],
 };
 
 const KNOWN_VOCABULARY_ACTIONS: ReadonlySet<string> = new Set(Object.values(AUDIT_ACTIONS).flat());
@@ -287,6 +293,9 @@ function isValidDetailValue(key: string, value: unknown): boolean {
   if (key === 'mode') return value === 'delegation' || value === 'impersonation';
   if (key === 'via')
     return value === 'logout' || value === 'admin' || value === 'self' || value === 'evicted';
+  if (key === 'notice') {
+    return value === 'sent' || value === 'skipped_unverified' || value === 'skipped_none';
+  }
   if (key === 'also_admits') {
     return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }

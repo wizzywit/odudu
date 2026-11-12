@@ -749,6 +749,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     oidcRoutes({
       resolveBranding: branding.resolveBranding,
       resolveOverrides: messageOverrides.resolveOverrides,
+      resolveMailLook: mailLook,
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,

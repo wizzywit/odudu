@@ -1,6 +1,8 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, hashPassword, subjectRepository } from '@odudu/domain-identity';
+import { type MailLookResolver } from '@odudu/email';
+import { noticeOwnChange } from '#/usecase/own-change-notice';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { type RequiredAction } from '#/schema/required-action';
 import { generateRecoveryCodes, normaliseRecoveryCode } from '#/service/authenticators/recovery';
@@ -19,6 +21,8 @@ export interface IssueRecoveryCodes {
   // Issue nothing and say what confirming would do, for a caller that must
   // ask before issuing or replacing a set.
   askFirst?: boolean;
+  // How the owner's notice is dressed; absent, it is unthemed.
+  resolveMailLook?: MailLookResolver;
 }
 
 export type BeginRecoveryCodesOutcome =
@@ -107,6 +111,12 @@ export async function beginRecoveryCodes(
       secret: { kind: 'recovery-code', hash },
     });
   }
+  const notice = await noticeOwnChange(
+    tx,
+    input,
+    { kind: 'recovery_set_issued' },
+    input.resolveMailLook,
+  );
   await auditRepository(tx).record({
     eventType: 'credential',
     action: 'recovery_codes.issued',
@@ -114,6 +124,7 @@ export async function beginRecoveryCodes(
     actorSubjectId: input.subjectId,
     resourceType: 'subject',
     resourceId: input.subjectId,
+    detail: { notice },
   });
   return { kind: 'issued', offer: { codes, replaced: replaced > 0 } };
 }
