@@ -15,6 +15,8 @@ afterEach(() => {
 const AT = `${ADA_AT}?tab=sessions`;
 const X = `${S}/${ADA_ID}/sessions`;
 
+const DEVICE = 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00';
+
 function session(id: string, created: string, clients: string[] = ['billing']) {
   return {
     id,
@@ -22,6 +24,7 @@ function session(id: string, created: string, clients: string[] = ['billing']) {
     last_active_at: created,
     remembered: id === 'x2',
     client_ids: clients,
+    device: id === 'x2' ? null : DEVICE,
   };
 }
 
@@ -42,6 +45,10 @@ it('lists the live sessions, and ends one after a confirmation', async () => {
   expect(within(table).getByRole('row', { name: /2026-09-28 08:00/u })).toHaveTextContent(
     'billing',
   );
+  expect(within(table).getByRole('row', { name: /2026-09-28 08:00/u })).toHaveTextContent(
+    'c0ffee00…',
+  );
+  expect(within(table).getByRole('row', { name: /2026-09-28 09:00/u })).toHaveTextContent('—');
   await user.click(
     within(table).getByRole('button', { name: 'End the session started 2026-09-28 08:00:00 UTC' }),
   );

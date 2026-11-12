@@ -20,6 +20,7 @@ function sessionOf(wire: WireSession): TenantSession {
     lastActiveAt: wire.last_active_at,
     remembered: wire.remembered,
     clientIds: wire.client_ids,
+    device: wire.device,
   };
 }
 

@@ -7,7 +7,8 @@
       "created_at": "2026-09-29T19:01:32.281Z",
       "last_active_at": "2026-09-29T19:01:32.281Z",
       "remembered": false,
-      "client_ids": ["ops-app"]
+      "client_ids": ["ops-app"],
+      "device": null
     },
     {
       "id": "01a0ee8b-28f4-79df-bbe5-95698666977b",
@@ -16,7 +17,8 @@
       "created_at": "2026-09-29T19:01:32.530Z",
       "last_active_at": "2026-09-29T19:01:32.530Z",
       "remembered": false,
-      "client_ids": ["ops-app"]
+      "client_ids": ["ops-app"],
+      "device": null
     }
   ]
 }

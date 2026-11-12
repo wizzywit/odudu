@@ -10,6 +10,7 @@ import { Button } from '#/shared/ui/Button';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { CopyValue } from '#/shared/ui/CopyValue';
 import type { Column } from '#/shared/ui/DataTable';
+import { DeviceCell } from '#/shared/ui/DeviceCell';
 import { ResourceListPage } from '#/shared/ui/ResourceListPage';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/pages/tenant-sessions/ui/TenantSessionsPage/TenantSessionsPage.module.css';
@@ -50,6 +51,12 @@ function columns(page: Page): readonly Column<TenantSession>[] {
         ) : (
           session.clientIds.join(', ')
         ),
+    },
+    {
+      id: 'device',
+      header: 'Device',
+      secondary: true,
+      cell: (session) => <DeviceCell device={session.device} />,
     },
     {
       id: 'created_at',

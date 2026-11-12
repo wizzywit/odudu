@@ -10,6 +10,7 @@ import { Button } from '#/shared/ui/Button';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { DataTable, type Column } from '#/shared/ui/DataTable';
+import { DeviceCell } from '#/shared/ui/DeviceCell';
 import { ListGate } from '#/shared/ui/ListGate';
 import { Pager } from '#/shared/ui/Pager';
 import { Panel } from '#/shared/ui/Panel';
@@ -76,6 +77,12 @@ function columns(page: SubjectSessions, withinReach: boolean): readonly Column<S
       header: 'Remembered',
       secondary: true,
       cell: (session) => (session.remembered ? 'yes' : 'no'),
+    },
+    {
+      id: 'device',
+      header: 'Device',
+      secondary: true,
+      cell: (session) => <DeviceCell device={session.device} />,
     },
     {
       id: 'clients',

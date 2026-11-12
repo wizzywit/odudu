@@ -10,6 +10,7 @@ import { Button } from '#/shared/ui/Button';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { Count } from '#/shared/ui/Count';
 import { DataTable, type Column } from '#/shared/ui/DataTable';
+import { DeviceCell } from '#/shared/ui/DeviceCell';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { ListGate } from '#/shared/ui/ListGate';
 import { Pager } from '#/shared/ui/Pager';
@@ -28,6 +29,12 @@ function columnsOf(
       header: 'Subject',
       isRowHeader: true,
       cell: (session) => <code>{subjectLabel(session)}</code>,
+    },
+    {
+      id: 'device',
+      header: 'Device',
+      secondary: true,
+      cell: (session) => <DeviceCell device={session.device} />,
     },
     {
       id: 'created_at',
