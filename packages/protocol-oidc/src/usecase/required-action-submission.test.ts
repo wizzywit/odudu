@@ -583,6 +583,25 @@ describe('handleRequiredActionSubmission — enrolling a passkey', () => {
     });
   });
 
+  it('names a passkey that cannot be discovered as its own refusal', async () => {
+    const { deps, completePasskeyEnrolment, pendingActions } = harness();
+    pendingActions.mockResolvedValue(['configure-passkey']);
+    completePasskeyEnrolment.mockResolvedValue({ kind: 'rejected', reason: 'not_discoverable' });
+
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, action: 'configure-passkey', credential: '{}' },
+      REQUEST,
+    );
+
+    expect(outcome).toMatchObject({
+      kind: 'rejected',
+      action: 'configure-passkey',
+      reason: 'passkey_not_discoverable',
+    });
+  });
+
   it('reports a spent challenge back to the same attempt', async () => {
     const { deps, completePasskeyEnrolment, pendingActions } = harness();
     pendingActions.mockResolvedValue(['configure-passkey']);

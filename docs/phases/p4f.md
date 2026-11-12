@@ -381,11 +381,19 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
   not require verification and whose assertion lacked it records `passkey-unverified` beside `passkey`. The second factor then
   applies (`otpApplicable`, `recoveryApplicable`), `acr` is `1` and `amr` has no `user`. Without this a tenant that chose
   `preferred` would have turned a one-factor credential into the two the sign-in counts it as.
-- Sign-in asks for `required` only where the tenant requires verification of new passkeys, and otherwise `preferred`, never
-  `discouraged`: no credential is known when the options are made, and a passkey made under a stricter policy must still be able
-  to answer. An old passkey with verification required that is asserted without it is refused.
-- A resident key is recorded as requested; WebAuthn gives no way to read back what the authenticator did. A passkey that is not
-  discoverable cannot answer the sign-in that names no username, which the settings page says.
+- Sign-in always asks for `preferred`. No credential is known when the options are made, and a client refuses an authenticator
+  that cannot verify before the server sees it, so asking `required` because the tenant now requires it for new passkeys locked
+  out a passkey made earlier under `preferred`. Enforcement is per credential, at verification: `passkeyStep` reads
+  `requireUserVerification` from the row's own `userVerification`, so a passkey made under `required` is refused an assertion
+  without verification whatever the tenant has chosen since.
+- Facts for discoverability: `git grep -n "allowCredentials\|passkeyAuthenticationOptions" -- packages apps` finds one place an
+  assertion is requested, `beginPasskeyAuthentication`, and it sends no `allowCredentials`; a passkey is never used as a second
+  factor after a username. So only a discoverable credential can ever sign in. WebAuthn cannot be asked what the authenticator
+  did, but the `credProps` client extension reports `rk`. Registration now requests it and refuses `rk === false` under every
+  `webauthn_resident_key` value (`not_discoverable`, shown as `refusal.passkeyNotDiscoverable`, English and Arabic), with
+  nothing stored. A client that reports nothing is trusted, which is the one gap left; narrowing the setting's values was
+  rejected because `discouraged` and `preferred` still yield a discoverable credential on most authenticators, and no new
+  sign-in path was added.
 - A TOTP enrolment is checked by the tenant's parameters at the moment it is confirmed, not at the moment its page was drawn; a
   change between the two makes the code refused and the person tries again.
 

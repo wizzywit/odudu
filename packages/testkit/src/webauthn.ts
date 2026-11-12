@@ -17,6 +17,8 @@ export interface SoftwareRegistration {
   // The authenticator's use count at registration. Whatever a caller puts
   // here is what a verifier reports back as the credential's counter.
   signCount?: number;
+  // What the client's credProps extension reports; absent, none is sent.
+  discoverable?: boolean;
   // Reuse a previous ceremony's credential id, to imitate an authenticator
   // registering a credential the relying party already holds.
   credentialId?: Buffer;
@@ -129,7 +131,8 @@ export function softwareAuthenticator(seed: { credentialId?: Buffer } = {}): Sof
           attestationObject: Buffer.from(attestationObject).toString('base64url'),
           transports: ['internal'],
         },
-        clientExtensionResults: {},
+        clientExtensionResults:
+          input.discoverable === undefined ? {} : { credProps: { rk: input.discoverable } },
         type: 'public-key',
       };
     },

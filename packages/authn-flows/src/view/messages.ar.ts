@@ -32,6 +32,8 @@ export const ar: Readonly<Record<string, string>> = {
   'refusal.codeMismatch': 'الرمز غير مطابق. جرّب الرمز التالي الذي يعرضه تطبيقك.',
   'refusal.codesNotSaved': 'احفظ هذه الرموز قبل المتابعة.',
   'refusal.passkeyNotAdded': 'تعذّرت إضافة مفتاح المرور. حاول مرة أخرى.',
+  'refusal.passkeyNotDiscoverable':
+    'مفتاح المرور هذا غير محفوظ على جهازك، فلا يمكنه تسجيل دخولك دون اسم مستخدم. أضف مفتاحًا يمكن حفظه على الجهاز.',
 
   'updatePassword.title': 'تغيير كلمة المرور',
   'updatePassword.intro': 'يحتاج هذا الحساب إلى كلمة مرور جديدة قبل أن تتمكن من المتابعة.',

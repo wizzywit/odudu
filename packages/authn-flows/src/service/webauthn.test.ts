@@ -295,15 +295,28 @@ describe('verifyPasskeyRegistration under a policy that does not require user ve
   );
 });
 
+describe('credProps in a registration', () => {
+  const response = (discoverable?: boolean) =>
+    parseRegistrationResponse(
+      softwareRegistrationResponse({
+        challenge: CHALLENGE,
+        rpId: PATH_RP.id,
+        origin: PATH_RP.origin,
+        ...(discoverable === undefined ? {} : { discoverable }),
+      }),
+    );
+
+  it('keeps rk when the client reports it and nothing when it does not', () => {
+    expect(response(false)?.clientExtensionResults).toEqual({ credProps: { rk: false } });
+    expect(response(true)?.clientExtensionResults).toEqual({ credProps: { rk: true } });
+    expect(response()?.clientExtensionResults).toEqual({});
+  });
+});
+
 describe('passkeyAuthenticationOptions', () => {
-  it('requires user verification only where the tenant does', async () => {
-    const required = await passkeyAuthenticationOptions(PATH_RP, 'required');
-    const preferred = await passkeyAuthenticationOptions(PATH_RP, 'preferred');
-    const discouraged = await passkeyAuthenticationOptions(PATH_RP, 'discouraged');
-    expect(required.options.userVerification).toBe('required');
-    expect(preferred.options.userVerification).toBe('preferred');
-    // A key made without verification still signs in when the browser may verify.
-    expect(discouraged.options.userVerification).toBe('preferred');
+  it('asks for user verification as a preference, never as a requirement', async () => {
+    const { options } = await passkeyAuthenticationOptions(PATH_RP);
+    expect(options.userVerification).toBe('preferred');
   });
 });
 
