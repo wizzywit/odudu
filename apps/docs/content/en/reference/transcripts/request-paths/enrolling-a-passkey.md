@@ -211,10 +211,12 @@ HTTP/1.1 200 OK
 (1 row)
 ```
 
-An administrator clears it with the required-actions route (the `ETag` is read from the `GET` first, as that page shows). The
-next sign-in, with the switch still off, ends in the redirect and nothing is owed:
+An administrator clears it with the required-actions route. `ADA` is the `userSubjectId` the seed printed above, and
+`ADMIN_TOKEN` and the `ETag` are got as [the required-actions page](../admin-paths/get-subjectsidrequired-actions-and-put-subjectsidrequired-actions.md)
+shows. The next sign-in, with the switch still off, ends in the redirect and nothing is owed:
 
 ```bash
+ADA=01a1cfdb-26f0-7925-b25a-93c21753df78
 curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H "If-Match: $ETAG" \
   -d '{"actions":[]}' http://localhost:3000/admin/tenants/switch-demo/subjects/$ADA/required-actions
 sign_in jarE; rows
@@ -250,4 +252,5 @@ HTTP/1.1 200 OK
 ```
 
 A person whose browser or device cannot make a passkey is therefore asked at every sign-in while the switch is on. Turn the
-switch off, or clear the action for each of their sign-ins, until they have a device that can.
+switch off and clear the action that is already owed, since turning it off does not remove it; or leave the switch on and
+clear the action at each of their sign-ins. Either holds until they have a device that can.

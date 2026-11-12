@@ -1027,7 +1027,7 @@ describeFields(tenantSettingsDocumentSchema, {
   recovery_code_count:
     'How many recovery codes a newly issued set holds, 8 to 16. A set already issued keeps its size.',
   require_passkey:
-    'Whether every person who signs in must hold a passkey. A person without one is asked to add one at their next sign-in and cannot skip it; sessions already open are not touched. Turning it off does not remove an action already owed.',
+    'Whether every person who signs in must hold a passkey. A person without one is asked to add one at their next sign-in and cannot skip it; sessions already open are not touched. Turning it off does not remove an action already owed. Where the deployment has no public base URL, or one that is an IP address, and the tenant has no domain of its own, nobody is asked.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',
