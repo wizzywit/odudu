@@ -164,9 +164,7 @@ describe('totpEnrolmentUri', () => {
   const base = { issuer: 'Acme', account: 'ada', secret: SECRET };
 
   it('carries the algorithm, digits and period the credential will be made under', () => {
-    const uri = new URL(
-      totpEnrolmentUri({ ...base, algorithm: 'SHA256', digits: 8, period: 60 }),
-    );
+    const uri = new URL(totpEnrolmentUri({ ...base, algorithm: 'SHA256', digits: 8, period: 60 }));
     expect(Object.fromEntries(uri.searchParams)).toMatchObject({
       algorithm: 'SHA256',
       digits: '8',

@@ -121,12 +121,7 @@ async function enrol(tenantId: string, subjectId: string, clock: FakeClock): Pro
   return { secret: offer.secret, uri, at: clock };
 }
 
-async function signInWithCode(
-  tenantId: string,
-  username: string,
-  code: string,
-  clock: FakeClock,
-) {
+async function signInWithCode(tenantId: string, username: string, code: string, clock: FakeClock) {
   const authSessionId = await withTenant(app.db, tenantId, async (tx) => {
     const started = await startAuthentication(tx, tenantId, request, clock);
     return started.authSessionId;
@@ -161,11 +156,10 @@ describe('the TOTP policy', () => {
   it('applies a changed policy to the next enrolment and strands nobody already enrolled', async () => {
     const tenantId = newId();
     await seedTenant(tenantId);
-    const [old, fresh] = await withTenant(app.db, tenantId, async (tx) => [
-      await seedUser(tx, tenantId, 'old'),
-      await seedUser(tx, tenantId, 'fresh'),
-    ]);
-    if (old === undefined || fresh === undefined) throw new Error('not seeded');
+    const { old, fresh } = await withTenant(app.db, tenantId, async (tx) => ({
+      old: await seedUser(tx, tenantId, 'old'),
+      fresh: await seedUser(tx, tenantId, 'fresh'),
+    }));
     const clock = clockAt();
     const before = await enrol(tenantId, old, clock);
 

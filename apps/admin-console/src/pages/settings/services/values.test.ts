@@ -65,6 +65,24 @@ describe('settingValue', () => {
   });
 });
 
+describe('a choice whose values are numbers', () => {
+  const digits: SettingField = {
+    name: 'totp_digits',
+    label: 'Digits',
+    control: 'choice',
+    numeric: true,
+    options: [
+      { id: '6', label: '6 digits' },
+      { id: '8', label: '8 digits' },
+    ],
+  };
+
+  it('reads the number the server answered as the option that names it', () => {
+    expect(settingValue(digits, { totp_digits: 8 })).toBe('8');
+    expect(describeSetting(digits)(8)).toBe('8 digits');
+  });
+});
+
 describe('settingEntries', () => {
   it('lists a section by name with its label, value and a reading of it', () => {
     const entries = settingEntries([toggle, seconds], {
