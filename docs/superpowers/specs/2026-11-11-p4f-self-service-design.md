@@ -344,9 +344,11 @@ My calls, marked so they can be overruled:
 - **Allowed actions** are a client setting in the admin API, the console, the
   CLI and the seed command, like any other client setting.
 - **Recovery-code bound.** One re-issue per subject per hour, read from a
-  column on the subject's recovery set (a `last_issued_at`), never from the
-  audit table. It does not apply to the first generation or to a set that is
-  used up. The low-count warning is shown after sign-in on the next page the
+  column on the subject, `subjects.recovery_codes_issued_at` (a set has no row
+  of its own), never from the audit table. It does not apply to the first
+  generation, to a set that is used up, or to a set issued while the
+  recovery-codes step is owed, since a sign-in must never wait on it.
+  The low-count warning is shown after sign-in on the next page the
   person sees, never mid-login.
 - **Increments 7 and 13 are planned as several increments each**, one per
   settings group (TOTP, WebAuthn, recovery count; the passkey switch;

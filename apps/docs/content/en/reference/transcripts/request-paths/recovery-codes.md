@@ -91,7 +91,7 @@ it, because that counts failures and this path needs a password that works; the
 owed path is limited by the sign-in itself, which acknowledging the page ends. The
 hour is counted from `subjects.recovery_codes_issued_at`, claimed by one
 conditional `UPDATE` under the subject's row lock, so two requests at once
-cannot both pass. A refusal costs that lock and a read and no hash. Re-serving
+cannot both pass. A refusal costs that lock, a read and one audit insert, and no hash. Re-serving
 the same set instead would cost less and be worse: a second render of a live
 secret is the one thing this page must not do. The refusal itself is shown, run
 live, in [Replacing the recovery codes](./sending-a-person-to-change-a-credential.md#replacing-the-recovery-codes).

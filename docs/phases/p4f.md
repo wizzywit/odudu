@@ -303,4 +303,7 @@ no such pass: the table cannot hold more rows than the tenant has subjects. The 
 
 ### Open placements
 
+- While the recovery-codes action is owed, each reload of its page issues a set: ten Argon2id hashes, bound to a signed-in
+  session, with no limit on the count. Placed on P11 (load and p99). The cheap bound is a short cooldown that still lets the
+  sign-in finish.
 - The low-count warning is the next task of this increment.
