@@ -295,8 +295,8 @@ HTTP/1.1 202 Accepted
 
 ### The address being left
 
-A person who has proved their address has a notice queued to it when a change is asked for, at the address that would be
-left, so that somebody who has taken over a session is less likely to move the account unnoticed. It is a queued mail, not a
+A person who has proved their address has a notice queued to it when a change is asked for and the request is not
+skipped, at the address that would be left, so that somebody who has taken over a session is less likely to move the account unnoticed. It is a queued mail, not a
 guarantee: delivery happens later and can fail, and the audit value `sent` records that the notice was queued, not that it
 arrived. `grace` verified her address above, so the same kind of request now queues two mails: the link to the new address,
 and a notice to the old one. The notice names the change and the time, and carries no link:
