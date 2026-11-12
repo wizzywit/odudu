@@ -1,5 +1,5 @@
-import { requiredActionSchema } from '@odudu/contracts/admin';
-import { REQUIRED_ACTIONS } from '#/entities/subject';
+import { applicationActionSchema } from '@odudu/contracts/admin';
+import { APPLICATION_ACTIONS } from '#/entities/subject';
 import { expect, it } from 'vitest';
 import {
   ACTIONS_NEED_ME_READ,
@@ -7,15 +7,18 @@ import {
   actionsBlock,
 } from '#/pages/clients/services/applicationActions';
 
-it('offers each required action the server knows, in its own order, worded for the client', () => {
-  const options = actionOptions(REQUIRED_ACTIONS);
-  expect(options.map((option) => option.id)).toEqual(requiredActionSchema.options);
+it('offers each action an application may start, in its own order, worded for the client', () => {
+  const options = actionOptions(APPLICATION_ACTIONS);
+  expect(options.map((option) => option.id)).toEqual(applicationActionSchema.options);
   expect(options.map((option) => option.label)).toEqual([
+    'Verify the email address',
     'Choose a new password',
     'Set up an authenticator app',
     'Register a passkey',
     'Generate recovery codes',
+    'Complete the profile',
   ]);
+  expect(options.map((option) => option.id)).not.toContain('accept-terms');
   for (const option of options) {
     expect(option.description).not.toBe('');
     expect(option.unavailable).toBeNull();

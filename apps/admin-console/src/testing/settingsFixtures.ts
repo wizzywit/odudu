@@ -57,6 +57,8 @@ export const SETTINGS = {
   require_passkey: false,
   breached_check: 'dataset',
   breached_on_error: 'open',
+  terms_uri: null,
+  terms_version: '1',
   login_with_email: false,
   audit_event_types: [
     'admin_mutation',

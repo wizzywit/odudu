@@ -128,6 +128,21 @@ describe('the breached-password check', () => {
   });
 });
 
+describe('the terms', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'terms');
+
+  it('are two text settings in a section of their own, address first', () => {
+    expect(home?.fields.map((field) => [field.name, field.control])).toEqual([
+      ['terms_uri', 'text'],
+      ['terms_version', 'text'],
+    ]);
+  });
+
+  it('say that setting them asks nobody', () => {
+    expect(home?.description).toContain('asks nobody');
+  });
+});
+
 describe('sectionHeadingId', () => {
   it('is distinct for every section', () => {
     const ids = SETTINGS_SECTIONS.map((section) => sectionHeadingId(section.id));

@@ -1,4 +1,4 @@
-import type { RequiredAction } from '#/entities/subject';
+import type { ApplicationAction } from '#/entities/subject';
 
 export const ACTIONS_LABEL = 'Actions an application may start';
 
@@ -10,15 +10,17 @@ export const ACTIONS_NEED_ME_READ =
 
 const ME_READ_SCOPE = 'me:read';
 
-const ACTION_NOTES: Readonly<Record<RequiredAction, string>> = {
+const ACTION_NOTES: Readonly<Record<ApplicationAction, string>> = {
+  'verify-email': 'Asks the person to prove the address on file with a link sent to it.',
   'update-password': 'Asks for the current password, then a new one.',
   'configure-totp': 'Enrols an authenticator app as a second factor.',
   'configure-passkey': 'Registers a passkey on the device in use.',
   'generate-recovery-codes': 'Shows a fresh set of recovery codes once, replacing any held.',
+  'update-profile': 'Asks the person to fill in every profile field that is still empty.',
 };
 
 export interface ActionOption {
-  id: RequiredAction;
+  id: ApplicationAction;
   label: string;
   description: string;
   unavailable: null;
@@ -26,7 +28,7 @@ export interface ActionOption {
 
 // The wording of each action is the subject entity's, handed in by the use case.
 export function actionOptions(
-  actions: readonly { action: RequiredAction; label: string }[],
+  actions: readonly { action: ApplicationAction; label: string }[],
 ): ActionOption[] {
   return actions.map(({ action, label }) => ({
     id: action,
