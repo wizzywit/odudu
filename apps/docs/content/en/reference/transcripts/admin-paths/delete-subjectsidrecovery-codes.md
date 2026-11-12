@@ -5,6 +5,8 @@ description: 'Requires manage-users. Revokes every recovery code the subject hol
 
 # `DELETE /subjects/:id/recovery-codes`
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 Requires `manage-users`. Revokes every recovery code the subject holds,
 spent ones with them, so none signs in again — the answer to a printed list
 somebody else may have read. A code carries no `id` of its own

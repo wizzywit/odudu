@@ -5,6 +5,8 @@ description: 'Requires manage-sessions, like the rest of this family.'
 
 # `DELETE /subjects/:id/sessions`
 
+> **Not replayed after the device field.** A session in a block on this page now also carries `device`, which the blocks below do not show, because this page was captured before the field existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of it.
+
 Requires `manage-sessions`, like the rest of this family. Ends every live
 session the subject holds, each through the same `endSession` the
 single-session `DELETE` above calls — so each has every grant it holds

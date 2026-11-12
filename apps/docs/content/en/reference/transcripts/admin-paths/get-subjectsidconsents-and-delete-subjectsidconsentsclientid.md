@@ -5,6 +5,8 @@ description: 'The read requires view-users, the delete manage-users.'
 
 # A subject's consents: list and revoke
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 This page covers `GET /subjects/:id/consents` and `DELETE /subjects/:id/consents/:clientId`.
 
 The read requires `view-users`, the delete `manage-users`. A consent is what the

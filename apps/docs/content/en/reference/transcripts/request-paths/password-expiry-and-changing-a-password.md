@@ -5,6 +5,8 @@ description: "A tenant's password_max_age_days ages a password out."
 
 # Password expiry, and changing a password
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 A tenant's `password_max_age_days` ages a password out. An expired password
 is **not** refused: the login authenticates exactly as it always did, and
 the `update-password` required action is what stops it from completing —

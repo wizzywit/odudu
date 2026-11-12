@@ -5,6 +5,8 @@ description: 'The full interactive flow. Every client uses PKCE, public and conf
 
 # Path A: authorization code with PKCE
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 The full interactive flow. Every client uses PKCE, public and confidential
 alike, with no exception and no per-client opt-out (ADR 0016).
 

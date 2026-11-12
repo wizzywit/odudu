@@ -5,6 +5,8 @@ description: 'Enrolling a TOTP creates a way to be locked out: lose the phone an
 
 # Recovery codes
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 Enrolling a TOTP creates a way to be locked out: lose the phone and
 the password alone no longer signs anybody in. So completing `configure-totp`
 adds the `generate-recovery-codes` required action to a subject who holds no

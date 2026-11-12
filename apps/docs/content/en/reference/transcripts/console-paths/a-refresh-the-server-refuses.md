@@ -5,6 +5,8 @@ description: 'When the server refuses a refresh, the grant is revoked, the next 
 
 # A refresh the server refuses
 
+> **Not replayed after the device field.** A session in a block on this page now also carries `device`, which the blocks below do not show, because this page was captured before the field existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of it.
+
 On the same session, straight after the lock section. Its grant is revoked
 through the console itself, by ending the SSO session the grant is bound to; a
 write names the session's subject in `X-Odudu-Console-Subject`, as every write

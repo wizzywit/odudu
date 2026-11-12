@@ -5,6 +5,8 @@ description: 'odudu seed admin creates the system tenant, its odudu-admin client
 
 # Getting the token
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 `odudu seed admin` creates the `system` tenant, its `odudu-admin` client
 and its signing key, and a subject holding `tenant-admin` there — which
 composites every capability plus `manage-tenants`, so this one subject

@@ -515,3 +515,14 @@ that never configures a step behaves as it does today.
   sign-in, which belongs to the phase's closing pass over the documents.
 - The roadmap's P4f bullet still names the device and the orphan; it is closed by the phase's closing pass, which reconciles the
   roadmap and section 11.
+
+### Fix round
+
+- The exact-cap claim is qualified in the ADR, the concept page and the CHANGELOG: exact per person on a browser that already holds
+  the cookie; a first sign-in stays bounded and an orphan of up to `cap - 1` remains.
+- The console's session lists group: a pure `groupByDevice` in the session entity orders sessions by device (devices as they first
+  appear, no device last), `deviceCaptionOf` words the count, and the use cases only call them. Grouping applies to the rows loaded.
+- The cap test asserts the orphan bound; `query-plans.plan.test.ts` asserts the device read uses `sessions_by_subject` with no Seq Scan.
+- The concept page keeps its checked facts (cookie lifetime, grants route and `offline`, both revocation-mail triggers).
+- Transcripts were not replayed: 24 pages carry an on-page note that they predate the device cookie or field. A replay is one
+  scenario per page and belongs to the closing pass; that placement stays open.

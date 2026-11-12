@@ -5,6 +5,8 @@ description: 'Five consecutive wrong credentials lock an account — passwords, 
 
 # Brute-force lockout
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 Five consecutive wrong credentials lock an account — passwords, and after a
 correct one the codes of a second factor ([below](#a-wrong-second-factor-code-counts-too)) — and the tenant ships that
 way: the four columns behind it are on in every tenant, unlike every other

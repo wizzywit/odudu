@@ -5,6 +5,8 @@ description: 'Requires manage-sessions. Ends every live session in the tenant, e
 
 # `DELETE /sessions`
 
+> **Not replayed after the device field.** A session in a block on this page now also carries `device`, which the blocks below do not show, because this page was captured before the field existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of it.
+
 Requires `manage-sessions`. Ends every live session in the tenant, each through
 the same `endSession` that `DELETE /subjects/:id/sessions/:sid` calls — its
 grants revoked, a Back-Channel Logout Token queued for each client that used it,

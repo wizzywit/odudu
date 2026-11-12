@@ -6,6 +6,8 @@ sidebar_position: 1
 
 # Sign a user in
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../reference/transcripts/request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 Your app sends a person to Odudu. They sign in on Odudu's own page. Your app then gets back tokens it can trust. This is the authorization code flow with PKCE, and every client uses it, public or confidential.
 
 The examples use a tenant called `demo`, a single-page app registered as `demo-spa`, and a user called `ada`. Use your own names. Each step shows a trimmed piece of a real run and links to the whole thing.

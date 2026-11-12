@@ -6,6 +6,8 @@ sidebar_position: 3
 
 # An admin signs in and changes a user
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../reference/transcripts/request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 The admin console signs an administrator in through the same flow your users meet, then does the admin work for them. The browser holds one cookie and no token: the tokens stay on the server. This guide follows one administrator, `grace`, from sign-in to changing another user, `hopper`.
 
 The excerpts come from several real runs on different stacks: steps 1 to 4 from one, steps 5 to 7 from another and step 8 from a third. Ports and ids therefore differ between steps, and each full transcript says which run it is. Every command keeps one cookie jar, `jar`.

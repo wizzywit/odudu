@@ -5,6 +5,8 @@ description: 'GET/POST /tenants/{tenant}/login-actions/registration is the first
 
 # Self-registration
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 `GET`/`POST /tenants/{tenant}/login-actions/registration` is the first way a
 user reaches a tenant without an administrator seeding them in. It answers
 only when the tenant's `registration_allowed` is on — off by default, like

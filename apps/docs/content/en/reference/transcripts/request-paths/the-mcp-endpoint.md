@@ -5,6 +5,8 @@ description: 'A tenant’s MCP endpoint run with curl in both protocol eras: the
 
 # The MCP endpoint
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 A tenant serves one MCP endpoint, `/tenants/<name>/mcp` at the path address and `/mcp` at its own
 domain, and nothing else answers there. It takes `POST` only, carries no session, and answers a
 client that speaks the 2026-07-28 revision and one that opens with the 2025-11-25 `initialize`

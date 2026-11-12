@@ -5,6 +5,8 @@ description: 'A callback whose state does not match the login cookie restarts th
 
 # `GET /console/auth/callback`, refused
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 The sign-in and the refusals up to the authorization endpoint's error are from a
 later run, once a first refusal began to answer a restart and the page began to
 link back to the console; what follows them is from an earlier one. The sign-in
