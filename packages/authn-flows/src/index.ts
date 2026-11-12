@@ -91,7 +91,8 @@ export {
   type RecoveryRevocation,
   type SecondFactorRemovedOutcome,
 } from '#/usecase/second-factor-removed';
-export { oweRecoveryCodesIfFactorWithoutCodes, pendingActionsFor } from '#/usecase/recovery-codes';
+export { oweRecoveryCodesIfFactorWithoutCodes } from '#/usecase/recovery-codes';
+export { pendingActionsFor } from '#/usecase/pending-actions';
 export { recordActionStep, type ActionStep, type RecordActionStep } from '#/usecase/action-step';
 export { type ActionPageVariant } from '#/view/action-cancel';
 export {

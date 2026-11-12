@@ -5,6 +5,7 @@ import {
   TENANT_SETTING_RANGES,
 } from '@odudu/contracts/admin';
 import { type tenants } from '@odudu/db';
+import { isValidWebPageUri } from '@odudu/kernel';
 
 type TenantColumn = keyof typeof tenants.$inferSelect;
 
@@ -87,6 +88,10 @@ const SETTINGS = {
     type: 'text',
     values: TENANT_SETTING_CHOICES.breached_on_error as readonly string[],
   },
+  // Empty clears the address; the person is asked to accept the terms only
+  // where one is set.
+  terms_uri: { column: 'termsUri', type: 'text', trimmed: true, nullable: true },
+  terms_version: { column: 'termsVersion', type: 'text', trimmed: true },
   login_with_email: { column: 'loginWithEmail', type: 'boolean' },
   cimd_enabled: { column: 'cimdEnabled', type: 'boolean' },
   // The audit trail's admin pair can never be left out: a security trail an
@@ -112,7 +117,14 @@ interface TenantSetting {
   readonly required?: readonly string[];
   /** Language tags: spelled canonically on the way in, judged by `tenantSettingProblems`. */
   readonly locales?: true;
+  /** Surrounding whitespace is no part of the value. */
+  readonly trimmed?: true;
+  /** An empty value clears the setting to null. */
+  readonly nullable?: true;
 }
+
+/** The longest version a tenant's terms can carry. */
+export const MAX_TERMS_VERSION_LENGTH = 64;
 
 /** The most languages a tenant's pages are offered in. */
 export const MAX_SUPPORTED_LOCALES = 32;
@@ -223,6 +235,14 @@ export function coerceTenantSetting(name: string, raw: string | readonly string[
         value: raw.trim() === '' ? null : (canonicalLocale(raw.trim()) ?? raw),
       };
     }
+    if (setting.trimmed === true) {
+      const trimmed = raw.trim();
+      return {
+        kind: 'coerced',
+        column: setting.column,
+        value: trimmed === '' && setting.nullable === true ? null : trimmed,
+      };
+    }
     return { kind: 'coerced', column: setting.column, value: raw };
   }
   const value = setting.type === 'boolean' ? coerceBoolean(raw) : coerceInteger(raw);
@@ -276,6 +296,28 @@ function localeProblems(
   return problems;
 }
 
+function termsProblems(values: Readonly<Partial<Record<string, unknown>>>): TenantSettingProblem[] {
+  const problems: TenantSettingProblem[] = [];
+  const uri = values.terms_uri;
+  if (typeof uri === 'string' && !isValidWebPageUri(uri)) {
+    problems.push({
+      name: 'terms_uri',
+      message: 'must be an https address, or an http one to this machine, with no fragment',
+    });
+  }
+  const version = values.terms_version;
+  if (
+    typeof version === 'string' &&
+    (version.length === 0 || version.length > MAX_TERMS_VERSION_LENGTH)
+  ) {
+    problems.push({
+      name: 'terms_version',
+      message: `must be between 1 and ${String(MAX_TERMS_VERSION_LENGTH)} characters`,
+    });
+  }
+  return problems;
+}
+
 /**
  * What a full set of setting values breaks of the tenants CHECKs, by
  * setting: judged over the whole record, since an ordering spans two.
@@ -315,7 +357,7 @@ export function tenantSettingProblems(
       });
     }
   }
-  problems.push(...localeProblems(values));
+  problems.push(...localeProblems(values), ...termsProblems(values));
   for (const [lower, upper] of TENANT_SETTING_ORDERINGS) {
     if (!isSettingName(lower)) continue;
     const low = values[lower];

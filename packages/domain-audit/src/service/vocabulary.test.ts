@@ -284,3 +284,17 @@ describe('the notice a change to a sign-in method records', () => {
     }).toThrow(/does not allow detail key/);
   });
 });
+
+describe('terms.accepted', () => {
+  it('carries the version accepted, as text', () => {
+    expect(() => {
+      assertDetailAllowed('terms.accepted', { version: '2026-01' });
+    }).not.toThrow();
+    expect(() => {
+      assertDetailAllowed('terms.accepted', { version: 2 });
+    }).toThrow(/invalid value/u);
+    expect(() => {
+      assertDetailAllowed('terms.accepted', { version: '1', uri: 'https://example.com' });
+    }).toThrow(/does not allow detail key 'uri'/u);
+  });
+});

@@ -100,6 +100,8 @@ const DOCUMENT: TenantDocument = {
     require_passkey: false,
     breached_check: 'dataset',
     breached_on_error: 'open',
+    terms_uri: null,
+    terms_version: '1',
     login_with_email: false,
     cimd_enabled: false,
     audit_event_types: ['admin_mutation', 'admin_access'],
@@ -274,6 +276,26 @@ describe('tenantDocumentSchema', () => {
     expect(result.success).toBe(true);
     expect(result.data?.settings.breached_check).toBe('dataset');
     expect(result.data?.settings.breached_on_error).toBe('open');
+  });
+
+  it('imports a document from before the terms with none, at version 1', () => {
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => !name.startsWith('terms_')),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings.terms_uri).toBeNull();
+    expect(result.data?.settings.terms_version).toBe('1');
+  });
+
+  it('refuses a terms version that is empty or past 64 characters', () => {
+    for (const bad of ['', 'x'.repeat(65)]) {
+      const result = tenantDocumentSchema.safeParse({
+        ...DOCUMENT,
+        settings: { ...DOCUMENT.settings, terms_version: bad },
+      });
+      expect(result.success).toBe(false);
+    }
   });
 
   it('refuses a breached-password source nobody offers', () => {

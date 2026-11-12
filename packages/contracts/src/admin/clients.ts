@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { noBidiControls } from '#/bidi';
 import { adminReachSchema } from '#/admin/roles';
 import { clientScopeAssignmentViewSchema } from '#/admin/scopes';
-import { requiredActionSchema } from '#/admin/subjects';
+import { applicationActionSchema } from '#/admin/subjects';
 import {
   createdAtSchema,
   cursorQuerySchema,
@@ -71,7 +71,7 @@ export const clientFieldsSchema = z.object({
   require_auth_time: z.boolean(),
   // Required actions the client may start through /authorize, from the
   // required-action vocabulary; empty allows none.
-  allowed_actions: z.array(requiredActionSchema),
+  allowed_actions: z.array(applicationActionSchema),
   // The instant the secret a rotation replaced stops (or stopped)
   // authenticating; null when no rotation kept one, and once `odudu reap`
   // has cleared it after that instant. Never the secret itself.

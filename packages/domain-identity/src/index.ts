@@ -100,6 +100,7 @@ export {
   shapeInvalidityFor,
   type StringClaimKey,
 } from '#/service/profile';
+export { planProfileAmend, type ProfileAmendPlan } from '#/service/profile-amend';
 export {
   credentialRepository,
   type CredentialSummary,

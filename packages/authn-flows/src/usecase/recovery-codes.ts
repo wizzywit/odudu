@@ -5,7 +5,6 @@ import { type MailLookResolver } from '@odudu/email';
 import { noticeOwnChange } from '#/usecase/own-change-notice';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
-import { type RequiredAction } from '#/schema/required-action';
 import { generateRecoveryCodes, normaliseRecoveryCode } from '#/service/authenticators/recovery';
 import {
   bypassesBound,
@@ -181,20 +180,4 @@ export async function oweRecoveryCodesIfFactorWithoutCodes(
   const standing = await credentialRepository(tx).recoveryStanding(subjectId);
   if (!standing.hasTotp || standing.unspent > 0) return;
   await requiredActionRepository(tx).add(tenantId, subjectId, 'generate-recovery-codes');
-}
-
-// What a subject still owes, for the gate that reads it. A set is owed only
-// to somebody who holds a TOTP: the action can be left behind by a revoke
-// followed by the removal of the last TOTP, or asked for by an administrator
-// of a subject with none, and a sign-in meeting it would be refused for a
-// page that cannot be shown. It is cleared here instead, so the login goes on.
-export async function pendingActionsFor(
-  tx: TenantScopedDatabase,
-  subjectId: string,
-): Promise<RequiredAction[]> {
-  const owed = await requiredActionRepository(tx).pendingFor(subjectId);
-  if (!owed.includes('generate-recovery-codes')) return owed;
-  if ((await credentialRepository(tx).recoveryStanding(subjectId)).hasTotp) return owed;
-  await requiredActionRepository(tx).complete(subjectId, 'generate-recovery-codes');
-  return owed.filter((action) => action !== 'generate-recovery-codes');
 }

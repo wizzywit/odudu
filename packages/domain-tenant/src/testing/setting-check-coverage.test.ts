@@ -17,6 +17,7 @@ const COLUMNS = new Set([
   'audit_event_types',
   'supported_locales',
   'default_locale',
+  'terms_version',
 ]);
 
 // As pg_get_constraintdef prints the CHECKs on `tenants` today
@@ -31,6 +32,7 @@ const CURRENT = [
   "CHECK (((audit_event_types @> ARRAY['admin_mutation'::text, 'admin_access'::text]) AND (audit_event_types <@ ARRAY['admin_mutation'::text, 'admin_access'::text, 'authentication'::text, 'session'::text, 'token'::text, 'credential'::text])))",
   'CHECK (((cardinality(supported_locales) >= 1) AND (cardinality(supported_locales) <= 32)))',
   'CHECK (((default_locale IS NULL) OR (default_locale = ANY (supported_locales))))',
+  'CHECK (((char_length(terms_version) >= 1) AND (char_length(terms_version) <= 64)))',
 ];
 
 describe('readSettingCheck', () => {

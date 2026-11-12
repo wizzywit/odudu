@@ -89,6 +89,8 @@ describe('migrations', () => {
       'sso_session_idle_seconds',
       'sso_session_max_seconds',
       'supported_locales',
+      'terms_uri',
+      'terms_version',
       'totp_algorithm',
       'totp_digits',
       'totp_period',

@@ -10,13 +10,16 @@ import {
 } from '#/service/allowed-actions';
 
 describe('the actions a client may start', () => {
-  it('are the four required actions the server already has', () => {
+  it('are the required actions an application may start, not the tenant terms', () => {
     expect([...ALLOWED_ACTION_NAMES]).toEqual([
+      'verify-email',
       'update-password',
       'configure-totp',
       'configure-passkey',
       'generate-recovery-codes',
+      'update-profile',
     ]);
+    expect(unknownAllowedActions(['accept-terms'])).toEqual(['accept-terms']);
   });
 
   it('name any entry outside that vocabulary, in the order given', () => {

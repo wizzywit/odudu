@@ -42,6 +42,7 @@ export const AUDIT_ACTIONS = {
     'action.completed',
     'action.cancelled',
     'action.failed',
+    'terms.accepted',
   ],
 } as const;
 
@@ -252,6 +253,12 @@ type CredentialInput =
         breached_check?: BreachedCheckOutcome;
       }>;
     })
+  // `detail.version` is the version of the tenant's terms that was accepted.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'terms.accepted';
+      readonly detail: Readonly<{ version: string }>;
+    })
   // `detail.notice` says whether the subject was told of the change by mail.
   | (EventCommon & {
       readonly eventType: 'credential';
@@ -303,6 +310,7 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'passkey.enrolled': ['notice'],
   'recovery_codes.issued': ['notice'],
   'account.reconciled': ['survivor', 'loser', 'carried_over', 'moved'],
+  'terms.accepted': ['version'],
 };
 
 const KNOWN_VOCABULARY_ACTIONS: ReadonlySet<string> = new Set(Object.values(AUDIT_ACTIONS).flat());
@@ -327,6 +335,7 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
   'owner',
   'tool',
   'route',
+  'version',
 ]);
 
 const TOOL_NAME = /^[a-z0-9_.-]{1,64}$/u;

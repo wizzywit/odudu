@@ -114,6 +114,10 @@ export const tenants = pgTable('tenants', {
   // (packages/db/drizzle/0135_breached_passwords.sql).
   breachedCheck: text('breached_check').notNull().default('dataset'),
   breachedOnError: text('breached_on_error').notNull().default('open'),
+  // The terms a person is asked to accept, and the version they accept
+  // (packages/db/drizzle/0136_more_required_actions.sql).
+  termsUri: text('terms_uri'),
+  termsVersion: text('terms_version').notNull().default('1'),
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),

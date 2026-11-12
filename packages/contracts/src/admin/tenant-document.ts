@@ -14,7 +14,7 @@ import {
   localisedTextSchema,
   type FieldError,
 } from '#/admin/shared';
-import { requiredActionSchema } from '#/admin/subjects';
+import { applicationActionSchema, requiredActionSchema } from '#/admin/subjects';
 import { tenantSchema } from '#/admin/tenants';
 
 // Above this many subjects `?include=subjects` is refused rather than
@@ -106,6 +106,10 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   // with the dataset source and a lookup that fails open.
   breached_check: z.enum(['off', 'dataset', 'remote']).default('dataset'),
   breached_on_error: z.enum(['open', 'closed']).default('open'),
+  // Absent from a document exported before the terms existed, which imports
+  // with none, at version 1. The address is judged by the settings checks.
+  terms_uri: z.string().nullable().default(null),
+  terms_version: z.string().min(1).max(64).default('1'),
   login_with_email: z.boolean(),
   // Absent from a document exported before the setting existed, which
   // imports with it off.
@@ -206,7 +210,7 @@ export const exportedClientSchema = z.strictObject({
   default_max_age: z.number().int().nullable(),
   require_auth_time: z.boolean(),
   // Absent from a document exported before the setting existed: none.
-  allowed_actions: z.array(requiredActionSchema).default([]),
+  allowed_actions: z.array(applicationActionSchema).default([]),
   // The roles a confidential client's own service account holds, which
   // its client_credentials tokens carry; empty for a client without that grant.
   service_account_roles: assignmentSet(roleReferenceSchema),

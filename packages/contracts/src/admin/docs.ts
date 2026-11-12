@@ -1036,6 +1036,10 @@ describeFields(tenantSettingsDocumentSchema, {
     'Where a new password is checked against passwords known from breaches: off, dataset (the hash list an operator loaded into the server, which needs no outbound request) or remote (a range lookup that sends the first five characters of the SHA-1 hash and nothing else to a fixed host). A password that passed the other rules and is found there is refused.',
   breached_on_error:
     'What a remote lookup that failed, timed out or found the host busy does: open accepts the password, closed refuses it and asks the person to try again. The dataset source has no such failure.',
+  terms_uri:
+    'The address of the terms the `accept-terms` required action asks a person to accept: https, or http to this machine, with no fragment. Null when the tenant has none; send an empty string to clear it. Setting it asks nobody: an administrator owes the action to each person.',
+  terms_version:
+    'The version of the terms, 1 to 64 characters, `1` by default. A person accepts one version; changing it does not add the action to anyone, so an administrator owes it again when the terms change.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',

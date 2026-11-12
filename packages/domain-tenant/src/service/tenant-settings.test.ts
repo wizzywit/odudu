@@ -353,3 +353,50 @@ describe('the breached-password settings', () => {
     expect(coerceTenantSetting('breached_on_error', 'maybe').kind).toBe('invalid_value');
   });
 });
+
+describe('the terms settings', () => {
+  it('read as the text columns they are stored in', () => {
+    expect(coerceTenantSetting('terms_uri', 'https://example.com/terms')).toEqual({
+      kind: 'coerced',
+      column: 'termsUri',
+      value: 'https://example.com/terms',
+    });
+    expect(coerceTenantSetting('terms_version', ' 2026-01 ')).toEqual({
+      kind: 'coerced',
+      column: 'termsVersion',
+      value: '2026-01',
+    });
+  });
+
+  it('clear the address with an empty value', () => {
+    expect(coerceTenantSetting('terms_uri', '  ')).toEqual({
+      kind: 'coerced',
+      column: 'termsUri',
+      value: null,
+    });
+  });
+
+  it('judge the address as a client policy or terms address is judged', () => {
+    const problems = (uri: string) =>
+      tenantSettingProblems({ terms_uri: uri }).map((problem) => problem.name);
+    expect(problems('https://example.com/terms')).toEqual([]);
+    expect(problems('http://localhost:3000/terms')).toEqual([]);
+    expect(problems('http://example.com/terms')).toEqual(['terms_uri']);
+    expect(problems('https://example.com/terms#top')).toEqual(['terms_uri']);
+    expect(problems('javascript:alert(1)')).toEqual(['terms_uri']);
+    expect(problems('not a url')).toEqual(['terms_uri']);
+  });
+
+  it('leave an unset address alone', () => {
+    expect(tenantSettingProblems({ terms_uri: null })).toEqual([]);
+  });
+
+  it('hold the version to between one and 64 characters', () => {
+    const problems = (version: string) =>
+      tenantSettingProblems({ terms_version: version }).map((problem) => problem.name);
+    expect(problems('1')).toEqual([]);
+    expect(problems('x'.repeat(64))).toEqual([]);
+    expect(problems('')).toEqual(['terms_version']);
+    expect(problems('x'.repeat(65))).toEqual(['terms_version']);
+  });
+});

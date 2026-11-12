@@ -1,10 +1,10 @@
-import { requiredActionSchema, type RequiredAction } from '@odudu/contracts/admin';
+import { applicationActionSchema, type ApplicationAction } from '@odudu/contracts/admin';
 import { type ErrorCode } from '@odudu/kernel';
 import { ME_READ_SCOPE } from '#/service/me-scopes';
 
-// The required actions an application may start through /authorize: the
-// vocabulary the admin API already uses for a subject's required actions.
-export const ALLOWED_ACTION_NAMES: readonly string[] = requiredActionSchema.options;
+// The required actions an application may start through /authorize: those of
+// a subject's required actions the tenant does not reserve to itself.
+export const ALLOWED_ACTION_NAMES: readonly string[] = applicationActionSchema.options;
 
 export const ALLOWED_ACTIONS_NEED_ME_READ = 'allowed_actions_need_me_read' satisfies ErrorCode;
 
@@ -18,7 +18,7 @@ export const ALLOWED_ACTIONS_KEEP_ME_READ_MESSAGE =
   `the scope ${ME_READ_SCOPE} stays while a client may start an action, since that client reads ` +
   `the outcome through it: clear the client's allowed_actions first`;
 
-export function isAllowedAction(entry: string): entry is RequiredAction {
+export function isAllowedAction(entry: string): entry is ApplicationAction {
   return ALLOWED_ACTION_NAMES.includes(entry);
 }
 
@@ -26,7 +26,7 @@ export function unknownAllowedActions(entries: readonly string[]): string[] {
   return entries.filter((entry) => !isAllowedAction(entry));
 }
 
-export function distinctAllowedActions(entries: readonly RequiredAction[]): RequiredAction[] {
+export function distinctAllowedActions(entries: readonly ApplicationAction[]): ApplicationAction[] {
   return [...new Set(entries)];
 }
 

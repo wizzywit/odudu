@@ -593,6 +593,35 @@ describe('the breached-password settings', () => {
   });
 });
 
+describe('the terms settings', () => {
+  it('start with none at version 1, change through the settings and refuse a bad value', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const url = `/admin/tenants/${t.name}/settings`;
+    const headers = { authorization: `Bearer ${token}` };
+    const patch = (payload: Record<string, unknown>) =>
+      fixture.http.inject({ method: 'PATCH', url, headers, payload });
+    const read = () => fixture.http.inject({ method: 'GET', url, headers });
+    expect((await read()).json()).toMatchObject({ terms_uri: null, terms_version: '1' });
+
+    expect(
+      (await patch({ terms_uri: 'https://example.com/terms', terms_version: '2026-01' }))
+        .statusCode,
+    ).toBe(200);
+    expect((await read()).json()).toMatchObject({
+      terms_uri: 'https://example.com/terms',
+      terms_version: '2026-01',
+    });
+
+    expect((await patch({ terms_uri: 'http://example.com/terms' })).statusCode).toBe(400);
+    expect((await patch({ terms_version: '' })).statusCode).toBe(400);
+    expect((await patch({ terms_version: 'x'.repeat(65) })).statusCode).toBe(400);
+
+    expect((await patch({ terms_uri: '' })).statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({ terms_uri: null });
+  });
+});
+
 describe('the language settings', () => {
   async function setup() {
     const t = await fixture.createTenant(`acme-${newId()}`);

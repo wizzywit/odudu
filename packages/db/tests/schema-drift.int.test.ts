@@ -120,7 +120,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'user_credentials.user_credentials_type_check':
     "CHECK ((type = ANY (ARRAY['password'::text, 'totp'::text, 'webauthn'::text, 'recovery-code'::text, 'password-history'::text])))",
   'user_required_actions.user_required_actions_action':
-    "CHECK ((action = ANY (ARRAY['configure-totp'::text, 'configure-passkey'::text, 'update-password'::text, 'generate-recovery-codes'::text])))",
+    "CHECK ((action = ANY (ARRAY['verify-email'::text, 'update-password'::text, 'configure-totp'::text, 'configure-passkey'::text, 'generate-recovery-codes'::text, 'update-profile'::text, 'accept-terms'::text])))",
   'users.users_birthdate_shape':
     "CHECK (((birthdate IS NULL) OR (birthdate ~ '^[0-9]{4}(-[0-9]{2}-[0-9]{2})?$'::text)))",
   'users.users_email_addr_spec':
@@ -174,6 +174,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK ((recovery_code_warn_below <= recovery_code_count))',
   'tenants.tenants_breached_check_check':
     "CHECK ((breached_check = ANY (ARRAY['off'::text, 'dataset'::text, 'remote'::text])))",
+  'tenants.tenants_terms_version_length':
+    'CHECK (((char_length(terms_version) >= 1) AND (char_length(terms_version) <= 64)))',
   'tenants.tenants_breached_on_error_check':
     "CHECK ((breached_on_error = ANY (ARRAY['open'::text, 'closed'::text])))",
   'breached_password_hashes.breached_password_hashes_prefix_shape':
@@ -208,7 +210,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((id_token_signed_response_alg = ANY (ARRAY['RS256'::text, 'ES256'::text])))",
   'client_oidc_config.client_oidc_config_default_max_age_range': 'CHECK ((default_max_age >= 0))',
   'client_oidc_config.client_oidc_config_allowed_actions_check':
-    "CHECK ((allowed_actions <@ ARRAY['update-password'::text, 'configure-totp'::text, 'configure-passkey'::text, 'generate-recovery-codes'::text]))",
+    "CHECK ((allowed_actions <@ ARRAY['verify-email'::text, 'update-password'::text, 'configure-totp'::text, 'configure-passkey'::text, 'generate-recovery-codes'::text, 'update-profile'::text]))",
   'clients.clients_previous_secret_pair':
     'CHECK (((previous_secret_hash IS NULL) = (previous_secret_expires_at IS NULL)))',
   'clients.clients_name_i18n_shape':

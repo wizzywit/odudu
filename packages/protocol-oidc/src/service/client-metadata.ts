@@ -11,6 +11,7 @@ import {
   USERINFO_SIGNING_ALGS,
 } from '@odudu/contracts/admin';
 import { noBidiControls } from '@odudu/contracts';
+import { isLoopbackHost, isValidWebPageUri } from '@odudu/kernel';
 import { z } from 'zod';
 import { JWE_ALGS_PERMITTED, PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { type RegistrationErrorCode } from '#/service/oauth-errors';
@@ -122,13 +123,6 @@ const SERVER_ASSIGNED_FIELDS = [
 // refused rather than dropped, so a registrant cannot believe it set it.
 const OPERATOR_ONLY_FIELDS = ['skip_logout_confirmation', 'allowed_actions'] as const;
 
-export function isLoopbackHost(hostname: string): boolean {
-  // RFC 8252 §8.3 prefers the literal forms over `localhost`, whose
-  // resolution is under the resolver's control — accepted here all the
-  // same because nothing in RFC 7591 §5 forbids the weaker form.
-  return hostname === '127.0.0.1' || hostname === '[::1]' || hostname === 'localhost';
-}
-
 // RFC 7591 §5's third bullet is "a non-HTTP application-specific URL", not
 // any scheme a client names — `javascript:`, `data:` and `file:` would
 // otherwise all pass as a bare "carries its own scheme-specific part".
@@ -158,21 +152,6 @@ function isValidRedirectUri(raw: string): boolean {
   return (
     isCustomUriScheme(scheme) && (url.pathname !== '' || url.search !== '' || url.hostname !== '')
   );
-}
-
-// RFC 7591 §2's `client_uri`, `policy_uri` and `tos_uri` are pages a person
-// opens from the consent screen, so of the redirect-URI forms above only the
-// web ones apply: https to any host, http to loopback only, no fragment.
-function isValidWebPageUri(raw: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return false;
-  }
-  if (url.hash !== '') return false;
-  if (url.protocol === 'https:') return true;
-  return url.protocol === 'http:' && isLoopbackHost(url.hostname);
 }
 
 const WEB_PAGE_FIELDS = ['client_uri', 'policy_uri', 'tos_uri'] as const;

@@ -1,5 +1,6 @@
 import { isIP } from 'node:net';
-import { isLoopbackHost, privateMemberRefusal } from '#/service/client-metadata';
+import { isLoopbackHost } from '@odudu/kernel';
+import { privateMemberRefusal } from '#/service/client-metadata';
 export { isCimdRedirectUri } from '#/service/redirect-uri';
 
 export type CimdRefusal =
