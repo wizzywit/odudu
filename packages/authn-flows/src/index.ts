@@ -107,6 +107,35 @@ export {
   renderRequestedUpdatePasswordPage,
 } from '#/view/update-password-html';
 export {
+  renderRequestedUpdateProfilePage,
+  renderUpdateProfilePage,
+} from '#/view/update-profile-html';
+export {
+  renderRequestedVerifyEmailPage,
+  renderVerifyEmailPage,
+  type VerifyEmailNotice,
+  type VerifyEmailOffer,
+} from '#/view/verify-email-html';
+export { renderAcceptTermsPage, type AcceptTermsOffer } from '#/view/accept-terms-html';
+export {
+  completeVerifyEmail,
+  verifyEmailOffer,
+  type VerifyEmailOutcome,
+} from '#/usecase/verify-email-action';
+export {
+  completeUpdateProfile,
+  profileOffer,
+  type ProfileOffer,
+  type ProfileProblem,
+  type UpdateProfileOutcome,
+} from '#/usecase/update-profile-action';
+export {
+  completeAcceptTerms,
+  termsOffer,
+  type AcceptTermsOutcome,
+  type TermsOffer,
+} from '#/usecase/accept-terms-action';
+export {
   CURRENT_PASSWORD_REFUSED,
   holdsPassword,
   completeUpdatePassword,

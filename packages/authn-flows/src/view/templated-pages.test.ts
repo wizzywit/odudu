@@ -8,12 +8,15 @@ import {
 } from '@odudu/kernel';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
+import { renderAcceptTermsPage } from '#/view/accept-terms-html';
 import { renderPasskeyEnrolmentPage } from '#/view/passkey-enrolment-html';
 import { renderRecoveryCodesPage } from '#/view/recovery-codes-html';
 import { renderRequiredActionPage } from '#/view/required-action-html';
 import { DEFAULT_TEMPLATES, type TemplatedKind } from '#/view/templates/index';
 import { renderTotpEnrolmentPage } from '#/view/totp-enrolment-html';
 import { renderUpdatePasswordPage } from '#/view/update-password-html';
+import { renderUpdateProfilePage } from '#/view/update-profile-html';
+import { renderVerifyEmailPage } from '#/view/verify-email-html';
 
 function themed(kind: TemplatedKind, template: string): PageLocale {
   const branding: ResolvedBranding = {
@@ -156,6 +159,54 @@ const CASES: Case[] = [
       ),
     template: '{{error}}{{form.open}}{{submit}}{{fields}}{{form.close}}{{intro}}',
     inOrder: ['role="alert"', '<form', '<button', 'name="password"', '</form>', 'class="intro"'],
+    hidden: ['auth_session_id'],
+  },
+  {
+    name: 'verify email',
+    kind: 'verify-email',
+    render: (locale) =>
+      renderVerifyEmailPage(
+        't1',
+        pathAddress('https://idp.example', 't1'),
+        'sess-1',
+        { email: 'ada@example.com', verified: false },
+        'not_verified',
+        locale,
+      ),
+    template: '{{error}}{{form.open}}{{submit}}{{fields}}{{form.close}}{{intro}}',
+    inOrder: ['role="alert"', '<form', '<button', 'ada@example.com', '</form>', 'class="intro"'],
+    hidden: ['auth_session_id'],
+  },
+  {
+    name: 'update profile',
+    kind: 'update-profile',
+    render: (locale) =>
+      renderUpdateProfilePage(
+        't1',
+        pathAddress('https://idp.example', 't1'),
+        'sess-1',
+        { fields: ['name'], values: { name: 'Ada' } },
+        [{ kind: 'unfilled', fields: ['name'] }],
+        locale,
+      ),
+    template: '{{error}}{{form.open}}{{submit}}{{fields}}{{form.close}}{{intro}}',
+    inOrder: ['role="alert"', '<form', '<button', 'name="name"', '</form>', 'class="intro"'],
+    hidden: ['auth_session_id'],
+  },
+  {
+    name: 'accept terms',
+    kind: 'accept-terms',
+    render: (locale) =>
+      renderAcceptTermsPage(
+        't1',
+        pathAddress('https://idp.example', 't1'),
+        'sess-1',
+        { uri: 'https://example.com/terms', version: '1' },
+        true,
+        locale,
+      ),
+    template: '{{error}}{{form.open}}{{submit}}{{fields}}{{form.close}}{{intro}}',
+    inOrder: ['role="alert"', '<form', '<button', 'name="accept"', '</form>', 'class="intro"'],
     hidden: ['auth_session_id'],
   },
   {
