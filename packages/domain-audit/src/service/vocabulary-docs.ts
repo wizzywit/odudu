@@ -188,6 +188,8 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'subject.actions_email_send':
     'A mail asking a subject to complete required actions was sent by an admin.',
   'subject.profile_amend': 'A subject’s profile claims were amended.',
+  'subject.reconcile':
+    'An account that held the same address as another, apart from its case, was folded into the one that stayed.',
   'subject.recovery_codes_revoke': 'A subject’s recovery codes were revoked.',
   'subject.required_actions_set': 'The required actions of a subject were replaced.',
   'subject.roles_set': 'The roles of a subject were replaced.',
