@@ -82,7 +82,9 @@ function columns(page: SubjectSessions, withinReach: boolean): readonly Column<S
       id: 'device',
       header: 'Device',
       secondary: true,
-      cell: (session) => <DeviceCell device={session.device} />,
+      cell: (session) => (
+        <DeviceCell device={session.device} caption={page.deviceCaption(session.device)} />
+      ),
     },
     {
       id: 'clients',

@@ -116,3 +116,24 @@ it('passes axe in both themes', async () => {
     ),
   ).toEqual({ light: [], dark: [] });
 });
+
+it('groups the sessions of one device together, with a count, and the ones with no device last', async () => {
+  const other = { ...session('x3', '2026-09-28T10:00:00.000Z'), device: 'aa11aa11aa11aa11' };
+  const stray = { ...session('x4', '2026-09-28T07:00:00.000Z'), device: null };
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`GET ${X}`]: json({ items: [ONE, stray, other, session('x5', '2026-09-28T11:00:00.000Z')] }),
+    }),
+  );
+  const table = await screen.findByRole('grid', { name: 'Live sessions of ada' });
+  const rows = within(table).getAllByRole('row').slice(1);
+  expect(rows.map((row) => /2026-09-28 (\d\d:\d\d)/u.exec(row.textContent)?.[1])).toEqual([
+    '08:00',
+    '11:00',
+    '10:00',
+    '07:00',
+  ]);
+  expect(within(rows[0]!).getByText('2 sessions on this device')).toBeVisible();
+  expect(within(rows[2]!).getByText('1 session on this device')).toBeVisible();
+});

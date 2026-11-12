@@ -22,6 +22,7 @@ import { recordTab } from '#/shared/ui/RecordTab';
 
 function columnsOf(
   subjectLabel: (session: ClientSession) => string,
+  deviceCaption: (device: string | null) => string | null,
 ): readonly Column<ClientSession>[] {
   return [
     {
@@ -34,7 +35,9 @@ function columnsOf(
       id: 'device',
       header: 'Device',
       secondary: true,
-      cell: (session) => <DeviceCell device={session.device} />,
+      cell: (session) => (
+        <DeviceCell device={session.device} caption={deviceCaption(session.device)} />
+      ),
     },
     {
       id: 'created_at',
@@ -59,7 +62,7 @@ function columnsOf(
 
 function List({ client, page }: { client: Client; page: ClientSessions }) {
   const { list } = page;
-  const columns = columnsOf(page.subjectLabel);
+  const columns = columnsOf(page.subjectLabel, page.deviceCaption);
   return (
     <>
       {list.count === null ? null : (

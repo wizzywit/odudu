@@ -1019,6 +1019,10 @@ export function Gallery({
           <Specimen label="DeviceCell">
             <div className={styles.stack}>
               <DeviceCell device="3f1c7a9e5b2d4c68a0e91f37d5b84c2a6e7f90b1d3c5a8e2f4b6d7091a3c5e8f" />
+              <DeviceCell
+                device="3f1c7a9e5b2d4c68a0e91f37d5b84c2a6e7f90b1d3c5a8e2f4b6d7091a3c5e8f"
+                caption="2 sessions on this device"
+              />
               <DeviceCell device={null} />
             </div>
           </Specimen>

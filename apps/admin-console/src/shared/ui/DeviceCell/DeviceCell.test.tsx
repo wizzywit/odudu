@@ -12,6 +12,11 @@ it('shows the start of a device id, copies all of it, and keeps the whole value 
   expect(screen.getByRole('button', { name: 'Copy device id' })).toBeVisible();
 });
 
+it('says how many sessions the device holds when told', () => {
+  render(<DeviceCell device={DEVICE} caption="3 sessions on this device" />);
+  expect(screen.getByText('3 sessions on this device')).toBeInTheDocument();
+});
+
 it('shows a dash for a session opened before the id was recorded', () => {
   render(<DeviceCell device={null} />);
   expect(screen.getByText('—')).toBeInTheDocument();

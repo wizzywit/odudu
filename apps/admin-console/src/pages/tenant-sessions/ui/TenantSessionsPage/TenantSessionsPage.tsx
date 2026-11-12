@@ -56,7 +56,9 @@ function columns(page: Page): readonly Column<TenantSession>[] {
       id: 'device',
       header: 'Device',
       secondary: true,
-      cell: (session) => <DeviceCell device={session.device} />,
+      cell: (session) => (
+        <DeviceCell device={session.device} caption={page.deviceCaption(session.device)} />
+      ),
     },
     {
       id: 'created_at',
