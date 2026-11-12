@@ -147,10 +147,8 @@ every change refused `401`.
 
 ### Open placements
 
-1. **The administrator's `updateEmail` holder check is case-sensitive** where the address the
-   verification link completes is not; the case-reconciliation increment places it.
-2. **Rate limit and CORS on the me routes**, as in increment 1, still open.
-3. **The gate and the write are separate transactions** (below), a limit recorded and not removed.
+1. **Rate limit and CORS on the me routes**, as in increment 1, still open.
+2. **The gate and the write are separate transactions** (below), a limit recorded and not removed.
 
 ### Known limits of the gated writes
 
@@ -712,3 +710,76 @@ that never configures a step behaves as it does today.
 ### Open placements
 
 - None. A registration link that expired is not resent: its refused page has no form, and the person registers again.
+
+## Increment 11: accounts that hold one address, and the unique index
+
+### What shipped
+
+- `odudu reconcile-accounts [--dry-run]` finds, in every tenant, the accounts that hold one address apart from its case and folds
+  each group into one account. It prints one JSON report: groups found, merged, would merge (a dry run), accounts retired, the rows
+  moved by kind, and the groups refused or failed (the first hundred of each, by tenant and subject id, never by address). It exits
+  `1` when a group failed or the run could not start, and `0` otherwise, refused groups included: a refusal is the operator's to
+  settle, not a fault. A second run finds only what is left.
+- `reconcileDuplicateAccounts(db, tenantIds, now, options)` in `@odudu/protocol-admin` holds no timer. It reads a page of addresses
+  (`chunkGroups`, 100 by default), merges each address in its own transaction and re-reads the group under lock, so a group that
+  changed since the page was read is judged as it is now. `reconcileGroup(tx, …)` is the one-group step a test or another caller
+  can run in its own transaction.
+- The audit trail gains `subject.reconcile`, one row for each retired account, resource the retired subject, `detail` naming the
+  survivor, whether anything was carried over and the counts moved. Nothing already in the trail is read or rewritten.
+- The administrator's `PATCH /subjects/{id}` now refuses an address another subject holds in another case, `409` as for an exact
+  repeat, so it compares as the verification link does. It checked nothing before: only `users_email_unique`, which compares bytes,
+  stood between `Ada@x` and `ada@x`. A subject may still change the case of its own address.
+
+### Rulings
+
+- **The survivor** is the account with a verified address, then the oldest by creation time, then the lowest id (`chooseSurvivor`).
+- **What counts as having signed in** is what a sign-in leaves on the account: any `sessions` row, any `token_grants` row or any
+  credential with `last_used_at`. No audit row is read, so the check is three indexed existence tests for each account of a group.
+  A group where more than one account has signed in is refused whole, whatever its size.
+- **What moves, from each loser to the survivor:** the credentials (a passkey always; a password, second factor, recovery-code set
+  or retired-hash set only where the survivor holds none of that kind, and the time the recovery set was made goes with it),
+  `sessions`, `token_grants` (refresh tokens follow their grant) and consents for a client the survivor has none for. What stays on
+  the loser: roles, groups and required actions, so that administrative standing is never handed to another account by a merge,
+  and the short-lived rows (action tokens, authorization codes, console sessions, pending changes), which the reaper clears.
+- **An unverified account never hands what it set up to a verified one.** Whoever made it never proved the address, so a password
+  or a session moved onto the account that did would let them in. With a verified survivor, an unverified loser is retired with
+  nothing moved; if it has signed in, the group is refused (`unverified_account_has_sign_ins`) because retiring it would lock out
+  a person the command cannot tell from a squatter. Both unverified, or both verified, carry over.
+- **What becomes of the loser:** disabled (`subjects.disabled_at`, the one switch an administrator uses) and its address cleared
+  (`users.email` null, so `email_search` is null and it stops colliding). Nothing is deleted, so a mistake is undone by an
+  administrator restoring the address and enabling the account, and the case of its old address is lost only where the survivor
+  holds the same address. The former address is not copied into the audit row, which keeps no address anywhere else either.
+- **Failure:** a group whose transaction fails is rolled back whole (a trigger that refuses the consent update in the test leaves
+  its credentials, sessions and address as they were), counted, and the run goes on; the report carries the error's kind and
+  database code and never its message, which quotes an address.
+
+### The unique index, held back to the next release
+
+The migration is not added here: the command ships in this release and the index in a later one, so an operator has run the
+command first. The statement, which `packages/protocol-admin/tests/reconcile-accounts.int.test.ts` runs against the real schema in
+a rolled-back transaction (it fails with `23505` over a duplicate and builds once the command has run):
+
+```sql
+CREATE UNIQUE INDEX users_email_search_unique ON users (tenant_id, email_search) WHERE email_search IS NOT NULL
+```
+
+`git grep -n "CONCURRENTLY" packages/db/drizzle` finds nothing, and `packages/db/src/migrate.ts` hands every pending migration to
+Drizzle's migrator, which runs them in one transaction, so the index cannot be built `CONCURRENTLY` and is the plain statement
+above. It holds a lock that blocks writes to `users` while it builds: at 1,000,000 subjects in a tenant and 10,000 tenants the
+build reads the whole table once, so it is a window of seconds to minutes for a large deployment and the upgrade should be run with
+that in mind and a backup taken (spec section 8). A build over a database that still holds a duplicate fails and rolls the whole
+migration back, which is what the order is for. `docs/NEXT.md` and `RELEASING.md` carry the order.
+
+### At volume
+
+- Discovery is one walk of `users_email_search` per page, grouped by address in index order with a keyset on the address: no sort,
+  no sequential scan, at most `chunkGroups` addresses held, asserted in `reconcile-plans.int.test.ts` on three tenants of 30,000
+  accounts each. A tenant with no duplicate costs one pass over its own index entries and nothing else; the command visits tenants
+  in id order, a page of 500 at a time.
+- A group of `n` accounts is a constant number of statements for each account: a lock read by `users_email_search` and the
+  subjects primary key, then at most six updates by `tenant_id`, `subject_id` on `sessions_by_subject`, `token_grants_by_subject`,
+  `user_credentials_by_subject` and the consents key.
+
+### Open placements
+
+- None. The administrator's address check that was placed here is done above.

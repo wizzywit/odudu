@@ -31,6 +31,7 @@ How they were captured is in [How the transcripts are captured and checked](../.
 - [Path B: refresh rotation](./path-b-refresh-rotation.md)
 - [Retention: what odudu reap removes](./retention-what-odudu-reap-removes.md)
 - [Sending queued mail: odudu send-mail](./sending-queued-mail-odudu-send-mail.md)
+- [Reconciling accounts: odudu reconcile-accounts](./reconciling-accounts-odudu-reconcile-accounts.md)
 - [RP-initiated logout](./rp-initiated-logout.md)
 - [Authorization server metadata](./authorization-server-metadata.md)
 - [Protected resource metadata](./protected-resource-metadata.md)
