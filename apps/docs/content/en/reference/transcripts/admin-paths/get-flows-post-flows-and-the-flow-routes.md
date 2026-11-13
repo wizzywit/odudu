@@ -193,7 +193,7 @@ curl -sS -X POST \
 {"type":"about:blank#flow-name-taken","title":"Conflict","status":409,"detail":"a flow named \"default\" already exists","instance":"01a1d378-3d48-7e2d-81fe-92a839b8a985"}
 ```
 
-A step list is refused at save time, before the database is asked, with the types `PUT /flow/executions` has. Each names the step at fault under `steps`:
+A step list is refused at save time, before the database is asked, with the types `PUT /flow/executions` has. The unknown and the repeated authenticator name the step at fault in `errors`, under `steps`; the others carry none:
 
 ```bash
 for steps in '[]' '[{"authenticator": "password", "requirement": "disabled"}]' '[{"authenticator": "passkey", "requirement": "required"}]' '[{"authenticator": "sms", "requirement": "required"}]' '[{"authenticator": "password", "requirement": "required"}, {"authenticator": "password", "requirement": "alternative"}]'; do

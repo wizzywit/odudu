@@ -1920,7 +1920,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Creates a flow that is not the default. Refused with `409`: a name another flow of ' +
       'the tenant has (`#flow-name-taken`), or a tenant that already holds 20 flows ' +
       '(`#flow-limit`). A step list is refused with the `400` types of `PUT ' +
-      '/flow/executions`, each with `errors[]` naming the step under `steps`. Answers an ' +
+      '/flow/executions`; the unknown and the repeated authenticator carry `errors[]` ' +
+      'naming the step as `steps[N].authenticator`, the others none. Answers an ' +
       '`ETag`.',
   },
   {

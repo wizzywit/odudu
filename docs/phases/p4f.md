@@ -956,8 +956,8 @@ default flow's steps. No client names a flow yet (13c), so no sign-in runs a flo
   `bodyProblem`, not a `500`.
 - **A bad body** is a `400` before the flow is looked up, so it answers ahead of `404`, `428` and `412`, as `PUT /flow/executions` does.
 - **Steps.** Create and replace run the checks `PUT /flow/executions` runs, now one function (`refuseSteps`): an empty list, an
-  unregistered authenticator, a repeat, every step disabled, and no step able to start a login each have their own `400` type, with
-  `errors[].path` under `steps` (`steps[1].authenticator`). `PUT /flow/executions` takes at most 20 steps in its contract, so more is a
+  unregistered authenticator, a repeat, every step disabled, and no step able to start a login each have their own `400` type; the unknown and the repeated authenticator
+  also carry `errors[].path` under `steps` (`steps[1].authenticator`), the other three none. `PUT /flow/executions` takes at most 20 steps in its contract, so more is a
   `400` where it was a `500`.
 - **Audit.** `flow.create`, `flow.amend`, `flow.delete` (the vocabulary's imperative form, as `group.create`; the brief's `flow.created`
   would have been the only past tense) with `flow` in the audit-detail allowlist, name and steps by value: a create names both as
