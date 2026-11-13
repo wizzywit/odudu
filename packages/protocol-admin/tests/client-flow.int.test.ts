@@ -4,10 +4,20 @@ import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
+const statements: string[] = [];
+
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
 beforeAll(async () => {
-  fixtureHandle = await startAdminFixture({ openApp: (url) => createDatabase(url, { max: 5 }) });
+  fixtureHandle = await startAdminFixture({
+    openApp: (url) =>
+      createDatabase(url, {
+        max: 5,
+        onQueryForTests: (query) => {
+          statements.push(query);
+        },
+      }),
+  });
   fixture = fixtureHandle;
 }, 180_000);
 afterAll(async () => {
@@ -222,5 +232,30 @@ describe('GET /flows', () => {
       ['kiosk', 1],
       ['staff', 2],
     ]);
+  });
+});
+
+describe('the statements the flow routes send, with clients naming flows', () => {
+  async function sent(run: () => Promise<{ statusCode: number }>, status: number): Promise<number> {
+    const from = statements.length;
+    const res = await run();
+    expect(res.statusCode).toBe(status);
+    return statements.length - from;
+  }
+
+  it('are the same whether one client names a flow or twelve do', async () => {
+    const s = await setup();
+    const staff = await s.flow('staff');
+    await s.createClient({ flow_id: staff.id });
+    const few = {
+      list: await sent(() => s.send('GET', '/flows'), 200),
+      refused: await sent(() => s.send('DELETE', `/flows/${staff.id}`), 409),
+    };
+    for (let i = 0; i < 11; i += 1) await s.createClient({ flow_id: staff.id });
+    const many = {
+      list: await sent(() => s.send('GET', '/flows'), 200),
+      refused: await sent(() => s.send('DELETE', `/flows/${staff.id}`), 409),
+    };
+    expect(many).toEqual(few);
   });
 });
