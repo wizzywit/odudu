@@ -13,4 +13,10 @@ export {
   disableConsequence,
   disableAsk,
 } from '#/entities/tenant/services/tenantEnabled';
+export {
+  authenticatorChoiceLabel,
+  authenticatorChoices,
+  authenticatorOptions,
+  type AuthenticatorChoice,
+} from '#/entities/tenant/services/authenticatorChoices';
 export { offeredLocales } from '#/entities/tenant/services/offeredLocales';

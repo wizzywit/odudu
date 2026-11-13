@@ -1,3 +1,4 @@
+import { authenticatorOptions } from '#/entities/tenant';
 import type { SettingsSection } from '#/pages/settings/services/sectionTypes';
 
 export const AUTHENTICATORS_SECTION = 'authenticators';
@@ -14,31 +15,21 @@ export const AUTHENTICATORS: SettingsSection = {
       control: 'choice',
       description:
         'SHA1 works in every authenticator app. A person’s app must support another algorithm, digit count and period before they can use it; the enrolment page says so.',
-      options: [
-        { id: 'SHA1', label: 'SHA1' },
-        { id: 'SHA256', label: 'SHA256' },
-        { id: 'SHA512', label: 'SHA512' },
-      ],
+      options: authenticatorOptions('totp_algorithm'),
     },
     {
       name: 'totp_digits',
       label: 'Authenticator app code length',
       control: 'choice',
       numeric: true,
-      options: [
-        { id: '6', label: '6 digits' },
-        { id: '8', label: '8 digits' },
-      ],
+      options: authenticatorOptions('totp_digits'),
     },
     {
       name: 'totp_period',
       label: 'Authenticator app code period',
       control: 'choice',
       numeric: true,
-      options: [
-        { id: '30', label: '30 seconds' },
-        { id: '60', label: '60 seconds' },
-      ],
+      options: authenticatorOptions('totp_period'),
     },
     {
       name: 'webauthn_user_verification',
@@ -46,11 +37,7 @@ export const AUTHENTICATORS: SettingsSection = {
       control: 'choice',
       description:
         'Whether a new passkey checks the person with a PIN or biometric. A passkey made without it signs in as one factor, so a second factor is still asked for.',
-      options: [
-        { id: 'required', label: 'Required' },
-        { id: 'preferred', label: 'Preferred' },
-        { id: 'discouraged', label: 'Discouraged' },
-      ],
+      options: authenticatorOptions('webauthn_user_verification'),
     },
     {
       name: 'webauthn_resident_key',
@@ -58,11 +45,7 @@ export const AUTHENTICATORS: SettingsSection = {
       control: 'choice',
       description:
         'A passkey that is not stored on the device cannot sign a person in who has not typed a username.',
-      options: [
-        { id: 'required', label: 'Required' },
-        { id: 'preferred', label: 'Preferred' },
-        { id: 'discouraged', label: 'Discouraged' },
-      ],
+      options: authenticatorOptions('webauthn_resident_key'),
     },
     {
       name: 'require_passkey',
