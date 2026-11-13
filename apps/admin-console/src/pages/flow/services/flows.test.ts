@@ -5,6 +5,7 @@ import {
   createSpec,
   deleteDialog,
   deleteOutcome,
+  flowSaveRequest,
   promoteDialog,
   promoteOutcome,
   flowRows,
@@ -152,5 +153,27 @@ describe('promoteDialog and promoteOutcome', () => {
     expect(promoteOutcome('staff', problemResult(412, 'about:blank')).done).toBe(false);
     expect(promoteOutcome('staff', problemResult(412, 'about:blank')).text).toMatch(/changed/u);
     expect(promoteOutcome('staff', problemResult(404, 'about:blank')).text).toMatch(/no longer/u);
+  });
+});
+
+describe('flowSaveRequest', () => {
+  it('trims the name and copies the steps, so what is sent is not what is edited', () => {
+    const steps = [PASSWORD, OTP];
+    const request = flowSaveRequest({ name: '  crew ', steps });
+    expect(request).toEqual({ name: 'crew', steps: [PASSWORD, OTP] });
+    expect(request.steps).not.toBe(steps);
+  });
+});
+
+describe('the dialogs show the version they confirm', () => {
+  it('names the steps the flow holds now, from the fresh read', () => {
+    expect(promoteDialog({ ...STAFF, steps: [] }).consequence).toMatch(/No steps/u);
+    expect(deleteDialog(STAFF)?.consequence).toMatch(/1 step: password/u);
+  });
+
+  it('words a changed flow for a delete as for a promotion', () => {
+    const stale = problemResult(412, 'about:blank');
+    expect(deleteOutcome('staff', stale).text).toMatch(/changed since/u);
+    expect(promoteOutcome('staff', stale).text).toMatch(/changed since/u);
   });
 });

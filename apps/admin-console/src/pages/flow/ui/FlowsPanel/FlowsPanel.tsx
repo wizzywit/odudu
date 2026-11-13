@@ -75,6 +75,7 @@ function DeleteDialog({ page }: { page: Panel }) {
       confirmLabel={dialog?.confirmLabel ?? ''}
       tone={dialog?.tone ?? 'danger'}
       busy={action.busy}
+      held={action.held}
       problem={action.problem}
       onConfirm={() => {
         action.confirm().catch(() => undefined);

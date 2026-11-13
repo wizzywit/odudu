@@ -115,11 +115,19 @@ export function createSpec(name: string): CreateSpec {
   };
 }
 
+const STALE =
+  'The flow changed since it was read, so nothing was changed. Its steps are shown again: confirm once more if it is still what you mean.';
+
+// What the flow holds now, so the confirmation is of the version it names.
+function holds(flow: FlowWire): string {
+  return `It holds ${stepSummary(flow.steps)}.`;
+}
+
 export function deleteDialog(flow: FlowWire | null): NamedDialog | null {
   if (flow === null) return null;
   return {
     title: `Delete ${flow.name}?`,
-    consequence: 'The flow and its steps are removed for good.',
+    consequence: `The flow and its steps are removed for good. ${holds(flow)}`,
     confirmLabel: `Delete ${flow.name}`,
     tone: 'danger',
   };
@@ -139,7 +147,7 @@ export function deleteOutcome(name: string, result: GatewayResult<unknown>): Rem
   return removalOutcome(
     result,
     { doneText: `${name} was deleted.`, alreadyGoneText: `${name} was already deleted.` },
-    { name, verb: 'deleted', lookAt: 'the flows' },
+    { name, verb: 'deleted', lookAt: 'the flows', stale: STALE },
   );
 }
 
@@ -167,8 +175,7 @@ export function explainFlowSave(
 export function promoteDialog(flow: FlowWire): NamedDialog {
   return {
     title: `Make ${flow.name} the default?`,
-    consequence:
-      'Every sign-in that names no flow runs it from now on, and a sign-in already under way takes its next step from it. The current default stays as an ordinary flow, which can then be deleted.',
+    consequence: `Every sign-in that names no flow runs it from now on, and a sign-in already under way takes its next step from it. The current default stays as an ordinary flow, which can then be deleted. ${holds(flow)}`,
     confirmLabel: 'Make default',
     tone: 'primary',
   };
@@ -182,7 +189,7 @@ export function promoteOutcome(name: string, result: GatewayResult<unknown>): Re
       name,
       verb: 'made the default',
       lookAt: 'the flows',
-      stale: 'The flow changed since it was read, so nothing was changed. Read the list again.',
+      stale: STALE,
       missing: `${name} is no longer a flow of this tenant.`,
     }),
   };
@@ -194,9 +201,30 @@ export interface AskedAction {
 }
 
 // The confirmation an asked action needs, or none while nothing is asked.
-export function askedDialog(asked: AskedAction | null): NamedDialog | null {
+export function askedDialog(
+  asked: AskedAction | null,
+  current: FlowWire | undefined,
+): NamedDialog | null {
   if (asked === null) return null;
-  return asked.action === 'delete' ? deleteDialog(asked.flow) : promoteDialog(asked.flow);
+  const flow = current ?? asked.flow;
+  return asked.action === 'delete' ? deleteDialog(flow) : promoteDialog(flow);
+}
+
+// What the confirmation says while the flow it binds to is not read.
+export function askedReadProblem(status: string): string | null {
+  switch (status) {
+    case 'failed':
+      return 'The flow could not be read, so it cannot be confirmed. Close this and try again.';
+    case 'missing':
+      return 'This flow no longer exists. Close this and read the list again.';
+    default:
+      return null;
+  }
+}
+
+// The request a flow's name and steps make, as the server takes it.
+export function flowSaveRequest(values: { name: string; steps: readonly Step[] }): SaveFlowRequest {
+  return { name: values.name.trim(), steps: [...values.steps] };
 }
 
 export function askedOutcome(asked: AskedAction, result: GatewayResult<unknown>): RemovalOutcome {
