@@ -141,12 +141,12 @@ curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" 
  role_composites               |  8
  roles                         |  8
  audit_events                  |  5
- authentication_executions     |  4
  client_oidc_config            |  2
  clients                       |  2
  subjects                      |  2
  authentication_sessions       |  1
  authorization_codes           |  1
+ flows                         |  1
  sessions                      |  1
  signing_keys                  |  1
  token_grants                  |  1
@@ -208,7 +208,6 @@ protocol/openid-connect/certs            404
 -------------------------------+---
  action_tokens                 | 0
  audit_events                  | 0
- authentication_executions     | 0
  authentication_sessions       | 0
  authorization_codes           | 0
  backchannel_logout_deliveries | 0
@@ -226,6 +225,7 @@ protocol/openid-connect/certs            404
  console_logins                | 0
  console_sessions              | 0
  email_outbox                  | 0
+ flows                         | 0
  group_roles                   | 0
  groups                        | 0
  login_failures                | 0

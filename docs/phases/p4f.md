@@ -878,3 +878,44 @@ migration back, which is what the order is for. `docs/NEXT.md` and `RELEASING.md
 ### Open placements
 
 - None.
+
+## Increment 13a: the flow model
+
+### What shipped
+
+A tenant's sign-in steps are now a `flows` row, not rows of `authentication_executions` (migration 0137). Nothing a person or an
+operator can see changes: no route, page, setting or CLI command moved, so there is no changelog line and no transcript of a new
+route. Two transcripts that print the old table's name or counts were corrected.
+
+### Ruling
+
+- **One source of truth.** `authentication_executions` is dropped in the same migration, after each tenant's rows are copied into its
+  default flow in `index` order. A tenant with no rows gets the flow a new tenant is provisioned with. The migration runs again to no
+  effect (the backfill is guarded on the old table's existence) and lifts and restores `FORCE ROW LEVEL SECURITY` for a schema owner
+  that is not exempt, tested by `migrate-backfill.int.test.ts` under such an owner.
+- **The table.** `flows (id, tenant_id, name, is_default, steps jsonb, created_at, updated_at)`, row-level security by hand-written
+  policy, `UNIQUE (tenant_id, name)` (which is also the list read's index), a partial unique index `flows_one_default` on `tenant_id`
+  where `is_default`, `name` 1 to 64 characters, `steps` an array of at most 20.
+- **A step** is `{authenticator, requirement}` and nothing else; `flowStepsSchema` is strict, at most `MAX_FLOW_STEPS` (20), and the
+  repository parses with it on read and write. `registeredFlowStepsSchema` adds the registry check for a writer; the repository cannot
+  import the registry (it lives in the executor), so a stored unknown name fails when the executor dispatches it, as before.
+- **`resolveFlow(tenantFlows, clientOverride)`** is pure. No override gives the tenant's default; an override that names no flow of the
+  tenant is `{kind: 'unknown_flow'}`, never the default; a tenant with no default and no override is `{kind: 'no_default'}`. The
+  executor passes no override yet and treats `no_default` as an empty flow (the sign-in fails closed, as an empty list did).
+- **Sign-in in flight.** `authentication_sessions.satisfied` holds authenticator names, never execution ids, so a session open across
+  the migration resumes: the backfill test seeds one with `satisfied = {password}` and the migrated steps give the next step.
+- **Admin surface unchanged.** `GET`/`PUT /flow/executions`, tenant export and import read and write the default flow's steps through
+  `flowRepository`; the wire shape derives `index` from array position. The advisory lock is keyed on `flows`.
+
+### At volume
+
+- A sign-in step sent one `authentication_executions` query (up to four rows) before; it sends one `flows` query after, served by
+  the `(tenant_id, name)` index and bounded by `LIMIT MAX_FLOWS_PER_TENANT` (20, the cap the flow CRUD will enforce), holding at most
+  20 steps each. The count of queries per step is unchanged.
+- The default-flow read by `defaultForTenant` is one indexed row through `flows_one_default`.
+
+### Open placements
+
+- The flow CRUD, console, CLI and audit, and moving the authenticator settings onto steps, are Increment 13b; the client `flow_id` and
+  the `/authorize` resolution are 13c. The two transcripts edited here were corrected by hand from the new schema, not re-run on a
+  live stack.

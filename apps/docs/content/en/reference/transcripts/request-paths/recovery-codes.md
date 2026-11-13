@@ -511,8 +511,11 @@ application is what shows the warning to the person.
 ```bash
 docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
-  "SELECT index, authenticator, requirement FROM authentication_executions e
-     JOIN tenants r ON r.id = e.tenant_id WHERE r.name = 'otp-demo' ORDER BY index;"
+  "SELECT e.position - 1 AS index, e.step->>'authenticator' AS authenticator,
+          e.step->>'requirement' AS requirement
+     FROM flows f JOIN tenants r ON r.id = f.tenant_id,
+          jsonb_array_elements(f.steps) WITH ORDINALITY AS e(step, position)
+    WHERE r.name = 'otp-demo' AND f.is_default ORDER BY e.position;"
 ```
 
 ```

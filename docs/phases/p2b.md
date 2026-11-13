@@ -595,7 +595,7 @@ package and gives the two-factor login journey Task 9's own note pointed
 at somewhere to land.
 
 Migration 0031 adds
-`authentication_executions`: one flat, ordered list per tenant (`id`,
+`authentication_executions` (replaced by the `flows` table in migration 0137): one flat, ordered list per tenant (`id`,
 `tenant_id`, `index`, `authenticator`, `requirement`), `requirement`
 constrained to `required`/`alternative`/`conditional`/`disabled` and
 `(tenant_id, index)` unique. `@odudu/authn-flows` gained
