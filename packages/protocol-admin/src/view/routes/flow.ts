@@ -3,7 +3,12 @@ import {
   replaceExecutionsRequestSchema,
   saveFlowRequestSchema,
 } from '@odudu/contracts/admin';
-import { isForeignKeyViolation, isUniqueViolation, type Database } from '@odudu/db';
+import {
+  isForeignKeyViolation,
+  isUniqueViolation,
+  violatedConstraint,
+  type Database,
+} from '@odudu/db';
 import {
   amendFlow,
   createFlow,
@@ -289,6 +294,9 @@ export function amendFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
   };
 }
 
+// Named by migration 0138: the key a client's `flow_id` holds into `flows`.
+const CLIENT_FLOW_FK = 'client_oidc_config_flow_fk';
+
 export function deleteFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const id = flowId(request, 'DELETE');
@@ -310,7 +318,8 @@ export function deleteFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
       );
     } catch (error) {
       // A client pointed at the flow after the count was taken.
-      if (!isForeignKeyViolation(error)) throw error;
+      if (!isForeignKeyViolation(error) || violatedConstraint(error) !== CLIENT_FLOW_FK)
+        throw error;
       outcome = { kind: 'in_use', count: 0, sample: [] };
     }
     if (outcome.kind === 'not_found') return sendProblem(reply, request, flowNotFound(id));

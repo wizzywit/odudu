@@ -569,9 +569,7 @@ async function flowSteps(
   tenantId: string,
   flowId: string | null,
 ): Promise<readonly FlowStep[]> {
-  const flows = flowRepository(tx);
-  const found =
-    flowId === null ? await flows.defaultForTenant(tenantId) : await flows.byId(tenantId, flowId);
+  const found = await flowRepository(tx).forSignIn(tenantId, flowId);
   const resolved = resolveFlow(found === null ? [] : [found], flowId);
   return resolved.kind === 'ok' ? resolved.flow.steps : [];
 }

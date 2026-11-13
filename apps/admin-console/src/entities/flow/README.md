@@ -15,5 +15,5 @@ in the console's cache.
 The wire's field names are kept (`is_default`, `client_count`).
 
 Imports `shared` only. Creating, editing, deleting and promoting a flow are
-`pages/flow`'. `use-cases/flowList.ts` only re-exports, so other slices reach
-the repository and the adapter through a use-case, as the layering requires.
+`pages/flow`'s. The index exports use-cases, services and types only: the list read is
+`useFlowsRecord` and the lookup of a flow by name is `useFlowLookup`.

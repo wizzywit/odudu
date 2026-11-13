@@ -1,4 +1,4 @@
-import { flowRecordName, FLOWS_RECORD, readFlows, useFlowsRecord } from '#/entities/flow';
+import { flowRecordName, FLOWS_RECORD, useFlowLookup, useFlowsRecord } from '#/entities/flow';
 import type { FlowWire, SaveFlowRequest } from '#/pages/flow/types/flows';
 import {
   createFlow,
@@ -18,20 +18,8 @@ import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';
 import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
 import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
 import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
-import { useTransport } from '#/shared/api/transport/useTransport';
 
 export { useFlowsRecord };
-
-// For a creation whose answer was lost: the flow of that name, if the tenant has it.
-async function findFlow(
-  gateway: Gateway,
-  tenant: string,
-  name: string,
-): Promise<GatewayResult<FlowWire | null>> {
-  const result = await readFlows(gateway, tenant);
-  if (!result.ok) return result;
-  return { ...result, data: result.data.items.find((flow) => flow.name === name) ?? null };
-}
 
 export function useFlowById(tenant: string, id: string, enabled = true): RecordState<FlowWire> {
   return useRecord({
@@ -64,7 +52,7 @@ export interface CreateFlow {
 }
 
 export function useCreateFlow(tenant: string): CreateFlow {
-  const { gateway } = useTransport();
+  const lookup = useFlowLookup();
   const after = useAfterFlowsChange(tenant, null, FLOWS_ONLY);
   const create = useWrite({
     send: async (gateway, body: SaveFlowRequest) => after(await createFlow(gateway, tenant, body)),
@@ -73,8 +61,7 @@ export function useCreateFlow(tenant: string): CreateFlow {
   return {
     busy: create.busy || fresh.pending,
     create: create.run,
-    find: (name) =>
-      fresh.read(findKey(tenant, 'flows', name), () => findFlow(gateway, tenant, name)),
+    find: (name) => fresh.read(findKey(tenant, 'flows', name), () => lookup(tenant, name)),
   };
 }
 

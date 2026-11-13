@@ -111,6 +111,11 @@ export function flowRepository(tx: TenantScopedDatabase) {
       return rows.length > 0;
     },
 
+    // The flow a sign-in runs: the one named, else the tenant's default.
+    async forSignIn(tenantId: string, flowId: string | null): Promise<Flow | null> {
+      return flowId === null ? this.defaultForTenant(tenantId) : this.byId(tenantId, flowId);
+    },
+
     async defaultForTenant(tenantId: string): Promise<Flow | null> {
       const [row] = await tx
         .select()

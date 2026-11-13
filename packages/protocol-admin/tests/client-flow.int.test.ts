@@ -218,7 +218,43 @@ describe('deleting a flow a client names', () => {
     expect((await s.del(staff.id)).statusCode).toBe(204);
   });
 
-  it('cannot leave a dangling reference when a client is pointed while the flow is deleted', async () => {
+  async function waitFor(event: string): Promise<void> {
+    for (let tries = 0; tries < 200; tries += 1) {
+      const waiting = await fixture.owner.sql`
+        select 1 from pg_stat_activity
+        where wait_event = ${event} and datname = current_database() and pid <> pg_backend_pid()`;
+      if (waiting.length > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    const all = await fixture.owner
+      .sql`select wait_event, left(query, 90) as q from pg_stat_activity where datname = current_database() and state <> 'idle'`;
+    throw new Error(`nothing waited on ${event}: ${JSON.stringify(all)}`);
+  }
+
+  it('through the routes: a deletion waits for the PATCH that is pointing a client, then counts it', async () => {
+    const s = await setup();
+    const staff = await s.flow('staff');
+    const created = (await s.createClient()).json<{ id: string }>();
+
+    let patch: Promise<LightMyRequestResponse> | undefined;
+    let deletion: Promise<LightMyRequestResponse> | undefined;
+    await fixture.owner.sql.begin(async (sql) => {
+      // Holds the config row, so the PATCH passes the flow check, and with it the
+      // tenant's flow lock, then waits at its write.
+      await sql`select 1 from client_oidc_config where client_id = ${created.id} for update`;
+      patch = s.patch(created.id, { flow_id: staff.id });
+      await waitFor('transactionid');
+      deletion = s.del(staff.id);
+      await waitFor('advisory');
+    });
+    expect((await patch)?.statusCode).toBe(200);
+    const res = await deletion;
+    expect(res?.statusCode, res?.body).toBe(409);
+    expect(res?.json<Refusal>().detail).toContain('named by 1 client');
+    expect((await s.read(created.id)).json()).toMatchObject({ flow_id: staff.id });
+  });
+
+  it('backstop: a write that skips the lock is refused by the foreign key, answered flow-in-use', async () => {
     const s = await setup();
     const staff = await s.flow('staff');
     const created = (await s.createClient()).json<{ id: string }>();
@@ -228,7 +264,7 @@ describe('deleting a flow a client names', () => {
       await sql`update client_oidc_config set flow_id = ${staff.id} where client_id = ${created.id}`;
       deletion = s.del(staff.id);
       for (let tries = 0; tries < 100; tries += 1) {
-        const waiting = await sql`
+        const waiting = await fixture.owner.sql`
           select 1 from pg_stat_activity where wait_event_type = 'Lock' and datname = current_database()`;
         if (waiting.length > 0) break;
         await new Promise((resolve) => setTimeout(resolve, 50));

@@ -1035,6 +1035,15 @@ null`, which the query-plan check's foreign-key rule accepts as a probe of the k
 - **`GET /flows`.** Each item gains `client_count`, from one grouped read over the index that holds only clients that name a flow, at
   most 20 groups; it is outside a single flow's `ETag`.
 
+- **Race tests.** `client-flow.int.test.ts` holds a real `PATCH` of `flow_id` at its write, under the tenant's flow lock, while a `DELETE`
+  waits on that lock; the deletion then counts the client and answers `flow-in-use` with the count (the lock path). A second test writes
+  `flow_id` with owner SQL, skipping the lock, and shows only the foreign key backstop: the deletion waits on the row, then `23503`, mapped
+  to `409` for that constraint alone (`client_oidc_config_flow_fk`), with the generic sentence.
+- **Who sees the `client_id`s.** `flow-in-use` names up to ten `client_id`s to a holder of `manage-tenant`, who may lack `manage-clients`.
+  Kept: a `client_id` is a public identifier, present in every authorization URL, so it discloses nothing the client does not publish.
+- **Reference pages.** `MAX_TABLE_ROWS` in `apps/docs/scripts/openapi-pages.ts` went from 60 to 55: the client record gained a field and
+  one generated page reached 71 table rows against the test's bound of 70.
+
 ### At volume
 
 - Resolving the flow for a sign-in step is one `flows` query either way: the default by `flows_one_default`, or the named flow by its
@@ -1045,5 +1054,5 @@ null`, which the query-plan check's foreign-key rule accepts as a probe of the k
 ### Open placements
 
 - A tenant export carries the default flow only, so a client's `flow_id`, and every other flow, are not exported and an import restores
-  neither: `docs/NEXT.md`, "Decisions still open", for the owner to place.
+  neither. P7 takes it with the document's move between installations (roadmap, section 11 and `docs/NEXT.md` name it).
 - The per-step authenticator settings of 7c move onto steps in a following part.

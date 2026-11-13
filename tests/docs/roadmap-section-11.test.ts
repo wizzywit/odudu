@@ -363,6 +363,11 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ],
     ['Localization has its catalogue', ['P4h'], ['catalogue']],
     ['Tenant export and import carry no theme', ['P7'], ['published theme']],
+    [
+      'Tenant export and import carry the default flow only',
+      ['P7'],
+      ['sign-in flows beyond the default'],
+    ],
     ["The console's failure ID", ['P4h'], ['failure screen']],
     ['A passage in another language', ['P4h'], ['language of their own']],
     ['No scope means anything', ['P9'], ['resource server as a first-class thing']],
