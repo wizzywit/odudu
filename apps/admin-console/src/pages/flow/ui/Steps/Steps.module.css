@@ -52,6 +52,16 @@
   font-size: var(--type-13);
 }
 
+.settings {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+  padding-block-start: var(--space-2);
+  border-block-start: var(--hairline);
+}
+
 .moves {
   display: flex;
   gap: var(--space-1);

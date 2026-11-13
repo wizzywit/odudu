@@ -69,7 +69,7 @@ describe('flowStepsSchema', () => {
   });
 
   it('refuses a key a step does not have, and a requirement outside the four', () => {
-    expect(flowStepsSchema.safeParse([{ ...step, settings: {} }]).success).toBe(false);
+    expect(flowStepsSchema.safeParse([{ ...step, colour: 'red' }]).success).toBe(false);
     expect(flowStepsSchema.safeParse([{ ...step, requirement: 'sometimes' }]).success).toBe(false);
     expect(
       flowStepsSchema.safeParse([{ authenticator: '', requirement: 'required' }]).success,
@@ -80,5 +80,76 @@ describe('flowStepsSchema', () => {
     const schema = registeredFlowStepsSchema(['password']);
     expect(schema.safeParse([step]).success).toBe(true);
     expect(schema.safeParse([{ ...step, authenticator: 'bogus' }]).success).toBe(false);
+  });
+});
+
+describe('flowStepsSchema settings', () => {
+  const otp = { authenticator: 'otp', requirement: 'required' } as const;
+
+  it('accepts the settings an authenticator reads', () => {
+    expect(
+      flowStepsSchema.safeParse([
+        { ...otp, settings: { algorithm: 'SHA256', digits: 8, period: 60 } },
+        {
+          authenticator: 'passkey',
+          requirement: 'alternative',
+          settings: { user_verification: 'preferred', resident_key: 'discouraged' },
+        },
+        { authenticator: 'recovery-code', requirement: 'conditional', settings: { count: 12 } },
+        { ...otp, authenticator: 'recovery-code', settings: {} },
+      ]).success,
+    ).toBe(true);
+  });
+
+  it('refuses a setting another authenticator reads, and any on one that reads none', () => {
+    expect(flowStepsSchema.safeParse([{ ...otp, settings: { count: 10 } }]).success).toBe(false);
+    expect(
+      flowStepsSchema.safeParse([
+        { authenticator: 'password', requirement: 'required', settings: { digits: 6 } },
+      ]).success,
+    ).toBe(false);
+    expect(
+      flowStepsSchema.safeParse([
+        { authenticator: 'password', requirement: 'required', settings: {} },
+      ]).success,
+    ).toBe(false);
+  });
+
+  it('holds each value to the choices and range of the tenant setting', () => {
+    const refused = (settings: Record<string, unknown>) =>
+      flowStepsSchema.safeParse([{ ...otp, settings }]).success;
+    expect(refused({ algorithm: 'MD5' })).toBe(false);
+    expect(refused({ digits: 7 })).toBe(false);
+    expect(refused({ period: 45 })).toBe(false);
+    expect(refused({ unknown: 1 })).toBe(false);
+    expect(
+      flowStepsSchema.safeParse([
+        { authenticator: 'recovery-code', requirement: 'required', settings: { count: 7 } },
+      ]).success,
+    ).toBe(false);
+    expect(
+      flowStepsSchema.safeParse([
+        { authenticator: 'recovery-code', requirement: 'required', settings: { count: 17 } },
+      ]).success,
+    ).toBe(false);
+  });
+
+  it('holds the recovery set size to 8 and 16 inclusive', () => {
+    const count = (value: number) =>
+      flowStepsSchema.safeParse([
+        { authenticator: 'recovery-code', requirement: 'required', settings: { count: value } },
+      ]).success;
+    expect([count(7), count(8), count(16), count(17)]).toEqual([false, true, true, false]);
+  });
+
+  it('reads no settings for a name an object inherits', () => {
+    const named = (authenticator: string) =>
+      flowStepsSchema.safeParse([{ authenticator, requirement: 'required', settings: {} }]).success;
+    expect(named('constructor')).toBe(false);
+    expect(named('toString')).toBe(false);
+    expect(
+      flowStepsSchema.safeParse([{ authenticator: 'constructor', requirement: 'required' }])
+        .success,
+    ).toBe(true);
   });
 });

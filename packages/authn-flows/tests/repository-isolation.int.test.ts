@@ -317,4 +317,35 @@ describe('authenticationSessionRepository', () => {
       },
     });
   });
+
+  it('cannot record a TOTP offer on an authentication session of another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const id = newId();
+        await authenticationSessionRepository(tx).create({
+          id,
+          tenantId,
+          pendingRequest: PENDING_REQUEST,
+          expiresAt: new Date(Date.now() + 600_000),
+        });
+        return id;
+      },
+      verifySeeded: async (tx, id) => {
+        const found = await authenticationSessionRepository(tx).byId(id);
+        expect(found?.pendingRequest.totpOffers).toBeUndefined();
+      },
+      attempt: async (tx, id) => {
+        await authenticationSessionRepository(tx).recordTotpOffer(id, { digits: 8 });
+        return (await authenticationSessionRepository(tx).byId(id))?.pendingRequest.totpOffers;
+      },
+      expectBlocked: (result) => {
+        expect(result).toBeUndefined();
+      },
+      verifyTenantAUnaffected: async (tx, id) => {
+        const found = await authenticationSessionRepository(tx).byId(id);
+        expect(found?.pendingRequest.totpOffers).toBeUndefined();
+      },
+    });
+  });
 });

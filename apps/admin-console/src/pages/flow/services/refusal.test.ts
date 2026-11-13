@@ -62,6 +62,19 @@ describe('flowOutcome', () => {
     );
   });
 
+  it('names the step whose settings its authenticator does not read', () => {
+    const text = said(
+      outcome(
+        bad('about:blank#flow-step-settings', [
+          { path: '[1].settings', message: 'this authenticator reads no settings' },
+        ]),
+      ),
+    );
+    expect(text).toBe(
+      '“password” carries settings it does not read. Set them back to the tenant’s value.',
+    );
+  });
+
   it('names the step a repeat is, from its path in what was sent', () => {
     const text = said(
       outcome(

@@ -1922,8 +1922,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'the tenant has (`#flow-name-taken`), or a tenant that already holds 20 flows ' +
       '(`#flow-limit`). A step list is refused with the `400` types of `PUT ' +
       '/flow/executions`; the unknown and the repeated authenticator carry `errors[]` ' +
-      'naming the step as `steps[N].authenticator`, the others none. Answers an ' +
-      '`ETag`.',
+      'naming the step as `steps[N].authenticator`, a step\u2019s unread `settings` as ' +
+      '`steps[N].settings`, the others none. Answers an `ETag`.',
   },
   {
     method: 'GET',
@@ -1991,7 +1991,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'where every step is disabled (`#flow-no-enabled-step`), a list nothing in which can start a ' +
       'login (`#flow-no-first-challenge`), an authenticator name the registry does not resolve ' +
       '(`#flow-unknown-authenticator`), or the same authenticator named twice ' +
-      '(`#flow-duplicate-authenticator`); the last two carry `errors[]` naming the step. ' +
+      '(`#flow-duplicate-authenticator`), or a step whose `settings` its authenticator does not ' +
+      'read (`#flow-step-settings`); the last three carry `errors[]` naming the step. ' +
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
   // Read-only: view-audit carries no manage- counterpart, since nothing

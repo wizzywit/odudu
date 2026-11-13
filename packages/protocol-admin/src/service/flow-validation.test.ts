@@ -72,3 +72,46 @@ describe('validateFlowSteps, given the same authenticator twice', () => {
     expect(outcome.kind).toBe('unresolvable_authenticator');
   });
 });
+
+describe('validateFlowSteps settings', () => {
+  it('refuses settings on an authenticator that reads none, and one it does not read', () => {
+    expect(
+      validateFlowSteps(
+        [{ authenticator: 'password', requirement: 'required', settings: { digits: 8 } }],
+        KNOWN,
+      ),
+    ).toEqual({ kind: 'unread_settings', name: 'password', keys: ['digits'], read: [] });
+    expect(
+      validateFlowSteps(
+        [
+          { authenticator: 'password', requirement: 'required' },
+          { authenticator: 'otp', requirement: 'required', settings: { count: 9, digits: 8 } },
+        ],
+        KNOWN,
+      ),
+    ).toEqual({
+      kind: 'unread_settings',
+      name: 'otp',
+      keys: ['count'],
+      read: ['algorithm', 'digits', 'period'],
+    });
+  });
+
+  it('accepts the settings an authenticator reads', () => {
+    const steps = [
+      { authenticator: 'password', requirement: 'required' as const },
+      { authenticator: 'otp', requirement: 'required' as const, settings: { digits: 8 as const } },
+      { authenticator: 'recovery-code', requirement: 'conditional' as const, settings: {} },
+    ];
+    expect(validateFlowSteps(steps, KNOWN)).toEqual({ kind: 'ok' });
+  });
+
+  it('treats an inherited object name as an authenticator that reads nothing', () => {
+    expect(
+      validateFlowSteps(
+        [{ authenticator: 'constructor', requirement: 'required', settings: {} }],
+        ['constructor'],
+      ),
+    ).toEqual({ kind: 'unread_settings', name: 'constructor', keys: [], read: [] });
+  });
+});

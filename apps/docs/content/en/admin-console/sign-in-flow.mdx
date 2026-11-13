@@ -1,6 +1,6 @@
 ---
 title: Sign-in flow in the console
-description: Choose what a person is asked at sign-in and in what order, keep other flows beside the default, and make a one-time password mandatory for everyone.
+description: Choose what a person is asked at sign-in and in what order, keep other flows beside the default, set what each step enrols with, and make a one-time password mandatory for everyone.
 sidebar_position: 9
 ---
 
@@ -12,7 +12,7 @@ When a person signs in, Odudu asks them for something, then perhaps for somethin
 
 <ConsoleShot
   name="flow"
-  alt="The Sign-in flow page: four steps in order, passkey, password, otp and recovery-code, each with a requirement menu and Up and Down buttons."
+  alt="The Sign-in flow page: four steps in order, passkey, password, otp and recovery-code, each with a requirement menu and Up and Down buttons, and the passkey, otp and recovery-code steps with their own settings, each starting at the tenant setting."
   caption="The steps a person is asked, in order, each with its requirement."
 />
 
@@ -55,6 +55,18 @@ The steps above are those of the tenant's default flow, which every sign-in runs
 - **Edit** opens the flow. Its name and its steps are changed together, in the same way as the steps above, and **Save Steps** replaces both at once. Another flow's name is refused with the name it belongs to. The default flow can be renamed and its steps changed here too; it stays the default.
 - **Delete** removes a flow after you confirm. This and **Make default** read the flow when the confirmation opens and say what it holds then; if another administrator changes it before you confirm, nothing is changed and the confirmation shows the new version to confirm again. The default flow has no **Delete**: a sign-in that names no flow runs it, so make another flow the default first. A flow some client runs is not deleted either: the dialog says how many clients use it, and the refusal asks you to choose another **Sign-in flow** for each first.
 - **Make default** on any other row asks you to confirm, then makes that flow the tenant's default. The flow that was the default becomes an ordinary one, which can then be deleted. Every sign-in that names no flow runs the new default from then on, and a sign-in already under way takes its next step from it. A client that chose a flow by name stays on it; a client left on **Tenant default** follows the new default.
+
+## Authenticator settings on a step
+
+The enrolment settings under **Authenticators** in [Settings](./settings.mdx#authenticators) are the tenant's. A step of an authenticator that has settings can override them for itself, so one flow can ask for 8-digit codes while the rest of the tenant keeps 6. Under each such step the editor shows its controls, each starting at **Tenant setting** with the tenant's value beside it:
+
+- **otp**: **Algorithm**, **Code length** and **Code period**.
+- **passkey**: **User verification** and **Stored on the device**.
+- **recovery-code**: **Codes in a set**.
+
+A control left at **Tenant setting** takes whatever the tenant's setting is, now and later. Choosing another value names it for the step, and **Save Steps** saves it with the order. Another step, such as the password, has none.
+
+A person who enrols during a sign-in is enrolled under the flow that sign-in runs: the flow the client chose, else the default. An authenticator app, passkey or set of recovery codes made earlier keeps the values it was made with, so saving a flow strands nobody and changes the next enrolment only. A disabled step is not run, so the settings it names are not used. The values are held to the same choices and range as the tenant's own settings; the API refuses settings on a step whose authenticator reads none.
 
 ## Passkeys
 

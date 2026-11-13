@@ -683,9 +683,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // One definition for both doors onto the enrolment page: the login
     // submission that discovers the action is owed, and the enrolment
     // submission that has to re-render it after a wrong code.
-    const startTotpEnrolment = (tenantName: string, tenantId: string, subjectId: string) =>
+    const startTotpEnrolment = (
+      tenantName: string,
+      tenantId: string,
+      subjectId: string,
+      authSessionId: string,
+    ) =>
       withTenant(deps.database.db, tenantId, (tx) =>
-        beginTotpEnrolment(tx, tenantId, tenantName, subjectId),
+        beginTotpEnrolment(tx, tenantId, tenantName, subjectId, authSessionId),
       );
 
     // One definition for the same two doors: the login that discovers the
@@ -693,6 +698,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const startRecoveryCodes = (
       tenantId: string,
       subjectId: string,
+      authSessionId: string,
       request: RequestContext,
       askFirst = false,
     ) =>
@@ -703,6 +709,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           beginRecoveryCodes(tx, {
             tenantId,
             subjectId,
+            authSessionId,
             askFirst,
             now: clock.now(),
             ...(deps.resolveMailLook === undefined

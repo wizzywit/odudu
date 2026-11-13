@@ -6,7 +6,12 @@ import { type MailLookResolver } from '@odudu/email';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
-import { tenantSettingsRepository } from '#/repository/tenant-settings';
+import {
+  confirmedTotpParameters,
+  enrolmentPolicy,
+  forgetTotpOffers,
+  rememberTotpOffer,
+} from '#/usecase/enrolment-policy';
 import { noticeOwnChange } from '#/usecase/own-change-notice';
 import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
 import { OTP } from '#/service/authenticators/names';
@@ -26,10 +31,12 @@ export async function beginTotpEnrolment(
   tenantId: string,
   tenantName: string,
   subjectId: string,
+  authSessionId?: string,
 ): Promise<TotpEnrolmentOffer> {
   const user = await userRepository(tx).bySubjectId(subjectId);
-  const { totp } = await tenantSettingsRepository(tx).authenticatorPolicy(tenantId);
+  const { totp } = await enrolmentPolicy(tx, tenantId, authSessionId);
   const secret = generateTotpSecret();
+  await rememberTotpOffer(tx, authSessionId, secret, totp);
   return {
     secret,
     uri: totpEnrolmentUri({
@@ -73,7 +80,7 @@ export async function completeTotpEnrolment(
   }
   if (!isTotpSecretShape(input.secret)) return { kind: 'rejected', reason: 'invalid_code' };
 
-  const { totp } = await tenantSettingsRepository(tx).authenticatorPolicy(input.tenantId);
+  const totp = await confirmedTotpParameters(tx, input.tenantId, input.authSessionId, input.secret);
   const made: TotpSecret = {
     kind: 'totp',
     secret: input.secret,
@@ -104,6 +111,7 @@ export async function completeTotpEnrolment(
     secret: { ...made, lastStep: verified.step },
   });
   await authenticationSessionRepository(tx).recordSatisfied(input.authSessionId, OTP);
+  await forgetTotpOffers(tx, input.authSessionId);
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-totp');
   const notice = await noticeOwnChange(
     tx,

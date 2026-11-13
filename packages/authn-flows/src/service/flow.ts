@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { flowStepSettingsSchema, settingKeysOf } from '@odudu/contracts/admin';
 import { type Flow, REQUIREMENTS } from '#/schema/flow';
 
 export const MAX_FLOW_STEPS = 20;
@@ -6,10 +7,27 @@ export const MAX_FLOWS_PER_TENANT = 20;
 export const MAX_FLOW_NAME_LENGTH = 64;
 export const DEFAULT_FLOW_NAME = 'default';
 
-export const flowStepSchema = z.strictObject({
-  authenticator: z.string().min(1).max(64),
-  requirement: z.enum(REQUIREMENTS),
-});
+// Whether `settings` names only keys the step's authenticator reads. An
+// authenticator that reads none takes no `settings` at all, an empty one included.
+export function settingsFitAuthenticator(step: {
+  authenticator: string;
+  settings?: object | undefined;
+}): boolean {
+  if (step.settings === undefined) return true;
+  const allowed: readonly string[] = settingKeysOf(step.authenticator);
+  if (allowed.length === 0) return false;
+  return Object.keys(step.settings).every((key) => allowed.includes(key));
+}
+
+export const flowStepSchema = z
+  .strictObject({
+    authenticator: z.string().min(1).max(64),
+    requirement: z.enum(REQUIREMENTS),
+    settings: flowStepSettingsSchema.optional(),
+  })
+  .refine(settingsFitAuthenticator, {
+    message: 'a step carries settings its authenticator does not read',
+  });
 
 export const flowStepsSchema = z.array(flowStepSchema).max(MAX_FLOW_STEPS);
 

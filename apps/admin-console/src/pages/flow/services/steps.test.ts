@@ -5,7 +5,9 @@ import {
   canMove,
   chosenAddition,
   describeSteps,
+  flowStepsOf,
   moved,
+  settingsSummary,
   stepsOf,
   withRequirement,
   type Step,
@@ -28,6 +30,42 @@ describe('stepsOf', () => {
       { authenticator: 'passkey', requirement: 'alternative' },
       { authenticator: 'password', requirement: 'required' },
     ]);
+  });
+});
+
+describe('settings carried by a step', () => {
+  it('stays on the step through stepsOf and flowStepsOf, and is absent where there is none', () => {
+    const settings = { digits: 8 as const };
+    expect(
+      stepsOf([
+        { index: 0, authenticator: 'password', requirement: 'required' },
+        { index: 1, authenticator: 'otp', requirement: 'required', settings },
+      ]),
+    ).toEqual([
+      { authenticator: 'password', requirement: 'required' },
+      { authenticator: 'otp', requirement: 'required', settings },
+    ]);
+    expect(
+      flowStepsOf([{ authenticator: 'otp', requirement: 'required', settings }])[0],
+    ).toHaveProperty('settings', settings);
+    expect(
+      flowStepsOf([{ authenticator: 'password', requirement: 'required' }])[0],
+    ).not.toHaveProperty('settings');
+  });
+
+  it('is said in a conflict’s account of the order', () => {
+    expect(
+      describeSteps([{ authenticator: 'otp', requirement: 'required', settings: { digits: 8 } }]),
+    ).toBe('1 otp (required; digits 8)');
+  });
+
+  it('is kept by a move and a change of requirement', () => {
+    const flow: Step[] = [
+      { authenticator: 'password', requirement: 'required' },
+      { authenticator: 'otp', requirement: 'required', settings: { digits: 8 } },
+    ];
+    expect(moved(flow, 'otp', 'up')[0]?.settings).toEqual({ digits: 8 });
+    expect(withRequirement(flow, 'otp', 'conditional')[1]?.settings).toEqual({ digits: 8 });
   });
 });
 
@@ -107,5 +145,23 @@ describe('chosenAddition', () => {
     expect(chosenAddition(['otp', 'recovery-code'], 'recovery-code')).toBe('recovery-code');
     expect(chosenAddition(['otp', 'recovery-code'], 'password')).toBe('otp');
     expect(chosenAddition([], 'password')).toBe('');
+  });
+});
+
+describe('settingsSummary', () => {
+  it('lists what a step names, and nothing for a step that names none', () => {
+    expect(settingsSummary({ digits: 8, algorithm: 'SHA256' })).toBe('algorithm SHA256, digits 8');
+    expect(settingsSummary(undefined)).toBe('');
+    expect(settingsSummary({})).toBe('');
+  });
+});
+
+describe('describeSteps with a settings value that is not an object', () => {
+  it('says the step without it', () => {
+    expect(
+      describeSteps([{ authenticator: 'otp', requirement: 'required', settings: 'digits 8' }]),
+    ).toBe('1 otp (required)');
+    expect(settingsSummary('abc')).toBe('');
+    expect(settingsSummary(['a'])).toBe('');
   });
 });

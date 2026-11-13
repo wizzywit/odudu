@@ -1,4 +1,5 @@
 import { boolean, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { type FlowStepSettings } from '@odudu/contracts/admin';
 import { tenants } from '@odudu/db';
 
 export const REQUIREMENTS = ['required', 'alternative', 'conditional', 'disabled'] as const;
@@ -7,6 +8,9 @@ export type Requirement = (typeof REQUIREMENTS)[number];
 export interface FlowStep {
   authenticator: string;
   requirement: Requirement;
+  // What this step overrides of the tenant's authenticator settings; a key
+  // left out takes the tenant's value.
+  settings?: FlowStepSettings | undefined;
 }
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never

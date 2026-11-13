@@ -464,17 +464,49 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
 
 ## Increment 7c: per-step configuration
 
-Ruling: no code in this increment. A sign-in flow model does not exist yet
-(`git grep -n -i "flow_config\|authentication_flow" -- packages/db/src
-packages/domain-tenant/src` finds nothing), so there is no step to carry a
-setting. The authenticator settings stay on the tenant, where 7a put them, and
-increment 13b moves each of them onto the step it governs when it builds the
-flow model, with the tenant value as the default a step inherits. A tenant
-that never configures a step behaves as it does today.
+The flow model of increments 13a to 13c exists, so the settings go on the steps and the tenant keeps its own as the
+default a step inherits. A tenant that never configures a step behaves as it did.
+
+- **Shape.** A step may carry `settings`, a strict object of at most six optional keys. `otp` reads `algorithm`, `digits` and
+  `period`; `passkey` reads `user_verification` and `resident_key`; `recovery-code` reads `count`. The values are held to the
+  tenant settings' own choices and range: the tuples and `RECOVERY_CODE_COUNT_RANGE` in `packages/contracts/src/admin/settings.ts`
+  now feed `TENANT_SETTING_CHOICES`, `TENANT_SETTING_RANGES` and the step schema alike. `settingKeysOf` (`admin/flow.ts`, safe against inherited names) says which keys an authenticator reads, for the schema, the admin validation and the console.
+  The jsonb needs no migration; a step with no `settings` is stored and answered as before.
+- **Offer.** The TOTP page parks its offered parameters, with a digest of the secret, in the sign-in's `pendingRequest.totpOffers` (the latest three pages, cleared when one confirms); the
+  confirming code is judged by them and they are stored on the credential, so a flow or tenant save between page and code strands
+  nobody. A secret the page did not offer is judged by the policy now in force; nothing the browser posts chooses a parameter.
+- **Resolution.** `effectiveAuthenticatorPolicy(tenant, steps)` is a pure function in `packages/authn-flows/src/service/step-settings.ts`.
+  `enrolmentPolicy` reads the sign-in's parked `flowId`, the flow by the same single read the sign-in uses (`flowSteps`, moved out of
+  the executor), and the tenant's policy, and TOTP begin and complete, passkey begin and complete and recovery-set issue all take
+  it from there. Stored enrolments keep their own parameters; a flow save changes the next enrolment only.
+- **Admin.** `settings` is accepted and answered by `POST` and `PUT /flows`, `PUT /flow/executions` and the reads; a step whose
+  authenticator reads none of the keys it carries is refused with `400` `flow-step-settings`, naming `steps[N].settings`
+  (`[N].settings` for the default flow's route). A value outside the choices is the schema's own `400`. The audit rows of
+  `flow.create`, `flow.amend` and `flow.replace` carry the steps, settings included. MCP `get_flow`, `list_flows` and `get_flow_executions` answer
+  them through the contract schemas. A tenant export and import carry a step's `settings`, and an import refuses a step that carries
+  ones its authenticator does not read.
+- **Console.** The step editor shows each `otp`, `passkey` and `recovery-code` step's controls, each starting at "Tenant setting"
+  with the tenant's value beside it. Before this the console rebuilt each step from two fields, so saving the order would have
+  dropped any `settings` a flow held; `stepsOf`, `flowStepsOf` and the conflict summary carry them now.
+
+Rulings:
+
+- A disabled step's settings are not read: a disabled step is not run, so the next enrolment takes the tenant's value for that
+  authenticator. The console says so beside such a step.
+- `settings: {}` is accepted on a step that reads settings and means the tenant's values; the console never writes it.
+- An enrolment with no sign-in to name a flow (a caller that passes no session) takes the tenant's default flow.
+- `flow.replace`, written by `PUT /flow/executions`, had no `detail`, so a change of a step's settings left no trace there; it now
+  carries the steps before and after, as `flow.amend` does.
+
+### At volume
+
+- No query is added to the sign-in path. An enrolment page reads the session, the flow (one query, by primary key or by
+  `flows_one_default`) and the tenant row; before it read the tenant row alone. A step's settings are at most six keys of at most
+  20 steps in one jsonb value.
 
 ### Open placements
 
-- Moving the authenticator settings onto flow steps is increment 13b's work.
+- None.
 
 ## Increment 8: session device identity and ADR 0033
 
@@ -986,7 +1018,7 @@ default flow's steps. No client names a flow yet (13c), so no sign-in runs a flo
 ### Open placements
 
 - The client `flow_id` and refusing the deletion of a flow in use are 13c.
-- The per-step authenticator settings of 7c move onto steps in a following part.
+- The per-step authenticator settings of 7c are on the steps now (increment 7c).
 
 ## Increment 13c: a client names the flow it runs
 
@@ -1055,4 +1087,4 @@ null`, which the query-plan check's foreign-key rule accepts as a probe of the k
 
 - A tenant export carries the default flow only, so a client's `flow_id`, and every other flow, are not exported and an import restores
   neither. P7 takes it with the document's move between installations (roadmap, section 11 and `docs/NEXT.md` name it).
-- The per-step authenticator settings of 7c move onto steps in a following part.
+- The per-step authenticator settings of 7c are on the steps now (increment 7c).

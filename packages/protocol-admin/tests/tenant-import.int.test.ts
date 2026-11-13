@@ -191,7 +191,7 @@ async function seededSource(): Promise<{ id: string; name: string; confidentialI
 
     await flowRepository(tx).replaceDefaultSteps(t.id, [
       { authenticator: 'password', requirement: 'required' },
-      { authenticator: 'otp', requirement: 'conditional' },
+      { authenticator: 'otp', requirement: 'conditional', settings: { digits: 8 } },
     ]);
     await tenantSettingsRepository(tx).amend(t.id, {
       passwordMinLength: 12,
@@ -1518,6 +1518,30 @@ describe('POST /admin/tenant-imports', () => {
         `document.clients[${String(spaIndex)}].refresh_token_ttl_seconds`,
       ].sort(),
     );
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
+  it('refuses a flow step that carries settings its authenticator does not read', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const name = `import-${newId()}`;
+
+    const res = await postImport(token, {
+      name,
+      document: {
+        ...document,
+        flow: [
+          { authenticator: 'password', requirement: 'required', settings: { digits: 8 } },
+          { authenticator: 'otp', requirement: 'conditional' },
+        ],
+      },
+    });
+
+    expect(res.statusCode, res.payload).toBe(400);
+    expect((res.json<ImportRefusal>().errors ?? []).map((error) => error.path)).toEqual([
+      'document.flow',
+    ]);
     expect(await tenantIdOf(name)).toBeNull();
   });
 

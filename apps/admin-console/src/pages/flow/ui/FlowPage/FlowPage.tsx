@@ -38,6 +38,7 @@ function StepsReady({
   etag,
   gone,
   reading,
+  tenantSettings,
   words,
 }: {
   tenant: string;
@@ -45,9 +46,10 @@ function StepsReady({
   etag: string;
   gone: boolean;
   reading: string | null;
+  tenantSettings: Settings | undefined;
   words: FlowWords['steps'];
 }) {
-  const flow = useFlowSteps({ tenant, data, etag, gone, reading });
+  const flow = useFlowSteps({ tenant, data, etag, gone, reading, tenantSettings });
   return <Steps flow={flow} words={words} />;
 }
 
@@ -71,7 +73,7 @@ function OtpReady({
 }
 
 function Flow({ tenant }: { tenant: string }) {
-  const { flow, words, reading, unread, otp } = useFlowSections(tenant);
+  const { flow, words, reading, tenantSettings, unread, otp } = useFlowSections(tenant);
   return (
     <ReadGate read={flow} label={words.loading} fields={3} failed={words.failed}>
       {(data, etag) => (
@@ -82,6 +84,7 @@ function Flow({ tenant }: { tenant: string }) {
             etag={etag}
             gone={flow.gone}
             reading={reading}
+            tenantSettings={tenantSettings}
             words={words.steps}
           />
           {unread ? <p className={styles.rule}>{words.unread}</p> : null}
