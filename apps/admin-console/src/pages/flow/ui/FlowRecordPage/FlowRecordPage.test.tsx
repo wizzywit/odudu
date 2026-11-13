@@ -2,12 +2,13 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
-import { json, problem } from '#/testing/fakeTransport';
+import { inTurn, json, problem } from '#/testing/fakeTransport';
 import {
   DEFAULT_FLOW_ID,
   flowRecordBody,
   flowRoutes,
   FLS,
+  flowsAnswer,
   STAFF_FLOW_ID,
 } from '#/testing/flowFixtures';
 import { resetConsole } from '#/testing/resetConsole';
@@ -118,4 +119,13 @@ it('passes axe in both themes', async () => {
       () => section(),
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('says the authenticators could not be read, with a retry, instead of offering none', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, routes({ [`GET ${FLS}`]: inTurn(problem(500), flowsAnswer()) }));
+  expect(await screen.findByText('The flows could not be loaded')).toBeVisible();
+  expect(screen.queryByText('Every authenticator the server has is already a step.')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Try again' }));
+  expect(await section()).toBeVisible();
 });

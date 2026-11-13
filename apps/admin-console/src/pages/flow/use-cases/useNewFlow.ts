@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import type { ListFlowsResponse } from '#/pages/flow/types/flows';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
 import type { Area } from '#/entities/area';
 import { useRefusal } from '#/entities/session';
 import { useCreateFlow, useFlowsRecord } from '#/pages/flow/repository/useFlows';
@@ -18,6 +20,9 @@ import { createdText, lookupText } from '#/shared/lib/services/failure';
 import { useCreationFlow } from '#/shared/lib/use-cases/useCreationFlow';
 
 export interface NewFlow {
+  // The read the new flow starts from: the form waits for it.
+  flows: RecordState<ListFlowsResponse>;
+  listWords: FlowsWords['list'];
   words: FlowsWords['create'];
   listHref: string;
   name: string;
@@ -44,6 +49,8 @@ export function useNewFlow(tenant: string): NewFlow {
     go(flowHref(tenant, created.id), { replace: true });
   };
   return {
+    flows,
+    listWords: FLOWS_WORDS.list,
     words: FLOWS_WORDS.create,
     listHref: flowsHref(tenant),
     name,

@@ -59,6 +59,17 @@ async function setup() {
     expect(res.statusCode, res.body).toBe(201);
     return res.json<FlowBody>();
   };
+  const del = async (id: string, ifMatch?: string) => {
+    const tag = ifMatch ?? (await send('GET', `/flows/${id}`)).headers.etag;
+    return fixture.http.inject({
+      method: 'DELETE',
+      url: url(`/flows/${id}`),
+      headers: {
+        authorization: `Bearer ${token}`,
+        ...(typeof tag === 'string' ? { 'if-match': tag } : {}),
+      },
+    });
+  };
   const createClient = (body: Record<string, unknown> = {}) =>
     send('POST', '/clients', {
       client_id: `c-${newId()}`,
@@ -75,7 +86,7 @@ async function setup() {
       payload: JSON.stringify(body),
     });
   };
-  return { t, token, headers, send, flow, createClient, read, patch };
+  return { t, token, headers, send, del, flow, createClient, read, patch };
 }
 
 function codes(res: LightMyRequestResponse): (string | undefined)[] {
@@ -175,7 +186,7 @@ describe('deleting a flow a client names', () => {
       const res = await s.createClient({ flow_id: staff.id });
       ids.push(res.json<{ id: string }>().id);
     }
-    const res = await s.send('DELETE', `/flows/${staff.id}`);
+    const res = await s.del(staff.id);
     expect(res.statusCode, res.body).toBe(409);
     const problem = res.json<Refusal>();
     expect(problem.type).toBe('about:blank#flow-in-use');
@@ -185,13 +196,26 @@ describe('deleting a flow a client names', () => {
     expect((await s.send('GET', `/flows/${staff.id}`)).statusCode).toBe(200);
   });
 
+  it('answers the If-Match refusals before the refusal for a flow in use', async () => {
+    const s = await setup();
+    const staff = await s.flow('staff');
+    await s.createClient({ flow_id: staff.id });
+    const bare = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${s.t.name}/flows/${staff.id}`,
+      headers: { authorization: `Bearer ${s.token}` },
+    });
+    expect(bare.statusCode).toBe(428);
+    expect((await s.del(staff.id, '"stale"')).statusCode).toBe(412);
+  });
+
   it('is allowed once no client names it', async () => {
     const s = await setup();
     const staff = await s.flow('staff');
     const created = (await s.createClient({ flow_id: staff.id })).json<{ id: string }>();
-    expect((await s.send('DELETE', `/flows/${staff.id}`)).statusCode).toBe(409);
+    expect((await s.del(staff.id)).statusCode).toBe(409);
     expect((await s.patch(created.id, { flow_id: null })).statusCode).toBe(200);
-    expect((await s.send('DELETE', `/flows/${staff.id}`)).statusCode).toBe(204);
+    expect((await s.del(staff.id)).statusCode).toBe(204);
   });
 
   it('cannot leave a dangling reference when a client is pointed while the flow is deleted', async () => {
@@ -202,7 +226,7 @@ describe('deleting a flow a client names', () => {
     let deletion: Promise<LightMyRequestResponse> | undefined;
     await fixture.owner.sql.begin(async (sql) => {
       await sql`update client_oidc_config set flow_id = ${staff.id} where client_id = ${created.id}`;
-      deletion = s.send('DELETE', `/flows/${staff.id}`);
+      deletion = s.del(staff.id);
       for (let tries = 0; tries < 100; tries += 1) {
         const waiting = await sql`
           select 1 from pg_stat_activity where wait_event_type = 'Lock' and datname = current_database()`;
@@ -249,12 +273,12 @@ describe('the statements the flow routes send, with clients naming flows', () =>
     await s.createClient({ flow_id: staff.id });
     const few = {
       list: await sent(() => s.send('GET', '/flows'), 200),
-      refused: await sent(() => s.send('DELETE', `/flows/${staff.id}`), 409),
+      refused: await sent(() => s.del(staff.id), 409),
     };
     for (let i = 0; i < 11; i += 1) await s.createClient({ flow_id: staff.id });
     const many = {
       list: await sent(() => s.send('GET', '/flows'), 200),
-      refused: await sent(() => s.send('DELETE', `/flows/${staff.id}`), 409),
+      refused: await sent(() => s.del(staff.id), 409),
     };
     expect(many).toEqual(few);
   });

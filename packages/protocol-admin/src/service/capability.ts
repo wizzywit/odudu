@@ -1921,7 +1921,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Creates a flow that is not the default. Refused with `409`: a name another flow of ' +
       'the tenant has (`#flow-name-taken`), or a tenant that already holds 20 flows ' +
       '(`#flow-limit`). A step list is refused with the `400` types of `PUT ' +
-      '/flow/executions`, each with `errors[]` naming the step under `steps`. Answers an ' +
+      '/flow/executions`; the unknown and the repeated authenticator carry `errors[]` ' +
+      'naming the step as `steps[N].authenticator`, the others none. Answers an ' +
       '`ETag`.',
   },
   {
@@ -1953,7 +1954,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Deletes a flow that is not the default. Refused with `409`: the default ' +
       '(`#default-flow`), since a client that names no flow signs in through it, and a flow ' +
       'some client names through `flow_id` (`#flow-in-use`), whose `detail` gives how many ' +
-      'and the `client_id` of at most ten. Unpoint those clients first.',
+      'and the `client_id` of at most ten; unpoint those clients first. `If-Match` is ' +
+      'mandatory, as for `PUT`: a flow another administrator has changed since it was read is ' +
+      'not deleted unseen (`428` without the header or with `*`, `412` when stale), and both ' +
+      'are answered before the refusals above.',
   },
   {
     method: 'POST',

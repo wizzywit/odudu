@@ -6,6 +6,7 @@ import { inTurn, json, problem } from '#/testing/fakeTransport';
 import {
   DEFAULT_FLOW_ID,
   flowListItem,
+  flowRecordBody,
   flowRoutes,
   FLS,
   FLOW_LIST,
@@ -54,15 +55,16 @@ it('deletes a flow after asking, says so, and reads the list again', async () =>
     AT,
     flowRoutes(undefined, {
       [`GET ${FLS}`]: inTurn(flowsAnswer(), flowsAnswer(FLOW_LIST.slice(0, 1), '"l2"')),
+      [`GET ${FLS}/${STAFF_FLOW_ID}`]: json(FLOW_LIST[1], 200, { etag: '"st1"' }),
       [`DELETE ${FLS}/${STAFF_FLOW_ID}`]: gone,
     }),
   );
   await user.click(await screen.findByRole('button', { name: 'Delete staff' }));
   const dialog = await screen.findByRole('alertdialog');
   expect(within(dialog).getByText('Delete staff?')).toBeVisible();
-  await user.click(within(dialog).getByRole('button', { name: 'Delete staff' }));
+  await user.click(await within(dialog).findByRole('button', { name: 'Delete staff' }));
   await waitFor(() => {
-    expect(sent.some((s) => s.method === 'DELETE')).toBe(true);
+    expect(sent.find((s) => s.method === 'DELETE')?.ifMatch).toBe('"st1"');
   });
   expect(await screen.findByText('staff was deleted.')).toBeVisible();
   await waitFor(() => {
@@ -103,11 +105,41 @@ it('makes a flow the default after asking, on the tag the flow was read with', a
   await user.click(await screen.findByRole('button', { name: 'Make staff the default' }));
   const dialog = await screen.findByRole('alertdialog');
   expect(within(dialog).getByText('Make staff the default?')).toBeVisible();
-  await user.click(within(dialog).getByRole('button', { name: 'Make default' }));
+  await user.click(await within(dialog).findByRole('button', { name: 'Make default' }));
   expect(await screen.findByText('staff is now the default flow.')).toBeVisible();
   expect(sent.find((s) => s.method === 'POST')?.ifMatch).toBe(staffTag);
   await waitFor(() => {
     expect(screen.queryByRole('button', { name: 'Make staff the default' })).toBeNull();
+  });
+});
+
+it('binds a delete to the version the dialog showed: a flow changed meanwhile asks again', async () => {
+  const user = userEvent.setup();
+  const edited = { ...flowRecordBody(STAFF_FLOW_ID, 'staff', false), steps: [] };
+  const { sent } = renderConsoleAt(
+    AT,
+    flowRoutes(undefined, {
+      [`GET ${FLS}/${STAFF_FLOW_ID}`]: inTurn(
+        json(FLOW_LIST[1], 200, { etag: '"st1"' }),
+        json(edited, 200, { etag: '"st2"' }),
+      ),
+      [`DELETE ${FLS}/${STAFF_FLOW_ID}`]: inTurn(
+        problem(412, 'about:blank', 'Precondition Failed'),
+        gone,
+      ),
+    }),
+  );
+  await user.click(await screen.findByRole('button', { name: 'Delete staff' }));
+  const dialog = await screen.findByRole('alertdialog');
+  await user.click(await within(dialog).findByRole('button', { name: 'Delete staff' }));
+  expect(await within(dialog).findByText(/changed since/u)).toBeVisible();
+  expect(await within(dialog).findByText(/No steps/u)).toBeVisible();
+  await user.click(within(dialog).getByRole('button', { name: 'Delete staff' }));
+  await waitFor(() => {
+    expect(sent.filter((s) => s.method === 'DELETE').map((s) => s.ifMatch)).toEqual([
+      '"st1"',
+      '"st2"',
+    ]);
   });
 });
 
@@ -116,12 +148,13 @@ it('words the refusal of the default flow in the dialog', async () => {
   renderConsoleAt(
     AT,
     flowRoutes(undefined, {
+      [`GET ${FLS}/${STAFF_FLOW_ID}`]: json(FLOW_LIST[1], 200, { etag: '"st1"' }),
       [`DELETE ${FLS}/${STAFF_FLOW_ID}`]: problem(409, 'about:blank#default-flow', 'Conflict'),
     }),
   );
   await user.click(await screen.findByRole('button', { name: 'Delete staff' }));
   const dialog = await screen.findByRole('alertdialog');
-  await user.click(within(dialog).getByRole('button', { name: 'Delete staff' }));
+  await user.click(await within(dialog).findByRole('button', { name: 'Delete staff' }));
   expect(await within(dialog).findByText(/The default flow is not deleted/u)).toBeVisible();
 });
 
@@ -130,13 +163,14 @@ it('words the refusal of a flow a client names in the dialog, with the count it 
   renderConsoleAt(
     AT,
     flowRoutes(undefined, {
+      [`GET ${FLS}/${STAFF_FLOW_ID}`]: json(FLOW_LIST[1], 200, { etag: '"st1"' }),
       [`DELETE ${FLS}/${STAFF_FLOW_ID}`]: problem(409, 'about:blank#flow-in-use', 'Conflict'),
     }),
   );
   await user.click(await screen.findByRole('button', { name: 'Delete staff' }));
   const dialog = await screen.findByRole('alertdialog');
   expect(within(dialog).getByText(/once the 2 clients that use it use another/u)).toBeVisible();
-  await user.click(within(dialog).getByRole('button', { name: 'Delete staff' }));
+  await user.click(await within(dialog).findByRole('button', { name: 'Delete staff' }));
   expect(await within(dialog).findByText(/2 clients use staff/u)).toBeVisible();
 });
 

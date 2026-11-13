@@ -65,14 +65,23 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
       />
       <ReadGate read={page.record} label={words.loading} fields={3} failed={words.failed}>
         {(flow, etag) => (
-          <Editor
-            tenant={tenant}
-            flow={flow}
-            etag={etag}
-            gone={page.record.gone}
-            available={page.available}
-            words={words}
-          />
+          <ReadGate
+            read={page.flows}
+            label={page.listWords.loading}
+            fields={1}
+            failed={page.listWords.failed}
+          >
+            {(list) => (
+              <Editor
+                tenant={tenant}
+                flow={flow}
+                etag={etag}
+                gone={page.record.gone}
+                available={list.available}
+                words={words}
+              />
+            )}
+          </ReadGate>
         )}
       </ReadGate>
     </>

@@ -120,6 +120,14 @@ export function createSpec(name: string): CreateSpec {
   };
 }
 
+const STALE =
+  'The flow changed since it was read, so nothing was changed. Its steps are shown again: confirm once more if it is still what you mean.';
+
+// What the flow holds now, so the confirmation is of the version it names.
+function holds(flow: FlowWire): string {
+  return `It holds ${stepSummary(flow.steps)}.`;
+}
+
 export function deleteDialog(flow: FlowListItemWire | null): NamedDialog | null {
   if (flow === null) return null;
   const waiting =
@@ -128,7 +136,7 @@ export function deleteDialog(flow: FlowListItemWire | null): NamedDialog | null 
       : `, once the ${counted(flow.client_count, 'client', 'clients')} that ${flow.client_count === 1 ? 'uses' : 'use'} it use another`;
   return {
     title: `Delete ${flow.name}?`,
-    consequence: `The flow and its steps are removed for good${waiting}.`,
+    consequence: `The flow and its steps are removed for good${waiting}. ${holds(flow)}`,
     confirmLabel: `Delete ${flow.name}`,
     tone: 'danger',
   };
@@ -159,7 +167,7 @@ export function deleteOutcome(
   return removalOutcome(
     result,
     { doneText: `${name} was deleted.`, alreadyGoneText: `${name} was already deleted.` },
-    { name, verb: 'deleted', lookAt: 'the flows' },
+    { name, verb: 'deleted', lookAt: 'the flows', stale: STALE },
   );
 }
 
@@ -168,11 +176,6 @@ export function nameTakenExplanation(problem: Problem): string | null {
   return problem.type === TAKEN
     ? 'That name belongs to another flow of this tenant. Choose another.'
     : null;
-}
-
-// What the registry offers a step, from the list read; none until it is read.
-export function availableOf(list: { available: readonly string[] } | undefined): readonly string[] {
-  return list?.available ?? [];
 }
 
 // A save of a flow says a name another flow holds in the console's words, and
@@ -187,8 +190,7 @@ export function explainFlowSave(
 export function promoteDialog(flow: FlowWire): NamedDialog {
   return {
     title: `Make ${flow.name} the default?`,
-    consequence:
-      'Every sign-in that names no flow runs it from now on, and a sign-in already under way takes its next step from it. The current default stays as an ordinary flow, which can then be deleted.',
+    consequence: `Every sign-in that names no flow runs it from now on, and a sign-in already under way takes its next step from it. The current default stays as an ordinary flow, which can then be deleted. ${holds(flow)}`,
     confirmLabel: 'Make default',
     tone: 'primary',
   };
@@ -202,7 +204,7 @@ export function promoteOutcome(name: string, result: GatewayResult<unknown>): Re
       name,
       verb: 'made the default',
       lookAt: 'the flows',
-      stale: 'The flow changed since it was read, so nothing was changed. Read the list again.',
+      stale: STALE,
       missing: `${name} is no longer a flow of this tenant.`,
     }),
   };
@@ -214,13 +216,68 @@ export interface AskedAction {
 }
 
 // The confirmation an asked action needs, or none while nothing is asked.
-export function askedDialog(asked: AskedAction | null): NamedDialog | null {
+export function askedDialog(
+  asked: AskedAction | null,
+  current: FlowWire | undefined,
+): NamedDialog | null {
   if (asked === null) return null;
-  return asked.action === 'delete' ? deleteDialog(asked.flow) : promoteDialog(asked.flow);
+  const flow = current ?? asked.flow;
+  return asked.action === 'delete'
+    ? deleteDialog({ ...flow, client_count: asked.flow.client_count })
+    : promoteDialog(flow);
+}
+
+// What the confirmation says while the flow it binds to is not read.
+export function askedReadProblem(status: string): string | null {
+  switch (status) {
+    case 'failed':
+      return 'The flow could not be read, so it cannot be confirmed. Close this and try again.';
+    case 'missing':
+      return 'This flow no longer exists. Close this and read the list again.';
+    default:
+      return null;
+  }
+}
+
+// The request a flow's name and steps make, as the server takes it.
+export function flowSaveRequest(values: { name: string; steps: readonly Step[] }): SaveFlowRequest {
+  return { name: values.name.trim(), steps: [...values.steps] };
 }
 
 export function askedOutcome(asked: AskedAction, result: GatewayResult<unknown>): RemovalOutcome {
   return asked.action === 'delete'
     ? deleteOutcome(asked.flow.name, result, asked.flow.client_count)
     : promoteOutcome(asked.flow.name, result);
+}
+
+// What stands in for a flow id while nothing is asked, so no read is made.
+const NOTHING_ASKED = 'none';
+
+// The flow whose version a confirmation binds to, read when it is asked.
+export function readTarget(asked: AskedAction | null): { id: string; enabled: boolean } {
+  return { id: asked?.flow.id ?? NOTHING_ASKED, enabled: asked !== null };
+}
+
+// What the open confirmation shows and allows: the version read for it, held
+// until that read is in, and its read failure unless a refusal is already said.
+export function confirmation(
+  asked: AskedAction | null,
+  current: FlowWire | undefined,
+  etag: string | null,
+  status: string,
+  said: string | null = null,
+): { dialog: NamedDialog | null; held: boolean; problem: string | null } {
+  return {
+    dialog: askedDialog(asked, current),
+    held: etag === null,
+    problem: said ?? askedReadProblem(status),
+  };
+}
+
+// The write a confirmed action sends: the flow and the tag read for it.
+export function confirmedWrite(
+  asked: AskedAction,
+  etag: string | null,
+): { id: string; ifMatch: string } {
+  return { id: asked.flow.id, ifMatch: etag ?? '' };
 }

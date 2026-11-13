@@ -934,7 +934,7 @@ default flow's steps. No client names a flow yet (13c), so no sign-in runs a flo
 - **Routes.** `GET /flows` answers `{items, total, available}` ordered by name with an `ETag`; there is no cursor because the cap
   bounds it, and `total` is every flow. `POST` takes `{name, steps}` and answers `201` with the flow and its `ETag`. `GET /flows/{id}`
   answers the flow and an `ETag` over `{id, name, is_default, steps}`. `PUT /flows/{id}` takes the same body as `POST`, needs `If-Match`
-  (`428` absent or `*`, `412` stale, as `required-actions` and `executions` do) and keeps the flow's id and `is_default`. `DELETE` answers
+  (`428` absent or `*`, `412` stale, as `required-actions` and `executions` do) and keeps the flow's id and `is_default`. `DELETE` needs `If-Match` too (compared under the tenant lock, after the 404 and before the default check) and answers
   `204`. The body is strict, so `is_default` and a step's `index` are `400`.
 - **The default flow.** It is renamed and its steps replaced in place through `PUT /flows/{id}` or `PUT /flow/executions`, and
   `DELETE` refuses it with `409` `default-flow`, so exactly one default stays an invariant. Another flow becomes the default through
@@ -956,8 +956,8 @@ default flow's steps. No client names a flow yet (13c), so no sign-in runs a flo
   `bodyProblem`, not a `500`.
 - **A bad body** is a `400` before the flow is looked up, so it answers ahead of `404`, `428` and `412`, as `PUT /flow/executions` does.
 - **Steps.** Create and replace run the checks `PUT /flow/executions` runs, now one function (`refuseSteps`): an empty list, an
-  unregistered authenticator, a repeat, every step disabled, and no step able to start a login each have their own `400` type, with
-  `errors[].path` under `steps` (`steps[1].authenticator`). `PUT /flow/executions` takes at most 20 steps in its contract, so more is a
+  unregistered authenticator, a repeat, every step disabled, and no step able to start a login each have their own `400` type; the unknown and the repeated authenticator
+  also carry `errors[].path` under `steps` (`steps[1].authenticator`), the other three none. `PUT /flow/executions` takes at most 20 steps in its contract, so more is a
   `400` where it was a `500`.
 - **Audit.** `flow.create`, `flow.amend`, `flow.delete` (the vocabulary's imperative form, as `group.create`; the brief's `flow.created`
   would have been the only past tense) with `flow` in the audit-detail allowlist, name and steps by value: a create names both as

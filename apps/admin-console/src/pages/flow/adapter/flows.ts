@@ -33,20 +33,20 @@ export function deleteFlow(
   gateway: Gateway,
   tenant: string,
   id: string,
+  ifMatch: string,
 ): Promise<GatewayResult<undefined>> {
-  return adminCall(gateway, 'DELETE', tenant, ['flows', id], { schema: nothing });
+  return adminCall(gateway, 'DELETE', tenant, ['flows', id], { ifMatch, schema: nothing });
 }
 
-// The tag a flow's change waits on is the flow's own, so it is read first and sent back.
-export async function makeFlowDefault(
+// Bound to the flow version the administrator confirmed, never to a fresher one.
+export function makeFlowDefault(
   gateway: Gateway,
   tenant: string,
   id: string,
+  ifMatch: string,
 ): Promise<GatewayResult<FlowWire>> {
-  const read = await adminCall(gateway, 'GET', tenant, ['flows', id], { schema: flowSchema });
-  if (!read.ok) return read;
   return adminCall(gateway, 'POST', tenant, ['flows', id, 'make-default'], {
-    ifMatch: read.etag ?? '',
+    ifMatch,
     schema: flowSchema,
   });
 }
