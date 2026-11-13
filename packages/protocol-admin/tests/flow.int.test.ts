@@ -498,6 +498,9 @@ describe('audit', () => {
     expect(replaced.kind).toBe('ok');
     expect(ok.events).toHaveLength(1);
     expect(ok.events[0]?.action).toBe('flow.replace');
+    expect(ok.events[0]?.detail).toMatchObject({
+      steps: { after: [{ authenticator: 'password', requirement: 'required' }] },
+    });
 
     const refused = collector();
     const current = (await withTenant(fixture.app.db, t.id, (tx) => listFlow(tx, t.id))).etag;

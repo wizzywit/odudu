@@ -14,7 +14,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { createdDetail, redactedDiff } from '#/service/audit-detail';
 import { etagOf, requiredPrecondition } from '#/service/etag';
-import { flowWireShape } from '#/service/flow-wire';
+import { flowWireShape, stepWireShape } from '#/service/flow-wire';
 import { validateFlowSteps } from '#/service/flow-validation';
 
 export interface FlowAuditEvent {
@@ -133,6 +133,11 @@ export async function replaceFlow(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff(
+      'flow',
+      { steps: before.items.map(stepWireShape) },
+      { steps: written.steps.map(stepWireShape) },
+    ),
   });
 
   const items = written.steps.map(toWireShape);
