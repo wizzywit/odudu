@@ -338,7 +338,7 @@ rpc -H 'mcp-protocol-version: 2025-11-25' -d '{"jsonrpc":"2.0","id":2,"method":"
 ```
 
 ```
-["count_clients","count_subjects","get_client","get_client_installation","get_client_mail_branding","get_client_theme","get_client_theme_preview_info","get_stylesheet_hooks","get_subject","get_subject_admin_capabilities","get_subject_groups","get_subject_lockout","get_subject_required_actions","get_subject_roles","get_username_policy","list_client_logout_deliveries","list_client_theme_versions","list_clients","list_groups","list_roles","list_subject_consents","list_subject_effective_roles","list_subjects","whoami"]
+["count_clients","count_subjects","get_client","get_client_installation","get_client_mail_branding","get_client_theme","get_client_theme_preview_info","get_stylesheet_hooks","get_subject","get_subject_admin_capabilities","get_subject_groups","get_subject_lockout","get_subject_required_actions","get_subject_roles","get_username_policy","list_client_logout_deliveries","list_client_theme_versions","list_clients","list_groups","list_roles","list_subject_consents","list_subject_effective_roles","list_subject_terms_acceptances","list_subjects","whoami"]
 ```
 
 `whoami` answers for the person, which is how the call can be told from one made with another identity: the subject is
