@@ -49,16 +49,16 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admi
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d311-bbfc-728c-9af4-d9d79504f672
+x-request-id: 01a1d341-2184-728a-ad87-0c0aca918c04
 cache-control: no-store
-etag: "59bda5ae235632e75ac75bfb6a651a3f22e390a3a5f2ee44a3afc61203274038"
+etag: "78a53b71096cb65bd6abda6e189f782c6896644d68aaa8226b96710d3b6ade96"
 content-type: application/json; charset=utf-8
 content-length: 396
-Date: Fri, 13 Nov 2026 04:01:57 GMT
+Date: Fri, 13 Nov 2026 04:53:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a1d311-b931-771c-9149-0525c0abaa75","name":"default","is_default":true,"steps":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"},{"authenticator":"otp","requirement":"conditional"},{"authenticator":"recovery-code","requirement":"conditional"}]}],"total":1,"available":["password","passkey","otp","recovery-code"]}
+{"items":[{"id":"01a1d341-1edb-7918-a618-c60759d50086","name":"default","is_default":true,"steps":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"},{"authenticator":"otp","requirement":"conditional"},{"authenticator":"recovery-code","requirement":"conditional"}]}],"total":1,"available":["password","passkey","otp","recovery-code"]}
 ```
 
 `POST` makes a flow from a name and a list of steps, answers `201` with the flow and its own `ETag`, and never makes a default one:
@@ -73,16 +73,16 @@ curl -sS -D - -X POST \
 
 ```
 HTTP/1.1 201 Created
-x-request-id: 01a1d311-bc15-75ee-a858-f4e16a6df198
+x-request-id: 01a1d341-219f-7d78-892e-0085e3705aa3
 cache-control: no-store
-etag: "f8bf7079f4027643fc6bb28328e41ce906efbd0097183b255da1ef701d930a36"
+etag: "de54d8e07a628ca0af095c264a6ec20eb175881504575af8f4f0b55eb0a807bc"
 content-type: application/json; charset=utf-8
 content-length: 195
-Date: Fri, 13 Nov 2026 04:01:57 GMT
+Date: Fri, 13 Nov 2026 04:53:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a1d311-bc24-759a-8830-072632a71b83","name":"staff","is_default":false,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
+{"id":"01a1d341-21af-7376-9b77-f62fb986e5bc","name":"staff","is_default":false,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
 ```
 
 The name was trimmed. The list is ordered by name, and the new flow is the one that is not the default:
@@ -93,8 +93,8 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admin/ten
 
 ```
 2
-{"id":"01a1d311-b931-771c-9149-0525c0abaa75","name":"default","is_default":true}
-{"id":"01a1d311-bc24-759a-8830-072632a71b83","name":"staff","is_default":false}
+{"id":"01a1d341-1edb-7918-a618-c60759d50086","name":"default","is_default":true}
+{"id":"01a1d341-21af-7376-9b77-f62fb986e5bc","name":"staff","is_default":false}
 ```
 
 One flow, with the `ETag` its replacement waits on. `STAFF` is the id the list showed:
@@ -105,16 +105,16 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admi
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d311-bc59-7228-bc92-eeeaac09668c
+x-request-id: 01a1d341-21e6-7c63-b33e-6252039fc50e
 cache-control: no-store
-etag: "f8bf7079f4027643fc6bb28328e41ce906efbd0097183b255da1ef701d930a36"
+etag: "de54d8e07a628ca0af095c264a6ec20eb175881504575af8f4f0b55eb0a807bc"
 content-type: application/json; charset=utf-8
 content-length: 195
-Date: Fri, 13 Nov 2026 04:01:57 GMT
+Date: Fri, 13 Nov 2026 04:53:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a1d311-bc24-759a-8830-072632a71b83","name":"staff","is_default":false,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
+{"id":"01a1d341-21af-7376-9b77-f62fb986e5bc","name":"staff","is_default":false,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
 ```
 
 `PUT` replaces the name and the steps together, on that tag. The id and `is_default` stay:
@@ -130,16 +130,16 @@ curl -sS -D - -X PUT \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d311-bc80-79d9-a312-bc4737ce5240
+x-request-id: 01a1d341-221c-78de-bc14-c938e8dcb54b
 cache-control: no-store
-etag: "bb23c7ce1511391abf0d92a46aea0506d352476e910488c36bb3365c281a9ff2"
+etag: "d133ca4690a9e2bc45aeecad3fc3cf4149ffd4ae6e789b9d9e094d55358597a4"
 content-type: application/json; charset=utf-8
 content-length: 201
-Date: Fri, 13 Nov 2026 04:01:57 GMT
+Date: Fri, 13 Nov 2026 04:53:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a1d311-bc24-759a-8830-072632a71b83","name":"crew","is_default":false,"steps":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"}]}
+{"id":"01a1d341-21af-7376-9b77-f62fb986e5bc","name":"crew","is_default":false,"steps":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"}]}
 ```
 
 The same, now stale, header changes nothing, and a request with no `If-Match`, or `*`, is refused before anything is read:
@@ -160,8 +160,8 @@ curl -sS -X PUT \
 ```
 
 ```
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1d311-bc98-77f0-9476-76239f28e21e"}
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a flow","instance":"01a1d311-bcab-705d-bf3a-f3979bb415d4"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1d341-2235-7bdc-963e-e2d4c2baef24"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a flow","instance":"01a1d341-224b-7131-ae3e-58e151be0253"}
 ```
 
 A name another flow holds is refused with `409`, whether it is made or renamed to; the default's name is `default`. The constraint on `(tenant_id, name)` decides it, and nothing is written:
@@ -175,7 +175,7 @@ curl -sS -X POST \
 ```
 
 ```
-{"type":"about:blank#flow-name-taken","title":"Conflict","status":409,"detail":"a flow named \"default\" already exists","instance":"01a1d311-bcbf-7119-97e7-f445a4f1a8d4"}
+{"type":"about:blank#flow-name-taken","title":"Conflict","status":409,"detail":"a flow named \"default\" already exists","instance":"01a1d341-2260-74a8-a05b-31d704c9f93a"}
 ```
 
 A step list is refused at save time, before the database is asked, with the types `PUT /flow/executions` has. Each names the step at fault under `steps`:
@@ -192,11 +192,11 @@ done
 ```
 
 ```
-{"type":"about:blank#flow-empty","title":"Bad Request","status":400,"detail":"a flow needs at least one step; a tenant with no flow cannot be logged into","instance":"01a1d311-bcd3-7298-9e6c-d6f9075f012a"}
-{"type":"about:blank#flow-no-enabled-step","title":"Bad Request","status":400,"detail":"every step is disabled; a tenant with no enabled step cannot be logged into","instance":"01a1d311-bce9-7b44-beea-831fe301944d"}
-{"type":"about:blank#flow-no-first-challenge","title":"Bad Request","status":400,"detail":"no step would run at the start of a login, when no subject is bound yet; a tenant whose flow begins this way cannot be logged into","instance":"01a1d311-bd06-7c67-a4c1-84dd0715bf2a"}
-{"type":"about:blank#flow-unknown-authenticator","title":"Bad Request","status":400,"detail":"unknown authenticator \"sms\"; expected one of password, passkey, otp, recovery-code","errors":[{"path":"steps[0].authenticator","message":"is not a registered authenticator"}],"instance":"01a1d311-bd18-7a93-95d4-60f1491b79f4"}
-{"type":"about:blank#flow-duplicate-authenticator","title":"Bad Request","status":400,"detail":"authenticator \"password\" appears more than once; a step is addressed by its authenticator, so a repeat has no unambiguous meaning","errors":[{"path":"steps[1].authenticator","message":"repeats an earlier step"}],"instance":"01a1d311-bd29-79b1-a130-b8d54e24f91f"}
+{"type":"about:blank#flow-empty","title":"Bad Request","status":400,"detail":"a flow needs at least one step; a tenant with no flow cannot be logged into","instance":"01a1d341-2276-7bd5-96fd-364ad95f61fc"}
+{"type":"about:blank#flow-no-enabled-step","title":"Bad Request","status":400,"detail":"every step is disabled; a tenant with no enabled step cannot be logged into","instance":"01a1d341-228b-726a-a781-9aaa0140dc7b"}
+{"type":"about:blank#flow-no-first-challenge","title":"Bad Request","status":400,"detail":"no step would run at the start of a login, when no subject is bound yet; a tenant whose flow begins this way cannot be logged into","instance":"01a1d341-229e-766a-9827-fbd7182d17ac"}
+{"type":"about:blank#flow-unknown-authenticator","title":"Bad Request","status":400,"detail":"unknown authenticator \"sms\"; expected one of password, passkey, otp, recovery-code","errors":[{"path":"steps[0].authenticator","message":"is not a registered authenticator"}],"instance":"01a1d341-22b2-736d-8b57-ad3049b0756b"}
+{"type":"about:blank#flow-duplicate-authenticator","title":"Bad Request","status":400,"detail":"authenticator \"password\" appears more than once; a step is addressed by its authenticator, so a repeat has no unambiguous meaning","errors":[{"path":"steps[1].authenticator","message":"repeats an earlier step"}],"instance":"01a1d341-22c4-7694-999e-ade0d8e42801"}
 ```
 
 A name that is blank, or more than 64 characters, and a field the body does not have, are `400` with the path of the field. `is_default` is not a field: which flow is the default is not something a write here changes:
@@ -222,9 +222,9 @@ curl -sS -X POST \
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: Too small: expected string to have >=1 characters","errors":[{"path":"name","message":"Too small: expected string to have >=1 characters"}],"instance":"01a1d311-bd3d-71af-8056-38ce78c1e3f9"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name must be at most 64 characters","errors":[{"path":"name","message":"name must be at most 64 characters"}],"instance":"01a1d311-bd52-7883-a627-b9b29397c0f9"}
-{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties: is_default","errors":[{"path":"is_default","message":"must NOT have additional properties"}],"instance":"01a1d311-bd64-72ed-a3d4-832ccd12078c"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: Too small: expected string to have >=1 characters","errors":[{"path":"name","message":"Too small: expected string to have >=1 characters"}],"instance":"01a1d341-22d8-7e27-b95e-1f015ff14c99"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name must be at most 64 characters","errors":[{"path":"name","message":"name must be at most 64 characters"}],"instance":"01a1d341-22ec-7d8d-a483-e2d3a2a87529"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties: is_default","errors":[{"path":"is_default","message":"must NOT have additional properties"}],"instance":"01a1d341-22fe-7636-9ddf-e33c70eac021"}
 ```
 
 The default flow can be renamed and its steps replaced here, and it stays the default. `GET /flow/executions` is that same flow's steps with an `index`, so a change through either is seen through the other:
@@ -242,7 +242,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admin/ten
 ```
 
 ```
-{"id":"01a1d311-b931-771c-9149-0525c0abaa75","name":"default","is_default":true,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
+{"id":"01a1d341-1edb-7918-a618-c60759d50086","name":"default","is_default":true,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
 {"items":[{"index":0,"authenticator":"password","requirement":"required"},{"index":1,"authenticator":"otp","requirement":"conditional"}],"available":["password","passkey","otp","recovery-code"]}
 ```
 
@@ -256,15 +256,15 @@ curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000
 ```
 
 ```
-{"type":"about:blank#default-flow","title":"Conflict","status":409,"detail":"the default flow is not deleted; make another flow the default first","instance":"01a1d311-bdc5-7217-a6de-22ee8ea49a65"}
+{"type":"about:blank#default-flow","title":"Conflict","status":409,"detail":"the default flow is not deleted; make another flow the default first","instance":"01a1d341-2362-7de9-a75a-3a8e673b8522"}
 HTTP/1.1 204 No Content
-x-request-id: 01a1d311-bdd8-7333-a00e-4ae247d67951
+x-request-id: 01a1d341-2386-7ee9-850b-0a8a6272d580
 cache-control: no-store
-Date: Fri, 13 Nov 2026 04:01:57 GMT
+Date: Fri, 13 Nov 2026 04:53:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d311-bc24-759a-8830-072632a71b83","instance":"01a1d311-bdec-7e4c-88f6-6eced8d5c2a4"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d341-21af-7376-9b77-f62fb986e5bc","instance":"01a1d341-23a3-7e71-8940-a905b1938df8"}
 ```
 
 The default flow is not deleted while it is the default, but another flow can be made the default, which is what a client that names no flow runs. `POST .../make-default` moves it in one transaction: the flow that was the default stops being it, and `flow/executions` now reads and writes the new default's steps. It needs the flow's own `ETag` in `If-Match`, as `PUT` does:
@@ -290,16 +290,16 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admin/ten
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d311-be3c-748b-8fcc-11aab77ddf8c
+x-request-id: 01a1d341-2424-71cd-a6e0-1fdf9d2dcad8
 cache-control: no-store
-etag: "85114c2ab13ec5d69c62a8f1f8c47e76085ff5b51cfc42c8c17a123f7b22476b"
+etag: "7808fb4c7bc31daa40e02613de5401e61283c972d629e8c9e18328914a782f0b"
 content-type: application/json; charset=utf-8
 content-length: 145
-Date: Fri, 13 Nov 2026 04:01:57 GMT
+Date: Fri, 13 Nov 2026 04:53:44 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a1d311-be09-7061-8e41-e6be15cd8677","name":"partners","is_default":true,"steps":[{"authenticator":"password","requirement":"required"}]}
+{"id":"01a1d341-23de-7a8c-8314-55d6ce58211e","name":"partners","is_default":true,"steps":[{"authenticator":"password","requirement":"required"}]}
 {"name":"default","is_default":false}
 {"name":"partners","is_default":true}
 {"items":[{"index":0,"authenticator":"password","requirement":"required"}],"available":["password","passkey","otp","recovery-code"]}
@@ -319,9 +319,9 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $PTAG" ht
 
 ```
 200
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1d311-be97-73e1-ac5c-18045fc0ea97"}
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a flow","instance":"01a1d311-bea8-74ad-898d-ac69e6b323c0"}
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d311-be09-7061-8e41-e6be15cd8677","instance":"01a1d311-beb9-7642-8e75-9b80775e86b5"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1d341-2491-774e-ac25-197772516609"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to make a flow the default","instance":"01a1d341-24a4-7865-a169-6f33626e7f14"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d341-23de-7a8c-8314-55d6ce58211e","instance":"01a1d341-24c4-71e6-a00b-ac287a6c3337"}
 ```
 
 The flow that was the default is an ordinary flow now, and the new default is the one that is refused a delete:
@@ -333,7 +333,7 @@ curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000
 
 ```
 204
-{"type":"about:blank#default-flow","title":"Conflict","status":409,"detail":"the default flow is not deleted; make another flow the default first","instance":"01a1d311-bee3-77b7-8351-6f922fb7c38b"}
+{"type":"about:blank#default-flow","title":"Conflict","status":409,"detail":"the default flow is not deleted; make another flow the default first","instance":"01a1d341-24f4-7913-8a44-3fac3589e6fb"}
 ```
 
 A tenant holds at most 20. Nineteen more make 20 with the default, and the next is refused with `409` and the cap in its `detail`:
@@ -357,7 +357,7 @@ curl -sS -X POST \
 ```
 201 201 201 201 201 201 201 201 201 201 201 201 201 201 201 201 201 201 201
 20
-{"type":"about:blank#flow-limit","title":"Conflict","status":409,"detail":"a tenant holds at most 20 flows","instance":"01a1d311-c080-7a39-8261-a229570b791e"}
+{"type":"about:blank#flow-limit","title":"Conflict","status":409,"detail":"a tenant holds at most 20 flows","instance":"01a1d341-26d5-717f-ab8f-079829ee3450"}
 ```
 
 A flow belongs to its tenant. The same token, asking another tenant for it, finds nothing, on every route that takes an id:
@@ -371,8 +371,8 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admin/ten
 ```
 
 ```
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d311-bf03-7633-a4b1-d9d48aac9ed2","instance":"01a1d311-c0a4-7419-903b-cf0d0c196454"}
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d311-bf03-7633-a4b1-d9d48aac9ed2","instance":"01a1d311-c0b5-7a31-8229-5c5ef9f931ba"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d341-251b-7bb8-bec7-3a002c7be2bb","instance":"01a1d341-26fb-7dee-b64f-d9e83f1953fa"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d341-251b-7bb8-bec7-3a002c7be2bb","instance":"01a1d341-270c-7c0f-a709-03525101cc8a"}
 1
 ```
 
