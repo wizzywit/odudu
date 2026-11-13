@@ -1,8 +1,5 @@
 import { flowStepSettingsSchema } from '@odudu/contracts/admin';
-import {
-  authenticatorChoiceLabel,
-  authenticatorOptions,
-} from '#/shared/lib/services/authenticatorChoices';
+import { authenticatorChoiceLabel, authenticatorOptions } from '#/entities/authenticator';
 import type { FlowStepSettings } from '#/pages/flow/types/executions';
 import type { Step } from '#/pages/flow/services/steps';
 

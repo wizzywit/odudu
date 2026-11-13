@@ -17,26 +17,27 @@ export function authenticatorChoices(setting: string): readonly AuthenticatorCho
       : [];
 }
 
-function capitalised(choice: AuthenticatorChoice): string {
-  const text = String(choice);
-  return `${text.slice(0, 1).toUpperCase()}${text.slice(1)}`;
-}
+const WORDS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  totp_algorithm: { SHA1: 'SHA1', SHA256: 'SHA256', SHA512: 'SHA512' },
+  totp_digits: { '6': '6 digits', '8': '8 digits' },
+  totp_period: { '30': '30 seconds', '60': '60 seconds' },
+  webauthn_user_verification: {
+    required: 'Required',
+    preferred: 'Preferred',
+    discouraged: 'Discouraged',
+  },
+  webauthn_resident_key: {
+    required: 'Required',
+    preferred: 'Preferred',
+    discouraged: 'Discouraged',
+  },
+};
 
 // How a value of an authenticator setting reads to a person.
 export function authenticatorChoiceLabel(setting: string, choice: AuthenticatorChoice): string {
-  switch (setting) {
-    case 'totp_digits':
-      return `${String(choice)} digits`;
-    case 'totp_period':
-      return `${String(choice)} seconds`;
-    case 'recovery_code_count':
-      return `${String(choice)} codes`;
-    case 'webauthn_user_verification':
-    case 'webauthn_resident_key':
-      return capitalised(choice);
-    default:
-      return String(choice);
-  }
+  const key = String(choice);
+  if (setting === 'recovery_code_count') return `${key} codes`;
+  return (Object.hasOwn(WORDS, setting) ? WORDS[setting]?.[key] : undefined) ?? key;
 }
 
 export function authenticatorOptions(setting: string): { id: string; label: string }[] {
