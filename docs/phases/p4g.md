@@ -1518,6 +1518,7 @@ error and config tables from `@odudu/kernel`, the audit vocabulary from
 | `clients`             | 524       | 535    |
 | `domains`             | 62        | 62     |
 | `flow`                | 12        | 12     |
+| `flows`               | 35        | 35     |
 | `groups`              | 62        | 67     |
 | `keys`                | 31        | 31     |
 | `lockouts`            | 3         | 3      |
