@@ -243,6 +243,7 @@ export async function driveAdminWrites(
         system: true,
       },
     ],
+    ...flowCalls(`/admin/tenants/${NEAR_LIMIT_TENANT}`),
     ['delete a role', { method: 'DELETE', url: `${T}/roles/${victimRole}` }],
     [
       'create a group',
@@ -619,6 +620,39 @@ export async function driveAdminWrites(
       );
     }
   }
+}
+
+// A tenant seeded one flow under the cap: the list reads every flow it may
+// hold, the create counts them, and the read, replace and delete each address
+// the one made. The replace takes the ETag the read before it answered.
+function flowCalls(base: string): [string, Call][] {
+  const steps = [{ authenticator: 'password', requirement: 'required' }];
+  const one = `${base}/flows/{flow}`;
+  return [
+    ['list a tenant’s flows at the cap', { method: 'GET', url: `${base}/flows`, system: true }],
+    [
+      'create a flow in a tenant one short of the cap',
+      {
+        method: 'POST',
+        url: `${base}/flows`,
+        body: { name: 'made', steps },
+        saveAs: 'flow',
+        system: true,
+      },
+    ],
+    ['read the flow made', { method: 'GET', url: one, system: true }],
+    [
+      'replace the flow made',
+      {
+        method: 'PUT',
+        url: one,
+        body: { name: 'renamed', steps },
+        etagFromPrevious: true,
+        system: true,
+      },
+    ],
+    ['delete the flow made', { method: 'DELETE', url: one, system: true }],
+  ];
 }
 
 // A tenant's wording for one message set, set again, and removed, with the
