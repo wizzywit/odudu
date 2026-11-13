@@ -83,6 +83,25 @@ export function flowRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toFlow(row);
     },
 
+    // The partial unique index allows one default, so the old one is cleared
+    // before the new one is set; the caller holds the tenant lock, and the
+    // pair runs in one transaction. Null when the tenant has no such flow.
+    async makeDefault(tenantId: string, id: string): Promise<Flow | null> {
+      const target = await this.byId(tenantId, id);
+      if (target === null) return null;
+      if (target.isDefault) return target;
+      await tx
+        .update(flows)
+        .set({ isDefault: false, updatedAt: sql`now()` })
+        .where(and(eq(flows.tenantId, tenantId), eq(flows.isDefault, true)));
+      const [row] = await tx
+        .update(flows)
+        .set({ isDefault: true, updatedAt: sql`now()` })
+        .where(and(eq(flows.tenantId, tenantId), eq(flows.id, id)))
+        .returning();
+      return row === undefined ? null : toFlow(row);
+    },
+
     // The default is never removed here: a tenant always has one.
     async remove(tenantId: string, id: string): Promise<boolean> {
       const rows = await tx
