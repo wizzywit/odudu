@@ -11,6 +11,7 @@ export const subjects = pgTable('subjects', {
     .references(() => tenants.id, { onDelete: 'cascade' }),
   type: text('type').notNull(),
   disabledAt: timestamp('disabled_at', { withTimezone: true }),
+  recoveryCodesIssuedAt: timestamp('recovery_codes_issued_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 

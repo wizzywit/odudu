@@ -12,13 +12,23 @@ const TAG = '0122_service_accounts_by_grant';
 let containerHandle: TestDatabase | undefined;
 let dbHandle: DatabaseHandle | undefined;
 let before: string | undefined;
+let through: string | undefined;
 let lifted: Record<string, string> = {};
+let afterTag: Record<string, string> = {};
 
 // A table whose row security was lifted and restored has a newer pg_class
-// row, which `xmin` shows; one nothing touched keeps its own.
+// row, which `xmin` shows; one nothing touched keeps its own. The snapshots
+// bracket the migration under test alone, since a later migration may alter a
+// table's columns, which also writes its pg_class row. `tenants` is left out
+// of the `xmin` comparison because migrations before this one alter it too;
+// its row security flags are compared instead.
 async function versions(): Promise<Record<string, string>> {
   const rows = await handle().sql<{ relname: string; version: string }[]>`
-    select relname, xmin::text as version from pg_class
+    select relname,
+           case when relname = 'tenants'
+                then relrowsecurity::text || relforcerowsecurity::text
+                else xmin::text end as version
+      from pg_class
      where relname in ('audit_events', 'tenants', 'client_oidc_config')`;
   return Object.fromEntries(rows.map((row) => [row.relname, row.version]));
 }
@@ -41,10 +51,18 @@ beforeAll(async () => {
   writeFileSync(journalPath, JSON.stringify(journal));
   await runMigrations(dbHandle.db, before);
   lifted = await versions();
+
+  through = mkdtempSync(join(tmpdir(), 'odudu-migrations-'));
+  cpSync(MIGRATIONS_DIR, through, { recursive: true });
+  const throughPath = join(through, 'meta', '_journal.json');
+  const full = JSON.parse(readFileSync(throughPath, 'utf8')) as { entries: { tag: string }[] };
+  full.entries = full.entries.filter((entry) => entry.tag <= TAG);
+  writeFileSync(throughPath, JSON.stringify(full));
 }, 120_000);
 
 afterAll(async () => {
   if (before !== undefined) rmSync(before, { recursive: true, force: true });
+  if (through !== undefined) rmSync(through, { recursive: true, force: true });
   await dbHandle?.close();
   await containerHandle?.stop();
 });
@@ -52,6 +70,9 @@ afterAll(async () => {
 describe('the service-account migration', () => {
   it('deletes the accounts nothing names, keeps the rest and marks them, and runs again to no effect', async () => {
     await seed(handle().sql);
+    if (through === undefined) throw new Error('migrations not prepared');
+    await runMigrations(handle().db, through);
+    afterTag = await versions();
     await runMigrations(handle().db, MIGRATIONS_DIR);
     const once = await outcomes(handle().sql);
     expect(once).toEqual(expectedOutcomes());
@@ -73,8 +94,8 @@ describe('the service-account migration', () => {
     expect(rows[0]?.n).toBe(0);
   });
 
-  it('lifts row security on no table when the owner is a superuser', async () => {
-    expect(await versions()).toEqual(lifted);
+  it('lifts row security on no table when the owner is a superuser', () => {
+    expect(afterTag).toEqual(lifted);
   });
 
   it('leaves row security forced on every table it read', async () => {

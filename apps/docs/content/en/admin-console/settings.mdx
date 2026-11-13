@@ -18,7 +18,7 @@ Most of what makes one tenant behave differently from another is a setting: how 
 
 ## 1. Find the section
 
-Choose a name from the row at the top to jump to it: **General**, **Sessions**, **Remember me**, **Registration and recovery**, **Usernames**, **Password policy**, **Brute force**, **Token lifetimes**, **Client registration** and **Audit retention**. Each field says what it does and the range the server accepts. Durations show the plain reading beside the seconds, for example `1800 s · 30 minutes`.
+Choose a name from the row at the top to jump to it: **General**, **Sessions**, **Remember me**, **Registration and recovery**, **Terms**, **Profile**, **Authenticators**, **Usernames**, **Password policy**, **Brute force**, **Token lifetimes**, **Client registration** and **Audit retention**. Each field says what it does and the range the server accepts. Durations show the plain reading beside the seconds, for example `1800 s · 30 minutes`.
 
 ## 2. Change a section and save it
 
@@ -26,8 +26,9 @@ Change the fields you want, then choose the **Save** button of that section. Not
 
 Some common changes:
 
-- To let people create their own accounts, turn on **Self-registration** under **Registration and recovery**, and turn on **Verify email addresses** if you want a link mailed to them. Mail needs an [Email relay](./email.mdx). The sign-in page then shows a link reading _Create an account_, and one reading _Forgot password?_ when password reset is on too. An app can send a person straight to the registration page with `prompt=create`; see [a sign-up button](../guides/sign-a-user-in.md#a-sign-up-button). A form that is refused comes back with the problem beside the field. A taken username is always named. With **Verify email addresses** on, the account is created when the person opens the link and confirms, and an address that already has an account is not named: the page says _Check your email_ as it does for a new address, and that address's owner gets a mail saying someone tried to register it. With it off, nothing can be mailed, so the form says the address is registered. Verification and registration links ask for one click, so mail scanners that open links cannot spend them. A mailed verification or reset link shows _Continue to sign in_ only in the browser where the person started, and only while that sign-in is open. Anywhere else the page says to return to the application and sign in again.
+- To let people create their own accounts, turn on **Self-registration** under **Registration and recovery**, and turn on **Verify email addresses** if you want a link mailed to them. Mail needs an [Email relay](./email.mdx). The sign-in page then shows a link reading _Create an account_, and one reading _Forgot password?_ when password reset is on too. An app can send a person straight to the registration page with `prompt=create`; see [a sign-up button](../guides/sign-a-user-in.md#a-sign-up-button). A form that is refused comes back with the problem beside the field. A taken username is always named. With **Verify email addresses** on, the account is created when the person opens the link and confirms, and an address that already has an account is not named: the page says _Check your email_ as it does for a new address, and that address's owner gets a mail saying someone tried to register it. With it off, nothing can be mailed, so the form says the address is registered. Verification and registration links ask for one click, so mail scanners that open links cannot spend them. The page names the address and the tenant above the button. A verification link that was used or has expired shows _Send a new link_, which mails another to the address the old one was for. At most three an hour are mailed to one address, and the page answers the same whether or not one was, so it does not say which addresses are waiting to be verified. A mailed verification or reset link shows _Continue to sign in_ only in the browser where the person started, and only while that sign-in is open. Anywhere else the page says to return to the application and sign in again.
 - To change what a password must satisfy, edit **Minimum length** and the other fields under **Password policy**; [Choose a password policy](#4-choose-a-password-policy) says what to pick. A rule applies to the next password somebody sets, never to one already chosen.
+- To change what a new authenticator app, passkey or recovery set is made with, edit the fields under **Authenticators**; [Authenticators](#authenticators) says what each does. A change applies to the next enrolment, never to one that exists.
 - To shorten how long a person stays signed in, lower **Idle timeout** and **Maximum lifetime** under **Sessions**.
 - To let applications register themselves with a token, set **Policy** under **Client registration**; the [Registration tokens](./registration-tokens.mdx) page does the rest.
 - To keep the audit trail for longer or shorter, change **Keep events for** under **Audit retention**, and choose which kinds of event are recorded. Changes and reads by administrators are always recorded.
@@ -44,6 +45,7 @@ A long password protects better than a complicated one, and the console's defaul
 - Character rules: the digit, uppercase, lowercase and special-character rules are off by default. NIST advises against them, so turn one on only if you must. When one is on, the password pages list it for the person.
 - Expiry: **Password lifetime** is 0 by default, so a password never expires. NIST advises against changing passwords on a schedule.
 - Common passwords: a password is always refused when it is on a list of about 38,000 common ones, or when it is only the tenant's name, the username, or the name part of the email. Only the whole password is compared, ignoring case: `baseball` is refused and `baseball and a long walk home` is not. This has no setting.
+- Known breaches: **Check against known breaches** refuses a password that appears in a published list of passwords taken from breaches, once it has passed the rules above. [Passwords known from breaches](#passwords-known-from-breaches) says what the three values do. It is on, against the loaded dataset, for every tenant, and it refuses nothing until an operator loads a dataset.
 - Typing: passwords are stored in Unicode NFC form, so `é` typed as one character or as `e` and an accent is one password. A password set before this change still signs in.
 
 A person with a passkey signs in without a password, so none of this applies to that sign-in.
@@ -63,6 +65,7 @@ Each line gives the label, then the name the admin API and `odudu seed tenant --
 - **Maximum lifetime** (`sso_session_max_seconds`): a session ends this long after sign-in, however active. Both run from 1 minute to 30 days.
 - **Sessions per browser** (`max_sessions_per_browser`): how many people one browser may be signed in as at once, 1 to 32.
 - **Time to finish a sign-in** (`login_ttl_seconds`): an unfinished sign-in must be started again after this, 1 minute to 24 hours.
+- **Recent sign-in window** (`session_freshness_seconds`): how recent a person's sign-in must be before the "me" API accepts a new email address, a new username, ending all other sessions, revoking a consent or removing a credential. 300 seconds by default, 30 seconds to 1 hour.
 
 ### Remember me
 
@@ -79,9 +82,53 @@ Each line gives the label, then the name the admin API and `odudu seed tenant --
 
 When somebody sets a new password from a mailed link, whether a reset link or an administrator's link that asks for one, every session they hold ends and every token grant they gave is revoked, offline ones too. Anyone else signed in to that account is signed out.
 
+A person who changes their password on the change-password page is offered "End my other sessions", checked. Leave it checked and their other sessions end, the one they are using stays, and so do grants that no session holds; clear it and nothing ends. No setting turns the box off.
+
 If the account registered itself and its address was never verified, the link also removes any authenticator app, passkey and recovery codes and marks the address verified. The page says so. Whoever registered the address first may have added them. In a tenant that does not verify addresses, that is every self-registered account until its first reset. Accounts an administrator created keep their factors.
 
 The link stops working once it is used, and it asks for one click first, so a mail scanner that opens it cannot spend it.
+
+### Terms
+
+- **Terms address** (`terms_uri`): where the terms are published. An https address, or http to this machine, with no fragment. Leave it empty for none; the admin API clears it with an empty string.
+- **Terms version** (`terms_version`): up to 64 characters, `1` by default. A person accepts one version.
+
+Setting the address asks nobody. An administrator ticks **Accept the terms** on a person's record under **Required actions**, and that person's next sign-in shows a page that links the terms, names the version and has one box, _I accept these terms_. Ticking it records the version the page showed, with when, and clears the action. The form carries the version it showed: if the version changed while the page was open, the page comes back at the new version saying so and records nothing, so nobody accepts terms they did not see. a person with no box ticked cannot go on, and the page has no way to leave it. Changing the version adds the action to nobody, so tick it again for the people who should accept the new terms. A person who has accepted the version in force is not asked even when the action is owed, and one owed an action while the tenant has no address is not asked either; a sign-in clears the action instead of stopping. An application cannot start **Accept the terms**: `/authorize` refuses `action=accept-terms`, because the acceptance is the tenant's own and an application could otherwise record consent on its behalf.
+
+### Profile
+
+- **Required profile fields** (`required_profile_fields`): the claims the **Complete the profile** action needs a person to have before it ends, chosen from the twenty a person can edit through the me API (**Full name**, **Given name**, **Family name**, **Middle name**, **Nickname**, **Preferred username**, **Profile page**, **Picture address**, **Website**, **Gender**, **Birthdate**, **Time zone**, **Language**, **Phone number**, **Address**, **Street**, **City**, **Region**, **Postal code** and **Country**). **Given name** and **Family name** by default. The email address is never among them: an address is changed through its own proof.
+
+The page the person sees lists every field they can edit, with what they hold, and marks the required ones. It ends when every required field has a value after the form is sent; the other fields are optional, and every value sent is checked by the rules `PATCH /me/profile` applies, all the refusals at once. Nothing is written until the whole form is acceptable. Choose none and the page is only reviewed and submitted. An empty list is saved as an empty list; the admin API takes `[]`.
+
+### Authenticators
+
+- **Authenticator app algorithm** (`totp_algorithm`): **SHA1**, **SHA256** or **SHA512**. `SHA1` is the default and the one every authenticator app supports.
+- **Authenticator app code length** (`totp_digits`): **6 digits** or **8 digits**.
+- **Authenticator app code period** (`totp_period`): **30 seconds** or **60 seconds**.
+- **Passkey user verification** (`webauthn_user_verification`): **Required**, **Preferred** or **Discouraged**, the WebAuthn values of the same names (`required`, `preferred`, `discouraged`). Required is the default.
+- **Passkey stored on the device** (`webauthn_resident_key`): **Required**, **Preferred** or **Discouraged**, with the same three values. Required is the default.
+- **Require a passkey** (`require_passkey`): off by default. On, a person who signs in and holds no passkey for the address they signed in at is asked to register one before the sign-in completes. It does nothing where the deployment has no public base URL (`ODUDU_PUBLIC_BASE_URL`), or one that is an IP address, unless the tenant has a domain of its own: nobody is asked, whatever the switch says. [Asking everyone for a passkey](#asking-everyone-for-a-passkey) says what that does and does not touch.
+- **Recovery codes in a set** (`recovery_code_count`): how many codes a newly issued set holds, 8 to 16 and 10 by default.
+- **Recovery code warning** (`recovery_code_warn_below`): a person left with fewer unspent recovery codes than this is flagged by `recovery_codes_low` in the "me" API's credentials answer. 3 by default, 0 to 10 and no more than the size of a set, and 0 turns the warning off.
+
+The enrolment settings above apply to the next enrolment; **Require a passkey** is a sign-in policy and acts on people who are already enrolled, at their next sign-in. An authenticator app keeps the algorithm, digits and period it was made with and is checked by them, so changing the tenant's choice strands nobody; a person who wants the new parameters enrols the app again. A passkey keeps the user verification and resident key it was made with, and a set of recovery codes keeps its size. A person who is enrolling an app is shown what it must support when the parameters are not `SHA1`, 6 digits and 30 seconds, because many apps do not support the others and a code the app cannot make never confirms. Choose them only for an app you know.
+
+A passkey made without user verification can still give a verified sign-in, but when an assertion lacks verification it proves possession of a key and nothing else, so that sign-in is one factor and not two. The person is still asked for an authenticator app code where they have one or the tenant requires one. A sign-in by that passkey alone reports `acr` `1` and no `user` method; with the authenticator app step also completed, the token reports `acr` `2`. Choose `preferred` or `discouraged` only if you accept that. Sign-in always asks the browser for `preferred` verification, and each passkey is then judged by the policy it was made under: a passkey made while verification was required is refused when its assertion lacks verification, whatever the tenant has chosen since, and a passkey made under `preferred` still signs in after the tenant moves to `required`.
+
+Passkey sign-in names no username, so only a passkey stored on the device can answer it. Odudu asks the browser to report whether a new passkey is stored on the device and refuses one reported as not, under every value of this setting, with a message asking the person to add one that can be stored. The value is what the authenticator is asked for. A browser that does not report is trusted, so a passkey that is not stored can still get through there and then cannot sign in.
+
+#### Asking everyone for a passkey
+
+With **Require a passkey** on, a sign-in that completes adds the `configure-passkey` required action for a person who holds no passkey under the address they signed in at, and the next page is the passkey registration page. Nothing else changes:
+
+- A session that is already open is not touched, and no token is revoked. The person is asked at their next sign-in, not before; a client that sends a person to `/authorize` with a session still open sees no extra step.
+- The action is added once, however often the person signs in, and a person who already holds a passkey is never asked. A person who removes their last passkey is asked again at their next sign-in. A passkey registered at another address, for example before the tenant moved to a domain of its own, is hidden at sign-in and so does not count.
+- The page has no way to skip it. This is a mandate of the tenant, so a person whose browser or device cannot make a passkey cannot finish a sign-in. An administrator can clear the action on their record under **Required actions**, which lets the sign-in under way finish; the next sign-in asks again while the switch is on, so for such a person the way through is to turn the switch off and clear the owed action, or to clear it at each of their sign-ins while the switch stays on.
+- Turning the switch off does not remove an action already owed. A person who was asked and has not registered still meets the page at their next sign-in, until they register or an administrator clears it.
+- A deployment that cannot show the page never adds the action, so the switch cannot lock everybody out. That is a deployment with no public base URL, or one whose base URL is an IP address and a tenant with no domain of its own, because the relying party is derived from a host name. The console does not know this, so it lets you turn the switch on there; it then does nothing.
+- An application can still send a person to register a passkey with `action=configure-passkey`. Where the tenant already owes the person one, the page is the tenant's and has no way back.
+- Service accounts and agent tokens never sign in at a page and are never asked.
 
 ### Usernames
 
@@ -95,7 +142,21 @@ The link stops working once it is used, and it asks for one click first, so a ma
 - **Refuse the username** (`password_not_username`) and **Refuse the email address** (`password_not_email`): a password may not be only that.
 - **Passwords remembered** (`password_history_depth`): a new password may not repeat one of this many before it. 0 remembers none, 24 is the most.
 - **Password lifetime** (`password_max_age_days`): a password older than this must be changed. 0 never expires one.
+- **Check against known breaches** (`breached_check`): **Off**, **Dataset loaded on the server** (`dataset`, the default) or **Remote range lookup** (`remote`). [Passwords known from breaches](#passwords-known-from-breaches) says what each does.
+- **When a remote lookup fails** (`breached_on_error`): **Accept the password** (`open`, the default) or **Refuse it and ask to try again** (`closed`). It applies to the remote lookup only.
 - `otp_required` is the **Ask every subject for a one-time password** switch of [Sign-in flow](./sign-in-flow.mdx).
+
+#### Passwords known from breaches
+
+A password that passed the other rules is also refused when it is a password known from breaches. The refusal comes after the length, character, username, email and common-password rules and before the reuse check, on the same four pages that apply those rules: registration, a reset link, an administrator's actions link and the change-password page. The page says "That password has appeared in a data breach. Choose a different one." and never says which source said so. Administrators never type a password for anybody, so there is no fifth place; `odudu seed` checks the policy rules only.
+
+- **Dataset loaded on the server** asks a table in the server's own database for the password's SHA-1 hash, split as the public range lists split it. Nothing leaves the server. The table is empty until an operator runs `odudu breached-passwords load` with a file of hashes ([Deploying](../operating/deploying.md#load-a-breached-password-dataset)); an empty table refuses nothing, and `odudu breached-passwords status` says whether it holds any. One table serves every tenant.
+- **Remote range lookup** asks a range service at one fixed host, `api.pwnedpasswords.com`, for the first five characters of the hash. The service answers with every suffix that starts with them and Odudu looks for its own in the answer, so neither the password nor its full hash leaves the server. The request carries no cookie, no account and no tenant name. It waits at most 3 seconds, reads at most 128 KiB of answer, and holds no database connection while it waits. A tenant has at most 4 lookups in flight and the whole server at most 8, so a form submitted in a burst fails the lookup rather than queueing: a lookup refused by either limit is a failed lookup, settled by **When a remote lookup fails** like a timeout, and shows as `error_open` or `error_closed` in the trail. An address that resolves to a private or loopback address is refused, as for a client's key set. It is off for every tenant until an administrator chooses it, because it is the one place a sign-in page's traffic causes a request to another service.
+- **Off** skips the check. The audit row of the password write says `off`, so a tenant that stopped checking can be seen.
+
+When the remote lookup fails, **When a remote lookup fails** decides. **Accept the password** lets it through and the audit row of the write says `error_open`. **Refuse it and ask to try again** refuses it with "The password could not be checked against known breaches. Try again in a moment." The dataset has no such failure.
+
+Each password write records what the check decided in `detail.breached_check` of its audit row: `passed`, `dataset_empty`, `error_open` or `off`. `dataset_empty` is the dataset source finding nothing because the dataset holds no hash at all, so a tenant that has never had a dataset loaded is not mistaken for one that checked. The password is never recorded, and neither is any part of its hash. A refused password writes no row, as a refused rule does not, so `breached` and `error_closed`, the two other values the check can report, are never stored. A lookup that failed on a saturated limit is `error_open` on an accepted write, like any other failure.
 
 ### Brute force
 

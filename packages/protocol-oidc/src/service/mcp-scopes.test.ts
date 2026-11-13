@@ -12,6 +12,7 @@ import {
 
 const MCP = 'https://idp.example/tenants/acme/mcp';
 const ADMIN = 'https://idp.example/admin';
+const ME = 'https://idp.example/tenants/acme/me';
 
 describe('scopeAllowedAt', () => {
   it('names the two scopes by their wire values', () => {
@@ -20,25 +21,25 @@ describe('scopeAllowedAt', () => {
   });
 
   it.each([MCP_READ_SCOPE, MCP_WRITE_SCOPE])('allows %s at the MCP and the admin audience', (s) => {
-    expect(scopeAllowedAt(s, MCP, MCP, ADMIN)).toBe(true);
-    expect(scopeAllowedAt(s, ADMIN, MCP, ADMIN)).toBe(true);
+    expect(scopeAllowedAt(s, MCP, MCP, ADMIN, ME)).toBe(true);
+    expect(scopeAllowedAt(s, ADMIN, MCP, ADMIN, ME)).toBe(true);
   });
 
   it.each([MCP_READ_SCOPE, MCP_WRITE_SCOPE])('refuses %s at any other audience', (s) => {
-    expect(scopeAllowedAt(s, 'https://api.example', MCP, ADMIN)).toBe(false);
-    expect(scopeAllowedAt(s, 'https://idp.example/tenants/acme', MCP, ADMIN)).toBe(false);
-    expect(scopeAllowedAt(s, '', MCP, ADMIN)).toBe(false);
+    expect(scopeAllowedAt(s, 'https://api.example', MCP, ADMIN, ME)).toBe(false);
+    expect(scopeAllowedAt(s, 'https://idp.example/tenants/acme', MCP, ADMIN, ME)).toBe(false);
+    expect(scopeAllowedAt(s, '', MCP, ADMIN, ME)).toBe(false);
   });
 
   it('is not widened by a prefix or a case difference of an audience', () => {
-    expect(scopeAllowedAt(MCP_READ_SCOPE, `${MCP}/x`, MCP, ADMIN)).toBe(false);
-    expect(scopeAllowedAt(MCP_READ_SCOPE, MCP.toUpperCase(), MCP, ADMIN)).toBe(false);
+    expect(scopeAllowedAt(MCP_READ_SCOPE, `${MCP}/x`, MCP, ADMIN, ME)).toBe(false);
+    expect(scopeAllowedAt(MCP_READ_SCOPE, MCP.toUpperCase(), MCP, ADMIN, ME)).toBe(false);
   });
 
   it('allows every other scope at every audience', () => {
     for (const scope of ['openid', 'profile', 'mcp:reader', 'MCP:READ']) {
-      expect(scopeAllowedAt(scope, 'https://api.example', MCP, ADMIN)).toBe(true);
-      expect(scopeAllowedAt(scope, MCP, MCP, ADMIN)).toBe(true);
+      expect(scopeAllowedAt(scope, 'https://api.example', MCP, ADMIN, ME)).toBe(true);
+      expect(scopeAllowedAt(scope, MCP, MCP, ADMIN, ME)).toBe(true);
     }
   });
 });
@@ -62,24 +63,24 @@ describe('withMcpScopes', () => {
 
 describe('scopesCoherentWithAudience', () => {
   it('accepts an MCP scope only when every audience is the MCP or the admin one', () => {
-    expect(scopesCoherentWithAudience(['openid', 'mcp:read'], [MCP], MCP, ADMIN)).toBe(true);
-    expect(scopesCoherentWithAudience(['mcp:write'], [MCP, ADMIN], MCP, ADMIN)).toBe(true);
-    expect(scopesCoherentWithAudience(['mcp:read'], [MCP, 'https://api.example'], MCP, ADMIN)).toBe(
-      false,
-    );
-    expect(scopesCoherentWithAudience(['mcp:read'], ['https://api.example'], MCP, ADMIN)).toBe(
+    expect(scopesCoherentWithAudience(['openid', 'mcp:read'], [MCP], MCP, ADMIN, ME)).toBe(true);
+    expect(scopesCoherentWithAudience(['mcp:write'], [MCP, ADMIN], MCP, ADMIN, ME)).toBe(true);
+    expect(
+      scopesCoherentWithAudience(['mcp:read'], [MCP, 'https://api.example'], MCP, ADMIN, ME),
+    ).toBe(false);
+    expect(scopesCoherentWithAudience(['mcp:read'], ['https://api.example'], MCP, ADMIN, ME)).toBe(
       false,
     );
   });
 
   it('refuses an MCP scope that names no audience at all', () => {
-    expect(scopesCoherentWithAudience(['mcp:write'], [], MCP, ADMIN)).toBe(false);
+    expect(scopesCoherentWithAudience(['mcp:write'], [], MCP, ADMIN, ME)).toBe(false);
   });
 
   it('leaves a request with no MCP scope to every audience', () => {
-    expect(scopesCoherentWithAudience(['openid'], [], MCP, ADMIN)).toBe(true);
+    expect(scopesCoherentWithAudience(['openid'], [], MCP, ADMIN, ME)).toBe(true);
     expect(
-      scopesCoherentWithAudience(['openid', 'profile'], ['https://api.example'], MCP, ADMIN),
+      scopesCoherentWithAudience(['openid', 'profile'], ['https://api.example'], MCP, ADMIN, ME),
     ).toBe(true);
   });
 });
@@ -109,5 +110,34 @@ describe('refreshAllowedForScope', () => {
 
   it('allows one otherwise', () => {
     expect(refreshAllowedForScope([MCP_READ_SCOPE, 'offline_access'])).toBe(true);
+  });
+});
+
+describe('the "me" scopes', () => {
+  it('are allowed at the me audience only', () => {
+    for (const scope of ['me:read', 'me:write']) {
+      expect(scopeAllowedAt(scope, ME, MCP, ADMIN, ME)).toBe(true);
+      expect(scopeAllowedAt(scope, MCP, MCP, ADMIN, ME)).toBe(false);
+      expect(scopeAllowedAt(scope, ADMIN, MCP, ADMIN, ME)).toBe(false);
+      expect(scopeAllowedAt(scope, 'https://api.example', MCP, ADMIN, ME)).toBe(false);
+      expect(scopeAllowedAt(scope, `${ME}/`, MCP, ADMIN, ME)).toBe(false);
+    }
+  });
+
+  it('keep the MCP scopes out of the me audience', () => {
+    for (const scope of ['mcp:read', 'mcp:write']) {
+      expect(scopeAllowedAt(scope, ME, MCP, ADMIN, ME)).toBe(false);
+    }
+  });
+
+  it('are coherent only with the me audience alone', () => {
+    expect(scopesCoherentWithAudience(['openid', 'me:read'], [ME], MCP, ADMIN, ME)).toBe(true);
+    expect(scopesCoherentWithAudience(['me:read'], [ME, MCP], MCP, ADMIN, ME)).toBe(false);
+    expect(scopesCoherentWithAudience(['me:read'], [], MCP, ADMIN, ME)).toBe(false);
+    expect(scopesCoherentWithAudience(['mcp:read'], [ME], MCP, ADMIN, ME)).toBe(false);
+    expect(scopesCoherentWithAudience(['mcp:read', 'me:read'], [MCP, ME], MCP, ADMIN, ME)).toBe(
+      false,
+    );
+    expect(scopesCoherentWithAudience(['openid'], [ME], MCP, ADMIN, ME)).toBe(true);
   });
 });

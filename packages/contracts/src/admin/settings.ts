@@ -22,7 +22,7 @@ export interface TenantSettingRange {
 }
 
 // The ranges the CHECK constraints on `tenants` hold each integer setting
-// to (migrations 0028, 0035, 0041, 0045, 0048, 0049, 0068 and 0082), here so
+// to (migrations 0028, 0035, 0041, 0045, 0048, 0049, 0068, 0082, 0126, 0131 and 0132), here so
 // the console words the same limits the server enforces;
 // tests/tenant-setting-checks.int.test.ts in @odudu/domain-tenant holds the
 // two in agreement.
@@ -47,6 +47,21 @@ export const TENANT_SETTING_RANGES: Readonly<Partial<Record<string, TenantSettin
   login_ttl_seconds: { min: 60, max: 86_400 },
   verify_email_ttl_seconds: { min: 60, max: 604_800 },
   reset_password_ttl_seconds: { min: 60, max: 86_400 },
+  session_freshness_seconds: { min: 30, max: 3600 },
+  recovery_code_warn_below: { min: 0, max: 10 },
+  recovery_code_count: { min: 8, max: 16 },
+};
+
+// The values a setting may take where the CHECK is a list rather than a range:
+// the TOTP and WebAuthn parameters an authenticator app or a browser understands.
+export const TENANT_SETTING_CHOICES: Readonly<Record<string, readonly (string | number)[]>> = {
+  totp_algorithm: ['SHA1', 'SHA256', 'SHA512'],
+  totp_digits: [6, 8],
+  totp_period: [30, 60],
+  webauthn_user_verification: ['required', 'preferred', 'discouraged'],
+  webauthn_resident_key: ['required', 'preferred', 'discouraged'],
+  breached_check: ['off', 'dataset', 'remote'],
+  breached_on_error: ['open', 'closed'],
 };
 
 /** Pairs `[lower, upper]` a CHECK holds `lower <= upper`. */
@@ -54,4 +69,5 @@ export const TENANT_SETTING_ORDERINGS: readonly (readonly [string, string])[] = 
   ['sso_session_idle_seconds', 'sso_session_max_seconds'],
   ['remember_me_idle_seconds', 'remember_me_max_seconds'],
   ['brute_force_lockout_seconds', 'brute_force_max_lockout_seconds'],
+  ['recovery_code_warn_below', 'recovery_code_count'],
 ];

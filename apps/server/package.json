@@ -33,6 +33,7 @@
     "@odudu/instrument": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "@odudu/mcp": "workspace:*",
+    "@odudu/me": "workspace:*",
     "@odudu/protocol-admin": "workspace:*",
     "@odudu/protocol-oidc": "workspace:*",
     "@odudu/web-assets": "workspace:*",

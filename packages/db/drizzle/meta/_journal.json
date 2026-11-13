@@ -876,6 +876,104 @@
       "when": 1790716483737,
       "tag": "0124_agent_write_budget",
       "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1790802883737,
+      "tag": "0125_me_scopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1790802983737,
+      "tag": "0126_session_freshness",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1790889383737,
+      "tag": "0127_pending_email_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1790975783737,
+      "tag": "0128_client_allowed_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1791062183737,
+      "tag": "0129_action_token_return",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1791148583737,
+      "tag": "0130_recovery_codes_issued_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1791148683737,
+      "tag": "0131_recovery_code_warn_below",
+      "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1791148783737,
+      "tag": "0132_authenticator_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1791148883737,
+      "tag": "0133_require_passkey",
+      "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1791148983737,
+      "tag": "0134_session_device",
+      "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1791235383737,
+      "tag": "0135_breached_passwords",
+      "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1791321783737,
+      "tag": "0136_more_required_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1791408183737,
+      "tag": "0137_flows",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1791494583737,
+      "tag": "0138_client_flow",
+      "breakpoints": true
     }
   ]
 }

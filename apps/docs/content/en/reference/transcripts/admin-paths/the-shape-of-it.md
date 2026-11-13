@@ -119,6 +119,7 @@ shown once — a registration token, a client secret, a one-time password.
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/credentials`                      | List a subject's credentials               |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId`        | Remove a credential                        |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/consents`                         | List a subject's consents                  |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/terms-acceptances`                | List the terms a subject accepted          |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/consents/:clientId`               | Revoke a consent                           |
 | `POST`   | `/admin/tenants/{tenant}/subjects/:id/password`                         | Issue a one-time password                  |
 | `POST`   | `/admin/tenants/{tenant}/subjects/:id/password-reset`                   | Send a reset-password link                 |
@@ -239,8 +240,14 @@ shown once — a registration token, a client secret, a one-time password.
 | `POST`   | `/admin/tenants/{tenant}/keys/:id/promote`                              | Promote a signing key                      |
 | `POST`   | `/admin/tenants/{tenant}/keys/:id/retire`                               | Retire a signing key                       |
 | `DELETE` | `/admin/tenants/{tenant}/keys/:id`                                      | Delete a retired signing key               |
-| `GET`    | `/admin/tenants/{tenant}/flow/executions`                               | Read a tenant's authentication flow        |
-| `PUT`    | `/admin/tenants/{tenant}/flow/executions`                               | Replace a tenant's authentication flow     |
+| `GET`    | `/admin/tenants/{tenant}/flows`                                         | List a tenant's sign-in flows              |
+| `POST`   | `/admin/tenants/{tenant}/flows`                                         | Create a sign-in flow                      |
+| `GET`    | `/admin/tenants/{tenant}/flows/:id`                                     | Read one sign-in flow                      |
+| `PUT`    | `/admin/tenants/{tenant}/flows/:id`                                     | Replace a flow's name and steps            |
+| `POST`   | `/admin/tenants/{tenant}/flows/:id/make-default`                        | Make a flow the tenant's default           |
+| `DELETE` | `/admin/tenants/{tenant}/flows/:id`                                     | Delete a flow that is not the default      |
+| `GET`    | `/admin/tenants/{tenant}/flow/executions`                               | Read the default flow's steps              |
+| `PUT`    | `/admin/tenants/{tenant}/flow/executions`                               | Replace the default flow's steps           |
 | `GET`    | `/admin/tenants/{tenant}/smtp`                                          | Read a tenant's own SMTP configuration     |
 | `PUT`    | `/admin/tenants/{tenant}/smtp`                                          | Replace a tenant's own SMTP configuration  |
 | `DELETE` | `/admin/tenants/{tenant}/smtp`                                          | Remove a tenant's own SMTP configuration   |

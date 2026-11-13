@@ -83,6 +83,18 @@ describe('assertDetailAllowed', () => {
     }).not.toThrow();
   });
 
+  it('accepts a boolean user_verified on login.passkey only', () => {
+    expect(() => {
+      assertDetailAllowed('login.passkey', { factor: 'passkey', user_verified: false });
+    }).not.toThrow();
+    expect(() => {
+      assertDetailAllowed('login.passkey', { factor: 'passkey', user_verified: 'no' });
+    }).toThrow(/user_verified/);
+    expect(() => {
+      assertDetailAllowed('login.password', { factor: 'password', user_verified: true });
+    }).toThrow(/user_verified/);
+  });
+
   it('rejects a key login.password does not name', () => {
     expect(() => {
       assertDetailAllowed('login.password', {
@@ -111,6 +123,51 @@ describe('assertDetailAllowed', () => {
     }).toThrow(/username/);
   });
 
+  it('accepts whether a password change ended the other sessions', () => {
+    expect(() => {
+      assertDetailAllowed('password.changed', { ended_other_sessions: true });
+      assertDetailAllowed('password.changed', { ended_other_sessions: false });
+    }).not.toThrow();
+  });
+
+  it('rejects an ended_other_sessions that is not a boolean', () => {
+    expect(() => {
+      assertDetailAllowed('password.changed', { ended_other_sessions: 'yes' });
+    }).toThrow(/ended_other_sessions/);
+  });
+
+  it('allows no ended_other_sessions on a password reset', () => {
+    expect(() => {
+      assertDetailAllowed('password.reset', { ended_other_sessions: true });
+    }).toThrow(/ended_other_sessions/);
+  });
+
+  it('accepts what the breached-password check decided on the writes that run it', () => {
+    for (const action of ['password.changed', 'password.reset', 'account.registered']) {
+      for (const decided of [
+        'passed',
+        'breached',
+        'error_open',
+        'error_closed',
+        'off',
+        'dataset_empty',
+      ]) {
+        expect(() => {
+          assertDetailAllowed(action, { breached_check: decided });
+        }).not.toThrow();
+      }
+    }
+  });
+
+  it('rejects a breached_check outside the five outcomes, or on another action', () => {
+    expect(() => {
+      assertDetailAllowed('password.changed', { breached_check: 'maybe' });
+    }).toThrow(/breached_check/);
+    expect(() => {
+      assertDetailAllowed('email.changed', { breached_check: 'passed' });
+    }).toThrow(/breached_check/);
+  });
+
   it('rejects a mode outside delegation|impersonation', () => {
     expect(() => {
       assertDetailAllowed('token.exchange', {
@@ -121,7 +178,13 @@ describe('assertDetailAllowed', () => {
     }).toThrow(/mode/);
   });
 
-  it('rejects a via outside logout|admin|evicted', () => {
+  it('accepts a session ended by the person through the me API', () => {
+    expect(() => {
+      assertDetailAllowed('session.ended', { via: 'self' });
+    }).not.toThrow();
+  });
+
+  it('rejects a via outside logout|admin|self|evicted', () => {
     expect(() => {
       assertDetailAllowed('session.ended', { via: 'timeout' });
     }).toThrow(/via/);
@@ -161,5 +224,77 @@ describe('assertActionKnown', () => {
     expect(() => {
       assertActionKnown('token', 'token.isue');
     }).toThrow(/token\.isue/);
+  });
+});
+
+describe('the steps of an application-requested action', () => {
+  for (const action of [
+    'action.requested',
+    'action.completed',
+    'action.cancelled',
+    'action.failed',
+  ] as const) {
+    it(`${action} is a credential action whose detail names the required action`, () => {
+      expect(AUDIT_ACTIONS.credential).toContain(action);
+      expect(() => {
+        assertActionKnown('credential', action);
+      }).not.toThrow();
+      expect(() => {
+        assertDetailAllowed(action, { action: 'configure-totp' });
+      }).not.toThrow();
+    });
+  }
+
+  it('allows no other detail key and no non-string action', () => {
+    expect(() => {
+      assertDetailAllowed('action.requested', { action: 'configure-totp', scope: 'x' });
+    }).toThrow(/scope/);
+    expect(() => {
+      assertDetailAllowed('action.cancelled', { action: 3 });
+    }).toThrow(/invalid value/);
+  });
+});
+
+describe('the notice a change to a sign-in method records', () => {
+  it.each(['otp.enrolled', 'passkey.enrolled', 'recovery_codes.issued'])(
+    'is allowed on %s with the three outcomes a notice can have',
+    (action) => {
+      for (const notice of ['sent', 'skipped_unverified', 'skipped_none']) {
+        expect(() => {
+          assertDetailAllowed(action, { notice });
+        }).not.toThrow();
+      }
+    },
+  );
+
+  it.each(['otp.enrolled', 'passkey.enrolled', 'recovery_codes.issued'])(
+    'refuses any other value on %s, so no address can be recorded there',
+    (action) => {
+      for (const notice of ['ada@example.test', '', 'queued', 1]) {
+        expect(() => {
+          assertDetailAllowed(action, { notice });
+        }).toThrow(/invalid value/);
+      }
+    },
+  );
+
+  it('is not allowed on an action that sends no notice', () => {
+    expect(() => {
+      assertDetailAllowed('email.verified', { notice: 'sent' });
+    }).toThrow(/does not allow detail key/);
+  });
+});
+
+describe('terms.accepted', () => {
+  it('carries the version accepted, as text', () => {
+    expect(() => {
+      assertDetailAllowed('terms.accepted', { version: '2026-01' });
+    }).not.toThrow();
+    expect(() => {
+      assertDetailAllowed('terms.accepted', { version: 2 });
+    }).toThrow(/invalid value/u);
+    expect(() => {
+      assertDetailAllowed('terms.accepted', { version: '1', uri: 'https://example.com' });
+    }).toThrow(/does not allow detail key 'uri'/u);
   });
 });

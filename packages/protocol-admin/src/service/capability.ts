@@ -8,6 +8,7 @@ import {
   addRoleCompositeRequestSchema,
   listRoleCompositesResponseSchema,
   setRoleDefaultRequestSchema,
+  sendAccountLinkRequestSchema,
   sendActionsEmailRequestSchema,
   setGroupDefaultRequestSchema,
   amendClientRequestSchema,
@@ -38,6 +39,9 @@ import {
   createKeyRequestSchema,
   groupSchema,
   listExecutionsResponseSchema,
+  listFlowsResponseSchema,
+  flowSchema,
+  saveFlowRequestSchema,
   replaceExecutionsRequestSchema,
   listClientsQuerySchema,
   countClientsQuerySchema,
@@ -58,6 +62,8 @@ import {
   listMailQuerySchema,
   listConsentsQuerySchema,
   listConsentsResponseSchema,
+  listTermsAcceptancesQuerySchema,
+  listTermsAcceptancesResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
   listRegistrationTokensQuerySchema,
@@ -215,6 +221,16 @@ export interface AdminRoute {
 }
 
 // Appended to the description of every route that mutates one subject.
+const RETURN_TO =
+  ' An optional body names a client to return to: `client_id`, and `redirect_uri` when the ' +
+  'client registers more than one. The last page of the link then offers a way back to that ' +
+  'registered address with `action_status` (`success`, or `error` for a link that cannot be ' +
+  'used), a hint, since the "me" API holds the outcome. Absent, the link ends as it always ' +
+  'did. `400` with its own problem type for a client that is not an enabled client of this ' +
+  'tenant (`return-client-unknown`), an address it does not register ' +
+  '(`return-redirect-uri-unregistered`), or none named where it registers several ' +
+  '(`return-redirect-uri-required`).';
+
 const TARGET_CEILING =
   ' Refused with `403` when the subject holds an admin capability the caller does not ' +
   '(the target ceiling).';
@@ -546,6 +562,15 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'The subject\u2019s consents, paged by keyset on the client\u2019s own `client_id`: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last.',
   },
   {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/terms-acceptances',
+    capability: 'view-users',
+    responseSchema: listTermsAcceptancesResponseSchema,
+    querystringSchema: listTermsAcceptancesQuerySchema,
+    description:
+      'The versions of the tenant\u2019s terms the subject accepted and when, newest first, paged by keyset on the time and the version: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last. `404` for a subject that does not exist.',
+  },
+  {
     method: 'DELETE',
     pattern: '/admin/tenants/:tenant/subjects/:id/consents/:clientId',
     capability: 'manage-users',
@@ -578,6 +603,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: z.void(),
     successStatus: 202,
+    bodySchema: sendAccountLinkRequestSchema.optional(),
     description:
       'Queues the reset-password link a self-service request sends, to the subject\u2019s own ' +
       'address. The link is never in this response or the audit trail. `409` with its own ' +
@@ -585,6 +611,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '`reset_password_allowed` is off so the link would be refused (`reset-password-off`), or ' +
       'when its mail would only be logged, `GET …/smtp`\u2019s `none` (`no-mail-relay`). ' +
       'Rate-limited per origin, as the self-service request is.' +
+      RETURN_TO +
       TARGET_CEILING,
   },
   {
@@ -593,10 +620,12 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: z.void(),
     successStatus: 202,
+    bodySchema: sendAccountLinkRequestSchema.optional(),
     description:
       'Queues a fresh email-verification link to the subject\u2019s own address. The link is ' +
       'never in this response or the audit trail. `409` `no-email` or `no-mail-relay` as ' +
       '`POST …/password-reset` answers them. Rate-limited per origin.' +
+      RETURN_TO +
       TARGET_CEILING,
   },
   {
@@ -608,12 +637,14 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: sendActionsEmailRequestSchema,
     description:
       'Queues a link to the subject\u2019s own address that takes them through `actions`, ' +
-      'a non-empty subset of the required actions `PUT …/required-actions` takes. Following ' +
+      'a non-empty subset of `update-password`, `configure-totp`, `configure-passkey` and ' +
+      '`generate-recovery-codes`, the required actions a link can finish. Following ' +
       'it sets a new password where `update-password` is named, and owes the rest, so the ' +
       'next sign-in asks for each; the link alone never enrols a factor. The ' +
       'link is never in this response or the audit trail. ' +
       'The same `409`s as `POST …/password-reset`, `reset-password-off` only when ' +
       '`update-password` is named. Rate-limited per origin.' +
+      RETURN_TO +
       TARGET_CEILING,
   },
   {
@@ -670,7 +701,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: setRequiredActionsResponseSchema,
     bodySchema: setRequiredActionsRequestSchema,
     description:
-      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
+      'Replaces the whole list, which names any of `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile` and `accept-terms`. `409` where an action cannot be owed: `no-email` for `verify-email` on a subject with no address, `terms-not-configured` for `accept-terms` while the tenant has no `terms_uri` (changing `terms_version` adds the action to nobody, so an administrator owes it again when the terms change), and `no-editable-profile-fields` for `update-profile` where the tenant requires a profile field a person may not edit; a person may edit every profile claim today, so no tenant is refused yet. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       TARGET_CEILING,
   },
   // The capability ceiling this route enforces — a caller may never assign
@@ -1864,10 +1895,82 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'error. Never the body, which carries a sign-in link. The recipient is masked, wherever ' +
       'it appears, unless the caller also holds `view-users`.',
   },
-  // A tenant's authentication flow: manage-tenant, the same capability as
+  // A tenant's authentication flows: manage-tenant, the same capability as
   // roles, groups and scopes above. No partial edit — PUT replaces the
-  // whole ordered list, renumbering indices contiguously regardless of what
-  // the caller sent, since a flow's meaning is in its order.
+  // whole ordered list, since a flow's meaning is in its order. The
+  // `flow/executions` pair below reads and writes the default flow's steps.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/flows',
+    capability: 'manage-tenant',
+    responseSchema: listFlowsResponseSchema,
+    description:
+      'Every sign-in flow of the tenant, ordered by name, and `available`: every authenticator ' +
+      'a step may name. A tenant holds at most 20 flows, so the list is never paged and `total` ' +
+      'is all of them. Exactly one has `is_default`. Each has `client_count`, the clients that ' +
+      'name it through `flow_id`. The `ETag` covers the flows and their counts.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/flows',
+    capability: 'manage-tenant',
+    responseSchema: flowSchema,
+    bodySchema: saveFlowRequestSchema,
+    successStatus: 201,
+    description:
+      'Creates a flow that is not the default. Refused with `409`: a name another flow of ' +
+      'the tenant has (`#flow-name-taken`), or a tenant that already holds 20 flows ' +
+      '(`#flow-limit`). A step list is refused with the `400` types of `PUT ' +
+      '/flow/executions`; the unknown and the repeated authenticator carry `errors[]` ' +
+      'naming the step as `steps[N].authenticator`, the others none. Answers an ' +
+      '`ETag`.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/flows/:id',
+    capability: 'manage-tenant',
+    responseSchema: flowSchema,
+    description: 'Answers the flow with an `ETag` that covers its name and steps.',
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/flows/:id',
+    capability: 'manage-tenant',
+    responseSchema: flowSchema,
+    bodySchema: saveFlowRequestSchema,
+    description:
+      'Replaces the flow\u2019s name and steps, keeping its id and whether it is the default. ' +
+      'Refused as `POST` refuses a step list or a name another flow has. `If-Match` is ' +
+      'mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused ' +
+      'with `428`, and a stale one with `412`.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/flows/:id',
+    capability: 'manage-tenant',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Deletes a flow that is not the default. Refused with `409`: the default ' +
+      '(`#default-flow`), since a client that names no flow signs in through it, and a flow ' +
+      'some client names through `flow_id` (`#flow-in-use`), whose `detail` gives how many ' +
+      'and the `client_id` of at most ten; unpoint those clients first. `If-Match` is ' +
+      'mandatory, as for `PUT`: a flow another administrator has changed since it was read is ' +
+      'not deleted unseen (`428` without the header or with `*`, `412` when stale), and both ' +
+      'are answered before the refusals above.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/flows/:id/make-default',
+    capability: 'manage-tenant',
+    responseSchema: flowSchema,
+    description:
+      'Makes the flow the tenant\u2019s default, the one a sign-in runs when nothing names another, ' +
+      'and the one `flow/executions` reads and writes; the flow that was the default stops being ' +
+      'it, in the same transaction. The flow that already is the default is answered as it is. ' +
+      '`If-Match` is mandatory, as for `PUT`. A sign-in already in flight takes its next step ' +
+      'from the new default, since it records only which authenticators it has satisfied.',
+  },
   {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/flow/executions',

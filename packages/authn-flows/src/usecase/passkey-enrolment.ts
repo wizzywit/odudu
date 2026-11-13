@@ -1,8 +1,12 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
+import { type MailLookResolver } from '@odudu/email';
+import { systemClock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
+import { noticeOwnChange } from '#/usecase/own-change-notice';
+import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { relyingPartyOfTenant } from '#/usecase/passkey-relying-party';
 import {
   parseRegistrationResponse,
@@ -29,7 +33,9 @@ export async function beginPasskeyEnrolment(
 ): Promise<PasskeyEnrolmentOffer> {
   const user = await userRepository(tx).bySubjectId(input.subjectId);
   const existing = await credentialRepository(tx).listFor(input.subjectId, 'webauthn');
+  const { webauthn } = await tenantSettingsRepository(tx).authenticatorPolicy(input.tenantId);
   const offer = await passkeyRegistrationOptions({
+    policy: webauthn,
     relyingParty: await relyingPartyOfTenant(tx, input.tenantId, input.publicBaseUrl),
     tenantName: input.tenantName,
     username: user?.username ?? input.subjectId,
@@ -53,6 +59,9 @@ export interface CompletePasskeyEnrolment {
   // The JSON navigator.credentials.create() produced, as it arrived.
   response: unknown;
   label?: string;
+  // How the owner's notice is dressed; absent, it is unthemed.
+  resolveMailLook?: MailLookResolver;
+  now?: Date;
 }
 
 export type PasskeyEnrolmentOutcome =
@@ -61,7 +70,12 @@ export type PasskeyEnrolmentOutcome =
   // ever offered, or a previous response already spent the one that was,
   // which is where a replay lands, before any signature is looked at.
   // already_enrolled: this tenant already holds that credential id.
-  | { kind: 'rejected'; reason: 'no_challenge' | 'invalid_response' | 'already_enrolled' };
+  // not_discoverable: the client reports the credential cannot be offered
+  // without a username, and a passkey sign-in names none.
+  | {
+      kind: 'rejected';
+      reason: 'no_challenge' | 'invalid_response' | 'already_enrolled' | 'not_discoverable';
+    };
 
 const DEFAULT_LABEL = 'Passkey';
 
@@ -89,12 +103,17 @@ export async function completePasskeyEnrolment(
   if (response === null) return { kind: 'rejected', reason: 'invalid_response' };
 
   const relyingParty = await relyingPartyOfTenant(tx, input.tenantId, input.publicBaseUrl);
+  const { webauthn } = await tenantSettingsRepository(tx).authenticatorPolicy(input.tenantId);
   const verified = await verifyPasskeyRegistration({
     relyingParty,
     expectedChallenge: challenge,
+    userVerification: webauthn.userVerification,
     response,
   });
   if (verified.kind === 'rejected') return { kind: 'rejected', reason: 'invalid_response' };
+  if (response.clientExtensionResults.credProps?.rk === false) {
+    return { kind: 'rejected', reason: 'not_discoverable' };
+  }
 
   // user_credentials_lookup_key (migration 0034) is unique per tenant and
   // remains the actual guarantee. This read only turns the case
@@ -122,9 +141,17 @@ export async function completePasskeyEnrolment(
       publicKey: verified.publicKey,
       counter: verified.counter,
       transports: verified.transports,
+      userVerification: webauthn.userVerification,
+      residentKey: webauthn.residentKey,
     },
   });
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-passkey');
+  const notice = await noticeOwnChange(
+    tx,
+    { ...input, now: input.now ?? systemClock.now() },
+    { kind: 'passkey_added' },
+    input.resolveMailLook,
+  );
   await auditRepository(tx).record({
     eventType: 'credential',
     action: 'passkey.enrolled',
@@ -132,6 +159,7 @@ export async function completePasskeyEnrolment(
     actorSubjectId: input.subjectId,
     resourceType: 'subject',
     resourceId: input.subjectId,
+    detail: { notice },
   });
   return { kind: 'enrolled', credentialId: verified.credentialId };
 }

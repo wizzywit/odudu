@@ -28,12 +28,21 @@ export const AUDIT_ACTIONS = {
     'account.registered',
     'account.registration_duplicate',
     'account.address_proved',
+    'account.reconciled',
     'email.verified',
+    'email.verification_resent',
+    'email.changed',
     'password.reset',
     'password.changed',
     'otp.enrolled',
     'passkey.enrolled',
     'recovery_codes.issued',
+    'recovery_codes.refused',
+    'action.requested',
+    'action.completed',
+    'action.cancelled',
+    'action.failed',
+    'terms.accepted',
   ],
 } as const;
 
@@ -128,9 +137,13 @@ type AdminAccessInput =
 type AuthenticationInput =
   | (EventCommon & {
       readonly eventType: 'authentication';
-      readonly action:
-        'login.password' | 'login.otp' | 'login.recovery_code' | 'login.passkey' | 'factor.offered';
+      readonly action: 'login.password' | 'login.otp' | 'login.recovery_code' | 'factor.offered';
       readonly detail?: WithReason<{ factor: string }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'authentication';
+      readonly action: 'login.passkey';
+      readonly detail?: WithReason<{ factor: string; user_verified?: boolean }>;
     })
   | (EventCommon & {
       readonly eventType: 'authentication';
@@ -152,7 +165,7 @@ type SessionInput =
   | (EventCommon & {
       readonly eventType: 'session';
       readonly action: 'session.ended';
-      readonly detail?: WithReason<{ via: 'logout' | 'admin' | 'evicted' }>;
+      readonly detail?: WithReason<{ via: 'logout' | 'admin' | 'self' | 'evicted' }>;
     });
 
 type TokenInput =
@@ -189,20 +202,77 @@ type TokenInput =
       readonly detail?: ReasonOnly;
     });
 
-type CredentialInput = EventCommon & {
-  readonly eventType: 'credential';
-  readonly action:
-    | 'account.registered'
-    | 'account.registration_duplicate'
-    | 'account.address_proved'
-    | 'email.verified'
-    | 'password.reset'
-    | 'password.changed'
-    | 'otp.enrolled'
-    | 'passkey.enrolled'
-    | 'recovery_codes.issued';
-  readonly detail?: ReasonOnly;
-};
+export type BreachedCheckOutcome =
+  'passed' | 'breached' | 'error_open' | 'error_closed' | 'off' | 'dataset_empty';
+
+const BREACHED_CHECK_OUTCOMES: readonly string[] = [
+  'passed',
+  'breached',
+  'error_open',
+  'error_closed',
+  'off',
+  'dataset_empty',
+];
+
+type CredentialInput =
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action:
+        | 'account.registration_duplicate'
+        | 'account.address_proved'
+        | 'email.verified'
+        | 'email.verification_resent'
+        | 'email.changed'
+        | 'recovery_codes.refused';
+      readonly detail?: ReasonOnly;
+    })
+  // One account folded into another: the survivor, the account that went,
+  // whether its rows were carried over and how many of each moved.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'account.reconciled';
+      readonly detail: Readonly<{
+        survivor: string;
+        loser: string;
+        carried_over: boolean;
+        moved: Readonly<Record<'credentials' | 'consents', number>>;
+      }>;
+    })
+  // `detail.breached_check` says what the breached-password check decided.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'account.registered' | 'password.reset';
+      readonly detail?: WithReason<{ breached_check?: BreachedCheckOutcome }>;
+    })
+  // `detail.ended_other_sessions` says whether the change ended the person's other sessions.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'password.changed';
+      readonly detail?: WithReason<{
+        ended_other_sessions: boolean;
+        breached_check?: BreachedCheckOutcome;
+      }>;
+    })
+  // `detail.version` is the version of the tenant's terms that was accepted.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'terms.accepted';
+      readonly detail: Readonly<{ version: string }>;
+    })
+  // `detail.notice` says whether the subject was told of the change by mail.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'otp.enrolled' | 'passkey.enrolled' | 'recovery_codes.issued';
+      readonly detail?: WithReason<{ notice?: 'sent' | 'skipped_unverified' | 'skipped_none' }>;
+    })
+  // An application sent the person to change a credential; `detail.action` is
+  // the required action it named and `actorClientId` the application.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action:
+        'action.requested' | 'action.completed' | 'action.cancelled' | 'action.failed';
+      readonly detail: WithReason<{ action: string }>;
+    });
 
 export type VocabularyEventInput =
   AdminAccessInput | AuthenticationInput | SessionInput | TokenInput | CredentialInput;
@@ -222,13 +292,25 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'login.password': ['factor'],
   'login.otp': ['factor'],
   'login.recovery_code': ['factor'],
-  'login.passkey': ['factor'],
+  'login.passkey': ['factor', 'user_verified'],
   'factor.offered': ['factor'],
   'client.authenticate': ['method'],
   'session.ended': ['via'],
+  'password.changed': ['ended_other_sessions', 'breached_check'],
+  'password.reset': ['breached_check'],
+  'account.registered': ['breached_check'],
   'token.issue': ['grant_type', 'scope'],
   'token.refresh': ['scope'],
   'token.exchange': ['mode', 'scope', 'requested_token_type'],
+  'action.requested': ['action'],
+  'action.completed': ['action'],
+  'action.cancelled': ['action'],
+  'action.failed': ['action'],
+  'otp.enrolled': ['notice'],
+  'passkey.enrolled': ['notice'],
+  'recovery_codes.issued': ['notice'],
+  'account.reconciled': ['survivor', 'loser', 'carried_over', 'moved'],
+  'terms.accepted': ['version'],
 };
 
 const KNOWN_VOCABULARY_ACTIONS: ReadonlySet<string> = new Set(Object.values(AUDIT_ACTIONS).flat());
@@ -242,6 +324,7 @@ export function isAuditReason(value: unknown): value is AuditReason {
 }
 
 const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
+  'action',
   'factor',
   'scope',
   'method',
@@ -252,6 +335,7 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
   'owner',
   'tool',
   'route',
+  'version',
 ]);
 
 const TOOL_NAME = /^[a-z0-9_.-]{1,64}$/u;
@@ -263,10 +347,19 @@ function isValidDetailValue(key: string, value: unknown): boolean {
   if (key === 'tool') return typeof value === 'string' && TOOL_NAME.test(value);
   if (key === 'route') return typeof value === 'string' && ROUTE_KEY.test(value);
   if (key === 'mode') return value === 'delegation' || value === 'impersonation';
-  if (key === 'via') return value === 'logout' || value === 'admin' || value === 'evicted';
+  if (key === 'via')
+    return value === 'logout' || value === 'admin' || value === 'self' || value === 'evicted';
+  if (key === 'notice') {
+    return value === 'sent' || value === 'skipped_unverified' || value === 'skipped_none';
+  }
   if (key === 'also_admits') {
     return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }
+  if (key === 'breached_check') return BREACHED_CHECK_OUTCOMES.includes(String(value));
+  if (key === 'user_verified' || key === 'ended_other_sessions' || key === 'carried_over') {
+    return typeof value === 'boolean';
+  }
+  if (key === 'survivor' || key === 'loser') return typeof value === 'string';
   if (STRING_DETAIL_KEYS.has(key)) return typeof value === 'string';
   return true;
 }

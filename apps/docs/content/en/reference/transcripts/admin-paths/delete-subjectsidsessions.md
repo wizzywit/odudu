@@ -33,16 +33,16 @@ redeem() {
     --data-urlencode "code=$1" \
     --data-urlencode "redirect_uri=https://app.example/callback" \
     --data-urlencode "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk" \
-    -u "recovery-demo-app:oNxj0NLDbXAVWohwuHXVUI_sHgnrfIJMuAk28Kl8WCU" \
+    -u "recovery-demo-app:izuxIVWAgYa_OtjPUH5_fW4XHY52SCwAnSIHSdNs42o" \
     'http://localhost:3000/tenants/recovery-demo/protocol/openid-connect/token' | grep -o '"refresh_token":"[^"]*"'
 }
-redeem h09v7JRpqx_2QP43pO0iFb-Mi_-y5-uvQ_dLO9R1yEM
-redeem dIaPGsUTiYp47Ypkl8FuoxachQAgewGPjxhS7Uy0nT4
+redeem 8fngX60T_fqkL6Eo0CWc0hN-WO48k7vdfRNAwUjv8-A
+redeem siqZJTb99r6PwzhNOG7w3iNMOU7VKgFXk4P-mrsSI0Y
 ```
 
 ```
-"refresh_token":"thiT9DnRT_NtwhsWgwbFHSxBBRXv19484ncl7K1_3Vc"
-"refresh_token":"CukLcH9hRCYKI6uWDiTIWP1h6o5MoZdAhwmwgNKAh14"
+"refresh_token":"K6bHBAE16TMHEWsir6y-w3NCfelO3mgsQJ3PXrABTbE"
+"refresh_token":"7wsM1zCi_4AxxoIVQac4KpJAmzwkp6JhQ7tA1FCYLyY"
 ```
 
 Two live sessions, each holding a grant. Listing them, ending them,
@@ -53,34 +53,34 @@ refresh() {
   curl -sS \
     --data-urlencode "grant_type=refresh_token" \
     --data-urlencode "refresh_token=$1" \
-    -u "recovery-demo-app:oNxj0NLDbXAVWohwuHXVUI_sHgnrfIJMuAk28Kl8WCU" \
+    -u "recovery-demo-app:izuxIVWAgYa_OtjPUH5_fW4XHY52SCwAnSIHSdNs42o" \
     'http://localhost:3000/tenants/recovery-demo/protocol/openid-connect/token'
   echo
 }
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a0e303-9db3-712d-9272-98d2c2a04320/sessions
+  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a1d0a4-ab22-7dd2-93fc-b4792c16eb63/sessions
 echo
 
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a0e303-9db3-712d-9272-98d2c2a04320/sessions
+  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a1d0a4-ab22-7dd2-93fc-b4792c16eb63/sessions
 echo
 
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a0e303-9db3-712d-9272-98d2c2a04320/sessions
+  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a1d0a4-ab22-7dd2-93fc-b4792c16eb63/sessions
 echo
 
-refresh thiT9DnRT_NtwhsWgwbFHSxBBRXv19484ncl7K1_3Vc
-refresh CukLcH9hRCYKI6uWDiTIWP1h6o5MoZdAhwmwgNKAh14
+refresh K6bHBAE16TMHEWsir6y-w3NCfelO3mgsQJ3PXrABTbE
+refresh 7wsM1zCi_4AxxoIVQac4KpJAmzwkp6JhQ7tA1FCYLyY
 ```
 
 ```
-{"items":[{"id":"01a0e304-7933-7d2c-8e6b-ebbe5e34982a","created_at":"2026-09-27T13:18:36.338Z","last_active_at":"2026-09-27T13:18:36.338Z","remembered":false,"client_ids":["recovery-demo-app"]},{"id":"01a0e304-797c-7fe2-b013-c38192ef313b","created_at":"2026-09-27T13:18:36.411Z","last_active_at":"2026-09-27T13:18:36.411Z","remembered":false,"client_ids":["recovery-demo-app"]}]}
+{"items":[{"id":"01a1d0a4-abbb-71a4-973e-49a9b3eaba15","created_at":"2026-11-12T16:43:35.225Z","last_active_at":"2026-11-12T16:43:35.225Z","remembered":false,"client_ids":["recovery-demo-app"],"device":"f12f0ff5e0818833ec57461cfe5ae1617980bd6914dfbb9f2b0832a72547fe88"},{"id":"01a1d0a4-ac0f-7980-89ff-609526c5d2d8","created_at":"2026-11-12T16:43:35.309Z","last_active_at":"2026-11-12T16:43:35.309Z","remembered":false,"client_ids":["recovery-demo-app"],"device":"ae0979f26f5959c9d18c15f63546e28a91bb92e7d9906611c3e7f215b04b39e2"}]}
 HTTP/1.1 200 OK
-x-request-id: 01a0e304-c992-7ce0-a32d-345ffe41df00
+x-request-id: 01a1d0a4-accb-7f46-a1a4-280dc38b0932
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 11
-Date: Sun, 27 Sep 2026 13:18:56 GMT
+Date: Thu, 12 Nov 2026 16:43:35 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

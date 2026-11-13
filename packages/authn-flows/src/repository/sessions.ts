@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, ne, sql, type SQL } from 'drizzle-orm';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
 import { type SessionEntry } from '#/service/session-entry';
@@ -46,6 +46,7 @@ function toRecord(row: SessionRow): SessionRecord {
     lastActiveAt: row.lastActiveAt,
     authenticators: row.authenticators,
     remembered: row.remembered,
+    deviceId: row.deviceId,
   };
 }
 
@@ -60,6 +61,7 @@ export interface NewSession {
   // (packages/authn-flows/src/schema/sessions.ts). establishSession is the
   // only caller with a login's own choice to record.
   remembered?: boolean;
+  deviceId?: string | null;
 }
 
 async function rowById(tx: TenantScopedDatabase, id: string): Promise<SessionRow | undefined> {
@@ -125,13 +127,24 @@ export function sessionRepository(tx: TenantScopedDatabase) {
       return ended.map((row) => row.id);
     },
 
-    // A subject's live sessions, a page at a time in id order. Served by
-    // sessions_by_subject.
-    async liveIdsFor(subjectId: string, now: Date, limit: number): Promise<string[]> {
+    // A subject's live sessions, a page at a time in id order, leaving out
+    // `except` when it is named. Served by sessions_by_subject.
+    async liveIdsFor(
+      subjectId: string,
+      now: Date,
+      limit: number,
+      except?: string,
+    ): Promise<string[]> {
       const rows = await tx
         .select({ id: sessions.id })
         .from(sessions)
-        .where(and(eq(sessions.subjectId, subjectId), gt(sessions.expiresAt, now)))
+        .where(
+          and(
+            eq(sessions.subjectId, subjectId),
+            gt(sessions.expiresAt, now),
+            except === undefined ? undefined : ne(sessions.id, except),
+          ),
+        )
         .orderBy(sessions.id)
         .limit(limit);
       return rows.map((row) => row.id);
@@ -162,6 +175,33 @@ export function sessionRepository(tx: TenantScopedDatabase) {
       });
     },
 
+    // The subject's live sessions opened on one device, at most `limit`.
+    // Read under the tenant-row lock admission takes, so it sees every
+    // session a concurrent admission committed, which the cookie's own id
+    // list cannot. The subject condition is what keeps a forged device value
+    // from reaching anybody else's sessions; sessions_by_subject serves it.
+    async liveByDevice(
+      subjectId: string,
+      deviceId: string,
+      tenant: SessionLifespans,
+      now: Date,
+      limit: number,
+    ): Promise<SessionRecord[]> {
+      const rows = await tx
+        .select()
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.subjectId, subjectId),
+            eq(sessions.deviceId, deviceId),
+            liveSessionCondition(tenant, now),
+          ),
+        )
+        .orderBy(asc(sessions.id))
+        .limit(limit);
+      return rows.map(toRecord);
+    },
+
     // The only read keyed on who a session belongs to rather than what a
     // browser's cookie names — so it is the one place an operator can see
     // a session a lost or overwritten cookie orphaned (ADR 0033), remembered
@@ -177,6 +217,63 @@ export function sessionRepository(tx: TenantScopedDatabase) {
         .where(eq(sessions.subjectId, subjectId))
         .orderBy(asc(sessions.id));
       return rows.filter((row) => stillLive(row, tenant, now)).map(toRecord);
+    },
+
+    // A page of a subject's live sessions in id order after `after`, at most
+    // `limit`, the liveness decided in SQL so the page is bounded whatever the
+    // subject holds. Served by sessions_by_subject.
+    async livePageBySubject(
+      subjectId: string,
+      tenant: SessionLifespans,
+      now: Date,
+      page: { readonly after: string | undefined; readonly limit: number },
+    ): Promise<SessionRecord[]> {
+      const rows = await tx
+        .select()
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.subjectId, subjectId),
+            liveSessionCondition(tenant, now),
+            page.after === undefined ? undefined : gt(sessions.id, page.after),
+          ),
+        )
+        .orderBy(asc(sessions.id))
+        .limit(page.limit);
+      return rows.map(toRecord);
+    },
+
+    // When the sign-in behind one of the subject's sessions happened (the
+    // `auth_time` it issues), or null when none of theirs by that id is still
+    // live. One read by primary key.
+    async liveCreatedAt(
+      subjectId: string,
+      sessionId: string,
+      tenant: SessionLifespans,
+      now: Date,
+    ): Promise<Date | null> {
+      const rows = await tx
+        .select({ createdAt: sessions.createdAt })
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.id, sessionId),
+            eq(sessions.subjectId, subjectId),
+            liveSessionCondition(tenant, now),
+          ),
+        );
+      return rows[0]?.createdAt ?? null;
+    },
+
+    // Whether the subject owns the session, live or not, taking its row lock
+    // so the end that follows runs against the row it checked.
+    async lockOwnedId(subjectId: string, sessionId: string): Promise<boolean> {
+      const rows = await tx
+        .select({ id: sessions.id })
+        .from(sessions)
+        .where(and(eq(sessions.id, sessionId), eq(sessions.subjectId, subjectId)))
+        .for('update');
+      return rows.length > 0;
     },
 
     async endMany(ids: readonly string[], now: Date): Promise<void> {

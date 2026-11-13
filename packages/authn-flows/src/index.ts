@@ -10,6 +10,13 @@ export {
 } from '#/service/session-cookie';
 export { SessionEntry } from '#/service/session-entry';
 export {
+  deviceCookie,
+  deviceCookieName,
+  deviceDigest,
+  newDeviceId,
+  readDeviceId,
+} from '#/service/device-id';
+export {
   readSignInHandle,
   signInHandleCookie,
   clearedSignInHandleCookie,
@@ -50,6 +57,7 @@ export {
   type PasskeyVerification,
   type WebauthnSecret,
 } from '#/service/authenticators/passkey';
+export { PASSKEY_UNVERIFIED } from '#/service/authenticators/names';
 export {
   otpApplicable,
   totpStep,
@@ -83,18 +91,68 @@ export {
   type RecoveryRevocation,
   type SecondFactorRemovedOutcome,
 } from '#/usecase/second-factor-removed';
-export { oweRecoveryCodesIfFactorWithoutCodes, pendingActionsFor } from '#/usecase/recovery-codes';
-export { renderRecoveryCodesPage, type RecoveryCodesOffer } from '#/view/recovery-codes-html';
-export { renderUpdatePasswordPage } from '#/view/update-password-html';
+export { oweRecoveryCodesIfFactorWithoutCodes } from '#/usecase/recovery-codes';
+export { pendingActionsFor } from '#/usecase/pending-actions';
+export { termsAcceptanceRepository } from '#/repository/terms-acceptances';
+export { editableProfileFields } from '#/service/profile-form';
+export { recordActionStep, type ActionStep, type RecordActionStep } from '#/usecase/action-step';
+export { type ActionPageVariant } from '#/view/action-cancel';
 export {
+  renderRecoveryCodesPage,
+  renderRecoveryCodesTooSoonPage,
+  renderRequestedRecoveryCodesConfirmPage,
+  renderRequestedRecoveryCodesPage,
+  type RecoveryCodesOffer,
+} from '#/view/recovery-codes-html';
+export {
+  renderUpdatePasswordPage,
+  renderRequestedUpdatePasswordPage,
+} from '#/view/update-password-html';
+export {
+  renderRequestedUpdateProfilePage,
+  renderUpdateProfilePage,
+} from '#/view/update-profile-html';
+export {
+  renderRequestedVerifyEmailPage,
+  renderVerifyEmailPage,
+  type VerifyEmailNotice,
+  type VerifyEmailOffer,
+} from '#/view/verify-email-html';
+export { renderAcceptTermsPage, type AcceptTermsOffer } from '#/view/accept-terms-html';
+export {
+  completeVerifyEmail,
+  verifyEmailOffer,
+  type VerifyEmailOutcome,
+} from '#/usecase/verify-email-action';
+export {
+  completeUpdateProfile,
+  profileOffer,
+  type ProfileOffer,
+  type ProfileProblem,
+  type UpdateProfileOutcome,
+} from '#/usecase/update-profile-action';
+export {
+  completeAcceptTerms,
+  termsOffer,
+  type AcceptTermsOutcome,
+  type TermsOffer,
+} from '#/usecase/accept-terms-action';
+export {
+  CURRENT_PASSWORD_REFUSED,
+  holdsPassword,
   completeUpdatePassword,
+  prepareUpdatePassword,
   recordPasswordExpiryIfOwed,
   SUPERSEDED_PASSWORD,
   type UpdatePasswordOutcome,
 } from '#/usecase/update-password';
 export { type PasswordViolation } from '#/schema/password-violation';
 export { type EnrolmentRefusal } from '#/schema/enrolment-refusal';
-export { renderTotpEnrolmentPage, type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
+export {
+  renderTotpEnrolmentPage,
+  renderRequestedTotpEnrolmentPage,
+  type TotpEnrolmentOffer,
+} from '#/view/totp-enrolment-html';
 export {
   beginPasskeyEnrolment,
   completePasskeyEnrolment,
@@ -111,6 +169,7 @@ export {
 } from '#/service/webauthn';
 export {
   renderPasskeyEnrolmentPage,
+  renderRequestedPasskeyEnrolmentPage,
   type PasskeyEnrolmentOffer,
 } from '#/view/passkey-enrolment-html';
 export { authenticationSessionRepository } from '#/repository/authentication-sessions';
@@ -120,7 +179,9 @@ export {
   type PresentedSession,
 } from '#/repository/sessions';
 export {
+  ACTION_STATUSES,
   authenticationSessions,
+  type ActionStatus,
   type AuthenticationSessionRecord,
   type PendingRequest,
 } from '#/schema/authentication-sessions';
@@ -129,16 +190,17 @@ export { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
 export { admitSession, type AdmitSessionInput } from '#/usecase/session-admission';
 export { chooseEvictions, type EvictionCandidate } from '#/service/session-set';
 export { type AuthenticatorResult } from '#/schema/authenticator';
+export { flowRepository } from '#/repository/flows';
+export { flows, type Flow, type FlowStep, type Requirement } from '#/schema/flow';
 export {
-  executionRepository,
-  type NewAuthenticationExecution,
-  type ExecutionInput,
-} from '#/repository/executions';
-export {
-  authenticationExecutions,
-  type AuthenticationExecutionRecord,
-  type Requirement,
-} from '#/schema/execution';
+  DEFAULT_FLOW_NAME,
+  flowStepsSchema,
+  MAX_FLOW_STEPS,
+  MAX_FLOWS_PER_TENANT,
+  registeredFlowStepsSchema,
+  resolveFlow,
+  type ResolvedFlow,
+} from '#/service/flow';
 export {
   provisionBrowserFlow,
   provisionTenant,
@@ -147,9 +209,12 @@ export {
 export { startsALogin, type OrderedStep } from '#/service/flow-start';
 export { nextRequiredAction } from '#/usecase/required-actions';
 export { requiredActionRepository } from '#/repository/required-actions';
+export { tenantSettingsRepository } from '#/repository/tenant-settings';
 export { userRequiredActions, type RequiredAction } from '#/schema/required-action';
 export { renderRequiredActionPage } from '#/view/required-action-html';
 export { DEFAULT_TEMPLATES } from '#/view/templates/index';
 export { hasMessage as isAuthnMessageKey } from '#/view/template';
 export { en as AUTHN_PAGE_MESSAGES } from '#/view/messages';
 export { PREVIEW_PAGES as AUTHN_PREVIEW_PAGES } from '#/view/preview-pages';
+export { noticeOwnChange } from '#/usecase/own-change-notice';
+export { type MailLookResolver } from '@odudu/email';

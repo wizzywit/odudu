@@ -158,6 +158,12 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'a step-up scope',
   ],
   ['P5b', 'The injection suite gains', 'a scenario in the injection suite for each class'],
+  [
+    'P5b',
+    'It also decides whether an agent may read',
+    'the "me" api\'s reads',
+    'application-initiated action',
+  ],
   ['P5b', 'A theme image', 'the theme image upload, and any other binary payload'],
   [
     'P5b',
@@ -232,7 +238,7 @@ const SHIPPED_CLAIMS: readonly (readonly [
   shipped: string,
   ...criterion: string[],
 ])[] = [
-  ['P5a', '61 tools that read what the admin api reads', 'exposing the admin api as tools'],
+  ['P5a', '64 tools that read what the admin api reads', 'exposing the admin api as tools'],
   [
     'P5a',
     'publishing, restoring, discarding and resetting a theme are not offered',
@@ -346,12 +352,22 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       'carried by the gap-audit capability check above',
     ],
     [
+      'The "me" reads do not check that the session or grant',
+      ['P4f'],
+      'details of the "me" API the P4f line already places; the phase note holds them',
+    ],
+    [
       '`tests/lint/production-guard-order.test.ts`',
       ['P12'],
       'a test maintenance note for the boot rework',
     ],
     ['Localization has its catalogue', ['P4h'], ['catalogue']],
     ['Tenant export and import carry no theme', ['P7'], ['published theme']],
+    [
+      'Tenant export and import carry the default flow only',
+      ['P7'],
+      ['sign-in flows beyond the default'],
+    ],
     ["The console's failure ID", ['P4h'], ['failure screen']],
     ['A passage in another language', ['P4h'], ['language of their own']],
     ['No scope means anything', ['P9'], ['resource server as a first-class thing']],
@@ -366,11 +382,6 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       'a volume measurement of the audit tables, covered by partitioning',
     ],
     ['RFC 7523 has no clause table', ['P13'], 'protocol-note bookkeeping, no product behaviour'],
-    [
-      'The session cap is per browser',
-      ['P4f'],
-      'an internal race on the cap, no product behaviour',
-    ],
     ['Migrations are hard cutovers', ['P11'], ['migrations run at boot with no lock']],
     ['`audit_events` at 100,000,000 rows', ['P11'], ['partitioned by month']],
     ['Tenant delete is one transaction', ['P11'], ['chunked and resumable']],

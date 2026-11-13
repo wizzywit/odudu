@@ -7,8 +7,9 @@ import {
   type TenantAddress,
 } from '@odudu/kernel';
 import { type PasswordViolation } from '#/schema/password-violation';
+import { cancelButton, type ActionPageVariant } from '#/view/action-cancel';
 import { escapeHtml, intro, page } from '#/view/document';
-import { problemSummary } from '#/view/form-error';
+import { invalidAttributes, problemSummary } from '#/view/form-error';
 import { passwordField } from '#/view/password-field';
 import { bdi, t, tHtml, type MessageId } from '#/view/messages';
 import { fillPage } from '#/view/template';
@@ -25,6 +26,9 @@ const RULE_MESSAGE: Readonly<Record<string, MessageId>> = {
   'not-email': 'updatePassword.rule.notEmail',
   'common-password': 'updatePassword.rule.common',
   'not-reused': 'updatePassword.rule.notReused',
+  'breached-password': 'updatePassword.rule.breached',
+  'breach-check-unavailable': 'updatePassword.rule.breachCheckUnavailable',
+  'current-password': 'updatePassword.rule.currentPassword',
   superseded: 'updatePassword.rule.superseded',
 };
 
@@ -45,6 +49,60 @@ function ruleHtml(violation: PasswordViolation, locale: PageLocale): string {
 // them all rather than stopping at the first. The hidden auth_session_id is
 // this page's own CSRF defence and what resumes the parked login, exactly
 // as on the enrolment pages beside it.
+function updatePasswordPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  violations: readonly PasswordViolation[] = [],
+  rules: PasswordRules,
+  locale: PageLocale,
+  variant: ActionPageVariant | undefined,
+): RenderedPage {
+  const target = escapeHtml(
+    addressPath(address, '/login-actions/required-action?action=update-password'),
+  );
+  const problems = violations.map((violation) => ({
+    fields: [violation.rule === 'current-password' ? 'current_password' : 'password'],
+    html: ruleHtml(violation, locale),
+  }));
+  const currentRefused = problems.some((problem) => problem.fields.includes('current_password'));
+  const password = passwordField(
+    'updatePassword.newPassword',
+    rules,
+    problems,
+    problems.length > 0 && !currentRefused,
+    locale,
+  );
+  // Asked of a person an application sent here, whatever age their sign-in:
+  // the password in force is what separates them from somebody at their
+  // unlocked browser.
+  const current =
+    variant === 'requested'
+      ? `<label>${tHtml(locale, 'updatePassword.currentPassword')} <input type="password" name="current_password" autocomplete="current-password"${invalidAttributes(problems, 'current_password')}${currentRefused ? ' autofocus' : ''}></label>\n`
+      : '';
+  const title = t(locale, 'updatePassword.title');
+  const parts = {
+    intro: intro(tHtml(locale, 'updatePassword.title'), tenant),
+    error: problemSummary(problems),
+    'form.open': `<form method="post" action="${target}">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
+    fields: `${current}${password.html}\n  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> ${tHtml(locale, 'updatePassword.endOtherSessions')}</label>`,
+    submit: `<button type="submit">${tHtml(locale, 'updatePassword.submit')}</button>${cancelButton(variant, locale)}`,
+    'form.close': '</form>',
+  };
+  // The template's sentence says the account needs a new password before
+  // the sign-in can go on, which is not what an application asking is.
+  const body = fillPage(
+    'update-password',
+    parts,
+    locale,
+    variant === 'requested'
+      ? { from: 'updatePassword.intro', to: 'updatePassword.requestedIntro' }
+      : undefined,
+  );
+  return page(title, body, password.script, [], locale, 'update-password');
+}
+
 export function renderUpdatePasswordPage(
   tenant: string,
   address: TenantAddress,
@@ -53,33 +111,17 @@ export function renderUpdatePasswordPage(
   rules: PasswordRules,
   locale: PageLocale,
 ): RenderedPage {
-  const target = escapeHtml(
-    addressPath(address, '/login-actions/required-action?action=update-password'),
-  );
-  const problems = violations.map((violation) => ({
-    fields: ['password'],
-    html: ruleHtml(violation, locale),
-  }));
-  const password = passwordField(
-    'updatePassword.newPassword',
-    rules,
-    problems,
-    problems.length > 0,
-    locale,
-  );
-  const title = t(locale, 'updatePassword.title');
-  const body = fillPage(
-    'update-password',
-    {
-      intro: intro(tHtml(locale, 'updatePassword.title'), tenant),
-      error: problemSummary(problems),
-      'form.open': `<form method="post" action="${target}">
-  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
-      fields: password.html,
-      submit: `<button type="submit">${tHtml(locale, 'updatePassword.submit')}</button>`,
-      'form.close': '</form>',
-    },
-    locale,
-  );
-  return page(title, body, password.script, [], locale, 'update-password');
+  return updatePasswordPage(tenant, address, authSessionId, violations, rules, locale, undefined);
+}
+
+// The same page for a person an application sent here, who may leave it again.
+export function renderRequestedUpdatePasswordPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  violations: readonly PasswordViolation[] = [],
+  rules: PasswordRules,
+  locale: PageLocale,
+): RenderedPage {
+  return updatePasswordPage(tenant, address, authSessionId, violations, rules, locale, 'requested');
 }

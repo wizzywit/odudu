@@ -1,4 +1,4 @@
-import { executionRepository, requiredActionRepository } from '@odudu/authn-flows';
+import { flowRepository, requiredActionRepository } from '@odudu/authn-flows';
 import {
   ASSIGNMENT_LIMIT,
   CLIENT_SCOPE_LIMIT,
@@ -189,7 +189,7 @@ async function seededSource(): Promise<{ id: string; name: string; confidentialI
     const profile = await scopes.byName('profile');
     if (profile !== null) await scopes.amend(profile.id, { description: 'Who you are' });
 
-    await executionRepository(tx).replaceForTenant(t.id, [
+    await flowRepository(tx).replaceDefaultSteps(t.id, [
       { authenticator: 'password', requirement: 'required' },
       { authenticator: 'otp', requirement: 'conditional' },
     ]);

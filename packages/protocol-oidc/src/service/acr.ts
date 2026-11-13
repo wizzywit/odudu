@@ -1,3 +1,5 @@
+import { PASSKEY_UNVERIFIED } from '@odudu/authn-flows';
+
 // IANA Authentication Method Reference Values registry (RFC 8176 §2),
 // consulted 2026-09-15 — see docs/protocols/oidc-core.md's reading note for
 // what was checked, including why `recovery-code` has no entry here even
@@ -19,6 +21,7 @@ export function amrFor(authenticators: readonly string[]): string[] {
   for (const name of authenticators) {
     for (const value of AMR_VALUES[name] ?? []) values.add(value);
   }
+  if (authenticators.includes(PASSKEY_UNVERIFIED)) values.delete('user');
   return [...values].sort();
 }
 
@@ -36,6 +39,8 @@ const FACTOR_COUNT: Readonly<Record<string, number>> = {
 // authentication this record carries no evidence of.
 export function acrFor(authenticators: readonly string[]): string | null {
   if (authenticators.length === 0) return null;
-  const factors = authenticators.reduce((sum, name) => sum + (FACTOR_COUNT[name] ?? 1), 0);
+  const counted = authenticators.filter((name) => name !== PASSKEY_UNVERIFIED);
+  const unverified = authenticators.includes(PASSKEY_UNVERIFIED) ? 1 : 0;
+  const factors = counted.reduce((sum, name) => sum + (FACTOR_COUNT[name] ?? 1), 0) - unverified;
   return factors >= 2 ? '2' : '1';
 }

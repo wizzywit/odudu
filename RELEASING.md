@@ -139,6 +139,24 @@ These are settings only the owner can change. They are done:
   `https://wizzywit.github.io/odudu/`. To republish it, open Actions, pages,
   Run workflow, from `main`. Each newest stable release redeploys it.
 
+## Ship the unique address index a release after its command
+
+Accounts that held one address apart from its case are folded by `odudu reconcile-accounts`,
+which ships in one release. The partial unique index on `(tenant_id, email_search)` ships in a
+later one, so that an operator has run the command first: a migration that builds the index over
+a database that still holds such a pair fails, and Drizzle rolls the whole migration back. The
+statement, which the test `reconcile-accounts.int.test.ts` runs against the real schema, is:
+
+```sql
+CREATE UNIQUE INDEX users_email_search_unique ON users (tenant_id, email_search) WHERE email_search IS NOT NULL
+```
+
+Release notes for the release with the command tell operators to run `odudu reconcile-accounts
+--dry-run`, then `odudu reconcile-accounts`, and to settle every group it refuses. The notes for
+the release with the index say the build blocks writes to `users` while it reads the table, and
+that the migration is not built `CONCURRENTLY` because Drizzle runs every pending migration in
+one transaction. `docs/phases/p4f.md`, "Increment 11", has the argument.
+
 ## Before the stable release
 
 `0.1.0` was released without these three checks, at the owner's decision. They

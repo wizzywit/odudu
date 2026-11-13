@@ -38,7 +38,7 @@ odudu seed tenant --name reset-demo --set reset_password_allowed=true
 ```
 
 ```
-{"command":"tenant","created":false,"tenant":"reset-demo","tenantId":"01a0cb18-11ed-76ca-b9fc-f5244493d7c2","settings":["reset_password_allowed"]}
+{"command":"tenant","created":false,"tenant":"reset-demo","tenantId":"01a1d09c-629c-7e99-9850-cd23801dee58","settings":["reset_password_allowed"]}
 ```
 
 The token a request mints is valid for the tenant's
@@ -140,7 +140,7 @@ the same `/login-actions/action-token` endpoint answers with a form instead
 of completing an action:
 
 ```bash
-curl -sS 'http://localhost:3000/tenants/reset-demo/login-actions/action-token?key=Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0'
+curl -sS 'http://localhost:3000/tenants/reset-demo/login-actions/action-token?key=Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE'
 ```
 
 ```
@@ -163,7 +163,7 @@ curl -sS 'http://localhost:3000/tenants/reset-demo/login-actions/action-token?ke
 <p class="tenant"><bdi>reset-demo</bdi></p>
 </header>
 <form method="post" action="/tenants/reset-demo/login-actions/action-token">
-  <input type="hidden" name="key" value="Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0">
+  <input type="hidden" name="key" value="Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE">
   <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
@@ -172,7 +172,7 @@ curl -sS 'http://localhost:3000/tenants/reset-demo/login-actions/action-token?ke
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="MU+sMh7d0dSKDCEIEWvqJg==">(function () {
+  <script nonce="H9a9ieOSxJnRWnWRh+/oAQ==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -223,8 +223,8 @@ alone rather than spent — it is still the same unconsumed token, so trying
 again with a compliant password on the very same link works:
 
 ```bash
-curl -sS -X POST http://localhost:3195/tenants/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0' \
+curl -sS -X POST http://localhost:3000/tenants/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE' \
   --data-urlencode 'password=weak'
 ```
 
@@ -253,7 +253,7 @@ curl -sS -X POST http://localhost:3195/tenants/reset-demo/login-actions/action-t
 </ul>
 </div>
 <form method="post" action="/tenants/reset-demo/login-actions/action-token">
-  <input type="hidden" name="key" value="Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0">
+  <input type="hidden" name="key" value="Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE">
   <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 password-rules-list" autofocus></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
@@ -262,7 +262,7 @@ curl -sS -X POST http://localhost:3195/tenants/reset-demo/login-actions/action-t
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="IGE2kMFxuU4Wr7KdAYqgUQ==">(function () {
+  <script nonce="TYhSEVBdEvn+mg5k5kXSZw==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -427,8 +427,8 @@ read and written.
 Submitting a compliant password on the `reset-demo` link above sets it:
 
 ```bash
-curl -sS -X POST http://localhost:3195/tenants/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0' \
+curl -sS -X POST http://localhost:3000/tenants/reset-demo/login-actions/action-token \
+  --data-urlencode 'key=Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE' \
   --data-urlencode 'password=a brand new password'
 ```
 
@@ -505,10 +505,11 @@ curl -sS -i -X POST http://localhost:3000/tenants/reset-demo/login-actions/authe
 
 ```
 HTTP/1.1 302 Found
-set-cookie: reset-demo-session=01a17a94-2e98-…:frBZEYIu2fH3…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: reset-demo-session=01a1d09c-6731-…:-YupE_beLNoI…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: reset-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: reset-demo-device=Ifaw679Sisxq0ODAGdO3AA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/reset-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=OF6tNtIVtws0…&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Freset-demo
+location: http://localhost:8080/callback?code=9AhrvZyTNiy1…&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Freset-demo
 ```
 
 (Session entry and code truncated.)
@@ -518,7 +519,7 @@ same as a verify-email token, and `action_tokens.consumed_at` is now set:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3000/tenants/reset-demo/login-actions/action-token \
-  --data-urlencode 'key=Wya0_NEF0zZNQpLN9wa9rTZLY95J5V_RGJnEmf8hPl0' \
+  --data-urlencode 'key=Z-v9554vUQeunNLqsn4pWv5ReqqPoJ-9atob1oNKaWE' \
   --data-urlencode 'password=another password'
 ```
 
@@ -680,8 +681,8 @@ odudu seed tenant --name reset-audit --set reset_password_allowed=true
 ```
 
 ```
-{"created":true,"tenant":"reset-audit","tenantId":"01a0dc50-7654-75c9-a070-33faf7d67368","clientId":"reset-audit-spa","userSubjectId":"01a0dc50-76c6-7e00-9086-ac84f6c1a2f2"}
-{"command":"tenant","created":false,"tenant":"reset-audit","tenantId":"01a0dc50-7654-75c9-a070-33faf7d67368","settings":["reset_password_allowed"]}
+{"created":true,"tenant":"reset-audit","tenantId":"01a1d113-6bda-7e80-b49f-e9e8f18e45fb","clientId":"reset-audit-spa","userSubjectId":"01a1d113-6cfa-7493-8adf-78cda82424ea"}
+{"command":"tenant","created":false,"tenant":"reset-audit","tenantId":"01a1d113-6bda-7e80-b49f-e9e8f18e45fb","settings":["reset_password_allowed"]}
 ```
 
 The first link was left unredeemed past its five minutes. That it is
@@ -691,7 +692,7 @@ message's `email_outbox` row:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/reset-password \
   -H 'x-request-id: reset-audit-request-1' --data-urlencode 'email=ada@example.com'
 
 # … five minutes later
@@ -700,9 +701,9 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
      from action_tokens a join tenants t on t.id = a.tenant_id
     where t.name = 'reset-audit';"
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-expired' \
-  --data-urlencode 'key=1TPp8NWSSuC3EVyQOjd2dNllZ1QpWHC6urrquiB2D0M' \
+  --data-urlencode 'key=xUIR1fCWgmk6eaefSUSo7S8DZrQFfNckJDY8INObRX4' \
   --data-urlencode 'password=a brand new password'
 ```
 
@@ -721,7 +722,7 @@ queued — the newest of the two `reset-audit` has:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/reset-password \
   -H 'x-request-id: reset-audit-request-2' --data-urlencode 'email=ada@example.com'
 docker compose exec -T postgres psql -U odudu -d odudu -At -c \
   "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
@@ -731,23 +732,23 @@ docker compose exec -T postgres psql -U odudu -d odudu -At -c \
 
 ```
 200
-lA0JiQk1PNRbz9m_LTUP2PWGcFpQfukwqpn1Ig4euuc
+IBAVeKULTmDC5Y1_ntwUJU5g58nTSGyNy-MOozbik2E
 ```
 
 That link is then submitted with a password the policy refuses, with one it
 accepts, and once more after it is spent:
 
 ```bash
-KEY=lA0JiQk1PNRbz9m_LTUP2PWGcFpQfukwqpn1Ig4euuc
+KEY=IBAVeKULTmDC5Y1_ntwUJU5g58nTSGyNy-MOozbik2E
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-weak' --data-urlencode "key=$KEY" --data-urlencode 'password=weak'
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-ada' --data-urlencode "key=$KEY" \
   --data-urlencode 'password=a brand new password'
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-replay' --data-urlencode "key=$KEY" \
   --data-urlencode 'password=another password'
 
@@ -772,10 +773,10 @@ request_id       | reset-audit-ada
 event_type       | credential
 action           | password.reset
 outcome          | allowed
-actor_subject_id | 01a0dc50-76c6-7e00-9086-ac84f6c1a2f2
+actor_subject_id | 01a1d113-6cfa-7493-8adf-78cda82424ea
 resource_type    | subject
-resource_id      | 01a0dc50-76c6-7e00-9086-ac84f6c1a2f2
-detail           | {}
+resource_id      | 01a1d113-6cfa-7493-8adf-78cda82424ea
+detail           | {"breached_check": "dataset_empty"}
 
  rows_naming_either
 --------------------
@@ -783,6 +784,83 @@ detail           | {}
 (1 row)
 ```
 
-Six requests, one row. The last query reads every audit row this stack
+Six requests, one row. Its `detail` says what the breached-password check decided: `dataset_empty`, since no dataset had been loaded on this stack, so the check found nothing in a table that holds nothing. The last query reads every audit row this stack
 holds, in every tenant, as text: none carries the password that was set or
 the key that set it.
+
+## A password known from breaches
+
+A password a person chooses through a reset link has to pass the tenant's breached-password check as well as its rules, so
+a link cannot be used to set one that is in the dataset, and a refusal leaves the link unspent. This ran in its own tenant,
+`reset-breach`, after the file in [Password expiry, and changing a password](./password-expiry-and-changing-a-password.md#a-password-known-from-breaches)
+was loaded, on the same stack. The check is the tenant's default, the dataset in its own database; nothing here is sent to any
+other host:
+
+```bash
+odudu seed \
+  --tenant reset-breach --client reset-breach-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+odudu seed tenant --name reset-breach --set reset_password_allowed=true
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3092/tenants/reset-breach/login-actions/reset-password \
+  --data-urlencode 'email=ada@example.com'
+docker compose exec -T postgres psql -U odudu -d odudu -At -c \
+  "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'reset-breach' order by o.created_at desc limit 1;"
+```
+
+```
+{"created":true,"tenant":"reset-breach","tenantId":"01a1d11e-a4cb-7d21-8a92-ff277d1a4310","clientId":"reset-breach-spa","userSubjectId":"01a1d11e-a5f6-7183-ac67-83b766e712dd"}
+{"command":"tenant","created":false,"tenant":"reset-breach","tenantId":"01a1d11e-a4cb-7d21-8a92-ff277d1a4310","settings":["reset_password_allowed"]}
+200
+L73HGBvDeXlFe6FR9kDAYiaGVp7fB56DT-i0sqIn-ic
+```
+
+The link is submitted with a password in the file, which is refused with `400` and the form's own message, and the table shows
+the link is still unspent:
+
+```bash
+KEY=L73HGBvDeXlFe6FR9kDAYiaGVp7fB56DT-i0sqIn-ic
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3092/tenants/reset-breach/login-actions/action-token \
+  --data-urlencode "key=$KEY" --data-urlencode 'password=a leaked passphrase from a breach'
+curl -sS -X POST http://localhost:3092/tenants/reset-breach/login-actions/action-token \
+  --data-urlencode "key=$KEY" --data-urlencode 'password=a leaked passphrase from a breach' \
+  | grep -E 'role="alert"|<li id="form-error'
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select a.type, a.consumed_at is null as unspent
+     from action_tokens a join tenants t on t.id = a.tenant_id
+    where t.name = 'reset-breach';"
+```
+
+```
+400
+<div class="alert" role="alert" id="form-error">
+<li id="form-error-0">That password has appeared in a data breach. Choose a different one.</li>
+      type      | unspent
+----------------+---------
+ reset_password | t
+(1 row)
+```
+
+The same link then takes a password that is in no list, and the `password.reset` row says the check passed:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3092/tenants/reset-breach/login-actions/action-token \
+  --data-urlencode "key=$KEY" --data-urlencode 'password=a brand new password'
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "SELECT action, detail FROM audit_events
+     WHERE tenant_id = (SELECT id FROM tenants WHERE name = 'reset-breach')
+       AND action = 'password.reset';"
+```
+
+```
+200
+     action     |            detail
+----------------+------------------------------
+ password.reset | {"breached_check": "passed"}
+(1 row)
+```

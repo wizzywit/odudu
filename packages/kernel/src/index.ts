@@ -19,6 +19,7 @@ export {
 } from '#/template-fallback';
 export { type Clock, systemClock, FakeClock } from '#/clock';
 export { isUuid, newId, scriptNonce } from '#/ids';
+export { isLoopbackHost, isValidWebPageUri } from '#/web-page-uri';
 export {
   DEFAULT_PAGE_LOCALE,
   INSTRUMENT_STYLESHEET,
@@ -121,6 +122,9 @@ export {
   addressUrl,
   MCP_RESOURCE_PATH,
   mcpAudienceOfIssuer,
+  ME_RESOURCE_PATH,
+  meAudienceOfIssuer,
+  namesMeAudience,
   baseRelyingPartyId,
   domainAddress,
   isDomainAddress,

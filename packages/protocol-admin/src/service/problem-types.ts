@@ -37,6 +37,23 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'An audit export or a tenant export would be larger than the cap, and is refused whole ' +
       'rather than cut short. Narrow the audit export with `from`, `to` or another filter.',
   },
+  'return-client-unknown': {
+    status: 400,
+    summary:
+      'A link\u2019s `client_id` names no enabled client of this tenant. A client of another ' +
+      'tenant is as unknown as one that does not exist.',
+  },
+  'return-redirect-uri-unregistered': {
+    status: 400,
+    summary:
+      'A link\u2019s `redirect_uri` is not one the client registers. It must match one of them exactly.',
+  },
+  'return-redirect-uri-required': {
+    status: 400,
+    summary:
+      'A link names a client that registers no `redirect_uri` or several, so the request must ' +
+      'say which one the link returns to.',
+  },
   'flow-duplicate-authenticator': {
     status: 400,
     summary:
@@ -64,6 +81,30 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
     summary:
       'A step of a replacement authentication flow names an authenticator that is not ' +
       'registered. `detail` lists the ones that are.',
+  },
+  'flow-limit': {
+    status: 409,
+    summary:
+      'The tenant already holds the most sign-in flows it may (20). `detail` names the cap. ' +
+      'Delete a flow that is no longer used first.',
+  },
+  'flow-name-taken': {
+    status: 409,
+    summary:
+      'Another sign-in flow of the tenant already has this name. Names are unique per tenant.',
+  },
+  'default-flow': {
+    status: 409,
+    summary:
+      'The tenant\u2019s default flow is not deleted: a client that names no flow signs in ' +
+      'through it. Make another flow the default first.',
+  },
+  'flow-in-use': {
+    status: 409,
+    summary:
+      'A client names the flow through its `flow_id`, so it is not deleted. `detail` gives how ' +
+      'many clients and the `client_id` of at most ten. Set their `flow_id` to another flow or ' +
+      'to null first.',
   },
   'key-active': {
     status: 409,
@@ -93,7 +134,22 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
   },
   'no-email': {
     status: 409,
-    summary: 'The subject has no email address to send the message to.',
+    summary:
+      'The subject has no email address, which the write needs: to send the message to, or ' +
+      'for the `verify-email` required action to verify.',
+  },
+  'no-editable-profile-fields': {
+    status: 409,
+    summary:
+      'The tenant requires a profile field a person may not edit, so the `update-profile` ' +
+      'required action could never be completed. A person may edit every profile claim ' +
+      'today, so no tenant is refused yet.',
+  },
+  'terms-not-configured': {
+    status: 409,
+    summary:
+      'The tenant has no `terms_uri`, so the `accept-terms` required action has no terms to ' +
+      'show. Set `terms_uri` with `PATCH …/settings` first.',
   },
   'no-mail-relay': {
     status: 409,

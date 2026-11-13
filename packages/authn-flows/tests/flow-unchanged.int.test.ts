@@ -16,7 +16,7 @@ import {
   type TestDatabase,
 } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { executionRepository } from '#/repository/executions';
+import { flowRepository } from '#/repository/flows';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
@@ -135,7 +135,7 @@ describe('a default tenant login, walked for several subject shapes before and a
     const subjectId = await seedUserWithPassword(tenantId, 'ada');
     const clock = new FakeClock(new Date('2031-01-01T00:00:00.000Z'));
     const offer = await withTenant(app.db, tenantId, (tx) =>
-      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+      beginTotpEnrolment(tx, tenantId, `tenant-${tenantId}`, subjectId),
     );
     const enrolled = await withTenant(app.db, tenantId, (tx) =>
       completeTotpEnrolment(
@@ -235,19 +235,10 @@ describe('a default tenant login, walked for several subject shapes before and a
     const tenantId = newId();
     await withTenant(app.db, tenantId, async (tx) => {
       await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
-      const executions = executionRepository(tx);
-      await executions.create({
-        tenantId,
-        index: 0,
-        authenticator: 'password',
-        requirement: 'required',
-      });
-      await executions.create({
-        tenantId,
-        index: 1,
-        authenticator: 'otp',
-        requirement: 'required',
-      });
+      await flowRepository(tx).replaceDefaultSteps(tenantId, [
+        { authenticator: 'password', requirement: 'required' },
+        { authenticator: 'otp', requirement: 'required' },
+      ]);
     });
     await seedUserWithPassword(tenantId, 'ada');
     const authSessionId = await start(tenantId);

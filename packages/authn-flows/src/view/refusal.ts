@@ -7,6 +7,7 @@ const REFUSAL_MESSAGE: Readonly<Record<EnrolmentRefusal, MessageId>> = {
   code_mismatch: 'refusal.codeMismatch',
   codes_not_saved: 'refusal.codesNotSaved',
   passkey_not_added: 'refusal.passkeyNotAdded',
+  passkey_not_discoverable: 'refusal.passkeyNotDiscoverable',
 };
 
 // Why an enrolment page is back, or nothing on a first visit. `field` names

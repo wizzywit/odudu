@@ -32,6 +32,7 @@ it('has a section for each concern, each with its own save', async () => {
     'Remember me',
     'Registration and recovery',
     'Usernames',
+    'Authenticators',
     'Password policy',
     'Brute force',
     'Token lifetimes',
@@ -47,7 +48,7 @@ it('lists the sections, each a button that sends the focus to its heading', asyn
   renderConsoleAt(AT, settingsRoutes());
   await section('General');
   const nav = screen.getByRole('navigation', { name: 'On this page' });
-  expect(within(nav).getAllByRole('button')).toHaveLength(10);
+  expect(within(nav).getAllByRole('button')).toHaveLength(13);
   await user.click(within(nav).getByRole('button', { name: 'Password policy' }));
   expect(screen.getByRole('heading', { level: 2, name: 'Password policy' })).toHaveFocus();
   await user.tab();
@@ -123,6 +124,23 @@ it('sets a switch and a choice', async () => {
     expect(sent.filter((s) => s.method === 'PATCH').at(-1)?.body).toEqual({
       client_registration_policy: 'token',
     });
+  });
+});
+
+it('sets the number an authenticator app shows as a choice, and sends it as text the server reads', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, { [`PATCH ${ST}`]: settingsAnswer({}, '"s2"') }),
+  );
+  const authenticators = await section('Authenticators');
+  await user.click(
+    within(authenticators).getByRole('button', { name: /Authenticator app code length/u }),
+  );
+  await user.click(await screen.findByRole('option', { name: '8 digits' }));
+  await user.click(within(authenticators).getByRole('button', { name: 'Save Authenticators' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ totp_digits: '8' });
   });
 });
 
@@ -218,6 +236,39 @@ it('sends the events chosen as a list, and cannot leave out the two that are alw
         'credential',
       ],
     });
+  });
+});
+
+it('sends the profile fields chosen as a list, and may send none', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, { [`PATCH ${ST}`]: settingsAnswer({}, '"s2"') }),
+  );
+  const profile = await section('Profile');
+  expect(within(profile).getByRole('checkbox', { name: 'Given name' })).toBeChecked();
+  expect(within(profile).getByRole('checkbox', { name: 'Birthdate' })).not.toBeChecked();
+  await user.click(within(profile).getByRole('checkbox', { name: 'Birthdate' }));
+  await user.click(within(profile).getByRole('button', { name: 'Save Profile' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      required_profile_fields: ['given_name', 'family_name', 'birthdate'],
+    });
+  });
+});
+
+it('may send an empty list of profile fields, which makes the page one that is only reviewed', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, { [`PATCH ${ST}`]: settingsAnswer({}, '"s2"') }),
+  );
+  const profile = await section('Profile');
+  await user.click(within(profile).getByRole('checkbox', { name: 'Given name' }));
+  await user.click(within(profile).getByRole('checkbox', { name: 'Family name' }));
+  await user.click(within(profile).getByRole('button', { name: 'Save Profile' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ required_profile_fields: [] });
   });
 });
 
@@ -344,6 +395,36 @@ it('saves a display name without asking', async () => {
     expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ display_name: 'Acme Inc' });
   });
   expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+
+it('saves the terms address and version, and clears the address with an empty one', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, {
+      [`PATCH ${ST}`]: settingsAnswer(
+        { terms_uri: 'https://example.com/terms', terms_version: '2026-01' },
+        '"s2"',
+      ),
+    }),
+  );
+  const terms = await section('Terms');
+  expect(within(terms).getByRole('textbox', { name: 'Terms address' })).toHaveValue('');
+  expect(within(terms).getByRole('textbox', { name: 'Terms version' })).toHaveValue('1');
+  await user.type(
+    within(terms).getByRole('textbox', { name: 'Terms address' }),
+    'https://example.com/terms',
+  );
+  const version = within(terms).getByRole('textbox', { name: 'Terms version' });
+  await user.clear(version);
+  await user.type(version, '2026-01');
+  await user.click(within(terms).getByRole('button', { name: 'Save Terms' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      terms_uri: 'https://example.com/terms',
+      terms_version: '2026-01',
+    });
+  });
 });
 
 it('names the manage-tenant capability for a caller without it, and reads nothing', async () => {

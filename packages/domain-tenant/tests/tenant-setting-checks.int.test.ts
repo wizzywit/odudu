@@ -1,4 +1,8 @@
-import { TENANT_SETTING_ORDERINGS, TENANT_SETTING_RANGES } from '@odudu/contracts/admin';
+import {
+  TENANT_SETTING_CHOICES,
+  TENANT_SETTING_ORDERINGS,
+  TENANT_SETTING_RANGES,
+} from '@odudu/contracts/admin';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -44,10 +48,13 @@ const INT4_MAX = 2_147_483_647;
 // are judged by the predicate's locale rules, not a numeric range.
 const NOT_RANGES = new Set([
   'name',
+  ...Object.keys(TENANT_SETTING_CHOICES),
   'client_registration_policy',
   'audit_event_types',
+  'required_profile_fields',
   'supported_locales',
   'default_locale',
+  'terms_version',
 ]);
 
 function columnOf(name: TenantSettingName): string {
@@ -59,7 +66,7 @@ function columnOf(name: TenantSettingName): string {
 // Whether the database accepts `change` over a fresh tenant's defaults, and
 // whether the predicate does, judged over the same merged record.
 async function verdicts(
-  change: Partial<Record<TenantSettingName, number>>,
+  change: Partial<Record<TenantSettingName, number | string>>,
 ): Promise<{ database: boolean; predicate: boolean }> {
   const id = newId();
   let predicate = false;
@@ -169,6 +176,30 @@ describe('tenantSettingProblems agrees with the CHECK constraints on tenants', (
 
   it.each(orderingCases)('$label', async ({ change }) => {
     const { database, predicate } = await verdicts(change);
+    expect(predicate).toBe(database);
+  });
+});
+
+const choiceCases = Object.entries(TENANT_SETTING_CHOICES).flatMap(([name, choices]) => [
+  ...choices.map((value) => ({ name, value })),
+  { name, value: typeof choices[0] === 'number' ? 7 : 'nonesuch' },
+]);
+
+describe('the offered values agree with the CHECK constraints on tenants', () => {
+  it.each(choiceCases)('$name = $value', async ({ name, value }) => {
+    const { database, predicate } = await verdicts({ [name]: value });
+    expect(predicate).toBe(database);
+  });
+});
+
+describe('the terms settings agree with the CHECK constraints on tenants', () => {
+  it.each([
+    ['one character', '1'],
+    ['64 characters', 'x'.repeat(64)],
+    ['65 characters', 'x'.repeat(65)],
+    ['none', ''],
+  ])('a version of %s', async (_label, value) => {
+    const { database, predicate } = await verdicts({ terms_version: value });
     expect(predicate).toBe(database);
   });
 });

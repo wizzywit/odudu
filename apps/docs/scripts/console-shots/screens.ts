@@ -9,7 +9,11 @@ const PERSON = 'ada';
 
 async function exists(page: Page, cell: string): Promise<boolean> {
   await page.getByRole('heading', { level: 1 }).waitFor();
-  await page.getByText(/^\d+ (client|clients|subject|subjects|tenant|tenants)$/u).waitFor();
+  const total = page.getByText(/^\d+ (client|clients|subject|subjects|tenant|tenants)$/u);
+  await total.waitFor();
+  const held = Number.parseInt((await total.innerText()).split(' ')[0] ?? '0', 10);
+  // The count is drawn before the rows: a row not yet there is not a row absent.
+  if (held > 0) await page.getByRole('row').nth(1).waitFor();
   return (await page.getByRole('row', { name: new RegExp(cell, 'u') }).count()) > 0;
 }
 
@@ -265,9 +269,31 @@ export const SCREENS: readonly Screen[] = [
     },
   },
   {
+    name: 'client-actions',
+    alt: "my-app's record on its Advanced tab, scrolled to Application actions: a checklist of the four credential changes the client may start for a signed-in person, none chosen, with the section's save control.",
+    caption:
+      'The credential changes a client may send a signed-in person to. None is chosen until an administrator chooses.',
+    signedIn: true,
+    expect: [
+      { heading: CLIENT },
+      { role: 'tab', name: 'Advanced' },
+      { label: 'Register a passkey' },
+    ],
+    open: async (page, context) => {
+      await openList(page, context, 'clients');
+      await page.getByRole('row', { name: new RegExp(CLIENT, 'u') }).click();
+      await page.getByRole('tab', { name: 'Advanced' }).click();
+      const label = page.getByText('Actions an application may start', { exact: true });
+      await label.waitFor();
+      await label.evaluate((element) => {
+        element.scrollIntoView({ block: 'center' });
+      });
+    },
+  },
+  {
     name: 'scopes',
-    alt: "The demo tenant's Scopes list: openid, profile, email, address, phone, roles, groups, offline_access, mcp:read and mcp:write, with Restore built-in scopes and Create a scope buttons.",
-    caption: 'The ten scopes every tenant starts with.',
+    alt: "The demo tenant's Scopes list: openid, profile, email, address, phone, roles, groups, offline_access, mcp:read, mcp:write, me:read and me:write, with Restore built-in scopes and Create a scope buttons.",
+    caption: 'The twelve scopes every tenant starts with.',
     signedIn: true,
     expect: [
       { heading: 'Scopes' },
@@ -275,7 +301,7 @@ export const SCREENS: readonly Screen[] = [
       {
         rows: [
           'openid',
-          'profile',
+          'profile —',
           'email',
           'address',
           'phone',
@@ -284,12 +310,14 @@ export const SCREENS: readonly Screen[] = [
           'offline_access',
           'mcp:read',
           'mcp:write',
+          'me:read',
+          'me:write',
         ],
       },
     ],
     open: async (page, context) => {
       await openArea(page, context, `${DEMO}/scopes`);
-      await page.getByText('10 scopes').waitFor();
+      await page.getByText('12 scopes').waitFor();
     },
   },
   {
@@ -317,6 +345,7 @@ export const SCREENS: readonly Screen[] = [
       { heading: 'Sign-in flow' },
       { heading: 'Steps' },
       { label: 'Requirement for password' },
+      { heading: 'Flows' },
     ],
     open: (page, context) => openArea(page, context, `${DEMO}/flow`),
   },

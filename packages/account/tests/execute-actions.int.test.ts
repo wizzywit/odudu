@@ -7,9 +7,11 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import {
+  breachedHash,
   credentialRepository,
   evaluatePassword,
   hashPassword,
+  insertBreachedHashes,
   subjectRepository,
   userRepository,
   verifyPassword,
@@ -21,7 +23,7 @@ import formbody from '@fastify/formbody';
 import { eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { accountTestDeps } from '#/testing/support';
+import { accountTestDeps, breachedLookups } from '#/testing/support';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { actionTokens } from '#/schema/action-tokens';
 import { enqueueActionsLink } from '#/usecase/execute-actions';
@@ -327,6 +329,16 @@ describe('a link that takes its subject through required actions', () => {
     expect((await submit(seeded, keyOf(link), NEW_PASSWORD)).statusCode).toBe(200);
   });
 
+  it('never looks up a password a rule refused, and looks up one it accepted', async () => {
+    const seeded = await seed(true);
+    const link = await mail(seeded, ['update-password']);
+    breachedLookups.length = 0;
+    expect((await submit(seeded, keyOf(link), 'short')).statusCode).toBe(400);
+    expect(breachedLookups).toEqual([]);
+    expect((await submit(seeded, keyOf(link), NEW_PASSWORD)).statusCode).toBe(200);
+    expect(breachedLookups).toEqual([NEW_PASSWORD]);
+  });
+
   it('puts the actions form back in place, with the list, the key and the reasons', async () => {
     const seeded = await seed(true);
     const link = await mail(seeded, ['update-password', 'configure-totp']);
@@ -358,6 +370,27 @@ describe('a link that takes its subject through required actions', () => {
       '>That password is too easy to guess. Choose a different one.</li>',
     );
     expect((await submit(seeded, keyOf(link), NEW_PASSWORD)).statusCode).toBe(200);
+  });
+
+  it('refuses a breached password on an actions link without spending it, and not when off', async () => {
+    const leaked = 'a leaked actions passphrase here';
+    await insertBreachedHashes(owner.db, [breachedHash(leaked)]);
+    const seeded = await seed(true);
+    const link = await mail(seeded, ['update-password']);
+
+    const refused = await submit(seeded, keyOf(link), leaked);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.body).toContain(
+      '>That password has appeared in a data breach. Choose a different one.</li>',
+    );
+    expect(await passwordIs(seeded, OLD_PASSWORD)).toBe(true);
+
+    await owner.db
+      .update(tenants)
+      .set({ breachedCheck: 'off' })
+      .where(eq(tenants.id, seeded.tenantId));
+    expect((await submit(seeded, keyOf(link), leaked)).statusCode).toBe(200);
+    expect(await passwordIs(seeded, leaked)).toBe(true);
   });
 
   it('words a weak password from the catalogue with the tenant minimum, in the page language', async () => {

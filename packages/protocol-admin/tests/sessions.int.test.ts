@@ -89,6 +89,7 @@ async function seedSessionWithGrant(
       expiresAt: new Date(fixture.clock.now().getTime() + 3_600_000),
       authenticators: ['pwd'],
       secretHash: SessionEntry.issue(sessionId).secretHash(),
+      deviceId: 'device-digest-1',
     });
     await tokenGrantRepository(tx).create({
       id: newId(),
@@ -140,6 +141,7 @@ describe('GET /admin/tenants/{t}/subjects/{id}/sessions', () => {
         last_active_at: string;
         remembered: boolean;
         client_ids: string[];
+        device: string | null;
       }[];
     }>().items;
     const found = items.find((item) => item.id === sessionId);
@@ -148,6 +150,7 @@ describe('GET /admin/tenants/{t}/subjects/{id}/sessions', () => {
     expect(typeof found?.created_at).toBe('string');
     expect(typeof found?.last_active_at).toBe('string');
     expect(found?.client_ids).toEqual([client.clientId]);
+    expect(found?.device).toBe('device-digest-1');
   });
 
   it('does not list a session belonging to a different subject', async () => {

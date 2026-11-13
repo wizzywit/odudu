@@ -349,7 +349,7 @@ function examplesOf(media: Json): string[] {
 // A body with more fields than this, or one that would take the operation's
 // page past it, is listed on pages of its own, so that no page carries more
 // table than a browser lays out in one piece.
-const MAX_TABLE_ROWS = 60;
+const MAX_TABLE_ROWS = 55;
 
 interface Part {
   readonly slug: string;
@@ -582,6 +582,7 @@ const SUBJECT_AREAS: Readonly<Record<string, string>> = {
   'admin-capabilities': 'subject-access',
   groups: 'subject-access',
   consents: 'subject-sessions',
+  'terms-acceptances': 'subject-access',
   sessions: 'subject-sessions',
   grants: 'subject-sessions',
 };

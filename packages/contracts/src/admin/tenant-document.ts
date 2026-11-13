@@ -14,7 +14,12 @@ import {
   localisedTextSchema,
   type FieldError,
 } from '#/admin/shared';
-import { requiredActionSchema } from '#/admin/subjects';
+import {
+  characterCount,
+  DEFAULT_REQUIRED_PROFILE_FIELDS,
+  PROFILE_CLAIM_NAMES,
+} from '#/admin/profile';
+import { applicationActionSchema, requiredActionSchema } from '#/admin/subjects';
 import { tenantSchema } from '#/admin/tenants';
 
 // Above this many subjects `?include=subjects` is refused rather than
@@ -85,6 +90,39 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   login_ttl_seconds: count,
   verify_email_ttl_seconds: count,
   reset_password_ttl_seconds: count,
+  // Absent from a document exported before the setting existed, which
+  // imports with the default window.
+  session_freshness_seconds: count.default(300),
+  // Absent from a document exported before the setting existed, which
+  // imports with the default threshold.
+  recovery_code_warn_below: count.default(3),
+  // Absent from a document exported before the authenticator policy existed,
+  // which imports with the values every enrolment was made under.
+  totp_algorithm: z.enum(['SHA1', 'SHA256', 'SHA512']).default('SHA1'),
+  totp_digits: z.union([z.literal(6), z.literal(8)]).default(6),
+  totp_period: z.union([z.literal(30), z.literal(60)]).default(30),
+  webauthn_user_verification: z.enum(['required', 'preferred', 'discouraged']).default('required'),
+  webauthn_resident_key: z.enum(['required', 'preferred', 'discouraged']).default('required'),
+  recovery_code_count: count.min(8).max(16).default(10),
+  // Absent from a document exported before the switch existed, which
+  // imports with it off.
+  require_passkey: z.boolean().default(false),
+  // Absent from a document exported before the check existed, which imports
+  // with the dataset source and a lookup that fails open.
+  breached_check: z.enum(['off', 'dataset', 'remote']).default('dataset'),
+  breached_on_error: z.enum(['open', 'closed']).default('open'),
+  // Absent from a document exported before the terms existed, which imports
+  // with none, at version 1. The address is judged by the settings checks.
+  terms_uri: z.string().nullable().default(null),
+  terms_version: z
+    .string()
+    .refine((version) => characterCount(version) >= 1 && characterCount(version) <= 64)
+    .default('1'),
+  // Absent from a document exported before the setting existed, which imports
+  // with the default.
+  required_profile_fields: z
+    .array(z.enum(PROFILE_CLAIM_NAMES))
+    .default([...DEFAULT_REQUIRED_PROFILE_FIELDS]),
   login_with_email: z.boolean(),
   // Absent from a document exported before the setting existed, which
   // imports with it off.
@@ -184,6 +222,8 @@ export const exportedClientSchema = z.strictObject({
   id_token_signed_response_alg: z.string().nullable(),
   default_max_age: z.number().int().nullable(),
   require_auth_time: z.boolean(),
+  // Absent from a document exported before the setting existed: none.
+  allowed_actions: z.array(applicationActionSchema).default([]),
   // The roles a confidential client's own service account holds, which
   // its client_credentials tokens carry; empty for a client without that grant.
   service_account_roles: assignmentSet(roleReferenceSchema),

@@ -49,6 +49,109 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
+The me API's page, `the-me-api.md`, was captured on 2026-11-11 on a freshly built compose project, `odudu-p4f-i15b` (port `3000`,
+`ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `9b43ed8e6` with nothing uncommitted), started from an
+empty volume. The stack was driven once, in the order the page shows: `seed admin`, a token for it got as in Getting the token,
+then the page's blocks as one replay, each block a file run in the same shell and its output written to the page as it came back
+(carriage returns and trailing spaces removed), so every id, time and request id on the page is that run's. The only block run
+again alone is the one that names a subject in a query and a path: it was run once more after the first pass, on a new sign-in,
+because an `echo` was added after its first command so its refusal does not run into the next output, and no other block depends on it. The earlier build of the same
+stack, from `019dd64be`, refused every token a real sign-in issues, because the door wanted the me URL as the only audience; the page is
+from the build that fixed it. `a refusal for a token holding me:write alone` is not on the page, because no sign-in can produce one;
+the integration test of the door runs it. The stack and its image were removed afterwards.
+
+The me API's changes page, `the-me-api-changes.md`, and the pages the writes made stale were captured on 2026-11-11 on one freshly
+built compose project, `odudu-p4f-i25` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit
+`e34a77bd9` with nothing uncommitted. The changes page ran on that stack with one file added, shown on the page, that gives the
+server a relay (`mailpit`, port `8092`) and turns its own outbox sender off, so `odudu send-mail` is what sends and reports; the
+stack had served the other pages first, and the page's tenant `me-edit` is made by the page, its mail catcher emptied before it
+began. Its blocks are one script run in one shell, each block's output written to the page as it came back (carriage returns and
+trailing spaces removed), after a first pass that found and corrected the mailed link's trailing carriage return and added the
+agent section; the page is from the last full pass, which includes the two 35-second waits that age a sign-in past the 30-second
+window and the hundred sign-ins that fill the session limit. The administrator's token was got again when it had run for
+150 seconds, as the page's own sign-ins were: that is the only thing the script does that a reader does not see. A removal refused
+`last_sign_in_method` is not on the page, because a passkey is registered by a browser; `apps/server/tests/me-credential-removal.int.test.ts`
+runs it. The agent section's token came from the same exchange as [Path D](../reference/transcripts/request-paths/path-d-token-exchange.md), with `lin` as the actor.
+
+On the same stack and day, `the-me-api.md` was replayed whole (the only difference from its earlier capture is the `400` of
+`profile?subject=`, which was a `200` before the profile refused a query member), the three blocks of
+`get-settings-and-patch-settings.md` that show the settings were replayed with the rest of that page (the tenant document gained
+`session_freshness_seconds`, so each is 32 bytes longer and the list of names the unknown-setting refusal prints has one more), the
+first export block of `get-export.md` was run on a tenant `export-demo` made as the page makes it (10,629 to 10,661 bytes), and
+`GET /admin/openapi.json` was fetched again (807,100 to 807,428 bytes). The stack and its image were removed afterwards. The block of `the-me-api-changes.md` that uses a token whose session ended was run once more, after every change began to need a live session, on a stack built from `84e1fb63c` (project `odudu-p4f-i25`, the same mail file), by replaying the page as far as that block; the block's output is that run's and the blocks around it are the earlier pass's.
+
+The action page, `sending-a-person-to-change-a-credential.md`, and the pages the `allowed_actions` setting and its refusal made stale were captured on 2026-11-11 on a compose project, `odudu-p4f-i33` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit `c4d445f4a` with only documentation files uncommitted. Each page ran on a database emptied before it (`down -v`, `up` on the same image, `odudu seed admin`, a token as in Getting the token), with one script that ran the page's blocks in one shell, each block as a file with no terminal input, and wrote each block's output into the page as it came back (carriage returns and trailing spaces removed). The administrator's token was got again when it was over 100 seconds old. The action page is one pass, with one 35-second wait that ages a sign-in past a 30-second window, and the `totp.ts` import path is the checkout's absolute path in the run. Pages replayed whole: `get-clients-post-clients-and-get-clientsid.md` (without its three blocks on a stack with the `mcp` policy, which keep their earlier capture), `patch-clientsid.md`, `post-clientsidsecret.md`, `delete-scopesidclientsclientid.md` and `get-adminopenapijson.md` (the size, 810,507 bytes, was the same as the number written there by hand). Blocks run alone: the client list of `getting-the-token.md`, the tenant setup and first export of `get-export.md`, the `audit-demo` and `resource-audit` sections of `get-audit.md` (the other sections keep their capture), the two new blocks at the end of the scope page and the registration refusal of `allowed_actions` in `bootstrap.md`. The run found that the first refusal said to assign `me:read` when the caller was removing it; it was corrected and the stack built again before any block was captured. Not shown: the browser ceremony that enrols a passkey, and the unavailable page for a person with no password. The stack and its image were removed afterwards. The action page and the last section of `patch-clientsid.md` were then run again whole, each on an emptied database, on a stack of the same project name built from `22971e9e4` (the password block of the action page gained a read of the password's `created_at` before and after the change, and the patch section a request without `If-Match` for a client that lacks `me:read`); those two pages are from that run, and the stack and its image were removed afterwards.
+
+The pages for a link an administrator mails to a client's application, `post-subjectsidactions-email.md`, `post-subjectsidpassword-reset-and-post-subjectsidverification.md` and the size on `get-adminopenapijson.md`, were captured on 2026-11-11 on a compose project, `odudu-p4f-i41` (port `3141`, `ODUDU_REAP_ENABLED=false`, `ODUDU_OUTBOX_ENABLED=false`, throttles at `10000`, `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true`), built from the branch commit `5a216493d` with only documentation files uncommitted, on a database that began empty: `seed admin`, a token as in Getting the token, then the tenants, clients, relay and subjects the pages name, made through the admin API. Each block was run as a file with no terminal input, and its output is pasted as it came back (carriage returns removed). The actions page is one pass, and its mail and Mailpit blocks keep their earlier capture, as the page says. The reset and verification page ran its three sends and two links once on a subject `grace` and once, after the reset link's password was refused as one `grace` had used a minute before, on a new subject `heidi`; the page is from the `heidi` run. The OpenAPI size was fetched from the same stack. The stack and its image were removed afterwards.
+
+The action page, `sending-a-person-to-change-a-credential.md`, was replayed whole on 2026-11-12 on a compose project, `odudu-p4f-i51` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit `06b5c1934` with only documentation files uncommitted, on a database that began empty: `seed admin`, then the page's blocks as one script in one shell, each block's output written to the page as it came back (carriage returns and trailing spaces removed). Every command in a block that names an administrator's token ran with a token got again just before it. The recovery-code section is new: it shows the refusal of a replacement inside the hour, then moves the recorded time of the set an hour and a half back with one `update` in `psql`, since the run does not wait an hour, and shows the confirmation, the revoke by an administrator through `DELETE .../recovery-codes?require_new_set=false` and the confirmation for a first set. The audit block lists `recovery_codes.refused`, which it did not before, and it was run once more alone for that filter. The guide copies the blocks it shows, and the prose of `recovery-codes.md` that said a reload issues a different ten was rewritten to point at this run; that page's own blocks were not replayed. The stack and its image were removed afterwards.
+
+The notice mail for a change a person makes to their own sign-in was run on 2026-11-12 on a compose project, `odudu-p4f-i6` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, the mail relay of `the-me-api-changes.md` added), built from the branch commit `dabf6f5ec` with only documentation files uncommitted (`the-me-api-changes.md` was then replayed whole again on the same project name, built from `b4e06e3fc` with the same note, for the reworded advice line, and that page is from the second run), on a database that began empty: `seed admin`, a token as in Getting the token, then the page's blocks as one script in one shell, each block's output written to the page as it came back (carriage returns and trailing spaces removed), the administrator's token got again when it was over 100 seconds old. `the-me-api-changes.md` was replayed whole, with a new section, `The address being left`, and a verified address for `lin`, so the notices are in the mail catcher; the session counts after the new section are one higher than before, since it signs `grace` in once more. `sending-a-person-to-change-a-credential.md` was replayed whole on the same build, on a database emptied first (`down -v`, `up`, `seed admin`); its only change is `detail.notice` on the three `recovery_codes.issued` rows. The prose of `two-factor-authentication-with-totp.md`, `enrolling-a-passkey.md` and `recovery-codes.md` gained a sentence about the notice, and those pages' blocks were not replayed. The stack and its image were removed afterwards.
+
+The blocks that show the tenant settings and the credential list after `recovery_code_warn_below` and `recovery_codes_low` joined were run on 2026-11-12 on a compose project, `odudu-p4f-i52` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit `372c5f73c` with only documentation files uncommitted, on a database that began empty: `seed admin`, a token as in Getting the token. The first three blocks of `get-settings-and-patch-settings.md` and the first export block of `get-export.md` (made as that page makes it) were run again (the tenant document gained the setting, so each is 29 bytes longer, 10,732 for the export), and `GET /admin/openapi.json` was fetched again (814,249 to 814,529 bytes). On `the-me-api.md` the tenant, client and person were made as that page makes them and the credentials block was run again; the new block after it writes two `recovery-code` rows with `psql` for the person, since the page does not run the ceremony that makes a set, moves the threshold with the admin API and deletes the rows. The rest of those pages keep their earlier capture. The stack and its image were removed afterwards.
+
+The pages of the three required actions were run again on 2026-11-12 on a compose project, `odudu-p4f-i12` (port `3000`, Postgres on `5412`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, the mail relay of `the-me-api-changes.md` added), built from the branch commit `95cd5ecfe` with only documentation files uncommitted, on a database that began empty, by one script in one shell that wrote each block's output as it came back (carriage returns and trailing spaces removed); the earlier run's capture is replaced. `more-required-actions.md` is that run whole, now with the required profile fields, every refusal at once, and the terms page changed under an open form. `get-subjectsidterms-acceptances.md` is new from the same run. The same script ran the first three blocks and the refusal of the names in `get-settings-and-patch-settings.md` and its Terms section, the tenant setup and first export block of `get-export.md` (11,059 bytes), `GET /admin/openapi.json` (then 825,349 bytes, 110 paths) and the two blocks of the allowed-actions section of `patch-clientsid.md`, whose refusal now names six actions. The two admin blocks repeated in `get-subjectsidrequired-actions-and-put-subjectsidrequired-actions.md` are that run's. The stack and its image were removed afterwards.
+
+`GET /admin/openapi.json` was fetched again on 2026-11-13 on a compose project, `odudu-p4f-i12` (port `3000`, Postgres on `5412`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit that words `no-editable-profile-fields` for a required field a person may not edit, on a database that began empty; it is 825,420 bytes, 110 paths. The route needs no token. The stack and its image were removed afterwards.
+
+The three required actions that ask more of a person, `verify-email`, `update-profile` and `accept-terms`, were run on 2026-11-12 on a compose project, `odudu-p4f-i12` (port `3000`, Postgres on `5412`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, the mail relay of `the-me-api-changes.md` added), built from the branch commit `481f40e1a` with only documentation files uncommitted, on a database that began empty: `seed admin`, the first sign-in's password change, a token as in Getting the token, then one script that ran the blocks in one shell and wrote each block's output as it came back (carriage returns and trailing spaces removed). `more-required-actions.md` is that run's tenant `more-demo` whole; its two admin blocks are repeated in `get-subjectsidrequired-actions-and-put-subjectsidrequired-actions.md`. The same script then ran the first three blocks of `get-settings-and-patch-settings.md` and the refusal that lists the names, its new last section, the tenant setup and first export block of `get-export.md` (10,967 to 11,004 bytes) and `GET /admin/openapi.json` (817,876 to 823,833 bytes); every id and time on those blocks is that run's. The administrator's token was got again before each part. `no-editable-profile-fields` is not shown because no tenant lets a person edit nothing, so the refusal cannot be produced; its unit test is `packages/protocol-admin/src/service/required-action-refusal.test.ts`. The stack and its image were removed afterwards.
+
+The blocks that show the tenant settings after the authenticator policy joined them were run on 2026-11-12 on a compose project, `odudu-p4f-i7a` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit `bd0032a75` with only documentation files uncommitted, on a database that began empty: `seed admin`, a token as in Getting the token, then one script that wrote each block's output as it came back (carriage returns and trailing spaces removed). The first three blocks of `get-settings-and-patch-settings.md` and its new last section, the first export block of `get-export.md` (made as that page makes it) and `GET /admin/openapi.json` (814,529 to 816,121 bytes) were run again. The new section of `two-factor-authentication-with-totp.md` ran on the same stack with a tenant `policy-demo`; its page excerpts show only the lines that matter, and its code form for `ada` waited 65 seconds after the enrolment so that a new time step began. The passkey pages are prose, since a browser makes the ceremony. The stack and its image were removed afterwards.
+
+The blocks that show the tenant settings after the passkey switch joined them were run on 2026-11-12 on a compose project, `odudu-p4f-i7b` (port `3000`, Postgres on `5443`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit `1b6bb733b` with only documentation files uncommitted, on a database that began empty: `seed admin`, a token as in Getting the token, then shell scripts that wrote each output as it came back (carriage returns and trailing spaces removed). The first three blocks of `get-settings-and-patch-settings.md`, its new passkey switch section, the first export block of `get-export.md` (made as that page makes it, 10,913 bytes) and `GET /admin/openapi.json` (816,121 to 816,440 bytes) were run again. The new section of `enrolling-a-passkey.md` ran on the same stack with a tenant `switch-demo`; its authorization codes are shown as `CODE`. The passkey ceremony itself is not run, since a browser makes it. The stack and its image were removed afterwards.
+
+The device cookie and the `device` field of the session lists began on 2026-11-12. The section "A session's device" of
+`the-me-api.md` was run that day on a compose project, `odudu-p4f-i8` (port `3081`, Postgres on `5482`, `ODUDU_REAP_ENABLED=false`,
+throttles at `10000`), built from the branch commit `01b0c3c70` with nothing uncommitted, on a freshly built stack where the page's
+tenant `me-doc`, its user `grace` and its client `me-app` were made as the page makes them. Each of its commands is a file run in
+one shell and its output is the file the page shows, with carriage returns removed. The sign-in helper used there keeps the
+cookie jar it is given and asks for `prompt=login`, as that section says. The stack and its image were removed afterwards. The
+pages that show the redirect ending a sign-in, or a session list, were run again the same day on a compose project,
+`odudu-p4f-i8-replay` (server on `3081`, Postgres on `5482`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch
+commit `ce1b37221` with only documentation files uncommitted. The page's commands name their own ports; the stack's
+`ODUDU_PUBLIC_BASE_URL` was set to that port for the run and each `curl` was sent to `3081`, so issuers and redirects print the
+page's port. Each page ran its blocks in order, on a database that held none of its own tenants (the stack's volume was dropped whenever a
+page needed a name or a system tenant an earlier one had made), after the setup the page describes (the `seed`
+commands, a token as in Getting the token, the sign-ins that buy a code or a session), and each output is what came back with
+carriage returns removed and the cuts the page already made (a session entry or code cut to its first characters, the QR image, a
+long page cut to the lines the page shows). The ids, codes, secrets and keys one block hands to the next are that run's, in the
+commands and in the prose that names them. What ran: all of `the-mcp-endpoint.md`; in `getting-the-token.md`, the seed to the token
+exchange; in `two-factor-authentication-with-totp.md`, the enrolment to the second sign-in, and in `recovery-codes.md`, its
+sign-ins and counts, on the same database; the lockout block of `brute-force-lockout.md` (125 seconds long), `password-reset.md`
+from the reset request to the sign-in with the new password, all of `password-expiry-and-changing-a-password.md`, the login POST and
+the remembered login of `path-a-authorization-code-with-pkce.md`, the consent decision of `rp-initiated-logout.md` with the client
+registered before it, the three logins of the session cap in `the-branches.md`,
+`get-subjectsidconsents-and-delete-subjectsidconsentsclientid.md` from the consent to the revoked grant, the last block of
+`delete-subjectsidrecovery-codes.md` on a tenant, client and person made as that page makes them, `delete-subjectsidsessions.md`,
+and `delete-sessions.md` (a tenant `sess-demo` with the four people and two clients the page names). `guides/sign-a-user-in.md`
+takes its excerpt from the new Path A block. Where a page's setup is only described, the run made it as the description reads, so a
+page may show a field a later build added (the `issuerTenantName` of a `whoami`, the notice a self-registered client's consent
+screen carries).
+
+Four pages kept their earlier capture because no block of theirs shows the response: `self-registration.md` filters the sign-in to
+the session cookie's line, `a-themed-sign-in-and-the-brand-route.md` prints its status code, and
+`following-the-logout-redirect.md` and `guides/refresh-and-end-a-session.md` show only a logout. Five still carry the note and were
+not replayed: `the-tenants-own-sign-in.md`, `get-consoleauthcallback-refused.md`, `get-consoleauthcallback-restarted.md`,
+`a-refresh-the-server-refuses.md` and `guides/admin-signs-in-and-changes-a-user.md`. They continue one console sign-in across
+several pages (a `state` and a login cookie the page before made) or wait out a login's lifetime, so they need the console's whole
+run replayed in order. The stack and its image were removed afterwards.
+
+The first block of `get-adminopenapijson.md` was run again on 2026-11-12 on a freshly built compose project, `odudu-p4f-i9m` (port `3093`, Postgres on `5493`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the merge commit `e82a7178b` with only documentation files uncommitted, on a database that began empty and with nothing seeded, since the route needs no token. Three changes met in that build: the `device` field of the session lists made the document 519 bytes longer (816,440 to 816,959), the longer `require_passkey` field description added 133 bytes (817,092), and the two breached-password settings added 784 more, so the document is 817,876 bytes and holds 109 paths. The block's output is what came back with carriage returns removed, and the stack and its image were removed afterwards. The `ADA` assignment added to `enrolling-a-passkey.md` is the `userSubjectId` that page's seed printed; no output of that page was run again.
+
+The discovery document and authorization server metadata began to list `me:read` and `me:write` on 2026-11-11, and every tenant now
+starts with twelve scopes. On the compose project `odudu-p4f-i15` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`,
+built from the branch commit `019dd64be`), a freshly built stack with `demo`, `demo-spa` and `ada` seeded as Bootstrap seeds them, the
+authorization server metadata page's two header blocks, its domain block and the `404` after it were run again (the `jq` block was
+compared with its page and is identical, so it was not rewritten), and so were the discovery document at the domain in the custom
+domains page, the discovery document in Path A (compared member for member with the page's block, and identical), the console
+discovery block of `get-consoleapitenantstenantdiscovery-get-consoleapitenantstenantjwks.md` (on this stack's port `3000`, signed in
+as `ada` through the console's own login), the first export block of `get-export.md` on a tenant `export-demo` made as that page makes
+it, and the 988-scope fill of the scope limit section of `get-scopes-post-scopes-get-scopesid-patch-scopesid-and-delete-scopesid.md` (the
+count was 992 before the tenant began with twelve scopes; the loop was run with 988, and a 989th create answered `409`). The two console
+scope screenshots and the overview's, and the records they are checked against, were regenerated with `pnpm docs:screenshots`. The
+pages of `GET /scopes/builtins` and of the restore were not run again: no block on them shows a list of the built-ins, and their prose
+now names all twelve. The stack was removed afterwards.
+
 The MCP endpoint's page, `the-mcp-endpoint.md`, was captured again, end to end, on 2026-11-06 on a freshly built compose project,
 `odudu-p5a-i11c` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `77b0c85d4`). The
 project's volume was removed and the stack started again from the same image before the one pass the page records (the tenant `demo`
@@ -565,6 +668,15 @@ a freshly built stack at commit `4bc3ccab` on an empty volume, and printed 103 p
 derives; the stack was taken down afterwards. The brand guide's stylesheet response is not from
 this stack: the guide's own steps were run by hand against a separate stack on port `3227`, which is why its addresses name that
 port.
+
+The command that folds accounts holding one address in different cases, `reconciling-accounts-odudu-reconcile-accounts.md`, was run
+on 2026-11-12 on a compose project, `odudu-p4f-i11` (port `3000`, Postgres on `5443`, `ODUDU_REAP_ENABLED=false`,
+`ODUDU_OUTBOX_ENABLED=false`, throttles at `10000`), built from the branch commit `196ecba23` with only documentation files
+uncommitted, on a database that began empty. Nothing was driven before the page's own steps: no administrator was seeded and nobody
+signed in, so the evidence of a sign-in (a session and audit rows) is written with `psql`, as the page says. The page's commands are
+shell commands run in one shell, each output written to the page as it came back (carriage returns and trailing spaces removed);
+every id on it is that run's. Earlier runs of the page, on builds before the audit trail was read for sign-ins and before the group was read a second time, were
+replaced by this one; the page's outputs are all from this run. The stack and its image were removed afterwards.
 
 ## Admin path transcripts
 
@@ -1151,3 +1263,94 @@ refusal and the budget's counts are that pass's. The MCP endpoint's page was not
 `openid mcp:read`, which now comes back as a `scope` member, so the request no longer names a scope and its response is as
 it was. That changed command was run on the same project on a tenant of its own, `mcp-check`, and answered the page's
 response member for member, with another id, instant and tenant name. The stack was removed afterwards.
+
+The change-password page gained the box "End my other sessions". Getting the token was replayed from its
+first block to the token's decoded payload for that, on the compose project `odudu-docs-12b` on port `3082` (throttles
+at `1000`, built from the branch plus the change), after `seed admin --username ada` on an empty volume, so every
+id, code, cookie and time in those blocks is that one run's; the sections after them stand as the earlier runs left
+them, each saying so where its port or ids differ. Password expiry, and changing a password was run again whole on
+the compose project `odudu-p4f-i9` on port `3089`, tenant `expiry-demo`, with its ids, cookies and times that run's; its
+last section, on ending the other sessions, was added to it in the same run. Both stacks were removed afterwards.
+
+The breached-password check was run on 2026-11-12 on a compose project, `odudu-p4f-i92` (port `3092`, `ODUDU_REAP_ENABLED=false`,
+throttles at `10000`), twice on a database that began empty: `seed admin`, a token as in Getting the token, then one script per page
+that wrote each block's output as it came back (carriage returns and trailing spaces removed). The first run, built from the branch
+commit `6533a26aa`, ran the first three blocks of `get-settings-and-patch-settings.md`, its new last section and the audit read
+after it, the export block of `get-export.md` (10,913 to 10,967 bytes, made as that page makes it); those are from it. `GET /admin/openapi.json` is from
+the later run described above. The second run, built from the commit after the fix that stopped a remote lookup
+holding a database connection and made an empty dataset read `dataset_empty`, ran `password-expiry-and-changing-a-password.md`
+whole (its commands naming port `3092` and the project `odudu-p4f-i92`) and its new last section, which reads the dataset's
+`status`, loads a two-line file with `odudu breached-passwords load` and shows a refusal, an acceptance and a tenant with the check
+off; and `password-reset.md`, whose audit section, on its own tenant `reset-audit` with its five-minute wait, ran again before any
+dataset was loaded, and whose new last section ran on a tenant `reset-breach` after it. The audit section of `self-registration.md`
+was not run: its row is the one written when a mailed link is used, and that row carries no `breached_check`, so its capture
+stands. The remote source is not run on any page, because it would contact a host outside the stack;
+`apps/server/tests/breached-range-transport.int.test.ts` runs it against a TLS server of its own and asserts what goes on the wire.
+The stacks and their images were removed afterwards.
+
+The page for asking for a new verification link, `asking-for-a-new-verification-link.md`, was run whole on 2026-11-12 on a compose
+project, `odudu-p4f-i10` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, the mail relay of `the-me-api-changes.md`
+added), built from the branch commit `67ad66976` with only documentation files uncommitted, on a database that began empty and had
+served no tenant. Its commands ran in one shell, each block's output written as it came back. A link was made to expire with a
+statement run as the database owner, since the tenant's lifetime is an hour or more. Two blocks of other pages ran on the same stack
+afterwards, with the tenants and the people those pages make, and are the only things of those pages that were run again. The block
+of `the-me-api-changes.md` that opens the mailed link for a new address and presses its button ran on a tenant `me-edit`, with its
+people `grace` and `lin` and its client `me-app` made by `odudu seed` and `seed client` instead of the admin API (the audience, the
+consent requirement and the two scopes are the same; the `session_freshness_seconds` of 30 was not set, and the address change
+followed the sign-in by seconds); the answer of its request to change the address and the mail it sent are shown above the block on
+that page as the earlier run left them, and the block's own output is this run's. The block of `self-registration.md` that shows the
+page a registration link opens, from its heading to the form, ran on a tenant `register-demo` made as that page makes it, with `ada`
+registered by the form, and reads the link from the relay. The two blocks of that page that open the link and press its button were
+not run again: the first filters the page to the lines it names, which this change leaves as they were. The stack and its image
+were removed afterwards.
+
+The two tables of table counts in `delete-admintenantstenant.md` and the flow query in `recovery-codes.md` were captured again on
+2026-11-13, when a tenant's sign-in steps moved from `authentication_executions` into the `flows` table, on a freshly built compose
+project (`odudu-13a2`, port `3187`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, the logout sender off and
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS=true`), built from the branch commit with nothing uncommitted. The delete page's own command sequence ran
+whole, five passes of the sender a minute apart included: `seed admin` and a token as in Getting the token, `doomed` made through
+`POST /admin/tenants`, a confidential client `doomed-app` with the back-channel URI the page names made through `POST /clients`, `ada`
+seeded in it and signed in once, with the code redeemed; both tables are that run's output. The flow query ran against a tenant
+`otp-demo` made with `odudu seed tenant` on an earlier project built from the same tree. The stacks and their images were removed afterwards.
+
+The flow routes' page, `get-flows-post-flows-and-the-flow-routes.md`, was captured on 2026-11-13 on a freshly built compose project, `odudu-13b`
+(port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit `c89e4a85a` with only
+documentation files uncommitted, on a database that began empty: `seed admin`, the administrator's first-sign-in required action deleted
+with one `delete from user_required_actions` as the screenshot capture does, a token as in Getting the token, then the page's blocks as one
+script in one shell, each block's output written to the page as it came back (carriage returns and trailing spaces removed). The tenants `demo`
+and `other` are made with `odudu seed tenant`. `GET /admin/openapi.json` was fetched again on the same stack (825,420 to 848,131 bytes, 110 to
+112 paths, the new routes), and `odudu-mcp-over-stdio.md` was replayed whole before the page's database was emptied again: its commands name the
+project `odudu-13b` where they named the earlier one, its tenant, client, key and ids are that run's, and the listing is 62 tools where it was 59,
+with `get_flow` and `list_flows` among them and `list_subject_terms_acceptances`, which the earlier capture predated. The tool listing of
+`the-mcp-endpoint.md` is for a person who holds `manage-clients` and `view-users`, which no flow tool needs, so it was not run again. The stack
+and its image were removed afterwards.
+
+The flow page was run again whole on 2026-11-13, with `POST /flows/{id}/make-default` added, on a freshly built compose project `odudu-13b` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit `d3c3c25c9` with nothing else uncommitted, on a database that began empty and with the same sign-in and script as above. `GET /admin/openapi.json` was fetched again on it (848,131 to 856,406 bytes, 112 to 113 paths). The stdio MCP page was not run again, since no tool changed. The stack and its image were removed afterwards.
+
+The flow page was run once more whole on 2026-11-13 when the `428` of `make-default` was worded for that route (`If-Match is required to make a flow the default`), on a freshly built compose project `odudu-13b` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit `a7bdf3285`, on a database that began empty, by the same sign-in and script. `GET /admin/openapi.json` was fetched again on it and its size and path count are unchanged. The stack and its image were removed afterwards.
+
+The tool listing of `the-mcp-endpoint.md` was run again on 2026-11-13, because it lacked `list_subject_terms_acceptances`, which `ada`'s `view-users` shows. It ran on a compose project `odudu-13b` (port `3000`, throttles at `10000`) built from the branch commit `310c49f3e`, on a database that began empty, with the page's own seeds, client registration and sign-in as one script (the page's blocks name `CID` and `MCP` without defining them, so the page was not replayed whole). The `listing as ada sees it` block is that run's, 25 names; the rest of the page keeps its earlier capture, and its ids are that capture's.
+
+The flow page was run again whole on 2026-11-13 when a delete began to wait on the flow's `ETag` and the page's shell variables (`STAFF`, `DEFAULT`, `PARTNERS`, `BULK`, `ETAG`) came to be set in the blocks that show them, so a fresh shell reproduces it. It ran on a compose project `odudu-13b` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit `310c49f3e` (only documentation files uncommitted), on a database that began empty, with the same sign-in and one script that runs the page's blocks in order in one shell. `GET /admin/openapi.json` was fetched again on it (856,406 to 856,572 bytes, 113 paths). The stack and its image were removed afterwards.
+
+`GET /admin/openapi.json` was fetched again on 2026-11-13 on a freshly built compose project `odudu-13b` (port `3000`) from the branch commit `448559042` when the description of `POST /flows` was corrected (856,572 to 856,642 bytes, 113 paths). The stack and its image were removed afterwards.
+
+The pages that show a client, and the flow page, were run again on 2026-11-13 when a client gained `flow_id`, on a freshly built compose
+project `odudu-13c` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit
+`f8f433eda` with only documentation files uncommitted, on a database that began empty: `seed admin`, a token as in Getting the token (the
+sign-in and the console's assertion), the tenants `demo` and `other` made with `odudu seed tenant`, then each page's blocks as one script
+in one shell, each block's output written to the page as it came back (carriage returns and trailing spaces removed), the variables the
+prose names set after the block that makes them, and the tenants other than `system` removed between pages so each began as its author
+did. Whole: `get-flows-post-flows-and-the-flow-routes.md` (with the blocks that make a flow, a client that names it, a refused flow and a
+refused deletion added), `patch-clientsid.md` (with its new section on `flow_id`), `get-clients-post-clients-and-get-clientsid.md`,
+`post-clientsidsecret.md` and `delete-scopesidclientsclientid.md`, and `get-adminopenapijson.md`; the flow page and the OpenAPI block were run again after the merge below.
+Three blocks of `get-clients-post-clients-and-get-clientsid.md` name port `3092`, a stack of their own, and show no `flow_id`, so they were not
+run again. Only the blocks that show a client were taken from `getting-the-token.md`, whose other blocks assume a stack with no administrator, and
+only the three that show a `client.create` row from `get-audit.md`, whose other blocks depend on a session its own earlier sections make: the
+rows now name `flow_id` with `{"after":null}`. The stack was removed afterwards.
+
+After 13b's fix rounds were merged (a delete waits on the flow's `ETag`), the flow page and the OpenAPI block were run again on 2026-11-13 on a
+freshly built compose project `odudu-13c` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the merge
+commit `1bfde6fa5`, on a database that began empty, with the same sign-in and shell as above: `get-flows-post-flows-and-the-flow-routes.md` whole,
+with its own variables set in its blocks and the blocks that name `flow_id` and `flow-in-use` added (the delete there sends the flow's tag), and
+`GET /admin/openapi.json` (856,642 to 858,768 bytes, 113 paths). The stack and its image were removed afterwards.

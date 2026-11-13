@@ -54,6 +54,9 @@ General
 Sessions
 Remember me
 Registration and recovery
+Terms
+Profile
+Authenticators
 Usernames
 Password policy
 Brute force
@@ -84,6 +87,10 @@ Time to finish a sign-in
 s
 1800 s · 30 minutes
 A sign-in left unfinished this long has to be started again. Between 60 s · 1 minute and 86400 s · 1 day.
+Recent sign-in window
+s
+300 s · 5 minutes
+A person must have signed in this recently to change their address or username, end all their other sessions, withdraw a consent or remove an authenticator. Between 30 s and 3600 s · 1 hour.
 Remember me
 A longer session for a person who asks to stay signed in.
 Offer remember me
@@ -116,6 +123,80 @@ Reset link lifetime
 s
 300 s · 5 minutes
 A reset link stops working after this long. Between 60 s · 1 minute and 86400 s · 1 day.
+Terms
+The terms a person accepts when asked to. Setting them asks nobody: an administrator asks a person under Required actions, and again when the terms change.
+Terms address
+An https address, or http to this machine, with no fragment. Leave it empty for no terms.
+Terms version
+Up to 64 characters. A person accepts one version. Changing it asks nobody again by itself.
+Profile
+What the Complete the profile action needs a person to have before it ends. The page lists every field a person can edit and marks these; the others stay optional.
+Required profile fields
+Full name
+Given name
+Family name
+Middle name
+Nickname
+Preferred username
+Profile page
+Picture address
+Website
+Gender
+Birthdate
+Time zone
+Language
+Phone number
+Address
+Street
+City
+Region
+Postal code
+Country
+Choose none and the page is only reviewed and submitted. Full name or given and family name are the usual ones to ask for.
+Authenticators
+What a new authenticator app, passkey or recovery set is made with, and whether sign-in asks everyone for a passkey. One already enrolled keeps the values it was made with.
+Authenticator app algorithm
+SHA1
+▾
+SHA1 works in every authenticator app. A person’s app must support another algorithm, digit count and period before they can use it; the enrolment page says so.
+SHA1
+SHA256
+SHA512
+Authenticator app code length
+6 digits
+▾
+6 digits
+8 digits
+Authenticator app code period
+30 seconds
+▾
+30 seconds
+60 seconds
+Passkey user verification
+Required
+▾
+Whether a new passkey checks the person with a PIN or biometric. A passkey made without it signs in as one factor, so a second factor is still asked for.
+Required
+Preferred
+Discouraged
+Passkey stored on the device
+Required
+▾
+A passkey that is not stored on the device cannot sign a person in who has not typed a username.
+Required
+Preferred
+Discouraged
+Require a passkey
+Off
+Does nothing where the deployment has no public base URL, or one that is an IP address, unless the tenant has a domain of its own: nobody is asked. A person without a passkey is asked to add one at their next sign-in and cannot skip it. Sessions already open are not touched. Turning this off does not clear an action already owed; clear it on the person’s record.
+Recovery codes in a set
+codes
+10 codes
+A set already issued keeps its size. Between 8 and 16 codes.
+Recovery code warning
+codes
+3 codes
+The credential list of the "me" API flags a person with fewer unspent recovery codes than this, so an application can ask them to issue a new set. 0 turns the flag off. Between 0 and 10 codes.
 Usernames
 How a person is named, and what they type to sign in.
 Usernames can be renamed
@@ -150,6 +231,19 @@ Password lifetime
 days
 0 days
 A password older than this has to be changed. 0 never expires one. Between 0 and 3650 days.
+Check against known breaches
+Dataset loaded on the server
+▾
+A new password that passed the rules above is refused if it is a password known from breaches. The dataset is the hash list an operator loaded into the server, and nothing leaves it. Remote asks a range service for the first five characters of the SHA-1 hash and nothing else. Off skips the check, and the audit trail records that.
+Off
+Dataset loaded on the server
+Remote range lookup
+When a remote lookup fails
+Accept the password
+▾
+Applies to the remote lookup only, when it times out, is refused or is too busy. The dataset has no such failure.
+Accept the password
+Refuse it and ask to try again
 Brute force
 When repeated wrong passwords or wrong second-factor codes lock an account, and for how long.
 Failures before a lockout

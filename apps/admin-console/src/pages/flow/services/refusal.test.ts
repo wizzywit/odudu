@@ -96,6 +96,22 @@ describe('flowOutcome', () => {
     expect(paths.map((error) => error.path)).toEqual(['steps']);
   });
 
+  it('finds the step by its path under steps, as a named flow sends it', () => {
+    const text = said(
+      outcome(
+        bad('about:blank#flow-duplicate-authenticator', [
+          { path: 'steps[2].authenticator', message: 'repeats an earlier step' },
+        ]),
+      ),
+    );
+    expect(text).toBe('“password” is a step twice. An authenticator is one step.');
+  });
+
+  it('leaves a refused name to be placed under the name', () => {
+    const refused = bad('about:blank', [{ path: 'name', message: 'too long' }]);
+    expect(outcome(refused)).toBe(refused);
+  });
+
   it('leaves a success, a lost answer and any other status as it came', () => {
     const lost = { ok: false as const, kind: 'network' as const };
     expect(flowOutcome(lost, SENT, AVAILABLE)).toBe(lost);

@@ -58,6 +58,26 @@ export const DEFAULT_SCOPES: readonly DefaultScope[] = [
     },
     assignment: null,
   },
+  // Asked for at a tenant's "me" API and refused at every other audience
+  // (service/mcp-scopes.ts in protocol-oidc); me:write is held only with
+  // me:read. Assigned to no client. The same rows are backfilled into existing
+  // tenants by 0125_me_scopes.sql.
+  {
+    scope: {
+      name: 'me:read',
+      includeInIdToken: false,
+      description: "Read the signed-in person's own profile, credentials, sessions and consents.",
+    },
+    assignment: null,
+  },
+  {
+    scope: {
+      name: 'me:write',
+      includeInIdToken: false,
+      description: "Change the signed-in person's own profile, sessions, consents and credentials.",
+    },
+    assignment: null,
+  },
 ];
 
 // Published so a document asserting what a freshly seeded tenant advertises

@@ -1,4 +1,4 @@
-import { authenticationExecutions, userRequiredActions } from '@odudu/authn-flows';
+import { flowRepository, userRequiredActions } from '@odudu/authn-flows';
 import {
   ASSIGNMENT_LIMIT,
   EXPORT_COLLECTION_CAP,
@@ -40,19 +40,7 @@ import {
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { clientOidcConfig, needsServiceAccount } from '@odudu/protocol-oidc';
-import {
-  and,
-  asc,
-  count,
-  eq,
-  inArray,
-  isNull,
-  ne,
-  notInArray,
-  or,
-  sql,
-  type SQL,
-} from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { type PgTable } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { countAtMost } from '#/usecase/capped-count';
@@ -407,6 +395,7 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
       idTokenSignedResponseAlg: clientOidcConfig.idTokenSignedResponseAlg,
       defaultMaxAge: clientOidcConfig.defaultMaxAge,
       requireAuthTime: clientOidcConfig.requireAuthTime,
+      allowedActions: clientOidcConfig.allowedActions,
     })
     .from(clients)
     .innerJoin(clientOidcConfig, eq(clients.id, clientOidcConfig.clientId))
@@ -463,6 +452,7 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
         id_token_signed_response_alg: row.idTokenSignedResponseAlg,
         default_max_age: row.defaultMaxAge,
         require_auth_time: row.requireAuthTime,
+        allowed_actions: row.allowedActions,
       },
     };
   });
@@ -717,14 +707,8 @@ export async function exportTenant(
     Object.fromEntries(Object.entries(record).filter(([name]) => policyNames.has(name))),
   );
 
-  const steps = await tx
-    .select({
-      authenticator: authenticationExecutions.authenticator,
-      requirement: authenticationExecutions.requirement,
-    })
-    .from(authenticationExecutions)
-    .where(eq(authenticationExecutions.tenantId, tenantId))
-    .orderBy(asc(authenticationExecutions.index));
+  const defaultFlow = await flowRepository(tx).defaultForTenant(tenantId);
+  const steps = defaultFlow?.steps ?? [];
 
   const roleRows = await readRoles(tx, tenantId);
   const roleById = new Map(roleRows.map((role) => [role.id, role]));

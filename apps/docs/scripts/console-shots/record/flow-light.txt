@@ -110,3 +110,20 @@ One-time password
 The one-time password step is asked of a subject who has set up an authenticator app. Turn this on to ask it of every subject, those who have not set one up included. A sign-in with a passkey is never asked again.
 Ask every subject for a one-time password
 Off
+Flows
+The default flow is what a sign-in runs when nothing names another, and it is never deleted. A tenant holds at most 20 flows.
+Name
+Steps
+Clients
+Actions
+Name
+default
+Default
+Steps
+4 steps: passkey, password, otp, recovery-code
+Clients
+None
+Actions
+Edit
+default
+New flow

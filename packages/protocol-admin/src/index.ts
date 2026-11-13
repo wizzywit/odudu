@@ -42,6 +42,10 @@ import { type Audit as TenantImportAudit } from '#/usecase/tenant-import';
 import { type Audit as SmtpAudit } from '#/usecase/smtp';
 import { type Audit as AccountRecoveryAudit } from '#/usecase/account-recovery';
 import { type Audit as ConsentAudit } from '#/usecase/consents';
+import {
+  listTermsAcceptancesHandler,
+  type TermsAcceptancesRouteDeps,
+} from '#/view/routes/terms-acceptances';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as GrantAudit } from '#/usecase/grants';
 import { type EndTenantSessionsDeps } from '#/usecase/tenant-sessions';
@@ -82,7 +86,17 @@ import {
   setGroupRolesHandler,
   type GroupsRouteDeps,
 } from '#/view/routes/groups';
-import { listFlowHandler, replaceFlowHandler, type FlowRouteDeps } from '#/view/routes/flow';
+import {
+  amendFlowHandler,
+  createFlowHandler,
+  deleteFlowHandler,
+  listFlowHandler,
+  listFlowsHandler,
+  makeFlowDefaultHandler,
+  readFlowHandler,
+  replaceFlowHandler,
+  type FlowRouteDeps,
+} from '#/view/routes/flow';
 import {
   readScopeMappersHandler,
   setScopeMappersHandler,
@@ -258,12 +272,12 @@ import { type Audit as DomainAudit } from '#/usecase/domains';
 import { createVerifyThrottle, type VerifyThrottle } from '#/service/domain-throttle';
 import { type ResolveTxt } from '@odudu/domain-tenant';
 
+export { unverifiedIssuer } from '@odudu/protocol-oidc';
 export { ADMIN_ROUTES, type AdminCapability, type AdminRoute } from '#/service/capability';
 export {
   checkGrantLiveness,
   lifespansOf,
   resolveForeignIssuer,
-  unverifiedIssuer,
   verifyTenantAccessToken,
   type AdminAgent,
   type AdminPrincipal,
@@ -296,6 +310,12 @@ export {
 } from '#/service/idempotency';
 export { withIdempotency } from '#/usecase/idempotent';
 export { expireRotatedClientSecrets } from '#/usecase/client-secret-expiry';
+export {
+  reconcileDuplicateAccounts,
+  RECONCILE_CHUNK_GROUPS,
+  type ReconcileOptions,
+} from '#/usecase/reconcile-accounts';
+export { type PairEvent, type ReconcileReport } from '#/service/reconcile-accounts';
 export { composeUserSubject, type ComposeUserSubjectInput } from '#/usecase/subjects';
 export { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 export { resolveHostAddresses } from '#/adapter/host-addresses';
@@ -752,6 +772,10 @@ function buildAdminRoutes(
       callerCapabilities,
       now: () => clock.now(),
     };
+    const termsAcceptancesDeps: TermsAcceptancesRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+    };
     const accountRecoveryDeps: AccountRecoveryRouteDeps = {
       database: deps.database.db,
       audit: accountRecoveryAudit,
@@ -790,6 +814,8 @@ function buildAdminRoutes(
       'DELETE /admin/tenants/:tenant/subjects/:id/credentials/:credentialId':
         deleteCredentialHandler(subjectsDeps, sessionsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/consents': listConsentsHandler(consentsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/terms-acceptances':
+        listTermsAcceptancesHandler(termsAcceptancesDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/consents/:clientId':
         deleteConsentHandler(consentsDeps),
       'POST /admin/tenants/:tenant/subjects/:id/password':
@@ -956,6 +982,12 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/clients/:id/evaluate': evaluateClaimsHandler(operationsDeps),
       'GET /admin/tenants/:tenant/flow/executions': listFlowHandler(flowDeps),
       'PUT /admin/tenants/:tenant/flow/executions': replaceFlowHandler(flowDeps),
+      'GET /admin/tenants/:tenant/flows': listFlowsHandler(flowDeps),
+      'POST /admin/tenants/:tenant/flows': createFlowHandler(flowDeps),
+      'GET /admin/tenants/:tenant/flows/:id': readFlowHandler(flowDeps),
+      'PUT /admin/tenants/:tenant/flows/:id': amendFlowHandler(flowDeps),
+      'DELETE /admin/tenants/:tenant/flows/:id': deleteFlowHandler(flowDeps),
+      'POST /admin/tenants/:tenant/flows/:id/make-default': makeFlowDefaultHandler(flowDeps),
       'GET /admin/tenants/:tenant/audit': listAuditHandler(auditDeps),
       'GET /admin/tenants/:tenant/audit/count': countAuditHandler(auditDeps),
       'GET /admin/tenants/:tenant/audit/export': exportAuditHandler(auditDeps),

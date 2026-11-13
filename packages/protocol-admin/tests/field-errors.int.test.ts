@@ -132,6 +132,8 @@ describe('a refusal of the request shape names the field', () => {
       caller.create('/subjects', { username: `u-${newId()}` }),
     '/admin/tenants/:tenant/subjects/:id/consents': (caller) =>
       caller.create('/subjects', { username: `u-${newId()}` }),
+    '/admin/tenants/:tenant/subjects/:id/terms-acceptances': (caller) =>
+      caller.create('/subjects', { username: `u-${newId()}` }),
     '/admin/tenants/:tenant/subjects/:id/effective-roles': (caller) =>
       caller.create('/subjects', { username: `u-${newId()}` }),
     '/admin/tenants/:tenant/clients/:id/sessions': (caller) =>

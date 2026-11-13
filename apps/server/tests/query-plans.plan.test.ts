@@ -356,6 +356,23 @@ describe('a brand file', () => {
   });
 });
 
+// Admission reads a subject's live sessions on one device, so the read has to
+// be served by the subject's own index rather than a scan of the sessions
+// table, however few rows the planner thinks it holds.
+describe('the sessions a device holds', () => {
+  it('are read by the subject index, with no Seq Scan of sessions', async () => {
+    const statement = workOf('login: password').find(
+      (s) => s.query.includes('from "sessions"') && s.query.includes('"device_id" ='),
+    );
+    expect(statement).toBeDefined();
+    if (statement === undefined) return;
+    const plan = await planned(statement, { settings: ['enable_seqscan = off'] });
+    const own = scansOf(plan).filter((scan) => scan.relation === 'sessions');
+    expect(own.map((scan) => scan.index)).toContain('sessions_by_subject');
+    expect(own.filter((scan) => scan.node === 'Seq Scan')).toEqual([]);
+  });
+});
+
 describe('every foreign key', () => {
   it('is found by an index, so a parent row can be deleted without reading its children whole', async () => {
     expect(await unindexedForeignKeys(world.owner)).toEqual([]);

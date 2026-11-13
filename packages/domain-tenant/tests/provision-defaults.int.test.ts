@@ -91,10 +91,10 @@ describe('a newly provisioned client', () => {
       return new Map<string, ClientScopeAssignment>(rows.map((row) => [row.name, row.assignment]));
     });
 
-    // The MCP scopes are defined in every tenant but assigned to no client:
-    // a client is given them deliberately.
+    // The MCP and "me" scopes are defined in every tenant but assigned to no
+    // client: a client is given them deliberately.
     const assignedByDefault = TENANT_DEFAULT_SCOPE_NAMES.filter(
-      (name) => name !== 'mcp:read' && name !== 'mcp:write',
+      (name) => !name.startsWith('mcp:') && !name.startsWith('me:'),
     );
     expect([...assignmentByName.keys()].sort()).toEqual([...assignedByDefault].sort());
     expect(assignmentByName.get('offline_access')).toBe('optional');
@@ -131,8 +131,26 @@ describe('the MCP scopes of a provisioned tenant', () => {
     }
   });
 
+  it('give every tenant the "me" scopes with a description, marked for no client', async () => {
+    const tenantId = newId();
+    const rows = await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      await provisionTenantDefaults(tx, tenantId);
+      return clientScopeRepository(tx).byNames(['me:read', 'me:write']);
+    });
+    expect(rows.map((row) => row.name).sort()).toEqual(['me:read', 'me:write']);
+    for (const row of rows) {
+      expect(row.defaultClientAssignment).toBeNull();
+      expect(row.includeInIdToken).toBe(false);
+      expect(row.includeInAccessToken).toBe(true);
+      expect(row.description).toMatch(/\S/u);
+    }
+  });
+
   it('are listed with the built-ins, so a restore recreates them', async () => {
-    expect(TENANT_DEFAULT_SCOPE_NAMES).toEqual(expect.arrayContaining(['mcp:read', 'mcp:write']));
+    expect(TENANT_DEFAULT_SCOPE_NAMES).toEqual(
+      expect.arrayContaining(['mcp:read', 'mcp:write', 'me:read', 'me:write']),
+    );
     const tenantId = newId();
     await withTenant(app.db, tenantId, async (tx) => {
       await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });

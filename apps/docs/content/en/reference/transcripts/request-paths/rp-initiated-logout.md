@@ -2043,9 +2043,9 @@ curl -sS -X POST http://localhost:3094/tenants/demo/clients-registrations/openid
 
 ```json
 {
-  "client_id": "01a137d6-c1b7-76fa-92b1-bb33828ae56f",
-  "client_id_issued_at": 1791938183,
-  "client_secret": "zEOnBPiO5AnubSnAQ3nQTq_DHRsIvOd4cXTTXEGp-lw",
+  "client_id": "01a1d09e-84f2-7487-bddd-dc2651ac95cf",
+  "client_id_issued_at": 1794501412,
+  "client_secret": "0Lk9z8K6fRavm8CvpZhWcQCk0p5zoXnfpV18cnT99lY",
   "client_secret_expires_at": 0,
   "redirect_uris": ["https://rp.example/cb"],
   "grant_types": ["authorization_code"],
@@ -2072,7 +2072,7 @@ curl -sS -D - -c cookies-consent.txt -b cookies-consent.txt \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a137d6-c260-716b-9777-461155c440c8
+x-request-id: 01a1d09e-8567-758e-a1f8-82985a97216b
 content-type: text/html
 content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self' https://rp.example; base-uri 'none'
 x-frame-options: DENY
@@ -2080,8 +2080,8 @@ referrer-policy: no-referrer
 cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
-content-length: 1453
-Date: Wed, 14 Oct 2026 00:36:23 GMT
+content-length: 1692
+Date: Thu, 12 Nov 2026 16:36:52 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -2101,10 +2101,13 @@ Keep-Alive: timeout=72
 <p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
 <header class="intro">
 <h1><bdi>Example RP</bdi> is asking for access</h1>
+<p class="context">This application registered itself. Nobody at this tenant set it up, and its name is its own claim.</p>
+<p class="context">After you decide, you are sent back to:</p>
+<p class="context"><bdi>https://rp.example</bdi></p>
 <p class="tenant"><bdi>demo</bdi></p>
 </header>
 <form method="post" action="/tenants/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a137d6-c22e-791c-9097-e8d295b70e7f">
+  <input type="hidden" name="auth_session_id" value="01a1d09e-8544-7db5-aa3d-4cec88042143">
   <ul>
   <li><bdi>openid</bdi></li>
   <li><bdi>profile</bdi></li>
@@ -2141,13 +2144,14 @@ curl -sS -D - -c cookies-consent.txt -b cookies-consent.txt \
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a137d6-c2c7-78cf-8e8d-1b9762557de3
-set-cookie: demo-session=01a137d6-c2e4-7f70-8fc3-6dbee704dde9:a-7981Ir1Wexv7gTDwGcUtsV2iJBTzlNF6CaRh_DHds; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d09e-85d4-762b-b76b-9a20ac9b209d
+set-cookie: demo-session=01a1d09e-85f4-7bc1-b902-ed00cb399a3f:Y_YAsCUgXg2EaVDHEc8kQLVNeo28vcP2hxGBD1yamIo; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-device=l4XZF0PtJpjrQJel-I2pTw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/demo/; Max-Age=0
-location: https://rp.example/cb?code=NreYk9SzpC5ttZWW-ylIReNrfpOulmUMp4DXbH8_JDk&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Fdemo
+location: https://rp.example/cb?code=VZDJ2zmJb_F-mwB3tUm267QPe0RShdwsYtp-mjEnJP0&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Fdemo
 content-length: 0
-Date: Wed, 14 Oct 2026 00:36:23 GMT
+Date: Thu, 12 Nov 2026 16:36:52 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -2161,7 +2165,7 @@ it is one of them:
 curl -sS -X POST http://localhost:3094/tenants/demo/protocol/openid-connect/token \
   -u "$CLIENT_ID:$CLIENT_SECRET" \
   -d grant_type=authorization_code \
-  -d code=NreYk9SzpC5ttZWW-ylIReNrfpOulmUMp4DXbH8_JDk \
+  -d code=VZDJ2zmJb_F-mwB3tUm267QPe0RShdwsYtp-mjEnJP0 \
   --data-urlencode 'redirect_uri=https://rp.example/cb' \
   -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
 ```
@@ -2170,14 +2174,14 @@ The `id_token`'s payload, decoded:
 
 ```json
 {
-  "sub": "01a137d6-bf12-771f-81fb-97620b5fd349",
+  "sub": "01a1d09d-b5e9-7bd5-98bb-58ca461e098d",
   "name": "ada",
   "preferred_username": "ada",
   "iss": "http://localhost:3094/tenants/demo",
-  "aud": "01a137d6-c1b7-76fa-92b1-bb33828ae56f",
-  "iat": 1791938184,
-  "exp": 1791938484,
-  "sid": "01a137d6-c2e4-7f70-8fc3-6dbee704dde9",
+  "aud": "01a1d09e-84f2-7487-bddd-dc2651ac95cf",
+  "iat": 1794501412,
+  "exp": 1794501712,
+  "sid": "01a1d09e-85f4-7bc1-b902-ed00cb399a3f",
   "amr": ["pwd"],
   "acr": "1"
 }

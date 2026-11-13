@@ -40,3 +40,8 @@ export {
 export { SessionStatus } from '#/entities/session/ui/SessionStatus';
 export { SigningIn } from '#/entities/session/ui/SigningIn';
 export { SignedInElsewhere } from '#/entities/session/ui/SignedInElsewhere';
+export {
+  deviceCaptionOf,
+  deviceGroupLabel,
+  groupByDevice,
+} from '#/entities/session/services/deviceGroups';

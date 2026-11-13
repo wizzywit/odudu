@@ -1,6 +1,6 @@
 ---
 title: Sign-in flow in the console
-description: Choose what a person is asked at sign-in and in what order, and make a one-time password mandatory for everyone.
+description: Choose what a person is asked at sign-in and in what order, keep other flows beside the default, and make a one-time password mandatory for everyone.
 sidebar_position: 9
 ---
 
@@ -47,9 +47,18 @@ Choose **Save Steps**. The whole list is replaced at once, so nothing is half-ch
 
 The one-time password step is asked only of people who set up an authenticator app. To ask it of every person, including those who have not, turn on **Ask every subject for a one-time password** under **One-time password** and save. A person without an authenticator is then taken to set one up, and their sign-in does not finish until they have. A sign-in with a passkey is never asked again. With this on, a [password minimum](./settings.mdx#4-choose-a-password-policy) of 8 characters is enough.
 
+## Several flows
+
+The steps above are those of the tenant's default flow, which every sign-in runs. A tenant can hold other flows beside it, at most 20 in all, each with a name of its own. **Flows**, under the one-time password setting, lists them by name with the default marked **Default** and the steps each holds in order. The **Clients** column says how many clients have chosen each flow under **Sign-in flow**; a client left on **Tenant default** is counted for no flow, the default flow included, though it runs the default. A client runs a flow other than the default when you choose it under **Sign-in flow** on the client's **Advanced** tab; until then a flow other than the default is run by no sign-in unless you make it the default.
+
+- **New flow** asks for a name, unique within the tenant and at most 64 characters, and **Create flow** makes it with a copy of the default flow's steps. A name another flow holds, or a tenant already at 20 flows, is refused under the name.
+- **Edit** opens the flow. Its name and its steps are changed together, in the same way as the steps above, and **Save Steps** replaces both at once. Another flow's name is refused with the name it belongs to. The default flow can be renamed and its steps changed here too; it stays the default.
+- **Delete** removes a flow after you confirm. This and **Make default** read the flow when the confirmation opens and say what it holds then; if another administrator changes it before you confirm, nothing is changed and the confirmation shows the new version to confirm again. The default flow has no **Delete**: a sign-in that names no flow runs it, so make another flow the default first. A flow some client runs is not deleted either: the dialog says how many clients use it, and the refusal asks you to choose another **Sign-in flow** for each first.
+- **Make default** on any other row asks you to confirm, then makes that flow the tenant's default. The flow that was the default becomes an ordinary one, which can then be deleted. Every sign-in that names no flow runs the new default from then on, and a sign-in already under way takes its next step from it. A client that chose a flow by name stays on it; a client left on **Tenant default** follows the new default.
+
 ## Passkeys
 
-A passkey step does nothing for a person until they have registered a passkey. There is no tenant switch that asks everyone for one. Tick **Register a passkey** under **Required actions** on a person's record, or email them the link, and they register one in their browser at their next sign-in. A passkey is tied to the host name of the address the tenant signs in at: the server's public address, `ODUDU_PUBLIC_BASE_URL`, or the tenant's domain once it has one. If that host changes, because the tenant switches to a domain or back, passkeys made under the old one are not offered until the address is switched back, and nothing is deleted. If the server's own host changes, they stop working. Browsers offer passkeys only on an https address, or on `localhost`.
+A passkey step does nothing for a person until they have registered a passkey. To ask everyone for one, turn on **Require a passkey** under **Authenticators** in [Settings](./settings.mdx#asking-everyone-for-a-passkey). To ask one person, tick **Register a passkey** under **Required actions** on their record, or email them the link, and they register one in their browser at their next sign-in. A passkey is tied to the host name of the address the tenant signs in at: the server's public address, `ODUDU_PUBLIC_BASE_URL`, or the tenant's domain once it has one. If that host changes, because the tenant switches to a domain or back, passkeys made under the old one are not offered until the address is switched back, and nothing is deleted. If the server's own host changes, they stop working. Browsers offer passkeys only on an https address, or on `localhost`.
 
 ## Things that cannot be undone, or that lock people out
 
@@ -57,4 +66,4 @@ Nothing here deletes data, but a flow can lock people out. Requiring a step that
 
 ## Do the same through the API
 
-The calls are in the [flow area of the admin API](../reference/generated/admin-api/flow/index.md). To understand how long a sign-in lasts afterwards, read [Sessions](../concepts/sessions.mdx).
+The calls are in the [flow area of the admin API](../reference/generated/admin-api/flow/index.md); a run of each is on [Flows: list, create, read, replace, make default, delete](../reference/transcripts/admin-paths/get-flows-post-flows-and-the-flow-routes.md). To understand how long a sign-in lasts afterwards, read [Sessions](../concepts/sessions.mdx).

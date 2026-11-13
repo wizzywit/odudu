@@ -35,6 +35,21 @@ export function mcpAudienceOfIssuer(issuer: string): string {
   return `${issuer}${MCP_RESOURCE_PATH}`;
 }
 
+// The path of a tenant's "me" API, which is also the audience its tokens carry.
+export const ME_RESOURCE_PATH = '/me';
+
+export function meAudienceOfIssuer(issuer: string): string {
+  return `${issuer}${ME_RESOURCE_PATH}`;
+}
+
+// Whether a token's `aud` claim names the "me" audience of any of `issuers`.
+// A token for the "me" API names it beside its issuer; a door that is not the
+// "me" API refuses any token that names it.
+export function namesMeAudience(aud: unknown, issuers: readonly string[]): boolean {
+  const named = typeof aud === 'string' ? [aud] : Array.isArray(aud) ? aud : [];
+  return issuers.some((issuer) => named.includes(meAudienceOfIssuer(issuer)));
+}
+
 export function addressUrl(a: TenantAddress, rest: string): string {
   return `${a.origin}${addressPath(a, rest)}`;
 }

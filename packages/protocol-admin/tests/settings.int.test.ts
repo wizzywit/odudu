@@ -459,6 +459,190 @@ describe('PATCH /settings with nothing to set', () => {
   });
 });
 
+describe('the authenticator policy settings', () => {
+  interface RangeRefusal {
+    readonly errors?: readonly { readonly path: string; readonly message: string }[];
+  }
+
+  async function amend(tenantName: string, payload: Record<string, unknown>) {
+    const token = await fixture.adminToken(tenantName, ['manage-tenant']);
+    return fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${tenantName}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+      payload,
+    });
+  }
+
+  it('starts every tenant on the parameters every enrolment was made with', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const stored = await withTenant(fixture.app.db, t.id, (tx) =>
+      tenantSettingsRepository(tx).byId(t.id),
+    );
+    expect(stored).toMatchObject({
+      totp_algorithm: 'SHA1',
+      totp_digits: 6,
+      totp_period: 30,
+      webauthn_user_verification: 'required',
+      webauthn_resident_key: 'required',
+      recovery_code_count: 10,
+    });
+  });
+
+  it('stores a policy and audits it as values', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await amend(t.name, {
+      totp_algorithm: 'SHA256',
+      totp_digits: 8,
+      totp_period: 60,
+      webauthn_user_verification: 'preferred',
+      webauthn_resident_key: 'discouraged',
+      recovery_code_count: 12,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      totp_algorithm: 'SHA256',
+      totp_digits: 8,
+      totp_period: 60,
+      webauthn_user_verification: 'preferred',
+      webauthn_resident_key: 'discouraged',
+      recovery_code_count: 12,
+    });
+  });
+
+  it('refuses a digit count, a period or a count nobody offers, naming the values', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await amend(t.name, { totp_digits: 7, totp_period: 45, recovery_code_count: 20 });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<RangeRefusal>().errors).toEqual([
+      { path: 'recovery_code_count', message: 'must be between 8 and 16' },
+      { path: 'totp_digits', message: 'must be one of 6, 8' },
+      { path: 'totp_period', message: 'must be one of 30, 60' },
+    ]);
+  });
+
+  it('refuses an algorithm that is not offered, naming the three', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await amend(t.name, { totp_algorithm: 'MD5' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('SHA1, SHA256, SHA512');
+  });
+
+  it('keeps the recovery warning within the size of a set', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await amend(t.name, { recovery_code_count: 8, recovery_code_warn_below: 9 });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<RangeRefusal>().errors).toEqual([
+      { path: 'recovery_code_warn_below', message: 'must not exceed recovery_code_count' },
+    ]);
+  });
+});
+
+describe('the passkey switch', () => {
+  it('starts off, turns on through the settings and reads back', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const read = () =>
+      fixture.http.inject({
+        method: 'GET',
+        url: `/admin/tenants/${t.name}/settings`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+    expect((await read()).json()).toMatchObject({ require_passkey: false });
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { require_passkey: true },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ require_passkey: true });
+    expect((await read()).json()).toMatchObject({ require_passkey: true });
+  });
+});
+
+describe('the breached-password settings', () => {
+  it('start on the dataset and open, change through the settings and refuse a bad value', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const url = `/admin/tenants/${t.name}/settings`;
+    const headers = { authorization: `Bearer ${token}` };
+    const read = () => fixture.http.inject({ method: 'GET', url, headers });
+    expect((await read()).json()).toMatchObject({
+      breached_check: 'dataset',
+      breached_on_error: 'open',
+    });
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url,
+      headers,
+      payload: { breached_check: 'remote', breached_on_error: 'closed' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({
+      breached_check: 'remote',
+      breached_on_error: 'closed',
+    });
+    const bad = await fixture.http.inject({
+      method: 'PATCH',
+      url,
+      headers,
+      payload: { breached_check: 'always' },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+});
+
+describe('the terms settings', () => {
+  it('start with none at version 1, change through the settings and refuse a bad value', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const url = `/admin/tenants/${t.name}/settings`;
+    const headers = { authorization: `Bearer ${token}` };
+    const patch = (payload: Record<string, unknown>) =>
+      fixture.http.inject({ method: 'PATCH', url, headers, payload });
+    const read = () => fixture.http.inject({ method: 'GET', url, headers });
+    expect((await read()).json()).toMatchObject({ terms_uri: null, terms_version: '1' });
+
+    expect(
+      (await patch({ terms_uri: 'https://example.com/terms', terms_version: '2026-01' }))
+        .statusCode,
+    ).toBe(200);
+    expect((await read()).json()).toMatchObject({
+      terms_uri: 'https://example.com/terms',
+      terms_version: '2026-01',
+    });
+
+    expect((await patch({ terms_uri: 'http://example.com/terms' })).statusCode).toBe(400);
+    expect((await patch({ terms_version: '' })).statusCode).toBe(400);
+    expect((await patch({ terms_version: 'x'.repeat(65) })).statusCode).toBe(400);
+
+    expect((await patch({ terms_uri: '' })).statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({ terms_uri: null });
+  });
+});
+
+describe('the required profile fields', () => {
+  it('start as given and family name, change as a list, may be empty and refuse a non-claim', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const url = `/admin/tenants/${t.name}/settings`;
+    const headers = { authorization: `Bearer ${token}` };
+    const patch = (payload: Record<string, unknown>) =>
+      fixture.http.inject({ method: 'PATCH', url, headers, payload });
+    const read = () => fixture.http.inject({ method: 'GET', url, headers });
+    expect((await read()).json()).toMatchObject({
+      required_profile_fields: ['given_name', 'family_name'],
+    });
+    expect((await patch({ required_profile_fields: ['birthdate', 'name'] })).statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({ required_profile_fields: ['name', 'birthdate'] });
+    expect((await patch({ required_profile_fields: [] })).statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({ required_profile_fields: [] });
+    expect((await patch({ required_profile_fields: ['email'] })).statusCode).toBe(400);
+    expect((await patch({ required_profile_fields: 'name' })).statusCode).toBe(400);
+  });
+});
+
 describe('the language settings', () => {
   async function setup() {
     const t = await fixture.createTenant(`acme-${newId()}`);

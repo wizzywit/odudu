@@ -40,6 +40,80 @@ it('asks for actions at the next sign-in, on the ETag it read', async () => {
   });
 });
 
+it('offers the address check, the profile and the terms, in the order a sign-in asks', async () => {
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`GET ${RA}`]: json({ actions: [] }, 200, { etag: '"a1"' }),
+    }),
+  );
+  const section = await screen.findByRole('region', { name: 'Required actions' });
+  expect(
+    within(section)
+      .getAllByRole('checkbox')
+      .map((box) => box.getAttribute('name') ?? ''),
+  ).toHaveLength(7);
+  const labels = within(section)
+    .getAllByRole('checkbox')
+    .map((box) => (box as HTMLInputElement).labels?.[0]?.textContent ?? '');
+  expect(labels[0]).toContain('Verify the email address');
+  expect(labels[5]).toContain('Complete the profile');
+  expect(labels[6]).toContain('Accept the terms');
+});
+
+it('says why the server refused an action, in its own words', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`GET ${RA}`]: json({ actions: [] }, 200, { etag: '"a1"' }),
+      [`PUT ${RA}`]: json(
+        {
+          type: 'about:blank#terms-not-configured',
+          title: 'Conflict',
+          status: 409,
+          detail:
+            'the tenant has no terms_uri, so accept-terms cannot be owed; set it with PATCH /settings first',
+        },
+        409,
+        { 'content-type': 'application/problem+json' },
+      ),
+    }),
+  );
+  const section = await screen.findByRole('region', { name: 'Required actions' });
+  await user.click(within(section).getByRole('checkbox', { name: 'Accept the terms' }));
+  await user.click(within(section).getByRole('button', { name: 'Save Required actions' }));
+  expect(await within(section).findByText(/the tenant has no terms_uri/u)).toBeVisible();
+});
+
+it('lists the versions of the terms the person accepted, newest first, read-only', async () => {
+  renderConsoleAt(
+    AT,
+    subjectRoutes(['view-users'], {
+      [`GET ${RA}`]: json({ actions: [] }, 200, { etag: '"a1"' }),
+      [`GET ${S}/${ADA_ID}/terms-acceptances`]: json({
+        items: [
+          { version: '2026-02', accepted_at: '2026-03-01T10:00:00.000Z' },
+          { version: '2026-01', accepted_at: '2026-01-05T09:30:00.000Z' },
+        ],
+      }),
+    }),
+  );
+  const table = await screen.findByRole('grid', { name: 'Terms ada accepted' });
+  expect(within(table).getAllByRole('row')).toHaveLength(3);
+  expect(within(table).getByText('2026-02')).toBeVisible();
+  expect(within(table).getByText('2026-01')).toBeVisible();
+  expect(within(table).queryByRole('button')).toBeNull();
+});
+
+it('says no terms were accepted when none were', async () => {
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, { [`GET ${RA}`]: json({ actions: [] }, 200, { etag: '"a1"' }) }),
+  );
+  expect(await screen.findByText(/has accepted no version of the terms/u)).toBeVisible();
+});
+
 it('shows a limited operator what is asked, as text', async () => {
   renderConsoleAt(
     AT,

@@ -11,8 +11,8 @@ type VocabularyAction = AuditAction<VocabularyEventType>;
 
 export const AUDIT_EVENT_TYPE_DOCS: Record<AuditEventType, string> = {
   admin_mutation:
-    'A write made through the admin API or the `odudu console` command. Its action is free-form: ' +
-    'one per mutation, named `<resource>.<verb>`.',
+    'A write made through the admin API, the `odudu console` command or, by a person for their ' +
+    'own account, the me API. Its action is free-form: one per mutation, named `<resource>.<verb>`.',
   admin_access:
     'A refusal at the admin API door: an authenticated caller without the capability, or a ' +
     'genuine token from another tenant.',
@@ -23,7 +23,8 @@ export const AUDIT_EVENT_TYPE_DOCS: Record<AuditEventType, string> = {
   token: 'A token was issued, refreshed, exchanged or revoked, or a grant was revoked on reuse.',
   credential:
     'A credential was created or changed: registration, email verification, password reset and ' +
-    'change, enrolment of a one-time-code or passkey factor, recovery codes issued.',
+    'change, enrolment of a one-time-code or passkey factor, recovery codes issued, and the steps of an ' +
+    'action an application asked the person to take.',
 };
 
 export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
@@ -41,13 +42,16 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'login.password': 'A password was checked at sign-in.',
   'login.otp': 'A one-time code was checked at sign-in.',
   'login.recovery_code': 'A recovery code was used in place of a second factor.',
-  'login.passkey': 'A passkey assertion was checked at sign-in.',
+  'login.passkey':
+    'A passkey assertion was checked at sign-in. An allowed row says in `user_verified` whether the ' +
+    'assertion verified the person or only their presence.',
   'factor.offered': 'A second factor was offered to a user who had passed the first.',
   'lockout.tripped': 'Failed sign-ins reached the limit and the subject was locked out.',
   'client.authenticate':
     'A client\u2019s authentication was refused at an endpoint that requires it.',
   'session.created': 'A user session was created by a completed sign-in.',
-  'session.ended': 'A user session ended. `detail.via` says by logout, by an admin or by eviction.',
+  'session.ended':
+    'A user session ended. `detail.via` says by logout, by an admin, by the person through the me API or by eviction.',
   'token.issue': 'The token endpoint issued tokens, or refused to.',
   'token.refresh': 'A refresh token was redeemed, or the redemption was refused.',
   'token.exchange':
@@ -57,17 +61,42 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'A refresh token was presented again after rotation, so its whole grant was revoked.',
   'grant.revoked_on_code_replay':
     'An authorization code was redeemed a second time, so the grant it produced was revoked.',
-  'account.registered': 'A user registered their own account.',
+  'account.registered':
+    'A user registered their own account. `detail.breached_check` says what the breached-password check decided: `passed`, `breached`, `error_open`, `error_closed`, `off` or `dataset_empty`.',
   'account.registration_duplicate':
     'Someone tried to register an email address that already has an account. `resource_id` names that account.',
   'account.address_proved':
     "A reset link proved an unverified address. The account's second factors, passkeys and recovery codes were removed.",
+  'account.reconciled':
+    'An account that held the same address as another, apart from its case, was folded into the one that stayed. `resource_id` is the retired account; `detail` names the survivor, whether anything was carried over and how many credentials and consents moved. It holds no address, and moved rows are not recorded one by one, so a merge is not reversed mechanically.',
   'email.verified': 'A user verified their email address through the mailed link.',
-  'password.reset': 'A password was set through a reset link.',
-  'password.changed': 'A user changed their password.',
-  'otp.enrolled': 'A user enrolled a one-time-code authenticator.',
-  'passkey.enrolled': 'A user enrolled a passkey.',
-  'recovery_codes.issued': 'A user was issued a new set of recovery codes.',
+  'email.verification_resent':
+    'A new verification link was mailed because the one a person held was spent or expired. Written once for each request that queued a mail, with no actor, and without the address.',
+  'email.changed':
+    'A user changed their email address by proving the new one through the mailed link.',
+  'password.reset':
+    'A password was set through a reset link. `detail.breached_check` says what the breached-password check decided.',
+  'password.changed':
+    'A user changed their password. `detail.ended_other_sessions` says whether they ended their other sessions with it, and `detail.breached_check` what the breached-password check decided.',
+  'otp.enrolled':
+    'A user enrolled a one-time-code authenticator. `detail.notice` says whether the owner was told by mail.',
+  'passkey.enrolled':
+    'A user enrolled a passkey. `detail.notice` says whether the owner was told by mail.',
+  'recovery_codes.issued':
+    'A user was issued a new set of recovery codes. `detail.notice` says whether the owner was told by mail.',
+  'recovery_codes.refused':
+    'A new set of recovery codes was refused because the last was issued less than an hour ago and still has codes to spend.',
+  'action.requested':
+    'An application sent a signed-in person to change a credential. `detail.action` names the ' +
+    'action and the actor client is the application. Written each time the page is shown, so a reload can add another.',
+  'action.completed':
+    'The person finished the action an application requested. The credential change has its own row.',
+  'action.cancelled': 'The person used the page\u2019s cancel control and nothing was changed.',
+  'action.failed':
+    'The action an application requested could not run, for example recovery codes for a ' +
+    'person with no second factor.',
+  'terms.accepted':
+    'The person accepted the tenant\u2019s terms. `detail.version` is the version accepted.',
 };
 
 export const AUDIT_REASON_DOCS: Record<AuditReason, string> = {
@@ -118,6 +147,10 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'domain.registered': 'A domain was registered for a tenant, pending its ownership check.',
   'domain.removed': 'A domain was removed from a tenant.',
   'domain.verified': 'A domain was proved to belong to the tenant.',
+  'flow.amend': 'A sign-in flow was renamed or its steps were replaced.',
+  'flow.create': 'A sign-in flow was created.',
+  'flow.default_set': 'A sign-in flow was made the tenant’s default.',
+  'flow.delete': 'A sign-in flow was deleted.',
   'flow.replace': 'A tenant’s authentication flow was replaced.',
   'grant.revoke': 'A subject’s grants to a client were revoked.',
   'group.amend': 'A group was amended.',
@@ -152,6 +185,7 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'subject.amend': 'A subject was amended.',
   'subject.create': 'A subject was created.',
   'subject.credential_delete': 'A credential of a subject was deleted.',
+  'subject.credential_rename': 'An authenticator of a subject was given a new label.',
   'subject.delete': 'A subject was deleted.',
   'subject.groups_set': 'The groups of a subject were replaced.',
   'subject.lockout_clear': 'A subject’s lockout was cleared.',

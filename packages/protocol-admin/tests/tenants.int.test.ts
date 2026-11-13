@@ -1,4 +1,4 @@
-import { executionRepository } from '@odudu/authn-flows';
+import { flowRepository } from '@odudu/authn-flows';
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { signingKeyRepository } from '@odudu/crypto';
 import { tenants, withTenant, type RequestContext } from '@odudu/db';
@@ -45,7 +45,7 @@ describe('POST /admin/tenants', () => {
     expect(res.statusCode).toBe(201);
     const { id } = res.json<{ id: string }>();
     await withTenant(fixture.app.db, id, async (tx) => {
-      expect(await executionRepository(tx).forTenant(id)).not.toHaveLength(0);
+      expect((await flowRepository(tx).defaultForTenant(id))?.steps).not.toHaveLength(0);
       expect(await clientRepository(tx).byClientId('odudu-admin')).not.toBeNull();
     });
   });

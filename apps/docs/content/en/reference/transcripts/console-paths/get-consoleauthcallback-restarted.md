@@ -5,6 +5,8 @@ description: 'A refused callback no longer ends on a refusal page: it restarts t
 
 # `GET /console/auth/callback`, restarted
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 This section runs on its own stack, on `http://localhost:3094`, with a throwaway
 tenant, `signin-restart`, holding `grace` as its administrator. A curl cookie
 jar, `jar`, plays one browser throughout. The seed printed:

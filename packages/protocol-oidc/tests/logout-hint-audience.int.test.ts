@@ -23,6 +23,7 @@ import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttl
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { confirmationFields, confirmLogoutPage } from '#/testing/logout-confirmation';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 // `disagreeing` makes the `client_id`/hint comparison after verification
 // rather than inside it, because §4 needs a disagreeing pair told apart
@@ -249,6 +250,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

@@ -1,6 +1,7 @@
 import qrcode from 'qrcode-generator';
 import { addressPath, type PageLocale, type RenderedPage, type TenantAddress } from '@odudu/kernel';
 import { type EnrolmentRefusal } from '#/schema/enrolment-refusal';
+import { cancelButton, type ActionPageVariant } from '#/view/action-cancel';
 import { escapeHtml, intro, page } from '#/view/document';
 import { t, tHtml, token } from '#/view/messages';
 import { firstInvalidField, invalidAttributes, problemSummary } from '#/view/form-error';
@@ -13,6 +14,16 @@ import { fillPage } from '#/view/template';
 export interface TotpEnrolmentOffer {
   secret: string;
   uri: string;
+  // What the secret will be enrolled under. Said on the page only where an
+  // app may not support it.
+  parameters?: { algorithm: string; digits: number; period: number };
+}
+
+function parametersNote(locale: PageLocale, parameters: TotpEnrolmentOffer['parameters']): string {
+  if (parameters === undefined) return '';
+  const { algorithm, digits, period } = parameters;
+  if (algorithm === 'SHA1' && digits === 6 && period === 30) return '';
+  return `\n<p>${tHtml(locale, 'totp.parameters', { algorithm, digits, period })}</p>`;
 }
 
 // Error correction level M and an automatic version: an otpauth:// URI is
@@ -31,13 +42,14 @@ function qrSvg(uri: string): string {
 // submission is bound to this attempt by auth_session_id, exactly as the
 // login form is, so what comes back can only enrol the subject that
 // authentication session is already bound to.
-export function renderTotpEnrolmentPage(
+function totpEnrolmentPage(
   tenant: string,
   address: TenantAddress,
   authSessionId: string,
   offer: TotpEnrolmentOffer,
   error: EnrolmentRefusal | undefined,
   locale: PageLocale,
+  variant: ActionPageVariant | undefined,
 ): RenderedPage {
   const target = escapeHtml(
     addressPath(address, '/login-actions/required-action?action=configure-totp'),
@@ -51,7 +63,7 @@ export function renderTotpEnrolmentPage(
       {
         intro: intro(tHtml(locale, 'totp.title'), tenant),
         error: problemSummary(problems),
-        offer: `<p>${tHtml(locale, 'totp.scan')}</p>
+        offer: `<p>${tHtml(locale, 'totp.scan')}</p>${parametersNote(locale, offer.parameters)}
 ${qrSvg(offer.uri)}
 <p>${token(offer.uri)}</p>
 <p>${tHtml(locale, 'totp.key')} ${token(offer.secret)}</p>`,
@@ -59,7 +71,7 @@ ${qrSvg(offer.uri)}
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   <input type="hidden" name="secret" value="${escapeHtml(offer.secret)}">`,
         fields: `<label>${tHtml(locale, 'totp.codeLabel')} <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"${code}></label>`,
-        submit: `<button type="submit">${tHtml(locale, 'totp.confirm')}</button>`,
+        submit: `<button type="submit">${tHtml(locale, 'totp.confirm')}</button>${cancelButton(variant, locale)}`,
         'form.close': '</form>',
       },
       locale,
@@ -69,4 +81,27 @@ ${qrSvg(offer.uri)}
     locale,
     'totp-enrolment',
   );
+}
+
+export function renderTotpEnrolmentPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  offer: TotpEnrolmentOffer,
+  error: EnrolmentRefusal | undefined,
+  locale: PageLocale,
+): RenderedPage {
+  return totpEnrolmentPage(tenant, address, authSessionId, offer, error, locale, undefined);
+}
+
+// The same page for a person an application sent here, who may leave it again.
+export function renderRequestedTotpEnrolmentPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  offer: TotpEnrolmentOffer,
+  error: EnrolmentRefusal | undefined,
+  locale: PageLocale,
+): RenderedPage {
+  return totpEnrolmentPage(tenant, address, authSessionId, offer, error, locale, 'requested');
 }

@@ -8,7 +8,7 @@ import {
 import { type LinkedRequiredAction } from '#/usecase/action-token';
 import { escapeHtml, intro, page } from '#/view/document';
 import { problemSummary } from '#/view/form-error';
-import { links } from '#/view/links';
+import { applicationWay, links } from '#/view/links';
 import { bdi, t, tHtml, type MessageId } from '#/view/messages';
 import { passwordField } from '#/view/password-field';
 import { fillNotice, fillPage } from '#/view/template';
@@ -77,18 +77,20 @@ ${listHtml(actions, locale)}`,
 export function renderRequiredActionsSucceededPage(
   remaining: readonly LinkedRequiredAction[],
   signInPath: string | null,
+  application: string | null,
   locale: PageLocale,
 ): RenderedPage {
-  return requiredActionsSucceeded(remaining, signInPath, locale, false);
+  return requiredActionsSucceeded(remaining, signInPath, locale, false, application);
 }
 
 // The same page for a link that also removed the account's factors.
 export function renderRequiredActionsFactorsRemovedPage(
   remaining: readonly LinkedRequiredAction[],
   signInPath: string | null,
+  application: string | null,
   locale: PageLocale,
 ): RenderedPage {
-  return requiredActionsSucceeded(remaining, signInPath, locale, true);
+  return requiredActionsSucceeded(remaining, signInPath, locale, true, application);
 }
 
 function requiredActionsSucceeded(
@@ -96,13 +98,14 @@ function requiredActionsSucceeded(
   signInPath: string | null,
   locale: PageLocale,
   factorsRemoved: boolean,
+  application: string | null,
 ): RenderedPage {
   const removed = factorsRemoved
     ? `\n<p>${tHtml(locale, 'reset.succeeded.factorsRemoved')}</p>`
     : '';
   const rest =
     remaining.length === 0
-      ? signInPath === null
+      ? signInPath === null && application === null
         ? `\n<p>${tHtml(locale, 'requiredActions.succeeded.close')}</p>`
         : ''
       : `\n<p>${tHtml(locale, 'requiredActions.succeeded.finish')}</p>
@@ -110,11 +113,12 @@ ${listHtml(remaining, locale)}`;
   return page(
     t(locale, 'requiredActions.succeeded.title'),
     fillNotice(
-      `<h1>${tHtml(locale, 'requiredActions.succeeded.heading')}</h1>${removed}${rest}${
+      `<h1>${tHtml(locale, 'requiredActions.succeeded.heading')}</h1>${removed}${rest}${links([
         signInPath === null
-          ? ''
-          : links([{ href: signInPath, text: tHtml(locale, 'link.continueToSignIn') }])
-      }`,
+          ? null
+          : { href: signInPath, text: tHtml(locale, 'link.continueToSignIn') },
+        applicationWay(application, tHtml(locale, 'link.returnToApplication')),
+      ])}`,
       '',
       locale,
     ),

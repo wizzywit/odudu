@@ -1,9 +1,12 @@
+import { sessionRepository } from '@odudu/authn-flows';
+import { MAX_LIMIT } from '@odudu/contracts/me';
 import { type Database, withTenant } from '@odudu/db';
-import { credentialRepository } from '@odudu/domain-identity';
+import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { assetRepository, themeRepository } from '@odudu/domain-theme';
 import {
   canonicalHostOf,
   clientRepository,
+  consentRepository,
   hostState,
   lookupHost,
   tenantAddressing,
@@ -40,6 +43,13 @@ import { outboxOptionsFromConfig } from '#/cli/send-mail';
 import { browse, Jar, signIn, startConsoleApp } from '#/testing/console-harness';
 import { type Capture, type PathRun } from '#/testing/plan-paths';
 import { PUBLIC_BASE_URL, TARGET_TENANT, type PlanWorld } from '#/testing/plan-world';
+
+const ME_LIFESPANS = {
+  ssoSessionIdleSeconds: 1800,
+  ssoSessionMaxSeconds: 36_000,
+  rememberMeIdleSeconds: 604_800,
+  rememberMeMaxSeconds: 2_592_000,
+};
 
 const WRITE = { origin: PUBLIC_BASE_URL, 'x-odudu-console': '1' };
 
@@ -297,6 +307,24 @@ export async function driveRepositories(
       await credentials.countUnspentRecoveryCodes(subjectId);
       await credentials.deleteRecoveryCodes(subjectId);
       await credentials.rotatePassword(subjectId, { from: 'x', to: 'y' }, 3);
+    }),
+  );
+  await capture('me: the first page of what a person reads of their account', 'authn', () =>
+    withTenant(database, world.tenantId, async (tx) => {
+      const first = { after: undefined, limit: MAX_LIMIT + 1 };
+      await userRepository(tx).bySubjectId(subjectId);
+      await credentialRepository(tx).summariesFor(subjectId, first);
+      await credentialRepository(tx).countUnspentRecoveryCodes(subjectId);
+      await sessionRepository(tx).livePageBySubject(subjectId, ME_LIFESPANS, new Date(), first);
+      await consentRepository(tx).forSubject(subjectId, first);
+    }),
+  );
+  await capture('me: a later page of what a person reads of their account', 'authn', () =>
+    withTenant(database, world.tenantId, async (tx) => {
+      const later = { after: '00000000-0000-7000-8000-000000000000', limit: MAX_LIMIT + 1 };
+      await credentialRepository(tx).summariesFor(subjectId, later);
+      await sessionRepository(tx).livePageBySubject(subjectId, ME_LIFESPANS, new Date(), later);
+      await consentRepository(tx).forSubject(subjectId, { after: 'a', limit: MAX_LIMIT + 1 });
     }),
   );
   const agentGrant = newId();

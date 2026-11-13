@@ -24,6 +24,7 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodes } from '#/schema/authorization-codes';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 // RFC 8707 §2 at /authorize: a registered audience is recorded on the
 // code, an unregistered one is refused, and a client that registered none
@@ -375,6 +376,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

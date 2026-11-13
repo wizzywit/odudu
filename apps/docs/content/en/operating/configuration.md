@@ -43,12 +43,13 @@ One setting decides every cookie: `ODUDU_TLS`. Turn it on and each cookie gains 
 | --------------------------- | ------------------------------------------- | ------------------------------------ |
 | Sign-in session             | `__Host-<tenant>-session`                   | `<tenant>-session`                   |
 | Remembered sign-in          | `__Host-<tenant>-session-persistent`        | `<tenant>-session-persistent`        |
+| Browser device              | `__Host-<tenant>-device`                    | `<tenant>-device`                    |
 | Sign-in in progress         | `__Secure-odudu-sign-in`                    | `odudu-sign-in`                      |
 | Console session             | `__Host-odudu-console`                      | `odudu-console`                      |
 | Console sign-in in progress | `__Host-odudu-console-login` and `-restart` | `odudu-console-login` and `-restart` |
 | Theme choice                | `odudu-theme`, with `Secure`                | `odudu-theme`                        |
 
-All but the theme cookie are `HttpOnly`, and none sets a `Domain`. The sign-in in progress is scoped to its tenant's path, which is why it takes `__Secure-` rather than `__Host-`. The theme cookie is a preference the console's script writes, so it keeps its name. The browser, not the server, decides what to do with `Secure`. If a person opens the server over plain http while `ODUDU_TLS=true`, the browser may refuse the cookies. Sign-in then fails visibly instead of working without protection.
+All but the theme cookie are `HttpOnly`, and none sets a `Domain`. The browser device cookie is set at a sign-in and lasts 400 days; [Sessions](../concepts/sessions.mdx#what-a-session-is) says what it is for. The sign-in in progress is scoped to its tenant's path, which is why it takes `__Secure-` rather than `__Host-`. The theme cookie is a preference the console's script writes, so it keeps its name. The browser, not the server, decides what to do with `Secure`. If a person opens the server over plain http while `ODUDU_TLS=true`, the browser may refuse the cookies. Sign-in then fails visibly instead of working without protection.
 
 ## Related settings, by the job they do
 

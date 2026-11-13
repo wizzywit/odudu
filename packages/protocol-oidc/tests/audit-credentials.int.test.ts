@@ -32,6 +32,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -162,7 +163,12 @@ async function rowsFor(tenant: SeededTenant, posted: Posted): Promise<AuditEvent
   return (await credentialRows(tenant)).filter((row) => row.requestId === posted.requestId);
 }
 
-async function expectOneRow(tenant: SeededTenant, posted: Posted, name: string): Promise<void> {
+async function expectOneRow(
+  tenant: SeededTenant,
+  posted: Posted,
+  name: string,
+  detail: Record<string, unknown> = {},
+): Promise<void> {
   const rows = await rowsFor(tenant, posted);
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
@@ -175,7 +181,7 @@ async function expectOneRow(tenant: SeededTenant, posted: Posted, name: string):
     requestId: posted.requestId,
     ip: '127.0.0.1',
   });
-  expect(rows[0]?.detail).toEqual({});
+  expect(rows[0]?.detail).toEqual(detail);
 }
 
 // A finished enrolment carries straight on to the recovery codes it owes,
@@ -223,6 +229,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: ownerHandle,
@@ -363,7 +370,10 @@ describe('changing a password the login owes', () => {
       password: candidate,
     });
     expect(changed.res.statusCode).toBe(302);
-    await expectOneRow(tenant, changed, 'password.changed');
+    await expectOneRow(tenant, changed, 'password.changed', {
+      ended_other_sessions: false,
+      breached_check: 'dataset_empty',
+    });
 
     const everything = JSON.stringify(await credentialRows(tenant));
     expect(everything).not.toContain(candidate);
@@ -382,7 +392,10 @@ describe('tenant isolation', () => {
       password: 'a considerably better passphrase than the old one',
     });
 
-    await expectOneRow(tenant, changed, 'password.changed');
+    await expectOneRow(tenant, changed, 'password.changed', {
+      ended_other_sessions: false,
+      breached_check: 'dataset_empty',
+    });
     expect(await credentialRows(other)).toEqual([]);
   });
 });

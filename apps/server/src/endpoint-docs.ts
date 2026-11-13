@@ -100,6 +100,56 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     auth: 'None',
     purpose: 'Answers `405` with `Allow: POST`: the endpoint keeps no session to end.',
   },
+  'GET /tenants/:tenant/me/profile': {
+    auth: 'Access token',
+    purpose:
+      'The signed-in person’s own profile: username, email and the OpenID Connect profile claims. Takes a bearer token whose audience is the tenant’s `/me` URL and whose scope holds `me:read`; `401` with a `WWW-Authenticate` challenge for no usable token, `403` `insufficient_scope` for a token without `me:read`. No path names a subject: the token’s own is the only one read. At a tenant’s own domain it is `/me/profile` there.',
+  },
+  'GET /tenants/:tenant/me/credentials': {
+    auth: 'Access token',
+    purpose:
+      'The person’s own ways to sign in (password, authenticator app, passkey) with a label, when each was created and last used, `recovery_codes_left` and `recovery_codes_low` (true when a recovery set has run below the tenant’s `recovery_code_warn_below`); no secret, seed, key or hash. A page of `limit` rows after `cursor`, returned as `items` and `next_cursor`, with the same bearer token and refusals as the profile.',
+  },
+  'GET /tenants/:tenant/me/sessions': {
+    auth: 'Access token',
+    purpose:
+      'The person’s own live sessions, marking the one the token was issued for as `current`; `device` is an opaque id shared by the sessions opened on one browser, `null` for a session opened before it was recorded. A page of `limit` rows after `cursor`, returned as `items` and `next_cursor`, with the same bearer token and refusals as the profile.',
+  },
+  'GET /tenants/:tenant/me/consents': {
+    auth: 'Access token',
+    purpose:
+      'The applications the person has consented to, each by its `client_id` with the scopes granted and when. A page of `limit` rows after `cursor`, returned as `items` and `next_cursor`, with the same bearer token and refusals as the profile.',
+  },
+  'PATCH /tenants/:tenant/me/profile': {
+    auth: 'Access token',
+    purpose:
+      'Amends the person’s own profile claims: the members sent, `null` to clear one, and only the claims that differ are written. Takes a bearer token whose audience is the tenant’s `/me` URL and whose scope holds `me:write`; `403` `insufficient_scope` for a token without it and `403` `agent_not_permitted` for a token issued to an agent. The verification flags are refused with `400`; changing the phone number drops its verification. A `username` is accepted where the tenant has turned on username editing, and needs a recent sign-in (`401` with a challenge otherwise). An `email` is changed in a request of its own and needs a recent sign-in: it answers `202` with `email_verification_sent`, whether or not another account holds the address, keeps the current address until the person follows the link mailed to the new one, and replaces any earlier pending address; `503` `mail_unavailable` where the server cannot send mail. Any other change answers the profile as `GET /me/profile` does.',
+  },
+  'DELETE /tenants/:tenant/me/sessions': {
+    auth: 'Access token',
+    purpose:
+      'Ends the person’s other sessions, the one the token was issued for kept, a hundred at most in one request: answers `ended` and `more`, and a request repeated while `more` is `true` ends the rest. Each session is ended as a logout ends it, its grants revoked and back-channel logout sent. Needs `me:write`, with the same refusals as the profile edit.',
+  },
+  'DELETE /tenants/:tenant/me/sessions/:id': {
+    auth: 'Access token',
+    purpose:
+      'Ends one of the person’s own sessions as a logout ends it; `404` for an id that is not one of theirs. Answers `current_session_ended`, `true` when it was the session the token was issued for, which then stands behind no session. Needs `me:write`, with the same refusals as the profile edit.',
+  },
+  'DELETE /tenants/:tenant/me/consents/:client_id': {
+    auth: 'Access token',
+    purpose:
+      'Withdraws the person’s consent to the application with this `client_id` and revokes every grant they hold under it; `204`, or `404` where they gave none. Needs `me:write`, with the same refusals as the profile edit.',
+  },
+  'PATCH /tenants/:tenant/me/credentials/:id': {
+    auth: 'Access token',
+    purpose:
+      'Gives one of the person’s authenticator apps or passkeys a new `label` (1 to 100 characters) and answers the credential as the list shows it; `404` for an id that is not one of theirs, a password included. Needs `me:write`, with the same refusals as the profile edit.',
+  },
+  'DELETE /tenants/:tenant/me/credentials/:id': {
+    auth: 'Access token',
+    purpose:
+      'Removes one of the person’s authenticator apps or passkeys; `204`, or `404` for an id that is not one of theirs, a password included. Refused with `409` `last_sign_in_method` when it is the last way to sign in, and with `409` `last_second_factor` when the tenant requires a second factor and it is the last one; removing the last authenticator app also revokes the recovery codes. Needs a recent sign-in: the `401` challenge names `acr_values="2"` for a person who holds a second factor. Needs `me:write`, with the same refusals as the profile edit.',
+  },
   [`GET ${OIDC}/certs`]: {
     auth: 'None',
     purpose: 'The JWKS: the tenant’s public signing keys.',
@@ -183,7 +233,13 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   },
   [`POST ${LOGIN}/action-token`]: {
     auth: 'Mailed link token',
-    purpose: 'Submits a new password, or the required actions, against a mailed link.',
+    purpose:
+      'Confirms an email address, submits a new password, or submits the required actions, against a mailed link.',
+  },
+  [`POST ${LOGIN}/resend-verification`]: {
+    auth: 'Mailed link token',
+    purpose:
+      'Asks for a new verification link when the one mailed was used or expired. Answers the same page whether or not a mail was queued.',
   },
   [`GET ${LOGIN}/reset-password`]: {
     auth: 'None',

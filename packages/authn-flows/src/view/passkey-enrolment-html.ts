@@ -6,6 +6,7 @@ import {
   type TenantAddress,
 } from '@odudu/kernel';
 import { type EnrolmentRefusal } from '#/schema/enrolment-refusal';
+import { cancelButton, type ActionPageVariant } from '#/view/action-cancel';
 import { escapeHtml, intro, page } from '#/view/document';
 import { t, tHtml } from '#/view/messages';
 import { problemSummary } from '#/view/form-error';
@@ -46,13 +47,14 @@ function jsonForScript(value: unknown): string {
 // server and the challenge inside them is not in this page's form — it is
 // on the authentication session, which is also what binds the submission to
 // the subject that attempt has already identified.
-export function renderPasskeyEnrolmentPage(
+function passkeyEnrolmentPage(
   tenant: string,
   address: TenantAddress,
   authSessionId: string,
   offer: PasskeyEnrolmentOffer,
   error: EnrolmentRefusal | undefined,
   locale: PageLocale,
+  variant: ActionPageVariant | undefined,
 ): RenderedPage {
   // Minted here and handed back with the markup that carries it, so the
   // policy served with this page cannot name a different value — a refused
@@ -63,6 +65,11 @@ export function renderPasskeyEnrolmentPage(
   );
   // The options are inline, so this script fetches nothing.
   const title = t(locale, 'passkey.title');
+  // A cancel submission is not a ceremony to run.
+  const leavesAlone =
+    variant === 'requested'
+      ? "  if (event.submitter && event.submitter.name === 'cancel') return;\n"
+      : '';
   const script = `<p id="passkey-error" class="alert" role="alert" hidden></p>
 <noscript><p>${tHtml(locale, 'passkey.needsScript')}</p></noscript>
 <script nonce="${escapeHtml(nonce)}">
@@ -74,7 +81,7 @@ const failure = document.getElementById('passkey-error');
 const fromBase64Url = (value) =>
   Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 form.addEventListener('submit', async (event) => {
-  if (field.value !== '') return;
+${leavesAlone}  if (field.value !== '') return;
   event.preventDefault();
   failure.hidden = true;
   try {
@@ -114,11 +121,34 @@ else start();
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   <input type="hidden" name="credential" id="passkey-credential">`,
       fields: `<label>${tHtml(locale, 'passkey.nameLabel')} <input type="text" name="label" placeholder="${tHtml(locale, 'passkey.namePlaceholder')}" maxlength="${String(LABEL_MAX_LENGTH)}"></label>`,
-      submit: `<button type="submit" id="passkey-submit">${tHtml(locale, 'passkey.submit')}</button>`,
+      submit: `<button type="submit" id="passkey-submit">${tHtml(locale, 'passkey.submit')}</button>${cancelButton(variant, locale)}`,
       script,
       'form.close': '</form>',
     },
     locale,
   );
   return page(title, body, { nonce, fetchesSameOrigin: false }, [], locale, 'passkey-enrolment');
+}
+
+export function renderPasskeyEnrolmentPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  offer: PasskeyEnrolmentOffer,
+  error: EnrolmentRefusal | undefined,
+  locale: PageLocale,
+): RenderedPage {
+  return passkeyEnrolmentPage(tenant, address, authSessionId, offer, error, locale, undefined);
+}
+
+// The same page for a person an application sent here, who may leave it again.
+export function renderRequestedPasskeyEnrolmentPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  offer: PasskeyEnrolmentOffer,
+  error: EnrolmentRefusal | undefined,
+  locale: PageLocale,
+): RenderedPage {
+  return passkeyEnrolmentPage(tenant, address, authSessionId, offer, error, locale, 'requested');
 }

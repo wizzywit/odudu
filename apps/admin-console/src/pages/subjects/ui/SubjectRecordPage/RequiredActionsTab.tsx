@@ -8,7 +8,40 @@ import { ReadOnlyFields } from '#/shared/ui/Field';
 import { ReadGate } from '#/shared/ui/ReadGate';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
+import { PagedList } from '#/pages/subjects/ui/SubjectRecordPage/SessionsTab';
+import { useSubjectTermsAcceptances } from '#/pages/subjects/use-cases/useTermsAcceptances';
+import type { Column } from '#/shared/ui/DataTable';
+import { Panel as Card } from '#/shared/ui/Panel';
+import { Timestamp } from '#/shared/ui/Timestamp';
+import { type TermsAcceptance } from '#/pages/subjects/types/termsAcceptance';
 import { type Subject } from '#/entities/subject';
+
+const ACCEPTANCE_COLUMNS: readonly Column<TermsAcceptance>[] = [
+  {
+    id: 'version',
+    header: 'Version',
+    isRowHeader: true,
+    cell: (row) => <code>{row.version}</code>,
+  },
+  { id: 'accepted', header: 'Accepted', cell: (row) => <Timestamp value={row.acceptedAt} /> },
+];
+
+function TermsAccepted({ tenant, subject }: { tenant: string; subject: Subject }) {
+  const page = useSubjectTermsAcceptances(tenant, subject);
+  return (
+    <Card title={page.title}>
+      <p className={recordTab.rule}>{page.rule}</p>
+      <PagedList
+        list={page.list}
+        label={page.label}
+        noun="accepted terms"
+        columns={ACCEPTANCE_COLUMNS}
+        rowKey={(row) => row.version}
+        empty={page.empty}
+      />
+    </Card>
+  );
+}
 
 function Ready({
   tenant,
@@ -97,7 +130,10 @@ export function RequiredActionsTab({
           {`A ${subject.type} subject signs in as itself, with its client's credentials, so it is asked for nothing at sign-in.`}
         </p>
       ) : (
-        <Panel tenant={tenant} subject={subject} canManage={canManage} />
+        <>
+          <Panel tenant={tenant} subject={subject} canManage={canManage} />
+          <TermsAccepted tenant={tenant} subject={subject} />
+        </>
       )}
     </div>
   );

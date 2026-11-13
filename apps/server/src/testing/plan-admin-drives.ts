@@ -315,6 +315,7 @@ export function adminPaths(ids: AdminIds): {
     { path: `${S}/${ids.subject}/sessions` },
     { path: `${S}/${ids.subject}/grants` },
     { path: `${S}/${ids.subject}/required-actions` },
+    { path: `${S}/${ids.subject}/terms-acceptances` },
     { path: `${T}/roles/${ids.role}/composites` },
     { path: `${T}/groups/${ids.group}/roles` },
     { path: `${T}/scopes/${ids.scope}/roles` },

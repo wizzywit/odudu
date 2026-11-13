@@ -10,6 +10,9 @@ export type PageKind =
   | 'passkey-enrolment'
   | 'recovery-codes'
   | 'update-password'
+  | 'verify-email'
+  | 'update-profile'
+  | 'accept-terms'
   | 'required-action'
   | 'registration'
   | 'reset'
@@ -79,6 +82,21 @@ export const PAGE_KINDS: Record<PageKind, PageManifest> = {
     optional: ['intro'],
     inForm: ['fields', 'submit'],
   },
+  'verify-email': {
+    required: [FORM_OPEN, 'fields', 'submit', 'error', FORM_CLOSE],
+    optional: ['intro'],
+    inForm: ['fields', 'submit'],
+  },
+  'update-profile': {
+    required: [FORM_OPEN, 'fields', 'submit', 'error', FORM_CLOSE],
+    optional: ['intro'],
+    inForm: ['fields', 'submit'],
+  },
+  'accept-terms': {
+    required: [FORM_OPEN, 'fields', 'submit', 'error', FORM_CLOSE],
+    optional: ['intro'],
+    inForm: ['fields', 'submit'],
+  },
   'required-action': { required: ['message'], optional: [], inForm: [] },
   registration: {
     required: [FORM_OPEN, 'fields', 'submit', 'error', FORM_CLOSE],
@@ -92,7 +110,7 @@ export const PAGE_KINDS: Record<PageKind, PageManifest> = {
   },
   verification: {
     required: ['message', FORM_OPEN, 'submit', FORM_CLOSE],
-    optional: [],
+    optional: ['links'],
     inForm: ['submit'],
   },
   'required-actions': {

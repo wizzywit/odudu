@@ -119,6 +119,7 @@ async function seedSession(
     remembered?: boolean;
     offlineGrant?: boolean;
     sessionless?: boolean;
+    deviceId?: string;
   } = {},
 ): Promise<SeededSession> {
   return withTenant(fixture.app.db, tenantId, async (tx) => {
@@ -132,6 +133,7 @@ async function seedSession(
       authenticators: ['pwd'],
       secretHash: SessionEntry.issue(sessionId).secretHash(),
       remembered: options.remembered ?? false,
+      deviceId: options.deviceId ?? null,
     });
     if (options.lastActiveAt !== undefined) {
       await tx
@@ -172,7 +174,7 @@ describe('GET /sessions and GET /sessions/count', () => {
     const client = await withTenant(fixture.app.db, t.id, (tx) => seedClient(tx, t.id));
     const ada = await seedUser(t.id, 'ada');
     const bob = await seedUser(t.id, 'bob');
-    const live = await seedSession(t.id, ada, client);
+    const live = await seedSession(t.id, ada, client, { deviceId: 'device-digest-1' });
     const remembered = await seedSession(t.id, bob, client, {
       remembered: true,
       lastActiveAt: new Date(fixture.clock.now().getTime() - 3_600_000),
@@ -185,7 +187,13 @@ describe('GET /sessions and GET /sessions/count', () => {
     const res = await call('GET', t.name, token, `sessions?client=${client.id}&limit=200`);
     expect(res.statusCode).toBe(200);
     const items = res.json<{
-      items: { id: string; subject_id: string; username: string; client_ids: string[] }[];
+      items: {
+        id: string;
+        subject_id: string;
+        username: string;
+        client_ids: string[];
+        device: string | null;
+      }[];
     }>().items;
     expect(items.map((item) => item.id).sort()).toEqual(
       [live.sessionId, remembered.sessionId].sort(),
@@ -194,7 +202,9 @@ describe('GET /sessions and GET /sessions/count', () => {
       subject_id: ada,
       username: 'ada',
       client_ids: [client.clientId],
+      device: 'device-digest-1',
     });
+    expect(items.find((item) => item.id === remembered.sessionId)?.device).toBeNull();
     expect(items.map((item) => item.id)).not.toContain(idle.sessionId);
 
     const count = await call('GET', t.name, token, `sessions/count?client=${client.id}`);

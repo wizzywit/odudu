@@ -1,4 +1,4 @@
-import { SessionEntry } from '@odudu/authn-flows';
+import { deviceDigest, SessionEntry } from '@odudu/authn-flows';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   handleLoginSubmission,
@@ -45,6 +45,8 @@ const PENDING = {
   codeChallenge: 'a'.repeat(43),
   codeChallengeMethod: 'S256' as const,
 };
+
+const DEVICE = 'AAECAwQFBgcICQoLDA0ODw';
 
 interface Harness {
   deps: LoginSubmissionDeps;
@@ -94,6 +96,7 @@ function harness(): Harness {
     // No other live session by default — the harness's cases are about the
     // login gates, not the browser's existing session set.
     resolveSessions: vi.fn().mockResolvedValue([]),
+    deviceOf: vi.fn().mockReturnValue(DEVICE),
   };
   return {
     deps,
@@ -162,6 +165,7 @@ describe('handleLoginSubmission — the success path', () => {
       ephemeralSessions: [ISSUED],
       persistentSessions: [],
       persistentMaxAgeSeconds: TENANT.rememberMeMaxSeconds,
+      device: DEVICE,
     });
     expect(completeLogin).toHaveBeenCalledWith({
       tenantId: TENANT.id,
@@ -177,6 +181,7 @@ describe('handleLoginSubmission — the success path', () => {
       remembered: false,
       lifespans: TENANT_LIFESPANS,
       maxSessionsPerBrowser: TENANT.maxSessionsPerBrowser,
+      device: deviceDigest(DEVICE),
       browserSessions: [],
       authenticators: ['password'],
       resource: [],

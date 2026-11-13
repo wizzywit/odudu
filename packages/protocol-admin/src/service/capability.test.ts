@@ -38,3 +38,12 @@ describe('the client PATCH description', () => {
     expect(description).toContain('otherwise creates one with no roles');
   });
 });
+
+describe('the required-action vocabulary in route descriptions', () => {
+  it('is named by the required-actions route and by no other', () => {
+    const naming = ADMIN_ROUTES.filter((route) =>
+      (route.description ?? '').includes('`accept-terms`'),
+    ).map(({ method, pattern }) => `${method} ${pattern}`);
+    expect(naming).toEqual(['PUT /admin/tenants/:tenant/subjects/:id/required-actions']);
+  });
+});

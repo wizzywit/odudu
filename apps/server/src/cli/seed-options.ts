@@ -55,6 +55,12 @@ export const CLIENT_OPTIONS = {
   'web-origin': texts(
     "A browser origin allowed to call the endpoints. Switching the tenant's address does not change it.",
   ),
+  'allow-action': texts(
+    'A required action the client may start through the authorization request: verify-email, update-password, configure-totp, configure-passkey, generate-recovery-codes or update-profile. Assigns me:read to the client, which the actions need.',
+  ),
+  flow: text(
+    "The name of one of the tenant's sign-in flows for the client to run instead of the tenant's default. Create the flow first, in the console or the admin API; the command fails when the tenant has none of that name.",
+  ),
   audience: texts(
     "A resource indicator (RFC 8707) the client may ask for, such as a tenant's MCP address; a token carries it as an audience.",
   ),

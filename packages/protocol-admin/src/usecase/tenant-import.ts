@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { canonicalLocale } from '@odudu/contracts';
 import {
-  executionRepository,
+  flowRepository,
   registeredAuthenticatorNames,
   requiredActionRepository,
 } from '@odudu/authn-flows';
@@ -19,7 +19,12 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { groupRepository, roleRepository } from '@odudu/domain-authz';
-import { subjectRepository, userRepository, type ProfileUpdate } from '@odudu/domain-identity';
+import {
+  CLAIM_KEY,
+  subjectRepository,
+  userRepository,
+  type ProfileUpdate,
+} from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
   MCP_CLIENT_ID,
@@ -45,7 +50,6 @@ import {
   needsServiceAccount,
 } from '@odudu/protocol-oidc';
 import { tenantSmtpRepository } from '#/repository/tenant-smtp';
-import { CLAIM_KEY } from '#/usecase/profile';
 import { type MapperCatalogue } from '#/usecase/scope-mappers';
 import { roleKey, validateTenantImport } from '#/usecase/tenant-import-validation';
 import { insertProvisionedTenant, readTenant, TenantNameTakenError } from '#/usecase/tenants';
@@ -215,6 +219,7 @@ async function writeClient(
     idTokenSignedResponseAlg: metadata.idTokenSignedResponseAlg,
     defaultMaxAge: metadata.defaultMaxAge,
     requireAuthTime: metadata.requireAuthTime,
+    allowedActions: client.allowed_actions,
   });
   const account = needsServiceAccount(created.type, metadata.grantTypes)
     ? await ensureServiceAccount(tx, created)
@@ -392,7 +397,7 @@ async function writeDocument(
   metadata: ReadonlyMap<string, ClientMetadata>,
 ): Promise<ImportedClientSecret[]> {
   await writeSettings(tx, tenantId, document);
-  await executionRepository(tx).replaceForTenant(tenantId, document.flow);
+  await flowRepository(tx).replaceDefaultSteps(tenantId, document.flow);
 
   const admin = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
   if (admin === null) throw new Error('tenant import: the admin client was not provisioned');

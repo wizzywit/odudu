@@ -9,10 +9,13 @@ import {
 import { timingSafeEqual } from 'node:crypto';
 import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
-import { executionRepository } from '#/repository/executions';
+import { flowRepository } from '#/repository/flows';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
+import { type FlowStep } from '#/schema/flow';
+import { resolveFlow } from '#/service/flow';
+import { passkeyCheckedAgainst } from '#/service/passkey-switch';
 import { SessionEntry } from '#/service/session-entry';
 import { hashSignInSecret, newSignInSecret, readSignInHandle } from '#/service/sign-in-handle';
 import {
@@ -36,6 +39,7 @@ import {
 import {
   OTP,
   PASSKEY,
+  PASSKEY_UNVERIFIED,
   PASSWORD,
   RECOVERY_CODE,
   type AuthenticatorName,
@@ -381,6 +385,7 @@ async function runPasskeyStep(
   return {
     kind: 'success',
     subjectId: outcome.subjectId,
+    ...(outcome.userVerified ? {} : { also: [PASSKEY_UNVERIFIED] }),
     commit: () =>
       credentialRepository(tx).advanceWebauthnCounter(credentialId, counter, context.now),
   };
@@ -441,6 +446,7 @@ interface FlowFacts {
   hasTotp: boolean;
   hasRecoveryCodes: boolean;
   otpRequired: boolean;
+  requirePasskey: boolean;
   // Zero where the tenant does not age passwords out, which is the default.
   passwordMaxAgeDays: number;
   lockout: LockoutPolicy;
@@ -475,6 +481,7 @@ async function flowFacts(
     hasTotp,
     hasRecoveryCodes,
     otpRequired: settings.otpRequired,
+    requirePasskey: settings.requirePasskey,
     passwordMaxAgeDays: settings.passwordMaxAgeDays,
     lockout: settings.lockout,
     loginWithEmail: settings.loginWithEmail,
@@ -553,6 +560,20 @@ function enrolmentOwed(facts: FlowFacts): boolean {
   return otpApplies(facts) && !facts.hasTotp;
 }
 
+// The steps of the flow a sign-in runs: the one it names, else the tenant's
+// default, read with one query either way. A flow that is not there, or a
+// tenant with no default, has nothing to run, so the sign-in fails as one
+// whose flow is empty does, and says nothing of why.
+async function flowSteps(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  flowId: string | null,
+): Promise<readonly FlowStep[]> {
+  const found = await flowRepository(tx).forSignIn(tenantId, flowId);
+  const resolved = resolveFlow(found === null ? [] : [found], flowId);
+  return resolved.kind === 'ok' ? resolved.flow.steps : [];
+}
+
 // Returns the facts alongside the steps rather than making the caller ask
 // for them again: deciding what a subject owes reads exactly what deciding
 // which step runs read, so it is the same two queries either way.
@@ -560,8 +581,9 @@ async function loadSteps(
   tx: TenantScopedDatabase,
   tenantId: string,
   request: FactsRequest,
+  flowId: string | null,
 ): Promise<{ steps: Step[]; facts: FlowFacts }> {
-  const executions = await executionRepository(tx).forTenant(tenantId);
+  const executions = await flowSteps(tx, tenantId, flowId);
   const facts = await flowFacts(tx, tenantId, request);
   // A tenant whose flow never had the recovery-code row — one provisioned
   // before it existed, or one that disabled it — has no recovery step for
@@ -723,12 +745,17 @@ async function loadFlowContext(
     return null;
   }
   const satisfied = new Set(record.satisfied);
-  const loaded = await loadSteps(tx, record.tenantId, {
-    subjectId: record.subjectId,
-    satisfied,
-    assertionOffered: assertionOffered(input),
-    recoveryCodeOffered: recoveryCodeOffered(input),
-  });
+  const loaded = await loadSteps(
+    tx,
+    record.tenantId,
+    {
+      subjectId: record.subjectId,
+      satisfied,
+      assertionOffered: assertionOffered(input),
+      recoveryCodeOffered: recoveryCodeOffered(input),
+    },
+    record.pendingRequest.flowId ?? null,
+  );
   return {
     record,
     steps: loaded.steps,
@@ -770,6 +797,25 @@ async function recordOtpEnrolmentIfOwed(
   await requiredActionRepository(tx).add(tenantId, subjectId, 'configure-totp');
 }
 
+// The tenant's mandate for a passkey is carried the same way: a required
+// action the sign-in then meets, so a person without one is asked at the
+// next sign-in and a session already open is left alone. What is owed stays
+// owed when the switch goes off; completing the enrolment clears it.
+async function recordPasskeyEnrolmentIfOwed(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  subjectId: string,
+  required: boolean,
+  publicBaseUrl: string | null,
+): Promise<void> {
+  if (!required) return;
+  const party = await relyingPartyOfTenantOrNone(tx, tenantId, publicBaseUrl);
+  const checked = passkeyCheckedAgainst({ required, relyingPartyId: party?.id ?? null });
+  if (checked === null) return;
+  if (await credentialRepository(tx).holdsPasskey(subjectId, checked)) return;
+  await requiredActionRepository(tx).add(tenantId, subjectId, 'configure-passkey');
+}
+
 // What /authorize renders before any authentication session exists: the
 // first thing this tenant's flow would ask for, with nothing submitted yet.
 // A 'failure' here means the flow has no reachable execution at all — the
@@ -778,17 +824,23 @@ export async function initialChallenge(
   tx: TenantScopedDatabase,
   tenantId: string,
   clock: Clock = systemClock,
+  flowId: string | null = null,
 ): Promise<AuthenticatorResult> {
   // No subject yet, so no second factor can be applicable: which account a
   // code belongs to is not something /authorize could know before anybody
   // has said who they are. No assertion either — there is no attempt yet
   // for a challenge to have been offered against.
-  const { steps, facts } = await loadSteps(tx, tenantId, {
-    subjectId: null,
-    satisfied: new Set(),
-    assertionOffered: false,
-    recoveryCodeOffered: false,
-  });
+  const { steps, facts } = await loadSteps(
+    tx,
+    tenantId,
+    {
+      subjectId: null,
+      satisfied: new Set(),
+      assertionOffered: false,
+      recoveryCodeOffered: false,
+    },
+    flowId,
+  );
   const registry = bindRegistry(tx, {
     tenantId,
     subjectId: null,
@@ -964,7 +1016,11 @@ export async function advance(
   }
 
   const subjectId = result.subjectId;
-  await audit.allowed(authenticator, subjectId);
+  await audit.allowed(
+    authenticator,
+    subjectId,
+    authenticator === PASSKEY ? !(result.also ?? []).includes(PASSKEY_UNVERIFIED) : undefined,
+  );
   await authenticationSessionRepository(tx).bindSubject(authSessionId, subjectId);
 
   // Everything after this point is decided for this subject, so the flow is
@@ -973,14 +1029,19 @@ export async function advance(
   // succeeded counts as satisfied for that re-read — a passkey is two
   // factors, and whether a conditional OTP step still applies depends on
   // having seen it.
-  const updatedSatisfied = new Set(satisfied);
-  updatedSatisfied.add(authenticator);
-  const { steps: stepsForSubject, facts } = await loadSteps(tx, record.tenantId, {
-    subjectId,
-    satisfied: updatedSatisfied,
-    assertionOffered: assertionOffered(input),
-    recoveryCodeOffered: recoveryCodeOffered(input),
-  });
+  const established = [authenticator, ...(result.also ?? [])];
+  const updatedSatisfied = new Set([...satisfied, ...established]);
+  const { steps: stepsForSubject, facts } = await loadSteps(
+    tx,
+    record.tenantId,
+    {
+      subjectId,
+      satisfied: updatedSatisfied,
+      assertionOffered: assertionOffered(input),
+      recoveryCodeOffered: recoveryCodeOffered(input),
+    },
+    record.pendingRequest.flowId ?? null,
+  );
   await recordOtpEnrolmentIfOwed(tx, record.tenantId, subjectId, facts);
   // Collected after the factor succeeded and before the required-action
   // gate reads what is owed, which is the whole of what keeps an aged-out
@@ -988,7 +1049,9 @@ export async function advance(
   // its completion waits for the change.
   await recordPasswordExpiryIfOwed(tx, record.tenantId, subjectId, facts.passwordMaxAgeDays, clock);
 
-  await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
+  for (const name of established) {
+    await authenticationSessionRepository(tx).recordSatisfied(authSessionId, name);
+  }
   const forSubject = bindRegistry(tx, {
     tenantId: record.tenantId,
     subjectId,
@@ -1009,7 +1072,7 @@ export async function advance(
       outcome = {
         kind: 'success',
         subjectId: settled.subjectId,
-        authenticators: [...new Set([...record.satisfied, authenticator, after.authenticator])],
+        authenticators: [...new Set([...record.satisfied, ...established, after.authenticator])],
       };
     } else if (settled.kind === 'failure') {
       outcome = { kind: 'failure', reason: settled.reason };
@@ -1022,7 +1085,7 @@ export async function advance(
     outcome = {
       kind: 'success',
       subjectId,
-      authenticators: [...new Set([...record.satisfied, authenticator])],
+      authenticators: [...new Set([...record.satisfied, ...established])],
     };
   }
 
@@ -1039,6 +1102,13 @@ export async function advance(
   // earned a prompt about a factor it did not present.
   if (outcome.kind === 'success') {
     await oweRecoveryCodesIfFactorWithoutCodes(tx, record.tenantId, subjectId);
+    await recordPasskeyEnrolmentIfOwed(
+      tx,
+      record.tenantId,
+      subjectId,
+      facts.requirePasskey,
+      options.publicBaseUrl ?? null,
+    );
   }
 
   // What a required-action submission is judged against, since it carries no
@@ -1096,7 +1166,15 @@ export async function authenticatedSession(
   if (record === null || !sessionIsLive(record, clock.now())) return null;
   if (record.authenticatedAt === null) return null;
   if (record.subjectId === null) return null;
-  if (!(await authenticatorsSatisfyFlow(tx, record.tenantId, record.subjectId, record.satisfied))) {
+  if (
+    !(await authenticatorsSatisfyFlow(
+      tx,
+      record.tenantId,
+      record.subjectId,
+      record.satisfied,
+      record.pendingRequest.flowId ?? null,
+    ))
+  ) {
     return null;
   }
   return { subjectId: record.subjectId, authenticators: record.satisfied };
@@ -1111,14 +1189,20 @@ export async function authenticatorsSatisfyFlow(
   tenantId: string,
   subjectId: string,
   authenticators: readonly string[],
+  flowId: string | null = null,
 ): Promise<boolean> {
   const satisfied = new Set(authenticators);
-  const { steps } = await loadSteps(tx, tenantId, {
-    subjectId,
-    satisfied,
-    assertionOffered: false,
-    recoveryCodeOffered: false,
-  });
+  const { steps } = await loadSteps(
+    tx,
+    tenantId,
+    {
+      subjectId,
+      satisfied,
+      assertionOffered: false,
+      recoveryCodeOffered: false,
+    },
+    flowId,
+  );
   return nextStep(steps, { satisfied }).kind === 'complete';
 }
 
@@ -1212,6 +1296,8 @@ export async function establishSession(
   // liveness is measured against.
   remembered = false,
   clock: Clock = systemClock,
+  // Digest of the device cookie of the browser this login came from.
+  deviceId: string | null = null,
 ): Promise<EstablishedSession> {
   // Always a fresh id, even for the same subject: reusing the pre-auth id
   // here is exactly the session-fixation hole this function exists to close.
@@ -1224,6 +1310,7 @@ export async function establishSession(
     expiresAt: new Date(clock.now().getTime() + maxSeconds * 1000),
     remembered,
     secretHash: entry.secretHash(),
+    deviceId,
   });
   return { sessionId: entry.id, entry };
 }

@@ -34,6 +34,7 @@ import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttl
 import { hashRefreshToken } from '#/service/refresh';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { hashPassword } from '@odudu/domain-identity';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 const KEK = Buffer.alloc(32, 41);
 const SECRET = 'a-long-enough-client-secret';
@@ -275,6 +276,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

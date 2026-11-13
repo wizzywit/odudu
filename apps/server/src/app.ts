@@ -8,6 +8,7 @@ import {
   tenantSettingsRepository,
   registerActionTokenRoute,
   registerRegistrationRoute,
+  registerResendVerificationRoute,
   registerResetPasswordRoute,
   type CreateAccountResult,
   type NewAccountInput,
@@ -39,11 +40,14 @@ import { requiredActionRepository } from '@odudu/authn-flows';
 import { consoleGateway } from '@odudu/console-gateway';
 import { instrumentRoutes } from '@odudu/instrument';
 import {
+  createBreachedPasswordCheck,
+  type RangeFetch,
   credentialRepository,
   evaluatePassword,
   hashUserPassword,
   isEmailAddress,
   lockEmailForCreation,
+  pendingEmailRepository,
   REUSED_PASSWORD,
   subjectRepository,
   userRepository,
@@ -66,6 +70,7 @@ import {
   registerResourceMetadataRoute,
   type ToolLimiterOptions,
 } from '@odudu/mcp';
+import { registerMeRoutes } from '@odudu/me';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -99,7 +104,9 @@ import Fastify, {
 import { randomBytes } from 'node:crypto';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
+import { BREACHED_LOOKUPS_IN_PROCESS, createBreachedRangeFetch } from '#/breached-range-transport';
 import { findHeldSignInIn } from '#/held-sign-in';
+import { findReturnClient } from '#/return-client';
 import {
   createCimdRequest,
   createClientKeyRequest,
@@ -111,9 +118,11 @@ import { registerDomainCheck } from '#/domain-check';
 import { configureHostResolution } from '#/host-resolution';
 import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
+import { queueOwnVerification } from '#/own-verification';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
 import { mcpRouteDepsFor } from '#/mcp-deps';
+import { meRouteDepsFor } from '#/me-deps';
 import { mcpRegistrationBudget } from '#/mcp-registration-budget';
 import { throttleOrigin } from '#/throttle-origin';
 
@@ -282,6 +291,12 @@ export interface AppDeps {
     readonly request: CimdRequest;
   };
   /**
+   * How a remote breached-password lookup is made. The default is the pinned
+   * request to the one fixed host, behind the address guard; a test of the
+   * whole path swaps the request, never the host or the guard.
+   */
+  readonly breachedRangeFetch?: RangeFetch;
+  /**
    * The same escape hatch for the relay a tenant configures through
    * `PUT /smtp`. Separate from `allowPrivateClientUrls` because an
    * internal mail relay is an ordinary production shape, where a private
@@ -391,6 +406,7 @@ const PAGE_POSTS: ReadonlySet<string> = new Set([
   SIGN_IN_POST,
   '/tenants/:tenant/login-actions/registration',
   '/tenants/:tenant/login-actions/reset-password',
+  '/tenants/:tenant/login-actions/resend-verification',
 ]);
 
 const THROTTLED_POSTS: ReadonlySet<string> = new Set([
@@ -542,6 +558,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const loginLimiter: RateLimiter = slidingWindow({
     ...(deps.loginThrottle ?? DEFAULT_LOGIN_THROTTLE),
     now: () => new Date(),
+  });
+
+  // One check for every password write; its per-tenant concurrency limit is
+  // held in this instance, so it is built once per process.
+  const breachedPasswordCheck = createBreachedPasswordCheck({
+    concurrencyInProcess: BREACHED_LOOKUPS_IN_PROCESS,
+    fetchRange:
+      deps.breachedRangeFetch ??
+      createBreachedRangeFetch({ allowPrivate: deps.allowPrivateClientUrls ?? false }),
   });
 
   // private_key_jwt's own address-guarded fetcher (RFC 7523 §2.2, ADR
@@ -745,9 +770,25 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     oidcRoutes({
       resolveBranding: branding.resolveBranding,
       resolveOverrides: messageOverrides.resolveOverrides,
+      resolveMailLook: mailLook,
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
+      breachedPasswordCheck,
+      queueVerificationLink: (tenantId, subjectId, request) =>
+        queueOwnVerification(
+          {
+            database: deps.database,
+            publicBaseUrl: deps.publicBaseUrl,
+            deploymentSmtp: deps.deploymentSmtp ?? false,
+            mailGate,
+            resolveMailLook: mailLook,
+            now: () => systemClock.now(),
+          },
+          tenantId,
+          subjectId,
+          request,
+        ),
       clientSecretLimiter,
       mcpRegistrationLimiter: mcpRegistrations,
       auditRefusalBudget: auditRefusalBudget(() => new Date()),
@@ -788,6 +829,22 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       createToolLimiter({ ...DEFAULT_TOOL_LIMITS, ...deps.mcpToolLimits }),
     ),
   );
+  const mailGate = deps.mailGate ?? createMailGate(() => systemClock.now());
+  registerMeRoutes(
+    app,
+    meRouteDepsFor({
+      database: deps.database,
+      ownerDatabase: deps.ownerDatabase,
+      kek: deps.kek,
+      logger: deps.logger,
+      publicBaseUrl: deps.publicBaseUrl,
+      mail: {
+        resolveMailLook: mailLook,
+        mailGate,
+        deploymentSmtp: deps.deploymentSmtp ?? false,
+      },
+    }),
+  );
 
   // getCurrentEmail, markVerified and setPassword are the only points where
   // @odudu/account reaches @odudu/domain-identity's users and credentials
@@ -795,7 +852,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // itself stays free of that dependency
   // (packages/account/src/usecase/verify-email.ts explains why).
   const findHeldSignIn = findHeldSignInIn(deps.database, tls);
-  const mailGate = deps.mailGate ?? createMailGate(() => systemClock.now());
 
   const themed = {
     resolveBranding: branding.resolveBranding,
@@ -808,6 +864,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     ...themed,
     database: deps.database,
     findHeldSignIn,
+    findReturnClient,
     now: () => systemClock.now(),
     findTaken,
     lockAddress: (tx, tenantId, email) => lockEmailForCreation(tx, tenantId, email),
@@ -831,8 +888,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
     getCurrentEmail: async (tx, subjectId) =>
       (await userRepository(tx).bySubjectId(subjectId))?.email ?? null,
+    // Proving the address ends the action that asked for it, whichever tab the
+    // link was opened in.
     markVerified: async (tx, subjectId) => {
       await userRepository(tx).markEmailVerified(subjectId);
+      await requiredActionRepository(tx).complete(subjectId, 'verify-email');
+    },
+    changeAddress: {
+      lockAddress: (tx, tenantId, email) => lockEmailForCreation(tx, tenantId, email),
+      takePending: (tx, subjectId, email) => pendingEmailRepository(tx).take(subjectId, email),
+      holderOf: (tx, email) => userRepository(tx).holderOfEmail(email),
+      replaceVerified: async (tx, subjectId, email) => {
+        await userRepository(tx).replaceVerifiedEmail(subjectId, email);
+        await requiredActionRepository(tx).complete(subjectId, 'verify-email');
+      },
     },
     // A subject an administrator created has no password until a link gives
     // it its first, the way `POST …/subjects/:id/password` creates one.
@@ -858,6 +927,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return user.username;
     },
     evaluatePassword,
+    breachedCheck: breachedPasswordCheck,
     // A subject with no password credential at all has nothing to leave
     // unchanged, so there is nothing to refuse.
     unchangedPasswordViolations: async (tx, subjectId, candidate) => {
@@ -888,6 +958,24 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     isEmailAddress,
     mailGate,
     evaluatePassword,
+    breachedCheck: breachedPasswordCheck,
+  });
+
+  registerResendVerificationRoute(app, {
+    ...themed,
+    database: deps.database,
+    findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
+    publicBaseUrl: deps.publicBaseUrl,
+    now: () => systemClock.now(),
+    mailGate,
+    proofOwed: async (tx, subjectId, email) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      if (user === null) return null;
+      const owed =
+        (user.email === email && !user.emailVerified) ||
+        (await pendingEmailRepository(tx).forSubject(subjectId)) === email;
+      return owed ? { locale: user.locale } : null;
+    },
   });
 
   registerResetPasswordRoute(app, {

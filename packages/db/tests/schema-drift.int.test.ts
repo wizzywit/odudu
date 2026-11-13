@@ -35,12 +35,12 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text, 'execute_actions'::text])))",
   'action_tokens.action_tokens_actions_check':
     "CHECK (((type = 'execute_actions'::text) = ((actions IS NOT NULL) AND (cardinality(actions) > 0))))",
+  'action_tokens.action_tokens_return_check':
+    'CHECK (((client_id IS NULL) = (return_uri IS NULL)))',
   'tenants.tenants_audit_retention_days_range':
     'CHECK (((audit_retention_days >= 1) AND (audit_retention_days <= 3650)))',
   'audit_events.audit_events_outcome':
     "CHECK ((outcome = ANY (ARRAY['allowed'::text, 'refused'::text, 'failed'::text])))",
-  'authentication_executions.authentication_executions_requirement':
-    "CHECK ((requirement = ANY (ARRAY['required'::text, 'alternative'::text, 'conditional'::text, 'disabled'::text])))",
   'authorization_codes.authorization_codes_method_check':
     "CHECK ((code_challenge_method = 'S256'::text))",
   'client_oidc_config.client_oidc_config_access_token_ttl_ceiling':
@@ -118,7 +118,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'user_credentials.user_credentials_type_check':
     "CHECK ((type = ANY (ARRAY['password'::text, 'totp'::text, 'webauthn'::text, 'recovery-code'::text, 'password-history'::text])))",
   'user_required_actions.user_required_actions_action':
-    "CHECK ((action = ANY (ARRAY['configure-totp'::text, 'configure-passkey'::text, 'update-password'::text, 'generate-recovery-codes'::text])))",
+    "CHECK ((action = ANY (ARRAY['verify-email'::text, 'update-password'::text, 'configure-totp'::text, 'configure-passkey'::text, 'generate-recovery-codes'::text, 'update-profile'::text, 'accept-terms'::text])))",
   'users.users_birthdate_shape':
     "CHECK (((birthdate IS NULL) OR (birthdate ~ '^[0-9]{4}(-[0-9]{2}-[0-9]{2})?$'::text)))",
   'users.users_email_addr_spec':
@@ -164,11 +164,42 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'tenants.tenants_login_ttl_range':
     'CHECK (((login_ttl_seconds >= 60) AND (login_ttl_seconds <= 86400)))',
   'tenants.tenants_refresh_token_ttl_floor': 'CHECK ((refresh_token_ttl_seconds >= 1))',
+  'tenants.tenants_recovery_code_warn_below_range':
+    'CHECK (((recovery_code_warn_below >= 0) AND (recovery_code_warn_below <= 10)))',
+  'tenants.tenants_recovery_code_count_range':
+    'CHECK (((recovery_code_count >= 8) AND (recovery_code_count <= 16)))',
+  'tenants.tenants_recovery_warn_within_count':
+    'CHECK ((recovery_code_warn_below <= recovery_code_count))',
+  'tenants.tenants_breached_check_check':
+    "CHECK ((breached_check = ANY (ARRAY['off'::text, 'dataset'::text, 'remote'::text])))",
+  'tenants.tenants_required_profile_fields_check':
+    "CHECK ((required_profile_fields <@ ARRAY['name'::text, 'given_name'::text, 'family_name'::text, 'middle_name'::text, 'nickname'::text, 'preferred_username'::text, 'profile'::text, 'picture'::text, 'website'::text, 'gender'::text, 'birthdate'::text, 'zoneinfo'::text, 'locale'::text, 'phone_number'::text, 'address_formatted'::text, 'address_street'::text, 'address_locality'::text, 'address_region'::text, 'address_postal_code'::text, 'address_country'::text]))",
+  'tenants.tenants_terms_version_length':
+    'CHECK (((char_length(terms_version) >= 1) AND (char_length(terms_version) <= 64)))',
+  'tenants.tenants_breached_on_error_check':
+    "CHECK ((breached_on_error = ANY (ARRAY['open'::text, 'closed'::text])))",
+  'breached_password_hashes.breached_password_hashes_prefix_shape':
+    "CHECK ((prefix ~ '^[0-9A-F]{5}$'::text))",
+  'breached_password_hashes.breached_password_hashes_suffix_shape':
+    "CHECK ((suffix ~ '^[0-9A-F]{35}$'::text))",
+  'tenants.tenants_totp_algorithm_check':
+    "CHECK ((totp_algorithm = ANY (ARRAY['SHA1'::text, 'SHA256'::text, 'SHA512'::text])))",
+  'tenants.tenants_totp_digits_check': 'CHECK ((totp_digits = ANY (ARRAY[6, 8])))',
+  'tenants.tenants_totp_period_check': 'CHECK ((totp_period = ANY (ARRAY[30, 60])))',
+  'tenants.tenants_webauthn_resident_key_check':
+    "CHECK ((webauthn_resident_key = ANY (ARRAY['required'::text, 'preferred'::text, 'discouraged'::text])))",
+  'tenants.tenants_webauthn_user_verification_check':
+    "CHECK ((webauthn_user_verification = ANY (ARRAY['required'::text, 'preferred'::text, 'discouraged'::text])))",
   'tenants.tenants_reset_password_ttl_range':
     'CHECK (((reset_password_ttl_seconds >= 60) AND (reset_password_ttl_seconds <= 86400)))',
+  'tenants.tenants_session_freshness_range':
+    'CHECK (((session_freshness_seconds >= 30) AND (session_freshness_seconds <= 3600)))',
   'tenants.tenants_verify_email_ttl_range':
     'CHECK (((verify_email_ttl_seconds >= 60) AND (verify_email_ttl_seconds <= 604800)))',
   'clients.clients_description_length': 'CHECK ((char_length(description) <= 1000))',
+  'flows.flows_name_length': 'CHECK (((char_length(name) >= 1) AND (char_length(name) <= 64)))',
+  'flows.flows_steps_bounded':
+    "CHECK (((jsonb_typeof(steps) = 'array'::text) AND (jsonb_array_length(steps) <= 20)))",
   'groups.groups_description_length': 'CHECK ((char_length(description) <= 1000))',
   'roles.roles_description_length': 'CHECK ((char_length(description) <= 1000))',
   'client_scopes.client_scopes_default_client_assignment_check':
@@ -181,6 +212,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'client_oidc_config.client_oidc_config_id_token_alg_check':
     "CHECK ((id_token_signed_response_alg = ANY (ARRAY['RS256'::text, 'ES256'::text])))",
   'client_oidc_config.client_oidc_config_default_max_age_range': 'CHECK ((default_max_age >= 0))',
+  'client_oidc_config.client_oidc_config_allowed_actions_check':
+    "CHECK ((allowed_actions <@ ARRAY['verify-email'::text, 'update-password'::text, 'configure-totp'::text, 'configure-passkey'::text, 'generate-recovery-codes'::text, 'update-profile'::text]))",
   'clients.clients_previous_secret_pair':
     'CHECK (((previous_secret_hash IS NULL) = (previous_secret_expires_at IS NULL)))',
   'clients.clients_name_i18n_shape':

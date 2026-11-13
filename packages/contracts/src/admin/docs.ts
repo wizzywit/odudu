@@ -32,11 +32,17 @@ import {
   clientRecordSchema,
 } from '#/admin/clients';
 import { consentSchema } from '#/admin/consents';
+import { termsAcceptanceSchema } from '#/admin/terms-acceptances';
 import { countResponseSchema } from '#/admin/counts';
 import {
   executionStepSchema,
   listExecutionsResponseSchema,
   replaceExecutionsRequestSchema,
+  flowListItemSchema,
+  flowSchema,
+  flowStepSchema,
+  listFlowsResponseSchema,
+  saveFlowRequestSchema,
 } from '#/admin/flow';
 import {
   countGroupsQuerySchema,
@@ -115,6 +121,7 @@ import {
   listSubjectsQuerySchema,
   listedSubjectSchema,
   roleAssignmentSchema,
+  sendAccountLinkRequestSchema,
   sendActionsEmailRequestSchema,
   setRequiredActionsRequestSchema,
   setRequiredActionsResponseSchema,
@@ -352,6 +359,10 @@ describeFields(clientFieldsSchema, {
   default_max_age:
     'The longest age in seconds a sign-in may have before the user must sign in again, when the request does not say. Null sets none.',
   require_auth_time: 'Whether ID tokens always carry the `auth_time` claim.',
+  allowed_actions:
+    'The required actions the client may start for a signed-in person through `/authorize`: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`. `accept-terms` is not among them: it records consent to the tenant\u2019s own terms and has to come from the tenant. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
+  flow_id:
+    'The sign-in flow the client runs, one of the tenant\u2019s flows from `GET /flows`; null, the default for every client, follows the tenant\u2019s default flow. A flow that is not the tenant\u2019s is refused with `unknown_flow`, and a flow some client names is not deleted.',
   previous_secret_expires_at:
     'When the secret that a rotation replaced stops authenticating, or null when no rotation kept one. The secret itself is never shown.',
   builtin_admin:
@@ -421,6 +432,10 @@ describeFields(consentSchema, {
   scope_names: 'The scopes the user agreed to.',
   granted_at: 'When the user agreed.',
 });
+describeFields(termsAcceptanceSchema, {
+  version: 'The version of the tenant’s terms the user accepted.',
+  accepted_at: 'When the user accepted it.',
+});
 describeFields(countResponseSchema, {
   count: 'How many items match, up to a cap.',
   capped: 'True when more match than `count` says, because counting stops at the cap.',
@@ -439,6 +454,30 @@ describeFields(replaceExecutionsRequestSchema.element, {
   authenticator: 'The sign-in step to run, one of `available` in the list answer.',
   requirement:
     '`required` always runs, `alternative` is one of several of which one suffices, `conditional` runs only when it applies, `disabled` is skipped.',
+});
+describeFields(flowStepSchema, {
+  authenticator: 'The sign-in step to run, one of `available` in the list answer.',
+  requirement:
+    '`required` always runs, `alternative` is one of several of which one suffices, `conditional` runs only when it applies, `disabled` is skipped.',
+});
+describeFields(flowSchema, {
+  id: 'The flow’s identifier in the admin API.',
+  name: 'The flow’s name, unique within the tenant.',
+  is_default:
+    'True for the tenant’s default flow, which a client that names no flow signs in through.',
+  steps: 'The steps in the order they run.',
+});
+describeFields(flowListItemSchema, {
+  client_count: 'How many clients of the tenant name this flow through their `flow_id`.',
+});
+describeFields(listFlowsResponseSchema, {
+  items: 'Every flow of the tenant, ordered by name.',
+  total: 'How many flows the tenant has. A tenant holds at most 20, so the list is never paged.',
+  available: 'Every authenticator a step may name.',
+});
+describeFields(saveFlowRequestSchema, {
+  name: 'The flow’s name: 1 to 64 characters once trimmed, unique within the tenant.',
+  steps: 'The steps in the order they run, at most 20.',
 });
 describeFields(createKeyRequestSchema, {
   alg: 'The algorithm of the new key. It is created `rotating`; promote it to make it the one that signs.',
@@ -671,6 +710,8 @@ describeFields(sessionSchema, {
   remembered:
     'Whether the user chose to stay signed in, which gives the session the longer remember-me lifetimes.',
   client_ids: 'The clients the session has signed the user in to.',
+  device:
+    'An opaque id shared by the sessions opened on one browser, or null for a session opened before it was recorded.',
 });
 describeFields(tenantSessionSchema, {
   id: 'The session’s identifier.',
@@ -679,6 +720,8 @@ describeFields(tenantSessionSchema, {
   remembered:
     'Whether the user chose to stay signed in, which gives the session the longer remember-me lifetimes.',
   client_ids: 'The clients the session has signed the user in to.',
+  device:
+    'An opaque id shared by the sessions opened on one browser, or null for a session opened before it was recorded.',
   subject_id: 'The user the session belongs to.',
   username: 'That user’s username, or null.',
 });
@@ -742,12 +785,24 @@ describeFields(roleAssignmentSchema, {
     'For a role scoped to a client, that client’s internal id; null for a tenant-wide role.',
   client_key: 'For a client role, the client’s `client_id`.',
 });
+const RETURN_FIELDS = {
+  client_id:
+    'The `client_id` of a client of this tenant the link returns to when the person finishes, ' +
+    'with `action_status` on its registered `redirect_uri`. Absent, the link ends on a page of ' +
+    'the tenant’s own with no way on.',
+  redirect_uri:
+    'Which registered `redirect_uri` of that client to return to; it must match one exactly. ' +
+    'Optional for a client that registers one; needs `client_id`.',
+};
+describeFields(sendAccountLinkRequestSchema, RETURN_FIELDS);
 describeFields(sendActionsEmailRequestSchema, {
-  actions: 'The actions the mailed link asks the user to complete; at least one.',
+  actions:
+    'The actions the mailed link asks the user to complete; at least one of `update-password`, `configure-totp`, `configure-passkey` and `generate-recovery-codes`.',
+  ...RETURN_FIELDS,
 });
 describeFields(setRequiredActionsRequestSchema, {
   actions:
-    'The steps the user must complete at their next sign-in: `update-password`, `configure-totp`, `configure-passkey` or `generate-recovery-codes`. Replaces the current list.',
+    'The steps the user must complete at their next sign-in, in the order a sign-in asks for them: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`, `accept-terms`. Replaces the current list. `verify-email` is refused with `no-email` for a subject with no address, and `accept-terms` with `terms-not-configured` while the tenant has no `terms_uri`; a subject whose address is already verified, or who has accepted the version in force, is not asked at their next sign-in.',
 });
 describeFields(setRequiredActionsResponseSchema, {
   actions: 'The required actions after the change.',
@@ -871,6 +926,8 @@ describeFields(exportedClientSchema, {
   default_max_age:
     'The longest age in seconds a sign-in may have before the user must sign in again, when the request does not say. Null sets none.',
   require_auth_time: 'Whether ID tokens always carry the `auth_time` claim.',
+  allowed_actions:
+    'The required actions the client may start for a signed-in person through `/authorize`: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`. `accept-terms` is not among them: it records consent to the tenant\u2019s own terms and has to come from the tenant. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
 });
 describeFields(exportedFlowStepSchema, {
   authenticator: 'The sign-in step to run.',
@@ -994,6 +1051,34 @@ describeFields(tenantSettingsDocumentSchema, {
   login_ttl_seconds: 'How long a started sign-in may take to finish.',
   verify_email_ttl_seconds: 'How long a mailed email-verification link works.',
   reset_password_ttl_seconds: 'How long a mailed password-reset link works.',
+  session_freshness_seconds:
+    'How recent a sign-in must be, in seconds, for the "me" API to accept removing a credential, ending other sessions in bulk, revoking a consent or changing a username.',
+  recovery_code_warn_below:
+    'How few unspent recovery codes a person may hold before the "me" API reports recovery_codes_low; 0 turns the warning off.',
+  totp_algorithm:
+    'The HMAC algorithm of an authenticator app enrolled from now on: SHA1, SHA256 or SHA512. An enrolment keeps the algorithm it was made with.',
+  totp_digits:
+    'The length of the code an authenticator app enrolled from now on shows: 6 or 8. An enrolment keeps the digits it was made with.',
+  totp_period:
+    'The seconds an authenticator app enrolled from now on shows one code for: 30 or 60. An enrolment keeps the period it was made with.',
+  webauthn_user_verification:
+    'Whether a passkey enrolled from now on is made with user verification: required, preferred or discouraged. A passkey made without it signs in as one factor.',
+  webauthn_resident_key:
+    'Whether a passkey enrolled from now on is stored on the authenticator so it can sign in without a username: required, preferred or discouraged.',
+  recovery_code_count:
+    'How many recovery codes a newly issued set holds, 8 to 16. A set already issued keeps its size.',
+  require_passkey:
+    'Whether every person who signs in must hold a passkey. A person without one is asked to add one at their next sign-in and cannot skip it; sessions already open are not touched. Turning it off does not remove an action already owed. Where the deployment has no public base URL, or one that is an IP address, and the tenant has no domain of its own, nobody is asked.',
+  breached_check:
+    'Where a new password is checked against passwords known from breaches: off, dataset (the hash list an operator loaded into the server, which needs no outbound request) or remote (a range lookup that sends the first five characters of the SHA-1 hash and nothing else to a fixed host). A password that passed the other rules and is found there is refused.',
+  breached_on_error:
+    'What a remote lookup that failed, timed out or found the host busy does: open accepts the password, closed refuses it and asks the person to try again. The dataset source has no such failure.',
+  terms_uri:
+    'The address of the terms the `accept-terms` required action asks a person to accept: https, or http to this machine, with no fragment. Null when the tenant has none; send an empty string to clear it. Setting it asks nobody: an administrator owes the action to each person.',
+  terms_version:
+    'The version of the terms, 1 to 64 characters, `1` by default. A person accepts one version; changing it does not add the action to anyone, so an administrator owes it again when the terms change.',
+  required_profile_fields:
+    'The profile claims the `update-profile` required action needs a person to have before it ends, by wire name: any of the claims `PATCH …/profile` writes (`given_name` and `family_name` by default). The page lists every claim a person can edit and marks these; the others are optional. An empty list makes it a page that is reviewed and submitted.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',

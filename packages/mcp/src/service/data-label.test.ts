@@ -20,7 +20,12 @@ const POISONS = [
 const UUID = '0192a0a0-0000-7000-8000-000000000001';
 const ETAG = `"${'a'.repeat(64)}"`;
 const RESULT_KEYS = ['data', 'next_cursor', 'truncated', 'etag'];
-const UNPAGED = ['list_builtin_scopes', 'list_theme_versions', 'list_client_theme_versions'];
+const UNPAGED = [
+  'list_flows',
+  'list_builtin_scopes',
+  'list_theme_versions',
+  'list_client_theme_versions',
+];
 
 function inputFor(tool: RegisteredTool): Record<string, unknown> {
   if (tool.spends === 'create') return { idempotency_key: 'create-1', name: 'x' };
@@ -100,7 +105,7 @@ function answer(body: unknown, status = 200): ReturnType<typeof respondingWith> 
 
 describe('the label on text a model reads', () => {
   it('covers every tool of the catalogue, the writes among them', () => {
-    expect(TOOLS.length).toBeGreaterThanOrEqual(73);
+    expect(TOOLS.length).toBeGreaterThanOrEqual(75);
     expect(TOOLS.filter((tool) => tool.access === 'write')).toHaveLength(12);
     const names = TOOLS.map((tool) => tool.name);
     expect(names).toContain('list_tenants');

@@ -1,6 +1,6 @@
 import { type CredentialSecret, verifyPassword } from '@odudu/domain-identity';
 import { randomBytes } from 'node:crypto';
-import { PASSKEY, RECOVERY_CODE } from '#/service/authenticators/names';
+import { PASSKEY, PASSKEY_UNVERIFIED, RECOVERY_CODE } from '#/service/authenticators/names';
 
 export type RecoveryCodeSecret = Extract<CredentialSecret, { kind: 'recovery-code' }>;
 
@@ -27,6 +27,7 @@ const CODE_LENGTH = 10;
 // does not both authenticate.
 const GROUP_LENGTH = 5;
 
+// What a set holds where a tenant has not chosen a size.
 export const RECOVERY_CODE_COUNT = 10;
 
 function alphabetChar(index: number): string {
@@ -138,6 +139,6 @@ export function recoveryApplicable(
 ): boolean {
   // Never after a passkey, for the reason otpApplicable gives: an assertion
   // is already two factors, so there is no second factor left to recover.
-  if (satisfied.has(PASSKEY)) return false;
+  if (satisfied.has(PASSKEY) && !satisfied.has(PASSKEY_UNVERIFIED)) return false;
   return offered && subject.hasRecoveryCodes && secondFactorInPlay;
 }

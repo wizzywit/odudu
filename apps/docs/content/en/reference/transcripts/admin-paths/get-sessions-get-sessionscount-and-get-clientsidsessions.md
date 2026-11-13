@@ -47,3 +47,8 @@ Keep-Alive: timeout=72
 The first of `grace`'s sessions names no client: that sign-in asked for
 `offline_access`, and its grant is bound to no session, so neither `client_ids`
 nor `?client=` finds it there.
+
+Each session now also carries `device`, an opaque id shared by the sessions
+opened on one browser (`null` for one opened before it was recorded). The
+blocks on this page were captured before it existed;
+[A session's device](../request-paths/the-me-api.md#a-sessions-device) runs it.

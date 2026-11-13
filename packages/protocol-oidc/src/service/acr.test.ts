@@ -1,11 +1,21 @@
+import { PASSKEY_UNVERIFIED } from '@odudu/authn-flows';
 import { describe, expect, it } from 'vitest';
 import { acrFor, amrFor } from '#/service/acr';
+
+describe('the marker the executor records for an unverified passkey', () => {
+  it('is the one amrFor and acrFor read', () => {
+    expect(amrFor(['passkey', PASSKEY_UNVERIFIED])).toEqual(['hwk']);
+    expect(acrFor(['passkey', PASSKEY_UNVERIFIED])).toBe('1');
+  });
+});
 
 describe('amrFor', () => {
   it('maps each authenticator to its registered RFC 8176 value', () => {
     expect(amrFor(['password'])).toEqual(['pwd']);
     expect(amrFor(['otp'])).toEqual(['otp']);
     expect(amrFor(['passkey'])).toEqual(['hwk', 'user']);
+    // Without verification there is no `user` to report.
+    expect(amrFor(['passkey', 'passkey-unverified'])).toEqual(['hwk']);
   });
 
   it('de-duplicates and keeps a stable order for a multi-factor login', () => {
@@ -30,6 +40,11 @@ describe('acrFor', () => {
   it('is 1 for one factor and 2 for two', () => {
     expect(acrFor(['password'])).toBe('1');
     expect(acrFor(['password', 'otp'])).toBe('2');
+  });
+
+  it('is 1 for a passkey that did not verify the person, which is one factor', () => {
+    expect(acrFor(['passkey', 'passkey-unverified'])).toBe('1');
+    expect(acrFor(['passkey', 'passkey-unverified', 'otp'])).toBe('2');
   });
 
   it('is 2 for a passkey alone, which is already two factors', () => {

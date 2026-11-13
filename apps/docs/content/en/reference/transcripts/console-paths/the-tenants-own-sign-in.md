@@ -5,6 +5,8 @@ description: "The two requests between the gateway's redirect and its callback a
 
 # The tenant's own sign-in
 
+> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
+
 The two requests between the gateway's redirect and its callback are the
 tenant's authorization endpoint and sign-in form, which [the request
 paths](../request-paths/index.md) documents. They are shown here only so that

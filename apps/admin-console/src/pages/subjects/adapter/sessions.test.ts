@@ -33,6 +33,7 @@ it('lists sessions as domain sessions a page at a time, and ends one or all', as
       lastActiveAt: '2026-09-25T05:16:45.837Z',
       remembered: false,
       clientIds: ['demo-app'],
+      device: '3f1c7a9e5b2d4c68a0e91f37d5b84c2a6e7f90b1d3c5a8e2f4b6d7091a3c5e8f',
     },
   ]);
   expect(await endSession(gateway, 'acme', 's1', 'x1')).toMatchObject({ ok: true });

@@ -1,6 +1,7 @@
 export const ar: Readonly<Record<string, string>> = {
   'link.backToSignIn': 'العودة إلى تسجيل الدخول',
   'link.continueToSignIn': 'المتابعة إلى تسجيل الدخول',
+  'link.returnToApplication': 'العودة إلى التطبيق',
   'link.tryAgain': 'حاول مرة أخرى',
   'link.registerAgain': 'سجّل مرة أخرى',
   'link.requestNewResetLink': 'اطلب رابطًا جديدًا',
@@ -16,6 +17,13 @@ export const ar: Readonly<Record<string, string>> = {
   'confirm.account': 'اسم الحساب: {username}',
   'confirm.next': 'اضغط على الزر لتأكيد هذا العنوان.',
   'confirm.button': 'تأكيد بريدي الإلكتروني',
+  'confirm.address': 'عنوان البريد الإلكتروني: {email}',
+  'confirm.tenant': 'حساب لدى {tenant}',
+  'verification.resend.button': 'أرسل رابطًا جديدًا',
+  'verification.resent.title': 'تم طلب رابط التحقق',
+  'verification.resent.heading': 'تم طلب رابط التحقق',
+  'verification.resent.next':
+    'إذا كان هذا العنوان بحاجة إلى التحقق، فهناك رابط جديد في طريقه إليك.',
   'registration.title': 'إنشاء حساب',
   'registration.username': 'اسم المستخدم',
   'registration.email': 'البريد الإلكتروني',
@@ -64,6 +72,9 @@ export const ar: Readonly<Record<string, string>> = {
   'password.hint.summary': 'استُوفي {met} من أصل {total} من القواعد',
   'password.rule.common': 'كلمة المرور هذه سهلة التخمين. اختر كلمة مرور أخرى.',
   'password.rule.notReused': 'يجب ألا تكون كلمة المرور من كلمات المرور التي استخدمتها من قبل.',
+  'password.rule.breached': 'ظهرت كلمة المرور هذه في تسريب بيانات. اختر كلمة مرور أخرى.',
+  'password.rule.breachCheckUnavailable':
+    'تعذّر فحص كلمة المرور مقابل التسريبات المعروفة. حاول مرة أخرى بعد قليل.',
   'reset.request.title': 'هل نسيت كلمة المرور؟',
   'reset.request.email': 'البريد الإلكتروني',
   'reset.request.submit': 'إرسال رابط إعادة التعيين',

@@ -1,37 +1,15 @@
-import type { ExecutionRequirement, ListExecutionsResponse } from '#/pages/flow/types/executions';
-import { useState } from 'react';
+import type { ListExecutionsResponse } from '#/pages/flow/types/executions';
 import { useRefusal } from '#/entities/session';
 import { flowSaves, FLOW_RECORD, type StepValues } from '#/pages/flow/repository/useFlowRecord';
+import { useAfterDefaultSave } from '#/pages/flow/repository/useFlows';
 import { flowOutcome } from '#/pages/flow/services/refusal';
 import { flowArea } from '#/pages/flow/services/flowWording';
-import { DEFAULT_ADDED, requirementOf } from '#/pages/flow/services/requirement';
-import { offeredOptions, stepRows, type StepRow } from '#/pages/flow/services/stepRows';
-import {
-  addable,
-  added,
-  chosenAddition,
-  describeSteps,
-  moved,
-  stepsOf,
-  withRequirement,
-  type Direction,
-} from '#/pages/flow/services/steps';
+import { describeSteps, stepsOf } from '#/pages/flow/services/steps';
+import { useStepEditing, type StepEditing } from '#/pages/flow/use-cases/useStepEditing';
 import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
 import { writeRefusal } from '#/shared/lib/services/capabilities';
 
-export interface FlowSteps {
-  save: SectionSave<StepValues>;
-  rows: readonly StepRow[];
-  move: (authenticator: string, direction: Direction) => void;
-  setRequirement: (authenticator: string, requirement: string) => void;
-  // What the registry offers that is not yet a step.
-  offered: readonly { id: string; label: string }[];
-  adding: string;
-  addingRequirement: ExecutionRequirement;
-  chooseAddition: (authenticator: string) => void;
-  chooseAdditionRequirement: (requirement: string) => void;
-  add: () => void;
-}
+export type FlowSteps = StepEditing & { save: SectionSave<StepValues> };
 
 export function useFlowSteps({
   tenant,
@@ -49,8 +27,7 @@ export function useFlowSteps({
 }): FlowSteps {
   const refusal = useRefusal(tenant);
   const saves = flowSaves(tenant);
-  const [picked, setPicked] = useState('');
-  const [addingRequirement, setAddingRequirement] = useState<ExecutionRequirement>(DEFAULT_ADDED);
+  const after = useAfterDefaultSave(tenant);
   const save = useSectionSave({
     tenant,
     record: FLOW_RECORD,
@@ -70,29 +47,15 @@ export function useFlowSteps({
       },
     },
     save: async (gateway, input) =>
-      flowOutcome(await saves.steps(gateway, input), input.values.steps, data.available),
+      flowOutcome(after(await saves.steps(gateway, input)), input.values.steps, data.available),
   });
-  const steps = save.values.steps;
-  const offered = addable(data.available, steps);
-  const adding = chosenAddition(offered, picked);
-  return {
-    save,
-    rows: stepRows(steps, reading),
-    move: (authenticator, direction) => {
-      save.edit('steps', moved(steps, authenticator, direction));
+  const editing = useStepEditing({
+    steps: save.values.steps,
+    available: data.available,
+    reading,
+    edit: (next) => {
+      save.edit('steps', next);
     },
-    setRequirement: (authenticator, requirement) => {
-      save.edit('steps', withRequirement(steps, authenticator, requirementOf(requirement)));
-    },
-    offered: offeredOptions(offered),
-    adding,
-    addingRequirement,
-    chooseAddition: setPicked,
-    chooseAdditionRequirement: (requirement) => {
-      setAddingRequirement(requirementOf(requirement));
-    },
-    add: () => {
-      save.edit('steps', added(steps, adding, addingRequirement));
-    },
-  };
+  });
+  return { ...editing, save };
 }

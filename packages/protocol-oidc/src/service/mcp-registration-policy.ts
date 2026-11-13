@@ -1,5 +1,4 @@
-import { isLoopbackHost } from '#/service/client-metadata';
-import { MCP_RESOURCE_PATH } from '@odudu/kernel';
+import { isLoopbackHost, MCP_RESOURCE_PATH } from '@odudu/kernel';
 import { needsApproval } from '#/service/consent';
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
 

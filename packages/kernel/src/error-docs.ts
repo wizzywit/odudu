@@ -86,6 +86,14 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
   seed_unknown_grant_type: command(
     '`--grant-type` names a grant type this server does not implement.',
   ),
+  allowed_actions_need_me_read: command(
+    'A client is given actions it may start without the scope `me:read`, which is how it ' +
+      'reads the outcome. Refused by the admin API (a create or amend, or removing `me:read` ' +
+      'or deleting it while a client holds actions), by a tenant import, and by ' +
+      '`odudu seed client --allow-action` when the tenant has no `me:read` scope to assign. ' +
+      'Through the admin API, assign `me:read` to the client first or make it a default ' +
+      'assignment; the seed flag assigns it itself.',
+  ),
   seed_admin_exists: command(
     '`odudu seed admin` found a subject with that name already in the system tenant.',
   ),
@@ -120,6 +128,18 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
     'The built-in admin client already holds as many redirect URIs as a client may, so the ' +
       'console’s address cannot be added.',
   ),
+  breached_passwords_usage: command(
+    '`odudu breached-passwords` was not given `load` and exactly one file path.',
+  ),
+  breached_passwords_bad_line: command(
+    'A line of the file given to `odudu breached-passwords load` is not a SHA-1 hash, so the ' +
+      'file is not a list of them. The message names the line; rows read before it stay loaded.',
+  ),
+  breached_passwords_cannot_load: command(
+    '`odudu breached-passwords load` writes a table the serving role may only read, which needs ' +
+      'a connection that bypasses row-level security, and `ODUDU_DATABASE_URL` names a role that ' +
+      'neither is a superuser nor has BYPASSRLS.',
+  ),
   reap_cannot_enumerate_tenants: pass(
     '`odudu reap` must list every tenant, which needs a connection that bypasses row-level ' +
       'security, and `ODUDU_DATABASE_URL` names a role that neither is a superuser nor has BYPASSRLS.',
@@ -131,6 +151,22 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
   reap_serving_role_bypasses_rls: pass(
     '`ODUDU_APP_DATABASE_URL` names a superuser or BYPASSRLS role, so `odudu reap` would not ' +
       'delete under the tenant policy.',
+  ),
+  reconcile_accounts_usage: command(
+    '`odudu reconcile-accounts` takes `--dry-run` and nothing else.',
+  ),
+  reconcile_cannot_enumerate_tenants: command(
+    '`odudu reconcile-accounts` must list every tenant, which needs a connection that bypasses ' +
+      'row-level security, and `ODUDU_DATABASE_URL` names a role that neither is a superuser nor ' +
+      'has BYPASSRLS.',
+  ),
+  reconcile_requires_app_database_url: command(
+    '`odudu reconcile-accounts` moves rows under the tenant policy and so needs ' +
+      '`ODUDU_APP_DATABASE_URL`; the owner role escapes the policy.',
+  ),
+  reconcile_serving_role_bypasses_rls: command(
+    '`ODUDU_APP_DATABASE_URL` names a superuser or BYPASSRLS role, so `odudu reconcile-accounts` ' +
+      'would not move rows under the tenant policy.',
   ),
   outbox_cannot_enumerate_tenants: pass(
     'The mail sender must list every tenant, which needs a connection that bypasses row-level ' +

@@ -1,6 +1,8 @@
 export { type FindHeldSignIn, type HeldSignIn } from '#/service/sign-in-resume';
 export { type MailGate, type MailKind } from '#/service/mail-gate';
+export { ownVerificationVerdict, type OwnVerificationVerdict } from '#/service/own-verification';
 export { actionTokens, type ActionTokenRecord, type ActionTokenType } from '#/schema/action-tokens';
+export { type ReturnClient } from '#/service/return-link';
 export { actionTokenRepository, type IssueActionToken } from '#/repository/action-tokens';
 export { tenantSettingsRepository, type TenantSettings } from '#/repository/tenant-settings';
 export {
@@ -9,6 +11,7 @@ export {
   completeEmailVerification,
   type SendVerificationEmailDeps,
   type SendVerificationEmailInput,
+  type ChangeAddressDeps,
   type CompleteEmailVerificationDeps,
   type CompleteEmailVerificationResult,
 } from '#/usecase/verify-email';
@@ -17,6 +20,11 @@ export {
   type ActionTokenTenantLookup,
   type ActionTokenRouteDeps,
 } from '#/view/routes/action-token';
+export {
+  registerResendVerificationRoute,
+  type ResendVerificationTenantLookup,
+  type ResendVerificationRouteDeps,
+} from '#/view/routes/resend-verification';
 export {
   peekActionToken,
   type PeekActionTokenDeps,

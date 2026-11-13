@@ -1165,6 +1165,74 @@ describe('credentialRepository.recoveryStanding', () => {
   });
 });
 
+describe('subjectRepository recovery-set marker', () => {
+  const T0 = new Date('2032-01-01T12:00:00.000Z');
+  const HOUR = 3_600_000;
+  const cutoff = (now: Date): Date => new Date(now.getTime() - HOUR);
+
+  async function seedSubject(tx: TenantScopedDatabase, tenantId: string): Promise<string> {
+    await seedTenant(tx, tenantId);
+    return (await subjectRepository(tx).create({ tenantId, type: 'user' })).id;
+  }
+
+  it('claims a subject that has never been issued a set, and records when', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      const id = await seedSubject(tx, tenantId);
+      const subjects = subjectRepository(tx);
+      expect(await subjects.recoveryIssuedAt(id)).toBeNull();
+      expect(await subjects.claimRecoveryIssue(id, T0, cutoff(T0), false)).toBe(true);
+      expect(await subjects.recoveryIssuedAt(id)).toEqual(T0);
+    });
+  });
+
+  it('refuses a second claim inside the hour and leaves the marker alone', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      const id = await seedSubject(tx, tenantId);
+      const subjects = subjectRepository(tx);
+      await subjects.claimRecoveryIssue(id, T0, cutoff(T0), false);
+      const later = new Date(T0.getTime() + HOUR - 1);
+      expect(await subjects.claimRecoveryIssue(id, later, cutoff(later), false)).toBe(false);
+      expect(await subjects.recoveryIssuedAt(id)).toEqual(T0);
+    });
+  });
+
+  it('claims again an hour on, and inside the hour when the set is used up', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      const id = await seedSubject(tx, tenantId);
+      const subjects = subjectRepository(tx);
+      await subjects.claimRecoveryIssue(id, T0, cutoff(T0), false);
+      const soon = new Date(T0.getTime() + 1000);
+      expect(await subjects.claimRecoveryIssue(id, soon, cutoff(soon), true)).toBe(true);
+      const later = new Date(soon.getTime() + HOUR);
+      expect(await subjects.claimRecoveryIssue(id, later, cutoff(later), false)).toBe(true);
+      expect(await subjects.recoveryIssuedAt(id)).toEqual(later);
+    });
+  });
+
+  it('claims nothing of another tenant’s subject and reads no time for it', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const id = await seedSubject(tx, tenantId);
+        await subjectRepository(tx).claimRecoveryIssue(id, T0, cutoff(T0), false);
+        return id;
+      },
+      verifySeeded: async (tx, id) => {
+        expect(await subjectRepository(tx).recoveryIssuedAt(id)).toEqual(T0);
+      },
+      attempt: async (tx, id) => ({
+        read: await subjectRepository(tx).recoveryIssuedAt(id),
+        claimed: await subjectRepository(tx).claimRecoveryIssue(id, T0, cutoff(T0), true),
+      }),
+      expectBlocked: (result) => {
+        expect(result).toEqual({ read: null, claimed: false });
+      },
+    });
+  });
+});
+
 describe('loginFailureRepository', () => {
   const POLICY = {
     maxFailures: 3,

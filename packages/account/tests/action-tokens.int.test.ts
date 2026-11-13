@@ -343,6 +343,7 @@ describe('describe', () => {
         expect(await actionTokenRepository(tx).describe(seeded.token)).toEqual({
           type: 'reset_password',
           authenticationSessionId: SIGN_IN,
+          returnTo: null,
         });
       },
       attempt: async (tx, seeded) => actionTokenRepository(tx).describe(seeded.token),
@@ -356,6 +357,133 @@ describe('describe', () => {
       },
     });
   });
+});
+
+describe('lookup', () => {
+  it('reads a link whatever became of it, with the address and the client it named', async () => {
+    const returnTo = { clientId: newId(), uri: 'https://app.example/cb' };
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
+      actionTokenRepository(tx).issue({
+        tenantId,
+        subjectId: subject,
+        type: 'verify_email',
+        email: 'ada@example.test',
+        returnTo,
+        ttlSeconds: TEST_TTL_SECONDS,
+      }),
+    );
+    await withTenant(app.db, tenantId, (tx) =>
+      actionTokenRepository(tx).consume(token, 'verify_email'),
+    );
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      actionTokenRepository(tx).lookup(token),
+    );
+    expect(found).toMatchObject({ email: 'ada@example.test', returnTo, type: 'verify_email' });
+    expect(found?.consumedAt).not.toBeNull();
+    expect(
+      await withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).lookup('nothing')),
+    ).toBeNull();
+  });
+
+  it('cannot see a token minted in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seedTenantId) => {
+        await seedTenant(tx, seedTenantId);
+        const seededSubject = await insertSubject(tx, seedTenantId);
+        const { token } = await actionTokenRepository(tx).issue({
+          tenantId: seedTenantId,
+          subjectId: seededSubject,
+          type: 'verify_email',
+          email: 'ada@example.test',
+          ttlSeconds: TEST_TTL_SECONDS,
+        });
+        return { token, subjectId: seededSubject };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await actionTokenRepository(tx).lookup(seeded.token)).toMatchObject({
+          subjectId: seeded.subjectId,
+        });
+      },
+      attempt: async (tx, seeded) => actionTokenRepository(tx).lookup(seeded.token),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        expect(await actionTokenRepository(tx).lookup(seeded.token)).not.toBeNull();
+      },
+    });
+  });
+});
+
+describe('the client a link returns to', () => {
+  const CLIENT = newId();
+  const URI = 'https://app.example/after';
+  const returning = (type: ActionTokenType = 'reset_password') =>
+    issue({
+      subjectId: subject,
+      type,
+      returnTo: { clientId: CLIENT, uri: URI },
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+
+  it('is read back by peek, describe and consume, and is null on a link that names none', async () => {
+    const named = await returning();
+    const bare = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    const read = (token: string) =>
+      withTenant(app.db, tenantId, async (tx) => ({
+        peeked: (await actionTokenRepository(tx).peek(token))?.returnTo,
+        described: (await actionTokenRepository(tx).describe(token))?.returnTo,
+      }));
+
+    expect(await read(named.token)).toEqual({
+      peeked: { clientId: CLIENT, uri: URI },
+      described: { clientId: CLIENT, uri: URI },
+    });
+    expect(await read(bare.token)).toEqual({ peeked: null, described: null });
+    expect((await consume(named.token, 'reset_password'))?.returnTo).toEqual({
+      clientId: CLIENT,
+      uri: URI,
+    });
+    expect((await describeAfter(named.token))?.returnTo).toEqual({ clientId: CLIENT, uri: URI });
+  });
+
+  it('cannot be read through another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seedTenantId) => {
+        await seedTenant(tx, seedTenantId);
+        const seededSubject = await insertSubject(tx, seedTenantId);
+        const { token } = await actionTokenRepository(tx).issue({
+          tenantId: seedTenantId,
+          subjectId: seededSubject,
+          type: 'verify_email',
+          returnTo: { clientId: CLIENT, uri: URI },
+          ttlSeconds: TEST_TTL_SECONDS,
+        });
+        return { token };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect((await actionTokenRepository(tx).peek(seeded.token))?.returnTo).toEqual({
+          clientId: CLIENT,
+          uri: URI,
+        });
+      },
+      attempt: async (tx, seeded) => actionTokenRepository(tx).peek(seeded.token),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        expect((await actionTokenRepository(tx).peek(seeded.token))?.returnTo).not.toBeNull();
+      },
+    });
+  });
+
+  const describeAfter = (token: string) =>
+    withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).describe(token));
 });
 
 describe('invalidateOutstanding', () => {
@@ -586,5 +714,48 @@ describe('lifetimeOf', () => {
         expect(result).toBe('refused');
       },
     });
+  });
+});
+
+describe('a link for a disabled subject', () => {
+  async function disable(): Promise<void> {
+    await withTenant(app.db, tenantId, (tx) =>
+      tx.execute(sql`update subjects set disabled_at = now() where id = ${subject}`),
+    );
+  }
+
+  it('is refused by consume and left unspent, as an expired link is', async () => {
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'reset_password',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    await disable();
+    await expect(consume(token, 'reset_password')).resolves.toBeNull();
+    const rows = await rawSelectAllActionTokens();
+    expect(rows.every((row) => row.consumedAt === null)).toBe(true);
+  });
+
+  it('is not shown by peek', async () => {
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'verify_email',
+      email: 'ada@example.test',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    await disable();
+    await expect(
+      withTenant(app.db, tenantId, (tx) => actionTokenRepository(tx).peek(token)),
+    ).resolves.toBeNull();
+  });
+
+  it('is still honoured for a subject that is enabled', async () => {
+    const { token } = await issue({
+      subjectId: subject,
+      type: 'verify_email',
+      email: 'ada@example.test',
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    await expect(consume(token, 'verify_email')).resolves.toMatchObject({ subjectId: subject });
   });
 });

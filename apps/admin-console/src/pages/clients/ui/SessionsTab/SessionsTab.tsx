@@ -10,6 +10,7 @@ import { Button } from '#/shared/ui/Button';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { Count } from '#/shared/ui/Count';
 import { DataTable, type Column } from '#/shared/ui/DataTable';
+import { DeviceCell } from '#/shared/ui/DeviceCell';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { ListGate } from '#/shared/ui/ListGate';
 import { Pager } from '#/shared/ui/Pager';
@@ -21,6 +22,7 @@ import { recordTab } from '#/shared/ui/RecordTab';
 
 function columnsOf(
   subjectLabel: (session: ClientSession) => string,
+  deviceCaption: (device: string | null) => string | null,
 ): readonly Column<ClientSession>[] {
   return [
     {
@@ -28,6 +30,14 @@ function columnsOf(
       header: 'Subject',
       isRowHeader: true,
       cell: (session) => <code>{subjectLabel(session)}</code>,
+    },
+    {
+      id: 'device',
+      header: 'Device',
+      secondary: true,
+      cell: (session) => (
+        <DeviceCell device={session.device} caption={deviceCaption(session.device)} />
+      ),
     },
     {
       id: 'created_at',
@@ -52,7 +62,7 @@ function columnsOf(
 
 function List({ client, page }: { client: Client; page: ClientSessions }) {
   const { list } = page;
-  const columns = columnsOf(page.subjectLabel);
+  const columns = columnsOf(page.subjectLabel, page.deviceCaption);
   return (
     <>
       {list.count === null ? null : (
