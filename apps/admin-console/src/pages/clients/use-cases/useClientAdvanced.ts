@@ -51,7 +51,12 @@ import {
   encryptsUserinfo,
 } from '#/pages/clients/services/userinfoResponse';
 import { choiceOf } from '#/pages/clients/services/choices';
-import { flowChoices, FLOW_LABEL, FLOW_RULE } from '#/pages/clients/services/clientFlow';
+import {
+  flowChoices,
+  flowsReadProblem,
+  FLOW_LABEL,
+  FLOW_RULE,
+} from '#/pages/clients/services/clientFlow';
 import { CLIENT_LIST_LIMIT, listCount } from '#/pages/clients/services/listEntries';
 import {
   useClientSection,
@@ -110,6 +115,9 @@ export interface ClientAdvanced {
   flowLabel: string;
   flowRule: string;
   flowOptions: Choice[];
+  // Why the choice is short, when the flows could not be read.
+  flowsProblem: string | null;
+  retryFlows: () => void;
 }
 
 export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
@@ -272,5 +280,7 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     flowLabel: FLOW_LABEL,
     flowRule: FLOW_RULE,
     flowOptions: flowChoices(flows.data?.items, client.flow_id),
+    flowsProblem: flowsReadProblem(flows.status, flows.failure),
+    retryFlows: flows.retry,
   };
 }

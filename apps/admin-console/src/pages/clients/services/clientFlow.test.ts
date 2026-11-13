@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AUTO } from '#/pages/clients/services/choices';
 import {
   flowChoices,
+  flowsReadProblem,
   FLOW_LABEL,
   FLOW_RULE,
   TENANT_DEFAULT,
@@ -38,5 +39,26 @@ describe('the words', () => {
   it('name the setting and say what the tenant default is', () => {
     expect(FLOW_LABEL).toBe('Sign-in flow');
     expect(FLOW_RULE).toMatch(/Tenant default/u);
+  });
+});
+
+describe('flowsReadProblem', () => {
+  const failed = (status: number) =>
+    ({
+      ok: false,
+      kind: 'problem',
+      problem: { status, type: 'about:blank', title: 'T' },
+    }) as const;
+
+  it('says nothing while the list loads, is read, or is refused to a holder without manage-tenant', () => {
+    expect(flowsReadProblem('loading', null)).toBeNull();
+    expect(flowsReadProblem('ready', null)).toBeNull();
+    expect(flowsReadProblem('failed', failed(403))).toBeNull();
+  });
+
+  it('says a failed read left only two choices, for any other failure', () => {
+    for (const failure of [failed(500), { ok: false, kind: 'network' } as const, null]) {
+      expect(flowsReadProblem('failed', failure)).toMatch(/could not be loaded.*Tenant default/u);
+    }
   });
 });

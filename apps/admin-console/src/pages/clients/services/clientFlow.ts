@@ -1,5 +1,7 @@
 import { AUTO } from '#/pages/clients/services/choices';
 import type { FlowListItemWire } from '#/entities/flow';
+import { isRefused } from '#/shared/lib/services/failure';
+import type { GatewayFailure } from '#/shared/api/transport/gateway';
 import type { Choice } from '#/shared/lib/services/choice';
 
 export const FLOW_LABEL = 'Sign-in flow';
@@ -26,4 +28,12 @@ export function flowChoices(
       ? [{ id: current, label: current }]
       : [];
   return [{ id: AUTO, label: TENANT_DEFAULT }, ...listed, ...unread];
+}
+
+// A read that failed leaves the choice at two entries. A refusal is the expected
+// answer to a holder of manage-clients without manage-tenant, so it says nothing.
+export function flowsReadProblem(status: string, failure: GatewayFailure | null): string | null {
+  if (status !== 'failed') return null;
+  if (failure !== null && isRefused(failure)) return null;
+  return `The flows could not be loaded, so only ${TENANT_DEFAULT} and the flow this client names are offered.`;
 }

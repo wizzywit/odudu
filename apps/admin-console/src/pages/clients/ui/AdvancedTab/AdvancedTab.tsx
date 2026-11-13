@@ -288,6 +288,12 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
               flow.edit('flow_id', value);
             }}
           />
+          {page.flowsProblem === null ? null : (
+            <>
+              <Problem>{page.flowsProblem}</Problem>
+              <Button onPress={page.retryFlows}>Try again</Button>
+            </>
+          )}
         </SaveSection>
       </ReadOnlyFields>
       {secret.fixed !== null ? (

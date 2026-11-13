@@ -1026,7 +1026,7 @@ null`, which the query-plan check's foreign-key rule accepts as a probe of the k
   one. A single sign-on session is reused for a client only when it satisfies that client's flow, so a session made under a flow that
   asks for less is not reused for a client whose flow asks for more (tested), and one is reused for the client whose flow it satisfied.
 - **Console.** A **Sign-in flow** section on the client's Advanced tab (**Tenant default**, then each flow of the tenant, the current
-  default marked); the flows list has a **Clients** column and the delete dialog says how many clients use the flow, and the refusal is
+  default marked); the flows list has a **Clients** column (clients that name the flow; one left on Tenant default is counted for none) and the delete dialog says how many clients use the flow, and the refusal is
   worded in a pure service with the count the list showed. The flows list read (`readFlows`, `useFlowsRecord`, the record names) moved
   to `entities/flow`, which both pages now read. A person without `manage-tenant` cannot read the flows, so the section then offers
   only **Tenant default** and the flow the client already runs.

@@ -5,6 +5,7 @@ import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { BILLING, C, clientRoutes } from '#/testing/clientsFixtures';
 import { json, problem } from '#/testing/fakeTransport';
 import { STAFF_FLOW_ID } from '#/testing/flowFixtures';
+import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
 
@@ -238,6 +239,37 @@ it("shows the server's refusal of a flow under the choice, in its words", async 
   await user.click(await screen.findByRole('option', { name: 'staff' }));
   await user.click(within(section).getByRole('button', { name: 'Save Sign-in flow' }));
   expect(await within(section).findByText(reason)).toBeVisible();
+});
+
+it('says the flows could not be read, offers a retry, and says nothing when the read is refused', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    clientRoutes(undefined, { [`GET ${ACME_ADMIN}/flows`]: problem(500) }),
+  );
+  await open();
+  const section = screen.getByRole('region', { name: 'Sign-in flow' });
+  expect(await within(section).findByText(/The flows could not be loaded/u)).toBeVisible();
+  const before = sent.filter((s) => s.path.endsWith('/flows')).length;
+  await user.click(within(section).getByRole('button', { name: 'Try again' }));
+  await waitFor(() => {
+    expect(sent.filter((s) => s.path.endsWith('/flows')).length).toBeGreaterThan(before);
+  });
+});
+
+it('says nothing of the flows when their read is refused', async () => {
+  renderConsoleAt(
+    AT,
+    clientRoutes(undefined, {
+      [`GET ${ACME_ADMIN}/flows`]: problem(403, 'about:blank', 'Forbidden'),
+    }),
+  );
+  await open();
+  const section = screen.getByRole('region', { name: 'Sign-in flow' });
+  await waitFor(() => {
+    expect(within(section).queryByText(/could not be loaded/u)).toBeNull();
+  });
+  expect(within(section).queryByRole('button', { name: 'Try again' })).toBeNull();
 });
 
 it('publishes a key set pasted here, and clears the address with it', async () => {
