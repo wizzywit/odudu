@@ -1,7 +1,7 @@
 import { AUTO } from '#/pages/clients/services/choices';
 import type { FlowListItemWire } from '#/entities/flow';
 import { isRefused } from '#/shared/lib/services/failure';
-import type { GatewayFailure } from '#/shared/api/transport/gateway';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import type { Choice } from '#/shared/lib/services/choice';
 
 export const FLOW_LABEL = 'Sign-in flow';
