@@ -24,7 +24,7 @@ and a `requirement`, and a flow's meaning is in its order, so it is always writt
   stops being it. It needs the flow's own `ETag` in `If-Match`, answers the flow, and for the flow that already is
   the default changes and records nothing. A sign-in already under way records only which authenticators it has
   satisfied, so it takes its next step from the flow that is the default then.
-- `DELETE /flows/{id}` removes a flow and answers `204`. It refuses the default flow, so another flow is made the
+- `DELETE /flows/{id}` removes a flow and answers `204`. It needs the flow's own `ETag` in `If-Match`, and refuses the default flow, so another flow is made the
   default first.
 
 `GET /flow/executions` and `PUT /flow/executions` are the default flow's steps, with an `index` per step, and
