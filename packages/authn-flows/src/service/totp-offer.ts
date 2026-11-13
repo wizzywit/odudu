@@ -10,6 +10,8 @@ const offerSchema = z.strictObject({
   period: z.number().int(),
 });
 
+export const TOTP_OFFERS_HELD = 3;
+
 export type TotpOffer = z.infer<typeof offerSchema>;
 export type TotpOfferedParameters = Omit<TotpOffer, 'secretDigest'>;
 
@@ -19,15 +21,17 @@ export function totpOfferOf(secret: string, parameters: TotpOfferedParameters): 
   return { secretDigest: createHash('sha256').update(secret).digest('hex'), ...parameters };
 }
 
-// The parameters the page offered for this secret, or null for a secret it
-// did not offer: the caller then judges the code by the policy now in force,
-// never by anything the browser posted.
+// The parameters a page offered for this secret, among the few offers held, or
+// null for a secret none offered: the caller then judges the code by the
+// policy now in force, never by anything the browser posted.
 export function offeredTotp(
   record: AuthenticationSessionRecord | null,
   secret: string,
 ): TotpOfferedParameters | null {
-  const parsed = offerSchema.safeParse(record?.pendingRequest.totpOffer);
+  const parsed = z.array(offerSchema).safeParse(record?.pendingRequest.totpOffers);
   if (!parsed.success) return null;
-  const { secretDigest, ...parameters } = parsed.data;
-  return secretDigest === totpOfferOf(secret, parameters).secretDigest ? parameters : null;
+  const digest = totpOfferOf(secret, { algorithm: 'SHA1', digits: 0, period: 0 }).secretDigest;
+  const found = parsed.data.find((offer) => offer.secretDigest === digest);
+  if (found === undefined) return null;
+  return { algorithm: found.algorithm, digits: found.digits, period: found.period };
 }

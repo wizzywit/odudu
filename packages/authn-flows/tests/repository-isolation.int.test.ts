@@ -333,18 +333,18 @@ describe('authenticationSessionRepository', () => {
       },
       verifySeeded: async (tx, id) => {
         const found = await authenticationSessionRepository(tx).byId(id);
-        expect(found?.pendingRequest.totpOffer).toBeUndefined();
+        expect(found?.pendingRequest.totpOffers).toBeUndefined();
       },
       attempt: async (tx, id) => {
         await authenticationSessionRepository(tx).recordTotpOffer(id, { digits: 8 });
-        return (await authenticationSessionRepository(tx).byId(id))?.pendingRequest.totpOffer;
+        return (await authenticationSessionRepository(tx).byId(id))?.pendingRequest.totpOffers;
       },
       expectBlocked: (result) => {
         expect(result).toBeUndefined();
       },
       verifyTenantAUnaffected: async (tx, id) => {
         const found = await authenticationSessionRepository(tx).byId(id);
-        expect(found?.pendingRequest.totpOffer).toBeUndefined();
+        expect(found?.pendingRequest.totpOffers).toBeUndefined();
       },
     });
   });

@@ -25,6 +25,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { flowRepository } from '#/repository/flows';
+import { offeredTotp } from '#/service/totp-offer';
 import { type PendingRequest } from '#/schema/authentication-sessions';
 import { type FlowStep } from '#/schema/flow';
 import { advance, startAuthentication } from '#/usecase/executor';
@@ -255,6 +256,94 @@ describe('TOTP enrolment under the flow in force', () => {
       credentialRepository(tx).listFor(s.subjectId, 'totp'),
     );
     expect(row?.secret).toMatchObject({ digits: 6, algorithm: 'SHA1', period: 30 });
+  });
+
+  it('confirms the first of two open pages after the second began', async () => {
+    const s = await seed();
+    const clock = new FakeClock(new Date(Date.UTC(2033, 0, 1)));
+    const authSessionId = await startBound(s);
+    const begin = () =>
+      withTenant(app.db, s.tenantId, (tx) =>
+        beginTotpEnrolment(tx, s.tenantId, 'tenant', s.subjectId, authSessionId),
+      );
+    const first = await begin();
+    await withTenant(app.db, s.tenantId, (tx) =>
+      flowRepository(tx).replaceDefaultSteps(s.tenantId, [
+        { authenticator: 'password', requirement: 'required' },
+        { authenticator: 'otp', requirement: 'required', settings: { digits: 8 } },
+      ]),
+    );
+    const second = await begin();
+    expect(second.parameters?.digits).toBe(8);
+    const outcome = await withTenant(app.db, s.tenantId, (tx) =>
+      completeTotpEnrolment(
+        tx,
+        {
+          tenantId: s.tenantId,
+          subjectId: s.subjectId,
+          secret: first.secret,
+          code: totpCode(first.secret, totpCounter(clock.now(), 30), 6, 'SHA-1'),
+          authSessionId,
+        },
+        clock,
+      ),
+    );
+    expect(outcome).toEqual({ kind: 'enrolled' });
+  });
+
+  it('holds the offers of the latest three pages only', async () => {
+    const s = await seed();
+    const authSessionId = await startBound(s);
+    const secrets: string[] = [];
+    for (let page = 0; page < 4; page += 1) {
+      const offer = await withTenant(app.db, s.tenantId, (tx) =>
+        beginTotpEnrolment(tx, s.tenantId, 'tenant', s.subjectId, authSessionId),
+      );
+      secrets.push(offer.secret);
+    }
+    const record = await withTenant(app.db, s.tenantId, (tx) =>
+      authenticationSessionRepository(tx).byId(authSessionId),
+    );
+    expect(secrets.map((secret) => offeredTotp(record, secret) !== null)).toEqual([
+      false,
+      true,
+      true,
+      true,
+    ]);
+  });
+
+  it('forgets the offers once one confirms, so the same secret is then judged by the policy', async () => {
+    const s = await seed();
+    const clock = new FakeClock(new Date(Date.UTC(2033, 0, 1)));
+    const authSessionId = await startBound(s);
+    const offer = await withTenant(app.db, s.tenantId, (tx) =>
+      beginTotpEnrolment(tx, s.tenantId, 'tenant', s.subjectId, authSessionId),
+    );
+    const confirm = (replace: boolean, digits: number) =>
+      withTenant(app.db, s.tenantId, (tx) =>
+        completeTotpEnrolment(
+          tx,
+          {
+            tenantId: s.tenantId,
+            subjectId: s.subjectId,
+            secret: offer.secret,
+            code: totpCode(offer.secret, totpCounter(clock.now(), 30), digits, 'SHA-1'),
+            authSessionId,
+            ...(replace ? { replace: true } : {}),
+          },
+          clock,
+        ),
+      );
+    expect(await confirm(false, 6)).toEqual({ kind: 'enrolled' });
+    await withTenant(app.db, s.tenantId, (tx) =>
+      flowRepository(tx).replaceDefaultSteps(s.tenantId, [
+        { authenticator: 'password', requirement: 'required' },
+        { authenticator: 'otp', requirement: 'required', settings: { digits: 8 } },
+      ]),
+    );
+    clock.advance(60_000);
+    expect(await confirm(true, 6)).toEqual({ kind: 'rejected', reason: 'invalid_code' });
+    expect(await confirm(true, 8)).toEqual({ kind: 'enrolled' });
   });
 
   it('ignores a secret no page offered and judges its code by the current policy', async () => {

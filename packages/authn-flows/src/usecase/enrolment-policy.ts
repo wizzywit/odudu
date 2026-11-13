@@ -51,3 +51,10 @@ export async function confirmedTotpParameters(
   );
   return offered ?? (await enrolmentPolicy(tx, tenantId, authSessionId)).totp;
 }
+
+export async function forgetTotpOffers(
+  tx: TenantScopedDatabase,
+  authSessionId: string,
+): Promise<void> {
+  await authenticationSessionRepository(tx).clearTotpOffers(authSessionId);
+}

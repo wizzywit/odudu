@@ -9,6 +9,7 @@ import { requiredActionRepository } from '#/repository/required-actions';
 import {
   confirmedTotpParameters,
   enrolmentPolicy,
+  forgetTotpOffers,
   rememberTotpOffer,
 } from '#/usecase/enrolment-policy';
 import { noticeOwnChange } from '#/usecase/own-change-notice';
@@ -110,6 +111,7 @@ export async function completeTotpEnrolment(
     secret: { ...made, lastStep: verified.step },
   });
   await authenticationSessionRepository(tx).recordSatisfied(input.authSessionId, OTP);
+  await forgetTotpOffers(tx, input.authSessionId);
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-totp');
   const notice = await noticeOwnChange(
     tx,

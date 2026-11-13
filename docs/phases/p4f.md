@@ -472,7 +472,7 @@ default a step inherits. A tenant that never configures a step behaves as it did
   tenant settings' own choices and range: the tuples and `RECOVERY_CODE_COUNT_RANGE` in `packages/contracts/src/admin/settings.ts`
   now feed `TENANT_SETTING_CHOICES`, `TENANT_SETTING_RANGES` and the step schema alike. `settingKeysOf` (`admin/flow.ts`, safe against inherited names) says which keys an authenticator reads, for the schema, the admin validation and the console.
   The jsonb needs no migration; a step with no `settings` is stored and answered as before.
-- **Offer.** The TOTP page parks its offered parameters, with a digest of the secret, in the sign-in's `pendingRequest.totpOffer`; the
+- **Offer.** The TOTP page parks its offered parameters, with a digest of the secret, in the sign-in's `pendingRequest.totpOffers` (the latest three pages, cleared when one confirms); the
   confirming code is judged by them and they are stored on the credential, so a flow or tenant save between page and code strands
   nobody. A secret the page did not offer is judged by the policy now in force; nothing the browser posts chooses a parameter.
 - **Resolution.** `effectiveAuthenticatorPolicy(tenant, steps)` is a pure function in `packages/authn-flows/src/service/step-settings.ts`.
