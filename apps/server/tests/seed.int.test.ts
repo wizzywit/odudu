@@ -2077,10 +2077,11 @@ describe('seed client --flow', () => {
   it('refuses a name the tenant has no flow of, writing nothing', async () => {
     const tenant = await tenantWithFlow();
     const before = await countClients(tenant.id);
-    await expect(client(tenant.name, 'lost', '--flow', 'nonesuch')).rejects.toMatchObject({
-      code: 'seed_not_found',
-      message: expect.stringContaining('nonesuch'),
-    });
+    const refused = await client(tenant.name, 'lost', '--flow', 'nonesuch').catch(
+      (error: unknown) => error,
+    );
+    expect(refused).toMatchObject({ code: 'seed_not_found' });
+    expect(refused instanceof Error ? refused.message : '').toContain('nonesuch');
     expect(await countClients(tenant.id)).toBe(before);
   });
 
