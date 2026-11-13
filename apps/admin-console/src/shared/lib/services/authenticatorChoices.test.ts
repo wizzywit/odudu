@@ -3,7 +3,7 @@ import {
   authenticatorChoiceLabel,
   authenticatorChoices,
   authenticatorOptions,
-} from '#/entities/tenant/services/authenticatorChoices';
+} from '#/shared/lib/services/authenticatorChoices';
 
 describe('authenticator choices', () => {
   it('words each setting’s values', () => {

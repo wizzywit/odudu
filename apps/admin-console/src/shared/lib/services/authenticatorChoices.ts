@@ -7,7 +7,7 @@ const COUNTS = Array.from(
   (_, at) => RECOVERY_CODE_COUNT_RANGE.min + at,
 );
 
-// What a tenant's authenticator setting may be set to: its choices, or for the
+// What an authenticator setting may be set to: its choices, or for the
 // recovery set size every count in its range.
 export function authenticatorChoices(setting: string): readonly AuthenticatorChoice[] {
   return setting === 'recovery_code_count' ? COUNTS : (TENANT_SETTING_CHOICES[setting] ?? []);

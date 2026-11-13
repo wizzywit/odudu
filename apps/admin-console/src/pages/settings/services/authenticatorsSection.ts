@@ -1,4 +1,4 @@
-import { authenticatorOptions } from '#/entities/tenant';
+import { authenticatorOptions } from '#/shared/lib/services/authenticatorChoices';
 import type { SettingsSection } from '#/pages/settings/services/sectionTypes';
 
 export const AUTHENTICATORS_SECTION = 'authenticators';
