@@ -81,6 +81,10 @@ export interface ActionValues extends Values {
   allowed_actions: readonly string[];
 }
 
+export interface FlowValues extends Values {
+  flow_id: string;
+}
+
 // The sections of Tokens, Logout and Advanced, each a PATCH of its own fields.
 export function useClientConfigSaves(tenant: string, id: string) {
   const amend = useAmendClient(tenant, id);
@@ -143,6 +147,8 @@ export function useClientConfigSaves(tenant: string, id: string) {
       amend(gateway, { audiences: values.audiences }, ifMatch),
     actions: (gateway: Gateway, { values, ifMatch }: SaveInput<ActionValues>) =>
       amend(gateway, { allowed_actions: values.allowed_actions }, ifMatch),
+    flow: (gateway: Gateway, { values, ifMatch }: SaveInput<FlowValues>) =>
+      amend(gateway, { flow_id: sentOf(values.flow_id) }, ifMatch),
     exchange: (gateway: Gateway, { values, ifMatch }: SaveInput<ExchangeValues>) =>
       amend(
         gateway,

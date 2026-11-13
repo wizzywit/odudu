@@ -1,6 +1,7 @@
 import type { FlowWire } from '#/pages/flow/types/flows';
 import { useRefusal } from '#/entities/session';
-import { flowRecordName, explainFlowSave } from '#/pages/flow/services/flows';
+import { flowRecordName } from '#/entities/flow';
+import { explainFlowSave } from '#/pages/flow/services/flows';
 import { useFlowSave, type FlowValues } from '#/pages/flow/repository/useFlows';
 import { flowOutcome } from '#/pages/flow/services/refusal';
 import { describeSteps, flowStepsOf } from '#/pages/flow/services/steps';

@@ -1,10 +1,14 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { asc, eq, gt, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gt, isNotNull, sql } from 'drizzle-orm';
+import { clients } from '@odudu/domain-tenant';
 import { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { clientOrigins } from '#/schema/client-origins';
 import { expandWebOrigins } from '#/service/web-origin';
 
 export type { ClientOidcConfig } from '#/schema/client-oidc-config';
+
+// The most client ids a refusal names; the count says how many there are.
+const FLOW_USAGE_SAMPLE = 10;
 
 function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
   return {
@@ -44,6 +48,7 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     defaultMaxAge: row.defaultMaxAge,
     requireAuthTime: row.requireAuthTime,
     allowedActions: row.allowedActions,
+    flowId: row.flowId,
   };
 }
 
@@ -80,6 +85,7 @@ export type NewClientOidcConfig = Omit<
   | 'defaultMaxAge'
   | 'requireAuthTime'
   | 'allowedActions'
+  | 'flowId'
 > & {
   idTokenTtlSeconds?: number | null;
   clientCredentialsScopes?: string[];
@@ -106,6 +112,7 @@ export type NewClientOidcConfig = Omit<
   defaultMaxAge?: number | null;
   requireAuthTime?: boolean;
   allowedActions?: ClientOidcConfig['allowedActions'];
+  flowId?: string | null;
 };
 
 // The origins a client allows, rewritten from its lists as the server compares
@@ -144,6 +151,41 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
         .orderBy(asc(clientOidcConfig.clientId))
         .limit(limit);
       return rows.map(toRecord);
+    },
+
+    // The clients that name a flow: how many, and the first few by client_id
+    // for a message, served by the (tenant_id, flow_id) index.
+    async namingFlow(
+      tenantId: string,
+      flowId: string,
+    ): Promise<{ count: number; sample: string[] }> {
+      const named = and(
+        eq(clientOidcConfig.tenantId, tenantId),
+        eq(clientOidcConfig.flowId, flowId),
+      );
+      const [counted] = await tx.select({ n: count() }).from(clientOidcConfig).where(named);
+      const rows = await tx
+        .select({ clientId: clients.clientId })
+        .from(clientOidcConfig)
+        .innerJoin(clients, eq(clients.id, clientOidcConfig.clientId))
+        .where(named)
+        .orderBy(asc(clients.clientId))
+        .limit(FLOW_USAGE_SAMPLE);
+      return { count: counted?.n ?? 0, sample: rows.map((row) => row.clientId) };
+    },
+
+    // How many clients name each flow of the tenant: one grouped read over
+    // the index, which holds only clients that name one, and at most one group
+    // per flow, so at most the per-tenant flow cap.
+    async flowUsage(tenantId: string): Promise<Map<string, number>> {
+      const rows = await tx
+        .select({ flowId: clientOidcConfig.flowId, n: count() })
+        .from(clientOidcConfig)
+        .where(and(eq(clientOidcConfig.tenantId, tenantId), isNotNull(clientOidcConfig.flowId)))
+        .groupBy(clientOidcConfig.flowId);
+      const usage = new Map<string, number>();
+      for (const row of rows) if (row.flowId !== null) usage.set(row.flowId, row.n);
+      return usage;
     },
 
     // Writes the client's origins again from the lists it holds.
@@ -188,6 +230,7 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
           defaultMaxAge: input.defaultMaxAge ?? null,
           requireAuthTime: input.requireAuthTime ?? false,
           allowedActions: input.allowedActions ?? [],
+          flowId: input.flowId ?? null,
         })
         .returning();
       const row = rows[0];

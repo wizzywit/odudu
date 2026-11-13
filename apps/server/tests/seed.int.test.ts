@@ -1,6 +1,6 @@
 import { actionTokens } from '@odudu/account';
 import { CLIENT_LIST_LIMIT, listLimitProblem } from '@odudu/contracts/admin';
-import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
+import { flowRepository, provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
 import { generateSigningKey, signingKeyRepository, signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
@@ -2026,5 +2026,75 @@ describe('seed client --allow-action', () => {
       'configure-totp',
       'update-password',
     ]);
+  });
+});
+
+describe('seed client --flow', () => {
+  async function flowOf(tenantId: string, oauthClientId: string): Promise<string | null> {
+    return withTenant(owner.db, tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(oauthClientId);
+      if (client === null) throw new Error(`no client ${oauthClientId}`);
+      return (await clientOidcConfigRepository(tx).byClientId(client.id))?.flowId ?? null;
+    });
+  }
+
+  async function tenantWithFlow(): Promise<{ name: string; id: string; flowId: string }> {
+    const name = `flow-${newId()}`;
+    const made = await seed(['tenant', '--name', name]);
+    const flow = await withTenant(owner.db, made.tenantId, (tx) =>
+      flowRepository(tx).create(made.tenantId, 'staff', [
+        { authenticator: 'password', requirement: 'required' },
+      ]),
+    );
+    return { name, id: made.tenantId, flowId: flow.id };
+  }
+
+  const client = (tenant: string, clientId: string, ...extra: string[]) =>
+    seed([
+      'client',
+      '--tenant',
+      tenant,
+      '--client-id',
+      clientId,
+      '--public',
+      '--redirect-uri',
+      'https://app.example/callback',
+      ...extra,
+    ]);
+
+  it('follows the tenant default unless a flow is named', async () => {
+    const tenant = await tenantWithFlow();
+    await client(tenant.name, 'plain');
+    expect(await flowOf(tenant.id, 'plain')).toBeNull();
+  });
+
+  it('gives the client the flow of that name', async () => {
+    const tenant = await tenantWithFlow();
+    await client(tenant.name, 'staff-app', '--flow', 'staff');
+    expect(await flowOf(tenant.id, 'staff-app')).toBe(tenant.flowId);
+  });
+
+  it('refuses a name the tenant has no flow of, writing nothing', async () => {
+    const tenant = await tenantWithFlow();
+    const before = await countClients(tenant.id);
+    const refused = await client(tenant.name, 'lost', '--flow', 'nonesuch').catch(
+      (error: unknown) => error,
+    );
+    expect(refused).toMatchObject({ code: 'seed_not_found' });
+    expect(refused instanceof Error ? refused.message : '').toContain('nonesuch');
+    expect(await countClients(tenant.id)).toBe(before);
+  });
+
+  it('does not find a flow of another tenant', async () => {
+    const mine = await tenantWithFlow();
+    const theirs = await tenantWithFlow();
+    await withTenant(owner.db, theirs.id, (tx) =>
+      flowRepository(tx).create(theirs.id, 'theirs-only', [
+        { authenticator: 'password', requirement: 'required' },
+      ]),
+    );
+    await expect(client(mine.name, 'x', '--flow', 'theirs-only')).rejects.toMatchObject({
+      code: 'seed_not_found',
+    });
   });
 });

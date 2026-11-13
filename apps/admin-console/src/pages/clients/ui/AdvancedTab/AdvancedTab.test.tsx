@@ -4,6 +4,8 @@ import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { BILLING, C, clientRoutes } from '#/testing/clientsFixtures';
 import { json, problem } from '#/testing/fakeTransport';
+import { STAFF_FLOW_ID } from '#/testing/flowFixtures';
+import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
 
@@ -176,6 +178,98 @@ it("shows the server's refusal of an action under the choices, in its words", as
   await user.click(within(section).getByRole('checkbox', { name: /recovery codes/u }));
   await user.click(within(section).getByRole('button', { name: 'Save Application actions' }));
   expect(await within(section).findByText(reason)).toBeVisible();
+});
+
+it('offers the tenant default and the tenant’s flows, and saves the one chosen', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(AT, patching({ flow_id: STAFF_FLOW_ID }));
+  await open();
+  const section = screen.getByRole('region', { name: 'Sign-in flow' });
+  await user.click(within(section).getByRole('button', { name: /^(?!Save).*Sign-in flow/u }));
+  expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+    'Tenant default',
+    'default (the current default)',
+    'staff',
+  ]);
+  await user.click(screen.getByRole('option', { name: 'staff' }));
+  await user.click(within(section).getByRole('button', { name: 'Save Sign-in flow' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')).toMatchObject({
+      ifMatch: '"c-bill-1"',
+      body: { flow_id: STAFF_FLOW_ID },
+    });
+  });
+});
+
+it('sends null when a client goes back to the tenant default', async () => {
+  const user = userEvent.setup();
+  const named = { ...BILLING, flow_id: STAFF_FLOW_ID };
+  const { sent } = renderConsoleAt(
+    AT,
+    clientRoutes(undefined, {
+      [`GET ${C}/c-bill`]: json(named, 200, { etag: '"c-bill-1"' }),
+      [`PATCH ${C}/c-bill`]: json({ ...named, flow_id: null }, 200, { etag: '"b2"' }),
+    }),
+  );
+  await open();
+  const section = screen.getByRole('region', { name: 'Sign-in flow' });
+  await user.click(within(section).getByRole('button', { name: /^(?!Save).*Sign-in flow/u }));
+  await user.click(await screen.findByRole('option', { name: 'Tenant default' }));
+  await user.click(within(section).getByRole('button', { name: 'Save Sign-in flow' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ flow_id: null });
+  });
+});
+
+it("shows the server's refusal of a flow under the choice, in its words", async () => {
+  const user = userEvent.setup();
+  const reason = 'flow_id names no flow of this tenant';
+  renderConsoleAt(
+    AT,
+    clientRoutes(undefined, {
+      [`PATCH ${C}/c-bill`]: problem(400, 'about:blank', 'Bad Request', {
+        detail: reason,
+        errors: [{ path: 'flow_id', message: reason, code: 'unknown_flow' }],
+      }),
+    }),
+  );
+  await open();
+  const section = screen.getByRole('region', { name: 'Sign-in flow' });
+  await user.click(within(section).getByRole('button', { name: /^(?!Save).*Sign-in flow/u }));
+  await user.click(await screen.findByRole('option', { name: 'staff' }));
+  await user.click(within(section).getByRole('button', { name: 'Save Sign-in flow' }));
+  expect(await within(section).findByText(reason)).toBeVisible();
+});
+
+it('says the flows could not be read, offers a retry, and says nothing when the read is refused', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    clientRoutes(undefined, { [`GET ${ACME_ADMIN}/flows`]: problem(500) }),
+  );
+  await open();
+  const section = screen.getByRole('region', { name: 'Sign-in flow' });
+  expect(await within(section).findByText(/The flows could not be loaded/u)).toBeVisible();
+  const before = sent.filter((s) => s.path.endsWith('/flows')).length;
+  await user.click(within(section).getByRole('button', { name: 'Try again' }));
+  await waitFor(() => {
+    expect(sent.filter((s) => s.path.endsWith('/flows')).length).toBeGreaterThan(before);
+  });
+});
+
+it('says nothing of the flows when their read is refused', async () => {
+  renderConsoleAt(
+    AT,
+    clientRoutes(undefined, {
+      [`GET ${ACME_ADMIN}/flows`]: problem(403, 'about:blank', 'Forbidden'),
+    }),
+  );
+  await open();
+  const section = screen.getByRole('region', { name: 'Sign-in flow' });
+  await waitFor(() => {
+    expect(within(section).queryByText(/could not be loaded/u)).toBeNull();
+  });
+  expect(within(section).queryByRole('button', { name: 'Try again' })).toBeNull();
 });
 
 it('publishes a key set pasted here, and clears the address with it', async () => {

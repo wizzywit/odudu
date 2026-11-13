@@ -13,6 +13,7 @@ import { flowRepository } from '#/repository/flows';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
+import { type FlowStep } from '#/schema/flow';
 import { resolveFlow } from '#/service/flow';
 import { passkeyCheckedAgainst } from '#/service/passkey-switch';
 import { SessionEntry } from '#/service/session-entry';
@@ -559,6 +560,20 @@ function enrolmentOwed(facts: FlowFacts): boolean {
   return otpApplies(facts) && !facts.hasTotp;
 }
 
+// The steps of the flow a sign-in runs: the one it names, else the tenant's
+// default, read with one query either way. A flow that is not there, or a
+// tenant with no default, has nothing to run, so the sign-in fails as one
+// whose flow is empty does, and says nothing of why.
+async function flowSteps(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  flowId: string | null,
+): Promise<readonly FlowStep[]> {
+  const found = await flowRepository(tx).forSignIn(tenantId, flowId);
+  const resolved = resolveFlow(found === null ? [] : [found], flowId);
+  return resolved.kind === 'ok' ? resolved.flow.steps : [];
+}
+
 // Returns the facts alongside the steps rather than making the caller ask
 // for them again: deciding what a subject owes reads exactly what deciding
 // which step runs read, so it is the same two queries either way.
@@ -566,12 +581,9 @@ async function loadSteps(
   tx: TenantScopedDatabase,
   tenantId: string,
   request: FactsRequest,
+  flowId: string | null,
 ): Promise<{ steps: Step[]; facts: FlowFacts }> {
-  const fallback = await flowRepository(tx).defaultForTenant(tenantId);
-  const resolved = resolveFlow(fallback === null ? [] : [fallback], null);
-  // A tenant with no default flow has nothing to run, so the sign-in fails
-  // as one whose flow is empty does.
-  const executions = resolved.kind === 'ok' ? resolved.flow.steps : [];
+  const executions = await flowSteps(tx, tenantId, flowId);
   const facts = await flowFacts(tx, tenantId, request);
   // A tenant whose flow never had the recovery-code row — one provisioned
   // before it existed, or one that disabled it — has no recovery step for
@@ -733,12 +745,17 @@ async function loadFlowContext(
     return null;
   }
   const satisfied = new Set(record.satisfied);
-  const loaded = await loadSteps(tx, record.tenantId, {
-    subjectId: record.subjectId,
-    satisfied,
-    assertionOffered: assertionOffered(input),
-    recoveryCodeOffered: recoveryCodeOffered(input),
-  });
+  const loaded = await loadSteps(
+    tx,
+    record.tenantId,
+    {
+      subjectId: record.subjectId,
+      satisfied,
+      assertionOffered: assertionOffered(input),
+      recoveryCodeOffered: recoveryCodeOffered(input),
+    },
+    record.pendingRequest.flowId ?? null,
+  );
   return {
     record,
     steps: loaded.steps,
@@ -807,17 +824,23 @@ export async function initialChallenge(
   tx: TenantScopedDatabase,
   tenantId: string,
   clock: Clock = systemClock,
+  flowId: string | null = null,
 ): Promise<AuthenticatorResult> {
   // No subject yet, so no second factor can be applicable: which account a
   // code belongs to is not something /authorize could know before anybody
   // has said who they are. No assertion either — there is no attempt yet
   // for a challenge to have been offered against.
-  const { steps, facts } = await loadSteps(tx, tenantId, {
-    subjectId: null,
-    satisfied: new Set(),
-    assertionOffered: false,
-    recoveryCodeOffered: false,
-  });
+  const { steps, facts } = await loadSteps(
+    tx,
+    tenantId,
+    {
+      subjectId: null,
+      satisfied: new Set(),
+      assertionOffered: false,
+      recoveryCodeOffered: false,
+    },
+    flowId,
+  );
   const registry = bindRegistry(tx, {
     tenantId,
     subjectId: null,
@@ -1008,12 +1031,17 @@ export async function advance(
   // having seen it.
   const established = [authenticator, ...(result.also ?? [])];
   const updatedSatisfied = new Set([...satisfied, ...established]);
-  const { steps: stepsForSubject, facts } = await loadSteps(tx, record.tenantId, {
-    subjectId,
-    satisfied: updatedSatisfied,
-    assertionOffered: assertionOffered(input),
-    recoveryCodeOffered: recoveryCodeOffered(input),
-  });
+  const { steps: stepsForSubject, facts } = await loadSteps(
+    tx,
+    record.tenantId,
+    {
+      subjectId,
+      satisfied: updatedSatisfied,
+      assertionOffered: assertionOffered(input),
+      recoveryCodeOffered: recoveryCodeOffered(input),
+    },
+    record.pendingRequest.flowId ?? null,
+  );
   await recordOtpEnrolmentIfOwed(tx, record.tenantId, subjectId, facts);
   // Collected after the factor succeeded and before the required-action
   // gate reads what is owed, which is the whole of what keeps an aged-out
@@ -1138,7 +1166,15 @@ export async function authenticatedSession(
   if (record === null || !sessionIsLive(record, clock.now())) return null;
   if (record.authenticatedAt === null) return null;
   if (record.subjectId === null) return null;
-  if (!(await authenticatorsSatisfyFlow(tx, record.tenantId, record.subjectId, record.satisfied))) {
+  if (
+    !(await authenticatorsSatisfyFlow(
+      tx,
+      record.tenantId,
+      record.subjectId,
+      record.satisfied,
+      record.pendingRequest.flowId ?? null,
+    ))
+  ) {
     return null;
   }
   return { subjectId: record.subjectId, authenticators: record.satisfied };
@@ -1153,14 +1189,20 @@ export async function authenticatorsSatisfyFlow(
   tenantId: string,
   subjectId: string,
   authenticators: readonly string[],
+  flowId: string | null = null,
 ): Promise<boolean> {
   const satisfied = new Set(authenticators);
-  const { steps } = await loadSteps(tx, tenantId, {
-    subjectId,
-    satisfied,
-    assertionOffered: false,
-    recoveryCodeOffered: false,
-  });
+  const { steps } = await loadSteps(
+    tx,
+    tenantId,
+    {
+      subjectId,
+      satisfied,
+      assertionOffered: false,
+      recoveryCodeOffered: false,
+    },
+    flowId,
+  );
   return nextStep(steps, { satisfied }).kind === 'complete';
 }
 

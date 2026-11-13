@@ -99,6 +99,7 @@ export interface ClientChanges {
   default_max_age?: number | null;
   require_auth_time?: boolean;
   allowed_actions?: readonly string[];
+  flow_id?: string | null;
   frontchannel_logout_uri?: string;
   backchannel_logout_uri?: string;
   frontchannel_logout_session_required?: boolean;

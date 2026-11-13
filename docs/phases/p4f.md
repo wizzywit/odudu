@@ -987,3 +987,72 @@ default flow's steps. No client names a flow yet (13c), so no sign-in runs a flo
 
 - The client `flow_id` and refusing the deletion of a flow in use are 13c.
 - The per-step authenticator settings of 7c move onto steps in a following part.
+
+## Increment 13c: a client names the flow it runs
+
+### What shipped
+
+A client has a `flow_id`: one of the tenant's flows, or null, which every client starts with, to follow the tenant's default. The
+admin API creates, amends and reads it, the console's client page chooses it, `odudu seed client --flow <name>` sets it, and
+`/authorize` runs it: two clients of one tenant ask for different steps after the same password. A flow some client names is not
+deleted.
+
+### Rulings
+
+- **The column.** `client_oidc_config.flow_id uuid`, null by default, with the key `(tenant_id, flow_id)` into `flows (tenant_id, id)`
+  (the new `flows_tenant_id_id` unique constraint), so another tenant's flow is refused by the database whatever the application
+  checked; `client_oidc_config_flow_fk` is `ON DELETE RESTRICT` as briefed. Tenant deletion still works, tested: its clients, and
+  with them their configuration, cascade away before its flows do, in the order the foreign keys were created, which is a fact about
+  creation order and not a guarantee, so the test is what holds it. The index is partial, `(tenant_id, flow_id) where flow_id is not
+null`, which the query-plan check's foreign-key rule accepts as a probe of the key.
+- **The admin API.** `flow_id` is in the client's wire shape, so in its `ETag`, and in the audit allowlist by value. A body that is
+  not a flow id or null is `400` at `flow_id`; a flow the tenant does not have, another tenant's included, is `400` at `flow_id` with
+  the code `unknown_flow`, one answer for both so nothing says which tenant has an id. The check runs under the tenant's flow lock, the
+  lock a flow's deletion takes, so a client cannot be pointed at a flow that is being deleted and the deletion then counts it. On
+  the built-in admin client the field is guarded with the others.
+- **Deleting a flow in use.** `409` `flow-in-use`, decided by two bounded reads of the new index (a count, then at most ten
+  `client_id`s by name, the ones an operator knows a client by) inside the deletion's transaction under the same lock. `detail` says
+  how many and names the ten. The foreign key is the backstop for a write that skipped the lock: the route maps its violation to the same
+  `409`, tested by holding a client's update open on another connection while the deletion waits and then commits.
+- **`/authorize`.** The flow the client names is parked with the request (`PendingRequest.flowId`, in the `jsonb` the request is
+  already parked in, so there is no column on `authentication_sessions`). One value is read by every later step: the first challenge, the
+  check that a reused single sign-on session satisfies the flow, each step of the sign-in and the finished sign-in's own check. The
+  account chooser's resume reads it from the parked request. A client that names none parks nothing, so its sign-in follows the tenant's
+  default at each step, as 13b's `make-default` left it, and the existing suites are unchanged. A client whose flow is named stays on
+  it when the client's setting changes mid-sign-in (tested). A flow id that no longer exists, which only a session parked before
+  the flow was deleted can hold, runs no step and fails the sign-in closed as a tenant with no flow does, never as another flow (tested).
+- **Entries.** `/authorize` is the only door that starts a sign-in from a client: the five `startAuthentication` calls in
+  `authorization-request.ts` park one request object, and nothing else (resume, mailed links, the required-action pages, consent) begins
+  one. A single sign-on session is reused for a client only when it satisfies that client's flow, so a session made under a flow that
+  asks for less is not reused for a client whose flow asks for more (tested), and one is reused for the client whose flow it satisfied.
+- **Console.** A **Sign-in flow** section on the client's Advanced tab (**Tenant default**, then each flow of the tenant, the current
+  default marked); the flows list has a **Clients** column (clients that name the flow; one left on Tenant default is counted for none) and the delete dialog says how many clients use the flow, and the refusal is
+  worded in a pure service with the count the list showed. The flows list read (`readFlows`, `useFlowsRecord`, the record names) moved
+  to `entities/flow`, which both pages now read. A person without `manage-tenant` cannot read the flows, so the section then offers
+  only **Tenant default** and the flow the client already runs.
+- **CLI.** `odudu seed client --flow <name>` names a flow by its name, which is unique within the tenant and what a person knows
+  it by; a name the tenant does not have fails with `seed_not_found` and writes nothing.
+- **`GET /flows`.** Each item gains `client_count`, from one grouped read over the index that holds only clients that name a flow, at
+  most 20 groups; it is outside a single flow's `ETag`.
+
+- **Race tests.** `client-flow.int.test.ts` holds a real `PATCH` of `flow_id` at its write, under the tenant's flow lock, while a `DELETE`
+  waits on that lock; the deletion then counts the client and answers `flow-in-use` with the count (the lock path). A second test writes
+  `flow_id` with owner SQL, skipping the lock, and shows only the foreign key backstop: the deletion waits on the row, then `23503`, mapped
+  to `409` for that constraint alone (`client_oidc_config_flow_fk`), with the generic sentence.
+- **Who sees the `client_id`s.** `flow-in-use` names up to ten `client_id`s to a holder of `manage-tenant`, who may lack `manage-clients`.
+  Kept: a `client_id` is a public identifier, present in every authorization URL, so it discloses nothing the client does not publish.
+- **Reference pages.** `MAX_TABLE_ROWS` in `apps/docs/scripts/openapi-pages.ts` went from 60 to 55: the client record gained a field and
+  one generated page reached 71 table rows against the test's bound of 70.
+
+### At volume
+
+- Resolving the flow for a sign-in step is one `flows` query either way: the default by `flows_one_default`, or the named flow by its
+  primary key; the count of queries per step is what it was.
+- `GET /flows` gains one query, a grouped count over `client_oidc_config_flow`; `DELETE /flows/{id}` gains two bounded reads of it
+  (a count and a sample of ten). Both ranges hold only clients that name a flow, at most a tenant's client cap.
+
+### Open placements
+
+- A tenant export carries the default flow only, so a client's `flow_id`, and every other flow, are not exported and an import restores
+  neither. P7 takes it with the document's move between installations (roadmap, section 11 and `docs/NEXT.md` name it).
+- The per-step authenticator settings of 7c move onto steps in a following part.

@@ -53,6 +53,7 @@ export interface Client {
   default_max_age: number | null;
   require_auth_time: boolean;
   allowed_actions: string[];
+  flow_id: string | null;
   previous_secret_expires_at: string | null;
   builtin_admin: boolean;
   service_subject_id: string | null;

@@ -223,7 +223,8 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // authentication session exists — also the honest way to notice a flow
   // with no applicable execution at all: OIDC Core §3.1.2.1's `prompt=login`
   // MUST, "an error is returned if reauthentication cannot be performed".
-  initialChallenge(tenantId: string): Promise<AuthenticatorResult>;
+  // `flowId` is the flow the client names, or null for the tenant's default.
+  initialChallenge(tenantId: string, flowId: string | null): Promise<AuthenticatorResult>;
   // The browser's session cookies, resolved to their live rows (never
   // trusted for anything but that lookup) — sessionRepository(tx).liveByEntries
   // scoped to the tenant's own idle window. decideReuse decides over the
@@ -257,6 +258,7 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
     tenantId: string,
     subjectId: string,
     authenticators: readonly string[],
+    flowId: string | null,
   ): Promise<boolean>;
   // Which of `subjectIds` are enabled. A session of a subject disabled since
   // it was made is not reused and not offered by the chooser: the login form
@@ -530,9 +532,11 @@ export async function handleAuthorizationRequest(
 
   // What every branch below parks: the request as validated, with what the
   // pages shown after a detour need from it.
+  const flowId = resolved.config?.flowId ?? null;
   const parked = {
     ...request,
     prompt: [...outcome.prompts],
+    ...(flowId !== null ? { flowId } : {}),
     ...(uiLocales.length > 0 ? { uiLocales } : {}),
     ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
     ...(claimsSubject !== null ? { claimsSubject } : {}),
@@ -613,7 +617,12 @@ export async function handleAuthorizationRequest(
   const reuseIsStale =
     decision.kind === 'reuse' &&
     reusedSession !== undefined &&
-    !(await deps.sessionMeetsFlow(tenant.id, decision.subjectId, reusedSession.authenticators));
+    !(await deps.sessionMeetsFlow(
+      tenant.id,
+      decision.subjectId,
+      reusedSession.authenticators,
+      flowId,
+    ));
   if (reuseIsStale && outcome.prompts.has('none')) return reject('login_required');
 
   if (decision.kind === 'reuse' && reusedSession !== undefined && !reuseIsStale) {
@@ -764,7 +773,7 @@ export async function handleAuthorizationRequest(
   // "reauthentication cannot be performed" under `prompt=login`. Checked
   // before a session is started: nothing is parked and nothing rendered
   // for a login that could never succeed.
-  const initial = await deps.initialChallenge(tenant.id);
+  const initial = await deps.initialChallenge(tenant.id, flowId);
   if (initial.kind !== 'challenge') {
     if (initial.kind === 'success') {
       throw new Error('unreachable: initialChallenge succeeded with no input submitted');
@@ -841,7 +850,7 @@ export async function handleSelectAccountSubmission(
   // ever bound to it, so the ordinary login form resumes it exactly as if
   // it had rendered that form to begin with.
   const startedLogin = async (): Promise<SelectAccountOutcome> => {
-    const initial = await deps.initialChallenge(tenant.id);
+    const initial = await deps.initialChallenge(tenant.id, pending.flowId ?? null);
     if (initial.kind !== 'challenge') {
       if (initial.kind === 'success') {
         throw new Error('unreachable: initialChallenge succeeded with no input submitted');
@@ -919,7 +928,14 @@ export async function handleSelectAccountSubmission(
   if (!(await deps.enabledSubjects(tenant.id, [chosen.subjectId])).has(chosen.subjectId)) {
     return startedLogin();
   }
-  if (!(await deps.sessionMeetsFlow(tenant.id, chosen.subjectId, chosen.authenticators))) {
+  if (
+    !(await deps.sessionMeetsFlow(
+      tenant.id,
+      chosen.subjectId,
+      chosen.authenticators,
+      pending.flowId ?? null,
+    ))
+  ) {
     return startedLogin();
   }
 

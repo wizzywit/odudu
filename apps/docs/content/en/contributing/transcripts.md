@@ -1334,3 +1334,23 @@ The tool listing of `the-mcp-endpoint.md` was run again on 2026-11-13, because i
 The flow page was run again whole on 2026-11-13 when a delete began to wait on the flow's `ETag` and the page's shell variables (`STAFF`, `DEFAULT`, `PARTNERS`, `BULK`, `ETAG`) came to be set in the blocks that show them, so a fresh shell reproduces it. It ran on a compose project `odudu-13b` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit `310c49f3e` (only documentation files uncommitted), on a database that began empty, with the same sign-in and one script that runs the page's blocks in order in one shell. `GET /admin/openapi.json` was fetched again on it (856,406 to 856,572 bytes, 113 paths). The stack and its image were removed afterwards.
 
 `GET /admin/openapi.json` was fetched again on 2026-11-13 on a freshly built compose project `odudu-13b` (port `3000`) from the branch commit `448559042` when the description of `POST /flows` was corrected (856,572 to 856,642 bytes, 113 paths). The stack and its image were removed afterwards.
+
+The pages that show a client, and the flow page, were run again on 2026-11-13 when a client gained `flow_id`, on a freshly built compose
+project `odudu-13c` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit
+`f8f433eda` with only documentation files uncommitted, on a database that began empty: `seed admin`, a token as in Getting the token (the
+sign-in and the console's assertion), the tenants `demo` and `other` made with `odudu seed tenant`, then each page's blocks as one script
+in one shell, each block's output written to the page as it came back (carriage returns and trailing spaces removed), the variables the
+prose names set after the block that makes them, and the tenants other than `system` removed between pages so each began as its author
+did. Whole: `get-flows-post-flows-and-the-flow-routes.md` (with the blocks that make a flow, a client that names it, a refused flow and a
+refused deletion added), `patch-clientsid.md` (with its new section on `flow_id`), `get-clients-post-clients-and-get-clientsid.md`,
+`post-clientsidsecret.md` and `delete-scopesidclientsclientid.md`, and `get-adminopenapijson.md`; the flow page and the OpenAPI block were run again after the merge below.
+Three blocks of `get-clients-post-clients-and-get-clientsid.md` name port `3092`, a stack of their own, and show no `flow_id`, so they were not
+run again. Only the blocks that show a client were taken from `getting-the-token.md`, whose other blocks assume a stack with no administrator, and
+only the three that show a `client.create` row from `get-audit.md`, whose other blocks depend on a session its own earlier sections make: the
+rows now name `flow_id` with `{"after":null}`. The stack was removed afterwards.
+
+After 13b's fix rounds were merged (a delete waits on the flow's `ETag`), the flow page and the OpenAPI block were run again on 2026-11-13 on a
+freshly built compose project `odudu-13c` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the merge
+commit `1bfde6fa5`, on a database that began empty, with the same sign-in and shell as above: `get-flows-post-flows-and-the-flow-routes.md` whole,
+with its own variables set in its blocks and the blocks that name `flow_id` and `flow-in-use` added (the delete there sends the flow's tag), and
+`GET /admin/openapi.json` (856,642 to 858,768 bytes, 113 paths). The stack and its image were removed afterwards.

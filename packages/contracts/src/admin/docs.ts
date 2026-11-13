@@ -38,6 +38,7 @@ import {
   executionStepSchema,
   listExecutionsResponseSchema,
   replaceExecutionsRequestSchema,
+  flowListItemSchema,
   flowSchema,
   flowStepSchema,
   listFlowsResponseSchema,
@@ -360,6 +361,8 @@ describeFields(clientFieldsSchema, {
   require_auth_time: 'Whether ID tokens always carry the `auth_time` claim.',
   allowed_actions:
     'The required actions the client may start for a signed-in person through `/authorize`: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`. `accept-terms` is not among them: it records consent to the tenant\u2019s own terms and has to come from the tenant. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
+  flow_id:
+    'The sign-in flow the client runs, one of the tenant\u2019s flows from `GET /flows`; null, the default for every client, follows the tenant\u2019s default flow. A flow that is not the tenant\u2019s is refused with `unknown_flow`, and a flow some client names is not deleted.',
   previous_secret_expires_at:
     'When the secret that a rotation replaced stops authenticating, or null when no rotation kept one. The secret itself is never shown.',
   builtin_admin:
@@ -463,6 +466,9 @@ describeFields(flowSchema, {
   is_default:
     'True for the tenant’s default flow, which a client that names no flow signs in through.',
   steps: 'The steps in the order they run.',
+});
+describeFields(flowListItemSchema, {
+  client_count: 'How many clients of the tenant name this flow through their `flow_id`.',
 });
 describeFields(listFlowsResponseSchema, {
   items: 'Every flow of the tenant, ordered by name.',

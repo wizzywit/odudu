@@ -111,6 +111,23 @@ export function flowRepository(tx: TenantScopedDatabase) {
       return rows.length > 0;
     },
 
+    // The flow a sign-in runs: the one named, else the tenant's default. One
+    // query either way, the choice made by the predicate and not by the caller;
+    // at most the tenant's 20 flows are looked at.
+    async forSignIn(tenantId: string, flowId: string | null): Promise<Flow | null> {
+      const [row] = await tx
+        .select()
+        .from(flows)
+        .where(
+          and(
+            eq(flows.tenantId, tenantId),
+            sql`(${flows.id} = ${flowId}::uuid or (${flowId}::uuid is null and ${flows.isDefault}))`,
+          ),
+        )
+        .limit(1);
+      return row === undefined ? null : toFlow(row);
+    },
+
     async defaultForTenant(tenantId: string): Promise<Flow | null> {
       const [row] = await tx
         .select()

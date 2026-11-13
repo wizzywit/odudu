@@ -26,6 +26,7 @@ function columns(page: Panel): readonly Column<FlowRow>[] {
       ),
     },
     { id: 'steps', header: header.steps, cell: ({ summary }) => summary },
+    { id: 'clients', header: header.clients, cell: ({ clients }) => clients },
     {
       id: 'actions',
       header: header.actions,

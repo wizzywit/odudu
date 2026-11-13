@@ -13,6 +13,7 @@ export {
   isUniqueViolation,
   isCheckViolation,
   isForeignKeyViolation,
+  violatedConstraint,
   isLockNotAvailable,
 } from '#/sqlstate';
 export * from '#/schema/index';

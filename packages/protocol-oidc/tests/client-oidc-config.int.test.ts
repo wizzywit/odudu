@@ -8,7 +8,7 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/testing';
-import { provisionTenant } from '@odudu/authn-flows';
+import { flowRepository, provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -293,6 +293,147 @@ describe('clientOidcConfigRepository', () => {
       expectBlocked: (result) => {
         expect(result).toEqual([]);
       },
+    });
+  });
+
+  describe('the sign-in flow a client names', () => {
+    const base = {
+      redirectUris: ['https://app.example/callback'],
+      grantTypes: ['authorization_code'],
+      tokenEndpointAuthMethod: 'client_secret_basic' as const,
+      audiences: [],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+    };
+
+    async function seedClient(tx: TenantScopedDatabase, tenantId: string, flowId?: string) {
+      const clientId = newId();
+      await tx.insert(clients).values({
+        id: clientId,
+        tenantId,
+        clientId: `oauth-client-${clientId}`,
+        name: 'A client',
+        type: 'confidential',
+        secretHash: 'hashed:secret',
+      });
+      await provisionClientDefaults(tx, clientId);
+      await clientOidcConfigRepository(tx).create({
+        ...base,
+        clientId,
+        tenantId,
+        ...(flowId === undefined ? {} : { flowId }),
+      });
+      return clientId;
+    }
+
+    async function seedTenant(tx: TenantScopedDatabase, tenantId: string) {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      await provisionTenant(tx, tenantId);
+      return flowRepository(tx).create(tenantId, 'staff', [
+        { authenticator: 'password', requirement: 'required' },
+      ]);
+    }
+
+    it('names no flow until one is set, and sets and clears it', async () => {
+      const tenantId = newId();
+      await withTenant(app.db, tenantId, async (tx) => {
+        const staff = await seedTenant(tx, tenantId);
+        const clientId = await seedClient(tx, tenantId);
+        const repository = clientOidcConfigRepository(tx);
+        expect((await repository.byClientId(clientId))?.flowId).toBeNull();
+        expect((await repository.update(clientId, { flowId: staff.id })).flowId).toBe(staff.id);
+        expect((await repository.update(clientId, { flowId: null })).flowId).toBeNull();
+      });
+    });
+
+    it('refuses a flow of another tenant, whatever the application checked', async () => {
+      const mine = newId();
+      const theirs = newId();
+      const foreign = await withTenant(app.db, theirs, (tx) => seedTenant(tx, theirs));
+      const clientId = await withTenant(app.db, mine, async (tx) => {
+        await seedTenant(tx, mine);
+        return seedClient(tx, mine);
+      });
+      await expect(
+        withTenant(app.db, mine, (tx) =>
+          clientOidcConfigRepository(tx).update(clientId, { flowId: foreign.id }),
+        ),
+      ).rejects.toMatchObject({ cause: { code: '23503' } });
+    });
+
+    it('refuses deleting a flow a client names, and allows it once none does', async () => {
+      const tenantId = newId();
+      const { staff, clientId } = await withTenant(app.db, tenantId, async (tx) => {
+        const flow = await seedTenant(tx, tenantId);
+        return { staff: flow, clientId: await seedClient(tx, tenantId, flow.id) };
+      });
+      await expect(
+        withTenant(app.db, tenantId, (tx) => flowRepository(tx).remove(tenantId, staff.id)),
+      ).rejects.toMatchObject({ cause: { code: '23503' } });
+      const removed = await withTenant(app.db, tenantId, async (tx) => {
+        await clientOidcConfigRepository(tx).update(clientId, { flowId: null });
+        return flowRepository(tx).remove(tenantId, staff.id);
+      });
+      expect(removed).toBe(true);
+    });
+
+    it('deletes a tenant whose clients name its flows', async () => {
+      const tenantId = newId();
+      await withTenant(app.db, tenantId, async (tx) => {
+        const staff = await seedTenant(tx, tenantId);
+        await seedClient(tx, tenantId, staff.id);
+      });
+      await owner.sql`delete from tenants where id = ${tenantId}`;
+      const left = await owner.sql`select 1 from flows where tenant_id = ${tenantId}`;
+      expect(left).toHaveLength(0);
+    });
+
+    it('counts the clients naming a flow, samples at most ten, and counts per flow', async () => {
+      const tenantId = newId();
+      await withTenant(app.db, tenantId, async (tx) => {
+        const staff = await seedTenant(tx, tenantId);
+        const other = await flowRepository(tx).create(tenantId, 'kiosk', [
+          { authenticator: 'password', requirement: 'required' },
+        ]);
+        for (let i = 0; i < 12; i += 1) await seedClient(tx, tenantId, staff.id);
+        await seedClient(tx, tenantId, other.id);
+        await seedClient(tx, tenantId);
+        const repository = clientOidcConfigRepository(tx);
+        const usage = await repository.namingFlow(tenantId, staff.id);
+        expect(usage.count).toBe(12);
+        expect(usage.sample).toHaveLength(10);
+        expect(usage.sample).toEqual([...usage.sample].sort());
+        expect(await repository.flowUsage(tenantId)).toEqual(
+          new Map([
+            [staff.id, 12],
+            [other.id, 1],
+          ]),
+        );
+      });
+    });
+
+    it('cannot count the clients naming a flow under a different tenant context', async () => {
+      await expectCrossTenantMethodProbe(app.db, {
+        seed: async (tx, tenantId) => {
+          const staff = await seedTenant(tx, tenantId);
+          await seedClient(tx, tenantId, staff.id);
+          return { tenantId, flowId: staff.id };
+        },
+        verifySeeded: async (tx, seeded) => {
+          const usage = await clientOidcConfigRepository(tx).namingFlow(
+            seeded.tenantId,
+            seeded.flowId,
+          );
+          expect(usage.count).toBe(1);
+        },
+        attempt: async (tx, seeded) => ({
+          named: await clientOidcConfigRepository(tx).namingFlow(seeded.tenantId, seeded.flowId),
+          grouped: await clientOidcConfigRepository(tx).flowUsage(seeded.tenantId),
+        }),
+        expectBlocked: (result) => {
+          expect(result).toEqual({ named: { count: 0, sample: [] }, grouped: new Map() });
+        },
+      });
     });
   });
 });

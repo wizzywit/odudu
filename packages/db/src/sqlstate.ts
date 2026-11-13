@@ -34,3 +34,12 @@ function hasSqlState(error: unknown, sqlstate: string): boolean {
   }
   return 'cause' in error && hasSqlState(error.cause, sqlstate);
 }
+
+/** The name of the constraint a database error violated, found as `hasSqlState` finds a code. */
+export function violatedConstraint(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  if ('constraint_name' in error && typeof error.constraint_name === 'string') {
+    return error.constraint_name;
+  }
+  return 'cause' in error ? violatedConstraint(error.cause) : undefined;
+}

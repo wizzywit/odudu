@@ -19,8 +19,8 @@ export const flowTools = [
   valueTool({
     name: 'list_flows',
     description:
-      "Lists the tenant's sign-in flows, at most 20, by name, with the steps of each and which one " +
-      'is the default. Never paged.',
+      "Lists the tenant's sign-in flows, at most 20, by name, with the steps of each, which one " +
+      'is the default and how many clients name each. Never paged.',
     routeKey: tenantGet('/flows'),
     capability: 'manage-tenant',
     shape: {},

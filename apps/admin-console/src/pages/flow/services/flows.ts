@@ -1,5 +1,5 @@
 import { characterCount, FLOW_NAME_MAX } from '@odudu/contracts/admin';
-import type { FlowWire, SaveFlowRequest } from '#/pages/flow/types/flows';
+import type { FlowListItemWire, FlowWire, SaveFlowRequest } from '#/pages/flow/types/flows';
 import type { Step } from '#/pages/flow/services/steps';
 import { flowArea } from '#/pages/flow/services/flowWording';
 import { areaHref } from '#/entities/area';
@@ -16,12 +16,6 @@ import { counted } from '#/shared/lib/services/format';
 import { problemAt, requiredProblem, type FieldProblem } from '#/shared/lib/services/fieldErrors';
 import type { NamedDialog } from '#/shared/lib/services/dialog';
 import type { GatewayResult, Problem } from '#/shared/lib/services/result';
-
-export const FLOWS_RECORD = 'flows';
-
-export function flowRecordName(id: string): string {
-  return `${FLOWS_RECORD}/${id}`;
-}
 
 export function flowsHref(tenant: string): string {
   return areaHref(tenant, flowArea().area);
@@ -40,10 +34,12 @@ export function flowTrail(tenant: string, current: string): readonly Crumb[] {
 }
 
 export interface FlowRow {
-  flow: FlowWire;
+  flow: FlowListItemWire;
   href: string;
   isDefault: boolean;
   summary: string;
+  // How many clients name the flow.
+  clients: string;
   // The default flow is never deleted: a sign-in that names no flow runs it.
   deletable: boolean;
   // Any flow but the default may become it.
@@ -51,6 +47,10 @@ export interface FlowRow {
   promoteLabel: string;
   editLabel: string;
   deleteLabel: string;
+}
+
+function clientsText(count: number): string {
+  return count === 0 ? 'None' : counted(count, 'client', 'clients');
 }
 
 export function stepSummary(steps: readonly Step[]): string {
@@ -63,12 +63,16 @@ export function flowHref(tenant: string, id: string): string {
   return recordAddress(flowsHref(tenant), id);
 }
 
-export function flowRows(tenant: string, flows: readonly FlowWire[] | undefined): FlowRow[] {
+export function flowRows(
+  tenant: string,
+  flows: readonly FlowListItemWire[] | undefined,
+): FlowRow[] {
   return (flows ?? []).map((flow) => ({
     flow,
     href: flowHref(tenant, flow.id),
     isDefault: flow.is_default,
     summary: stepSummary(flow.steps),
+    clients: clientsText(flow.client_count),
     deletable: !flow.is_default,
     promotable: !flow.is_default,
     promoteLabel: `Make ${flow.name} the default`,
@@ -104,6 +108,7 @@ export function creationOf(
 
 const TAKEN = 'about:blank#flow-name-taken';
 const DEFAULT_FLOW = 'about:blank#default-flow';
+const IN_USE = 'about:blank#flow-in-use';
 
 // A 409 of the create is a name another flow holds or the cap; either reads
 // as the server's own sentence under the name.
@@ -123,25 +128,40 @@ function holds(flow: FlowWire): string {
   return `It holds ${stepSummary(flow.steps)}.`;
 }
 
-export function deleteDialog(flow: FlowWire | null): NamedDialog | null {
+export function deleteDialog(flow: FlowListItemWire | null): NamedDialog | null {
   if (flow === null) return null;
+  const waiting =
+    flow.client_count === 0
+      ? ''
+      : `, once the ${counted(flow.client_count, 'client', 'clients')} that ${flow.client_count === 1 ? 'uses' : 'use'} it use another`;
   return {
     title: `Delete ${flow.name}?`,
-    consequence: `The flow and its steps are removed for good. ${holds(flow)}`,
+    consequence: `The flow and its steps are removed for good${waiting}. ${holds(flow)}`,
     confirmLabel: `Delete ${flow.name}`,
     tone: 'danger',
   };
 }
 
-function deleteRefusal(problem: Problem): string | null {
+function inUseText(name: string, clients: number): string {
+  const who = clients > 1 ? `${String(clients)} clients use` : 'A client uses';
+  return `${who} ${name}. Choose another Sign-in flow for ${clients > 1 ? 'each' : 'it'} under Advanced on its page, then delete it.`;
+}
+
+function deleteRefusal(problem: Problem, name: string, clients: number): string | null {
+  if (problem.type === IN_USE) return inUseText(name, clients);
   return problem.type === DEFAULT_FLOW
     ? 'The default flow is not deleted: a sign-in that names no flow runs it. Replace its steps instead.'
     : null;
 }
 
-export function deleteOutcome(name: string, result: GatewayResult<unknown>): RemovalOutcome {
+// `clients` is how many the list showed; the server counts again, so it may differ.
+export function deleteOutcome(
+  name: string,
+  result: GatewayResult<unknown>,
+  clients = 0,
+): RemovalOutcome {
   if (!result.ok && result.kind === 'problem') {
-    const refused = deleteRefusal(result.problem);
+    const refused = deleteRefusal(result.problem, name, clients);
     if (refused !== null) return { done: false, text: refused };
   }
   return removalOutcome(
@@ -192,7 +212,7 @@ export function promoteOutcome(name: string, result: GatewayResult<unknown>): Re
 
 export interface AskedAction {
   action: 'delete' | 'default';
-  flow: FlowWire;
+  flow: FlowListItemWire;
 }
 
 // The confirmation an asked action needs, or none while nothing is asked.
@@ -202,7 +222,9 @@ export function askedDialog(
 ): NamedDialog | null {
   if (asked === null) return null;
   const flow = current ?? asked.flow;
-  return asked.action === 'delete' ? deleteDialog(flow) : promoteDialog(flow);
+  return asked.action === 'delete'
+    ? deleteDialog({ ...flow, client_count: asked.flow.client_count })
+    : promoteDialog(flow);
 }
 
 // What the confirmation says while the flow it binds to is not read.
@@ -224,7 +246,7 @@ export function flowSaveRequest(values: { name: string; steps: readonly Step[] }
 
 export function askedOutcome(asked: AskedAction, result: GatewayResult<unknown>): RemovalOutcome {
   return asked.action === 'delete'
-    ? deleteOutcome(asked.flow.name, result)
+    ? deleteOutcome(asked.flow.name, result, asked.flow.client_count)
     : promoteOutcome(asked.flow.name, result);
 }
 

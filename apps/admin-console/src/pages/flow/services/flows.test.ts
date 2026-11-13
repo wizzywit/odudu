@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FlowWire } from '#/pages/flow/types/flows';
+import type { FlowListItemWire } from '#/pages/flow/types/flows';
 import {
   creationOf,
   createSpec,
@@ -21,8 +21,20 @@ import type { GatewayFailure } from '#/shared/lib/services/result';
 const PASSWORD = { authenticator: 'password', requirement: 'required' } as const;
 const OTP = { authenticator: 'otp', requirement: 'conditional' } as const;
 
-const DEFAULT: FlowWire = { id: 'f-1', name: 'default', is_default: true, steps: [PASSWORD, OTP] };
-const STAFF: FlowWire = { id: 'f-2', name: 'staff', is_default: false, steps: [PASSWORD] };
+const DEFAULT: FlowListItemWire = {
+  id: 'f-1',
+  name: 'default',
+  is_default: true,
+  steps: [PASSWORD, OTP],
+  client_count: 0,
+};
+const STAFF: FlowListItemWire = {
+  id: 'f-2',
+  name: 'staff',
+  is_default: false,
+  steps: [PASSWORD],
+  client_count: 2,
+};
 
 function problemResult(status: number, type: string, detail = 'x'): GatewayFailure {
   return { ok: false, kind: 'problem', problem: { status, type, title: 'T', detail } };
@@ -43,6 +55,11 @@ describe('flowRows', () => {
       promoteLabel: 'Make staff the default',
     });
     expect(rows[0]?.promotable).toBe(false);
+  });
+
+  it('says how many clients name each flow', () => {
+    const rows = flowRows('acme', [DEFAULT, STAFF, { ...STAFF, id: 'f-3', client_count: 1 }]);
+    expect(rows.map((row) => row.clients)).toEqual(['None', '2 clients', '1 client']);
   });
 });
 
@@ -107,6 +124,12 @@ describe('deleteDialog and deleteOutcome', () => {
       confirmLabel: 'Delete staff',
       tone: 'danger',
     });
+    expect(deleteDialog(STAFF)?.consequence).toBe(
+      'The flow and its steps are removed for good, once the 2 clients that use it use another. It holds 1 step: password.',
+    );
+    expect(deleteDialog(DEFAULT)?.consequence).toBe(
+      'The flow and its steps are removed for good. It holds 2 steps: password, otp.',
+    );
   });
 
   it('says the flow is gone, and words the refusal of the default', () => {
@@ -124,6 +147,16 @@ describe('deleteDialog and deleteOutcome', () => {
       done: false,
       text: 'The default flow is not deleted: a sign-in that names no flow runs it. Replace its steps instead.',
     });
+  });
+
+  it('words the refusal of a flow a client names, with how many were counted', () => {
+    const refused = problemResult(409, 'about:blank#flow-in-use');
+    expect(deleteOutcome('staff', refused, 2)).toEqual({
+      done: false,
+      text: '2 clients use staff. Choose another Sign-in flow for each under Advanced on its page, then delete it.',
+    });
+    expect(deleteOutcome('staff', refused, 1).text).toMatch(/^A client uses staff\./u);
+    expect(deleteOutcome('staff', refused, 0).text).toMatch(/^A client uses staff\./u);
   });
 });
 

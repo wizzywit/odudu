@@ -4,6 +4,7 @@ import {
   type AudienceValues,
   type AuthValues,
   type ExchangeValues,
+  type FlowValues,
   type KeyValues,
   type UserinfoValues,
 } from '#/pages/clients/repository/useClientConfigSaves';
@@ -50,11 +51,18 @@ import {
   encryptsUserinfo,
 } from '#/pages/clients/services/userinfoResponse';
 import { choiceOf } from '#/pages/clients/services/choices';
+import {
+  flowChoices,
+  flowsReadProblem,
+  FLOW_LABEL,
+  FLOW_RULE,
+} from '#/pages/clients/services/clientFlow';
 import { CLIENT_LIST_LIMIT, listCount } from '#/pages/clients/services/listEntries';
 import {
   useClientSection,
   type ClientRecordRead,
 } from '#/pages/clients/use-cases/useClientSection';
+import { useFlowsRecord } from '#/entities/flow';
 import { APPLICATION_ACTIONS, describeActions } from '#/entities/subject';
 import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
 import type { Choice } from '#/shared/lib/services/choice';
@@ -103,6 +111,13 @@ export interface ClientAdvanced {
   actionOptions: ActionOption[];
   // Why Save is held while an action is chosen and the client lacks me:read.
   actionsBlocked: string | undefined;
+  flow: SectionSave<FlowValues>;
+  flowLabel: string;
+  flowRule: string;
+  flowOptions: Choice[];
+  // Why the choice is short, when the flows could not be read.
+  flowsProblem: string | null;
+  retryFlows: () => void;
 }
 
 export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
@@ -212,6 +227,16 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     },
     save: saves.actions,
   });
+  const flow = useSectionSave({
+    ...shared,
+    section: 'flow',
+    label: SECTIONS_ADVANCED.flow,
+    fields: {
+      flow_id: { value: choiceOf(client.flow_id), label: FLOW_LABEL, kind: 'plain' },
+    },
+    save: saves.flow,
+  });
+  const flows = useFlowsRecord(args.tenant);
   const problem = keysProblem(keys.values, keys.dirty);
   return {
     sections: SECTIONS_ADVANCED,
@@ -251,5 +276,11 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     actionsRule: ACTIONS_RULE,
     actionOptions: actionOptions(APPLICATION_ACTIONS),
     actionsBlocked: actionsBlock(actions.values.allowed_actions, client.scopes),
+    flow,
+    flowLabel: FLOW_LABEL,
+    flowRule: FLOW_RULE,
+    flowOptions: flowChoices(flows.data?.items, client.flow_id),
+    flowsProblem: flowsReadProblem(flows.status, flows.failure),
+    retryFlows: flows.retry,
   };
 }

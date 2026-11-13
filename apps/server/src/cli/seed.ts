@@ -34,7 +34,7 @@ import {
   scopeLimitMessage,
 } from '@odudu/contracts/admin';
 import { tenantSettingsRepository, sendVerificationEmail } from '@odudu/account';
-import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
+import { flowRepository, provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
 import { grantNewSubjectDefaults, groupRepository, roleRepository } from '@odudu/domain-authz';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
@@ -1341,6 +1341,7 @@ async function runClientCommand(
     );
   }
   const allowedActions = distinctAllowedActions(requestedActions.filter(isAllowedAction));
+  const flowName = values.flow;
   const audiences = [...new Set(values.audience ?? [])];
   for (const [field, entries] of [
     ['redirect_uris', redirectUris],
@@ -1461,6 +1462,20 @@ async function runClientCommand(
       if (!holds) meReadScopeId = meRead.id;
     }
 
+    let flowId: string | null = null;
+    if (flowName !== undefined) {
+      const named = (await flowRepository(tx).forTenant(tenantId)).find(
+        (flow) => flow.name === flowName,
+      );
+      if (named === undefined) {
+        throw new OduduError(
+          'seed_not_found',
+          `no flow named ${JSON.stringify(flowName)} in tenant ${JSON.stringify(tenantName)}`,
+        );
+      }
+      flowId = named.id;
+    }
+
     const secretHash = clientSecret === undefined ? null : await hashPassword(clientSecret);
 
     const client = await refuseRepeat(
@@ -1500,6 +1515,7 @@ async function runClientCommand(
       webOrigins,
       postLogoutRedirectUris,
       allowedActions,
+      flowId,
     });
     if (needsServiceAccount(type, grantTypes)) await ensureServiceAccount(tx, client);
 

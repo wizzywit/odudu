@@ -40,6 +40,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     default_max_age: 'value',
     require_auth_time: 'value',
     allowed_actions: 'value',
+    flow_id: 'value',
     service_subject_id: 'value',
     // `jwks` reaches here through `clientWireShape` and can really change
     // on an amend. `secret_hash` and `password_encrypted` cannot: neither
