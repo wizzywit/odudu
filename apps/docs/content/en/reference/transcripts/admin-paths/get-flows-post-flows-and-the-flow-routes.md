@@ -9,8 +9,8 @@ This page covers `GET /flows`, `POST /flows`, `GET /flows/:id`, `PUT /flows/:id`
 
 All six require `manage-tenant`. A tenant holds up to 20 named sign-in flows. Exactly one is the **default**,
 the flow a sign-in runs when a client names none. A client names another through its `flow_id`
-([`PATCH /clients/{id}`](./patch-clientsid.md)), and a flow some client names is not deleted. A flow is an ordered list of at most 20 steps, each an `authenticator`
-and a `requirement`, and a flow's meaning is in its order, so it is always written whole.
+([`PATCH /clients/{id}`](./patch-clientsid.md)), and a flow some client names is not deleted. A flow is an ordered list of at most 20 steps, each an `authenticator`,
+a `requirement` and, for `otp`, `passkey` and `recovery-code`, optional `settings`, and a flow's meaning is in its order, so it is always written whole.
 
 - `GET /flows` lists every flow of the tenant, ordered by name, with `total` and `available`, and each flow's
   `client_count`, how many clients name it. A tenant holds
@@ -39,8 +39,8 @@ the lock every flow write takes, so two creates at 19 flows cannot both pass. Th
 delete with `409` `default-flow`, and a flow some client names with `409` `flow-in-use`, whose `detail` counts the
 clients and names at most ten by their `client_id`, after the `If-Match` checks. A step list is refused before the database is asked, with the `400` types of
 `PUT /flow/executions` (`#flow-empty`, `#flow-no-enabled-step`, `#flow-no-first-challenge`,
-`#flow-unknown-authenticator`, `#flow-duplicate-authenticator`), the last two with `errors` naming the step as
-`steps[1].authenticator`. The body is strict: `is_default` and a step's `index` are not fields. Every route
+`#flow-unknown-authenticator`, `#flow-duplicate-authenticator`, `#flow-step-settings`), the last three with `errors` naming the step as
+`steps[1].authenticator`, or `steps[1].settings` for the last. The body is strict: `is_default` and a step's `index` are not fields. Every route
 answers `404` for a flow of another tenant, and a creation, replacement and deletion each write an audit row.
 
 Every command below sends the administrator's token, and a flow's own `ETag`, the tag a read of that flow answers, is what a change to it waits on. `etag` reads it:
@@ -62,16 +62,16 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admi
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d441-d55d-756b-a060-a4d9b51ca829
+x-request-id: 01a1d506-cbd7-7e11-92ff-7497048a199a
 cache-control: no-store
-etag: "2d9bbe0c0ae6c31ad1fcbbededbcfe6e374d233c35d1399f97175098d4a3d1a8"
+etag: "51bd325f6f00d16b198bd6395416421caae698eb8871b62f9b512fd669ae7314"
 content-type: application/json; charset=utf-8
 content-length: 413
-Date: Fri, 13 Nov 2026 09:34:06 GMT
+Date: Fri, 13 Nov 2026 13:09:14 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a1d441-b09f-74ce-9554-dee2142af90d","name":"default","is_default":true,"steps":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"},{"authenticator":"otp","requirement":"conditional"},{"authenticator":"recovery-code","requirement":"conditional"}],"client_count":0}],"total":1,"available":["password","passkey","otp","recovery-code"]}
+{"items":[{"id":"01a1d506-c8d3-7fc0-aee8-fa1d16bdc160","name":"default","is_default":true,"steps":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"},{"authenticator":"otp","requirement":"conditional"},{"authenticator":"recovery-code","requirement":"conditional"}],"client_count":0}],"total":1,"available":["password","passkey","otp","recovery-code"]}
 ```
 
 `POST` makes a flow from a name and a list of steps, answers `201` with the flow and its own `ETag`, and never makes a default one:
@@ -86,16 +86,16 @@ curl -sS -D - -X POST \
 
 ```
 HTTP/1.1 201 Created
-x-request-id: 01a1d441-d57e-753e-a233-061d5523c2d0
+x-request-id: 01a1d506-cbe9-74ca-a81b-8f991fe561df
 cache-control: no-store
-etag: "0d0cd2c30b78c21adab3328564cdf2cc30d549469333d94df3eaee417b726a0e"
+etag: "052e5f755c6dd8cb0d5101df1d762ce856cd364f651f7237f37e61e08c09a988"
 content-type: application/json; charset=utf-8
 content-length: 195
-Date: Fri, 13 Nov 2026 09:34:06 GMT
+Date: Fri, 13 Nov 2026 13:09:14 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a1d441-d58f-7335-957c-52f6d12eb9ba","name":"staff","is_default":false,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
+{"id":"01a1d506-cbf4-781b-9338-d8e7b6671b67","name":"staff","is_default":false,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
 ```
 
 The name was trimmed. The list is ordered by name, and the new flow is the one that is not the default. `STAFF` keeps its id for the commands below:
@@ -108,9 +108,9 @@ echo "STAFF=$STAFF"
 
 ```
 2
-{"id":"01a1d441-b09f-74ce-9554-dee2142af90d","name":"default","is_default":true}
-{"id":"01a1d441-d58f-7335-957c-52f6d12eb9ba","name":"staff","is_default":false}
-STAFF=01a1d441-d58f-7335-957c-52f6d12eb9ba
+{"id":"01a1d506-c8d3-7fc0-aee8-fa1d16bdc160","name":"default","is_default":true}
+{"id":"01a1d506-cbf4-781b-9338-d8e7b6671b67","name":"staff","is_default":false}
+STAFF=01a1d506-cbf4-781b-9338-d8e7b6671b67
 ```
 
 One flow, with the `ETag` its replacement waits on:
@@ -121,16 +121,16 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admi
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d441-d5ff-7cb0-9cbd-405e25c09760
+x-request-id: 01a1d506-cc28-79e9-a2e7-a3c986e1f01a
 cache-control: no-store
-etag: "0d0cd2c30b78c21adab3328564cdf2cc30d549469333d94df3eaee417b726a0e"
+etag: "052e5f755c6dd8cb0d5101df1d762ce856cd364f651f7237f37e61e08c09a988"
 content-type: application/json; charset=utf-8
 content-length: 195
-Date: Fri, 13 Nov 2026 09:34:06 GMT
+Date: Fri, 13 Nov 2026 13:09:14 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a1d441-d58f-7335-957c-52f6d12eb9ba","name":"staff","is_default":false,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
+{"id":"01a1d506-cbf4-781b-9338-d8e7b6671b67","name":"staff","is_default":false,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
 ```
 
 `PUT` replaces the name and the steps together, on that tag. The id and `is_default` stay:
@@ -147,16 +147,16 @@ curl -sS -D - -X PUT \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d441-d660-7ba9-8e01-2017b05dfcee
+x-request-id: 01a1d506-cc51-724b-9539-f26083ed5583
 cache-control: no-store
-etag: "997c10f527c5f7989d0ad4703b180dfae3f881d80083dfdaaccb32dfb81e5473"
+etag: "844b2b2ae25876a40e5b90e096d2aa4596f95ce55139ecaf5ab4fb61843c1c52"
 content-type: application/json; charset=utf-8
 content-length: 201
-Date: Fri, 13 Nov 2026 09:34:06 GMT
+Date: Fri, 13 Nov 2026 13:09:14 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a1d441-d58f-7335-957c-52f6d12eb9ba","name":"crew","is_default":false,"steps":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"}]}
+{"id":"01a1d506-cbf4-781b-9338-d8e7b6671b67","name":"crew","is_default":false,"steps":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"}]}
 ```
 
 The same, now stale, header changes nothing, and a request with no `If-Match`, or `*`, is refused before anything is read:
@@ -177,8 +177,8 @@ curl -sS -X PUT \
 ```
 
 ```
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1d441-d685-749b-a575-65642d37c6b2"}
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a flow","instance":"01a1d441-d6a1-77dd-8444-ea7c19a5fc52"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1d506-cc68-7436-bd2e-92036c2d2054"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a flow","instance":"01a1d506-cc7c-7fa3-aa5c-ef4b0630d7ed"}
 ```
 
 A name another flow holds is refused with `409`, whether it is made or renamed to; the default's name is `default`. The constraint on `(tenant_id, name)` decides it, and nothing is written:
@@ -192,7 +192,7 @@ curl -sS -X POST \
 ```
 
 ```
-{"type":"about:blank#flow-name-taken","title":"Conflict","status":409,"detail":"a flow named \"default\" already exists","instance":"01a1d441-d6d8-7844-8d90-be5e69296b68"}
+{"type":"about:blank#flow-name-taken","title":"Conflict","status":409,"detail":"a flow named \"default\" already exists","instance":"01a1d506-cc8f-7a70-ad0e-86db93ccae20"}
 ```
 
 A step list is refused at save time, before the database is asked, with the types `PUT /flow/executions` has. The unknown and the repeated authenticator name the step at fault in `errors`, under `steps`; the others carry none:
@@ -209,11 +209,50 @@ done
 ```
 
 ```
-{"type":"about:blank#flow-empty","title":"Bad Request","status":400,"detail":"a flow needs at least one step; a tenant with no flow cannot be logged into","instance":"01a1d441-d709-7bc9-af9b-ccd8f48120a7"}
-{"type":"about:blank#flow-no-enabled-step","title":"Bad Request","status":400,"detail":"every step is disabled; a tenant with no enabled step cannot be logged into","instance":"01a1d441-d720-71d9-9046-8324e1378805"}
-{"type":"about:blank#flow-no-first-challenge","title":"Bad Request","status":400,"detail":"no step would run at the start of a login, when no subject is bound yet; a tenant whose flow begins this way cannot be logged into","instance":"01a1d441-d736-7e72-bb26-7fa528806446"}
-{"type":"about:blank#flow-unknown-authenticator","title":"Bad Request","status":400,"detail":"unknown authenticator \"sms\"; expected one of password, passkey, otp, recovery-code","errors":[{"path":"steps[0].authenticator","message":"is not a registered authenticator"}],"instance":"01a1d441-d74a-7dae-b4c9-401080452e30"}
-{"type":"about:blank#flow-duplicate-authenticator","title":"Bad Request","status":400,"detail":"authenticator \"password\" appears more than once; a step is addressed by its authenticator, so a repeat has no unambiguous meaning","errors":[{"path":"steps[1].authenticator","message":"repeats an earlier step"}],"instance":"01a1d441-d75f-7248-be23-292f5eb39f01"}
+{"type":"about:blank#flow-empty","title":"Bad Request","status":400,"detail":"a flow needs at least one step; a tenant with no flow cannot be logged into","instance":"01a1d506-cca1-7e04-bb8a-fcc286b455a3"}
+{"type":"about:blank#flow-no-enabled-step","title":"Bad Request","status":400,"detail":"every step is disabled; a tenant with no enabled step cannot be logged into","instance":"01a1d506-ccb0-7629-86f4-bc39ba41c7e6"}
+{"type":"about:blank#flow-no-first-challenge","title":"Bad Request","status":400,"detail":"no step would run at the start of a login, when no subject is bound yet; a tenant whose flow begins this way cannot be logged into","instance":"01a1d506-ccc2-7b39-88f8-5d3aca607179"}
+{"type":"about:blank#flow-unknown-authenticator","title":"Bad Request","status":400,"detail":"unknown authenticator \"sms\"; expected one of password, passkey, otp, recovery-code","errors":[{"path":"steps[0].authenticator","message":"is not a registered authenticator"}],"instance":"01a1d506-ccd5-7f0d-bfe2-d1381f8405d4"}
+{"type":"about:blank#flow-duplicate-authenticator","title":"Bad Request","status":400,"detail":"authenticator \"password\" appears more than once; a step is addressed by its authenticator, so a repeat has no unambiguous meaning","errors":[{"path":"steps[1].authenticator","message":"repeats an earlier step"}],"instance":"01a1d506-cce7-78e2-82b1-55fdef55b32e"}
+```
+
+A step of `otp`, `passkey` or `recovery-code` may carry `settings`, which override the tenant's authenticator settings for that step: `otp` takes `algorithm`, `digits` and `period`, `passkey` takes `user_verification` and `resident_key`, and `recovery-code` takes `count`, each held to the choices and range of the tenant setting of the same meaning. A key left out takes the tenant's value, and a person who enrols during a sign-in on the flow is enrolled under the result; an enrolment made before keeps the values it was made with. The settings are part of the flow, so they are in its `ETag`, in the list, and in the `flow.create` and `flow.amend` audit rows. A step whose authenticator reads none of the keys it carries, and any `settings` on `password`, is refused with `400` `flow-step-settings`, whose `errors` name the step as `steps[1].settings`; a value outside the choices is a schema refusal naming the key. `strict` is made with settings, refused once with a key its authenticator does not read, and deleted again so the flows below are as they were:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "strict", "steps": [{"authenticator": "password", "requirement": "required"}, {"authenticator": "otp", "requirement": "required", "settings": {"algorithm": "SHA256", "digits": 8}}, {"authenticator": "recovery-code", "requirement": "conditional", "settings": {"count": 12}}]}' \
+  http://localhost:3000/admin/tenants/demo/flows
+echo
+for steps in '[{"authenticator": "password", "requirement": "required", "settings": {"digits": 8}}]' '[{"authenticator": "password", "requirement": "required"}, {"authenticator": "otp", "requirement": "required", "settings": {"count": 9}}]' '[{"authenticator": "password", "requirement": "required"}, {"authenticator": "otp", "requirement": "required", "settings": {"digits": 7}}]'; do
+  curl -sS -X POST \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\": \"bad\", \"steps\": $steps}" \
+    http://localhost:3000/admin/tenants/demo/flows
+  echo
+done
+```
+
+```
+{"id":"01a1d506-cd03-74f1-90d6-4d8c9737e11a","name":"strict","is_default":false,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"required","settings":{"algorithm":"SHA256","digits":8}},{"authenticator":"recovery-code","requirement":"conditional","settings":{"count":12}}]}
+{"type":"about:blank#flow-step-settings","title":"Bad Request","status":400,"detail":"step \"password\" carries settings it does not read","errors":[{"path":"steps[0].settings","message":"this authenticator reads no settings"}],"instance":"01a1d506-cd0e-715d-91df-b28e6cd8b12f"}
+{"type":"about:blank#flow-step-settings","title":"Bad Request","status":400,"detail":"step \"otp\" carries settings it does not read","errors":[{"path":"steps[1].settings","message":"this authenticator reads algorithm, digits, period, not count"}],"instance":"01a1d506-cd21-79b2-a0f7-e3ee35ed8924"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body/steps/1/settings/digits must be equal to one of the allowed values","errors":[{"path":"steps[1].settings.digits","message":"must be equal to one of the allowed values"}],"instance":"01a1d506-cd34-7fc2-93f1-724d5cec76f3"}
+```
+
+The flow keeps the settings it was made with, in its own read, and is deleted on the tag that read answers:
+
+```bash
+STRICT=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admin/tenants/demo/flows | jq -r ".items[] | select(.name == \"strict\") | .id")
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admin/tenants/demo/flows/$STRICT | jq -c ".steps"
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $(etag $STRICT)" http://localhost:3000/admin/tenants/demo/flows/$STRICT
+```
+
+```
+[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"required","settings":{"algorithm":"SHA256","digits":8}},{"authenticator":"recovery-code","requirement":"conditional","settings":{"count":12}}]
+204
 ```
 
 A name that is blank, or more than 64 characters, and a field the body does not have, are `400` with the path of the field. `is_default` is not a field of a create or a replacement: which flow is the default is changed by its own route, below:
@@ -239,9 +278,9 @@ curl -sS -X POST \
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: Too small: expected string to have >=1 characters","errors":[{"path":"name","message":"Too small: expected string to have >=1 characters"}],"instance":"01a1d441-d777-74d3-bc4b-4a3cb66295e9"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name must be at most 64 characters","errors":[{"path":"name","message":"name must be at most 64 characters"}],"instance":"01a1d441-d78f-7e55-9207-c635ac12e1ab"}
-{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties: is_default","errors":[{"path":"is_default","message":"must NOT have additional properties"}],"instance":"01a1d441-d7a4-7be8-bf66-2301a5f13adb"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: Too small: expected string to have >=1 characters","errors":[{"path":"name","message":"Too small: expected string to have >=1 characters"}],"instance":"01a1d506-cd9f-7300-a01d-136d37315271"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name must be at most 64 characters","errors":[{"path":"name","message":"name must be at most 64 characters"}],"instance":"01a1d506-cdb5-7d4a-bb78-a80c91f2c4a4"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties: is_default","errors":[{"path":"is_default","message":"must NOT have additional properties"}],"instance":"01a1d506-cdcc-7ead-96d8-f6ee2198a961"}
 ```
 
 The default flow can be renamed and its steps replaced here, and it stays the default. `GET /flow/executions` is that same flow's steps with an `index`, so a change through either is seen through the other. `DEFAULT` keeps the default flow's id:
@@ -259,7 +298,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admin/ten
 ```
 
 ```
-{"id":"01a1d441-b09f-74ce-9554-dee2142af90d","name":"default","is_default":true,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
+{"id":"01a1d506-c8d3-7fc0-aee8-fa1d16bdc160","name":"default","is_default":true,"steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"conditional"}]}
 {"items":[{"index":0,"authenticator":"password","requirement":"required"},{"index":1,"authenticator":"otp","requirement":"conditional"}],"available":["password","passkey","otp","recovery-code"]}
 ```
 
@@ -277,17 +316,17 @@ curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: \"gone\
 ```
 
 ```
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to delete a flow","instance":"01a1d441-d816-7b54-a2c8-10900900e86f"}
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1d441-d82c-743f-8454-a0150211657a"}
-{"type":"about:blank#default-flow","title":"Conflict","status":409,"detail":"the default flow is not deleted; make another flow the default first","instance":"01a1d441-d855-7713-a483-ff2bf4359b2e"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to delete a flow","instance":"01a1d506-ce32-7a3d-b02e-927cc36786ed"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1d506-ce46-71f8-a41c-54abfa104e55"}
+{"type":"about:blank#default-flow","title":"Conflict","status":409,"detail":"the default flow is not deleted; make another flow the default first","instance":"01a1d506-ce6f-7392-a158-9a91f4101412"}
 HTTP/1.1 204 No Content
-x-request-id: 01a1d441-d87e-7df8-b4c6-63ccfc3b924d
+x-request-id: 01a1d506-ce97-7509-946f-8a6c7cea4c0a
 cache-control: no-store
-Date: Fri, 13 Nov 2026 09:34:07 GMT
+Date: Fri, 13 Nov 2026 13:09:15 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d441-d58f-7335-957c-52f6d12eb9ba","instance":"01a1d441-d897-7130-bf9a-4f861ae3805a"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d506-cbf4-781b-9338-d8e7b6671b67","instance":"01a1d506-ceae-7681-a545-55c4771832ec"}
 ```
 
 The default flow is not deleted while it is the default, but another flow can be made the default, which is what a client that names no flow runs. `POST .../make-default` moves it in one transaction: the flow that was the default stops being it, and `flow/executions` now reads and writes the new default's steps. It needs the flow's own `ETag` in `If-Match`, as `PUT` does. `PARTNERS` keeps the id of a new flow:
@@ -301,7 +340,7 @@ echo "PARTNERS=$PARTNERS"
 ```
 
 ```
-PARTNERS=01a1d441-d8ba-777c-ba8d-ef647614f2f8
+PARTNERS=01a1d506-cecd-732d-9d43-1e43d2915f0b
 ```
 
 ```bash
@@ -313,16 +352,16 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admin/ten
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d441-d8de-7a53-ae92-1c515af9edd8
+x-request-id: 01a1d506-cef4-7ab9-aca4-e6f6b286cd49
 cache-control: no-store
-etag: "06c22168a0be4aee423d9d603aeb4c928ab2ce9c912aa6b7627ed9df1aaa9d30"
+etag: "49e0aef580c09af1c24c366baff910c297fc27feb4c887c72642ce5b8dbcf679"
 content-type: application/json; charset=utf-8
 content-length: 145
-Date: Fri, 13 Nov 2026 09:34:07 GMT
+Date: Fri, 13 Nov 2026 13:09:15 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a1d441-d8ba-777c-ba8d-ef647614f2f8","name":"partners","is_default":true,"steps":[{"authenticator":"password","requirement":"required"}]}
+{"id":"01a1d506-cecd-732d-9d43-1e43d2915f0b","name":"partners","is_default":true,"steps":[{"authenticator":"password","requirement":"required"}]}
 {"name":"default","is_default":false}
 {"name":"partners","is_default":true}
 {"items":[{"index":0,"authenticator":"password","requirement":"required"}],"available":["password","passkey","otp","recovery-code"]}
@@ -341,9 +380,9 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $(etag $P
 
 ```
 200
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1d441-d94f-7e7b-8ca5-0b4b155a1c79"}
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to make a flow the default","instance":"01a1d441-d963-7ee4-8251-41998872d762"}
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d441-d8ba-777c-ba8d-ef647614f2f8","instance":"01a1d441-d991-78fc-ac42-f19778c54c96"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1d506-cf68-7d2e-901c-a006f775328f"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to make a flow the default","instance":"01a1d506-cf7d-7cab-89f2-d639deb126cb"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d506-cecd-732d-9d43-1e43d2915f0b","instance":"01a1d506-cfa7-799c-a3e3-d8afc28f12c6"}
 ```
 
 The flow that was the default is an ordinary flow now, and the new default is the one that is refused a delete:
@@ -355,7 +394,7 @@ curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $(etag 
 
 ```
 204
-{"type":"about:blank#default-flow","title":"Conflict","status":409,"detail":"the default flow is not deleted; make another flow the default first","instance":"01a1d441-d9ee-7195-8b06-68122a7b1271"}
+{"type":"about:blank#default-flow","title":"Conflict","status":409,"detail":"the default flow is not deleted; make another flow the default first","instance":"01a1d506-cff5-7a60-9fdc-4e5edef39c91"}
 ```
 
 A client names a flow through its `flow_id`, on a create or a `PATCH`; null, which every client has until it is set, follows the default. First a flow of its own, and a client that names it:
@@ -371,7 +410,7 @@ LOBBY=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" 'http://localhost:3000/
 ```
 
 ```
-{"client_id":"lobby","flow_id":"01a1d441-da15-7f61-bfde-c33ea8ad0af8"}
+{"client_id":"lobby","flow_id":"01a1d506-d010-7fbb-9b74-f5bed0740f30"}
 ```
 
 A flow that is not the tenant's, another tenant's included, is refused with `400` and the code `unknown_flow` in `errors`, and nothing is written:
@@ -383,7 +422,7 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: appl
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"flow_id: flow_id names no flow of this tenant","errors":[{"path":"flow_id","message":"flow_id names no flow of this tenant","code":"unknown_flow"}],"instance":"01a1d441-da97-768a-b1d1-1be69745b0d9"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"flow_id: flow_id names no flow of this tenant","errors":[{"path":"flow_id","message":"flow_id names no flow of this tenant","code":"unknown_flow"}],"instance":"01a1d506-d074-7c96-8642-04b830fe614d"}
 ```
 
 The list now says which flow the client names. The flow cannot be deleted while it does, and the refusal says how many clients and which, once the `If-Match` checks have passed. When the client names none, it can:
@@ -400,7 +439,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $A
 ```
 {"name":"kiosk","client_count":1}
 {"name":"partners","client_count":0}
-{"type":"about:blank#flow-in-use","title":"Conflict","status":409,"detail":"the flow is named by 1 client: lobby; set that client’s flow_id to another flow or null first","instance":"01a1d441-daf9-7e42-92b2-ee5477823e0d"}
+{"type":"about:blank#flow-in-use","title":"Conflict","status":409,"detail":"the flow is named by 1 client: lobby; set that client’s flow_id to another flow or null first","instance":"01a1d506-d0ac-7024-a03b-b4e6df0f424d"}
 {"client_id":"lobby","flow_id":null}
 204
 ```
@@ -426,7 +465,7 @@ curl -sS -X POST \
 ```
 201 201 201 201 201 201 201 201 201 201 201 201 201 201 201 201 201 201 201
 20
-{"type":"about:blank#flow-limit","title":"Conflict","status":409,"detail":"a tenant holds at most 20 flows","instance":"01a1d441-de03-7e14-b453-13a156205aa2"}
+{"type":"about:blank#flow-limit","title":"Conflict","status":409,"detail":"a tenant holds at most 20 flows","instance":"01a1d506-d283-70a5-8d02-2c785bece0f0"}
 ```
 
 A flow belongs to its tenant. The same token, asking another tenant for it, finds nothing, on every route that takes an id. `BULK` is the id of one of the flows just made:
@@ -441,8 +480,8 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/admin/ten
 ```
 
 ```
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d441-dbbf-72ca-8dce-a54d71c085b2","instance":"01a1d441-de3c-7d77-a4b2-12dd97a615b6"}
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d441-dbbf-72ca-8dce-a54d71c085b2","instance":"01a1d441-de68-7a14-adb1-f645bc1df6f3"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d506-d10c-7d00-8fb7-6f905ebcdc2f","instance":"01a1d506-d2aa-7758-8d41-fc5d4805e6e1"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no flow 01a1d506-d10c-7d00-8fb7-6f905ebcdc2f","instance":"01a1d506-d2d0-7d9e-96ad-af985735f196"}
 1
 ```
 

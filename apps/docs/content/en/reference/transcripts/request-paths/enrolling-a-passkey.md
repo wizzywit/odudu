@@ -55,7 +55,9 @@ What the flow is, stated rather than shown:
    the key, the counter and the transports. A response without the user-verified
    flag is refused only where verification was required; the row is then
    verified at sign-in by what it recorded, and a change of the setting
-   afterwards applies to the next passkey only.
+   afterwards applies to the next passkey only. A passkey step of the sign-in flow can name its own
+   `user_verification` and `resident_key`, and a person registering during a sign-in on that flow is asked for
+   those, a key the step leaves out taking the tenant's value ([the sign-in flow page](../../../admin-console/sign-in-flow.mdx#authenticator-settings-on-a-step)).
 5. The page's script is inline, because only a script can reach an
    authenticator. The response's `Content-Security-Policy` names a
    per-response `nonce` and that script carries it — not `unsafe-inline`, so

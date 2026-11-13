@@ -51,7 +51,9 @@ above.
 
 A set holds ten codes unless the tenant's `recovery_code_count` says otherwise, 8
 to 16 ([the settings page](../../../admin-console/settings.mdx#authenticators)).
-It takes effect on the next set issued, and a set already issued keeps its size.
+It takes effect on the next set issued, and a set already issued keeps its size. A `recovery-code` step of the sign-in flow
+can name its own `count`, which then sets the size of a set issued during a sign-in on that flow
+([the sign-in flow page](../../../admin-console/sign-in-flow.mdx#authenticator-settings-on-a-step)).
 Ten characters each from Crockford's 32-character base32 alphabet, printed
 as two groups of five: 32^10, which is 2^50 per code. The alphabet's
 excluded letters — `I`, `L` and `O` — are the ones a reader confuses with

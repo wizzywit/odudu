@@ -396,7 +396,7 @@ Keep-Alive: timeout=72
 A tenant's `totp_algorithm`, `totp_digits` and `totp_period` say what the next authenticator app is made with: `SHA1`, 6
 digits and 30 seconds unless the tenant changed them. The credential keeps the three it was made under, in its row beside
 the secret, and every later code is checked by them, so a change of policy strands nobody and applies to the next
-enrolment only. On a stack of its own on `http://localhost:3000`, started on an empty volume, a tenant `policy-demo` that
+enrolment only. A step of the sign-in flow can name its own `algorithm`, `digits` and `period`; a person enrolling during a sign-in on that flow gets those, and a key the step leaves out takes the tenant's value ([the sign-in flow page](../../../admin-console/sign-in-flow.mdx#authenticator-settings-on-a-step)). On a stack of its own on `http://localhost:3000`, started on an empty volume, a tenant `policy-demo` that
 requires a second factor, with `ada` (client `policy-spa`) and `bob` (client `bob-spa`):
 
 ```bash

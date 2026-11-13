@@ -55,6 +55,7 @@ const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank#flow-no-first-challenge',
   'about:blank#flow-unknown-authenticator',
   'about:blank#flow-duplicate-authenticator',
+  'about:blank#flow-step-settings',
   'about:blank#flow-limit',
   'about:blank#flow-name-taken',
   'about:blank#default-flow',
