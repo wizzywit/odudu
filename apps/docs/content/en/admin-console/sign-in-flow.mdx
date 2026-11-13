@@ -1,6 +1,6 @@
 ---
 title: Sign-in flow in the console
-description: Choose what a person is asked at sign-in and in what order, keep other flows beside the default, set what each step enrols with, and make a one-time password mandatory for everyone.
+description: Choose what a person is asked at sign-in and in what order, keep other flows, set what each step enrols with, and make a one-time password mandatory.
 sidebar_position: 9
 ---
 
@@ -60,9 +60,9 @@ The steps above are those of the tenant's default flow, which every sign-in runs
 
 The enrolment settings under **Authenticators** in [Settings](./settings.mdx#authenticators) are the tenant's. A step of an authenticator that has settings can override them for itself, so one flow can ask for 8-digit codes while the rest of the tenant keeps 6. Under each such step the editor shows its controls, each starting at **Tenant setting** with the tenant's value beside it:
 
-- **otp**: **Algorithm**, **Code length** and **Code period**.
-- **passkey**: **User verification** and **Stored on the device**.
-- **recovery-code**: **Codes in a set**.
+- `otp`: **Algorithm**, **Code length** and **Code period**.
+- `passkey`: **User verification** and **Stored on the device**.
+- `recovery-code`: **Codes in a set**.
 
 A control left at **Tenant setting** takes whatever the tenant's setting is, now and later. Choosing another value names it for the step, and **Save Steps** saves it with the order. Another step, such as the password, has none.
 
