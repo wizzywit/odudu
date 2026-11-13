@@ -1,4 +1,4 @@
-import { authenticationExecutions, userRequiredActions } from '@odudu/authn-flows';
+import { flowRepository, userRequiredActions } from '@odudu/authn-flows';
 import {
   ASSIGNMENT_LIMIT,
   EXPORT_COLLECTION_CAP,
@@ -42,7 +42,6 @@ import {
 import { clientOidcConfig, needsServiceAccount } from '@odudu/protocol-oidc';
 import {
   and,
-  asc,
   count,
   eq,
   inArray,
@@ -719,14 +718,8 @@ export async function exportTenant(
     Object.fromEntries(Object.entries(record).filter(([name]) => policyNames.has(name))),
   );
 
-  const steps = await tx
-    .select({
-      authenticator: authenticationExecutions.authenticator,
-      requirement: authenticationExecutions.requirement,
-    })
-    .from(authenticationExecutions)
-    .where(eq(authenticationExecutions.tenantId, tenantId))
-    .orderBy(asc(authenticationExecutions.index));
+  const defaultFlow = await flowRepository(tx).defaultForTenant(tenantId);
+  const steps = defaultFlow?.steps ?? [];
 
   const roleRows = await readRoles(tx, tenantId);
   const roleById = new Map(roleRows.map((role) => [role.id, role]));

@@ -1,9 +1,8 @@
 import { z } from 'zod';
 
-// `authentication_executions_requirement`
-// (packages/db/drizzle/0031_authentication_executions.sql): the same four
-// values, restated here as the one wire vocabulary a request or response
-// carries.
+// The `requirement` of a flow step (`REQUIREMENTS` in
+// packages/authn-flows/src/schema/flow.ts): the same four values, restated
+// here as the one wire vocabulary a request or response carries.
 export const executionRequirementSchema = z.enum([
   'required',
   'alternative',
