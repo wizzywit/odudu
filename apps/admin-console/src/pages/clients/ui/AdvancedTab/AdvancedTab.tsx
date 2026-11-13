@@ -94,7 +94,7 @@ function Fixed({ title, items }: { title: string; items: ClientAdvanced['fixedBy
 export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabProps) {
   const page = useClientAdvanced({ tenant, client, etag, gone });
   const secret = useClientSecret(tenant, client);
-  const { auth, keys, userinfo, audiences, exchange, actions } = page;
+  const { auth, keys, userinfo, audiences, exchange, actions, flow } = page;
   const method = auth.values.token_endpoint_auth_method;
   const source = keys.values.key_source;
   return (
@@ -274,6 +274,18 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
             changed={actions.changed.includes('allowed_actions')}
             onChange={(value) => {
               actions.edit('allowed_actions', value);
+            }}
+          />
+        </SaveSection>
+        <SaveSection title={page.sections.flow} description={page.flowRule} save={flow}>
+          <SelectField
+            label={page.flowLabel}
+            options={page.flowOptions}
+            value={flow.values.flow_id}
+            error={flow.fieldErrors.flow_id}
+            changed={flow.changed.includes('flow_id')}
+            onChange={(value) => {
+              flow.edit('flow_id', value);
             }}
           />
         </SaveSection>

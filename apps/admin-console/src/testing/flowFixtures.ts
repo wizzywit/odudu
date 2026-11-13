@@ -31,6 +31,17 @@ export function flowRecordBody(id: string, name: string, isDefault = false, step
   return { id, name, is_default: isDefault, steps };
 }
 
+// A row of the list, which also says how many clients name the flow.
+export function flowListItem(
+  id: string,
+  name: string,
+  isDefault = false,
+  steps = STEPS,
+  clients = 0,
+) {
+  return { ...flowRecordBody(id, name, isDefault, steps), client_count: clients };
+}
+
 const STEPS = [
   { authenticator: 'passkey', requirement: 'alternative' },
   { authenticator: 'password', requirement: 'alternative' },
@@ -42,8 +53,8 @@ export const STAFF_FLOW_ID = '0192a0a0-0000-7000-8000-0000000000f2';
 
 // The default flow and one of the tenant's own.
 export const FLOW_LIST = [
-  flowRecordBody(DEFAULT_FLOW_ID, 'default', true),
-  flowRecordBody(STAFF_FLOW_ID, 'staff', false, STEPS.slice(1, 2)),
+  flowListItem(DEFAULT_FLOW_ID, 'default', true),
+  flowListItem(STAFF_FLOW_ID, 'staff', false, STEPS.slice(1, 2), 2),
 ];
 
 export function flowsAnswer(items = FLOW_LIST, etag = '"l1"'): Answer {

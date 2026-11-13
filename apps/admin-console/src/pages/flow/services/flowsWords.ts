@@ -10,7 +10,7 @@ export const FLOWS_WORDS = {
     loading: 'Loading the flows',
     failed: 'The flows could not be loaded',
     defaultTag: 'Default',
-    columns: { name: 'Name', steps: 'Steps', actions: 'Actions' },
+    columns: { name: 'Name', steps: 'Steps', clients: 'Clients', actions: 'Actions' },
     edit: 'Edit',
     delete: 'Delete',
     makeDefault: 'Make default',
@@ -19,7 +19,8 @@ export const FLOWS_WORDS = {
   },
   create: {
     title: 'New flow',
-    description: 'A flow of its own, to be given to a client once a client may name one.',
+    description:
+      'A flow of its own, which a client runs once it is chosen under Sign-in flow on the client’s Advanced tab.',
     nameLabel: 'Name',
     nameHelp: `Unique within the tenant, at most ${String(FLOW_NAME_MAX)} characters. It starts with the steps of the default flow; change them once it is made.`,
     noun: 'flow',

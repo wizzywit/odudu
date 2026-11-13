@@ -5,7 +5,7 @@ import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { inTurn, json, problem } from '#/testing/fakeTransport';
 import {
   DEFAULT_FLOW_ID,
-  flowRecordBody,
+  flowListItem,
   flowRoutes,
   FLS,
   FLOW_LIST,
@@ -33,12 +33,14 @@ it('lists the flows with the default marked, each with a way in, and no delete f
   const fallback = within(rows).getByRole('row', { name: /default/u });
   expect(fallback).toHaveTextContent('Default');
   expect(fallback).toHaveTextContent('3 steps: passkey, password, otp');
+  expect(fallback).toHaveTextContent('None');
   expect(within(fallback).getByRole('link', { name: 'Edit default' })).toHaveAttribute(
     'href',
     `/console/acme/flow/${DEFAULT_FLOW_ID}`,
   );
   expect(within(fallback).queryByRole('button', { name: /Delete/u })).toBeNull();
   const staff = within(rows).getByRole('row', { name: /staff/u });
+  expect(staff).toHaveTextContent('2 clients');
   expect(within(staff).getByRole('button', { name: 'Delete staff' })).toBeVisible();
   expect(screen.getByRole('link', { name: 'New flow' })).toHaveAttribute(
     'href',
@@ -78,15 +80,15 @@ it('makes a flow the default after asking, on the tag the flow was read with', a
         flowsAnswer(),
         flowsAnswer(
           [
-            flowRecordBody(DEFAULT_FLOW_ID, 'default', false),
-            flowRecordBody(STAFF_FLOW_ID, 'staff', true),
+            flowListItem(DEFAULT_FLOW_ID, 'default', false),
+            flowListItem(STAFF_FLOW_ID, 'staff', true),
           ],
           '"l2"',
         ),
       ),
       [`GET ${FLS}/${STAFF_FLOW_ID}`]: json(FLOW_LIST[1], 200, { etag: staffTag }),
       [`POST ${FLS}/${STAFF_FLOW_ID}/make-default`]: json(
-        flowRecordBody(STAFF_FLOW_ID, 'staff', true),
+        flowListItem(STAFF_FLOW_ID, 'staff', true),
         200,
         { etag: '"st2"' },
       ),
@@ -121,6 +123,21 @@ it('words the refusal of the default flow in the dialog', async () => {
   const dialog = await screen.findByRole('alertdialog');
   await user.click(within(dialog).getByRole('button', { name: 'Delete staff' }));
   expect(await within(dialog).findByText(/The default flow is not deleted/u)).toBeVisible();
+});
+
+it('words the refusal of a flow a client names in the dialog, with the count it showed', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    flowRoutes(undefined, {
+      [`DELETE ${FLS}/${STAFF_FLOW_ID}`]: problem(409, 'about:blank#flow-in-use', 'Conflict'),
+    }),
+  );
+  await user.click(await screen.findByRole('button', { name: 'Delete staff' }));
+  const dialog = await screen.findByRole('alertdialog');
+  expect(within(dialog).getByText(/once the 2 clients that use it use another/u)).toBeVisible();
+  await user.click(within(dialog).getByRole('button', { name: 'Delete staff' }));
+  expect(await within(dialog).findByText(/2 clients use staff/u)).toBeVisible();
 });
 
 it('says the flows could not be loaded, with a retry, and leaves the rest of the page', async () => {

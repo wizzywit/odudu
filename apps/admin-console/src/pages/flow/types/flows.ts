@@ -1,1 +1,6 @@
-export type { FlowWire, ListFlowsResponse, SaveFlowRequest } from '@odudu/contracts/admin';
+export type {
+  FlowListItemWire,
+  FlowWire,
+  ListFlowsResponse,
+  SaveFlowRequest,
+} from '@odudu/contracts/admin';

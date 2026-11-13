@@ -1,6 +1,7 @@
 import { json, type Answer, type Sent } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { graceRoutes } from '#/testing/renderConsole';
+import { flowsAnswer } from '#/testing/flowFixtures';
 import { EVERY_TENANT_CAPABILITY } from '#/testing/roleAnswers';
 export const C = `${ACME_ADMIN}/clients`;
 
@@ -45,6 +46,7 @@ export interface ClientAnswer {
   default_max_age: number | null;
   require_auth_time: boolean;
   allowed_actions: readonly string[];
+  flow_id: string | null;
   previous_secret_expires_at: string | null;
   builtin_admin: boolean;
   skip_logout_confirmation: boolean;
@@ -108,6 +110,7 @@ export function client(
     default_max_age: null,
     require_auth_time: false,
     allowed_actions: [],
+    flow_id: null,
     previous_secret_expires_at: null,
     builtin_admin: false,
     skip_logout_confirmation: false,
@@ -195,6 +198,7 @@ export function clientRoutes(
       [`GET ${ACME_ADMIN}/sessions/count`]: json({ count: 0, capped: false }),
       [`GET ${ACME_ADMIN}/subjects`]: json({ items: [] }),
       [`GET ${ACME_ADMIN}/scopes`]: json({ items: [] }),
+      [`GET ${ACME_ADMIN}/flows`]: flowsAnswer(),
       [`GET ${ACME_ADMIN}/roles`]: json({ items: [] }),
       [`GET ${ACME_ADMIN}/roles/count`]: json({ count: 0, capped: false }),
       [`GET ${ACME_ADMIN}/audit`]: json({ items: [] }),

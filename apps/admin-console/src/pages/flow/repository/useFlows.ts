@@ -1,14 +1,12 @@
-import type { FlowWire, ListFlowsResponse, SaveFlowRequest } from '#/pages/flow/types/flows';
+import { flowRecordName, FLOWS_RECORD, readFlows, useFlowsRecord } from '#/entities/flow';
+import type { FlowWire, SaveFlowRequest } from '#/pages/flow/types/flows';
 import {
   createFlow,
   deleteFlow,
-  findFlow,
   makeFlowDefault,
   readFlowById,
-  readFlows,
   replaceFlowById,
 } from '#/pages/flow/adapter/flows';
-import { flowRecordName, FLOWS_RECORD } from '#/pages/flow/services/flows';
 import type { Step } from '#/pages/flow/services/steps';
 import { findKey } from '#/shared/lib/repository/queryKeys';
 import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
@@ -19,12 +17,17 @@ import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
 import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 import { useTransport } from '#/shared/api/transport/useTransport';
 
-export function useFlowsRecord(tenant: string): RecordState<ListFlowsResponse> {
-  return useRecord({
-    tenant,
-    record: FLOWS_RECORD,
-    read: (gateway) => readFlows(gateway, tenant),
-  });
+export { useFlowsRecord };
+
+// For a creation whose answer was lost: the flow of that name, if the tenant has it.
+async function findFlow(
+  gateway: Gateway,
+  tenant: string,
+  name: string,
+): Promise<GatewayResult<FlowWire | null>> {
+  const result = await readFlows(gateway, tenant);
+  if (!result.ok) return result;
+  return { ...result, data: result.data.items.find((flow) => flow.name === name) ?? null };
 }
 
 export function useFlowById(tenant: string, id: string): RecordState<FlowWire> {
