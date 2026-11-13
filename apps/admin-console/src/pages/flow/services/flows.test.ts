@@ -5,6 +5,8 @@ import {
   createSpec,
   deleteDialog,
   deleteOutcome,
+  promoteDialog,
+  promoteOutcome,
   flowRows,
   nameTakenExplanation,
   stepSummary,
@@ -33,7 +35,10 @@ describe('flowRows', () => {
       href: '/console/acme/flow/f-2',
       editLabel: 'Edit staff',
       deleteLabel: 'Delete staff',
+      promotable: true,
+      promoteLabel: 'Make staff the default',
     });
+    expect(rows[0]?.promotable).toBe(false);
   });
 });
 
@@ -124,5 +129,28 @@ describe('nameTakenExplanation', () => {
       nameTakenExplanation({ status: 409, type: 'about:blank#flow-name-taken', title: 'T' }),
     ).toBe('That name belongs to another flow of this tenant. Choose another.');
     expect(nameTakenExplanation({ status: 409, type: 'about:blank', title: 'T' })).toBeNull();
+  });
+});
+
+describe('promoteDialog and promoteOutcome', () => {
+  it('asks for the flow by name, saying what changes', () => {
+    expect(promoteDialog(STAFF)).toMatchObject({
+      title: 'Make staff the default?',
+      confirmLabel: 'Make default',
+      tone: 'primary',
+    });
+    expect(promoteDialog(STAFF).consequence).toMatch(/next step/u);
+  });
+
+  it('says the flow is now the default, and words a stale tag and a missing flow', () => {
+    expect(
+      promoteOutcome('staff', { ok: true, status: 200, data: 1, etag: null, next: null }),
+    ).toEqual({
+      done: true,
+      text: 'staff is now the default flow.',
+    });
+    expect(promoteOutcome('staff', problemResult(412, 'about:blank')).done).toBe(false);
+    expect(promoteOutcome('staff', problemResult(412, 'about:blank')).text).toMatch(/changed/u);
+    expect(promoteOutcome('staff', problemResult(404, 'about:blank')).text).toMatch(/no longer/u);
   });
 });

@@ -61,3 +61,17 @@ export async function findFlow(
   if (!result.ok) return result;
   return { ...result, data: result.data.items.find((flow) => flow.name === name) ?? null };
 }
+
+// The tag a flow's change waits on is the flow's own, so it is read first and sent back.
+export async function makeFlowDefault(
+  gateway: Gateway,
+  tenant: string,
+  id: string,
+): Promise<GatewayResult<FlowWire>> {
+  const read = await adminCall(gateway, 'GET', tenant, ['flows', id], { schema: flowSchema });
+  if (!read.ok) return read;
+  return adminCall(gateway, 'POST', tenant, ['flows', id, 'make-default'], {
+    ifMatch: read.etag ?? '',
+    schema: flowSchema,
+  });
+}

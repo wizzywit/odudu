@@ -2,9 +2,10 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
-import { inTurn, problem } from '#/testing/fakeTransport';
+import { inTurn, json, problem } from '#/testing/fakeTransport';
 import {
   DEFAULT_FLOW_ID,
+  flowRecordBody,
   flowRoutes,
   FLS,
   FLOW_LIST,
@@ -64,6 +65,47 @@ it('deletes a flow after asking, says so, and reads the list again', async () =>
   expect(await screen.findByText('staff was deleted.')).toBeVisible();
   await waitFor(() => {
     expect(screen.queryByRole('button', { name: 'Delete staff' })).toBeNull();
+  });
+});
+
+it('makes a flow the default after asking, on the tag the flow was read with', async () => {
+  const user = userEvent.setup();
+  const staffTag = '"st1"';
+  const { sent } = renderConsoleAt(
+    AT,
+    flowRoutes(undefined, {
+      [`GET ${FLS}`]: inTurn(
+        flowsAnswer(),
+        flowsAnswer(
+          [
+            flowRecordBody(DEFAULT_FLOW_ID, 'default', false),
+            flowRecordBody(STAFF_FLOW_ID, 'staff', true),
+          ],
+          '"l2"',
+        ),
+      ),
+      [`GET ${FLS}/${STAFF_FLOW_ID}`]: json(FLOW_LIST[1], 200, { etag: staffTag }),
+      [`POST ${FLS}/${STAFF_FLOW_ID}/make-default`]: json(
+        flowRecordBody(STAFF_FLOW_ID, 'staff', true),
+        200,
+        { etag: '"st2"' },
+      ),
+    }),
+  );
+  const grid = await table();
+  expect(
+    within(within(grid).getByRole('row', { name: /default/u })).queryByRole('button', {
+      name: /Make .* the default/u,
+    }),
+  ).toBeNull();
+  await user.click(await screen.findByRole('button', { name: 'Make staff the default' }));
+  const dialog = await screen.findByRole('alertdialog');
+  expect(within(dialog).getByText('Make staff the default?')).toBeVisible();
+  await user.click(within(dialog).getByRole('button', { name: 'Make default' }));
+  expect(await screen.findByText('staff is now the default flow.')).toBeVisible();
+  expect(sent.find((s) => s.method === 'POST')?.ifMatch).toBe(staffTag);
+  await waitFor(() => {
+    expect(screen.queryByRole('button', { name: 'Make staff the default' })).toBeNull();
   });
 });
 

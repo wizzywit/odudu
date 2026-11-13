@@ -3,6 +3,7 @@ import {
   createFlow,
   deleteFlow,
   findFlow,
+  makeFlowDefault,
   readFlowById,
   readFlows,
   replaceFlowById,
@@ -105,4 +106,11 @@ export function useFlowSave(tenant: string, id: string) {
 // the flows list shows them.
 export function useAfterDefaultSave(tenant: string) {
   return useAfterFlowsChange(tenant, null, FLOWS_ONLY);
+}
+
+export function useMakeFlowDefault(tenant: string): Write<string, GatewayResult<FlowWire>> {
+  const after = useAfterFlowsChange(tenant, null, WITH_DEFAULT);
+  return useWrite({
+    send: async (gateway, id: string) => after(await makeFlowDefault(gateway, tenant, id)),
+  });
 }

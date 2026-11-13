@@ -34,13 +34,25 @@ function columns(page: Panel): readonly Column<FlowRow>[] {
           <ButtonLink href={row.href} size="small" variant="quiet">
             {edit} <VisuallyHidden>{row.flow.name}</VisuallyHidden>
           </ButtonLink>
+          {row.promotable ? (
+            <Button
+              size="small"
+              variant="quiet"
+              aria-label={row.promoteLabel}
+              onPress={() => {
+                page.action.ask({ action: 'default', flow: row.flow });
+              }}
+            >
+              {page.words.makeDefault}
+            </Button>
+          ) : null}
           {row.deletable ? (
             <Button
               size="small"
               variant="quiet"
               aria-label={row.deleteLabel}
               onPress={() => {
-                page.action.ask(row.flow);
+                page.action.ask({ action: 'delete', flow: row.flow });
               }}
             >
               {remove}
@@ -61,7 +73,7 @@ function DeleteDialog({ page }: { page: Panel }) {
       title={dialog?.title ?? ''}
       consequence={dialog?.consequence ?? ''}
       confirmLabel={dialog?.confirmLabel ?? ''}
-      tone="danger"
+      tone={dialog?.tone ?? 'danger'}
       busy={action.busy}
       problem={action.problem}
       onConfirm={() => {

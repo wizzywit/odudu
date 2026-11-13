@@ -13,6 +13,7 @@ export const FLOWS_WORDS = {
     columns: { name: 'Name', steps: 'Steps', actions: 'Actions' },
     edit: 'Edit',
     delete: 'Delete',
+    makeDefault: 'Make default',
     newFlow: 'New flow',
     lastAction: 'Last flow action',
   },

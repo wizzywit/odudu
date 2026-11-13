@@ -8,6 +8,7 @@ import { recordAddress } from '#/shared/lib/services/address';
 import {
   namedCreation,
   removalOutcome,
+  writeFailureText,
   type CreateSpec,
   type RemovalOutcome,
 } from '#/shared/lib/services/failure';
@@ -45,6 +46,9 @@ export interface FlowRow {
   summary: string;
   // The default flow is never deleted: a sign-in that names no flow runs it.
   deletable: boolean;
+  // Any flow but the default may become it.
+  promotable: boolean;
+  promoteLabel: string;
   editLabel: string;
   deleteLabel: string;
 }
@@ -66,6 +70,8 @@ export function flowRows(tenant: string, flows: readonly FlowWire[] | undefined)
     isDefault: flow.is_default,
     summary: stepSummary(flow.steps),
     deletable: !flow.is_default,
+    promotable: !flow.is_default,
+    promoteLabel: `Make ${flow.name} the default`,
     editLabel: `Edit ${flow.name}`,
     deleteLabel: `Delete ${flow.name}`,
   }));
@@ -156,4 +162,45 @@ export function explainFlowSave(
   refusal: (problem: Problem) => string | null,
 ): string | null {
   return nameTakenExplanation(problem) ?? refusal(problem);
+}
+
+export function promoteDialog(flow: FlowWire): NamedDialog {
+  return {
+    title: `Make ${flow.name} the default?`,
+    consequence:
+      'Every sign-in that names no flow runs it from now on, and a sign-in already under way takes its next step from it. The current default stays as an ordinary flow, which can then be deleted.',
+    confirmLabel: 'Make default',
+    tone: 'primary',
+  };
+}
+
+export function promoteOutcome(name: string, result: GatewayResult<unknown>): RemovalOutcome {
+  if (result.ok) return { done: true, text: `${name} is now the default flow.` };
+  return {
+    done: false,
+    text: writeFailureText(result, {
+      name,
+      verb: 'made the default',
+      lookAt: 'the flows',
+      stale: 'The flow changed since it was read, so nothing was changed. Read the list again.',
+      missing: `${name} is no longer a flow of this tenant.`,
+    }),
+  };
+}
+
+export interface AskedAction {
+  action: 'delete' | 'default';
+  flow: FlowWire;
+}
+
+// The confirmation an asked action needs, or none while nothing is asked.
+export function askedDialog(asked: AskedAction | null): NamedDialog | null {
+  if (asked === null) return null;
+  return asked.action === 'delete' ? deleteDialog(asked.flow) : promoteDialog(asked.flow);
+}
+
+export function askedOutcome(asked: AskedAction, result: GatewayResult<unknown>): RemovalOutcome {
+  return asked.action === 'delete'
+    ? deleteOutcome(asked.flow.name, result)
+    : promoteOutcome(asked.flow.name, result);
 }

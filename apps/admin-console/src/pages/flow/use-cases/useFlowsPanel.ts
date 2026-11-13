@@ -1,11 +1,16 @@
-import type { FlowWire, ListFlowsResponse } from '#/pages/flow/types/flows';
+import type { ListFlowsResponse } from '#/pages/flow/types/flows';
 import { useRefusal } from '#/entities/session';
-import { useDeleteFlow, useFlowsRecord } from '#/pages/flow/repository/useFlows';
 import {
-  deleteDialog,
-  deleteOutcome,
+  useDeleteFlow,
+  useFlowsRecord,
+  useMakeFlowDefault,
+} from '#/pages/flow/repository/useFlows';
+import {
+  askedDialog,
+  askedOutcome,
   flowRows,
   newFlowHref,
+  type AskedAction,
   type FlowRow,
 } from '#/pages/flow/services/flows';
 import { FLOWS_WORDS, type FlowsWords } from '#/pages/flow/services/flowsWords';
@@ -26,7 +31,7 @@ export interface FlowsPanel {
     notice: string | null;
     // How many deletes have ended where they were meant to, for the line's live region.
     count: number;
-    ask: (flow: FlowWire) => void;
+    ask: (asked: AskedAction) => void;
     cancel: () => void;
     confirm: () => Promise<boolean>;
   };
@@ -36,12 +41,14 @@ export function useFlowsPanel(tenant: string): FlowsPanel {
   const refusal = useRefusal(tenant);
   const record = useFlowsRecord(tenant);
   const remove = useDeleteFlow(tenant);
-  const acting = useAnnouncedAction<FlowWire>({
+  const promote = useMakeFlowDefault(tenant);
+  const writes = { delete: remove.run, default: promote.run };
+  const acting = useAnnouncedAction<AskedAction>({
     refusal,
     capability: 'manage-tenant',
-    blocked: remove.busy,
-    send: (flow) => remove.run(flow.id),
-    outcomeOf: (flow, result) => deleteOutcome(flow.name, result),
+    blocked: remove.busy || promote.busy,
+    send: (asked) => writes[asked.action](asked.flow.id),
+    outcomeOf: askedOutcome,
   });
   return {
     words: FLOWS_WORDS.list,
@@ -49,8 +56,8 @@ export function useFlowsPanel(tenant: string): FlowsPanel {
     rows: flowRows(tenant, record.data?.items),
     newHref: newFlowHref(tenant),
     action: {
-      dialog: deleteDialog(acting.asked),
-      busy: remove.busy,
+      dialog: askedDialog(acting.asked),
+      busy: remove.busy || promote.busy,
       problem: acting.problem,
       notice: acting.notice,
       count: acting.done,
