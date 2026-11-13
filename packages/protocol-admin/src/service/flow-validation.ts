@@ -1,4 +1,4 @@
-import { FLOW_STEP_SETTING_KEYS, type ReplaceExecutionsRequest } from '@odudu/contracts/admin';
+import { settingKeysOf, type ReplaceExecutionsRequest } from '@odudu/contracts/admin';
 
 export type ValidateFlowOutcome =
   | { kind: 'ok' }
@@ -42,7 +42,7 @@ export function validateFlowSteps(
 
   for (const step of steps) {
     if (step.settings === undefined) continue;
-    const read: readonly string[] = FLOW_STEP_SETTING_KEYS[step.authenticator] ?? [];
+    const read: readonly string[] = settingKeysOf(step.authenticator);
     const keys = Object.keys(step.settings).filter((key) => !read.includes(key));
     if (keys.length > 0 || read.length === 0) {
       return { kind: 'unread_settings', name: step.authenticator, keys, read };

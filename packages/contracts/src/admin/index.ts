@@ -465,7 +465,7 @@ export {
   type FlowStepWire,
   flowStepSettingsSchema,
   type FlowStepSettings,
-  FLOW_STEP_SETTING_KEYS,
+  settingKeysOf,
   listFlowsResponseSchema,
   type ListFlowsResponse,
   saveFlowRequestSchema,

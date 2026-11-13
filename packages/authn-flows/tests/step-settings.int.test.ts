@@ -173,6 +173,23 @@ describe('TOTP enrolment under the flow in force', () => {
     expect(stored).toMatchObject({ algorithm: 'SHA1', digits: 6, period: 30 });
   });
 
+  it('uses the default flow’s settings for a client that names no flow', async () => {
+    const s = await seed();
+    await withTenant(app.db, s.tenantId, (tx) =>
+      flowRepository(tx).replaceDefaultSteps(s.tenantId, [
+        { authenticator: 'password', requirement: 'required' },
+        { authenticator: 'otp', requirement: 'required', settings: { digits: 8 } },
+      ]),
+    );
+    const { offer, stored } = await enrolTotp(
+      s,
+      await startBound(s),
+      new FakeClock(new Date(Date.UTC(2033, 0, 1))),
+    );
+    expect(offer.parameters).toEqual({ algorithm: 'SHA1', digits: 8, period: 30 });
+    expect(stored).toMatchObject({ digits: 8 });
+  });
+
   it('leaves an enrolment made before the flow was saved verifying as it was made', async () => {
     const s = await seed();
     const clock = new FakeClock(new Date(Date.UTC(2033, 0, 1)));

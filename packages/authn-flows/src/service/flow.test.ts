@@ -133,4 +133,23 @@ describe('flowStepsSchema settings', () => {
       ]).success,
     ).toBe(false);
   });
+
+  it('holds the recovery set size to 8 and 16 inclusive', () => {
+    const count = (value: number) =>
+      flowStepsSchema.safeParse([
+        { authenticator: 'recovery-code', requirement: 'required', settings: { count: value } },
+      ]).success;
+    expect([count(7), count(8), count(16), count(17)]).toEqual([false, true, true, false]);
+  });
+
+  it('reads no settings for a name an object inherits', () => {
+    const named = (authenticator: string) =>
+      flowStepsSchema.safeParse([{ authenticator, requirement: 'required', settings: {} }]).success;
+    expect(named('constructor')).toBe(false);
+    expect(named('toString')).toBe(false);
+    expect(
+      flowStepsSchema.safeParse([{ authenticator: 'constructor', requirement: 'required' }])
+        .success,
+    ).toBe(true);
+  });
 });

@@ -105,4 +105,13 @@ describe('validateFlowSteps settings', () => {
     ];
     expect(validateFlowSteps(steps, KNOWN)).toEqual({ kind: 'ok' });
   });
+
+  it('treats an inherited object name as an authenticator that reads nothing', () => {
+    expect(
+      validateFlowSteps(
+        [{ authenticator: 'constructor', requirement: 'required', settings: {} }],
+        ['constructor'],
+      ),
+    ).toEqual({ kind: 'unread_settings', name: 'constructor', keys: [], read: [] });
+  });
 });

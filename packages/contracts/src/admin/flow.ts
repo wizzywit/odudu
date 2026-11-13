@@ -41,12 +41,19 @@ export type FlowStepSettings = z.infer<typeof flowStepSettingsSchema>;
 
 // The settings keys each authenticator reads. An authenticator not listed
 // takes none.
-export const FLOW_STEP_SETTING_KEYS: Readonly<Record<string, readonly (keyof FlowStepSettings)[]>> =
-  {
-    otp: ['algorithm', 'digits', 'period'],
-    passkey: ['user_verification', 'resident_key'],
-    'recovery-code': ['count'],
-  };
+const FLOW_STEP_SETTING_KEYS: Readonly<Record<string, readonly (keyof FlowStepSettings)[]>> = {
+  otp: ['algorithm', 'digits', 'period'],
+  passkey: ['user_verification', 'resident_key'],
+  'recovery-code': ['count'],
+};
+
+// The keys an authenticator reads; none for a name the table does not list,
+// whatever an object inherits under that name.
+export function settingKeysOf(authenticator: string): readonly (keyof FlowStepSettings)[] {
+  return Object.hasOwn(FLOW_STEP_SETTING_KEYS, authenticator)
+    ? (FLOW_STEP_SETTING_KEYS[authenticator] ?? [])
+    : [];
+}
 
 export const executionStepSchema = z.object({
   index: z.number().int().nonnegative(),

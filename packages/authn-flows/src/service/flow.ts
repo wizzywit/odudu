@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FLOW_STEP_SETTING_KEYS, flowStepSettingsSchema } from '@odudu/contracts/admin';
+import { flowStepSettingsSchema, settingKeysOf } from '@odudu/contracts/admin';
 import { type Flow, REQUIREMENTS } from '#/schema/flow';
 
 export const MAX_FLOW_STEPS = 20;
@@ -14,7 +14,7 @@ export function settingsFitAuthenticator(step: {
   settings?: object | undefined;
 }): boolean {
   if (step.settings === undefined) return true;
-  const allowed: readonly string[] = FLOW_STEP_SETTING_KEYS[step.authenticator] ?? [];
+  const allowed: readonly string[] = settingKeysOf(step.authenticator);
   if (allowed.length === 0) return false;
   return Object.keys(step.settings).every((key) => allowed.includes(key));
 }
