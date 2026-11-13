@@ -72,7 +72,7 @@ function stepPath(
 function unreadSettingsMessage(keys: readonly string[], read: readonly string[]): string {
   return read.length === 0
     ? 'this authenticator reads no settings'
-    : `${keys.join(', ')} not read by this authenticator; it reads ${read.join(', ')}`;
+    : `this authenticator reads ${read.join(', ')}, not ${keys.join(', ')}`;
 }
 
 function stepsProblem(
