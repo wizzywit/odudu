@@ -5,7 +5,12 @@ import { NOT_TOOLS, TOOLS } from '#/service/catalogue';
 
 // Lists that answer a small fixed set whole: the built-in scopes, and at most
 // twenty theme versions.
-const UNPAGED_LISTS = ['list_builtin_scopes', 'list_theme_versions', 'list_client_theme_versions'];
+const UNPAGED_LISTS = [
+  'list_flows',
+  'list_builtin_scopes',
+  'list_theme_versions',
+  'list_client_theme_versions',
+];
 
 describe('the catalogue', () => {
   it('lists every tool input as a JSON schema that takes no key it does not name', () => {

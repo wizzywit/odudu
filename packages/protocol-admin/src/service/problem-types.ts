@@ -82,6 +82,23 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'A step of a replacement authentication flow names an authenticator that is not ' +
       'registered. `detail` lists the ones that are.',
   },
+  'flow-limit': {
+    status: 409,
+    summary:
+      'The tenant already holds the most sign-in flows it may (20). `detail` names the cap. ' +
+      'Delete a flow that is no longer used first.',
+  },
+  'flow-name-taken': {
+    status: 409,
+    summary:
+      'Another sign-in flow of the tenant already has this name. Names are unique per tenant.',
+  },
+  'default-flow': {
+    status: 409,
+    summary:
+      'The tenant\u2019s default flow is not deleted: a client that names no flow signs in ' +
+      'through it. Make another flow the default first.',
+  },
   'key-active': {
     status: 409,
     summary: 'The signing key is the active one and cannot be retired. Promote another key first.',

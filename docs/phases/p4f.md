@@ -919,3 +919,71 @@ route. Two transcripts that print the old table's name or counts were corrected.
 - The flow CRUD, console, CLI and audit, and moving the authenticator settings onto steps, are Increment 13b; the client `flow_id` and
   the `/authorize` resolution are 13c. The two transcripts edited here were corrected by hand from the new schema, not re-run on a
   live stack.
+
+## Increment 13b: the admin surface for flows
+
+### What shipped
+
+A tenant holds up to 20 named sign-in flows beside its default. The admin API lists, creates, reads, replaces and deletes them
+(`/flows`, `/flows/{id}`), the console's Sign-in flow page lists them and has a page to create one and a page to edit one, the
+audit trail records each change, and two MCP read tools (`list_flows`, `get_flow`) read them. `GET`/`PUT /flow/executions` stay as the
+default flow's steps. No client names a flow yet (13c), so no sign-in runs a flow other than the default.
+
+### Rulings
+
+- **Routes.** `GET /flows` answers `{items, total, available}` ordered by name with an `ETag`; there is no cursor because the cap
+  bounds it, and `total` is every flow. `POST` takes `{name, steps}` and answers `201` with the flow and its `ETag`. `GET /flows/{id}`
+  answers the flow and an `ETag` over `{id, name, is_default, steps}`. `PUT /flows/{id}` takes the same body as `POST`, needs `If-Match`
+  (`428` absent or `*`, `412` stale, as `required-actions` and `executions` do) and keeps the flow's id and `is_default`. `DELETE` needs `If-Match` too (compared under the tenant lock, after the 404 and before the default check) and answers
+  `204`. The body is strict, so `is_default` and a step's `index` are `400`.
+- **The default flow.** It is renamed and its steps replaced in place through `PUT /flows/{id}` or `PUT /flow/executions`, and
+  `DELETE` refuses it with `409` `default-flow`, so exactly one default stays an invariant. Another flow becomes the default through
+  `POST /flows/{id}/make-default`: with a client able to pin a flow, an operator must be able to choose the baseline,
+  and editing the default's steps cannot promote a differently named flow. One transaction under the tenant's flow lock clears the
+  old default and sets the new (the partial unique index allows one at a time), `If-Match` is the flow's own `ETag` (428/412), a
+  flow that already is the default answers `200` unchanged with no write and no audit row, a flow of another tenant is `404`, and the
+  audit row is `flow.default_set` on the promoted flow with `is_default` `{before, after}`. The executor reads the default at each
+  step, and an authentication records only the authenticator names it has satisfied, so one in flight takes its next step from the
+  flow that is the default then; both that and a fresh sign-in following the promoted flow are integration-tested. MCP stays
+  read-only (class W2, P5b). The console's **Make default** is on every non-default row behind a confirmation.
+- **The cap.** `FLOW_LIMIT` (20, in `@odudu/contracts/admin`) is the flows a tenant holds and `FLOW_STEP_MAX` (20) the steps of one; they
+  are named apart and equal by coincidence. The count runs inside the write transaction under the tenant's `flows` advisory lock, the
+  lock every flow write takes, so two creates at 19 flows cannot both pass (`flows.int.test.ts`: exactly one `201` and one `409`).
+  A 21st flow is `409` `flow-limit` and says 20.
+- **Names.** 1 to 64 characters by code points after trimming, no NUL or bidirectional control. The `flows_tenant_name` constraint is
+  the authority for a repeat: the route maps its violation to `409` `flow-name-taken`, and the transaction, with its audit row, rolls
+  back. A body the transport's schema admits but Zod refuses (a blank name, 65 emoji) is a `400` with the field path, through
+  `bodyProblem`, not a `500`.
+- **A bad body** is a `400` before the flow is looked up, so it answers ahead of `404`, `428` and `412`, as `PUT /flow/executions` does.
+- **Steps.** Create and replace run the checks `PUT /flow/executions` runs, now one function (`refuseSteps`): an empty list, an
+  unregistered authenticator, a repeat, every step disabled, and no step able to start a login each have their own `400` type; the unknown and the repeated authenticator
+  also carry `errors[].path` under `steps` (`steps[1].authenticator`), the other three none. `PUT /flow/executions` takes at most 20 steps in its contract, so more is a
+  `400` where it was a `500`.
+- **Audit.** `flow.create`, `flow.amend`, `flow.delete` (the vocabulary's imperative form, as `group.create`; the brief's `flow.created`
+  would have been the only past tense) with `flow` in the audit-detail allowlist, name and steps by value: a create names both as
+  `{after}`, an amend only what changed, a delete what was removed as `{before}`. The default flow's `PUT /flow/executions` keeps
+  `flow.replace`. `manage-tenant` guards every route, as the executions routes were.
+- **MCP.** `list_flows` and `get_flow` are read tools (`mcp:read`, `manage-tenant`), because the route-class table admits no third
+  place for a read an agent could use: a withheld read is `denied`, `sensitive` or `not-useful`, each an `RS` or `N` class. `POST`
+  and `PUT` are `W2` and `DELETE` is `D`, placed on P5b. The read tools move the pinned counts to 64 read tools.
+- **CLI.** None. The CLI's commands run the server (`reap`, `send-mail`, `domains recheck`) or create fixtures (`seed`), and no command
+  reads or edits an existing admin record; `odudu flows ...` would have been the first, with no pattern to follow. The CLI has no admin CRUD pattern, so flows are managed through the
+  admin API, the console and the MCP reads; a `seed flow` for fixtures is the pattern if one is wanted.
+- **Console.** The Sign-in flow page gains a **Flows** panel under the one-time password section (a table with the default marked, **Edit**,
+  **Delete** with a confirmation, and **New flow**); `flow/new` makes a flow with the default's steps and opens it; `flow/{id}` edits the
+  name and steps in one section. The step editor is one view (`ui/Steps`) and one hook (`useStepEditing`) used by the default's
+  editor and a flow's. A `409` is worded where it lands: a taken name under the name, the cap under the name, the default's
+  deletion in the dialog.
+
+### At volume
+
+- `GET /flows` is one `flows` query by `(tenant_id, name)` with `LIMIT 20`, holding at most 20 steps each; `GET /flows/{id}` is one
+  query by primary key and tenant. A create is the advisory lock, one bounded count, one insert and its audit row; a replace and a
+  delete are the lock, one read by id, one write and the audit row. The query-plan check drives all five in a tenant seeded 19 flows
+  (`plan-volume.ts`, `flowsNearLimit`) and stays green.
+- The console renders at most 20 rows and adds no memoisation.
+
+### Open placements
+
+- The client `flow_id` and refusing the deletion of a flow in use are 13c.
+- The per-step authenticator settings of 7c move onto steps in a following part.

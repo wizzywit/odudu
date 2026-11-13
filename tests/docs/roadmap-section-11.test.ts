@@ -238,7 +238,7 @@ const SHIPPED_CLAIMS: readonly (readonly [
   shipped: string,
   ...criterion: string[],
 ])[] = [
-  ['P5a', '62 tools that read what the admin api reads', 'exposing the admin api as tools'],
+  ['P5a', '64 tools that read what the admin api reads', 'exposing the admin api as tools'],
   [
     'P5a',
     'publishing, restoring, discarding and resetting a theme are not offered',

@@ -345,6 +345,7 @@ export const SCREENS: readonly Screen[] = [
       { heading: 'Sign-in flow' },
       { heading: 'Steps' },
       { label: 'Requirement for password' },
+      { heading: 'Flows' },
     ],
     open: (page, context) => openArea(page, context, `${DEMO}/flow`),
   },

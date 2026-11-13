@@ -325,7 +325,7 @@ event: message
 data: {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"odudu:demo","title":"Odudu (demo)","version":"1.0.0"},"instructions":"This server acts in the Odudu tenant \"demo\" only, as the person signed in; every tool works on that tenant. If you also have other Odudu servers connected, check the tenant before using a tool."},"jsonrpc":"2.0","id":1}
 ```
 
-`tools/list` names the tools `ada` can use. The endpoint has 61 read tools, two of which (`list_tenants` and `count_tenants`) are offered only to an agent of the `system` tenant and so are not in this tenant's list, and twelve write tools that only a token holding `mcp:write` is offered (see
+`tools/list` names the tools `ada` can use. The endpoint has 64 read tools, two of which (`list_tenants` and `count_tenants`) are offered only to an agent of the `system` tenant and so are not in this tenant's list, and twelve write tools that only a token holding `mcp:write` is offered (see
 [the write tools](./the-mcp-write-tools.md)); `list_audit` and the others whose capability she
 does not hold (`view-audit`, `manage-sessions`, `manage-keys`, `view-domains`, `manage-tenant`) are not in the list, so
 the model is not offered what would be refused. This page cannot show the two tenant tools being called: they need an agent signed in to the `system` tenant, which takes no `seed client` and signs its administrator in through a browser, so only the repository's integration tests run that case.
@@ -338,7 +338,7 @@ rpc -H 'mcp-protocol-version: 2025-11-25' -d '{"jsonrpc":"2.0","id":2,"method":"
 ```
 
 ```
-["count_clients","count_subjects","get_client","get_client_installation","get_client_mail_branding","get_client_theme","get_client_theme_preview_info","get_stylesheet_hooks","get_subject","get_subject_admin_capabilities","get_subject_groups","get_subject_lockout","get_subject_required_actions","get_subject_roles","get_username_policy","list_client_logout_deliveries","list_client_theme_versions","list_clients","list_groups","list_roles","list_subject_consents","list_subject_effective_roles","list_subjects","whoami"]
+["count_clients","count_subjects","get_client","get_client_installation","get_client_mail_branding","get_client_theme","get_client_theme_preview_info","get_stylesheet_hooks","get_subject","get_subject_admin_capabilities","get_subject_groups","get_subject_lockout","get_subject_required_actions","get_subject_roles","get_username_policy","list_client_logout_deliveries","list_client_theme_versions","list_clients","list_groups","list_roles","list_subject_consents","list_subject_effective_roles","list_subject_terms_acceptances","list_subjects","whoami"]
 ```
 
 `whoami` answers for the person, which is how the call can be told from one made with another identity: the subject is

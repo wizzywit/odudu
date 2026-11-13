@@ -41,6 +41,16 @@ function withCode(error: FieldError): FieldError {
     : error;
 }
 
+/** A body a Zod schema refused after the transport's own check passed: each issue under its field. */
+export function bodyProblem(error: z.ZodError): Problem {
+  const errors = error.issues.flatMap((issue) =>
+    issue.path.length > 0 ? [{ path: fieldPath(issue.path), message: issue.message }] : [],
+  );
+  return errors.length === 0
+    ? problem(400, 'about:blank', 'Bad Request', error.issues[0]?.message ?? 'invalid body')
+    : fieldProblem(errors);
+}
+
 /** A query a Zod schema refused, its first message as the detail. */
 export function queryProblem(error: z.ZodError): Problem {
   const detail = error.issues[0]?.message ?? 'invalid query';
@@ -71,14 +81,18 @@ export function cursorProblem(): Problem {
  * names what the caller has to read first, since the header is the only
  * thing missing from an otherwise valid request.
  */
-export function ifMatchRequired(resource: string, sent: string | string[] | undefined): Problem {
+export function ifMatchRequired(
+  resource: string,
+  sent: string | string[] | undefined,
+  action: { to: string; ing: string } = { to: 'replace', ing: 'replacing' },
+): Problem {
   return problem(
     428,
     'about:blank',
     'Precondition Required',
     sent === undefined
-      ? `If-Match is required to replace ${resource}`
-      : `If-Match must name a version you read; * is not accepted when replacing ${resource}`,
+      ? `If-Match is required to ${action.to} ${resource}`
+      : `If-Match must name a version you read; * is not accepted when ${action.ing} ${resource}`,
   );
 }
 

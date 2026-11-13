@@ -1,4 +1,10 @@
-import { ASSIGNMENT_LIMIT, MAX_LIMIT, ROLE_LIMIT, SCOPE_LIMIT } from '@odudu/contracts/admin';
+import {
+  ASSIGNMENT_LIMIT,
+  FLOW_LIMIT,
+  MAX_LIMIT,
+  ROLE_LIMIT,
+  SCOPE_LIMIT,
+} from '@odudu/contracts/admin';
 import { type DatabaseHandle } from '@odudu/db';
 
 // The volume the plan check seeds, in SQL, around a tenant the seed command
@@ -23,6 +29,8 @@ export const PLAN_VOLUME = {
   roles: 5_000,
   clientRoles: 10_000,
   rolesNearLimit: ROLE_LIMIT - 5,
+  // The default flow and the rest, one short of the cap a flow create is driven against.
+  flowsNearLimit: FLOW_LIMIT - 1,
   groups: 5_000,
   scopes: SCOPE_LIMIT - 20,
   sessions: 200_000,
@@ -174,6 +182,12 @@ insert into roles (id, tenant_id, name)
 select gen_random_uuid(), o.id, 'near-' || g
   from vol_other o join tenants nt on nt.id = o.id
  cross join generate_series(1, ${v.rolesNearLimit} - ${v.rolesPerOtherTenant}) g
+ where nt.name = '${NEAR_LIMIT_TENANT}';
+insert into flows (id, tenant_id, name, is_default, steps)
+select gen_random_uuid(), o.id, case when g = 1 then 'default' else 'near-' || g end, g = 1,
+       '[{"authenticator":"password","requirement":"required"}]'::jsonb
+  from vol_other o join tenants nt on nt.id = o.id
+ cross join generate_series(1, ${v.flowsNearLimit}) g
  where nt.name = '${NEAR_LIMIT_TENANT}';
 insert into groups (id, tenant_id, name, path)
 select gen_random_uuid(), o.id, 'g' || g, '/g' || g
@@ -534,7 +548,9 @@ async function assertVolume(connection: {
            (select count(*) from groups g join groups p on p.id = g.parent_id
              where g.path <> p.path || '/' || g.name) broken_paths,
            (select count(*) from roles r join tenants t on t.id = r.tenant_id
-             where t.name = '${NEAR_LIMIT_TENANT}') near_limit_roles`);
+             where t.name = '${NEAR_LIMIT_TENANT}') near_limit_roles,
+           (select count(*) from flows f join tenants t on t.id = f.tenant_id
+             where t.name = '${NEAR_LIMIT_TENANT}') near_limit_flows`);
   const row = rows[0];
   if (row === undefined) throw new Error('the volume check read nothing');
   for (const table of ['role_composites', 'group_roles', 'client_scope_roles']) {
@@ -552,6 +568,11 @@ async function assertVolume(connection: {
   if (Number(row.near_limit_roles) !== PLAN_VOLUME.rolesNearLimit) {
     throw new Error(
       `${NEAR_LIMIT_TENANT} holds ${String(row.near_limit_roles)} roles, not the ${String(PLAN_VOLUME.rolesNearLimit)} its role create is driven against`,
+    );
+  }
+  if (Number(row.near_limit_flows) !== PLAN_VOLUME.flowsNearLimit) {
+    throw new Error(
+      `${NEAR_LIMIT_TENANT} holds ${String(row.near_limit_flows)} flows, not the ${String(PLAN_VOLUME.flowsNearLimit)} its flow create is driven against`,
     );
   }
   if (Number(row.fan_in) <= ROWS_PER_READ) {

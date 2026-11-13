@@ -91,6 +91,7 @@ const DOMAINS_CONFIRM = 'domains/services/confirm.ts';
 const TOKENS_WORDS = 'registration-tokens/services/tokenWording.ts';
 const FLOW_WORDS = 'flow/services/flowWording.ts';
 const FLOW_REQUIREMENTS = 'flow/services/requirement.ts';
+const FLOWS_WORDS = 'flow/services/flowsWords.ts';
 const SCOPE_GENERAL = 'scopes/ui/ScopeRecordPage/GeneralTab.tsx';
 const SCOPE_DELIVERY = 'scopes/services/scopeDelivery.ts';
 const CLIENT_NEW = 'clients/ui/NewClientPage/NewClientPage.tsx';
@@ -377,6 +378,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     at(DELETE_ZONE, 'title="Delete"'),
     page(SUBJECT_PROFILE, 'title="Delete"'),
     page(KEYS_WORDS, "delete: 'Delete'"),
+    page(FLOWS_WORDS, "delete: 'Delete'"),
   ),
 
   // Groups and roles.
@@ -491,6 +493,19 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'flow/services/otp.ts',
     "OTP_LABEL = 'Ask every subject for a one-time password'",
   ),
+
+  Flows: page(FLOWS_WORDS, "title: 'Flows'"),
+  'New flow': several(
+    page(FLOWS_WORDS, "newFlow: 'New flow'"),
+    page(FLOWS_WORDS, "title: 'New flow'"),
+  ),
+  'Create flow': template(
+    [{ file: CREATION_FORM, text: '`Create ${noun}`' }, inPage(FLOWS_WORDS, "noun: 'flow'")],
+    'Create ${noun}',
+    { noun: 'flow' },
+  ),
+  'Make default': page(FLOWS_WORDS, "makeDefault: 'Make default'"),
+  Default: page(FLOWS_WORDS, "defaultTag: 'Default'"),
 
   // Signing keys.
   // Domains.
@@ -641,7 +656,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'branding/services/overrideForm.ts',
     "OVERRIDES_TITLE = 'Message overrides'",
   ),
-  Edit: page('branding/services/overridesView.ts', "edit: 'Edit'"),
+  Edit: several(
+    page('branding/services/overridesView.ts', "edit: 'Edit'"),
+    page(FLOWS_WORDS, "edit: 'Edit'"),
+  ),
   Remove: several(
     page('branding/services/overridesView.ts', "remove: 'Remove'"),
     page(DOMAINS_WORDS, "remove: 'Remove'"),

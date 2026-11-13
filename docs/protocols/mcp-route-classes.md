@@ -67,16 +67,16 @@ begins with its class and says why, and names no phase.
 
 ## How many
 
-All **153 routes** are in exactly one class.
+All **159 routes** are in exactly one class.
 
 | Class | Routes |
 | ----- | ------ |
-| R     | 60     |
+| R     | 62     |
 | RS    | 8      |
 | W1    | 13     |
-| W2    | 32     |
+| W2    | 35     |
 | C     | 7      |
-| D     | 27     |
+| D     | 28     |
 | I     | 2      |
 | N     | 4      |
 
@@ -239,11 +239,17 @@ confirm each call, and `never` means no tool will serve it.
 | 146 | `DELETE ~/smtp`                                        | manage-tenant                   | D     | not a tool                       | P5b        | Email                     |                                                                                                                                                                                                                             |
 | 147 | `POST ~/smtp/test`                                     | manage-tenant                   | W2    | not a tool                       | P5b        | Email                     | sends mail through the relay to any address                                                                                                                                                                                 |
 | 148 | `GET ~/mail`                                           | manage-tenant                   | R     | `list_mail`                      | this phase | Email                     |                                                                                                                                                                                                                             |
-| 149 | `GET ~/flow/executions`                                | manage-tenant                   | R     | `get_flow_executions`            | this phase | Sign-in flow              |                                                                                                                                                                                                                             |
-| 150 | `PUT ~/flow/executions`                                | manage-tenant                   | W2    | not a tool                       | P5b        | Sign-in flow              | weakens or reorders authentication steps                                                                                                                                                                                    |
-| 151 | `GET ~/audit`                                          | view-audit                      | R     | `list_audit`                     | this phase | Audit trail               |                                                                                                                                                                                                                             |
-| 152 | `GET ~/audit/count`                                    | view-audit                      | R     | `count_audit`                    | this phase | Audit trail               |                                                                                                                                                                                                                             |
-| 153 | `GET ~/audit/export`                                   | view-audit                      | RS    | not a tool                       | never      | Audit trail               | denied at the door: up to 10,000 events in one download                                                                                                                                                                     |
+| 149 | `GET ~/flows`                                          | manage-tenant                   | R     | `list_flows`                     | this phase | Sign-in flow              |                                                                                                                                                                                                                             |
+| 150 | `POST ~/flows`                                         | manage-tenant                   | W2    | not a tool                       | P5b        | Sign-in flow              | adds a flow that a client can later be pinned to                                                                                                                                                                            |
+| 151 | `GET ~/flows/:id`                                      | manage-tenant                   | R     | `get_flow`                       | this phase | Sign-in flow              |                                                                                                                                                                                                                             |
+| 152 | `PUT ~/flows/:id`                                      | manage-tenant                   | W2    | not a tool                       | P5b        | Sign-in flow              | weakens or reorders authentication steps                                                                                                                                                                                    |
+| 153 | `DELETE ~/flows/:id`                                   | manage-tenant                   | D     | not a tool                       | P5b        | Sign-in flow              |                                                                                                                                                                                                                             |
+| 154 | `POST ~/flows/:id/make-default`                        | manage-tenant                   | W2    | not a tool                       | P5b        | Sign-in flow              | changes which flow every sign-in runs                                                                                                                                                                                       |
+| 155 | `GET ~/flow/executions`                                | manage-tenant                   | R     | `get_flow_executions`            | this phase | Sign-in flow              |                                                                                                                                                                                                                             |
+| 156 | `PUT ~/flow/executions`                                | manage-tenant                   | W2    | not a tool                       | P5b        | Sign-in flow              | weakens or reorders authentication steps                                                                                                                                                                                    |
+| 157 | `GET ~/audit`                                          | view-audit                      | R     | `list_audit`                     | this phase | Audit trail               |                                                                                                                                                                                                                             |
+| 158 | `GET ~/audit/count`                                    | view-audit                      | R     | `count_audit`                    | this phase | Audit trail               |                                                                                                                                                                                                                             |
+| 159 | `GET ~/audit/export`                                   | view-audit                      | RS    | not a tool                       | never      | Audit trail               | denied at the door: up to 10,000 events in one download                                                                                                                                                                     |
 
 ## Mixed routes, field by field
 

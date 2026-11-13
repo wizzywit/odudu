@@ -15,7 +15,7 @@ second account, and a reader of Arabic); they stay outstanding, not phase work. 
 What it placed on later phases is on
 [the roadmap page](../apps/docs/content/en/roadmap.md).
 
-**P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 62 read
+**P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 64 read
 tools (two for the system tenant's agent alone) and 12 write tools (descriptive text, the display name, languages and message overrides, drafts of a theme that a person publishes, and roles, groups and scopes that grant nothing; the three creates, the two that set or clear an override and the two that save a theme draft only through that endpoint, not through `odudu mcp --allow-writes`), `odudu mcp` serves the rest over stdio,
 and nothing that changes who can sign in, handles a secret or deletes what grants or authenticates is offered to an agent (that is P5b's, below), and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
 client ID metadata documents, `mcp:read` and `mcp:write`) is in place. What it found
@@ -203,15 +203,15 @@ approval, which the write tools' ten-minute token and per-sign-in consent only s
 ## What P5b inherits
 
 P5b, **MCP server: access-changing and destructive tools**, has [mcp-route-classes.md](protocols/mcp-route-classes.md) as its work list:
-a row for each of the 152 admin routes, held to the route table and the tool catalogue by a test. Every route
+a row for each of the 159 admin routes, held to the route table and the tool catalogue by a test. Every route
 of the three classes below is placed on P5b and has no tool, and the door admits an agent only the fields of
 the writes on its allowlist, so none is reachable today. The arguments are in [p5a.md](phases/p5a.md), "What P5b inherits".
 
 | Class | Routes | What waits                                                                                                                                  |
 | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| W2    | 32     | access-changing writes: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail |
+| W2    | 35     | access-changing writes: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail |
 | C     | 7      | credentials and secrets: passwords, client secrets, registration tokens, signing-key creation, relay credentials, imports                   |
-| D     | 27     | destructive: deletes, ending sessions, clearing lockouts, changing signing keys, discarding drafts                                          |
+| D     | 28     | destructive: deletes, ending sessions, clearing lockouts, changing signing keys, discarding drafts                                          |
 
 The confirmation step comes first, because every tool of these classes needs one the agent
 cannot answer for itself. The write budget P5a built (20 changing calls and 10 creates for each

@@ -1312,3 +1312,25 @@ whole, five passes of the sender a minute apart included: `seed admin` and a tok
 `POST /admin/tenants`, a confidential client `doomed-app` with the back-channel URI the page names made through `POST /clients`, `ada`
 seeded in it and signed in once, with the code redeemed; both tables are that run's output. The flow query ran against a tenant
 `otp-demo` made with `odudu seed tenant` on an earlier project built from the same tree. The stacks and their images were removed afterwards.
+
+The flow routes' page, `get-flows-post-flows-and-the-flow-routes.md`, was captured on 2026-11-13 on a freshly built compose project, `odudu-13b`
+(port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit `c89e4a85a` with only
+documentation files uncommitted, on a database that began empty: `seed admin`, the administrator's first-sign-in required action deleted
+with one `delete from user_required_actions` as the screenshot capture does, a token as in Getting the token, then the page's blocks as one
+script in one shell, each block's output written to the page as it came back (carriage returns and trailing spaces removed). The tenants `demo`
+and `other` are made with `odudu seed tenant`. `GET /admin/openapi.json` was fetched again on the same stack (825,420 to 848,131 bytes, 110 to
+112 paths, the new routes), and `odudu-mcp-over-stdio.md` was replayed whole before the page's database was emptied again: its commands name the
+project `odudu-13b` where they named the earlier one, its tenant, client, key and ids are that run's, and the listing is 62 tools where it was 59,
+with `get_flow` and `list_flows` among them and `list_subject_terms_acceptances`, which the earlier capture predated. The tool listing of
+`the-mcp-endpoint.md` is for a person who holds `manage-clients` and `view-users`, which no flow tool needs, so it was not run again. The stack
+and its image were removed afterwards.
+
+The flow page was run again whole on 2026-11-13, with `POST /flows/{id}/make-default` added, on a freshly built compose project `odudu-13b` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit `d3c3c25c9` with nothing else uncommitted, on a database that began empty and with the same sign-in and script as above. `GET /admin/openapi.json` was fetched again on it (848,131 to 856,406 bytes, 112 to 113 paths). The stdio MCP page was not run again, since no tool changed. The stack and its image were removed afterwards.
+
+The flow page was run once more whole on 2026-11-13 when the `428` of `make-default` was worded for that route (`If-Match is required to make a flow the default`), on a freshly built compose project `odudu-13b` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit `a7bdf3285`, on a database that began empty, by the same sign-in and script. `GET /admin/openapi.json` was fetched again on it and its size and path count are unchanged. The stack and its image were removed afterwards.
+
+The tool listing of `the-mcp-endpoint.md` was run again on 2026-11-13, because it lacked `list_subject_terms_acceptances`, which `ada`'s `view-users` shows. It ran on a compose project `odudu-13b` (port `3000`, throttles at `10000`) built from the branch commit `310c49f3e`, on a database that began empty, with the page's own seeds, client registration and sign-in as one script (the page's blocks name `CID` and `MCP` without defining them, so the page was not replayed whole). The `listing as ada sees it` block is that run's, 25 names; the rest of the page keeps its earlier capture, and its ids are that capture's.
+
+The flow page was run again whole on 2026-11-13 when a delete began to wait on the flow's `ETag` and the page's shell variables (`STAFF`, `DEFAULT`, `PARTNERS`, `BULK`, `ETAG`) came to be set in the blocks that show them, so a fresh shell reproduces it. It ran on a compose project `odudu-13b` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit `310c49f3e` (only documentation files uncommitted), on a database that began empty, with the same sign-in and one script that runs the page's blocks in order in one shell. `GET /admin/openapi.json` was fetched again on it (856,406 to 856,572 bytes, 113 paths). The stack and its image were removed afterwards.
+
+`GET /admin/openapi.json` was fetched again on 2026-11-13 on a freshly built compose project `odudu-13b` (port `3000`) from the branch commit `448559042` when the description of `POST /flows` was corrected (856,572 to 856,642 bytes, 113 paths). The stack and its image were removed afterwards.

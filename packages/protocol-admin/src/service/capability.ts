@@ -39,6 +39,9 @@ import {
   createKeyRequestSchema,
   groupSchema,
   listExecutionsResponseSchema,
+  listFlowsResponseSchema,
+  flowSchema,
+  saveFlowRequestSchema,
   replaceExecutionsRequestSchema,
   listClientsQuerySchema,
   countClientsQuerySchema,
@@ -1892,10 +1895,78 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'error. Never the body, which carries a sign-in link. The recipient is masked, wherever ' +
       'it appears, unless the caller also holds `view-users`.',
   },
-  // A tenant's authentication flow: manage-tenant, the same capability as
+  // A tenant's authentication flows: manage-tenant, the same capability as
   // roles, groups and scopes above. No partial edit — PUT replaces the
-  // whole ordered list, renumbering indices contiguously regardless of what
-  // the caller sent, since a flow's meaning is in its order.
+  // whole ordered list, since a flow's meaning is in its order. The
+  // `flow/executions` pair below reads and writes the default flow's steps.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/flows',
+    capability: 'manage-tenant',
+    responseSchema: listFlowsResponseSchema,
+    description:
+      'Every sign-in flow of the tenant, ordered by name, and `available`: every authenticator ' +
+      'a step may name. A tenant holds at most 20 flows, so the list is never paged and `total` ' +
+      'is all of them. Exactly one has `is_default`. The `ETag` covers the flows.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/flows',
+    capability: 'manage-tenant',
+    responseSchema: flowSchema,
+    bodySchema: saveFlowRequestSchema,
+    successStatus: 201,
+    description:
+      'Creates a flow that is not the default. Refused with `409`: a name another flow of ' +
+      'the tenant has (`#flow-name-taken`), or a tenant that already holds 20 flows ' +
+      '(`#flow-limit`). A step list is refused with the `400` types of `PUT ' +
+      '/flow/executions`; the unknown and the repeated authenticator carry `errors[]` ' +
+      'naming the step as `steps[N].authenticator`, the others none. Answers an ' +
+      '`ETag`.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/flows/:id',
+    capability: 'manage-tenant',
+    responseSchema: flowSchema,
+    description: 'Answers the flow with an `ETag` that covers its name and steps.',
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/flows/:id',
+    capability: 'manage-tenant',
+    responseSchema: flowSchema,
+    bodySchema: saveFlowRequestSchema,
+    description:
+      'Replaces the flow\u2019s name and steps, keeping its id and whether it is the default. ' +
+      'Refused as `POST` refuses a step list or a name another flow has. `If-Match` is ' +
+      'mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused ' +
+      'with `428`, and a stale one with `412`.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/flows/:id',
+    capability: 'manage-tenant',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Deletes a flow that is not the default. The default is refused with `409` ' +
+      '(`#default-flow`): make another flow the default first. `If-Match` is mandatory, as ' +
+      'for `PUT`: a flow another administrator has changed since it was read is not deleted ' +
+      'unseen (`428` without the header or with `*`, `412` when stale).',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/flows/:id/make-default',
+    capability: 'manage-tenant',
+    responseSchema: flowSchema,
+    description:
+      'Makes the flow the tenant\u2019s default, the one a sign-in runs when nothing names another, ' +
+      'and the one `flow/executions` reads and writes; the flow that was the default stops being ' +
+      'it, in the same transaction. The flow that already is the default is answered as it is. ' +
+      '`If-Match` is mandatory, as for `PUT`. A sign-in already in flight takes its next step ' +
+      'from the new default, since it records only which authenticators it has satisfied.',
+  },
   {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/flow/executions',

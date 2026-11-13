@@ -81,6 +81,7 @@ How they were captured is in [How the transcripts are captured and checked](../.
 - [GET /scopes/:id/mappers and PUT /scopes/:id/mappers](./get-scopesidmappers-and-put-scopesidmappers.md)
 - [GET /keys, POST /keys, POST /keys/:id/promote and POST…](./get-keys-post-keys-post-keysidpromote-and-post-keysidretire.md)
 - [DELETE /keys/:id](./delete-keysid.md)
+- [Flows: list, create, read, replace, make default, delete](./get-flows-post-flows-and-the-flow-routes.md)
 - [GET /flow/executions and PUT /flow/executions](./get-flowexecutions-and-put-flowexecutions.md)
 - [GET /smtp, PUT /smtp, DELETE /smtp and POST /smtp/test](./get-smtp-put-smtp-delete-smtp-and-post-smtptest.md)
 - [GET /mail](./get-mail.md)

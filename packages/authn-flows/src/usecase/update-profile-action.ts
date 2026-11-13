@@ -114,6 +114,12 @@ export async function completeUpdateProfile(
   for (const each of invalid) problems.push({ kind: 'invalid', ...each });
   const plan = planProfileAmend(current, submitted);
   if (plan.kind === 'change' && plan.username !== null) {
+    // Two people claiming one name wait here in turn, so the second finds the
+    // first's name taken and is refused by the check below, not by the index
+    // after both have written.
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext('username'), hashtext(${input.tenantId} || ':' || lower(${plan.username})))`,
+    );
     const holder = await users.byUsername(plan.username);
     if (holder !== null && holder.user.subjectId !== input.subjectId) {
       problems.push({ kind: 'username_taken' });

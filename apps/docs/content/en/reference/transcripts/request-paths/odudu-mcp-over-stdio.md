@@ -10,12 +10,12 @@ description: 'The stdio MCP server as a process: a handshake, a listing and read
 Every command was run, in this order, on a stack built for it and started from an empty volume, driven only as far as this page goes: the tenant `demo`, one client `agent` with a key, and the calls below. The stack does not end TLS, so its address is `http://localhost:3000`, which `odudu mcp` accepts because it is a loopback address and refuses for any other host. The command runs inside the container, so `localhost` is the server. The ids and the key are that run's own, and the key is shortened where it would be shown, because it is a private key.
 
 ```bash
-odudu() { docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
+odudu() { docker compose -p odudu-13b -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
 odudu seed tenant --name demo
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"demo","tenantId":"01a1b4cd-f95f-76fd-9fb5-7e72cae32f34"}
+{"command":"tenant","created":true,"tenant":"demo","tenantId":"01a1d2d5-a4d5-7469-b6f8-63787462f4f4"}
 ```
 
 ## A service account and its key
@@ -31,7 +31,7 @@ cat jwks.json
 ```
 exit 0
 ODUDU_MCP_KEY=eyJrdHkiOi
-{"keys":[{"kty":"EC","crv":"P-256","x":"OmGOT5BFeKbtVNv9QTXJFgetQO6wjzShJY7bm0gVM8E","y":"yUPzAExa6kjsZfoY5wAtmIOSYNAhRiiuqcAVuuTmCKI","kid":"Ghcmc4kujw1Xtu7z3Fmmu5h30FrcdDx6ADL4zzQJnAU","alg":"ES256","use":"sig"}]}
+{"keys":[{"kty":"EC","crv":"P-256","x":"8j43tZoOMxoYZXWfpeDnwxGCBhF9pT0xhbzwy7bY2HQ","y":"4bBtYOJFE6vucJvwcf_eC1s46nOcqG7t5tX_3ur4pv0","kid":"7Yvtj_YZJ2kcmR3wsVtzImJlK8exelmjx9C9AgZbWJU","alg":"ES256","use":"sig"}]}
 ```
 
 The client is confidential with the `client_credentials` grant and may ask for `mcp:read` and nothing else. The secret it is made with is never used again, because the client authenticates with the key instead:
@@ -42,16 +42,16 @@ odudu seed client --tenant demo --client-id agent --client-secret "$(openssl ran
 ```
 
 ```
-{"command":"client","created":true,"tenant":"demo","tenantId":"01a1b4cd-f95f-76fd-9fb5-7e72cae32f34","clientId":"agent","clientDbId":"01a1b4cd-fd3c-705a-bef3-cdae4d284222"}
+{"command":"client","created":true,"tenant":"demo","tenantId":"01a1d2d5-a4d5-7469-b6f8-63787462f4f4","clientId":"agent","clientDbId":"01a1d2d5-a9af-71cc-9e9e-21d845cc4b7b"}
 ```
 
 The seed has no flag for a key or a role on a service account, and this run set the audience in the same way rather than with `--audience`, so the rest was written to the database as its owner, scoped to this tenant: the key set becomes the client's `jwks`, `private_key_jwt` its authentication method, the admin API's audience its audience, and its account holds two of the admin capabilities. The admin API's client routes do the same with a token, and the account's ceiling is these roles and nothing more:
 
 ```bash
 JWKS=$(cat jwks.json)
-docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-13b -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
   "update client_oidc_config c set token_endpoint_auth_method = 'private_key_jwt', jwks = '$JWKS'::jsonb, audiences = array['urn:odudu:params:admin-api'] from clients k join tenants t on t.id = k.tenant_id where c.client_id = k.id and t.name = 'demo' and k.client_id = 'agent';"
-docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-13b -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
   "insert into subject_roles (tenant_id, subject_id, role_id) select k.tenant_id, k.service_subject_id, r.id from clients k join tenants t on t.id = k.tenant_id join clients a on a.tenant_id = k.tenant_id and a.client_id = 'odudu-admin' join roles r on r.client_id = a.id where t.name = 'demo' and k.client_id = 'agent' and r.name in ('manage-clients', 'view-users');"
 ```
 
@@ -72,7 +72,7 @@ LIST='{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 WHO='{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"whoami","arguments":{}}}'
 COUNT='{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"count_clients","arguments":{}}}'
 (printf '%s\n' "$INIT" "$INITED" "$LIST" "$WHO" "$COUNT"; sleep 6) \
-  | docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY odudu \
+  | docker compose -p odudu-13b -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY odudu \
     node dist/main.js mcp --base-url http://localhost:3000 --tenant demo --client-id agent \
   > out.jsonl 2> err.txt; echo "exit $?"
 wc -l < out.jsonl
@@ -93,7 +93,7 @@ jq -c 'select(.id==1)' out.jsonl
 {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"odudu:demo","title":"Odudu (demo)","version":"1.0.0"},"instructions":"This server acts in the Odudu tenant \"demo\" only, as the person signed in; every tool works on that tenant. If you also have other Odudu servers connected, check the tenant before using a tool."},"jsonrpc":"2.0","id":1}
 ```
 
-The listing is the endpoint's, minus the twelve write tools, since the command was not asked for writes. Those are 59 tools, none of them starts with `update_`, `create_`, `set_` or `clear_`, and none is one of the two that list and count tenants, which only an agent of the `system` tenant is offered (no transcript here shows that agent, since the `system` tenant takes no `seed client` and its administrator signs in through a browser; the repository's integration tests run it):
+The listing is the endpoint's, minus the twelve write tools, since the command was not asked for writes. Those are 62 tools, none of them starts with `update_`, `create_`, `set_` or `clear_`, and none is one of the two that list and count tenants, which only an agent of the `system` tenant is offered (no transcript here shows that agent, since the `system` tenant takes no `seed client` and its administrator signs in through a browser; the repository's integration tests run it):
 
 ```bash
 jq -c 'select(.id==2) | .result.tools | length' out.jsonl
@@ -106,18 +106,19 @@ jq -r 'select(.id==2) | .result.tools[].name' out.jsonl | grep -c '_tenants$'
 ```
 
 ```
-59
+62
 count_audit count_clients count_groups count_roles count_scopes count_sessions count_subjects
 get_client get_client_installation get_client_mail_branding get_client_theme
-get_client_theme_preview_info get_domain get_flow_executions get_group get_group_roles
+get_client_theme_preview_info get_domain get_flow get_flow_executions get_group get_group_roles
 get_mail_branding get_message_catalogue get_passkey_impact get_role get_role_composites get_scope
 get_scope_impact get_scope_mappers get_scope_roles get_settings get_stylesheet_hooks get_subject
 get_subject_admin_capabilities get_subject_groups get_subject_lockout get_subject_required_actions
 get_subject_roles get_tenant get_theme get_theme_preview_info get_username_policy list_audit
 list_builtin_scopes list_client_logout_deliveries list_client_sessions list_client_theme_versions
-list_clients list_domains list_groups list_keys list_mail list_message_overrides list_roles
-list_scope_clients list_scopes list_sessions list_subject_consents list_subject_effective_roles
-list_subject_grants list_subject_sessions list_subjects list_theme_versions whoami
+list_clients list_domains list_flows list_groups list_keys list_mail list_message_overrides
+list_roles list_scope_clients list_scopes list_sessions list_subject_consents
+list_subject_effective_roles list_subject_grants list_subject_sessions
+list_subject_terms_acceptances list_subjects list_theme_versions whoami
 0
 0
 0
@@ -133,7 +134,7 @@ jq -c 'select(.id==4)' out.jsonl
 ```
 
 ```
-{"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1b4cd-fd52-7790-8346-62308c99e7dc\",\"issuerTenantId\":\"01a1b4cd-f95f-76fd-9fb5-7e72cae32f34\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1b4cd-fd52-7790-8346-62308c99e7dc","issuerTenantId":"01a1b4cd-f95f-76fd-9fb5-7e72cae32f34","issuerTenantName":"demo","capabilities":["manage-clients","view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":3}
+{"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1d2d5-a9ca-7ac0-b93c-85a13eeb968b\",\"issuerTenantId\":\"01a1d2d5-a4d5-7469-b6f8-63787462f4f4\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1d2d5-a9ca-7ac0-b93c-85a13eeb968b","issuerTenantId":"01a1d2d5-a4d5-7469-b6f8-63787462f4f4","issuerTenantName":"demo","capabilities":["manage-clients","view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":3}
 {"result":{"content":[{"type":"text","text":"{\"data\":{\"count\":3,\"capped\":false}}"}],"structuredContent":{"data":{"count":3,"capped":false}},"isError":false},"jsonrpc":"2.0","id":4}
 ```
 
@@ -164,7 +165,7 @@ exit 1
 A key with no client id, the key being any value, since the check comes before it is read:
 
 ```bash
-docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY=x odudu \
+docker compose -p odudu-13b -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY=x odudu \
   node dist/main.js mcp --base-url http://localhost:3000 --tenant demo; echo "exit $?"
 ```
 
@@ -191,7 +192,7 @@ exit 1
 ```bash
 export ODUDU_MCP_KEY=$(sed 's/^ODUDU_MCP_KEY=//' key.env)
 (printf '%s\n' "$INIT" "$INITED" "$LIST" "$WHO"; sleep 4) \
-  | docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY odudu \
+  | docker compose -p odudu-13b -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY odudu \
     node dist/main.js mcp --base-url http://localhost:3000 --tenant demo --client-id agent --allow-writes \
   > out2.jsonl 2> err2.txt; echo "exit $?"
 jq -r 'select(.id==2) | .result.tools | map(.name) | map(select(startswith("update_"))) | join(" ")' out2.jsonl
@@ -214,9 +215,9 @@ The refusal names the registered error code and the status, and none of the serv
 The tenant's audit rows, as the database's owner, after everything above and nothing else on this stack: the token the first run got, the row the admin API wrote for each of the two reads, and the token that was refused. The admin API writes those rows itself, at its door and before the call runs, for a call made with a token issued straight to the agent, which is how `odudu mcp` calls. Its `tool` is the route, since the door cannot know a tool's name; the MCP endpoint writes the same action for a call it serves, with the tool's own name.
 
 ```bash
-docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-13b -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
   "select a.action, a.outcome, a.detail from audit_events a join tenants t on t.id = a.tenant_id where t.name = 'demo' and a.action in ('token.issue', 'client.authenticate', 'agent.tool_call') order by a.id;"
-docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-13b -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
   "select a.action, a.outcome, count(*) from audit_events a join tenants t on t.id = a.tenant_id where t.name = 'demo' group by 1, 2 order by 1, 2;"
 ```
 
@@ -224,8 +225,8 @@ docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T postgres ps
      action      | outcome |                                                                                              detail
 -----------------+---------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  token.issue     | allowed | {"scope": "mcp:read", "grant_type": "client_credentials"}
- agent.tool_call | allowed | {"tool": "admin.get.whoami", "owner": "01a1b4cd-fd52-7790-8346-62308c99e7dc", "route": "GET /admin/tenants/:tenant/whoami", "agent_client": "01a1b4cd-fd3c-705a-bef3-cdae4d284222"}
- agent.tool_call | allowed | {"tool": "admin.get.clients.count", "owner": "01a1b4cd-fd52-7790-8346-62308c99e7dc", "route": "GET /admin/tenants/:tenant/clients/count", "agent_client": "01a1b4cd-fd3c-705a-bef3-cdae4d284222"}
+ agent.tool_call | allowed | {"tool": "admin.get.whoami", "owner": "01a1d2d5-a9ca-7ac0-b93c-85a13eeb968b", "route": "GET /admin/tenants/:tenant/whoami", "agent_client": "01a1d2d5-a9af-71cc-9e9e-21d845cc4b7b"}
+ agent.tool_call | allowed | {"tool": "admin.get.clients.count", "owner": "01a1d2d5-a9ca-7ac0-b93c-85a13eeb968b", "route": "GET /admin/tenants/:tenant/clients/count", "agent_client": "01a1d2d5-a9af-71cc-9e9e-21d845cc4b7b"}
  token.issue     | refused | {"reason": "invalid_scope"}
 (4 rows)
 

@@ -339,3 +339,180 @@ describe('the flows table', () => {
     expect(row?.n).toBe(0);
   });
 });
+
+describe('flowRepository writes of a named flow', () => {
+  const steps = [{ authenticator: 'password', requirement: 'required' as const }];
+
+  it('creates a non-default flow, finds it by id, counts it and orders the list by name', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
+
+    const result = await withTenant(app.db, tenantId, async (tx) => {
+      await provisionBrowserFlow(tx, tenantId);
+      const repository = flowRepository(tx);
+      const staff = await repository.create(tenantId, 'staff', steps);
+      await repository.create(tenantId, 'admins', steps);
+      return {
+        staff,
+        found: await repository.byId(tenantId, staff.id),
+        count: await repository.countForTenant(tenantId),
+        names: (await repository.forTenant(tenantId)).map((flow) => flow.name),
+      };
+    });
+
+    expect(result.staff).toMatchObject({ name: 'staff', isDefault: false, steps });
+    expect(result.found).toEqual(result.staff);
+    expect(result.count).toBe(3);
+    expect(result.names).toEqual(['admins', 'default', 'staff']);
+  });
+
+  it('refuses a second flow of the same name with the table constraint', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
+
+    await expect(
+      withTenant(app.db, tenantId, async (tx) => {
+        await flowRepository(tx).create(tenantId, 'staff', steps);
+        await flowRepository(tx).create(tenantId, 'staff', steps);
+      }),
+    ).rejects.toMatchObject({ cause: { constraint_name: 'flows_tenant_name' } });
+  });
+
+  it('replaces the name and steps of one flow and answers null for an unknown id', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
+
+    const result = await withTenant(app.db, tenantId, async (tx) => {
+      await provisionBrowserFlow(tx, tenantId);
+      const repository = flowRepository(tx);
+      const staff = await repository.create(tenantId, 'staff', steps);
+      return {
+        replaced: await repository.replace(tenantId, staff.id, 'crew', []),
+        missing: await repository.replace(tenantId, newId(), 'x', steps),
+        defaultKept: (await repository.defaultForTenant(tenantId))?.name,
+      };
+    });
+
+    expect(result.replaced).toMatchObject({ name: 'crew', isDefault: false, steps: [] });
+    expect(result.missing).toBeNull();
+    expect(result.defaultKept).toBe('default');
+  });
+
+  it('removes a non-default flow, and never the default', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
+
+    const result = await withTenant(app.db, tenantId, async (tx) => {
+      await provisionBrowserFlow(tx, tenantId);
+      const repository = flowRepository(tx);
+      const staff = await repository.create(tenantId, 'staff', steps);
+      const defaultFlow = await repository.defaultForTenant(tenantId);
+      return {
+        removed: await repository.remove(tenantId, staff.id),
+        again: await repository.remove(tenantId, staff.id),
+        defaultRemoved: await repository.remove(tenantId, defaultFlow?.id ?? ''),
+        left: await repository.countForTenant(tenantId),
+      };
+    });
+
+    expect(result).toEqual({ removed: true, again: false, defaultRemoved: false, left: 1 });
+  });
+
+  it("cannot read, count, replace or remove a foreign tenant's flow", async () => {
+    const tenantA = newId();
+    await seedTenant(tenantA);
+    const flowId = await withTenant(app.db, tenantA, async (tx) => {
+      await provisionBrowserFlow(tx, tenantA);
+      return (await flowRepository(tx).create(tenantA, 'staff', steps)).id;
+    });
+    const tenantB = newId();
+    await seedTenant(tenantB);
+
+    const result = await withTenant(app.db, tenantB, async (tx) => {
+      const repository = flowRepository(tx);
+      return {
+        found: await repository.byId(tenantA, flowId),
+        count: await repository.countForTenant(tenantA),
+        replaced: await repository.replace(tenantA, flowId, 'taken', steps),
+        removed: await repository.remove(tenantA, flowId),
+      };
+    });
+    expect(result).toEqual({ found: null, count: 0, replaced: null, removed: false });
+
+    const untouched = await withTenant(app.db, tenantA, (tx) =>
+      flowRepository(tx).byId(tenantA, flowId),
+    );
+    expect(untouched?.name).toBe('staff');
+  });
+
+  it('cannot create a flow carrying a foreign tenant id', async () => {
+    const tenantA = newId();
+    await seedTenant(tenantA);
+    const tenantB = newId();
+    await seedTenant(tenantB);
+
+    await expect(
+      withTenant(app.db, tenantB, (tx) => flowRepository(tx).create(tenantA, 'staff', steps)),
+    ).rejects.toThrow();
+  });
+});
+
+describe('flowRepository.makeDefault', () => {
+  const steps = [{ authenticator: 'password', requirement: 'required' as const }];
+
+  it('moves the default to another flow, leaving exactly one', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
+
+    const result = await withTenant(app.db, tenantId, async (tx) => {
+      await provisionBrowserFlow(tx, tenantId);
+      const repository = flowRepository(tx);
+      const staff = await repository.create(tenantId, 'staff', steps);
+      const promoted = await repository.makeDefault(tenantId, staff.id);
+      const all = await repository.forTenant(tenantId);
+      return { promoted, defaults: all.filter((flow) => flow.isDefault).map((flow) => flow.name) };
+    });
+
+    expect(result.promoted).toMatchObject({ name: 'staff', isDefault: true });
+    expect(result.defaults).toEqual(['staff']);
+  });
+
+  it('changes nothing for the flow that is already the default', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
+
+    const again = await withTenant(app.db, tenantId, async (tx) => {
+      await provisionBrowserFlow(tx, tenantId);
+      const repository = flowRepository(tx);
+      const current = await repository.defaultForTenant(tenantId);
+      return { current, again: await repository.makeDefault(tenantId, current?.id ?? '') };
+    });
+    expect(again.again).toEqual(again.current);
+  });
+
+  it("answers null for an unknown id and cannot touch a foreign tenant's flow", async () => {
+    const tenantA = newId();
+    await seedTenant(tenantA);
+    const flowId = await withTenant(app.db, tenantA, async (tx) => {
+      await provisionBrowserFlow(tx, tenantA);
+      return (await flowRepository(tx).create(tenantA, 'staff', steps)).id;
+    });
+    const tenantB = newId();
+    await seedTenant(tenantB);
+
+    const result = await withTenant(app.db, tenantB, async (tx) => {
+      await provisionBrowserFlow(tx, tenantB);
+      const repository = flowRepository(tx);
+      return {
+        unknown: await repository.makeDefault(tenantB, newId()),
+        foreign: await repository.makeDefault(tenantA, flowId),
+      };
+    });
+    expect(result).toEqual({ unknown: null, foreign: null });
+
+    const stillDefault = await withTenant(app.db, tenantA, (tx) =>
+      flowRepository(tx).defaultForTenant(tenantA),
+    );
+    expect(stillDefault?.name).toBe('default');
+  });
+});
