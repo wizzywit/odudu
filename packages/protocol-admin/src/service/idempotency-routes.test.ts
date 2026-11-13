@@ -32,6 +32,7 @@ const CLASSIFIED: Record<string, 'idempotent' | 'secret' | 'not-atomic' | 'exter
   '/admin/tenants/:tenant/roles': 'idempotent',
   '/admin/tenants/:tenant/roles/:id/composites': 'idempotent',
   '/admin/tenants/:tenant/groups': 'idempotent',
+  '/admin/tenants/:tenant/flows': 'idempotent',
   '/admin/tenants/:tenant/scopes': 'idempotent',
   '/admin/tenants/:tenant/scopes/restore-builtins': 'idempotent',
   '/admin/tenants/:tenant/keys': 'idempotent',

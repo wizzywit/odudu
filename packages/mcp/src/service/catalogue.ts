@@ -153,6 +153,8 @@ const WITHHELD: readonly Entry[] = [
     [
       R('PATCH', ''),
       R('PUT', '/flow/executions'),
+      R('POST', '/flows'),
+      R('PUT', '/flows/:id'),
       R('POST', '/domains'),
       R('POST', '/domains/:id/verify'),
       R('POST', '/domains/:id/activate'),
@@ -223,6 +225,7 @@ const WITHHELD: readonly Entry[] = [
       R('DELETE', '/groups/:id'),
       R('DELETE', '/scopes/:id'),
       R('DELETE', '/smtp'),
+      R('DELETE', '/flows/:id'),
     ],
     'destructive',
   ],
