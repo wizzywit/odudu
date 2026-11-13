@@ -34,5 +34,7 @@ describe('authenticator choices', () => {
 
   it('offers nothing for a setting it does not know', () => {
     expect(authenticatorChoices('nonesuch')).toEqual([]);
+    expect(authenticatorChoices('constructor')).toEqual([]);
+    expect(authenticatorChoices('toString')).toEqual([]);
   });
 });
