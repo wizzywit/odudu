@@ -15,6 +15,11 @@ export function stepsOf(items: readonly ExecutionStep[]): Step[] {
     .map(({ authenticator, requirement }) => ({ authenticator, requirement }));
 }
 
+// A named flow's steps carry no index: their order is the array's.
+export function flowStepsOf(steps: readonly Step[]): Step[] {
+  return steps.map(({ authenticator, requirement }) => ({ authenticator, requirement }));
+}
+
 function indexOf(steps: readonly Step[], authenticator: string): number {
   return steps.findIndex((step) => step.authenticator === authenticator);
 }
