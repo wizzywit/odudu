@@ -298,6 +298,7 @@ export function deleteFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
         {
           tenantId: targetTenantId,
           flowId: id,
+          ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -305,6 +306,14 @@ export function deleteFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
       ),
     );
     if (outcome.kind === 'not_found') return sendProblem(reply, request, flowNotFound(id));
+    if (outcome.kind === 'precondition_required') {
+      return sendProblem(
+        reply,
+        request,
+        ifMatchRequired('a flow', request.headers['if-match'], { to: 'delete', ing: 'deleting' }),
+      );
+    }
+    if (outcome.kind === 'precondition_failed') return sendProblem(reply, request, ifMatchStale());
     if (outcome.kind === 'default_flow') {
       return sendProblem(
         reply,

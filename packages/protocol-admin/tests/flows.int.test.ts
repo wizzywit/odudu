@@ -74,6 +74,11 @@ async function create(token: string, tenant: string, name: string, steps: Step[]
   return res.json<FlowBody>();
 }
 
+async function remove(token: string, tenant: string, id: string) {
+  const ifMatch = await etagAt(fixture.http, `/admin/tenants/${tenant}/flows/${id}`, token);
+  return call(token, tenant, 'DELETE', `/${id}`, { ifMatch });
+}
+
 async function put(token: string, tenant: string, id: string, body: unknown) {
   const ifMatch = await etagAt(fixture.http, `/admin/tenants/${tenant}/flows/${id}`, token);
   return call(token, tenant, 'PUT', `/${id}`, { body, ifMatch });
@@ -157,7 +162,7 @@ describe('the statements a flow route sends', () => {
             ifMatch: etag,
           }),
         ),
-        removed: await sent(() => call(token, t.name, 'DELETE', `/${flowId}`)),
+        removed: await sent(() => remove(token, t.name, flowId)),
       };
     };
     const few = await measure('few', null);
@@ -333,7 +338,10 @@ describe('GET /admin/tenants/{t}/flows/{id}', () => {
         })
       ).statusCode,
     ).toBe(404);
-    expect((await call(mine.token, mine.t.name, 'DELETE', `/${foreign.id}`)).statusCode).toBe(404);
+    expect(
+      (await call(mine.token, mine.t.name, 'DELETE', `/${foreign.id}`, { ifMatch: '"x"' }))
+        .statusCode,
+    ).toBe(404);
 
     const still = await call(theirs.token, theirs.t.name, 'GET', `/${foreign.id}`);
     expect(still.json<FlowBody>().name).toBe('theirs');
@@ -421,10 +429,29 @@ describe('PUT /admin/tenants/{t}/flows/{id}', () => {
 });
 
 describe('DELETE /admin/tenants/{t}/flows/{id}', () => {
+  it('requires If-Match: 428 without or with *, 412 for a flow changed since it was read', async () => {
+    const { t, token } = await tenantWithToken();
+    const flow = await create(token, t.name, 'staff');
+    const seen = await etagAt(fixture.http, `/admin/tenants/${t.name}/flows/${flow.id}`, token);
+    const absent = await call(token, t.name, 'DELETE', `/${flow.id}`);
+    expect(absent.statusCode).toBe(428);
+    expect(absent.json<Problem>().detail).toBe('If-Match is required to delete a flow');
+    expect((await call(token, t.name, 'DELETE', `/${flow.id}`, { ifMatch: '*' })).statusCode).toBe(
+      428,
+    );
+    expect(
+      (await put(token, t.name, flow.id, { name: 'crew', steps: [password] })).statusCode,
+    ).toBe(200);
+    expect((await call(token, t.name, 'DELETE', `/${flow.id}`, { ifMatch: seen })).statusCode).toBe(
+      412,
+    );
+    expect((await call(token, t.name, 'GET', `/${flow.id}`)).statusCode).toBe(200);
+  });
+
   it('deletes a non-default flow and records flow.delete', async () => {
     const { t, token } = await tenantWithToken();
     const flow = await create(token, t.name, 'staff');
-    expect((await call(token, t.name, 'DELETE', `/${flow.id}`)).statusCode).toBe(204);
+    expect((await remove(token, t.name, flow.id)).statusCode).toBe(204);
     expect((await call(token, t.name, 'GET', `/${flow.id}`)).statusCode).toBe(404);
     expect((await auditActions(token, t.name, 'flow.delete')).map((row) => row.outcome)).toEqual([
       'allowed',
@@ -435,7 +462,7 @@ describe('DELETE /admin/tenants/{t}/flows/{id}', () => {
     const { t, token } = await tenantWithToken();
     const list = (await call(token, t.name, 'GET', '')).json<{ items: FlowBody[] }>();
     const fallback = list.items.find((flow) => flow.is_default);
-    const res = await call(token, t.name, 'DELETE', `/${fallback?.id ?? ''}`);
+    const res = await remove(token, t.name, fallback?.id ?? '');
     expect(res.statusCode).toBe(409);
     expect(res.json<Problem>().type).toBe('about:blank#default-flow');
     expect((await call(token, t.name, 'GET', '')).json<{ total: number }>().total).toBe(1);
@@ -447,7 +474,10 @@ describe('DELETE /admin/tenants/{t}/flows/{id}', () => {
     for (const capability of TENANT_CAPABILITIES) {
       if (capability === 'manage-tenant') continue;
       const other = await fixture.adminToken(t.name, [capability]);
-      expect((await call(other, t.name, 'DELETE', `/${flow.id}`)).statusCode, capability).toBe(403);
+      expect(
+        (await call(other, t.name, 'DELETE', `/${flow.id}`, { ifMatch: '"x"' })).statusCode,
+        capability,
+      ).toBe(403);
     }
   });
 });
@@ -489,8 +519,8 @@ describe('POST /admin/tenants/{t}/flows/{id}/make-default', () => {
       .items.find((flow) => flow.is_default);
     const staff = await create(token, t.name, 'staff');
     await promote(token, t.name, staff.id);
-    expect((await call(token, t.name, 'DELETE', `/${staff.id}`)).statusCode).toBe(409);
-    expect((await call(token, t.name, 'DELETE', `/${former?.id ?? ''}`)).statusCode).toBe(204);
+    expect((await remove(token, t.name, staff.id)).statusCode).toBe(409);
+    expect((await remove(token, t.name, former?.id ?? '')).statusCode).toBe(204);
   });
 
   it('requires If-Match: 428 without or with *, 412 when stale', async () => {

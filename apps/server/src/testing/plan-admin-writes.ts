@@ -681,7 +681,8 @@ function flowCalls(base: string): [string, Call][] {
         system: true,
       },
     ],
-    ['delete the flow made', { method: 'DELETE', url: one, system: true }],
+    ['read the flow made once more', { method: 'GET', url: one, system: true }],
+    ['delete the flow made', { method: 'DELETE', url: one, etagFromPrevious: true, system: true }],
   ];
 }
 

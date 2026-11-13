@@ -1950,7 +1950,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successStatus: 204,
     description:
       'Deletes a flow that is not the default. The default is refused with `409` ' +
-      '(`#default-flow`): a client that names no flow signs in through it.',
+      '(`#default-flow`): make another flow the default first. `If-Match` is mandatory, as ' +
+      'for `PUT`: a flow another administrator has changed since it was read is not deleted ' +
+      'unseen (`428` without the header or with `*`, `412` when stale).',
   },
   {
     method: 'POST',

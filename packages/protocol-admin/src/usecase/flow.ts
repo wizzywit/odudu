@@ -270,10 +270,15 @@ export async function amendFlow(
 export interface DeleteFlowInput extends FlowActor {
   readonly tenantId: string;
   readonly flowId: string;
+  readonly ifMatch: string | undefined;
 }
 
 export type DeleteFlowOutcome =
-  { kind: 'not_found' } | { kind: 'default_flow' } | { kind: 'deleted' };
+  | { kind: 'not_found' }
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'default_flow' }
+  | { kind: 'deleted' };
 
 export async function deleteFlow(
   tx: TenantScopedDatabase,
@@ -284,6 +289,12 @@ export async function deleteFlow(
   await repository.lockForTenant(input.tenantId);
   const before = await repository.byId(input.tenantId, input.flowId);
   if (before === null) return { kind: 'not_found' };
+  const precondition = requiredPrecondition(input.ifMatch, etagOf(flowWireShape(before)));
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
   if (before.isDefault) return { kind: 'default_flow' };
   if (!(await repository.remove(input.tenantId, input.flowId))) return { kind: 'not_found' };
 
