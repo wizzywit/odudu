@@ -31,7 +31,7 @@ Keep-Alive: timeout=72
 856642
 ```
 
-836 KB and 113 paths, which is the whole route table. It is the one admin
+837 KB and 113 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can load
 it — the local stack's optional Swagger UI does exactly that (see [Browsing the
 admin API](../../../contributing/run-from-a-checkout.md)). No admin route carries that header, so a page on
