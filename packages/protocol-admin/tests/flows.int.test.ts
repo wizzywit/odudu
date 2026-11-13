@@ -497,10 +497,26 @@ describe('POST /admin/tenants/{t}/flows/{id}/make-default', () => {
     const { t, token } = await tenantWithToken();
     const staff = await create(token, t.name, 'staff');
     const url = `/${staff.id}/make-default`;
-    expect((await call(token, t.name, 'POST', url)).statusCode).toBe(428);
+    const absent = await call(token, t.name, 'POST', url);
+    expect(absent.statusCode).toBe(428);
+    expect(absent.json<Problem>().detail).toBe('If-Match is required to make a flow the default');
     expect((await call(token, t.name, 'POST', url, { ifMatch: '*' })).statusCode).toBe(428);
     expect((await call(token, t.name, 'POST', url, { ifMatch: '"stale"' })).statusCode).toBe(412);
     expect(await defaults(token, t.name)).toEqual(['default']);
+  });
+
+  it('leaves exactly one default when two flows are promoted at once', async () => {
+    const { t, token } = await tenantWithToken();
+    const left = await create(token, t.name, 'left');
+    const right = await create(token, t.name, 'right');
+    const [a, b] = await Promise.all([
+      promote(token, t.name, left.id),
+      promote(token, t.name, right.id),
+    ]);
+    expect([a.statusCode, b.statusCode].sort()).toEqual([200, 200]);
+    const named = await defaults(token, t.name);
+    expect(named).toHaveLength(1);
+    expect(['left', 'right']).toContain(named[0]);
   });
 
   it('is idempotent for the flow that is already the default, and writes no audit row', async () => {

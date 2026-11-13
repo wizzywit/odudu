@@ -81,14 +81,18 @@ export function cursorProblem(): Problem {
  * names what the caller has to read first, since the header is the only
  * thing missing from an otherwise valid request.
  */
-export function ifMatchRequired(resource: string, sent: string | string[] | undefined): Problem {
+export function ifMatchRequired(
+  resource: string,
+  sent: string | string[] | undefined,
+  action: { to: string; ing: string } = { to: 'replace', ing: 'replacing' },
+): Problem {
   return problem(
     428,
     'about:blank',
     'Precondition Required',
     sent === undefined
-      ? `If-Match is required to replace ${resource}`
-      : `If-Match must name a version you read; * is not accepted when replacing ${resource}`,
+      ? `If-Match is required to ${action.to} ${resource}`
+      : `If-Match must name a version you read; * is not accepted when ${action.ing} ${resource}`,
   );
 }
 
