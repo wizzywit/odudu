@@ -183,10 +183,19 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     pageTab('scopes', 'roles', 'Roles'),
     clientTab('roles', 'Roles'),
   ),
-  Clients: several(rail('clients', 'Clients'), pageTab('scopes', 'clients', 'Clients')),
+  Clients: several(
+    rail('clients', 'Clients'),
+    pageTab('scopes', 'clients', 'Clients'),
+    page(FLOWS_WORDS, "clients: 'Clients'"),
+  ),
   Scopes: several(rail('scopes', 'Scopes'), clientTab('scopes', 'Scopes')),
   'Registration tokens': rail('registration-tokens', 'Registration tokens'),
-  'Sign-in flow': rail('flow', 'Sign-in flow'),
+  'Sign-in flow': several(
+    rail('flow', 'Sign-in flow'),
+    page('clients/services/clientFlow.ts', "FLOW_LABEL = 'Sign-in flow'"),
+    page('clients/services/sectionTitles.ts', "flow: 'Sign-in flow'"),
+  ),
+  'Tenant default': page('clients/services/clientFlow.ts', "TENANT_DEFAULT = 'Tenant default'"),
   'Signing keys': rail('keys', 'Signing keys'),
   Sessions: several(
     rail('sessions', 'Sessions'),

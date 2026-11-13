@@ -148,6 +148,13 @@ Generate recovery codes
 Shows a fresh set of recovery codes once, replacing any held.
 Complete the profile
 Asks the person to fill in every profile field that is still empty.
+Sign-in flow
+The steps a person goes through to sign in to this application. Tenant default follows whichever flow the tenant marks as its default; choosing a flow by name keeps this client on it even when the default changes. A sign-in already under way stays on the flow it started with.
+Sign-in flow
+Tenant default
+▾
+Tenant default
+default (the current default)
 A public client has no secret to rotate.
 Fixed by design
 Response type
