@@ -1,3 +1,4 @@
+import { THEME_PAGE_KINDS } from '@odudu/contracts';
 import type { ThemeView } from '#/features/branding-editor/types/theme';
 import { describe, expect, it } from 'vitest';
 import {
@@ -21,6 +22,6 @@ describe('a section’s request', () => {
   });
 
   it('reads a theme back into the same template values it was made from', () => {
-    expect(Object.keys(templateValues(drafted))).toHaveLength(17);
+    expect(Object.keys(templateValues(drafted))).toHaveLength(THEME_PAGE_KINDS.length);
   });
 });
