@@ -2027,13 +2027,13 @@ that increment, for every caller, not for the tool alone.
 ## What P5b inherits
 
 P5b is **MCP server: access-changing and destructive tools**. Its work list is
-[MCP route classes](../protocols/mcp-route-classes.md), which gives every one of the 158 admin routes a class
+[MCP route classes](../protocols/mcp-route-classes.md), which gives every one of the 159 admin routes a class
 and holds the table to the route table and the tool catalogue. The three classes below have no tool and are
 placed on P5b; the door admits an agent no field of a route it has no allowlist entry for.
 
 | Class | Routes | What waits                                                                                                                                  |
 | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| W2    | 34     | access-changing writes: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail |
+| W2    | 35     | access-changing writes: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail |
 | C     | 7      | credentials and secrets: passwords, client secrets, registration tokens, signing-key creation, relay credentials, imports                   |
 | D     | 28     | destructive: deletes, ending sessions, clearing lockouts, changing signing keys, discarding drafts                                          |
 

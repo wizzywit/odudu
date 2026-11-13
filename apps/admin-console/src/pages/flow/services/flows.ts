@@ -1,4 +1,4 @@
-import { FLOW_NAME_MAX } from '@odudu/contracts/admin';
+import { characterCount, FLOW_NAME_MAX } from '@odudu/contracts/admin';
 import type { FlowWire, SaveFlowRequest } from '#/pages/flow/types/flows';
 import type { Step } from '#/pages/flow/services/steps';
 import { flowArea } from '#/pages/flow/services/flowWording';
@@ -74,7 +74,7 @@ export function flowRows(tenant: string, flows: readonly FlowWire[] | undefined)
 function nameProblem(name: string): string | null {
   return (
     requiredProblem(name, 'Enter a name.') ??
-    (Array.from(name.trim()).length > FLOW_NAME_MAX
+    (characterCount(name.trim()) > FLOW_NAME_MAX
       ? `Use at most ${String(FLOW_NAME_MAX)} characters.`
       : null)
   );

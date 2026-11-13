@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { noBidiControls, noNul } from '#/bidi';
+import { characterCount } from '#/admin/profile';
 import { idSchema } from '#/admin/shared';
 
 // The `requirement` of a flow step (`REQUIREMENTS` in
@@ -74,7 +75,7 @@ export type ListFlowsResponse = z.infer<typeof listFlowsResponseSchema>;
 
 // The length is counted in code points, as the table's CHECK counts it.
 const flowNameSchema = noNul(noBidiControls(z.string().trim().min(1))).refine(
-  (name) => Array.from(name).length <= FLOW_NAME_MAX,
+  (name) => characterCount(name) <= FLOW_NAME_MAX,
   { error: `name must be at most ${String(FLOW_NAME_MAX)} characters` },
 );
 

@@ -203,13 +203,13 @@ approval, which the write tools' ten-minute token and per-sign-in consent only s
 ## What P5b inherits
 
 P5b, **MCP server: access-changing and destructive tools**, has [mcp-route-classes.md](protocols/mcp-route-classes.md) as its work list:
-a row for each of the 158 admin routes, held to the route table and the tool catalogue by a test. Every route
+a row for each of the 159 admin routes, held to the route table and the tool catalogue by a test. Every route
 of the three classes below is placed on P5b and has no tool, and the door admits an agent only the fields of
 the writes on its allowlist, so none is reachable today. The arguments are in [p5a.md](phases/p5a.md), "What P5b inherits".
 
 | Class | Routes | What waits                                                                                                                                  |
 | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| W2    | 34     | access-changing writes: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail |
+| W2    | 35     | access-changing writes: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail |
 | C     | 7      | credentials and secrets: passwords, client secrets, registration tokens, signing-key creation, relay credentials, imports                   |
 | D     | 28     | destructive: deletes, ending sessions, clearing lockouts, changing signing keys, discarding drafts                                          |
 

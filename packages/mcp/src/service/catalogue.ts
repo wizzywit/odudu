@@ -155,6 +155,7 @@ const WITHHELD: readonly Entry[] = [
       R('PUT', '/flow/executions'),
       R('POST', '/flows'),
       R('PUT', '/flows/:id'),
+      R('POST', '/flows/:id/make-default'),
       R('POST', '/domains'),
       R('POST', '/domains/:id/verify'),
       R('POST', '/domains/:id/activate'),
