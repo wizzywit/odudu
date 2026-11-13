@@ -34,6 +34,64 @@ export function flowRepository(tx: TenantScopedDatabase) {
       return rows.map(toFlow);
     },
 
+    async byId(tenantId: string, id: string): Promise<Flow | null> {
+      const [row] = await tx
+        .select()
+        .from(flows)
+        .where(and(eq(flows.tenantId, tenantId), eq(flows.id, id)))
+        .limit(1);
+      return row === undefined ? null : toFlow(row);
+    },
+
+    // Counts at most the cap, so the read stays bounded however the table grows.
+    async countForTenant(tenantId: string): Promise<number> {
+      const rows = await tx
+        .select({ id: flows.id })
+        .from(flows)
+        .where(eq(flows.tenantId, tenantId))
+        .limit(MAX_FLOWS_PER_TENANT);
+      return rows.length;
+    },
+
+    // A second flow of the name fails on `flows_tenant_name`; the caller maps it.
+    async create(tenantId: string, name: string, steps: readonly FlowStep[]): Promise<Flow> {
+      const [row] = await tx
+        .insert(flows)
+        .values({
+          id: newId(),
+          tenantId,
+          name,
+          isDefault: false,
+          steps: flowStepsSchema.parse(steps),
+        })
+        .returning();
+      if (row === undefined) throw new Error(`flow write returned no row for tenant ${tenantId}`);
+      return toFlow(row);
+    },
+
+    async replace(
+      tenantId: string,
+      id: string,
+      name: string,
+      steps: readonly FlowStep[],
+    ): Promise<Flow | null> {
+      const [row] = await tx
+        .update(flows)
+        .set({ name, steps: flowStepsSchema.parse(steps), updatedAt: sql`now()` })
+        .where(and(eq(flows.tenantId, tenantId), eq(flows.id, id)))
+        .returning();
+      return row === undefined ? null : toFlow(row);
+    },
+
+    // The default is never removed here: a tenant always has one.
+    async remove(tenantId: string, id: string): Promise<boolean> {
+      const rows = await tx
+        .delete(flows)
+        .where(and(eq(flows.tenantId, tenantId), eq(flows.id, id), eq(flows.isDefault, false)))
+        .returning({ id: flows.id });
+      return rows.length > 0;
+    },
+
     async defaultForTenant(tenantId: string): Promise<Flow | null> {
       const [row] = await tx
         .select()
