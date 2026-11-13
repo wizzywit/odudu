@@ -17,7 +17,7 @@ INSPECTOR_VERSION=2.13.0
 SDK_CLIENT_VERSION=2.4.0
 # The read tools a token holding mcp:read lists for a tenant's administrator;
 # the two that list tenants are the system tenant's agent's alone.
-export EXPECT_READ_TOOLS=59
+export EXPECT_READ_TOOLS=60
 
 PROJECT=odudu-mcp
 export ODUDU_MCP_PORT="${ODUDU_MCP_PORT:-3190}"
