@@ -567,7 +567,8 @@ async function loadSteps(
   tenantId: string,
   request: FactsRequest,
 ): Promise<{ steps: Step[]; facts: FlowFacts }> {
-  const resolved = resolveFlow(await flowRepository(tx).forTenant(tenantId), null);
+  const fallback = await flowRepository(tx).defaultForTenant(tenantId);
+  const resolved = resolveFlow(fallback === null ? [] : [fallback], null);
   // A tenant with no default flow has nothing to run, so the sign-in fails
   // as one whose flow is empty does.
   const executions = resolved.kind === 'ok' ? resolved.flow.steps : [];

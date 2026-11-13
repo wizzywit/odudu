@@ -10,6 +10,7 @@ import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { clientScopeRepository, TENANT_DEFAULT_SCOPE_NAMES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { flowRepository } from '#/repository/flows';
 import { MAX_FLOWS_PER_TENANT } from '#/service/flow';
@@ -173,6 +174,24 @@ describe('flowRepository', () => {
       return flowRepository(tx).defaultForTenant(tenantId);
     });
     expect(found?.isDefault).toBe(true);
+  });
+
+  it('finds the default by is_default, even renamed while another flow holds the name default', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
+
+    const written = await withTenant(app.db, tenantId, async (tx) => {
+      await provisionBrowserFlow(tx, tenantId);
+      await tx.execute(sql`update flows set name = 'main' where tenant_id = ${tenantId}`);
+      await tx.execute(
+        sql`insert into flows (id, tenant_id, name, is_default, steps)
+            values (${newId()}, ${tenantId}, 'default', false, '[]'::jsonb)`,
+      );
+      return flowRepository(tx).replaceDefaultSteps(tenantId, [
+        { authenticator: 'password', requirement: 'required' },
+      ]);
+    });
+    expect(written).toMatchObject({ name: 'main', isDefault: true });
   });
 
   it('replacing with an empty list leaves a default flow with no steps', async () => {

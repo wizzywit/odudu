@@ -35,8 +35,8 @@ export interface FlowView {
 
 /**
  * The default flow's steps are already in order, which is the flow's
- * meaning, so the `ETag` needs no sort. It covers `items` alone: `available` is the
- * registry's, and no write here changes it.
+ * meaning, so the `ETag` needs no sort. It covers `items` alone: `available`
+ * is the registry's, and no write here changes it.
  */
 export async function listFlow(tx: TenantScopedDatabase, tenantId: string): Promise<FlowView> {
   const fallback = await flowRepository(tx).defaultForTenant(tenantId);

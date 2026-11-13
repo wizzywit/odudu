@@ -50,11 +50,19 @@ export function flowRepository(tx: TenantScopedDatabase) {
     lockForTenant: lock,
 
     // Writes the whole list of the tenant's default flow, creating the row
-    // when the tenant has none. A flow's meaning is in its order, so a step
+    // when the tenant has none. The default is found by `is_default`, never by
+    // name, so renaming it or another flow taking `default` does not matter. A flow's meaning is in its order, so a step
     // is never edited alone. The advisory lock serialises two concurrent
     // replacements; the partial unique index would fail the second insert.
     async replaceDefaultSteps(tenantId: string, steps: readonly FlowStep[]): Promise<Flow> {
       await lock(tenantId);
+      const valid = flowStepsSchema.parse(steps);
+      const [updated] = await tx
+        .update(flows)
+        .set({ steps: valid, updatedAt: sql`now()` })
+        .where(and(eq(flows.tenantId, tenantId), eq(flows.isDefault, true)))
+        .returning();
+      if (updated !== undefined) return toFlow(updated);
       const [row] = await tx
         .insert(flows)
         .values({
@@ -62,12 +70,7 @@ export function flowRepository(tx: TenantScopedDatabase) {
           tenantId,
           name: DEFAULT_FLOW_NAME,
           isDefault: true,
-          steps: flowStepsSchema.parse(steps),
-        })
-        .onConflictDoUpdate({
-          target: flows.tenantId,
-          targetWhere: eq(flows.isDefault, true),
-          set: { steps: flowStepsSchema.parse(steps), updatedAt: sql`now()` },
+          steps: valid,
         })
         .returning();
       if (row === undefined) throw new Error(`flow write returned no row for tenant ${tenantId}`);

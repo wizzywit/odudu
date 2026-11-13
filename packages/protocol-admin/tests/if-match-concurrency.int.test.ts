@@ -373,8 +373,8 @@ describe('two concurrent replacements that hold the same tag', () => {
   });
 });
 
-// The flow has no row to lock — a tenant whose flow is empty has none at
-// all — so `replaceForTenant`'s advisory lock is the only mutex, and the
+// A tenant may have no default flow row to lock, so `replaceDefaultSteps`'s
+// advisory lock is the only mutex, and the
 // `If-Match` comparison has to sit inside it. Taken after the read
 // instead, two callers holding the same fresh tag would both pass.
 describe('two concurrent flow replacements carrying the same If-Match', () => {
