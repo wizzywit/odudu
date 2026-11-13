@@ -86,7 +86,16 @@ import {
   setGroupRolesHandler,
   type GroupsRouteDeps,
 } from '#/view/routes/groups';
-import { listFlowHandler, replaceFlowHandler, type FlowRouteDeps } from '#/view/routes/flow';
+import {
+  amendFlowHandler,
+  createFlowHandler,
+  deleteFlowHandler,
+  listFlowHandler,
+  listFlowsHandler,
+  readFlowHandler,
+  replaceFlowHandler,
+  type FlowRouteDeps,
+} from '#/view/routes/flow';
 import {
   readScopeMappersHandler,
   setScopeMappersHandler,
@@ -972,6 +981,11 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/clients/:id/evaluate': evaluateClaimsHandler(operationsDeps),
       'GET /admin/tenants/:tenant/flow/executions': listFlowHandler(flowDeps),
       'PUT /admin/tenants/:tenant/flow/executions': replaceFlowHandler(flowDeps),
+      'GET /admin/tenants/:tenant/flows': listFlowsHandler(flowDeps),
+      'POST /admin/tenants/:tenant/flows': createFlowHandler(flowDeps),
+      'GET /admin/tenants/:tenant/flows/:id': readFlowHandler(flowDeps),
+      'PUT /admin/tenants/:tenant/flows/:id': amendFlowHandler(flowDeps),
+      'DELETE /admin/tenants/:tenant/flows/:id': deleteFlowHandler(flowDeps),
       'GET /admin/tenants/:tenant/audit': listAuditHandler(auditDeps),
       'GET /admin/tenants/:tenant/audit/count': countAuditHandler(auditDeps),
       'GET /admin/tenants/:tenant/audit/export': exportAuditHandler(auditDeps),

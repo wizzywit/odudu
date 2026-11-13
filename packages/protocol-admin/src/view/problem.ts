@@ -41,6 +41,16 @@ function withCode(error: FieldError): FieldError {
     : error;
 }
 
+/** A body a Zod schema refused after the transport's own check passed: each issue under its field. */
+export function bodyProblem(error: z.ZodError): Problem {
+  const errors = error.issues.flatMap((issue) =>
+    issue.path.length > 0 ? [{ path: fieldPath(issue.path), message: issue.message }] : [],
+  );
+  return errors.length === 0
+    ? problem(400, 'about:blank', 'Bad Request', error.issues[0]?.message ?? 'invalid body')
+    : fieldProblem(errors);
+}
+
 /** A query a Zod schema refused, its first message as the detail. */
 export function queryProblem(error: z.ZodError): Problem {
   const detail = error.issues[0]?.message ?? 'invalid query';

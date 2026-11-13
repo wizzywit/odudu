@@ -4,13 +4,15 @@ import {
   startsALogin,
   type FlowStep,
 } from '@odudu/authn-flows';
-import { type ExecutionStep } from '@odudu/contracts/admin';
+import { FLOW_LIMIT, type ExecutionStep, type FlowWire } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { createdDetail, redactedDiff } from '#/service/audit-detail';
 import { etagOf, requiredPrecondition } from '#/service/etag';
+import { flowWireShape } from '#/service/flow-wire';
 import { validateFlowSteps } from '#/service/flow-validation';
 
 export interface FlowAuditEvent {
-  readonly action: 'flow.replace';
+  readonly action: 'flow.replace' | 'flow.create' | 'flow.amend' | 'flow.delete';
   readonly resourceType: 'flow';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -57,12 +59,27 @@ export interface ReplaceFlowDeps {
   readonly audit: Audit;
 }
 
-export type ReplaceFlowOutcome =
+/** A step list refused at save time, before anything is read or written. */
+export type StepsRefusal =
   | { kind: 'empty' }
   | { kind: 'unresolvable_authenticator'; name: string; known: readonly string[] }
   | { kind: 'duplicate_authenticator'; name: string }
   | { kind: 'no_enabled_step' }
-  | { kind: 'no_step_runnable_at_start' }
+  | { kind: 'no_step_runnable_at_start' };
+
+/**
+ * Shape is not enough: a flow every step of which stands down before any
+ * subject is bound passes every check of `validateFlowSteps` and still
+ * cannot render a first challenge.
+ */
+export function refuseSteps(steps: readonly FlowStep[]): StepsRefusal | null {
+  const validated = validateFlowSteps(steps, registeredAuthenticatorNames());
+  if (validated.kind !== 'ok') return validated;
+  return startsALogin(steps) ? null : { kind: 'no_step_runnable_at_start' };
+}
+
+export type ReplaceFlowOutcome =
+  | StepsRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
   | {
@@ -78,12 +95,8 @@ export async function replaceFlow(
   deps: ReplaceFlowDeps,
   input: ReplaceFlowInput,
 ): Promise<ReplaceFlowOutcome> {
-  const validated = validateFlowSteps(input.steps, registeredAuthenticatorNames());
-  if (validated.kind !== 'ok') return validated;
-  // Shape is not enough: a flow every step of which stands down before any
-  // subject is bound passes every check above and still cannot render a
-  // first challenge.
-  if (!startsALogin(input.steps)) return { kind: 'no_step_runnable_at_start' };
+  const refusal = refuseSteps(input.steps);
+  if (refusal !== null) return refusal;
 
   // Before the read, never after: the lock is what makes the comparison
   // below describe the flow this write overwrites, the same order
@@ -116,4 +129,172 @@ export async function replaceFlow(
     available: registeredAuthenticatorNames(),
     etag: etagOf({ items }),
   };
+}
+
+export interface FlowListView {
+  readonly items: readonly FlowWire[];
+  readonly total: number;
+  readonly available: readonly string[];
+}
+
+/**
+ * Bounded by the per-tenant cap, which `forTenant` also applies, so `total`
+ * is every flow the tenant has: one indexed query, no cursor.
+ */
+export async function listFlows(tx: TenantScopedDatabase, tenantId: string): Promise<FlowListView> {
+  const all = await flowRepository(tx).forTenant(tenantId);
+  return {
+    items: all.map(flowWireShape),
+    total: all.length,
+    available: registeredAuthenticatorNames(),
+  };
+}
+
+export type ReadFlowOutcome = { kind: 'not_found' } | { kind: 'ok'; flow: FlowWire; etag: string };
+
+export async function readFlow(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  flowId: string,
+): Promise<ReadFlowOutcome> {
+  const found = await flowRepository(tx).byId(tenantId, flowId);
+  if (found === null) return { kind: 'not_found' };
+  const flow = flowWireShape(found);
+  return { kind: 'ok', flow, etag: etagOf(flow) };
+}
+
+interface FlowActor {
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface CreateFlowInput extends FlowActor {
+  readonly tenantId: string;
+  readonly name: string;
+  readonly steps: FlowStep[];
+}
+
+export type CreateFlowOutcome =
+  | StepsRefusal
+  | { kind: 'flow_limit'; limit: number }
+  | { kind: 'ok'; flow: FlowWire; etag: string };
+
+/**
+ * The cap is counted inside the transaction, under the tenant's flow lock, so
+ * two creates at one short of the cap cannot both pass. A name already
+ * taken fails on the table's unique constraint, which the route maps.
+ */
+export async function createFlow(
+  tx: TenantScopedDatabase,
+  deps: ReplaceFlowDeps,
+  input: CreateFlowInput,
+): Promise<CreateFlowOutcome> {
+  const refusal = refuseSteps(input.steps);
+  if (refusal !== null) return refusal;
+
+  const repository = flowRepository(tx);
+  await repository.lockForTenant(input.tenantId);
+  if ((await repository.countForTenant(input.tenantId)) >= FLOW_LIMIT) {
+    return { kind: 'flow_limit', limit: FLOW_LIMIT };
+  }
+
+  const created = await repository.create(input.tenantId, input.name, input.steps);
+  const flow = flowWireShape(created);
+  await deps.audit(tx, {
+    action: 'flow.create',
+    resourceType: 'flow',
+    resourceId: created.id,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: createdDetail('flow', flow),
+  });
+  return { kind: 'ok', flow, etag: etagOf(flow) };
+}
+
+export interface AmendFlowInput extends FlowActor {
+  readonly tenantId: string;
+  readonly flowId: string;
+  readonly name: string;
+  readonly steps: FlowStep[];
+  readonly ifMatch: string | undefined;
+}
+
+export type AmendFlowOutcome =
+  | StepsRefusal
+  | { kind: 'not_found' }
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; flow: FlowWire; etag: string };
+
+/** Replaces one flow's name and steps whole; the flag that marks the default is not touched. */
+export async function amendFlow(
+  tx: TenantScopedDatabase,
+  deps: ReplaceFlowDeps,
+  input: AmendFlowInput,
+): Promise<AmendFlowOutcome> {
+  const refusal = refuseSteps(input.steps);
+  if (refusal !== null) return refusal;
+
+  const repository = flowRepository(tx);
+  await repository.lockForTenant(input.tenantId);
+  const before = await repository.byId(input.tenantId, input.flowId);
+  if (before === null) return { kind: 'not_found' };
+  const beforeWire = flowWireShape(before);
+  const precondition = requiredPrecondition(input.ifMatch, etagOf(beforeWire));
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
+
+  const written = await repository.replace(input.tenantId, input.flowId, input.name, input.steps);
+  if (written === null) return { kind: 'not_found' };
+  const flow = flowWireShape(written);
+  await deps.audit(tx, {
+    action: 'flow.amend',
+    resourceType: 'flow',
+    resourceId: written.id,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: redactedDiff('flow', beforeWire, flow),
+  });
+  return { kind: 'ok', flow, etag: etagOf(flow) };
+}
+
+export interface DeleteFlowInput extends FlowActor {
+  readonly tenantId: string;
+  readonly flowId: string;
+}
+
+export type DeleteFlowOutcome =
+  { kind: 'not_found' } | { kind: 'default_flow' } | { kind: 'deleted' };
+
+export async function deleteFlow(
+  tx: TenantScopedDatabase,
+  deps: ReplaceFlowDeps,
+  input: DeleteFlowInput,
+): Promise<DeleteFlowOutcome> {
+  const repository = flowRepository(tx);
+  await repository.lockForTenant(input.tenantId);
+  const before = await repository.byId(input.tenantId, input.flowId);
+  if (before === null) return { kind: 'not_found' };
+  if (before.isDefault) return { kind: 'default_flow' };
+  if (!(await repository.remove(input.tenantId, input.flowId))) return { kind: 'not_found' };
+
+  await deps.audit(tx, {
+    action: 'flow.delete',
+    resourceType: 'flow',
+    resourceId: before.id,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: redactedDiff('flow', flowWireShape(before), null),
+  });
+  return { kind: 'deleted' };
 }

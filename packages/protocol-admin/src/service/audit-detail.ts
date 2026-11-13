@@ -52,6 +52,10 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     password_encrypted: 'sensitive',
     jwks: 'sensitive',
   },
+  flow: {
+    name: 'value',
+    steps: 'value',
+  },
   tenant: {
     name: 'value',
     display_name: 'value',

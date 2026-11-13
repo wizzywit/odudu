@@ -13,7 +13,7 @@ export type ValidateFlowOutcome =
 // reported before a duplicate or an all-disabled list, so a caller fixing
 // one refusal at a time sees the more fundamental one first.
 export function validateFlowSteps(
-  steps: ReplaceExecutionsRequest,
+  steps: Readonly<ReplaceExecutionsRequest>,
   knownAuthenticators: readonly string[],
 ): ValidateFlowOutcome {
   if (steps.length === 0) return { kind: 'empty' };
