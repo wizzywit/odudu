@@ -1,14 +1,24 @@
 import { registeredAuthenticatorNames, flowRepository } from '@odudu/authn-flows';
-import { withTenant } from '@odudu/db';
+import { createDatabase, withTenant } from '@odudu/db';
 import { TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture, etagAt } from '#/testing/admin-fixture';
 
+const statements: string[] = [];
+
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
 beforeAll(async () => {
-  fixtureHandle = await startAdminFixture();
+  fixtureHandle = await startAdminFixture({
+    openApp: (url) =>
+      createDatabase(url, {
+        max: 5,
+        onQueryForTests: (query) => {
+          statements.push(query);
+        },
+      }),
+  });
   fixture = fixtureHandle;
 }, 180_000);
 afterAll(async () => {
@@ -117,6 +127,43 @@ describe('GET /admin/tenants/{t}/flows', () => {
       const token = await fixture.adminToken(t.name, [capability]);
       expect((await call(token, t.name, 'GET', '')).statusCode, capability).toBe(403);
     }
+  });
+});
+
+describe('the statements a flow route sends', () => {
+  async function sent(run: () => Promise<{ statusCode: number }>): Promise<number> {
+    const from = statements.length;
+    const res = await run();
+    expect(res.statusCode).toBeLessThan(300);
+    return statements.length - from;
+  }
+
+  it('are the same however many flows the tenant holds, for every route', async () => {
+    const { t, token } = await tenantWithToken();
+    const body = { name: 'probe', steps: [password] };
+    const measure = async (name: string, id: string | null) => {
+      const made = await sent(() =>
+        call(token, t.name, 'POST', '', { body: { ...body, name: `a-${name}` } }),
+      );
+      const flowId = id ?? (await create(token, t.name, `b-${name}`)).id;
+      const etag = await etagAt(fixture.http, `/admin/tenants/${t.name}/flows/${flowId}`, token);
+      return {
+        list: await sent(() => call(token, t.name, 'GET', '')),
+        read: await sent(() => call(token, t.name, 'GET', `/${flowId}`)),
+        made,
+        replaced: await sent(() =>
+          call(token, t.name, 'PUT', `/${flowId}`, {
+            body: { ...body, name: `c-${name}` },
+            ifMatch: etag,
+          }),
+        ),
+        removed: await sent(() => call(token, t.name, 'DELETE', `/${flowId}`)),
+      };
+    };
+    const few = await measure('few', null);
+    for (let n = 1; n < 17; n += 1) await create(token, t.name, `flow-${String(n)}`);
+    const many = await measure('many', null);
+    expect(many).toEqual(few);
   });
 });
 
