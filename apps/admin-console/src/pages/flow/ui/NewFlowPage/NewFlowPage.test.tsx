@@ -2,8 +2,14 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
-import { json, problem } from '#/testing/fakeTransport';
-import { flowRecordBody, flowRoutes, FLS, STAFF_FLOW_ID } from '#/testing/flowFixtures';
+import { inTurn, json, problem } from '#/testing/fakeTransport';
+import {
+  flowRecordBody,
+  flowRoutes,
+  flowsAnswer,
+  FLS,
+  STAFF_FLOW_ID,
+} from '#/testing/flowFixtures';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
 
@@ -90,4 +96,16 @@ it('passes axe in both themes', async () => {
       () => nameField(),
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('says the flows could not be read, with a retry, and offers no form until they are', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    flowRoutes(undefined, { [`GET ${FLS}`]: inTurn(problem(500), flowsAnswer()) }),
+  );
+  expect(await screen.findByText('The flows could not be loaded')).toBeVisible();
+  expect(screen.queryByRole('textbox', { name: /Name/u })).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Try again' }));
+  expect(await nameField()).toBeVisible();
 });

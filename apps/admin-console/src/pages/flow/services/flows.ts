@@ -158,11 +158,6 @@ export function nameTakenExplanation(problem: Problem): string | null {
     : null;
 }
 
-// What the registry offers a step, from the list read; none until it is read.
-export function availableOf(list: { available: readonly string[] } | undefined): readonly string[] {
-  return list?.available ?? [];
-}
-
 // A save of a flow says a name another flow holds in the console's words, and
 // leaves the rest to the shared refusal wording.
 export function explainFlowSave(
