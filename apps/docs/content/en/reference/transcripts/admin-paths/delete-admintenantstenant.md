@@ -140,7 +140,7 @@ curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" 
  client_scopes                 | 12
  role_composites               | 11
  roles                         | 10
- audit_events                  |  3
+ audit_events                  |  5
  client_oidc_config            |  3
  clients                       |  3
  authentication_sessions       |  1
@@ -149,6 +149,7 @@ curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" 
  sessions                      |  1
  signing_keys                  |  1
  subjects                      |  1
+ token_grants                  |  1
  user_credentials              |  1
  users                         |  1
  action_tokens                 |  0
@@ -181,7 +182,6 @@ curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" 
  theme_assets                  |  0
  theme_version_assets          |  0
  theme_versions                |  0
- token_grants                  |  0
  user_required_actions         |  0
 (47 rows)
 
