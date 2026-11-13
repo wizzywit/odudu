@@ -90,6 +90,9 @@ export interface PendingRequest {
   // Absent when the client names none: the session then follows the tenant's
   // default flow, as it is at each step.
   flowId?: string;
+  // The authenticator-app parameters the last enrolment page offered, with a
+  // digest of its secret (service/totp-offer.ts); absent before one is shown.
+  totpOffer?: unknown;
   // Present only when this session was started to promote a session reuse
   // into a consent decision (protocol-oidc's authorization-request.ts):
   // the SSO session to complete into, and the instant it actually

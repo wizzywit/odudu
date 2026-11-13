@@ -1,4 +1,4 @@
-import { totpCode, totpCounter } from '@odudu/crypto';
+import { generateTotpSecret, totpCode, totpCounter } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -221,6 +221,61 @@ describe('TOTP enrolment under the flow in force', () => {
       ),
     );
     expect(outcome).toMatchObject({ kind: 'success' });
+  });
+
+  it('confirms the enrolment under the parameters it offered when the flow is saved between', async () => {
+    const s = await seed();
+    const clock = new FakeClock(new Date(Date.UTC(2033, 0, 1)));
+    const authSessionId = await startBound(s);
+    const offer = await withTenant(app.db, s.tenantId, (tx) =>
+      beginTotpEnrolment(tx, s.tenantId, 'tenant', s.subjectId, authSessionId),
+    );
+    expect(offer.parameters?.digits).toBe(6);
+    await withTenant(app.db, s.tenantId, (tx) =>
+      flowRepository(tx).replaceDefaultSteps(s.tenantId, [
+        { authenticator: 'password', requirement: 'required' },
+        { authenticator: 'otp', requirement: 'required', settings: { digits: 8 } },
+      ]),
+    );
+    const outcome = await withTenant(app.db, s.tenantId, (tx) =>
+      completeTotpEnrolment(
+        tx,
+        {
+          tenantId: s.tenantId,
+          subjectId: s.subjectId,
+          secret: offer.secret,
+          code: totpCode(offer.secret, totpCounter(clock.now(), 30), 6, 'SHA-1'),
+          authSessionId,
+        },
+        clock,
+      ),
+    );
+    expect(outcome).toEqual({ kind: 'enrolled' });
+    const [row] = await withTenant(app.db, s.tenantId, (tx) =>
+      credentialRepository(tx).listFor(s.subjectId, 'totp'),
+    );
+    expect(row?.secret).toMatchObject({ digits: 6, algorithm: 'SHA1', period: 30 });
+  });
+
+  it('ignores a secret no page offered and judges its code by the current policy', async () => {
+    const s = await seed();
+    const clock = new FakeClock(new Date(Date.UTC(2033, 0, 1)));
+    const authSessionId = await startBound(s, s.strictFlow);
+    const secret = generateTotpSecret();
+    const outcome = await withTenant(app.db, s.tenantId, (tx) =>
+      completeTotpEnrolment(
+        tx,
+        {
+          tenantId: s.tenantId,
+          subjectId: s.subjectId,
+          secret,
+          code: totpCode(secret, totpCounter(clock.now(), 30), 6, 'SHA-1'),
+          authSessionId,
+        },
+        clock,
+      ),
+    );
+    expect(outcome).toEqual({ kind: 'rejected', reason: 'invalid_code' });
   });
 
   it('falls back to the tenant’s values when the session names no row', async () => {

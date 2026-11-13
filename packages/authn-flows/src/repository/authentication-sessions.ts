@@ -163,6 +163,17 @@ export function authenticationSessionRepository(tx: TenantScopedDatabase) {
         .where(eq(authenticationSessions.id, id));
     },
 
+    // Patches `pendingRequest.totpOffer` in place, so the enrolment page's
+    // offer is kept beside whatever else is parked on the request.
+    async recordTotpOffer(id: string, offer: object): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({
+          pendingRequest: sql`jsonb_set(${authenticationSessions.pendingRequest}, '{totpOffer}', ${JSON.stringify(offer)}::jsonb)`,
+        })
+        .where(eq(authenticationSessions.id, id));
+    },
+
     // Patches `pendingRequest.actionStatus` in place, and only where none is
     // written yet, so the first outcome of a requested action is the one that
     // stands. Returns whether this call wrote it.

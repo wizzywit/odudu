@@ -6,7 +6,11 @@ import { type MailLookResolver } from '@odudu/email';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
-import { enrolmentPolicy } from '#/usecase/enrolment-policy';
+import {
+  confirmedTotpParameters,
+  enrolmentPolicy,
+  rememberTotpOffer,
+} from '#/usecase/enrolment-policy';
 import { noticeOwnChange } from '#/usecase/own-change-notice';
 import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
 import { OTP } from '#/service/authenticators/names';
@@ -31,6 +35,7 @@ export async function beginTotpEnrolment(
   const user = await userRepository(tx).bySubjectId(subjectId);
   const { totp } = await enrolmentPolicy(tx, tenantId, authSessionId);
   const secret = generateTotpSecret();
+  await rememberTotpOffer(tx, authSessionId, secret, totp);
   return {
     secret,
     uri: totpEnrolmentUri({
@@ -74,7 +79,7 @@ export async function completeTotpEnrolment(
   }
   if (!isTotpSecretShape(input.secret)) return { kind: 'rejected', reason: 'invalid_code' };
 
-  const { totp } = await enrolmentPolicy(tx, input.tenantId, input.authSessionId);
+  const totp = await confirmedTotpParameters(tx, input.tenantId, input.authSessionId, input.secret);
   const made: TotpSecret = {
     kind: 'totp',
     secret: input.secret,
