@@ -196,3 +196,32 @@ describe('the breached-password settings', () => {
     });
   });
 });
+
+describe('the terms settings', () => {
+  it('show by value, so a change of terms is on the trail', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        { terms_uri: null, terms_version: '1' },
+        { terms_uri: 'https://example.com/terms', terms_version: '2' },
+      ),
+    ).toEqual({
+      terms_uri: { before: null, after: 'https://example.com/terms' },
+      terms_version: { before: '1', after: '2' },
+    });
+  });
+});
+
+describe('the required profile fields', () => {
+  it('show by value, so a change of what a profile needs is on the trail', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        { required_profile_fields: ['given_name', 'family_name'] },
+        { required_profile_fields: ['name'] },
+      ),
+    ).toEqual({
+      required_profile_fields: { before: ['given_name', 'family_name'], after: ['name'] },
+    });
+  });
+});

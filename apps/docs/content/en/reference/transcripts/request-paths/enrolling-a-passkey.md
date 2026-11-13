@@ -71,8 +71,9 @@ Refused, each for its own reason:
 - A response produced against another relying party or origin.
 - A submission for an action the subject does not owe **next**: the
   required-action route refuses any action that is not the head of their
-  pending set in the order `update-password`, `configure-totp`,
-  `configure-passkey`, `generate-recovery-codes`, whatever the form says.
+  pending set in the order `verify-email`, `update-password`,
+  `configure-totp`, `configure-passkey`, `generate-recovery-codes`,
+  `update-profile`, `accept-terms`, whatever the form says.
 - A submission against a session whose authentication has not finished — a
   password passed and a second factor still outstanding, including one the
   subject enrolled in another attempt since — or one already spent on a

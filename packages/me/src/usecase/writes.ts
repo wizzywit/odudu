@@ -1,5 +1,5 @@
 import type { MeAmendProfileRequest } from '@odudu/contracts/me';
-import type { UserRecord } from '@odudu/domain-identity';
+import { planProfileAmend, type UserRecord } from '@odudu/domain-identity';
 import { isUuid } from '@odudu/kernel';
 import type { MeWrites } from '#/repository/writes';
 import {
@@ -17,7 +17,6 @@ import { removalNotice, type NoticeOutcome } from '#/service/notice';
 import { UsernameTakenError } from '#/service/errors';
 import { credentialView, type CredentialView } from '#/service/credential-view';
 import { fetchLimit, splitPage } from '#/service/page';
-import { planProfileAmend } from '#/service/profile-amend';
 import { canRemove, HELD_LIMIT, isRemovable, type RemovalRefusal } from '#/service/removal-rule';
 import { SESSION_END_LIMIT } from '#/service/session-end';
 import { isTokenSession } from '#/service/session-view';

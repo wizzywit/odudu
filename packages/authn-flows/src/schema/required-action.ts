@@ -1,11 +1,17 @@
 import { pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 
-// The four actions a tenant-level requirement can name. "This tenant requires
-// OTP" can only ever mean one of these being pending for a subject — see
+// What a tenant-level requirement can name. "This tenant requires OTP" can
+// only ever mean one of these being pending for a subject — see
 // #/usecase/required-actions.ts for the order they run in.
 export type RequiredAction =
-  'update-password' | 'configure-totp' | 'configure-passkey' | 'generate-recovery-codes';
+  | 'verify-email'
+  | 'update-password'
+  | 'configure-totp'
+  | 'configure-passkey'
+  | 'generate-recovery-codes'
+  | 'update-profile'
+  | 'accept-terms';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
 // declared with pgPolicy() — see tenants.ts in @odudu/db for why.

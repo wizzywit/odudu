@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { dateTimeSchema, idSchema } from '#/admin/shared';
 import { THEME_PAGE_KINDS, themeBodyRequestSchema, themeBodySchema } from '#/theme-body';
 
-// The most a theme write may carry: the largest theme (a template for each of
-// the seventeen page kinds and a stylesheet) with room for JSON escaping.
+// The most a theme write may carry: the largest theme (a template for
+// every page kind, and a stylesheet) with room for JSON escaping.
 // Fastify refuses a larger body before it reads it.
 export const THEME_BODY_LIMIT = 4 * 1024 * 1024;
 

@@ -371,6 +371,9 @@ select gen_random_uuid(), ${t}, id, ${c0} from vol_subjects;
 insert into consents (id, tenant_id, subject_id, client_id)
 select gen_random_uuid(), ${t}, s.id, c.id from vol_subjects s join vol_clients c on c.n <= ${v.fanOut}
  where s.n = 1;
+insert into subject_terms_acceptances (tenant_id, subject_id, version, accepted_at)
+select ${t}, s.id, 'v' || g, now() - g * interval '1 minute'
+  from vol_subjects s, generate_series(1, ${v.assignments}) g where s.n = 1;
 insert into login_failures (tenant_id, subject_id, failure_count, first_failure_at, last_failure_at)
 select ${t}, id, 1, now(), now() from vol_subjects where n % 10 = 0;
 insert into user_required_actions (tenant_id, subject_id, action)

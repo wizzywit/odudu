@@ -95,6 +95,8 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'action.failed':
     'The action an application requested could not run, for example recovery codes for a ' +
     'person with no second factor.',
+  'terms.accepted':
+    'The person accepted the tenant\u2019s terms. `detail.version` is the version accepted.',
 };
 
 export const AUDIT_REASON_DOCS: Record<AuditReason, string> = {

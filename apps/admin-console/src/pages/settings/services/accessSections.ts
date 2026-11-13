@@ -1,9 +1,11 @@
+import { PROFILE } from '#/pages/settings/services/profileSection';
 import { AUTHENTICATORS } from '#/pages/settings/services/authenticatorsSection';
 import type { SettingsSection } from '#/pages/settings/services/sectionTypes';
 
 export const GENERAL_SECTION = 'general';
 export const LOCKOUT_SECTION = 'brute-force';
 export const PASSWORD_SECTION = 'password';
+export const TERMS_SECTION = 'terms';
 
 export const ACCESS_SECTIONS: readonly SettingsSection[] = [
   {
@@ -121,6 +123,29 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
       },
     ],
   },
+  {
+    id: TERMS_SECTION,
+    title: 'Terms',
+    description:
+      'The terms a person accepts when asked to. Setting them asks nobody: an administrator asks a person under Required actions, and again when the terms change.',
+    fields: [
+      {
+        name: 'terms_uri',
+        label: 'Terms address',
+        control: 'text',
+        description:
+          'An https address, or http to this machine, with no fragment. Leave it empty for no terms.',
+      },
+      {
+        name: 'terms_version',
+        label: 'Terms version',
+        control: 'text',
+        description:
+          'Up to 64 characters. A person accepts one version. Changing it asks nobody again by itself.',
+      },
+    ],
+  },
+  PROFILE,
   AUTHENTICATORS,
   {
     id: 'usernames',

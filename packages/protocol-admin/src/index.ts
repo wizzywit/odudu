@@ -42,6 +42,10 @@ import { type Audit as TenantImportAudit } from '#/usecase/tenant-import';
 import { type Audit as SmtpAudit } from '#/usecase/smtp';
 import { type Audit as AccountRecoveryAudit } from '#/usecase/account-recovery';
 import { type Audit as ConsentAudit } from '#/usecase/consents';
+import {
+  listTermsAcceptancesHandler,
+  type TermsAcceptancesRouteDeps,
+} from '#/view/routes/terms-acceptances';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as GrantAudit } from '#/usecase/grants';
 import { type EndTenantSessionsDeps } from '#/usecase/tenant-sessions';
@@ -758,6 +762,10 @@ function buildAdminRoutes(
       callerCapabilities,
       now: () => clock.now(),
     };
+    const termsAcceptancesDeps: TermsAcceptancesRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+    };
     const accountRecoveryDeps: AccountRecoveryRouteDeps = {
       database: deps.database.db,
       audit: accountRecoveryAudit,
@@ -796,6 +804,8 @@ function buildAdminRoutes(
       'DELETE /admin/tenants/:tenant/subjects/:id/credentials/:credentialId':
         deleteCredentialHandler(subjectsDeps, sessionsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/consents': listConsentsHandler(consentsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/terms-acceptances':
+        listTermsAcceptancesHandler(termsAcceptancesDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/consents/:clientId':
         deleteConsentHandler(consentsDeps),
       'POST /admin/tenants/:tenant/subjects/:id/password':

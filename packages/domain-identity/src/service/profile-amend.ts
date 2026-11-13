@@ -1,12 +1,7 @@
 import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
 import type { MeAmendProfileRequest } from '@odudu/contracts/me';
-import {
-  CLAIM_KEY,
-  shapeInvalidityFor,
-  type ProfileUpdate,
-  type UserRecord,
-  type VerificationUpdate,
-} from '@odudu/domain-identity';
+import { CLAIM_KEY, shapeInvalidityFor } from '#/service/profile';
+import { type ProfileUpdate, type UserRecord, type VerificationUpdate } from '#/schema/users';
 
 // The claims that name a person: refused when a write would add a bidirectional
 // control to them.
@@ -20,7 +15,14 @@ const NAME_CLAIMS = new Set([
 ]);
 
 export type ProfileAmendPlan =
-  | { readonly kind: 'invalid_value'; readonly field: string; readonly description: string }
+  | {
+      readonly kind: 'invalid_value';
+      readonly field: string;
+      readonly description: string;
+      // A control that would reorder the text around it, or a shape the claim
+      // cannot take, for a page that words each in its own language.
+      readonly reason: 'bidi' | 'shape';
+    }
   | { readonly kind: 'unchanged' }
   | {
       readonly kind: 'change';
@@ -47,7 +49,7 @@ export function planProfileAmend(
     if (field === 'username') {
       if (typeof raw !== 'string' || raw === current.username) continue;
       if (refusesBidi(raw, current.username)) {
-        return { kind: 'invalid_value', field, description: BIDI_REFUSED_MESSAGE };
+        return { kind: 'invalid_value', field, description: BIDI_REFUSED_MESSAGE, reason: 'bidi' };
       }
       username = raw;
       fields.push(field);
@@ -60,10 +62,12 @@ export function planProfileAmend(
     if (raw !== null && typeof raw !== 'string') continue;
     if (raw === current[key]) continue;
     if (NAME_CLAIMS.has(field) && refusesBidi(raw, current[key])) {
-      return { kind: 'invalid_value', field, description: BIDI_REFUSED_MESSAGE };
+      return { kind: 'invalid_value', field, description: BIDI_REFUSED_MESSAGE, reason: 'bidi' };
     }
     const invalidity = raw === null ? null : shapeInvalidityFor(field, raw);
-    if (invalidity !== null) return { kind: 'invalid_value', field, description: invalidity };
+    if (invalidity !== null) {
+      return { kind: 'invalid_value', field, description: invalidity, reason: 'shape' };
+    }
     profile[key] = raw;
     fields.push(field);
   }

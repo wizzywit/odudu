@@ -15,8 +15,10 @@ The tenant is `actions-demo`, with a public client `profile-app` and two people,
 
 ## 1. Allow the actions on the client
 
-A client may start none until an administrator allows it. The setting is `allowed_actions`, a list of `update-password`,
-`configure-totp`, `configure-passkey` and `generate-recovery-codes`. Set it in the admin API, in the console under **Advanced**
+A client may start none until an administrator allows it. The setting is `allowed_actions`, a list of `verify-email`,
+`update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes` and `update-profile`. `accept-terms` is not
+among them: it records consent to the tenant's own terms, which has to come from the tenant, so the setting refuses it and
+`/authorize` refuses `action=accept-terms` with `invalid_request`. Set it in the admin API, in the console under **Advanced**
 on the client, or with `--allow-action` on `odudu seed client`, which also assigns the scope `me:read`. A client that may start an
 action has to hold `me:read`, because that is how it reads the outcome. Dynamic registration refuses the setting, because only
 an operator decides what an application may ask a person to do.
@@ -74,6 +76,13 @@ What to read depends on the action:
   set has fewer unspent codes than the tenant's `recovery_code_warn_below` (3 by default, 0 turns it off) and `false` when they hold
   no set. Odudu shows no page after sign-in to warn on, so an application shows the warning from that field and sends the person
   here; the sign-in never asks for a step on its account.
+- `verify-email`: `email_verified` in `GET /me/profile`. The page, "Verify your email address", shows the address on file and
+  can mail a link to it, and the page's own button, "I have verified it", checks the address again and ends the action only when it is verified. A person whose address
+  is already verified sees the page say so and ends it at once; one with no address cannot do the action, and the page
+  says so and offers the way back with `action_status=error`.
+- `update-profile`: `GET /me/profile`. The page, "Complete your profile", lists every profile field a person can edit through `PATCH /me/profile`, with
+  what they hold, and ends only when each field the tenant requires (`required_profile_fields`, given and family name by default) has a value, and every value sent is accepted by the same rules. Nothing is written until
+  the whole form is acceptable. The address is not on this page.
 - `update-password`: the list shows the password by type either way, so it cannot show a change. Each credential lists when it was
   made, and a new password is dated from the change, so compare the password's `created_at` from before the action with the one
   after it. Section 5 shows it.

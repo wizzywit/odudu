@@ -663,11 +663,12 @@ psql -c "select a.action, a.outcome, a.detail from audit_events a join tenants t
 ## The actions a client may start
 
 `allowed_actions` lists the credential changes a client may send a person to through `/authorize`, with the `action` parameter
-([the run](../request-paths/sending-a-person-to-change-a-credential.md)): `update-password`, `configure-totp`,
-`configure-passkey` and `generate-recovery-codes`. It is empty by default, a create takes it as well, and it is amended as a
+([the run](../request-paths/sending-a-person-to-change-a-credential.md)): `verify-email`, `update-password`,
+`configure-totp`, `configure-passkey`, `generate-recovery-codes` and `update-profile`; `accept-terms` is the tenant's own and is not
+among them. It is empty by default, a create takes it as well, and it is amended as a
 whole list like the six above, so an amend needs the `ETag` in `If-Match`, and one without it is refused with `428`, but only once the rest of the request is valid: a client without `me:read` is refused with `400` whether or not the header is sent. A client with any entry has to hold the scope `me:read`, which is how it reads the
 outcome from the me API, so a create or an amend that names an action for a client without it is refused with `400` and the
-code `allowed_actions_need_me_read`, in the `errors` entry. A name that is not one of the four is refused naming it. In the tenant
+code `allowed_actions_need_me_read`, in the `errors` entry. A name that is not one of the six, `accept-terms` included, is refused naming them. In the tenant
 `actions-fields-demo`, which this section makes, the client `profile-app`:
 
 ```bash
@@ -690,13 +691,13 @@ curl -sS -D - -X PATCH -H "$A" -H "$J" -H "If-Match: $(etag)" -d '{"allowed_acti
 ```
 # created with an action and no me:read
 HTTP/1.1 400 Bad Request
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1cca8-e48d-7769-bfb0-c363f6a57bde"}# created without
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1d202-e440-727f-b06c-24edcb427f3d"}# created without
 {"client_id":"profile-app","allowed_actions":[]}
 # amended with no If-Match, and no me:read
 HTTP/1.1 400 Bad Request
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1cca8-e4d0-7038-ac1b-a6c04fdd2341"}# amended with If-Match, and no me:read
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1d202-e49a-76bb-8f9b-6c831828fc96"}# amended with If-Match, and no me:read
 HTTP/1.1 400 Bad Request
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1cca8-e4fb-7063-915d-73afcc1946f1"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","errors":[{"path":"allowed_actions","message":"a client that may start an action holds the scope me:read, which is how it reads the outcome: assign me:read to the client first, or make it a default assignment so every new client has it (odudu seed client --allow-action assigns it itself)","code":"allowed_actions_need_me_read"}],"instance":"01a1d202-e4cd-7d7a-b5e0-e9cf751a303c"}
 ```
 
 Once `me:read` is assigned to the client, an amend with no `If-Match` is refused with `428`, and one with it is accepted, and the
@@ -714,7 +715,7 @@ curl -sS -X PATCH -H "$A" -H "$J" -H "If-Match: $(etag)" -d '{"allowed_actions":
 
 ```
 HTTP/1.1 428 Precondition Required
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to amend allowed_actions","instance":"01a1cca8-e540-79ac-83db-9b763314ffe5"}{"allowed_actions":["update-password","configure-totp"],"scopes":["me:read"]}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to amend allowed_actions","instance":"01a1d202-e524-7deb-b352-1fb61a357bcc"}{"allowed_actions":["update-password","configure-totp"],"scopes":["me:read"]}
 HTTP/1.1 400 Bad Request
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: allowed_actions entry \"delete-account\" is not an action a client may start: update-password, configure-totp, configure-passkey, generate-recovery-codes","errors":[{"path":"allowed_actions","message":"allowed_actions entry \"delete-account\" is not an action a client may start: update-password, configure-totp, configure-passkey, generate-recovery-codes"}],"instance":"01a1cca8-e5a8-7de5-8343-1a130413d1e1"}{"allowed_actions":[]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"allowed_actions: allowed_actions entry \"delete-account\" is not an action a client may start: verify-email, update-password, configure-totp, configure-passkey, generate-recovery-codes, update-profile","errors":[{"path":"allowed_actions","message":"allowed_actions entry \"delete-account\" is not an action a client may start: verify-email, update-password, configure-totp, configure-passkey, generate-recovery-codes, update-profile"}],"instance":"01a1d202-e585-7d14-8afe-68cc5821198a"}{"allowed_actions":[]}
 ```

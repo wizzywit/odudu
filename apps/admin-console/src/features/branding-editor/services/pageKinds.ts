@@ -9,6 +9,9 @@ export const PAGE_KIND_LABELS: Readonly<Record<PageKind, string>> = {
   'passkey-enrolment': 'Passkey set-up',
   'recovery-codes': 'Recovery codes',
   'update-password': 'Change password',
+  'verify-email': 'Email address check',
+  'update-profile': 'Profile',
+  'accept-terms': 'Terms',
   'required-action': 'Required action',
   registration: 'Registration',
   reset: 'Password reset',
@@ -74,6 +77,21 @@ export const MANIFESTS: Readonly<Record<PageKind, Manifest>> = {
     inForm: ['submit'],
   },
   'update-password': {
+    required: ['form.open', 'fields', 'submit', 'error', 'form.close'],
+    optional: ['intro'],
+    inForm: ['fields', 'submit'],
+  },
+  'verify-email': {
+    required: ['form.open', 'fields', 'submit', 'error', 'form.close'],
+    optional: ['intro'],
+    inForm: ['fields', 'submit'],
+  },
+  'update-profile': {
+    required: ['form.open', 'fields', 'submit', 'error', 'form.close'],
+    optional: ['intro'],
+    inForm: ['fields', 'submit'],
+  },
+  'accept-terms': {
     required: ['form.open', 'fields', 'submit', 'error', 'form.close'],
     optional: ['intro'],
     inForm: ['fields', 'submit'],

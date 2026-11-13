@@ -10,6 +10,7 @@ const BOUND = /\(([a-z_]+) (?:<=|>=|<|>|=|<>) -?\d+\)/gu;
 const ENUMERATION = /\(([a-z_]+) = ANY \(ARRAY\[[^\]]*\]\)\)/gu;
 const CONTAINMENT = /\(([a-z_]+) (?:@>|<@) ARRAY\[[^\]]*\]\)/gu;
 const CARDINALITY = /\(cardinality\(([a-z_]+)\) (?:<=|>=|<|>|=) \d+\)/gu;
+const LENGTH = /\(char_length\(([a-z_]+)\) (?:<=|>=|<|>|=) \d+\)/gu;
 const NULLABLE = /\(([a-z_]+) IS NULL\)/gu;
 const MEMBERSHIP = /\(([a-z_]+) = ANY \(([a-z_]+)\)\)/gu;
 const WORD = /\b[a-z_]+\b/gu;
@@ -39,7 +40,7 @@ export function readSettingCheck(
   rest = rest.replace(MEMBERSHIP, (whole, left: string, right: string) =>
     settingColumns.has(left) && settingColumns.has(right) ? 'TRUE' : whole,
   );
-  for (const shape of [NULLABLE, CARDINALITY, BOUND, ENUMERATION, CONTAINMENT]) {
+  for (const shape of [NULLABLE, CARDINALITY, LENGTH, BOUND, ENUMERATION, CONTAINMENT]) {
     rest = rest.replace(shape, (whole, column: string) =>
       settingColumns.has(column) ? 'TRUE' : whole,
     );

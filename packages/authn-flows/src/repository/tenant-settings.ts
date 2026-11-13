@@ -15,6 +15,13 @@ export interface FlowSettings {
   lockout: LockoutPolicy;
 }
 
+export interface AccountActionSettings {
+  usernameEditable: boolean;
+  termsUri: string | null;
+  termsVersion: string;
+  requiredProfileFields: string[];
+}
+
 // The tenant switches the flow engine reads. `tenants` filters on `id` rather
 // than a `tenant_id` column, so a tenant other than the transaction's own is
 // invisible here for the same reason its sessions are.
@@ -80,6 +87,25 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
         throw new OduduError('tenant_not_found', `no tenant with id ${tenantId} in this context`);
       }
       return authenticatorPolicyOf(row);
+    },
+
+    // The two things the profile and terms actions read: whether a person may
+    // change their username, and the terms asked of them with their version.
+    async accountActionSettings(tenantId: string): Promise<AccountActionSettings> {
+      const rows = await tx
+        .select({
+          usernameEditable: tenants.usernameEditable,
+          termsUri: tenants.termsUri,
+          termsVersion: tenants.termsVersion,
+          requiredProfileFields: tenants.requiredProfileFields,
+        })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId));
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('tenant_not_found', `no tenant with id ${tenantId} in this context`);
+      }
+      return row;
     },
 
     // How long a login may stay open (packages/db/drizzle/0082_tenant_lifetimes.sql).

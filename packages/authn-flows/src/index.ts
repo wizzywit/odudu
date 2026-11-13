@@ -91,7 +91,10 @@ export {
   type RecoveryRevocation,
   type SecondFactorRemovedOutcome,
 } from '#/usecase/second-factor-removed';
-export { oweRecoveryCodesIfFactorWithoutCodes, pendingActionsFor } from '#/usecase/recovery-codes';
+export { oweRecoveryCodesIfFactorWithoutCodes } from '#/usecase/recovery-codes';
+export { pendingActionsFor } from '#/usecase/pending-actions';
+export { termsAcceptanceRepository } from '#/repository/terms-acceptances';
+export { editableProfileFields } from '#/service/profile-form';
 export { recordActionStep, type ActionStep, type RecordActionStep } from '#/usecase/action-step';
 export { type ActionPageVariant } from '#/view/action-cancel';
 export {
@@ -105,6 +108,35 @@ export {
   renderUpdatePasswordPage,
   renderRequestedUpdatePasswordPage,
 } from '#/view/update-password-html';
+export {
+  renderRequestedUpdateProfilePage,
+  renderUpdateProfilePage,
+} from '#/view/update-profile-html';
+export {
+  renderRequestedVerifyEmailPage,
+  renderVerifyEmailPage,
+  type VerifyEmailNotice,
+  type VerifyEmailOffer,
+} from '#/view/verify-email-html';
+export { renderAcceptTermsPage, type AcceptTermsOffer } from '#/view/accept-terms-html';
+export {
+  completeVerifyEmail,
+  verifyEmailOffer,
+  type VerifyEmailOutcome,
+} from '#/usecase/verify-email-action';
+export {
+  completeUpdateProfile,
+  profileOffer,
+  type ProfileOffer,
+  type ProfileProblem,
+  type UpdateProfileOutcome,
+} from '#/usecase/update-profile-action';
+export {
+  completeAcceptTerms,
+  termsOffer,
+  type AcceptTermsOutcome,
+  type TermsOffer,
+} from '#/usecase/accept-terms-action';
 export {
   CURRENT_PASSWORD_REFUSED,
   holdsPassword,

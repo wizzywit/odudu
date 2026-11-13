@@ -59,6 +59,8 @@ import {
   listMailQuerySchema,
   listConsentsQuerySchema,
   listConsentsResponseSchema,
+  listTermsAcceptancesQuerySchema,
+  listTermsAcceptancesResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
   listRegistrationTokensQuerySchema,
@@ -557,6 +559,15 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'The subject\u2019s consents, paged by keyset on the client\u2019s own `client_id`: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last.',
   },
   {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/terms-acceptances',
+    capability: 'view-users',
+    responseSchema: listTermsAcceptancesResponseSchema,
+    querystringSchema: listTermsAcceptancesQuerySchema,
+    description:
+      'The versions of the tenant\u2019s terms the subject accepted and when, newest first, paged by keyset on the time and the version: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last. `404` for a subject that does not exist.',
+  },
+  {
     method: 'DELETE',
     pattern: '/admin/tenants/:tenant/subjects/:id/consents/:clientId',
     capability: 'manage-users',
@@ -623,7 +634,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: sendActionsEmailRequestSchema,
     description:
       'Queues a link to the subject\u2019s own address that takes them through `actions`, ' +
-      'a non-empty subset of the required actions `PUT …/required-actions` takes. Following ' +
+      'a non-empty subset of `update-password`, `configure-totp`, `configure-passkey` and ' +
+      '`generate-recovery-codes`, the required actions a link can finish. Following ' +
       'it sets a new password where `update-password` is named, and owes the rest, so the ' +
       'next sign-in asks for each; the link alone never enrols a factor. The ' +
       'link is never in this response or the audit trail. ' +
@@ -686,7 +698,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: setRequiredActionsResponseSchema,
     bodySchema: setRequiredActionsRequestSchema,
     description:
-      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
+      'Replaces the whole list, which names any of `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile` and `accept-terms`. `409` where an action cannot be owed: `no-email` for `verify-email` on a subject with no address, `terms-not-configured` for `accept-terms` while the tenant has no `terms_uri` (changing `terms_version` adds the action to nobody, so an administrator owes it again when the terms change), and `no-editable-profile-fields` for `update-profile` where the tenant requires a profile field a person may not edit; a person may edit every profile claim today, so no tenant is refused yet. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       TARGET_CEILING,
   },
   // The capability ceiling this route enforces — a caller may never assign

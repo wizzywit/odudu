@@ -55,7 +55,7 @@ import {
   useClientSection,
   type ClientRecordRead,
 } from '#/pages/clients/use-cases/useClientSection';
-import { describeActions, REQUIRED_ACTIONS } from '#/entities/subject';
+import { APPLICATION_ACTIONS, describeActions } from '#/entities/subject';
 import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
 import type { Choice } from '#/shared/lib/services/choice';
 import { namesOrNone, orBlank, spaced } from '#/shared/lib/services/format';
@@ -249,7 +249,7 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     actions,
     actionsLabel: ACTIONS_LABEL,
     actionsRule: ACTIONS_RULE,
-    actionOptions: actionOptions(REQUIRED_ACTIONS),
+    actionOptions: actionOptions(APPLICATION_ACTIONS),
     actionsBlocked: actionsBlock(actions.values.allowed_actions, client.scopes),
   };
 }

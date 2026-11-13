@@ -1,6 +1,7 @@
 import { type MailLookResolver } from '@odudu/email';
 import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
 import {
+  editableProfileFields,
   onSecondFactorRemoved,
   requiredActionRepository,
   type RequiredAction,
@@ -57,6 +58,13 @@ import {
 } from 'drizzle-orm';
 import { type SelectedFields } from 'drizzle-orm/pg-core';
 import { redactedDiff } from '#/service/audit-detail';
+import {
+  addedActions,
+  readsNeeded,
+  requiredActionRefusal,
+  type RequiredActionRefusal,
+  type RequiredActionSources,
+} from '#/service/required-action-refusal';
 import {
   capabilitiesOfGroupsAndAncestors,
   capabilitiesReachableFrom,
@@ -1081,6 +1089,8 @@ export type SetRequiredActionsOutcome =
   | TargetCeilingRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
+  // An action in the list cannot be owed to this subject here.
+  | { kind: 'refused'; reason: RequiredActionRefusal }
   | { kind: 'ok'; actions: readonly RequiredAction[]; etag: string };
 
 // Sorted before it is hashed, never as it is sent: `pendingFor` imposes no
@@ -1101,6 +1111,30 @@ export async function readRequiredActions(
   if (subject === null) return { kind: 'not_found' };
   const actions = await requiredActionRepository(tx).pendingFor(subjectId);
   return { kind: 'ok', actions, etag: requiredActionsEtag(actions) };
+}
+
+// Only what the actions being added ask about is read.
+async function requiredActionSources(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  subjectId: string,
+  actions: readonly RequiredAction[],
+): Promise<RequiredActionSources> {
+  const needed = readsNeeded(actions);
+  const user = needed.user ? await userRepository(tx).bySubjectId(subjectId) : null;
+  const tenant = needed.tenant ? await tenantSettingsRepository(tx).byId(tenantId) : null;
+  return {
+    ...(needed.user ? { email: user?.email ?? null } : {}),
+    ...(tenant === null
+      ? {}
+      : {
+          termsUri: typeof tenant.terms_uri === 'string' ? tenant.terms_uri : null,
+          requiredProfileFields: Array.isArray(tenant.required_profile_fields)
+            ? tenant.required_profile_fields
+            : [],
+          editableProfileFields: editableProfileFields(tenant.username_editable === true),
+        }),
+  };
 }
 
 /** Replaces a subject's required actions wholesale — an action left out is one the caller clears. */
@@ -1131,6 +1165,13 @@ export async function setRequiredActions(
       ? { kind: 'precondition_required' }
       : { kind: 'precondition_failed' };
   }
+
+  const added = addedActions(current, input.actions);
+  const refusal = requiredActionRefusal(
+    added,
+    await requiredActionSources(tx, input.tenantId, input.subjectId, added),
+  );
+  if (refusal !== null) return { kind: 'refused', reason: refusal };
 
   await requiredActionRepository(tx).replaceAll(input.tenantId, input.subjectId, input.actions);
 

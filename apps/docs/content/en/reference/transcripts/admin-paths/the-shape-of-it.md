@@ -119,6 +119,7 @@ shown once — a registration token, a client secret, a one-time password.
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/credentials`                      | List a subject's credentials               |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId`        | Remove a credential                        |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/consents`                         | List a subject's consents                  |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/terms-acceptances`                | List the terms a subject accepted          |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/consents/:clientId`               | Revoke a consent                           |
 | `POST`   | `/admin/tenants/{tenant}/subjects/:id/password`                         | Issue a one-time password                  |
 | `POST`   | `/admin/tenants/{tenant}/subjects/:id/password-reset`                   | Send a reset-password link                 |

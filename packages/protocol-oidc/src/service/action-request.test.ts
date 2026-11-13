@@ -17,16 +17,21 @@ describe('parseAction', () => {
     expect(parseAction({ action: undefined })).toEqual({ kind: 'none' });
   });
 
-  it.each(['update-password', 'configure-totp', 'configure-passkey', 'generate-recovery-codes'])(
-    'accepts %s',
-    (action) => {
-      expect(parseAction({ action })).toEqual({ kind: 'action', action });
-    },
-  );
+  it.each([
+    'verify-email',
+    'update-password',
+    'configure-totp',
+    'configure-passkey',
+    'generate-recovery-codes',
+    'update-profile',
+  ])('accepts %s', (action) => {
+    expect(parseAction({ action })).toEqual({ kind: 'action', action });
+  });
 
   it.each([
     ['empty', ''],
     ['unknown', 'delete-account'],
+    ['the tenant’s own terms, which only the tenant asks for', 'accept-terms'],
     ['another case', 'Update-Password'],
     ['padded', ' configure-totp'],
     ['two values', ['configure-totp', 'update-password']],
@@ -44,6 +49,12 @@ describe('requestedActionOf', () => {
     expect(requestedActionOf({ action: 'configure-totp' })).toBe('configure-totp');
     expect(requestedActionOf({ action: 'configure-totp', actionStatus: 'cancelled' })).toBeNull();
     expect(requestedActionOf({})).toBeNull();
+  });
+});
+
+describe('requestedActionOf, for an action an application cannot start', () => {
+  it('is nothing, whatever a parked request says', () => {
+    expect(requestedActionOf({ action: 'accept-terms' })).toBeNull();
   });
 });
 

@@ -582,6 +582,7 @@ const SUBJECT_AREAS: Readonly<Record<string, string>> = {
   'admin-capabilities': 'subject-access',
   groups: 'subject-access',
   consents: 'subject-sessions',
+  'terms-acceptances': 'subject-access',
   sessions: 'subject-sessions',
   grants: 'subject-sessions',
 };

@@ -353,3 +353,93 @@ describe('the breached-password settings', () => {
     expect(coerceTenantSetting('breached_on_error', 'maybe').kind).toBe('invalid_value');
   });
 });
+
+describe('the terms settings', () => {
+  it('read as the text columns they are stored in', () => {
+    expect(coerceTenantSetting('terms_uri', 'https://example.com/terms')).toEqual({
+      kind: 'coerced',
+      column: 'termsUri',
+      value: 'https://example.com/terms',
+    });
+    expect(coerceTenantSetting('terms_version', ' 2026-01 ')).toEqual({
+      kind: 'coerced',
+      column: 'termsVersion',
+      value: '2026-01',
+    });
+  });
+
+  it('clear the address with an empty value', () => {
+    expect(coerceTenantSetting('terms_uri', '  ')).toEqual({
+      kind: 'coerced',
+      column: 'termsUri',
+      value: null,
+    });
+  });
+
+  it('judge the address as a client policy or terms address is judged', () => {
+    const problems = (uri: string) =>
+      tenantSettingProblems({ terms_uri: uri }).map((problem) => problem.name);
+    expect(problems('https://example.com/terms')).toEqual([]);
+    expect(problems('http://localhost:3000/terms')).toEqual([]);
+    expect(problems('http://example.com/terms')).toEqual(['terms_uri']);
+    expect(problems('https://example.com/terms#top')).toEqual(['terms_uri']);
+    expect(problems('javascript:alert(1)')).toEqual(['terms_uri']);
+    expect(problems('not a url')).toEqual(['terms_uri']);
+  });
+
+  it('leave an unset address alone', () => {
+    expect(tenantSettingProblems({ terms_uri: null })).toEqual([]);
+  });
+
+  it('hold the version to between one and 64 characters', () => {
+    const problems = (version: string) =>
+      tenantSettingProblems({ terms_version: version }).map((problem) => problem.name);
+    expect(problems('1')).toEqual([]);
+    expect(problems('x'.repeat(64))).toEqual([]);
+    expect(problems('')).toEqual(['terms_version']);
+    expect(problems('x'.repeat(65))).toEqual(['terms_version']);
+  });
+});
+
+describe('the required profile fields', () => {
+  it('read as the list of claims they name, in the order a form lays them out', () => {
+    expect(coerceTenantSetting('required_profile_fields', ['family_name', 'name'])).toEqual({
+      kind: 'coerced',
+      column: 'requiredProfileFields',
+      value: ['name', 'family_name'],
+    });
+  });
+
+  it('may be empty, and name nothing that is not a claim', () => {
+    expect(coerceTenantSetting('required_profile_fields', [])).toMatchObject({
+      kind: 'coerced',
+      value: [],
+    });
+    for (const bad of ['email', 'username', 'nope']) {
+      expect(coerceTenantSetting('required_profile_fields', [bad]).kind).toBe('invalid_value');
+    }
+  });
+});
+
+describe('the terms limits beyond the shared ones', () => {
+  it('count a version in characters, as the CHECK does, not in UTF-16 units', () => {
+    const astral = '\u{1F600}'.repeat(64);
+    expect(astral.length).toBe(128);
+    expect(tenantSettingProblems({ terms_version: astral })).toEqual([]);
+    expect(tenantSettingProblems({ terms_version: `${astral}x` }).map((p) => p.name)).toEqual([
+      'terms_version',
+    ]);
+  });
+
+  it('refuse an address past 2048 characters, or one that carries a user name or password', () => {
+    const long = `https://example.com/${'a'.repeat(2030)}`;
+    expect(tenantSettingProblems({ terms_uri: long }).map((p) => p.name)).toEqual(['terms_uri']);
+    expect(
+      tenantSettingProblems({ terms_uri: 'https://user:pw@example.com/terms' }).map((p) => p.name),
+    ).toEqual(['terms_uri']);
+    expect(
+      tenantSettingProblems({ terms_uri: 'https://user@example.com/terms' }).map((p) => p.name),
+    ).toEqual(['terms_uri']);
+    expect(tenantSettingProblems({ terms_uri: 'https://example.com/terms' })).toEqual([]);
+  });
+});

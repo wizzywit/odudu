@@ -83,6 +83,10 @@ export {
   profileSchema,
   type Profile,
   amendProfileRequestSchema,
+  characterCount,
+  DEFAULT_REQUIRED_PROFILE_FIELDS,
+  PROFILE_CLAIM_NAMES,
+  type ProfileClaimName,
   type AmendProfileRequest,
 } from '#/admin/profile';
 export {
@@ -210,6 +214,10 @@ export {
   type ListCredentialsResponse,
   requiredActionSchema,
   type RequiredAction,
+  linkedActionSchema,
+  type LinkedAction,
+  applicationActionSchema,
+  type ApplicationAction,
   setRequiredActionsRequestSchema,
   sendAccountLinkRequestSchema,
   type SendAccountLinkRequest,
@@ -285,6 +293,14 @@ export {
   type IssuePasswordResponse,
   type Lockout,
 } from '#/admin/account-recovery';
+export {
+  termsAcceptanceSchema,
+  type TermsAcceptance,
+  listTermsAcceptancesQuerySchema,
+  type ListTermsAcceptancesQuery,
+  listTermsAcceptancesResponseSchema,
+  type ListTermsAcceptancesResponse,
+} from '#/admin/terms-acceptances';
 export {
   consentSchema,
   type Consent,

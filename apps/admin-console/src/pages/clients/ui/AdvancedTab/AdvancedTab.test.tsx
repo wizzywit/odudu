@@ -123,14 +123,17 @@ function holding(extra: Record<string, unknown>) {
   });
 }
 
-it('offers the four required actions, none chosen, and saves the ones chosen in the server order', async () => {
+it('offers the six actions an application may start, none chosen, and saves the ones chosen in the server order', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(AT, holding(WITH_ME_READ));
   await open();
   const section = screen.getByRole('region', { name: 'Application actions' });
   const boxes = within(section).getAllByRole('checkbox');
-  expect(boxes).toHaveLength(4);
+  expect(boxes).toHaveLength(6);
   for (const box of boxes) expect(box).not.toBeChecked();
+  expect(within(section).queryByRole('checkbox', { name: /terms/u })).toBeNull();
+  expect(within(section).getByRole('checkbox', { name: /email address/u })).toBeVisible();
+  expect(within(section).getByRole('checkbox', { name: /profile/u })).toBeVisible();
   await user.click(within(section).getByRole('checkbox', { name: /authenticator app/u }));
   await user.click(within(section).getByRole('checkbox', { name: /new password/u }));
   await user.click(within(section).getByRole('button', { name: 'Save Application actions' }));

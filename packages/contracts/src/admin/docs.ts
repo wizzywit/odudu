@@ -32,6 +32,7 @@ import {
   clientRecordSchema,
 } from '#/admin/clients';
 import { consentSchema } from '#/admin/consents';
+import { termsAcceptanceSchema } from '#/admin/terms-acceptances';
 import { countResponseSchema } from '#/admin/counts';
 import {
   executionStepSchema,
@@ -354,7 +355,7 @@ describeFields(clientFieldsSchema, {
     'The longest age in seconds a sign-in may have before the user must sign in again, when the request does not say. Null sets none.',
   require_auth_time: 'Whether ID tokens always carry the `auth_time` claim.',
   allowed_actions:
-    'The required actions the client may start for a signed-in person through `/authorize`: `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
+    'The required actions the client may start for a signed-in person through `/authorize`: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`. `accept-terms` is not among them: it records consent to the tenant\u2019s own terms and has to come from the tenant. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
   previous_secret_expires_at:
     'When the secret that a rotation replaced stops authenticating, or null when no rotation kept one. The secret itself is never shown.',
   builtin_admin:
@@ -423,6 +424,10 @@ describeFields(consentSchema, {
   client_key: 'The client’s `client_id`.',
   scope_names: 'The scopes the user agreed to.',
   granted_at: 'When the user agreed.',
+});
+describeFields(termsAcceptanceSchema, {
+  version: 'The version of the tenant’s terms the user accepted.',
+  accepted_at: 'When the user accepted it.',
 });
 describeFields(countResponseSchema, {
   count: 'How many items match, up to a cap.',
@@ -760,12 +765,13 @@ const RETURN_FIELDS = {
 };
 describeFields(sendAccountLinkRequestSchema, RETURN_FIELDS);
 describeFields(sendActionsEmailRequestSchema, {
-  actions: 'The actions the mailed link asks the user to complete; at least one.',
+  actions:
+    'The actions the mailed link asks the user to complete; at least one of `update-password`, `configure-totp`, `configure-passkey` and `generate-recovery-codes`.',
   ...RETURN_FIELDS,
 });
 describeFields(setRequiredActionsRequestSchema, {
   actions:
-    'The steps the user must complete at their next sign-in: `update-password`, `configure-totp`, `configure-passkey` or `generate-recovery-codes`. Replaces the current list.',
+    'The steps the user must complete at their next sign-in, in the order a sign-in asks for them: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`, `accept-terms`. Replaces the current list. `verify-email` is refused with `no-email` for a subject with no address, and `accept-terms` with `terms-not-configured` while the tenant has no `terms_uri`; a subject whose address is already verified, or who has accepted the version in force, is not asked at their next sign-in.',
 });
 describeFields(setRequiredActionsResponseSchema, {
   actions: 'The required actions after the change.',
@@ -890,7 +896,7 @@ describeFields(exportedClientSchema, {
     'The longest age in seconds a sign-in may have before the user must sign in again, when the request does not say. Null sets none.',
   require_auth_time: 'Whether ID tokens always carry the `auth_time` claim.',
   allowed_actions:
-    'The required actions the client may start for a signed-in person through `/authorize`: `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
+    'The required actions the client may start for a signed-in person through `/authorize`: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`. `accept-terms` is not among them: it records consent to the tenant\u2019s own terms and has to come from the tenant. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
 });
 describeFields(exportedFlowStepSchema, {
   authenticator: 'The sign-in step to run.',
@@ -1036,6 +1042,12 @@ describeFields(tenantSettingsDocumentSchema, {
     'Where a new password is checked against passwords known from breaches: off, dataset (the hash list an operator loaded into the server, which needs no outbound request) or remote (a range lookup that sends the first five characters of the SHA-1 hash and nothing else to a fixed host). A password that passed the other rules and is found there is refused.',
   breached_on_error:
     'What a remote lookup that failed, timed out or found the host busy does: open accepts the password, closed refuses it and asks the person to try again. The dataset source has no such failure.',
+  terms_uri:
+    'The address of the terms the `accept-terms` required action asks a person to accept: https, or http to this machine, with no fragment. Null when the tenant has none; send an empty string to clear it. Setting it asks nobody: an administrator owes the action to each person.',
+  terms_version:
+    'The version of the terms, 1 to 64 characters, `1` by default. A person accepts one version; changing it does not add the action to anyone, so an administrator owes it again when the terms change.',
+  required_profile_fields:
+    'The profile claims the `update-profile` required action needs a person to have before it ends, by wire name: any of the claims `PATCH …/profile` writes (`given_name` and `family_name` by default). The page lists every claim a person can edit and marks these; the others are optional. An empty list makes it a page that is reviewed and submitted.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',

@@ -7,6 +7,8 @@ export type {
 } from '#/entities/subject/types/subject';
 export type {
   AdminCapabilitiesResponse,
+  ApplicationAction,
+  LinkedAction,
   RequiredAction,
   SetRequiredActionsResponse,
   SetRolesResponse,
@@ -81,7 +83,10 @@ export {
 } from '#/entities/subject/services/subjectRoles';
 export {
   actionsMailProblem,
+  APPLICATION_ACTIONS,
   describeActions,
+  LINKED_ACTION_OPTIONS,
+  linkedActionsInOrder,
   REQUIRED_ACTION_OPTIONS,
   REQUIRED_ACTIONS,
   requiredActionsInOrder,

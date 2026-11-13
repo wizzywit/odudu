@@ -1,5 +1,5 @@
-import type { UserRecord } from '@odudu/domain-identity';
 import { describe, expect, it } from 'vitest';
+import { type UserRecord } from '#/schema/users';
 import { planProfileAmend } from '#/service/profile-amend';
 
 const CURRENT = {
@@ -69,13 +69,14 @@ describe('planProfileAmend', () => {
     ['website', 'ftp://example.com'],
   ])('refuses %s %s for its shape, naming the field', (field, value) => {
     const plan = planProfileAmend(CURRENT, { [field]: value });
-    expect(plan).toMatchObject({ kind: 'invalid_value', field });
+    expect(plan).toMatchObject({ kind: 'invalid_value', field, reason: 'shape' });
   });
 
   it('refuses a bidirectional control in a name it would add, not one already held', () => {
     expect(planProfileAmend(CURRENT, { name: 'Ad‮a' })).toMatchObject({
       kind: 'invalid_value',
       field: 'name',
+      reason: 'bidi',
     });
     const held = { ...CURRENT, name: 'Ad‮a' } as UserRecord;
     expect(planProfileAmend(held, { name: 'Ad‮a', nickname: 'x' })).toMatchObject({
@@ -112,6 +113,7 @@ describe('planProfileAmend, a username', () => {
     expect(planProfileAmend(CURRENT, { username: 'ad‮a' })).toMatchObject({
       kind: 'invalid_value',
       field: 'username',
+      reason: 'bidi',
     });
   });
 });

@@ -13,9 +13,9 @@ import {
 import { withoutField } from '#/shared/lib/services/fieldErrors';
 import {
   actionsMailProblem,
-  REQUIRED_ACTION_OPTIONS,
-  requiredActionsInOrder,
-  type RequiredAction,
+  LINKED_ACTION_OPTIONS,
+  linkedActionsInOrder,
+  type LinkedAction,
   type Subject,
   subjectName,
   subjectTabHref,
@@ -30,8 +30,8 @@ export interface Mail {
 }
 
 export interface ActionsMail extends Mail {
-  actions: readonly RequiredAction[];
-  options: typeof REQUIRED_ACTION_OPTIONS;
+  actions: readonly LinkedAction[];
+  options: typeof LINKED_ACTION_OPTIONS;
   errors: Readonly<Partial<Record<'actions', string>>>;
   choose: (actions: readonly string[]) => void;
 }
@@ -52,7 +52,7 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
   const mail = useMailSend(tenant, subject.id);
   const [running, setRunning] = useState<Kind | null>(null);
   const [outcomes, setOutcomes] = useState<Partial<Record<Kind, MailOutcome>>>({});
-  const [actions, setActions] = useState<readonly RequiredAction[]>([]);
+  const [actions, setActions] = useState<readonly LinkedAction[]>([]);
   const [errors, setErrors] = useState<ActionsMail['errors']>({});
 
   const fixHrefs = {
@@ -107,11 +107,11 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
     actions: {
       ...mailKindState('actions', running, outcomes),
       actions,
-      options: REQUIRED_ACTION_OPTIONS,
+      options: LINKED_ACTION_OPTIONS,
       errors,
       choose: (next) => {
         setErrors((was) => withoutField(was, 'actions'));
-        setActions(requiredActionsInOrder(next));
+        setActions(linkedActionsInOrder(next));
       },
       send: () => {
         const problem = actionsMailProblem(actions);

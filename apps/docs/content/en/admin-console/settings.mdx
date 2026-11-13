@@ -18,7 +18,7 @@ Most of what makes one tenant behave differently from another is a setting: how 
 
 ## 1. Find the section
 
-Choose a name from the row at the top to jump to it: **General**, **Sessions**, **Remember me**, **Registration and recovery**, **Authenticators**, **Usernames**, **Password policy**, **Brute force**, **Token lifetimes**, **Client registration** and **Audit retention**. Each field says what it does and the range the server accepts. Durations show the plain reading beside the seconds, for example `1800 s · 30 minutes`.
+Choose a name from the row at the top to jump to it: **General**, **Sessions**, **Remember me**, **Registration and recovery**, **Terms**, **Profile**, **Authenticators**, **Usernames**, **Password policy**, **Brute force**, **Token lifetimes**, **Client registration** and **Audit retention**. Each field says what it does and the range the server accepts. Durations show the plain reading beside the seconds, for example `1800 s · 30 minutes`.
 
 ## 2. Change a section and save it
 
@@ -87,6 +87,19 @@ A person who changes their password on the change-password page is offered "End 
 If the account registered itself and its address was never verified, the link also removes any authenticator app, passkey and recovery codes and marks the address verified. The page says so. Whoever registered the address first may have added them. In a tenant that does not verify addresses, that is every self-registered account until its first reset. Accounts an administrator created keep their factors.
 
 The link stops working once it is used, and it asks for one click first, so a mail scanner that opens it cannot spend it.
+
+### Terms
+
+- **Terms address** (`terms_uri`): where the terms are published. An https address, or http to this machine, with no fragment. Leave it empty for none; the admin API clears it with an empty string.
+- **Terms version** (`terms_version`): up to 64 characters, `1` by default. A person accepts one version.
+
+Setting the address asks nobody. An administrator ticks **Accept the terms** on a person's record under **Required actions**, and that person's next sign-in shows a page that links the terms, names the version and has one box, _I accept these terms_. Ticking it records the version the page showed, with when, and clears the action. The form carries the version it showed: if the version changed while the page was open, the page comes back at the new version saying so and records nothing, so nobody accepts terms they did not see. a person with no box ticked cannot go on, and the page has no way to leave it. Changing the version adds the action to nobody, so tick it again for the people who should accept the new terms. A person who has accepted the version in force is not asked even when the action is owed, and one owed an action while the tenant has no address is not asked either; a sign-in clears the action instead of stopping. An application cannot start **Accept the terms**: `/authorize` refuses `action=accept-terms`, because the acceptance is the tenant's own and an application could otherwise record consent on its behalf.
+
+### Profile
+
+- **Required profile fields** (`required_profile_fields`): the claims the **Complete the profile** action needs a person to have before it ends, chosen from the twenty a person can edit through the me API (**Full name**, **Given name**, **Family name**, **Middle name**, **Nickname**, **Preferred username**, **Profile page**, **Picture address**, **Website**, **Gender**, **Birthdate**, **Time zone**, **Language**, **Phone number**, **Address**, **Street**, **City**, **Region**, **Postal code** and **Country**). **Given name** and **Family name** by default. The email address is never among them: an address is changed through its own proof.
+
+The page the person sees lists every field they can edit, with what they hold, and marks the required ones. It ends when every required field has a value after the form is sent; the other fields are optional, and every value sent is checked by the rules `PATCH /me/profile` applies, all the refusals at once. Nothing is written until the whole form is acceptable. Choose none and the page is only reviewed and submitted. An empty list is saved as an empty list; the admin API takes `[]`.
 
 ### Authenticators
 

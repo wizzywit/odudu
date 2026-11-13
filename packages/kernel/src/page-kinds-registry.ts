@@ -61,6 +61,18 @@ export const CLIENT_RULES: Record<string, ClientRule> = {
     source: 'pending-request',
     why: 'a required action interrupts a parked sign-in',
   },
+  'packages/authn-flows/src/view/verify-email-html.ts': {
+    source: 'pending-request',
+    why: 'a required action interrupts a parked sign-in',
+  },
+  'packages/authn-flows/src/view/update-profile-html.ts': {
+    source: 'pending-request',
+    why: 'a required action interrupts a parked sign-in',
+  },
+  'packages/authn-flows/src/view/accept-terms-html.ts': {
+    source: 'pending-request',
+    why: 'a required action interrupts a parked sign-in',
+  },
   'packages/authn-flows/src/view/required-action-html.ts': {
     source: 'pending-request',
     why: 'a required action interrupts a parked sign-in',

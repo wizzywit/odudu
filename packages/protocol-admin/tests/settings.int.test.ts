@@ -593,6 +593,56 @@ describe('the breached-password settings', () => {
   });
 });
 
+describe('the terms settings', () => {
+  it('start with none at version 1, change through the settings and refuse a bad value', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const url = `/admin/tenants/${t.name}/settings`;
+    const headers = { authorization: `Bearer ${token}` };
+    const patch = (payload: Record<string, unknown>) =>
+      fixture.http.inject({ method: 'PATCH', url, headers, payload });
+    const read = () => fixture.http.inject({ method: 'GET', url, headers });
+    expect((await read()).json()).toMatchObject({ terms_uri: null, terms_version: '1' });
+
+    expect(
+      (await patch({ terms_uri: 'https://example.com/terms', terms_version: '2026-01' }))
+        .statusCode,
+    ).toBe(200);
+    expect((await read()).json()).toMatchObject({
+      terms_uri: 'https://example.com/terms',
+      terms_version: '2026-01',
+    });
+
+    expect((await patch({ terms_uri: 'http://example.com/terms' })).statusCode).toBe(400);
+    expect((await patch({ terms_version: '' })).statusCode).toBe(400);
+    expect((await patch({ terms_version: 'x'.repeat(65) })).statusCode).toBe(400);
+
+    expect((await patch({ terms_uri: '' })).statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({ terms_uri: null });
+  });
+});
+
+describe('the required profile fields', () => {
+  it('start as given and family name, change as a list, may be empty and refuse a non-claim', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const url = `/admin/tenants/${t.name}/settings`;
+    const headers = { authorization: `Bearer ${token}` };
+    const patch = (payload: Record<string, unknown>) =>
+      fixture.http.inject({ method: 'PATCH', url, headers, payload });
+    const read = () => fixture.http.inject({ method: 'GET', url, headers });
+    expect((await read()).json()).toMatchObject({
+      required_profile_fields: ['given_name', 'family_name'],
+    });
+    expect((await patch({ required_profile_fields: ['birthdate', 'name'] })).statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({ required_profile_fields: ['name', 'birthdate'] });
+    expect((await patch({ required_profile_fields: [] })).statusCode).toBe(200);
+    expect((await read()).json()).toMatchObject({ required_profile_fields: [] });
+    expect((await patch({ required_profile_fields: ['email'] })).statusCode).toBe(400);
+    expect((await patch({ required_profile_fields: 'name' })).statusCode).toBe(400);
+  });
+});
+
 describe('the language settings', () => {
   async function setup() {
     const t = await fixture.createTenant(`acme-${newId()}`);
