@@ -1324,3 +1324,5 @@ project `odudu-13b` where they named the earlier one, its tenant, client, key an
 with `get_flow` and `list_flows` among them and `list_subject_terms_acceptances`, which the earlier capture predated. The tool listing of
 `the-mcp-endpoint.md` is for a person who holds `manage-clients` and `view-users`, which no flow tool needs, so it was not run again. The stack
 and its image were removed afterwards.
+
+The flow page was run again whole on 2026-11-13, with `POST /flows/{id}/make-default` added, on a freshly built compose project `odudu-13b` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit `d3c3c25c9` with nothing else uncommitted, on a database that began empty and with the same sign-in and script as above. `GET /admin/openapi.json` was fetched again on it (848,131 to 856,406 bytes, 112 to 113 paths). The stdio MCP page was not run again, since no tool changed. The stack and its image were removed afterwards.
