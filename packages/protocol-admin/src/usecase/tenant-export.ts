@@ -40,18 +40,7 @@ import {
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { clientOidcConfig, needsServiceAccount } from '@odudu/protocol-oidc';
-import {
-  and,
-  count,
-  eq,
-  inArray,
-  isNull,
-  ne,
-  notInArray,
-  or,
-  sql,
-  type SQL,
-} from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { type PgTable } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { countAtMost } from '#/usecase/capped-count';
