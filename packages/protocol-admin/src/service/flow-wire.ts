@@ -9,6 +9,7 @@ export function flowWireShape(flow: Flow): FlowWire {
     steps: flow.steps.map((step) => ({
       authenticator: step.authenticator,
       requirement: step.requirement,
+      ...(step.settings === undefined ? {} : { settings: step.settings }),
     })),
   };
 }

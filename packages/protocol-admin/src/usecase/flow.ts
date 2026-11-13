@@ -33,7 +33,12 @@ export interface FlowAuditEvent {
 export type Audit = (tx: TenantScopedDatabase, event: FlowAuditEvent) => Promise<void>;
 
 function toWireShape(step: FlowStep, index: number): ExecutionStep {
-  return { index, authenticator: step.authenticator, requirement: step.requirement };
+  return {
+    index,
+    authenticator: step.authenticator,
+    requirement: step.requirement,
+    ...(step.settings === undefined ? {} : { settings: step.settings }),
+  };
 }
 
 export interface FlowView {
@@ -71,6 +76,7 @@ export type StepsRefusal =
   | { kind: 'empty' }
   | { kind: 'unresolvable_authenticator'; name: string; known: readonly string[] }
   | { kind: 'duplicate_authenticator'; name: string }
+  | { kind: 'unread_settings'; name: string; keys: string[]; read: readonly string[] }
   | { kind: 'no_enabled_step' }
   | { kind: 'no_step_runnable_at_start' };
 

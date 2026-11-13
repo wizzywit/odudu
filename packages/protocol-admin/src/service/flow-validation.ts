@@ -1,10 +1,11 @@
-import { type ReplaceExecutionsRequest } from '@odudu/contracts/admin';
+import { FLOW_STEP_SETTING_KEYS, type ReplaceExecutionsRequest } from '@odudu/contracts/admin';
 
 export type ValidateFlowOutcome =
   | { kind: 'ok' }
   | { kind: 'empty' }
   | { kind: 'unresolvable_authenticator'; name: string; known: readonly string[] }
   | { kind: 'duplicate_authenticator'; name: string }
+  | { kind: 'unread_settings'; name: string; keys: string[]; read: readonly string[] }
   | { kind: 'no_enabled_step' };
 
 // A leaf: takes the registry's own names rather than importing the executor
@@ -37,6 +38,15 @@ export function validateFlowSteps(
       return { kind: 'duplicate_authenticator', name: step.authenticator };
     }
     seen.add(step.authenticator);
+  }
+
+  for (const step of steps) {
+    if (step.settings === undefined) continue;
+    const read: readonly string[] = FLOW_STEP_SETTING_KEYS[step.authenticator] ?? [];
+    const keys = Object.keys(step.settings).filter((key) => !read.includes(key));
+    if (keys.length > 0 || read.length === 0) {
+      return { kind: 'unread_settings', name: step.authenticator, keys, read };
+    }
   }
 
   if (steps.every((step) => step.requirement === 'disabled')) {

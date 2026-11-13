@@ -2,6 +2,13 @@ import { z } from 'zod';
 import { noBidiControls, noNul } from '#/bidi';
 import { characterCount } from '#/admin/profile';
 import { idSchema } from '#/admin/shared';
+import {
+  RECOVERY_CODE_COUNT_RANGE,
+  TOTP_ALGORITHM_CHOICES,
+  TOTP_DIGITS_CHOICES,
+  TOTP_PERIOD_CHOICES,
+  WEBAUTHN_REQUIREMENT_CHOICES,
+} from '#/admin/settings';
 
 // The `requirement` of a flow step (`REQUIREMENTS` in
 // packages/authn-flows/src/schema/flow.ts): the same four values, restated
@@ -14,10 +21,38 @@ export const executionRequirementSchema = z.enum([
 ]);
 export type ExecutionRequirement = z.infer<typeof executionRequirementSchema>;
 
+// What a step may override of the tenant's authenticator settings, by the
+// same choices and range the tenant's own settings take. At most six keys,
+// and a key absent means the tenant's value.
+export const flowStepSettingsSchema = z.strictObject({
+  algorithm: z.enum(TOTP_ALGORITHM_CHOICES).optional(),
+  digits: z.literal(TOTP_DIGITS_CHOICES).optional(),
+  period: z.literal(TOTP_PERIOD_CHOICES).optional(),
+  user_verification: z.enum(WEBAUTHN_REQUIREMENT_CHOICES).optional(),
+  resident_key: z.enum(WEBAUTHN_REQUIREMENT_CHOICES).optional(),
+  count: z
+    .number()
+    .int()
+    .min(RECOVERY_CODE_COUNT_RANGE.min)
+    .max(RECOVERY_CODE_COUNT_RANGE.max)
+    .optional(),
+});
+export type FlowStepSettings = z.infer<typeof flowStepSettingsSchema>;
+
+// The settings keys each authenticator reads. An authenticator not listed
+// takes none.
+export const FLOW_STEP_SETTING_KEYS: Readonly<Record<string, readonly (keyof FlowStepSettings)[]>> =
+  {
+    otp: ['algorithm', 'digits', 'period'],
+    passkey: ['user_verification', 'resident_key'],
+    'recovery-code': ['count'],
+  };
+
 export const executionStepSchema = z.object({
   index: z.number().int().nonnegative(),
   authenticator: z.string(),
   requirement: executionRequirementSchema,
+  settings: flowStepSettingsSchema.optional(),
 });
 export type ExecutionStep = z.infer<typeof executionStepSchema>;
 
@@ -41,6 +76,7 @@ export const replaceExecutionsRequestSchema = z
     z.object({
       authenticator: z.string().min(1),
       requirement: executionRequirementSchema,
+      settings: flowStepSettingsSchema.optional(),
     }),
   )
   .max(FLOW_STEP_MAX);
@@ -53,6 +89,7 @@ export type ReplaceExecutionsResponse = ListExecutionsResponse;
 export const flowStepSchema = z.strictObject({
   authenticator: z.string().min(1).max(64),
   requirement: executionRequirementSchema,
+  settings: flowStepSettingsSchema.optional(),
 });
 export type FlowStepWire = z.infer<typeof flowStepSchema>;
 

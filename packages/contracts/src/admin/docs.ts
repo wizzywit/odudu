@@ -41,6 +41,7 @@ import {
   flowListItemSchema,
   flowSchema,
   flowStepSchema,
+  flowStepSettingsSchema,
   listFlowsResponseSchema,
   saveFlowRequestSchema,
 } from '#/admin/flow';
@@ -445,6 +446,8 @@ describeFields(executionStepSchema, {
   authenticator: 'The sign-in step this entry runs, one of `available`.',
   requirement:
     '`required` always runs, `alternative` is one of several of which one suffices, `conditional` runs only when it applies to the user, `disabled` is skipped.',
+  settings:
+    'What the step overrides of the tenant’s authenticator settings, for the authenticators that read any: `otp` takes `algorithm`, `digits` and `period`, `passkey` takes `user_verification` and `resident_key`, `recovery-code` takes `count`, each held to the choices of the tenant setting it overrides. A key left out takes the tenant’s value, and an enrolment made after the save is made under the result. Any other authenticator takes none (`#flow-step-settings`).',
 });
 describeFields(listExecutionsResponseSchema, {
   items: 'The tenant’s sign-in flow, in the order the steps run.',
@@ -454,11 +457,26 @@ describeFields(replaceExecutionsRequestSchema.element, {
   authenticator: 'The sign-in step to run, one of `available` in the list answer.',
   requirement:
     '`required` always runs, `alternative` is one of several of which one suffices, `conditional` runs only when it applies, `disabled` is skipped.',
+  settings:
+    'What the step overrides of the tenant’s authenticator settings, for the authenticators that read any: `otp` takes `algorithm`, `digits` and `period`, `passkey` takes `user_verification` and `resident_key`, `recovery-code` takes `count`, each held to the choices of the tenant setting it overrides. A key left out takes the tenant’s value, and an enrolment made after the save is made under the result. Any other authenticator takes none (`#flow-step-settings`).',
 });
 describeFields(flowStepSchema, {
   authenticator: 'The sign-in step to run, one of `available` in the list answer.',
   requirement:
     '`required` always runs, `alternative` is one of several of which one suffices, `conditional` runs only when it applies, `disabled` is skipped.',
+  settings:
+    'What the step overrides of the tenant’s authenticator settings, for the authenticators that read any: `otp` takes `algorithm`, `digits` and `period`, `passkey` takes `user_verification` and `resident_key`, `recovery-code` takes `count`, each held to the choices of the tenant setting it overrides. A key left out takes the tenant’s value, and an enrolment made after the save is made under the result. Any other authenticator takes none (`#flow-step-settings`).',
+});
+describeFields(flowStepSettingsSchema, {
+  algorithm:
+    'The HMAC algorithm of a new authenticator-app enrolment: `SHA1`, `SHA256` or `SHA512`.',
+  digits: 'How many digits a new authenticator-app code has: 6 or 8.',
+  period: 'How many seconds a new authenticator-app code lasts: 30 or 60.',
+  user_verification:
+    'Whether a new passkey registration asks for user verification: `required`, `preferred` or `discouraged`.',
+  resident_key:
+    'Whether a new passkey registration asks for a discoverable credential: `required`, `preferred` or `discouraged`.',
+  count: 'How many recovery codes a new set holds, from 8 to 16.',
 });
 describeFields(flowSchema, {
   id: 'The flow’s identifier in the admin API.',
@@ -932,6 +950,8 @@ describeFields(exportedClientSchema, {
 describeFields(exportedFlowStepSchema, {
   authenticator: 'The sign-in step to run.',
   requirement: '`required`, `alternative`, `conditional` or `disabled`.',
+  settings:
+    'What the step overrides of the tenant’s authenticator settings, for the authenticators that read any: `otp` takes `algorithm`, `digits` and `period`, `passkey` takes `user_verification` and `resident_key`, `recovery-code` takes `count`, each held to the choices of the tenant setting it overrides. A key left out takes the tenant’s value, and an enrolment made after the save is made under the result. Any other authenticator takes none (`#flow-step-settings`).',
 });
 describeFields(exportedGroupSchema, {
   path: 'The group’s place in the hierarchy, such as `/staff/eu`.',

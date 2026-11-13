@@ -191,7 +191,7 @@ async function seededSource(): Promise<{ id: string; name: string; confidentialI
 
     await flowRepository(tx).replaceDefaultSteps(t.id, [
       { authenticator: 'password', requirement: 'required' },
-      { authenticator: 'otp', requirement: 'conditional' },
+      { authenticator: 'otp', requirement: 'conditional', settings: { digits: 8 } },
     ]);
     await tenantSettingsRepository(tx).amend(t.id, {
       passwordMinLength: 12,

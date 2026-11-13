@@ -4,7 +4,7 @@ import { credentialRepository, hashPassword, subjectRepository } from '@odudu/do
 import { type MailLookResolver } from '@odudu/email';
 import { noticeOwnChange } from '#/usecase/own-change-notice';
 import { requiredActionRepository } from '#/repository/required-actions';
-import { tenantSettingsRepository } from '#/repository/tenant-settings';
+import { enrolmentPolicy } from '#/usecase/enrolment-policy';
 import { generateRecoveryCodes, normaliseRecoveryCode } from '#/service/authenticators/recovery';
 import {
   bypassesBound,
@@ -17,6 +17,8 @@ import { type RecoveryCodesOffer } from '#/view/recovery-codes-html';
 export interface IssueRecoveryCodes {
   tenantId: string;
   subjectId: string;
+  // The sign-in the set is issued during, whose flow may set the set's size.
+  authSessionId?: string;
   now: Date;
   // Issue nothing and say what confirming would do, for a caller that must
   // ask before issuing or replacing a set.
@@ -95,9 +97,7 @@ export async function beginRecoveryCodes(
     return refused;
   }
 
-  const { recoveryCodeCount } = await tenantSettingsRepository(tx).authenticatorPolicy(
-    input.tenantId,
-  );
+  const { recoveryCodeCount } = await enrolmentPolicy(tx, input.tenantId, input.authSessionId);
   const codes = generateRecoveryCodes(recoveryCodeCount);
   const hashes = await Promise.all(codes.map((code) => hashPassword(normaliseRecoveryCode(code))));
 

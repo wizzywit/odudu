@@ -6,7 +6,7 @@ import { systemClock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { noticeOwnChange } from '#/usecase/own-change-notice';
-import { tenantSettingsRepository } from '#/repository/tenant-settings';
+import { enrolmentPolicy } from '#/usecase/enrolment-policy';
 import { relyingPartyOfTenant } from '#/usecase/passkey-relying-party';
 import {
   parseRegistrationResponse,
@@ -33,7 +33,7 @@ export async function beginPasskeyEnrolment(
 ): Promise<PasskeyEnrolmentOffer> {
   const user = await userRepository(tx).bySubjectId(input.subjectId);
   const existing = await credentialRepository(tx).listFor(input.subjectId, 'webauthn');
-  const { webauthn } = await tenantSettingsRepository(tx).authenticatorPolicy(input.tenantId);
+  const { webauthn } = await enrolmentPolicy(tx, input.tenantId, input.authSessionId);
   const offer = await passkeyRegistrationOptions({
     policy: webauthn,
     relyingParty: await relyingPartyOfTenant(tx, input.tenantId, input.publicBaseUrl),
@@ -103,7 +103,7 @@ export async function completePasskeyEnrolment(
   if (response === null) return { kind: 'rejected', reason: 'invalid_response' };
 
   const relyingParty = await relyingPartyOfTenant(tx, input.tenantId, input.publicBaseUrl);
-  const { webauthn } = await tenantSettingsRepository(tx).authenticatorPolicy(input.tenantId);
+  const { webauthn } = await enrolmentPolicy(tx, input.tenantId, input.authSessionId);
   const verified = await verifyPasskeyRegistration({
     relyingParty,
     expectedChallenge: challenge,

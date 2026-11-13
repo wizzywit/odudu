@@ -28,6 +28,7 @@ afterAll(async () => {
 interface Step {
   authenticator: string;
   requirement: string;
+  settings?: Record<string, unknown>;
 }
 interface FlowBody {
   id: string;
@@ -635,5 +636,84 @@ describe('POST /admin/tenants/{t}/flows/{id}/make-default', () => {
       });
       expect(res.statusCode, capability).toBe(403);
     }
+  });
+});
+
+describe('per-step authenticator settings', () => {
+  const otp = (settings: Record<string, unknown>): Step => ({
+    authenticator: 'otp',
+    requirement: 'required',
+    settings,
+  });
+
+  it('keeps the settings a flow is created and amended with, and records them in the audit trail', async () => {
+    const { t, token } = await tenantWithToken();
+    const made = await create(token, t.name, 'strict', [
+      password,
+      otp({ digits: 8, algorithm: 'SHA256' }),
+      { authenticator: 'recovery-code', requirement: 'conditional', settings: { count: 12 } },
+    ]);
+    expect(made.steps[1]?.settings).toEqual({ digits: 8, algorithm: 'SHA256' });
+    expect(made.steps[0]).not.toHaveProperty('settings');
+
+    const read = await call(token, t.name, 'GET', `/${made.id}`);
+    expect(read.json<FlowBody>().steps).toEqual(made.steps);
+    const listed = (await call(token, t.name, 'GET', '')).json<{ items: FlowBody[] }>();
+    expect(listed.items.find((flow) => flow.id === made.id)?.steps).toEqual(made.steps);
+
+    const amended = await put(token, t.name, made.id, {
+      name: 'strict',
+      steps: [password, otp({ period: 60 })],
+    });
+    expect(amended.statusCode, amended.body).toBe(200);
+    expect(amended.json<FlowBody>().steps[1]?.settings).toEqual({ period: 60 });
+    expect(JSON.stringify(await auditActions(token, t.name, 'flow.create'))).toContain(
+      '"digits":8',
+    );
+    expect(JSON.stringify(await auditActions(token, t.name, 'flow.amend'))).toContain(
+      '"period":60',
+    );
+  });
+
+  it('refuses settings an authenticator does not read, naming the step, and writes nothing', async () => {
+    const { t, token } = await tenantWithToken();
+    const refusal = async (steps: Step[]) =>
+      call(token, t.name, 'POST', '', { body: { name: 'a', steps } });
+
+    const onPassword = await refusal([{ ...password, settings: { digits: 8 } }]);
+    expect(onPassword.statusCode).toBe(400);
+    expect(onPassword.json<Problem>().type).toBe('about:blank#flow-step-settings');
+    expect(onPassword.json<Problem>().errors?.[0]?.path).toBe('steps[0].settings');
+
+    const wrongKey = await refusal([password, otp({ count: 9 })]);
+    expect(wrongKey.json<Problem>().type).toBe('about:blank#flow-step-settings');
+    expect(wrongKey.json<Problem>().errors?.[0]?.path).toBe('steps[1].settings');
+
+    const outOfRange = await refusal([password, otp({ digits: 7 })]);
+    expect(outOfRange.statusCode).toBe(400);
+    expect(outOfRange.json<Problem>().type).not.toBe('about:blank#flow-step-settings');
+    const tooFew = await refusal([
+      password,
+      { authenticator: 'recovery-code', requirement: 'required', settings: { count: 7 } },
+    ]);
+    expect(tooFew.statusCode).toBe(400);
+
+    expect((await call(token, t.name, 'GET', '')).json<{ total: number }>().total).toBe(1);
+  });
+
+  it('leaves the flow as it was when the amend carries a stale ETag', async () => {
+    const { t, token } = await tenantWithToken();
+    const made = await create(token, t.name, 'strict', [password, otp({ digits: 8 })]);
+    const stale = await etagAt(fixture.http, `/admin/tenants/${t.name}/flows/${made.id}`, token);
+    await put(token, t.name, made.id, { name: 'strict', steps: [password, otp({ digits: 6 })] });
+
+    const refused = await call(token, t.name, 'PUT', `/${made.id}`, {
+      body: { name: 'strict', steps: [password, otp({ period: 60 })] },
+      ifMatch: stale,
+    });
+    expect(refused.statusCode).toBe(412);
+    expect((await call(token, t.name, 'GET', `/${made.id}`)).json<FlowBody>().steps[1]).toEqual(
+      otp({ digits: 6 }),
+    );
   });
 });
