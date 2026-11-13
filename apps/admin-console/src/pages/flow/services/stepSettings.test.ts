@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { settingControls, settingsSummary, withSetting } from '#/pages/flow/services/stepSettings';
+import { settingControls, withSetting } from '#/pages/flow/services/stepSettings';
 import type { Step } from '#/pages/flow/services/steps';
 
 const TENANT = {
@@ -90,10 +90,10 @@ describe('withSetting', () => {
   });
 });
 
-describe('settingsSummary', () => {
-  it('lists what a step names, and nothing for a step that names none', () => {
-    expect(settingsSummary({ digits: 8, algorithm: 'SHA256' })).toBe('algorithm SHA256, digits 8');
-    expect(settingsSummary(undefined)).toBe('');
-    expect(settingsSummary({})).toBe('');
+describe('an authenticator named like an inherited property', () => {
+  it('has no controls', () => {
+    expect(
+      settingControls({ authenticator: 'constructor', requirement: 'required' }, TENANT),
+    ).toEqual([]);
   });
 });

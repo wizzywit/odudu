@@ -7,6 +7,7 @@ import {
   describeSteps,
   flowStepsOf,
   moved,
+  settingsSummary,
   stepsOf,
   withRequirement,
   type Step,
@@ -144,5 +145,23 @@ describe('chosenAddition', () => {
     expect(chosenAddition(['otp', 'recovery-code'], 'recovery-code')).toBe('recovery-code');
     expect(chosenAddition(['otp', 'recovery-code'], 'password')).toBe('otp');
     expect(chosenAddition([], 'password')).toBe('');
+  });
+});
+
+describe('settingsSummary', () => {
+  it('lists what a step names, and nothing for a step that names none', () => {
+    expect(settingsSummary({ digits: 8, algorithm: 'SHA256' })).toBe('algorithm SHA256, digits 8');
+    expect(settingsSummary(undefined)).toBe('');
+    expect(settingsSummary({})).toBe('');
+  });
+});
+
+describe('describeSteps with a settings value that is not an object', () => {
+  it('says the step without it', () => {
+    expect(
+      describeSteps([{ authenticator: 'otp', requirement: 'required', settings: 'digits 8' }]),
+    ).toBe('1 otp (required)');
+    expect(settingsSummary('abc')).toBe('');
+    expect(settingsSummary(['a'])).toBe('');
   });
 });

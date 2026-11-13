@@ -3,7 +3,6 @@ import type {
   ExecutionStep,
   FlowStepSettings,
 } from '#/pages/flow/types/executions';
-import { settingsSummary } from '#/pages/flow/services/stepSettings';
 import { listOrNone } from '#/shared/lib/services/format';
 import { isRecord } from '#/shared/lib/services/json';
 
@@ -77,6 +76,15 @@ export function added(
 ): Step[] {
   if (indexOf(steps, authenticator) >= 0) return [...steps];
   return [...steps, { authenticator, requirement }];
+}
+
+// What a step names, key by key, as plain words; nothing for anything but an object.
+export function settingsSummary(settings: unknown): string {
+  if (!isRecord(settings)) return '';
+  return Object.entries(settings)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key} ${String(value)}`)
+    .join(', ');
 }
 
 function isStep(value: unknown): value is Step {
