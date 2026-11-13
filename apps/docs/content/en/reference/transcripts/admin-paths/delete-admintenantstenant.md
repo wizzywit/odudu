@@ -136,25 +136,26 @@ curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" 
 ```
           table_name           | n
 -------------------------------+----
- client_scope_assignments      | 16
- client_scopes                 |  8
- role_composites               |  8
- roles                         |  8
+ client_scope_assignments      | 26
+ client_scopes                 | 12
+ role_composites               | 11
+ roles                         | 10
  audit_events                  |  5
- authentication_executions     |  4
- client_oidc_config            |  2
- clients                       |  2
- subjects                      |  2
+ client_oidc_config            |  3
+ clients                       |  3
  authentication_sessions       |  1
  authorization_codes           |  1
+ flows                         |  1
  sessions                      |  1
  signing_keys                  |  1
+ subjects                      |  1
  token_grants                  |  1
  user_credentials              |  1
  users                         |  1
  action_tokens                 |  0
  backchannel_logout_deliveries |  0
  client_assertion_jti          |  0
+ client_metadata_cache         |  0
  client_origins                |  0
  client_registration_tokens    |  0
  client_scope_mappers          |  0
@@ -166,14 +167,23 @@ curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" 
  email_outbox                  |  0
  group_roles                   |  0
  groups                        |  0
+ idempotency_keys              |  0
  login_failures                |  0
+ message_overrides             |  0
+ pending_email_changes         |  0
  pending_registrations         |  0
  refresh_tokens                |  0
  subject_groups                |  0
  subject_roles                 |  0
+ subject_terms_acceptances     |  0
+ tenant_domains                |  0
+ tenant_issuer_retirements     |  0
  tenant_smtp                   |  0
+ theme_assets                  |  0
+ theme_version_assets          |  0
+ theme_versions                |  0
  user_required_actions         |  0
-(37 rows)
+(47 rows)
 
 {"type":"about:blank","title":"Error","status":400,"detail":"querystring must have required property 'confirm'","errors":[{"path":"confirm","message":"must have required property 'confirm'"}],"instance":"01a140bf-be87-77d4-877c-d365c631feba"}
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"confirm: must be the tenant’s own name, doomed","errors":[{"path":"confirm","message":"must be the tenant’s own name, doomed"}],"instance":"01a140bf-be92-7f53-9a9e-c3b3c55d3640"}
@@ -208,11 +218,11 @@ protocol/openid-connect/certs            404
 -------------------------------+---
  action_tokens                 | 0
  audit_events                  | 0
- authentication_executions     | 0
  authentication_sessions       | 0
  authorization_codes           | 0
  backchannel_logout_deliveries | 0
  client_assertion_jti          | 0
+ client_metadata_cache         | 0
  client_oidc_config            | 0
  client_origins                | 0
  client_registration_tokens    | 0
@@ -226,9 +236,13 @@ protocol/openid-connect/certs            404
  console_logins                | 0
  console_sessions              | 0
  email_outbox                  | 0
+ flows                         | 0
  group_roles                   | 0
  groups                        | 0
+ idempotency_keys              | 0
  login_failures                | 0
+ message_overrides             | 0
+ pending_email_changes         | 0
  pending_registrations         | 0
  refresh_tokens                | 0
  role_composites               | 0
@@ -237,13 +251,19 @@ protocol/openid-connect/certs            404
  signing_keys                  | 0
  subject_groups                | 0
  subject_roles                 | 0
+ subject_terms_acceptances     | 0
  subjects                      | 0
+ tenant_domains                | 0
+ tenant_issuer_retirements     | 0
  tenant_smtp                   | 0
+ theme_assets                  | 0
+ theme_version_assets          | 0
+ theme_versions                | 0
  token_grants                  | 0
  user_credentials              | 0
  user_required_actions         | 0
  users                         | 0
-(37 rows)
+(47 rows)
 
 {"action": "tenant.delete", "outcome": "allowed", "actor_name": "ada", "resource_id": "01a140bf-2b2b-7e8f-a63a-c6c8b0f964d9", "detail": {"name": "doomed"}}
 {"action": "tenant.delete", "outcome": "refused", "actor_name": "ada", "resource_id": "0199aa00-0000-7000-8000-000000000001", "detail": {"name": "system", "reason": "system_tenant_guarded"}}

@@ -14,7 +14,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
-import { executionRepository } from '#/repository/executions';
+import { flowRepository } from '#/repository/flows';
 import {
   advance,
   initialChallenge,
@@ -286,7 +286,7 @@ describe('[ODUDU-AUTHN-FLOW-ORDER-01] at login start, password is the only appli
       const tenantId = newId();
       await withTenant(app.db, tenantId, async (tx) => {
         await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
-        await executionRepository(tx).replaceForTenant(tenantId, [
+        await flowRepository(tx).replaceDefaultSteps(tenantId, [
           { authenticator, requirement: 'required' },
         ]);
       });

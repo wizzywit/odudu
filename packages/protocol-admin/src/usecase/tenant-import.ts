@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { canonicalLocale } from '@odudu/contracts';
 import {
-  executionRepository,
+  flowRepository,
   registeredAuthenticatorNames,
   requiredActionRepository,
 } from '@odudu/authn-flows';
@@ -397,7 +397,7 @@ async function writeDocument(
   metadata: ReadonlyMap<string, ClientMetadata>,
 ): Promise<ImportedClientSecret[]> {
   await writeSettings(tx, tenantId, document);
-  await executionRepository(tx).replaceForTenant(tenantId, document.flow);
+  await flowRepository(tx).replaceDefaultSteps(tenantId, document.flow);
 
   const admin = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
   if (admin === null) throw new Error('tenant import: the admin client was not provisioned');

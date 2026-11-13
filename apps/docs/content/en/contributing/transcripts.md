@@ -1303,3 +1303,12 @@ page a registration link opens, from its heading to the form, ran on a tenant `r
 registered by the form, and reads the link from the relay. The two blocks of that page that open the link and press its button were
 not run again: the first filters the page to the lines it names, which this change leaves as they were. The stack and its image
 were removed afterwards.
+
+The two tables of table counts in `delete-admintenantstenant.md` and the flow query in `recovery-codes.md` were captured again on
+2026-11-13, when a tenant's sign-in steps moved from `authentication_executions` into the `flows` table, on a freshly built compose
+project (`odudu-13a2`, port `3187`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, the logout sender off and
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS=true`), built from the branch commit with nothing uncommitted. The delete page's own command sequence ran
+whole, five passes of the sender a minute apart included: `seed admin` and a token as in Getting the token, `doomed` made through
+`POST /admin/tenants`, a confidential client `doomed-app` with the back-channel URI the page names made through `POST /clients`, `ada`
+seeded in it and signed in once, with the code redeemed; both tables are that run's output. The flow query ran against a tenant
+`otp-demo` made with `odudu seed tenant` on an earlier project built from the same tree. The stacks and their images were removed afterwards.

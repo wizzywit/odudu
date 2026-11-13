@@ -41,8 +41,6 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK (((audit_retention_days >= 1) AND (audit_retention_days <= 3650)))',
   'audit_events.audit_events_outcome':
     "CHECK ((outcome = ANY (ARRAY['allowed'::text, 'refused'::text, 'failed'::text])))",
-  'authentication_executions.authentication_executions_requirement':
-    "CHECK ((requirement = ANY (ARRAY['required'::text, 'alternative'::text, 'conditional'::text, 'disabled'::text])))",
   'authorization_codes.authorization_codes_method_check':
     "CHECK ((code_challenge_method = 'S256'::text))",
   'client_oidc_config.client_oidc_config_access_token_ttl_ceiling':
@@ -199,6 +197,9 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'tenants.tenants_verify_email_ttl_range':
     'CHECK (((verify_email_ttl_seconds >= 60) AND (verify_email_ttl_seconds <= 604800)))',
   'clients.clients_description_length': 'CHECK ((char_length(description) <= 1000))',
+  'flows.flows_name_length': 'CHECK (((char_length(name) >= 1) AND (char_length(name) <= 64)))',
+  'flows.flows_steps_bounded':
+    "CHECK (((jsonb_typeof(steps) = 'array'::text) AND (jsonb_array_length(steps) <= 20)))",
   'groups.groups_description_length': 'CHECK ((char_length(description) <= 1000))',
   'roles.roles_description_length': 'CHECK ((char_length(description) <= 1000))',
   'client_scopes.client_scopes_default_client_assignment_check':

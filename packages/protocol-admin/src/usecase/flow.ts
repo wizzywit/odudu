@@ -1,9 +1,8 @@
 import {
-  executionRepository,
+  flowRepository,
   registeredAuthenticatorNames,
   startsALogin,
-  type AuthenticationExecutionRecord,
-  type ExecutionInput,
+  type FlowStep,
 } from '@odudu/authn-flows';
 import { type ExecutionStep } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
@@ -24,12 +23,8 @@ export interface FlowAuditEvent {
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: FlowAuditEvent) => Promise<void>;
 
-function toWireShape(record: AuthenticationExecutionRecord): ExecutionStep {
-  return {
-    index: record.index,
-    authenticator: record.authenticator,
-    requirement: record.requirement,
-  };
+function toWireShape(step: FlowStep, index: number): ExecutionStep {
+  return { index, authenticator: step.authenticator, requirement: step.requirement };
 }
 
 export interface FlowView {
@@ -39,19 +34,19 @@ export interface FlowView {
 }
 
 /**
- * `forTenant` reads in `index` order, which is the flow's meaning, so the
- * `ETag` needs no sort. It covers `items` alone: `available` is the
- * registry's, and no write here changes it.
+ * The default flow's steps are already in order, which is the flow's
+ * meaning, so the `ETag` needs no sort. It covers `items` alone: `available`
+ * is the registry's, and no write here changes it.
  */
 export async function listFlow(tx: TenantScopedDatabase, tenantId: string): Promise<FlowView> {
-  const rows = await executionRepository(tx).forTenant(tenantId);
-  const items = rows.map(toWireShape);
+  const fallback = await flowRepository(tx).defaultForTenant(tenantId);
+  const items = (fallback?.steps ?? []).map(toWireShape);
   return { items, available: registeredAuthenticatorNames(), etag: etagOf({ items }) };
 }
 
 export interface ReplaceFlowInput {
   readonly tenantId: string;
-  readonly steps: ExecutionInput[];
+  readonly steps: FlowStep[];
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
@@ -93,7 +88,7 @@ export async function replaceFlow(
   // Before the read, never after: the lock is what makes the comparison
   // below describe the flow this write overwrites, the same order
   // `amendSettings` and `amendClient` take theirs in.
-  await executionRepository(tx).lockForTenant(input.tenantId);
+  await flowRepository(tx).lockForTenant(input.tenantId);
   const before = await listFlow(tx, input.tenantId);
   const precondition = requiredPrecondition(input.ifMatch, before.etag);
   if (precondition !== 'ok') {
@@ -102,7 +97,7 @@ export async function replaceFlow(
       : { kind: 'precondition_failed' };
   }
 
-  const rows = await executionRepository(tx).replaceForTenant(input.tenantId, input.steps);
+  const written = await flowRepository(tx).replaceDefaultSteps(input.tenantId, input.steps);
 
   await deps.audit(tx, {
     action: 'flow.replace',
@@ -114,7 +109,7 @@ export async function replaceFlow(
     outcome: 'allowed',
   });
 
-  const items = rows.map(toWireShape);
+  const items = written.steps.map(toWireShape);
   return {
     kind: 'ok',
     items,

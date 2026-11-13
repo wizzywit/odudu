@@ -9,10 +9,11 @@ import {
 import { timingSafeEqual } from 'node:crypto';
 import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
-import { executionRepository } from '#/repository/executions';
+import { flowRepository } from '#/repository/flows';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
+import { resolveFlow } from '#/service/flow';
 import { passkeyCheckedAgainst } from '#/service/passkey-switch';
 import { SessionEntry } from '#/service/session-entry';
 import { hashSignInSecret, newSignInSecret, readSignInHandle } from '#/service/sign-in-handle';
@@ -566,7 +567,11 @@ async function loadSteps(
   tenantId: string,
   request: FactsRequest,
 ): Promise<{ steps: Step[]; facts: FlowFacts }> {
-  const executions = await executionRepository(tx).forTenant(tenantId);
+  const fallback = await flowRepository(tx).defaultForTenant(tenantId);
+  const resolved = resolveFlow(fallback === null ? [] : [fallback], null);
+  // A tenant with no default flow has nothing to run, so the sign-in fails
+  // as one whose flow is empty does.
+  const executions = resolved.kind === 'ok' ? resolved.flow.steps : [];
   const facts = await flowFacts(tx, tenantId, request);
   // A tenant whose flow never had the recovery-code row — one provisioned
   // before it existed, or one that disabled it — has no recovery step for

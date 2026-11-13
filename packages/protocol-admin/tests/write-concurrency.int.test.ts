@@ -1,7 +1,7 @@
 import { signingKeys } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import { groupRepository } from '@odudu/domain-authz';
-import { authenticationExecutions } from '@odudu/authn-flows';
+import { flows } from '@odudu/authn-flows';
 import { newId } from '@odudu/kernel';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -71,14 +71,13 @@ async function awaitBlockedTransaction(): Promise<void> {
 }
 
 describe('two concurrent flow replacements against a tenant with no flow', () => {
-  // The `FOR UPDATE` inside `replaceForTenant` locks the rows it finds, and
-  // a tenant with none has nothing to lock — so without a lock on something
-  // else both replacements reach the insert and
-  // `authentication_executions_order` refuses one of them.
-  it('serialises them instead of colliding on the (tenant, index) constraint', async () => {
+  // A tenant with no default flow has no row to lock, so without a lock on
+  // something else both replacements reach the insert and `flows_one_default`
+  // refuses one of them.
+  it('serialises them instead of colliding on the one-default constraint', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     await withTenant(fixture.app.db, t.id, (tx) =>
-      tx.delete(authenticationExecutions).where(eq(authenticationExecutions.tenantId, t.id)),
+      tx.delete(flows).where(eq(flows.tenantId, t.id)),
     );
     const before = await withTenant(fixture.app.db, t.id, (tx) => listFlow(tx, t.id));
     const held = gate();
@@ -121,10 +120,10 @@ describe('two concurrent flow replacements against a tenant with no flow', () =>
 
     expect((await first).kind).toBe('ok');
     expect((await second).kind).toBe('precondition_failed');
-    const after = await withTenant(fixture.app.db, t.id, (tx) =>
-      tx.select().from(authenticationExecutions),
-    );
-    expect(after.map((row) => row.authenticator)).toEqual(['password']);
+    const after = await withTenant(fixture.app.db, t.id, (tx) => tx.select().from(flows));
+    expect(after.flatMap((row) => row.steps.map((step) => step.authenticator))).toEqual([
+      'password',
+    ]);
   });
 });
 

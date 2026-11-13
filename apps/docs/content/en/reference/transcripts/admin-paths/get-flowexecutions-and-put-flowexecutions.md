@@ -30,8 +30,8 @@ with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
-A flow has no row to lock when it is empty, so the advisory lock
-`replaceForTenant` takes is what serialises two replacements, and this
+A tenant may have no default flow row to lock, so the advisory lock
+`replaceDefaultSteps` takes is what serialises two replacements, and this
 route takes it before the read rather than after — otherwise two callers
 holding the same fresh tag would both pass.
 

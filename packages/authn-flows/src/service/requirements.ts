@@ -1,4 +1,4 @@
-import { type Requirement } from '#/schema/execution';
+import { type Requirement } from '#/schema/flow';
 
 export interface Step {
   authenticator: string;

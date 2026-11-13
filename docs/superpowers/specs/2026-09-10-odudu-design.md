@@ -945,8 +945,8 @@ anything going red.
 
 - **P4 named neither a flow editor nor the protocol mappers**, though the
   prose above sends both there and `apps/docs/content/en/reference/transcripts/request-paths/` places them in
-  P4 by name. A tenant's `authentication_executions` rows have an insert and
-  nothing else, and the claim registry is fixed by the server; an admin
+  P4 by name. A tenant's sign-in steps (then `authentication_executions` rows, now the
+  default `flows` row) had an insert and nothing else, and the claim registry is fixed by the server; an admin
   console that manages everything else and neither of those would still
   meet the criterion as it read. Both are now in it. Found closing P3b,
   2026-09-22, by the same both-directions reconciliation that found the
@@ -1358,7 +1358,7 @@ code writes the credential, the same code replayed is refused (RFC 6238
 way — one of the ten printed codes signed in with `amr: ["pwd"]`, `acr: "2"`,
 the same code typed back in lower case with a space for the hyphen was
 refused _as spent_, and a code from no list was refused with no message at
-all (at the time; a refused step now says so, see ADR 0023's last amendment). `authentication_executions` for that tenant reads `passkey`/`password`
+all (at the time; a refused step now says so, see ADR 0023's last amendment). The default flow for that tenant (then `authentication_executions`) reads `passkey`/`password`
 `alternative`, `otp`/`recovery-code` `conditional`, in that order.
 **The two WebAuthn ceremonies were not driven**, and cannot be from this
 repository: only `navigator.credentials.create()` and `.get()` inside a
