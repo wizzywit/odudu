@@ -9,7 +9,11 @@ const PERSON = 'ada';
 
 async function exists(page: Page, cell: string): Promise<boolean> {
   await page.getByRole('heading', { level: 1 }).waitFor();
-  await page.getByText(/^\d+ (client|clients|subject|subjects|tenant|tenants)$/u).waitFor();
+  const total = page.getByText(/^\d+ (client|clients|subject|subjects|tenant|tenants)$/u);
+  await total.waitFor();
+  const held = Number.parseInt((await total.innerText()).split(' ')[0] ?? '0', 10);
+  // The count is drawn before the rows: a row not yet there is not a row absent.
+  if (held > 0) await page.getByRole('row').nth(1).waitFor();
   return (await page.getByRole('row', { name: new RegExp(cell, 'u') }).count()) > 0;
 }
 
