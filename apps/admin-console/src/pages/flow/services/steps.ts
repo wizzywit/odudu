@@ -1,23 +1,33 @@
-import type { ExecutionRequirement, ExecutionStep } from '#/pages/flow/types/executions';
+import type {
+  ExecutionRequirement,
+  ExecutionStep,
+  FlowStepSettings,
+} from '#/pages/flow/types/executions';
+import { settingsSummary } from '#/pages/flow/services/stepSettings';
 import { listOrNone } from '#/shared/lib/services/format';
 import { isRecord } from '#/shared/lib/services/json';
 
 export interface Step {
   authenticator: string;
   requirement: ExecutionRequirement;
+  // What the step overrides of the tenant's authenticator settings; absent
+  // where it overrides none.
+  settings?: FlowStepSettings | undefined;
 }
 
 export type Direction = 'up' | 'down';
 
+function withoutIndex({ authenticator, requirement, settings }: Step): Step {
+  return { authenticator, requirement, ...(settings === undefined ? {} : { settings }) };
+}
+
 export function stepsOf(items: readonly ExecutionStep[]): Step[] {
-  return [...items]
-    .sort((a, b) => a.index - b.index)
-    .map(({ authenticator, requirement }) => ({ authenticator, requirement }));
+  return [...items].sort((a, b) => a.index - b.index).map(withoutIndex);
 }
 
 // A named flow's steps carry no index: their order is the array's.
 export function flowStepsOf(steps: readonly Step[]): Step[] {
-  return steps.map(({ authenticator, requirement }) => ({ authenticator, requirement }));
+  return steps.map(withoutIndex);
 }
 
 function indexOf(steps: readonly Step[], authenticator: string): number {
@@ -77,7 +87,11 @@ function isStep(value: unknown): value is Step {
 export function describeSteps(value: unknown): string {
   const steps = Array.isArray(value) ? value.filter(isStep) : [];
   return listOrNone(
-    steps.map((step, at) => `${String(at + 1)} ${step.authenticator} (${step.requirement})`),
+    steps.map((step, at) => {
+      const settings = settingsSummary(step.settings);
+      const said = settings === '' ? step.requirement : `${step.requirement}; ${settings}`;
+      return `${String(at + 1)} ${step.authenticator} (${said})`;
+    }),
     { join: 'comma' },
   );
 }

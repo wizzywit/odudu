@@ -17,6 +17,7 @@ export function useFlowSteps({
   etag,
   gone,
   reading,
+  tenantSettings,
 }: {
   tenant: string;
   data: ListExecutionsResponse;
@@ -24,6 +25,7 @@ export function useFlowSteps({
   gone: boolean;
   // Whom the one-time password step asks, shown on that step.
   reading: string | null;
+  tenantSettings: Readonly<Record<string, unknown>> | undefined;
 }): FlowSteps {
   const refusal = useRefusal(tenant);
   const saves = flowSaves(tenant);
@@ -53,6 +55,7 @@ export function useFlowSteps({
     steps: save.values.steps,
     available: data.available,
     reading,
+    tenantSettings,
     edit: (next) => {
       save.edit('steps', next);
     },

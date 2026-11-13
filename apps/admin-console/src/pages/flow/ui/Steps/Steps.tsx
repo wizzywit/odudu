@@ -127,6 +127,22 @@ export function Steps({
                 {words.down}
               </Button>
             </div>
+            {row.settings.length === 0 ? null : (
+              <div className={styles.settings}>
+                {row.settings.map((control) => (
+                  <SelectField
+                    key={control.key}
+                    label={control.label}
+                    options={control.options}
+                    value={control.value}
+                    onChange={(value) => {
+                      flow.setSetting(row.authenticator, control.key, value);
+                    }}
+                  />
+                ))}
+                {row.disabled ? <p className={styles.rule}>{words.settingsDisabled}</p> : null}
+              </div>
+            )}
           </li>
         ))}
       </ol>

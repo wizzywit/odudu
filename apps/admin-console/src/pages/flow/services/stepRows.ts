@@ -1,6 +1,7 @@
 import type { ExecutionRequirement } from '#/pages/flow/types/executions';
 import { authenticatorText } from '#/pages/flow/services/flowWording';
 import { OTP, requirementText } from '#/pages/flow/services/requirement';
+import { settingControls, type SettingControl } from '#/pages/flow/services/stepSettings';
 import { canMove, type Direction, type Step } from '#/pages/flow/services/steps';
 
 interface MoveButton {
@@ -20,6 +21,8 @@ export interface StepRow {
   otpReading: string | null;
   requirement: ExecutionRequirement;
   requirementLabel: string;
+  // What the step may override of the tenant's settings.
+  settings: SettingControl[];
   up: MoveButton;
   down: MoveButton;
 }
@@ -35,7 +38,11 @@ function moveButton(steps: readonly Step[], authenticator: string, direction: Di
   };
 }
 
-export function stepRows(steps: readonly Step[], reading: string | null): StepRow[] {
+export function stepRows(
+  steps: readonly Step[],
+  reading: string | null,
+  tenant: Readonly<Record<string, unknown>> | undefined,
+): StepRow[] {
   return steps.map((step, at) => ({
     authenticator: step.authenticator,
     position: at + 1,
@@ -45,6 +52,7 @@ export function stepRows(steps: readonly Step[], reading: string | null): StepRo
     otpReading: step.authenticator === OTP ? reading : null,
     requirement: step.requirement,
     requirementLabel: `Requirement for ${step.authenticator}`,
+    settings: settingControls(step, tenant),
     up: moveButton(steps, step.authenticator, 'up'),
     down: moveButton(steps, step.authenticator, 'down'),
   }));
