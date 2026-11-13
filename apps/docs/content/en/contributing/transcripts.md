@@ -1310,3 +1310,15 @@ sign-in steps moved from `authentication_executions` into the `flows` table. The
 `doomed` made with `odudu seed tenant`, `ada` and a public client `doomed-app` seeded in it, one sign-in through that client, then the
 tenant disabled and deleted with nothing pending; the query ran against a tenant `otp-demo` made with `odudu seed tenant`. The stack and
 its image were removed afterwards.
+
+The flow routes' page, `get-flows-post-flows-and-the-flow-routes.md`, was captured on 2026-11-13 on a freshly built compose project, `odudu-13b`
+(port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit `dc3c394fe` with only
+documentation files uncommitted, on a database that began empty: `seed admin`, the administrator's first-sign-in required action deleted
+with one `delete from user_required_actions` as the screenshot capture does, a token as in Getting the token, then the page's blocks as one
+script in one shell, each block's output written to the page as it came back (carriage returns and trailing spaces removed). The tenants `demo`
+and `other` are made with `odudu seed tenant`. `GET /admin/openapi.json` was fetched again on the same stack (825,420 to 848,131 bytes, 110 to
+112 paths, the new routes), and `odudu-mcp-over-stdio.md` was replayed whole before the page's database was emptied again: its commands name the
+project `odudu-13b` where they named the earlier one, its tenant, client, key and ids are that run's, and the listing is 62 tools where it was 59,
+with `get_flow` and `list_flows` among them and `list_subject_terms_acceptances`, which the earlier capture predated. The tool listing of
+`the-mcp-endpoint.md` is for a person who holds `manage-clients` and `view-users`, which no flow tool needs, so it was not run again. The stack
+and its image were removed afterwards.

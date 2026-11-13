@@ -338,13 +338,14 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'flow',
-    alt: 'The Sign-in flow page: four steps in order, passkey, password, otp and recovery-code, each with a requirement menu and Up and Down buttons.',
+    alt: 'The Sign-in flow page: four steps in order, passkey, password, otp and recovery-code, each with a requirement menu and Up and Down buttons, and below them a Flows list with the default flow marked and a New flow button.',
     caption: 'The steps a person is asked, in order, each with its requirement.',
     signedIn: true,
     expect: [
       { heading: 'Sign-in flow' },
       { heading: 'Steps' },
       { label: 'Requirement for password' },
+      { heading: 'Flows' },
     ],
     open: (page, context) => openArea(page, context, `${DEMO}/flow`),
   },

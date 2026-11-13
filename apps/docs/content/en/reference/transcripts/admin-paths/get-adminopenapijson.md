@@ -19,19 +19,19 @@ wc -c < openapi.json | tr -d ' '
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d243-3b70-7f0d-ab13-cce2fa46e420
+x-request-id: 01a1d2d8-90da-7ce4-b44d-d10f5548fb73
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 825420
-Date: Fri, 13 Nov 2026 00:16:23 GMT
+content-length: 848131
+Date: Fri, 13 Nov 2026 02:59:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-110
-825420
+112
+848131
 ```
 
-806 KB and 110 paths, which is the whole route table. It is the one admin
+828 KB and 112 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can load
 it — the local stack's optional Swagger UI does exactly that (see [Browsing the
 admin API](../../../contributing/run-from-a-checkout.md)). No admin route carries that header, so a page on
@@ -56,7 +56,7 @@ grep -o '"securitySchemes":{"bearerAuth":{[^}]*}}' openapi.json
 ```
 
 `security` is declared once at the top level, so every path inherits it
-rather than repeating it. `/admin/openapi.json` is not among those 109
+rather than repeating it. `/admin/openapi.json` is not among those 112
 paths: the document does not describe itself, which is why serving it
 unauthenticated does not contradict the blanket `security` above.
 
