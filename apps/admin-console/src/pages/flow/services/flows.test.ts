@@ -6,6 +6,9 @@ import {
   deleteDialog,
   deleteOutcome,
   flowSaveRequest,
+  confirmation,
+  readTarget,
+  confirmedWrite,
   promoteDialog,
   promoteOutcome,
   flowRows,
@@ -175,5 +178,38 @@ describe('the dialogs show the version they confirm', () => {
     const stale = problemResult(412, 'about:blank');
     expect(deleteOutcome('staff', stale).text).toMatch(/changed since/u);
     expect(promoteOutcome('staff', stale).text).toMatch(/changed since/u);
+  });
+});
+
+describe('confirmation', () => {
+  const asked = { action: 'delete', flow: STAFF } as const;
+
+  it('reads nothing while nothing is asked, and the flow asked for otherwise', () => {
+    expect(readTarget(null).enabled).toBe(false);
+    expect(readTarget(asked)).toEqual({ id: STAFF.id, enabled: true });
+  });
+
+  it('holds the confirmation until the flow it binds to is read', () => {
+    expect(confirmation(asked, undefined, null, 'loading').held).toBe(true);
+    expect(confirmation(asked, STAFF, '"t1"', 'ready').held).toBe(false);
+  });
+
+  it('shows what the flow holds now, and the read failure unless a refusal is already said', () => {
+    expect(
+      confirmation(asked, { ...STAFF, steps: [] }, '"t1"', 'ready').dialog?.consequence,
+    ).toMatch(/No steps/u);
+    expect(confirmation(asked, undefined, null, 'failed').problem).toMatch(/could not be read/u);
+    expect(confirmation(asked, undefined, null, 'failed', 'Refused: x').problem).toBe('Refused: x');
+    expect(confirmation(asked, STAFF, '"t1"', 'ready').problem).toBeNull();
+  });
+});
+
+describe('confirmedWrite', () => {
+  it('names the flow and the tag read for it, and an empty tag when none was read', () => {
+    expect(confirmedWrite({ action: 'default', flow: STAFF }, '"t1"')).toEqual({
+      id: STAFF.id,
+      ifMatch: '"t1"',
+    });
+    expect(confirmedWrite({ action: 'default', flow: STAFF }, null).ifMatch).toBe('');
   });
 });

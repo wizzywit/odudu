@@ -227,3 +227,35 @@ export function askedOutcome(asked: AskedAction, result: GatewayResult<unknown>)
     ? deleteOutcome(asked.flow.name, result)
     : promoteOutcome(asked.flow.name, result);
 }
+
+// What stands in for a flow id while nothing is asked, so no read is made.
+const NOTHING_ASKED = 'none';
+
+// The flow whose version a confirmation binds to, read when it is asked.
+export function readTarget(asked: AskedAction | null): { id: string; enabled: boolean } {
+  return { id: asked?.flow.id ?? NOTHING_ASKED, enabled: asked !== null };
+}
+
+// What the open confirmation shows and allows: the version read for it, held
+// until that read is in, and its read failure unless a refusal is already said.
+export function confirmation(
+  asked: AskedAction | null,
+  current: FlowWire | undefined,
+  etag: string | null,
+  status: string,
+  said: string | null = null,
+): { dialog: NamedDialog | null; held: boolean; problem: string | null } {
+  return {
+    dialog: askedDialog(asked, current),
+    held: etag === null,
+    problem: said ?? askedReadProblem(status),
+  };
+}
+
+// The write a confirmed action sends: the flow and the tag read for it.
+export function confirmedWrite(
+  asked: AskedAction,
+  etag: string | null,
+): { id: string; ifMatch: string } {
+  return { id: asked.flow.id, ifMatch: etag ?? '' };
+}

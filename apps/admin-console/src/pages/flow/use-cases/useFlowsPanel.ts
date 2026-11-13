@@ -7,9 +7,10 @@ import {
   useMakeFlowDefault,
 } from '#/pages/flow/repository/useFlows';
 import {
-  askedDialog,
-  askedReadProblem,
   askedOutcome,
+  confirmation,
+  confirmedWrite,
+  readTarget,
   flowRows,
   newFlowHref,
   type AskedAction,
@@ -44,10 +45,6 @@ export interface FlowsPanel {
   };
 }
 
-// What stands in for a flow id while nothing is asked, and for a tag not yet read.
-const NOTHING = 'none';
-const NOT_READ = '';
-
 export function useFlowsPanel(tenant: string): FlowsPanel {
   const refusal = useRefusal(tenant);
   const record = useFlowsRecord(tenant);
@@ -58,21 +55,29 @@ export function useFlowsPanel(tenant: string): FlowsPanel {
     refusal,
     capability: 'manage-tenant',
     blocked: remove.busy || promote.busy,
-    send: (asked) => writes[asked.action]({ id: asked.flow.id, ifMatch: target.etag ?? NOT_READ }),
+    send: (asked) => writes[asked.action](confirmedWrite(asked, target.etag)),
     outcomeOf: askedOutcome,
   });
   // The version the administrator confirms is the one read when the dialog opens.
-  const target = useFlowById(tenant, acting.asked?.flow.id ?? NOTHING, acting.asked !== null);
+  const read = readTarget(acting.asked);
+  const target = useFlowById(tenant, read.id, read.enabled);
+  const confirming = confirmation(
+    acting.asked,
+    target.data,
+    target.etag,
+    target.status,
+    acting.problem,
+  );
   return {
     words: FLOWS_WORDS.list,
     record,
     rows: flowRows(tenant, record.data?.items),
     newHref: newFlowHref(tenant),
     action: {
-      dialog: askedDialog(acting.asked, target.data),
-      held: target.etag === null,
+      dialog: confirming.dialog,
+      held: confirming.held,
       busy: remove.busy || promote.busy,
-      problem: acting.problem ?? askedReadProblem(target.status),
+      problem: confirming.problem,
       notice: acting.notice,
       count: acting.done,
       ask: acting.ask,
