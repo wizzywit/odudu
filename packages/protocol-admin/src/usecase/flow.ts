@@ -4,8 +4,14 @@ import {
   startsALogin,
   type FlowStep,
 } from '@odudu/authn-flows';
-import { FLOW_LIMIT, type ExecutionStep, type FlowWire } from '@odudu/contracts/admin';
+import {
+  FLOW_LIMIT,
+  type ExecutionStep,
+  type FlowListItemWire,
+  type FlowWire,
+} from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { createdDetail, redactedDiff } from '#/service/audit-detail';
 import { etagOf, requiredPrecondition } from '#/service/etag';
 import { flowWireShape } from '#/service/flow-wire';
@@ -133,19 +139,22 @@ export async function replaceFlow(
 }
 
 export interface FlowListView {
-  readonly items: readonly FlowWire[];
+  readonly items: readonly FlowListItemWire[];
   readonly total: number;
   readonly available: readonly string[];
 }
 
 /**
  * Bounded by the per-tenant cap, which `forTenant` also applies, so `total`
- * is every flow the tenant has: one indexed query, no cursor.
+ * is every flow the tenant has: one indexed query, no cursor. The clients
+ * naming each flow come from one grouped read over the index that holds only
+ * the clients that name one.
  */
 export async function listFlows(tx: TenantScopedDatabase, tenantId: string): Promise<FlowListView> {
   const all = await flowRepository(tx).forTenant(tenantId);
+  const usage = await clientOidcConfigRepository(tx).flowUsage(tenantId);
   return {
-    items: all.map(flowWireShape),
+    items: all.map((flow) => ({ ...flowWireShape(flow), client_count: usage.get(flow.id) ?? 0 })),
     total: all.length,
     available: registeredAuthenticatorNames(),
   };
@@ -273,7 +282,10 @@ export interface DeleteFlowInput extends FlowActor {
 }
 
 export type DeleteFlowOutcome =
-  { kind: 'not_found' } | { kind: 'default_flow' } | { kind: 'deleted' };
+  | { kind: 'not_found' }
+  | { kind: 'default_flow' }
+  | { kind: 'in_use'; count: number; sample: readonly string[] }
+  | { kind: 'deleted' };
 
 export async function deleteFlow(
   tx: TenantScopedDatabase,
@@ -285,6 +297,10 @@ export async function deleteFlow(
   const before = await repository.byId(input.tenantId, input.flowId);
   if (before === null) return { kind: 'not_found' };
   if (before.isDefault) return { kind: 'default_flow' };
+  // A client pointed at this flow takes the same lock first, so the count is
+  // settled; the foreign key still refuses a write that skipped it.
+  const usage = await clientOidcConfigRepository(tx).namingFlow(input.tenantId, input.flowId);
+  if (usage.count > 0) return { kind: 'in_use', ...usage };
   if (!(await repository.remove(input.tenantId, input.flowId))) return { kind: 'not_found' };
 
   await deps.audit(tx, {

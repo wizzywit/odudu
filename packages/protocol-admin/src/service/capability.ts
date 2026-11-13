@@ -1907,7 +1907,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Every sign-in flow of the tenant, ordered by name, and `available`: every authenticator ' +
       'a step may name. A tenant holds at most 20 flows, so the list is never paged and `total` ' +
-      'is all of them. Exactly one has `is_default`. The `ETag` covers the flows.',
+      'is all of them. Exactly one has `is_default`. Each has `client_count`, the clients that ' +
+      'name it through `flow_id`. The `ETag` covers the flows and their counts.',
   },
   {
     method: 'POST',
@@ -1949,8 +1950,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: z.void(),
     successStatus: 204,
     description:
-      'Deletes a flow that is not the default. The default is refused with `409` ' +
-      '(`#default-flow`): a client that names no flow signs in through it.',
+      'Deletes a flow that is not the default. Refused with `409`: the default ' +
+      '(`#default-flow`), since a client that names no flow signs in through it, and a flow ' +
+      'some client names through `flow_id` (`#flow-in-use`), whose `detail` gives how many ' +
+      'and the `client_id` of at most ten. Unpoint those clients first.',
   },
   {
     method: 'POST',

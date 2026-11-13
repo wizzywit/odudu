@@ -452,6 +452,8 @@ export {
   FLOW_LIMIT,
   FLOW_NAME_MAX,
   FLOW_STEP_MAX,
+  flowListItemSchema,
+  type FlowListItemWire,
   flowSchema,
   type FlowWire,
   flowStepSchema,

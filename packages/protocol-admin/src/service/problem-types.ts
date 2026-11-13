@@ -99,6 +99,13 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'The tenant\u2019s default flow is not deleted: a client that names no flow signs in ' +
       'through it. Make another flow the default first.',
   },
+  'flow-in-use': {
+    status: 409,
+    summary:
+      'A client names the flow through its `flow_id`, so it is not deleted. `detail` gives how ' +
+      'many clients and the `client_id` of at most ten. Set their `flow_id` to another flow or ' +
+      'to null first.',
+  },
   'key-active': {
     status: 409,
     summary: 'The signing key is the active one and cannot be retired. Promote another key first.',

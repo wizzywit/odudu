@@ -64,10 +64,17 @@ export const flowSchema = z.object({
 });
 export type FlowWire = z.infer<typeof flowSchema>;
 
+// A list row also says how many clients name the flow; a single read does not,
+// so the count stays out of the flow's `ETag`.
+export const flowListItemSchema = flowSchema.extend({
+  client_count: z.number().int().nonnegative(),
+});
+export type FlowListItemWire = z.infer<typeof flowListItemSchema>;
+
 // A tenant holds at most FLOW_LIMIT flows, so the list is never paged and
 // `total` is every flow the tenant has.
 export const listFlowsResponseSchema = z.object({
-  items: z.array(flowSchema),
+  items: z.array(flowListItemSchema),
   total: z.number().int().nonnegative(),
   available: z.array(z.string()),
 });

@@ -58,6 +58,7 @@ const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank#flow-limit',
   'about:blank#flow-name-taken',
   'about:blank#default-flow',
+  'about:blank#flow-in-use',
   'about:blank#key-active',
   'about:blank#key-algorithm-needed',
   'about:blank#key-not-retired',

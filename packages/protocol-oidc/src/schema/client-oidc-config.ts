@@ -98,6 +98,10 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
     .$type<ApplicationAction[]>()
     .notNull()
     .default([]),
+  // The sign-in flow this client runs; null follows the tenant's default.
+  // The foreign key is (tenant_id, flow_id), so a flow of another tenant is
+  // refused by the database (packages/db/drizzle/0138_client_flow.sql).
+  flowId: uuid('flow_id'),
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
@@ -137,4 +141,5 @@ export interface ClientOidcConfig {
   defaultMaxAge: number | null;
   requireAuthTime: boolean;
   allowedActions: ApplicationAction[];
+  flowId: string | null;
 }

@@ -16,6 +16,7 @@ import {
   type ApplicationAction,
   type ListClientsQuery,
 } from '@odudu/contracts/admin';
+import { flowRepository } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roles } from '@odudu/domain-authz';
 import { subjects } from '@odudu/domain-identity';
@@ -70,6 +71,7 @@ import {
   BUILTIN_ADMIN_AMENDABLE_FIELDS,
   refusalFor,
 } from '#/service/client-patch';
+import { checkedFlowId, unknownFlowRefusal } from '#/service/client-flow';
 import { etagOf, hasPrecondition, matches } from '#/service/etag';
 import { publicJwks } from '#/service/public-jwks';
 import { tenantLanguages } from '#/usecase/tenant-languages';
@@ -138,6 +140,7 @@ const CLIENT_VIEW_COLUMNS = {
   defaultMaxAge: clientOidcConfig.defaultMaxAge,
   requireAuthTime: clientOidcConfig.requireAuthTime,
   allowedActions: clientOidcConfig.allowedActions,
+  flowId: clientOidcConfig.flowId,
   previousSecretExpiresAt: clients.previousSecretExpiresAt,
 };
 
@@ -190,6 +193,7 @@ export interface ClientView {
   readonly defaultMaxAge: number | null;
   readonly requireAuthTime: boolean;
   readonly allowedActions: ApplicationAction[];
+  readonly flowId: string | null;
   readonly previousSecretExpiresAt: Date | null;
   readonly scopes: readonly ClientScopeAssignmentView[];
   // Derived on every read and outside the ETag; empty without a service account.
@@ -587,6 +591,7 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): StoredVie
     defaultMaxAge: config.defaultMaxAge,
     requireAuthTime: config.requireAuthTime,
     allowedActions: config.allowedActions,
+    flowId: config.flowId,
     previousSecretExpiresAt: client.previousSecretExpiresAt,
   };
 }
@@ -679,6 +684,12 @@ export async function createClient(
   if (isFieldError(admin)) {
     await auditRefusal();
     return { kind: 'invalid_value', ...admin };
+  }
+
+  const unknownFlow = await refusedFlow(tx, input.tenantId, admin.config.flowId);
+  if (unknownFlow !== null) {
+    await auditRefusal();
+    return { kind: 'invalid_value', ...unknownFlow };
   }
 
   const requestedActions = admin.config.allowedActions ?? [];
@@ -844,6 +855,7 @@ export function clientWireShape(view: ClientView): ClientFields {
     default_max_age: view.defaultMaxAge,
     require_auth_time: view.requireAuthTime,
     allowed_actions: view.allowedActions,
+    flow_id: view.flowId,
     previous_secret_expires_at: view.previousSecretExpiresAt?.toISOString() ?? null,
     builtin_admin: view.builtinAdmin,
     service_subject_id: view.serviceSubjectId,
@@ -943,6 +955,20 @@ interface FieldError {
 
 function isFieldError(value: unknown): value is FieldError {
   return typeof value === 'object' && value !== null && 'field' in value && 'description' in value;
+}
+
+// Under the tenant's flow lock, the one every flow write takes, so the flow
+// cannot be deleted between this read and the client's write: a deletion
+// waits, then counts this client among those that name it.
+async function refusedFlow(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  flowId: string | null | undefined,
+): Promise<FieldError | null> {
+  if (flowId === undefined || flowId === null) return null;
+  const flows = flowRepository(tx);
+  await flows.lockForTenant(tenantId);
+  return (await flows.byId(tenantId, flowId)) === null ? unknownFlowRefusal() : null;
 }
 
 function checkedString(field: string, value: unknown): string | FieldError {
@@ -1072,6 +1098,7 @@ const ADMIN_FIELDS = new Set<string>([
   'post_logout_redirect_uris',
   'client_credentials_scopes',
   'allowed_actions',
+  'flow_id',
   'access_token_ttl_seconds',
   'id_token_ttl_seconds',
   'refresh_token_ttl_seconds',
@@ -1097,6 +1124,7 @@ interface AdminFieldPatches {
     postLogoutRedirectUris?: string[];
     clientCredentialsScopes?: string[];
     allowedActions?: ApplicationAction[];
+    flowId?: string | null;
     accessTokenTtlSeconds?: number | null;
     idTokenTtlSeconds?: number | null;
     refreshTokenTtlSeconds?: number | null;
@@ -1165,6 +1193,12 @@ function checkedAdminFields(
     const checked = checkedBoolean('skip_logout_confirmation', values.skip_logout_confirmation);
     if (isFieldError(checked)) return checked;
     client.skipLogoutConfirmation = checked;
+  }
+
+  if ('flow_id' in values) {
+    const checked = checkedFlowId(values.flow_id);
+    if (isFieldError(checked)) return checked;
+    config.flowId = checked;
   }
 
   for (const field of [
@@ -1358,6 +1392,8 @@ export async function amendClient(
     await languagesFor(tx, clientRow.tenantId, input.values),
   );
   if (isFieldError(admin)) return { kind: 'invalid_value', ...admin };
+  const unknownFlow = await refusedFlow(tx, clientRow.tenantId, admin.config.flowId);
+  if (unknownFlow !== null) return { kind: 'invalid_value', ...unknownFlow };
   if (
     'allowed_actions' in input.values &&
     !allowedActionsHaveMeRead(

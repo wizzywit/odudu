@@ -72,6 +72,8 @@ export const clientFieldsSchema = z.object({
   // Required actions the client may start through /authorize, from the
   // required-action vocabulary; empty allows none.
   allowed_actions: z.array(applicationActionSchema),
+  // The sign-in flow the client runs; null follows the tenant's default flow.
+  flow_id: idSchema.nullable(),
   // The instant the secret a rotation replaced stops (or stopped)
   // authenticating; null when no rotation kept one, and once `odudu reap`
   // has cleared it after that instant. Never the secret itself.

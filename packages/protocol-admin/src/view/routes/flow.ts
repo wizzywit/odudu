@@ -3,7 +3,7 @@ import {
   replaceExecutionsRequestSchema,
   saveFlowRequestSchema,
 } from '@odudu/contracts/admin';
-import { isUniqueViolation, type Database } from '@odudu/db';
+import { isForeignKeyViolation, isUniqueViolation, type Database } from '@odudu/db';
 import {
   amendFlow,
   createFlow,
@@ -25,6 +25,7 @@ import {
   sendProblem,
   type Problem,
 } from '#/view/problem';
+import { flowInUseDetail } from '#/service/client-flow';
 import { etagOf } from '#/service/etag';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -291,19 +292,26 @@ export function amendFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
 export function deleteFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const id = flowId(request, 'DELETE');
-    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      deleteFlow(
-        tx,
-        { audit: deps.audit },
-        {
-          tenantId: targetTenantId,
-          flowId: id,
-          actorSubjectId: principal.subjectId,
-          actorTenantId: principal.issuerTenantId,
-          actorClientId: principal.clientDbId,
-        },
-      ),
-    );
+    let outcome: Awaited<ReturnType<typeof deleteFlow>>;
+    try {
+      outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+        deleteFlow(
+          tx,
+          { audit: deps.audit },
+          {
+            tenantId: targetTenantId,
+            flowId: id,
+            actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
+          },
+        ),
+      );
+    } catch (error) {
+      // A client pointed at the flow after the count was taken.
+      if (!isForeignKeyViolation(error)) throw error;
+      outcome = { kind: 'in_use', count: 0, sample: [] };
+    }
     if (outcome.kind === 'not_found') return sendProblem(reply, request, flowNotFound(id));
     if (outcome.kind === 'default_flow') {
       return sendProblem(
@@ -315,6 +323,13 @@ export function deleteFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
           'Conflict',
           'the default flow is not deleted; make another flow the default first',
         ),
+      );
+    }
+    if (outcome.kind === 'in_use') {
+      return sendProblem(
+        reply,
+        request,
+        problem(409, 'about:blank#flow-in-use', 'Conflict', flowInUseDetail(outcome)),
       );
     }
     return reply.code(204).send();
@@ -345,10 +360,14 @@ export function makeFlowDefaultHandler(deps: FlowRouteDeps): AdminRouteHandler {
       case 'not_found':
         return sendProblem(reply, request, flowNotFound(id));
       case 'precondition_required':
-        return sendProblem(reply, request, ifMatchRequired('a flow the default', request.headers['if-match'], {
+        return sendProblem(
+          reply,
+          request,
+          ifMatchRequired('a flow the default', request.headers['if-match'], {
             to: 'make',
             ing: 'making',
-          }));
+          }),
+        );
       case 'precondition_failed':
         return sendProblem(reply, request, ifMatchStale());
     }
