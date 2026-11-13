@@ -38,6 +38,10 @@ import {
   executionStepSchema,
   listExecutionsResponseSchema,
   replaceExecutionsRequestSchema,
+  flowSchema,
+  flowStepSchema,
+  listFlowsResponseSchema,
+  saveFlowRequestSchema,
 } from '#/admin/flow';
 import {
   countGroupsQuerySchema,
@@ -447,6 +451,27 @@ describeFields(replaceExecutionsRequestSchema.element, {
   authenticator: 'The sign-in step to run, one of `available` in the list answer.',
   requirement:
     '`required` always runs, `alternative` is one of several of which one suffices, `conditional` runs only when it applies, `disabled` is skipped.',
+});
+describeFields(flowStepSchema, {
+  authenticator: 'The sign-in step to run, one of `available` in the list answer.',
+  requirement:
+    '`required` always runs, `alternative` is one of several of which one suffices, `conditional` runs only when it applies, `disabled` is skipped.',
+});
+describeFields(flowSchema, {
+  id: 'The flow’s identifier in the admin API.',
+  name: 'The flow’s name, unique within the tenant.',
+  is_default:
+    'True for the tenant’s default flow, which a client that names no flow signs in through.',
+  steps: 'The steps in the order they run.',
+});
+describeFields(listFlowsResponseSchema, {
+  items: 'Every flow of the tenant, ordered by name.',
+  total: 'How many flows the tenant has. A tenant holds at most 20, so the list is never paged.',
+  available: 'Every authenticator a step may name.',
+});
+describeFields(saveFlowRequestSchema, {
+  name: 'The flow’s name: 1 to 64 characters once trimmed, unique within the tenant.',
+  steps: 'The steps in the order they run, at most 20.',
 });
 describeFields(createKeyRequestSchema, {
   alg: 'The algorithm of the new key. It is created `rotating`; promote it to make it the one that signs.',
