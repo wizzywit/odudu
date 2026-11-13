@@ -1907,7 +1907,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Every sign-in flow of the tenant, ordered by name, and `available`: every authenticator ' +
       'a step may name. A tenant holds at most 20 flows, so the list is never paged and `total` ' +
-      'is all of them. Exactly one has `is_default`.',
+      'is all of them. Exactly one has `is_default`. The `ETag` covers the flows.',
   },
   {
     method: 'POST',

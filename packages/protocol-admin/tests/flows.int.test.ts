@@ -102,6 +102,14 @@ describe('GET /admin/tenants/{t}/flows', () => {
     expect(body.available).toEqual([...registeredAuthenticatorNames()]);
   });
 
+  it('answers an ETag that follows the flows', async () => {
+    const { t, token } = await tenantWithToken();
+    const before = (await call(token, t.name, 'GET', '')).headers.etag;
+    expect(before).toBe((await call(token, t.name, 'GET', '')).headers.etag);
+    await create(token, t.name, 'staff');
+    expect((await call(token, t.name, 'GET', '')).headers.etag).not.toBe(before);
+  });
+
   it('is refused for every capability but manage-tenant', async () => {
     const t = await fixture.createTenant(`flows-${newId()}`);
     for (const capability of TENANT_CAPABILITIES) {

@@ -24,6 +24,7 @@ import {
   sendProblem,
   type Problem,
 } from '#/view/problem';
+import { etagOf } from '#/service/etag';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -178,6 +179,7 @@ export function listFlowsHandler(deps: FlowRouteDeps): AdminRouteHandler {
     const listed = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listFlows(tx, targetTenantId),
     );
+    reply.header('etag', etagOf(listed.items));
     return reply.code(200).send(listed);
   };
 }
