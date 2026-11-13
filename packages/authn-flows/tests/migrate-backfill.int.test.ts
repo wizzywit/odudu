@@ -11,9 +11,10 @@ import {
 } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { asc, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { authenticationExecutions } from '#/schema/execution';
+import { flows } from '#/schema/flow';
+import { nextStep } from '#/service/requirements';
 
 // Every other suite migrates as the container's superuser, which is exempt
 // from row-level security whatever FORCE says. This one migrates as a bare
@@ -92,7 +93,7 @@ afterAll(async () => {
 });
 
 describe('the recovery-code backfill, run by a schema owner that is not a superuser', () => {
-  it('gives a tenant provisioned before the step existed its fourth execution', async () => {
+  it('gives a tenant provisioned before the step existed its fourth step, in its default flow', async () => {
     const tenantId = newId();
 
     await runMigrations(owned.db, await migrationsThrough(BEFORE_THE_BACKFILL));
@@ -116,14 +117,14 @@ describe('the recovery-code backfill, run by a schema owner that is not a superu
 
     await runMigrations(owned.db, MIGRATIONS_DIR);
 
-    const after = await withTenant(owned.db, tenantId, (tx) =>
-      tx.select().from(authenticationExecutions).orderBy(asc(authenticationExecutions.index)),
-    );
-    expect(after.map((row) => [row.index, row.authenticator, row.requirement])).toEqual([
-      [0, 'passkey', 'alternative'],
-      [1, 'password', 'alternative'],
-      [2, 'otp', 'conditional'],
-      [3, 'recovery-code', 'conditional'],
+    const after = await withTenant(owned.db, tenantId, (tx) => tx.select().from(flows));
+    expect(after.map((row) => row.steps)).toEqual([
+      [
+        { authenticator: 'passkey', requirement: 'alternative' },
+        { authenticator: 'password', requirement: 'alternative' },
+        { authenticator: 'otp', requirement: 'conditional' },
+        { authenticator: 'recovery-code', requirement: 'conditional' },
+      ],
     ]);
   }, 180_000);
 
@@ -132,7 +133,7 @@ describe('the recovery-code backfill, run by a schema owner that is not a superu
   // owns it from every tenant boundary in the schema.
   it('leaves FORCE ROW LEVEL SECURITY on afterwards', async () => {
     const [table] = await owned.sql<{ relforcerowsecurity: boolean }[]>`
-      select relforcerowsecurity from pg_class where relname = 'authentication_executions'
+      select relforcerowsecurity from pg_class where relname = 'flows'
     `;
     expect(table?.relforcerowsecurity).toBe(true);
   });
@@ -363,6 +364,93 @@ describe('the client origins backfill, run by a schema owner that is not a super
       select relname, relforcerowsecurity from pg_class
        where relname in ('client_oidc_config', 'client_origins') order by relname
     `;
+    expect(forced.map((table) => table.relforcerowsecurity)).toEqual([true, true]);
+  }, 180_000);
+});
+
+// The last migration before a tenant's sign-in steps moved into a flow row.
+const BEFORE_THE_FLOWS = 136;
+
+describe('the flow backfill, run by a schema owner that is not a superuser', () => {
+  let flowsHandle: DatabaseHandle | undefined;
+
+  afterAll(async () => {
+    await flowsHandle?.close();
+  });
+
+  it('turns each tenant rows into its default flow, seeds one with none, and strands no sign-in', async () => {
+    const database = `${OWNER}_flows`;
+    await adminHandle?.sql.unsafe(`CREATE DATABASE ${database} OWNER ${OWNER}`);
+    const url = new URL(container.adminUrl);
+    url.username = OWNER;
+    url.password = OWNER;
+    url.pathname = `/${database}`;
+    flowsHandle = createDatabase(url.toString(), { max: 2 });
+    const db = flowsHandle;
+
+    const customised = newId();
+    const bare = newId();
+    const inFlight = newId();
+    await runMigrations(db.db, await migrationsThrough(BEFORE_THE_FLOWS));
+    for (const tenantId of [customised, bare]) {
+      await withTenant(db.db, tenantId, async (tx) => {
+        await tx.execute(
+          sql`insert into tenants (id, name) values (${tenantId}, ${`t-${tenantId}`})`,
+        );
+      });
+    }
+    await withTenant(db.db, customised, async (tx) => {
+      // Inserted out of index order, so the backfill has to order by index.
+      for (const [index, authenticator, requirement] of [
+        [2, 'otp', 'conditional'],
+        [0, 'password', 'required'],
+        [1, 'passkey', 'alternative'],
+      ] as const) {
+        await tx.execute(
+          sql`insert into authentication_executions (id, tenant_id, index, authenticator, requirement)
+              values (${newId()}, ${customised}, ${index}, ${authenticator}, ${requirement})`,
+        );
+      }
+      await tx.execute(
+        sql`insert into authentication_sessions (id, tenant_id, pending_request, expires_at, satisfied)
+            values (${inFlight}, ${customised}, '{}'::jsonb, now() + interval '1 hour',
+                    ARRAY['password'])`,
+      );
+    });
+
+    await runMigrations(db.db, MIGRATIONS_DIR);
+
+    const kept = await withTenant(db.db, customised, (tx) => tx.select().from(flows));
+    expect(kept.map((row) => [row.name, row.isDefault])).toEqual([['default', true]]);
+    expect(kept[0]?.steps).toEqual([
+      { authenticator: 'password', requirement: 'required' },
+      { authenticator: 'passkey', requirement: 'alternative' },
+      { authenticator: 'otp', requirement: 'conditional' },
+    ]);
+
+    const seeded = await withTenant(db.db, bare, (tx) => tx.select().from(flows));
+    expect(seeded.map((row) => row.steps.map((step) => step.authenticator))).toEqual([
+      ['passkey', 'password', 'otp', 'recovery-code'],
+    ]);
+
+    const [session] = await withTenant(db.db, customised, (tx) =>
+      tx.execute<{ satisfied: string[] }>(
+        sql`select satisfied from authentication_sessions where id = ${inFlight}`,
+      ),
+    );
+    expect(session?.satisfied).toEqual(['password']);
+    const resumed = nextStep(
+      (kept[0]?.steps ?? []).map((step) => ({ ...step, applicable: true })),
+      { satisfied: new Set(session?.satisfied) },
+    );
+    expect(resumed).toEqual({ kind: 'run', authenticator: 'passkey' });
+
+    const [gone] = await db.sql<{ present: string | null }[]>`
+      select to_regclass('authentication_executions')::text as present`;
+    expect(gone?.present).toBeNull();
+    const forced = await db.sql<{ relname: string; relforcerowsecurity: boolean }[]>`
+      select relname, relforcerowsecurity from pg_class
+       where relname in ('flows', 'tenants') order by relname`;
     expect(forced.map((table) => table.relforcerowsecurity)).toEqual([true, true]);
   }, 180_000);
 });
