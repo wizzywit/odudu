@@ -629,7 +629,19 @@ function flowCalls(base: string): [string, Call][] {
   const steps = [{ authenticator: 'password', requirement: 'required' }];
   const one = `${base}/flows/{flow}`;
   return [
-    ['list a tenant’s flows at the cap', { method: 'GET', url: `${base}/flows`, system: true }],
+    [
+      'list a tenant’s flows at the cap',
+      {
+        method: 'GET',
+        url: `${base}/flows`,
+        system: true,
+        saveAs: 'original',
+        saveWith: (answer) =>
+          (answer as { items: { id: string; is_default: boolean }[] }).items.find(
+            (flow) => flow.is_default,
+          )?.id ?? '',
+      },
+    ],
     [
       'create a flow in a tenant one short of the cap',
       {
@@ -647,6 +659,24 @@ function flowCalls(base: string): [string, Call][] {
         method: 'PUT',
         url: one,
         body: { name: 'renamed', steps },
+        etagFromPrevious: true,
+        system: true,
+      },
+    ],
+    ['read the flow made again', { method: 'GET', url: one, system: true }],
+    [
+      'make the flow made the default',
+      { method: 'POST', url: `${one}/make-default`, etagFromPrevious: true, system: true },
+    ],
+    [
+      'read the flow that was the default',
+      { method: 'GET', url: `${base}/flows/{original}`, system: true },
+    ],
+    [
+      'make it the default again',
+      {
+        method: 'POST',
+        url: `${base}/flows/{original}/make-default`,
         etagFromPrevious: true,
         system: true,
       },

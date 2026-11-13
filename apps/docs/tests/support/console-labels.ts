@@ -504,6 +504,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'Create ${noun}',
     { noun: 'flow' },
   ),
+  'Make default': page(FLOWS_WORDS, "makeDefault: 'Make default'"),
   Default: page(FLOWS_WORDS, "defaultTag: 'Default'"),
 
   // Signing keys.

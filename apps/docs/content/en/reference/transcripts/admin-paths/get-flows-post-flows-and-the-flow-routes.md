@@ -1,15 +1,15 @@
 ---
-title: 'Flows: list, create, read, replace, delete'
-description: 'All five require manage-tenant. They list, make, read, replace and delete the tenant’s sign-in flows, at most 20, one of which is the default.'
+title: 'Flows: list, create, read, replace, make default, delete'
+description: 'All six require manage-tenant. They list, make, read, replace, promote and delete the tenant’s sign-in flows, at most 20, one of which is the default.'
 ---
 
-# Flows: list, create, read, replace, delete
+# Flows: list, create, read, replace, make default, delete
 
-This page covers `GET /flows`, `POST /flows`, `GET /flows/:id`, `PUT /flows/:id` and `DELETE /flows/:id`.
+This page covers `GET /flows`, `POST /flows`, `GET /flows/:id`, `PUT /flows/:id`, `POST /flows/:id/make-default` and `DELETE /flows/:id`.
 
-All five require `manage-tenant`. A tenant holds up to 20 named sign-in flows. Exactly one is the **default**,
+All six require `manage-tenant`. A tenant holds up to 20 named sign-in flows. Exactly one is the **default**,
 the flow a sign-in runs when nothing names another, and no client can name another yet, so a flow that is not
-the default is not run by any sign-in. A flow is an ordered list of at most 20 steps, each an `authenticator`
+the default is not run by any sign-in until it is made the default. A flow is an ordered list of at most 20 steps, each an `authenticator`
 and a `requirement`, and a flow's meaning is in its order, so it is always written whole.
 
 - `GET /flows` lists every flow of the tenant, ordered by name, with `total` and `available`. A tenant holds
@@ -20,7 +20,12 @@ and a `requirement`, and a flow's meaning is in its order, so it is always writt
 - `PUT /flows/{id}` replaces the name and the steps together, keeping the id and whether it is the default.
   **`If-Match` is mandatory**: the matching `GET` answers the tag, an absent header or `*` is refused with
   `428`, and a stale one with `412`.
-- `DELETE /flows/{id}` removes a flow and answers `204`. It refuses the default flow.
+- `POST /flows/{id}/make-default` makes the flow the default in one transaction: the flow that was the default
+  stops being it. It needs the flow's own `ETag` in `If-Match`, answers the flow, and for the flow that already is
+  the default changes and records nothing. A sign-in already under way records only which authenticators it has
+  satisfied, so it takes its next step from the flow that is the default then.
+- `DELETE /flows/{id}` removes a flow and answers `204`. It refuses the default flow, so another flow is made the
+  default first.
 
 `GET /flow/executions` and `PUT /flow/executions` are the default flow's steps, with an `index` per step, and
 are [on their own page](./get-flowexecutions-and-put-flowexecutions.md); a change through either is seen

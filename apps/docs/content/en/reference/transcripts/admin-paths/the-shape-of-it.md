@@ -244,6 +244,7 @@ shown once — a registration token, a client secret, a one-time password.
 | `POST`   | `/admin/tenants/{tenant}/flows`                                         | Create a sign-in flow                      |
 | `GET`    | `/admin/tenants/{tenant}/flows/:id`                                     | Read one sign-in flow                      |
 | `PUT`    | `/admin/tenants/{tenant}/flows/:id`                                     | Replace a flow's name and steps            |
+| `POST`   | `/admin/tenants/{tenant}/flows/:id/make-default`                        | Make a flow the tenant's default           |
 | `DELETE` | `/admin/tenants/{tenant}/flows/:id`                                     | Delete a flow that is not the default      |
 | `GET`    | `/admin/tenants/{tenant}/flow/executions`                               | Read the default flow's steps              |
 | `PUT`    | `/admin/tenants/{tenant}/flow/executions`                               | Replace the default flow's steps           |
