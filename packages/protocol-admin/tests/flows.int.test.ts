@@ -429,6 +429,41 @@ describe('PUT /admin/tenants/{t}/flows/{id}', () => {
 });
 
 describe('DELETE /admin/tenants/{t}/flows/{id}', () => {
+  it('checks in order: a missing flow is 404 even with no header, the default is 428 or 412 before 409', async () => {
+    const { t, token } = await tenantWithToken();
+    expect((await call(token, t.name, 'DELETE', `/${newId()}`)).statusCode).toBe(404);
+    const fallback = (await call(token, t.name, 'GET', '')).json<{ items: FlowBody[] }>().items[0];
+    const path = `/${fallback?.id ?? ''}`;
+    expect((await call(token, t.name, 'DELETE', path)).statusCode).toBe(428);
+    expect((await call(token, t.name, 'DELETE', path, { ifMatch: '"stale"' })).statusCode).toBe(
+      412,
+    );
+    const tag = await etagAt(fixture.http, `/admin/tenants/${t.name}/flows${path}`, token);
+    expect((await call(token, t.name, 'DELETE', path, { ifMatch: tag })).statusCode).toBe(409);
+  });
+
+  it('serialises a delete against a replacement made on the same tag: one wins, the other sees it', async () => {
+    const { t, token } = await tenantWithToken();
+    const flow = await create(token, t.name, 'staff');
+    const tag = await etagAt(fixture.http, `/admin/tenants/${t.name}/flows/${flow.id}`, token);
+    const [replaced, deleted] = await Promise.all([
+      call(token, t.name, 'PUT', `/${flow.id}`, {
+        body: { name: 'crew', steps: [password] },
+        ifMatch: tag,
+      }),
+      call(token, t.name, 'DELETE', `/${flow.id}`, { ifMatch: tag }),
+    ]);
+    const outcomes = [replaced.statusCode, deleted.statusCode];
+    const after = await call(token, t.name, 'GET', `/${flow.id}`);
+    if (deleted.statusCode === 204) {
+      expect(outcomes).toEqual([404, 204]);
+      expect(after.statusCode).toBe(404);
+    } else {
+      expect(outcomes).toEqual([200, 412]);
+      expect(after.json<FlowBody>().name).toBe('crew');
+    }
+  });
+
   it('requires If-Match: 428 without or with *, 412 for a flow changed since it was read', async () => {
     const { t, token } = await tenantWithToken();
     const flow = await create(token, t.name, 'staff');
