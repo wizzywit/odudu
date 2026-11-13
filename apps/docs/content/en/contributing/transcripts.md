@@ -1328,3 +1328,17 @@ and its image were removed afterwards.
 The flow page was run again whole on 2026-11-13, with `POST /flows/{id}/make-default` added, on a freshly built compose project `odudu-13b` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit `d3c3c25c9` with nothing else uncommitted, on a database that began empty and with the same sign-in and script as above. `GET /admin/openapi.json` was fetched again on it (848,131 to 856,406 bytes, 112 to 113 paths). The stdio MCP page was not run again, since no tool changed. The stack and its image were removed afterwards.
 
 The flow page was run once more whole on 2026-11-13 when the `428` of `make-default` was worded for that route (`If-Match is required to make a flow the default`), on a freshly built compose project `odudu-13b` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit `a7bdf3285`, on a database that began empty, by the same sign-in and script. `GET /admin/openapi.json` was fetched again on it and its size and path count are unchanged. The stack and its image were removed afterwards.
+
+The pages that show a client, and the flow page, were run again on 2026-11-13 when a client gained `flow_id`, on a freshly built compose
+project `odudu-13c` (port `3000`, Postgres on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`) built from the branch commit
+`f8f433eda` with only documentation files uncommitted, on a database that began empty: `seed admin`, a token as in Getting the token (the
+sign-in and the console's assertion), the tenants `demo` and `other` made with `odudu seed tenant`, then each page's blocks as one script
+in one shell, each block's output written to the page as it came back (carriage returns and trailing spaces removed), the variables the
+prose names set after the block that makes them, and the tenants other than `system` removed between pages so each began as its author
+did. Whole: `get-flows-post-flows-and-the-flow-routes.md` (with the blocks that make a flow, a client that names it, a refused flow and a
+refused deletion added), `patch-clientsid.md` (with its new section on `flow_id`), `get-clients-post-clients-and-get-clientsid.md`,
+`post-clientsidsecret.md` and `delete-scopesidclientsclientid.md`, and `get-adminopenapijson.md` (856,406 to 858,471 bytes, 113 paths).
+Three blocks of `get-clients-post-clients-and-get-clientsid.md` name port `3092`, a stack of their own, and show no `flow_id`, so they were not
+run again. Only the blocks that show a client were taken from `getting-the-token.md`, whose other blocks assume a stack with no administrator, and
+only the three that show a `client.create` row from `get-audit.md`, whose other blocks depend on a session its own earlier sections make: the
+rows now name `flow_id` with `{"after":null}`. The stack was removed afterwards.

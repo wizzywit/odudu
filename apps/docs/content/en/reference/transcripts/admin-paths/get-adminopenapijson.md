@@ -19,19 +19,19 @@ wc -c < openapi.json | tr -d ' '
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d312-13d9-7996-9a08-a24588b48abf
+x-request-id: 01a1d3a1-60db-7751-8480-cd2c378b2569
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 856406
-Date: Fri, 13 Nov 2026 04:02:19 GMT
+content-length: 858471
+Date: Fri, 13 Nov 2026 06:38:51 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 113
-856406
+858471
 ```
 
-836 KB and 113 paths, which is the whole route table. It is the one admin
+838 KB and 113 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can load
 it — the local stack's optional Swagger UI does exactly that (see [Browsing the
 admin API](../../../contributing/run-from-a-checkout.md)). No admin route carries that header, so a page on
