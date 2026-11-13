@@ -97,7 +97,7 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
     status: 409,
     summary:
       'The tenant\u2019s default flow is not deleted: a client that names no flow signs in ' +
-      'through it. Replace its steps or its name instead.',
+      'through it. Make another flow the default first.',
   },
   'key-active': {
     status: 409,

@@ -149,6 +149,7 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'domain.verified': 'A domain was proved to belong to the tenant.',
   'flow.amend': 'A sign-in flow was renamed or its steps were replaced.',
   'flow.create': 'A sign-in flow was created.',
+  'flow.default_set': 'A sign-in flow was made the tenant’s default.',
   'flow.delete': 'A sign-in flow was deleted.',
   'flow.replace': 'A tenant’s authentication flow was replaced.',
   'grant.revoke': 'A subject’s grants to a client were revoked.',

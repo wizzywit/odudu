@@ -1953,6 +1953,18 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '(`#default-flow`): a client that names no flow signs in through it.',
   },
   {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/flows/:id/make-default',
+    capability: 'manage-tenant',
+    responseSchema: flowSchema,
+    description:
+      'Makes the flow the tenant\u2019s default, the one a sign-in runs when nothing names another, ' +
+      'and the one `flow/executions` reads and writes; the flow that was the default stops being ' +
+      'it, in the same transaction. The flow that already is the default is answered as it is. ' +
+      '`If-Match` is mandatory, as for `PUT`. A sign-in already in flight takes its next step ' +
+      'from the new default, since it records only which authenticators it has satisfied.',
+  },
+  {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/flow/executions',
     capability: 'manage-tenant',

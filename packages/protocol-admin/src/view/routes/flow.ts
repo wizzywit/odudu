@@ -10,6 +10,7 @@ import {
   deleteFlow,
   listFlow,
   listFlows,
+  makeFlowDefault,
   readFlow,
   replaceFlow,
   type Audit,
@@ -312,10 +313,41 @@ export function deleteFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
           409,
           'about:blank#default-flow',
           'Conflict',
-          'the default flow is not deleted; replace its steps instead',
+          'the default flow is not deleted; make another flow the default first',
         ),
       );
     }
     return reply.code(204).send();
+  };
+}
+
+export function makeFlowDefaultHandler(deps: FlowRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = flowId(request, 'POST make-default');
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      makeFlowDefault(
+        tx,
+        { audit: deps.audit },
+        {
+          tenantId: targetTenantId,
+          flowId: id,
+          ifMatch: ifMatchHeader(request),
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+    switch (outcome.kind) {
+      case 'ok':
+        reply.header('etag', outcome.etag);
+        return reply.code(200).send(outcome.flow);
+      case 'not_found':
+        return sendProblem(reply, request, flowNotFound(id));
+      case 'precondition_required':
+        return sendProblem(reply, request, ifMatchRequired('a flow', request.headers['if-match']));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
+    }
   };
 }

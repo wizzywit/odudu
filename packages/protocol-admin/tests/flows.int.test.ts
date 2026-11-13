@@ -451,3 +451,108 @@ describe('DELETE /admin/tenants/{t}/flows/{id}', () => {
     }
   });
 });
+
+describe('POST /admin/tenants/{t}/flows/{id}/make-default', () => {
+  async function promote(token: string, tenant: string, id: string, ifMatch?: string) {
+    const tag =
+      ifMatch ?? (await etagAt(fixture.http, `/admin/tenants/${tenant}/flows/${id}`, token));
+    return call(token, tenant, 'POST', `/${id}/make-default`, { ifMatch: tag });
+  }
+
+  async function defaults(token: string, tenant: string): Promise<string[]> {
+    const list = (await call(token, tenant, 'GET', '')).json<{ items: FlowBody[] }>().items;
+    return list.filter((flow) => flow.is_default).map((flow) => flow.name);
+  }
+
+  it('makes another flow the default, leaving exactly one, and answers its ETag', async () => {
+    const { t, token } = await tenantWithToken();
+    const staff = await create(token, t.name, 'staff', [
+      { authenticator: 'password', requirement: 'required' },
+    ]);
+    const res = await promote(token, t.name, staff.id);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json<FlowBody>()).toMatchObject({ id: staff.id, is_default: true });
+    expect(res.headers.etag).toBe((await call(token, t.name, 'GET', `/${staff.id}`)).headers.etag);
+    expect(await defaults(token, t.name)).toEqual(['staff']);
+    const executions = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/flow/executions`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(executions.json<{ items: Step[] }>().items).toHaveLength(1);
+  });
+
+  it('lets the former default be deleted, and refuses deleting the new one', async () => {
+    const { t, token } = await tenantWithToken();
+    const former = (await call(token, t.name, 'GET', ''))
+      .json<{ items: FlowBody[] }>()
+      .items.find((flow) => flow.is_default);
+    const staff = await create(token, t.name, 'staff');
+    await promote(token, t.name, staff.id);
+    expect((await call(token, t.name, 'DELETE', `/${staff.id}`)).statusCode).toBe(409);
+    expect((await call(token, t.name, 'DELETE', `/${former?.id ?? ''}`)).statusCode).toBe(204);
+  });
+
+  it('requires If-Match: 428 without or with *, 412 when stale', async () => {
+    const { t, token } = await tenantWithToken();
+    const staff = await create(token, t.name, 'staff');
+    const url = `/${staff.id}/make-default`;
+    expect((await call(token, t.name, 'POST', url)).statusCode).toBe(428);
+    expect((await call(token, t.name, 'POST', url, { ifMatch: '*' })).statusCode).toBe(428);
+    expect((await call(token, t.name, 'POST', url, { ifMatch: '"stale"' })).statusCode).toBe(412);
+    expect(await defaults(token, t.name)).toEqual(['default']);
+  });
+
+  it('is idempotent for the flow that is already the default, and writes no audit row', async () => {
+    const { t, token } = await tenantWithToken();
+    const fallback = (await call(token, t.name, 'GET', '')).json<{ items: FlowBody[] }>().items[0];
+    const res = await promote(token, t.name, fallback?.id ?? '');
+    expect(res.statusCode).toBe(200);
+    expect(res.json<FlowBody>().is_default).toBe(true);
+    expect(await auditActions(token, t.name, 'flow.default_set')).toEqual([]);
+  });
+
+  it('records flow.default_set as the flow gaining the default', async () => {
+    const { t, token } = await tenantWithToken();
+    const staff = await create(token, t.name, 'staff');
+    await promote(token, t.name, staff.id);
+    expect(await auditActions(token, t.name, 'flow.default_set')).toEqual([
+      {
+        outcome: 'allowed',
+        resourceId: staff.id,
+        detail: { is_default: { before: false, after: true } },
+      },
+    ]);
+  });
+
+  it('404s an unknown id and a flow of another tenant, and changes nothing', async () => {
+    const mine = await tenantWithToken();
+    const theirs = await tenantWithToken();
+    const foreign = await create(theirs.token, theirs.t.name, 'theirs');
+    expect(
+      (await call(mine.token, mine.t.name, 'POST', `/${newId()}/make-default`, { ifMatch: '"x"' }))
+        .statusCode,
+    ).toBe(404);
+    expect(
+      (
+        await call(mine.token, mine.t.name, 'POST', `/${foreign.id}/make-default`, {
+          ifMatch: '"x"',
+        })
+      ).statusCode,
+    ).toBe(404);
+    expect(await defaults(theirs.token, theirs.t.name)).toEqual(['default']);
+  });
+
+  it('is refused for every capability but manage-tenant', async () => {
+    const { t, token } = await tenantWithToken();
+    const staff = await create(token, t.name, 'staff');
+    for (const capability of TENANT_CAPABILITIES) {
+      if (capability === 'manage-tenant') continue;
+      const other = await fixture.adminToken(t.name, [capability]);
+      const res = await call(other, t.name, 'POST', `/${staff.id}/make-default`, {
+        ifMatch: '"x"',
+      });
+      expect(res.statusCode, capability).toBe(403);
+    }
+  });
+});

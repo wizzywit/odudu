@@ -20,6 +20,7 @@ export const ADMIN_MUTATION_ACTIONS = [
   'domain.verified',
   'flow.amend',
   'flow.create',
+  'flow.default_set',
   'flow.delete',
   'flow.replace',
   'grant.revoke',

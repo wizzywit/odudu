@@ -12,7 +12,8 @@ import { flowWireShape } from '#/service/flow-wire';
 import { validateFlowSteps } from '#/service/flow-validation';
 
 export interface FlowAuditEvent {
-  readonly action: 'flow.replace' | 'flow.create' | 'flow.amend' | 'flow.delete';
+  readonly action:
+    'flow.replace' | 'flow.create' | 'flow.amend' | 'flow.delete' | 'flow.default_set';
   readonly resourceType: 'flow';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -297,4 +298,55 @@ export async function deleteFlow(
     detail: redactedDiff('flow', flowWireShape(before), null),
   });
   return { kind: 'deleted' };
+}
+
+export interface MakeDefaultInput extends FlowActor {
+  readonly tenantId: string;
+  readonly flowId: string;
+  readonly ifMatch: string | undefined;
+}
+
+export type MakeDefaultOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; flow: FlowWire; etag: string };
+
+/**
+ * One transaction under the tenant's flow lock moves the default. The flow
+ * that already is the default answers as it is, with no write and no audit
+ * row, so a repeated call is harmless.
+ */
+export async function makeFlowDefault(
+  tx: TenantScopedDatabase,
+  deps: ReplaceFlowDeps,
+  input: MakeDefaultInput,
+): Promise<MakeDefaultOutcome> {
+  const repository = flowRepository(tx);
+  await repository.lockForTenant(input.tenantId);
+  const before = await repository.byId(input.tenantId, input.flowId);
+  if (before === null) return { kind: 'not_found' };
+  const beforeWire = flowWireShape(before);
+  const precondition = requiredPrecondition(input.ifMatch, etagOf(beforeWire));
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
+  if (before.isDefault) return { kind: 'ok', flow: beforeWire, etag: etagOf(beforeWire) };
+
+  const made = await repository.makeDefault(input.tenantId, input.flowId);
+  if (made === null) return { kind: 'not_found' };
+  const flow = flowWireShape(made);
+  await deps.audit(tx, {
+    action: 'flow.default_set',
+    resourceType: 'flow',
+    resourceId: made.id,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: redactedDiff('flow', beforeWire, flow),
+  });
+  return { kind: 'ok', flow, etag: etagOf(flow) };
 }

@@ -55,6 +55,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
   flow: {
     name: 'value',
     steps: 'value',
+    is_default: 'value',
   },
   tenant: {
     name: 'value',
@@ -207,6 +208,7 @@ export function redactedDiff(
 const CREATED_DEFAULTS: Record<string, Record<string, unknown>> = {
   role: { description: null, client_id: null, default_for_new_subjects: false },
   group: { description: null, parent_id: null, default_for_new_subjects: false },
+  flow: { is_default: false },
   scope: {
     description: null,
     include_in_id_token: true,
