@@ -345,10 +345,14 @@ export function makeFlowDefaultHandler(deps: FlowRouteDeps): AdminRouteHandler {
       case 'not_found':
         return sendProblem(reply, request, flowNotFound(id));
       case 'precondition_required':
-        return sendProblem(reply, request, ifMatchRequired('a flow the default', request.headers['if-match'], {
+        return sendProblem(
+          reply,
+          request,
+          ifMatchRequired('a flow the default', request.headers['if-match'], {
             to: 'make',
             ing: 'making',
-          }));
+          }),
+        );
       case 'precondition_failed':
         return sendProblem(reply, request, ifMatchStale());
     }
