@@ -895,8 +895,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           }
           return startAuthentication(tx, tenantId, request, clock);
         }),
-      initialChallenge: (tenantId) =>
-        withTenant(deps.database.db, tenantId, (tx) => initialChallenge(tx, tenantId)),
+      initialChallenge: (tenantId, flowId) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
+          initialChallenge(tx, tenantId, undefined, flowId),
+        ),
       now: () => clock.now(),
       resolveSessions,
       authenticatedSubject: authenticatedSubjectOf,
@@ -948,9 +950,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           }
           return enabled;
         }),
-      sessionMeetsFlow: (tenantId, subjectId, authenticators) =>
+      sessionMeetsFlow: (tenantId, subjectId, authenticators, flowId) =>
         withTenant(deps.database.db, tenantId, (tx) =>
-          authenticatorsSatisfyFlow(tx, tenantId, subjectId, authenticators),
+          authenticatorsSatisfyFlow(tx, tenantId, subjectId, authenticators, flowId),
         ),
       markAuthenticated: (tenantId, authSessionId, subjectId, authenticators) =>
         withTenant(deps.database.db, tenantId, (tx) =>

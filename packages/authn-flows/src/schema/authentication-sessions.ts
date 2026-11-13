@@ -85,6 +85,11 @@ export interface PendingRequest {
   // page of the sign-in negotiates its language from them, and so a restart
   // link rebuilds the request with them. Absent is the same as empty.
   uiLocales?: string[];
+  // The flow the client named when the request was parked, so the sign-in
+  // stays on it however the client or the tenant's default changes meanwhile.
+  // Absent when the client names none: the session then follows the tenant's
+  // default flow, as it is at each step.
+  flowId?: string;
   // Present only when this session was started to promote a session reuse
   // into a consent decision (protocol-oidc's authorization-request.ts):
   // the SSO session to complete into, and the instant it actually
