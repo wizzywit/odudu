@@ -117,9 +117,9 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
   'no-editable-profile-fields': {
     status: 409,
     summary:
-      'The tenant lets a person edit none of the profile fields, so the `update-profile` ' +
-      'required action could never be completed. Every tenant lets a person edit them today, ' +
-      'so this does not occur yet.',
+      'The tenant requires a profile field a person may not edit, so the `update-profile` ' +
+      'required action could never be completed. A person may edit every profile claim ' +
+      'today, so no tenant is refused yet.',
   },
   'terms-not-configured': {
     status: 409,

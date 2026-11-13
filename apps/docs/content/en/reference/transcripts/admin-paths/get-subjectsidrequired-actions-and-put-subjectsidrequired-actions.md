@@ -100,8 +100,8 @@ The list names any of `verify-email`, `update-password`, `configure-totp`, `conf
 `update-profile` and `accept-terms`, which is the order a sign-in asks for them, and the read sorts them by name. An action that
 cannot be owed is refused with `409` and a `type` that names why, and the whole list is refused with it: `no-email` for
 `verify-email` on a subject with no address, `terms-not-configured` for `accept-terms` while the tenant has no `terms_uri`, and
-`no-editable-profile-fields` for `update-profile` where a person may edit no profile field, which no tenant does yet, so it is not
-shown. A subject whose address is already verified can still be owed `verify-email`: the next sign-in clears it without a page. The
+`no-editable-profile-fields` for `update-profile` where the tenant requires a profile field a person may not edit, which no tenant
+does yet, so it is not shown. A subject whose address is already verified can still be owed `verify-email`: the next sign-in clears it without a page. The
 set is the same for a mailed link's `actions-email`, except that it takes only `update-password`, `configure-totp`,
 `configure-passkey` and `generate-recovery-codes`, and refuses the others with `400`.
 
