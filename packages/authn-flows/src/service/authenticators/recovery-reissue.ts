@@ -46,6 +46,10 @@ export function reissueCutoff(now: Date, standing: ReissueStanding): Date {
   return new Date(now.getTime() - intervalMs(standing));
 }
 
+export function retryInSeconds(retryAt: Date, now: Date): number {
+  return Math.max(1, Math.ceil((retryAt.getTime() - now.getTime()) / 1000));
+}
+
 export function retryInMinutes(retryAt: Date, now: Date): number {
   return Math.max(1, Math.ceil((retryAt.getTime() - now.getTime()) / 60_000));
 }

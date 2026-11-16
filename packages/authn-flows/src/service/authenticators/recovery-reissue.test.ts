@@ -6,6 +6,7 @@ import {
   reissueAllowed,
   reissueCutoff,
   retryInMinutes,
+  retryInSeconds,
 } from '#/service/authenticators/recovery-reissue';
 
 const NOW = new Date('2032-01-01T12:00:00.000Z');
@@ -62,6 +63,14 @@ describe('retryInMinutes', () => {
     expect(retryInMinutes(new Date(NOW.getTime() + 61_000), NOW)).toBe(2);
     expect(retryInMinutes(new Date(NOW.getTime() + 1), NOW)).toBe(1);
     expect(retryInMinutes(NOW, NOW)).toBe(1);
+  });
+});
+
+describe('retryInSeconds', () => {
+  it('is the real remaining wait, rounded up, and never less than one', () => {
+    expect(retryInSeconds(new Date(NOW.getTime() + 17_001), NOW)).toBe(18);
+    expect(retryInSeconds(new Date(NOW.getTime() + 30_000), NOW)).toBe(30);
+    expect(retryInSeconds(NOW, NOW)).toBe(1);
   });
 });
 

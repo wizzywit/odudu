@@ -175,7 +175,7 @@ export async function sendRequiredActionPage(
               tenantName,
               tenantAddressOf(reply.request),
               authSessionId,
-              issued.retryInMinutes,
+              { minutes: issued.retryInMinutes, seconds: issued.retryInSeconds },
               variant,
               locale,
             ),

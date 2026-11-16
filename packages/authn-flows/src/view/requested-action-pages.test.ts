@@ -165,19 +165,51 @@ describe('a page an application sent the person to', () => {
     expect(ar['recoveryCodes.confirmCreate']).toBeTruthy();
   });
 
-  it('the refusal names the wait in minutes and shows no codes', () => {
+  it('the refusal of an owed set names the wait in seconds and offers to try again', () => {
     const page = renderRecoveryCodesTooSoonPage(
       'acme',
       ADDRESS,
       's1',
-      23,
+      { minutes: 1, seconds: 17 },
       undefined,
+      DEFAULT_PAGE_LOCALE,
+    );
+    expect(page.body).toContain('17 seconds');
+    expect(page.body).not.toContain('minute');
+    expect(page.body).not.toContain('still work');
+    expect(page.body).not.toContain('<ol>');
+    expect(page.body).toContain('name="confirm" value="1"');
+    expect(page.body).toContain(en['recoveryCodes.tryAgain']);
+    expect(page.body).not.toMatch(CANCEL);
+    expect(ar['recoveryCodes.preparing']).toBeTruthy();
+    expect(ar['recoveryCodes.tryAgain']).toBeTruthy();
+  });
+
+  it('a lone second is singular', () => {
+    const page = renderRecoveryCodesTooSoonPage(
+      'acme',
+      ADDRESS,
+      's1',
+      { minutes: 1, seconds: 1 },
+      undefined,
+      DEFAULT_PAGE_LOCALE,
+    );
+    expect(page.body).toContain('1 second.');
+  });
+
+  it('the refusal of a replacement names the wait in minutes and shows no codes', () => {
+    const page = renderRecoveryCodesTooSoonPage(
+      'acme',
+      ADDRESS,
+      's1',
+      { minutes: 23, seconds: 1380 },
+      'requested',
       DEFAULT_PAGE_LOCALE,
     );
     expect(page.body).toContain('23 minutes');
     expect(page.body).not.toContain('<ol>');
     expect(page.body).not.toContain('name="confirm"');
-    expect(page.body).not.toMatch(CANCEL);
+    expect(page.body).toMatch(CANCEL);
     expect(ar['recoveryCodes.tooSoon']).toBeTruthy();
   });
 
@@ -186,7 +218,7 @@ describe('a page an application sent the person to', () => {
       'acme',
       ADDRESS,
       's1',
-      1,
+      { minutes: 1, seconds: 60 },
       'requested',
       DEFAULT_PAGE_LOCALE,
     );

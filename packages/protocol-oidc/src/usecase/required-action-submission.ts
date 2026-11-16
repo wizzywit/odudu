@@ -63,9 +63,10 @@ export type RequiredActionOutcome =
       violations: readonly PasswordViolation[];
       requested?: true;
     }
-  // The person confirmed replacing the recovery codes they hold: the route
-  // issues the new set and shows it.
-  | { kind: 'confirmed'; authSessionId: string; subjectId: string; requested: true }
+  // The person confirmed replacing the recovery codes they hold, or asked
+  // again for the set the sign-in waits for: the route issues the set and
+  // shows it, and acknowledges nothing.
+  | { kind: 'confirmed'; authSessionId: string; subjectId: string; requested: boolean }
   // The address page, back with what happened: a link was asked for, or the
   // address is still not verified.
   | {
@@ -299,8 +300,8 @@ export async function handleRequiredActionSubmission(
     return { kind: 'completed', authSessionId };
   }
   if (submission.cancel) return { kind: 'not_owed', action: next };
-  if (requested && next === 'generate-recovery-codes' && submission.confirm) {
-    return { kind: 'confirmed', authSessionId, subjectId, requested: true };
+  if (next === 'generate-recovery-codes' && submission.confirm) {
+    return { kind: 'confirmed', authSessionId, subjectId, requested };
   }
 
   const outcome = await performAction(

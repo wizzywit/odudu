@@ -902,8 +902,8 @@ describe('handleRequiredActionSubmission — an action an application requested'
     expect(completeRecoveryCodes).not.toHaveBeenCalled();
   });
 
-  it('ignores a confirmation for a set the tenant owes', async () => {
-    const { deps, pendingActions, loadPendingRequest } = harness();
+  it('passes the retry of a set the tenant owes on without acknowledging the unseen one', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeRecoveryCodes } = harness();
     pendingActions.mockResolvedValue(['generate-recovery-codes']);
     loadPendingRequest.mockResolvedValue({ action: 'generate-recovery-codes' });
 
@@ -914,7 +914,13 @@ describe('handleRequiredActionSubmission — an action an application requested'
       REQUEST,
     );
 
-    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+    expect(outcome).toEqual({
+      kind: 'confirmed',
+      authSessionId: AUTH_SESSION_ID,
+      subjectId: 'subject-1',
+      requested: false,
+    });
+    expect(completeRecoveryCodes).not.toHaveBeenCalled();
   });
 });
 

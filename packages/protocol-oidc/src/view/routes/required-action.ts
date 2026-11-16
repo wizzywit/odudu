@@ -247,12 +247,15 @@ export function registerRequiredActionRoute(
               tenantName,
               tenantAddressOf(request),
               outcome.authSessionId,
-              issued.retryInMinutes,
-              'requested',
+              { minutes: issued.retryInMinutes, seconds: issued.retryInSeconds },
+              outcome.requested ? 'requested' : undefined,
               shown.locale,
             ),
           ),
         );
+      }
+      if (issued.kind !== 'issued' && !outcome.requested) {
+        return sendSignInExpired(reply, deps, tenantName, outcome.authSessionId);
       }
       if (issued.kind !== 'issued') {
         await deps.recordActionStep(
@@ -397,7 +400,7 @@ export function registerRequiredActionRoute(
               tenantName,
               tenantAddressOf(request),
               outcome.authSessionId,
-              issued.retryInMinutes,
+              { minutes: issued.retryInMinutes, seconds: issued.retryInSeconds },
               variant,
               locale,
             ),

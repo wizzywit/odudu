@@ -128,6 +128,7 @@ describe('bounding the re-issue of a recovery set', () => {
       kind: 'too_soon',
       retryAt: at(REISSUE_INTERVAL_MS),
       retryInMinutes: 50,
+      retryInSeconds: 50 * 60,
     });
     expect(await hashes(account)).toEqual(held);
   });
@@ -168,6 +169,9 @@ describe('bounding the re-issue of a recovery set', () => {
     for (const second of [1, 5, 29]) {
       const refused = await begin(account, at(second * 1000));
       expect(refused.kind, `after ${String(second)} s`).toBe('too_soon');
+      if (refused.kind === 'too_soon') {
+        expect(refused.retryInSeconds).toBe(OWED_INTERVAL_MS / 1000 - second);
+      }
     }
     expect(await hashes(account)).toEqual(held);
     expect((await begin(account, at(OWED_INTERVAL_MS))).kind).toBe('issued');
@@ -253,6 +257,7 @@ describe('asking before issuing', () => {
       kind: 'too_soon',
       retryAt: at(REISSUE_INTERVAL_MS),
       retryInMinutes: 60,
+      retryInSeconds: 60 * 60 - 1,
     });
   });
 });
