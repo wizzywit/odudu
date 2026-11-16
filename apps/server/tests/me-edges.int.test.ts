@@ -25,6 +25,12 @@ const BASE = 'https://id.example.com';
 const HOST = 'id.example.com';
 const ORIGIN = 'https://spa.example';
 const LIMIT = 4;
+// The limiters read this, so no test depends on the real clock or on another
+// test's requests: each takes an address of its own.
+let clock = Date.parse('2026-11-16T12:00:00Z');
+let nextAddress = 1;
+const address = (): string =>
+  `10.9.${String(Math.floor(nextAddress / 250))}.${String((nextAddress++ % 250) + 1)}`;
 
 beforeAll(async () => {
   container = await startTestDatabase();
@@ -45,6 +51,8 @@ beforeAll(async () => {
     publicBaseUrl: BASE,
     throttle: { limit: 100_000, windowSeconds: 60 },
     meOriginThrottle: { limit: LIMIT, windowSeconds: 60 },
+    meRefusalThrottle: { limit: 2, windowSeconds: 60 },
+    meThrottleNow: () => new Date(clock),
   });
   await app.ready();
 }, 120_000);
@@ -135,12 +143,13 @@ const read = (w: World, headers: Record<string, string>, remoteAddress?: string)
     method: 'GET',
     url: `/tenants/${w.name}/me/profile`,
     headers: { host: HOST, ...headers },
-    ...(remoteAddress === undefined ? {} : { remoteAddress }),
+    remoteAddress: remoteAddress ?? address(),
   });
 
-const preflight = (w: World, origin: string, method = 'PATCH') =>
+const preflight = (w: World, origin: string, method = 'PATCH', from = address()) =>
   app.inject({
     method: 'OPTIONS',
+    remoteAddress: from,
     url: `/tenants/${w.name}/me/profile`,
     headers: {
       host: HOST,
@@ -270,10 +279,67 @@ describe('cross-origin calls', () => {
     expect((await preflight(w, ORIGIN)).headers['access-control-allow-origin']).toBeUndefined();
     const unknown = await app.inject({
       method: 'OPTIONS',
+      remoteAddress: address(),
       url: '/tenants/no-such-tenant/me/profile',
       headers: { host: HOST, origin: ORIGIN, 'access-control-request-method': 'GET' },
     });
+    expect(unknown.statusCode).toBe(204);
     expect(unknown.headers['access-control-allow-origin']).toBeUndefined();
+  });
+});
+
+describe('refusals a script has to read', () => {
+  const bad = { authorization: 'Bearer nonsense', origin: ORIGIN };
+
+  it('carry the origin and the exposed headers for an origin a client of the tenant lists', async () => {
+    const w = await world();
+    const res = await read(w, bad);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['access-control-allow-origin']).toBe(ORIGIN);
+    expect(res.headers['access-control-expose-headers']).toBe('WWW-Authenticate, Retry-After');
+    const other = await read(w, { ...bad, origin: 'https://other.example' });
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('carry it on a 429 too, for as many as the second budget allows, and no origin of another tenant', async () => {
+    const w = await world();
+    const stranger = await world(false);
+    const from = address();
+    for (let i = 0; i < LIMIT; i += 1) expect((await read(w, bad, from)).statusCode).toBe(401);
+    const first = await read(w, bad, from);
+    expect(first.statusCode).toBe(429);
+    expect(first.headers['access-control-allow-origin']).toBe(ORIGIN);
+    expect(first.headers['access-control-expose-headers']).toBe('WWW-Authenticate, Retry-After');
+    expect((await read(w, bad, from)).headers['access-control-allow-origin']).toBe(ORIGIN);
+    const spent = await read(w, bad, from);
+    expect(spent.statusCode).toBe(429);
+    expect(spent.headers['access-control-allow-origin']).toBeUndefined();
+    const foreign = address();
+    for (let i = 0; i < LIMIT; i += 1) await read(stranger, bad, foreign);
+    const refused = await read(stranger, bad, foreign);
+    expect(refused.statusCode).toBe(429);
+    expect(refused.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('are never given an origin for a tenant that is not there', async () => {
+    const from = address();
+    const res = await app.inject({
+      method: 'GET',
+      remoteAddress: from,
+      url: '/tenants/no-such-tenant/me/profile',
+      headers: { host: HOST, ...bad },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('count again once the window has passed', async () => {
+    const w = await world();
+    const from = address();
+    for (let i = 0; i < LIMIT; i += 1) await read(w, bad, from);
+    expect((await read(w, bad, from)).statusCode).toBe(429);
+    clock += 61_000;
+    expect((await read(w, bad, from)).statusCode).toBe(401);
   });
 });
 
@@ -304,8 +370,6 @@ describe('a tenant that left its address', () => {
     await owner.db.execute(
       sql`update tenant_issuer_retirements set expires_at = now() - interval '1 second' where tenant_id = ${w.tenantId}`,
     );
-    expect((await read(w, { authorization: `Bearer ${token}` }, '10.4.0.1')).statusCode).not.toBe(
-      200,
-    );
+    expect((await read(w, { authorization: `Bearer ${token}` }, '10.4.0.1')).statusCode).toBe(404);
   });
 });
