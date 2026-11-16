@@ -70,7 +70,7 @@ import {
   registerResourceMetadataRoute,
   type ToolLimiterOptions,
 } from '@odudu/mcp';
-import { registerMeRoutes } from '@odudu/me';
+import { isMeRoute, registerMeRoutes } from '@odudu/me';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -270,6 +270,11 @@ export interface AppDeps {
    * anything is read for them. Defaults to `DEFAULT_MCP_ORIGIN_THROTTLE`.
    */
   readonly mcpOriginThrottle?: ThrottleSettings;
+  /**
+   * The budget per origin on the "me" routes, a preflight included, spent before
+   * the token is looked at. Defaults to `DEFAULT_ME_ORIGIN_THROTTLE`.
+   */
+  readonly meOriginThrottle?: ThrottleSettings;
   /** The proxy's domain question; its own budget, per origin. */
   readonly domainCheckThrottle?: ThrottleSettings;
   /**
@@ -338,6 +343,11 @@ export const DEFAULT_DOMAIN_CHECK_THROTTLE: ThrottleSettings = { limit: 300, win
 // bounds what garbage tokens can cost in tenant and key reads before the
 // per-principal budget, which needs a verified token, applies.
 export const DEFAULT_MCP_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, windowSeconds: 60 };
+
+// An application's backend calls the "me" routes for many people from one
+// address, so the budget is that of the MCP endpoint: generous, and a bound on
+// what one origin can make the server verify, not a limit on a person.
+export const DEFAULT_ME_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, windowSeconds: 60 };
 
 export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
 
@@ -624,6 +634,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const decision = mcpOriginLimiter.check(throttleOrigin(request.ip));
     if (!decision.allowed) return refuse(reply, MCP_PATH_FORM, decision.retryAfterSeconds);
     neutraliseRequestInput(request);
+  });
+
+  // The "me" routes verify a token before they know whose request it is, so an
+  // origin spends its own budget first, whichever method it uses.
+  const meOriginLimiter: RateLimiter = slidingWindow({
+    ...(deps.meOriginThrottle ?? DEFAULT_ME_ORIGIN_THROTTLE),
+    now: () => new Date(),
+  });
+  app.addHook('onRequest', async (request, reply) => {
+    const route = request.routeOptions.url;
+    if (!isMeRoute(route)) return;
+    const decision = meOriginLimiter.check(throttleOrigin(request.ip));
+    if (!decision.allowed) return refuse(reply, route ?? '', decision.retryAfterSeconds);
   });
 
   // After the throttle, so a throttled request costs no statement about its

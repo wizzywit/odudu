@@ -196,6 +196,11 @@ describe('previousAddressServes', () => {
     '/protocol/openid-connect/userinfo?x=1',
     '/brand/abc.png',
     '/brand/c/portal/abc.png',
+    '/me/profile',
+    '/me/credentials?limit=5',
+    '/me/sessions',
+    '/me/sessions/01a0a992-4657-7d89-8fbf-3385f54810d2',
+    '/me/consents/portal',
   ])('keeps serving %s', (rest) => {
     expect(previousAddressServes(under(rest))).toBe(true);
   });

@@ -5,6 +5,7 @@ import {
   meRenameCredentialRequestSchema,
 } from '@odudu/contracts/me';
 import { isUuid, tenantAddressOf } from '@odudu/kernel';
+import { corsHeadersForRequest, normalizeOrigin } from '@odudu/protocol-oidc';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   agentNotPermitted,
@@ -33,6 +34,7 @@ import {
   type MeCaller,
 } from '#/usecase/admit-me';
 import { invalidToken } from '#/service/challenge';
+import { mePreflightHeaders } from '#/service/cors';
 import { emailRequestOf, type EmailRoute } from '#/service/email-change';
 import {
   acrForRemoval,
@@ -59,7 +61,17 @@ import {
   type MeWriteDeps,
 } from '#/usecase/writes';
 
-export interface MeDeps extends AdmitMeDeps, MeReadDeps, MeWriteDeps, MeGateDeps {}
+export interface MeCors {
+  // The browser origins the client a token was issued to allows, empty for a
+  // client that is unknown or disabled.
+  clientOrigins(tenantId: string, clientId: string): Promise<ReadonlySet<string>>;
+  // Whether an enabled client of the tenant allows this normalised origin.
+  originAllowed(tenantId: string, origin: string): Promise<boolean>;
+}
+
+export interface MeDeps extends AdmitMeDeps, MeReadDeps, MeWriteDeps, MeGateDeps {
+  readonly cors: MeCors;
+}
 
 type MeRequest = FastifyRequest<{ Params: { tenant: string } }>;
 
@@ -110,11 +122,59 @@ function doorInput(deps: MeDeps, request: MeRequest) {
   };
 }
 
-const admit = async (deps: MeDeps, request: MeRequest, reply: FastifyReply) =>
-  callerOrAnswer(await admitMeRead(deps, doorInput(deps, request)), reply);
+// A browser reads the answer only where the client the token was issued to
+// allows its origin. `Vary` is set for any request that names one, allowed or
+// not, so a shared cache never serves one origin's answer to another; what is
+// not an admitted caller has no client to ask.
+async function allowOrigin(
+  deps: MeDeps,
+  request: MeRequest,
+  reply: FastifyReply,
+  caller: MeCaller | undefined,
+): Promise<MeCaller | undefined> {
+  const origin = request.headers.origin;
+  if (caller === undefined || origin === undefined) return caller;
+  const allowed = await deps.cors.clientOrigins(caller.tenantId, caller.clientId);
+  reply.headers(corsHeadersForRequest(origin, allowed));
+  return caller;
+}
 
-const admitWrite = async (deps: MeDeps, request: MeRequest, reply: FastifyReply) =>
-  callerOrAnswer(await admitMeWrite(deps, doorInput(deps, request)), reply);
+const admit = async (deps: MeDeps, request: MeRequest, reply: FastifyReply) => {
+  if (request.headers.origin !== undefined) reply.header('vary', 'Origin');
+  return allowOrigin(
+    deps,
+    request,
+    reply,
+    callerOrAnswer(await admitMeRead(deps, doorInput(deps, request)), reply),
+  );
+};
+
+const admitWrite = async (deps: MeDeps, request: MeRequest, reply: FastifyReply) => {
+  if (request.headers.origin !== undefined) reply.header('vary', 'Origin');
+  return allowOrigin(
+    deps,
+    request,
+    reply,
+    callerOrAnswer(await admitMeWrite(deps, doorInput(deps, request)), reply),
+  );
+};
+
+// A preflight carries no token, so the only allowlist at that moment is the
+// tenant's union of what its enabled clients allow.
+function registerPreflight(app: FastifyInstance, deps: MeDeps): void {
+  app.options<{ Params: { tenant: string } }>(`${BASE}/*`, async (request, reply) => {
+    reply.header('vary', 'Origin');
+    const tenant = await deps.findTenant(request.params.tenant);
+    const origin = request.headers.origin;
+    const normalized = origin === undefined ? null : normalizeOrigin(origin);
+    if (tenant?.enabled === true && normalized !== null) {
+      if (await deps.cors.originAllowed(tenant.id, normalized)) {
+        reply.headers(mePreflightHeaders(normalized));
+      }
+    }
+    return reply.code(204).send();
+  });
+}
 
 // Whether the sign-in behind the token is recent enough for a gated change;
 // when it is not, the refusal has been sent.
@@ -279,7 +339,11 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
   );
 }
 
+// Every URL the "me" routes answer, the preflight's included.
+export const isMeRoute = (url: string | undefined): boolean => url?.startsWith(`${BASE}/`) === true;
+
 export function registerMeRoutes(app: FastifyInstance, deps: MeDeps): void {
+  registerPreflight(app, deps);
   registerWrites(app, deps);
   app.get<{ Params: { tenant: string } }>(`${BASE}/profile`, async (request, reply) => {
     const caller = await admit(deps, request, reply);

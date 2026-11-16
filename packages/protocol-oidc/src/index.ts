@@ -1302,7 +1302,8 @@ export {
   tenantIssuerFor,
 } from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
-export { isWellFormedWebOrigin } from '#/service/web-origin';
+export { expandWebOrigins, isWellFormedWebOrigin, normalizeOrigin } from '#/service/web-origin';
+export { corsHeadersForRequest } from '#/service/cors';
 export {
   CLIENT_TOKEN_TTL_RANGES,
   clientTokenTtlProblem,

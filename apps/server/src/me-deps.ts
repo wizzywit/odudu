@@ -35,7 +35,12 @@ import {
   tenantSmtpRepository,
   verifyTenantAccessToken,
 } from '@odudu/protocol-admin';
-import { endSessions, tokenGrantRepository } from '@odudu/protocol-oidc';
+import {
+  clientOidcConfigRepository,
+  endSessions,
+  expandWebOrigins,
+  tokenGrantRepository,
+} from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
 import { type Logger as PinoLogger } from 'pino';
 
@@ -248,6 +253,24 @@ export function meRouteDepsFor(parts: MeDepsParts): MeDeps {
         freshnessSeconds: tenant.sessionFreshnessSeconds,
         usernameEditable: tenant.usernameEditable,
       };
+    },
+    cors: {
+      // Two primary-key reads, in the tenant's own scope: another tenant's
+      // client of the same id is not seen, and a disabled client allows none.
+      clientOrigins: (tenantId, clientId) =>
+        withTenant(parts.database.db, tenantId, async (tx) => {
+          const client = await clientRepository(tx).byClientId(clientId);
+          if (client?.enabled !== true) return new Set<string>();
+          const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+          return config === null
+            ? new Set<string>()
+            : expandWebOrigins(config.webOrigins, config.redirectUris);
+        }),
+      // One probe of `client_origins` by origin, as /token and /userinfo make.
+      originAllowed: (tenantId, origin) =>
+        withTenant(parts.database.db, tenantId, (tx) =>
+          clientOidcConfigRepository(tx).webOriginAllowed(origin),
+        ),
     },
     subjectEnabled: (tenantId, subjectId) =>
       withTenant(parts.database.db, tenantId, async (tx) =>

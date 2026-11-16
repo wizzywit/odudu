@@ -12,4 +12,4 @@ export { UsernameTakenError } from '#/service/errors';
 export type { MeAuditEvent } from '#/service/audit';
 export type { MeCaller } from '#/usecase/admit-me';
 export type { MeSessionLifespans, MeSessionRecord } from '#/service/session-view';
-export { ME_ROUTES, registerMeRoutes, type MeDeps } from '#/view/routes';
+export { ME_ROUTES, isMeRoute, registerMeRoutes, type MeCors, type MeDeps } from '#/view/routes';
