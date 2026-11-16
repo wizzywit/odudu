@@ -111,7 +111,6 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ],
   ['P4i', 'Each ships with a guide', 'a runnable example in ci', 'a version of its own'],
   ['P4i', 'They wrap what exists', 'the "me" api wrapped'],
-  ['P4i', 'A browser application on another origin', 'on another origin able to call it'],
   ['P4i', 'The `odudu mcp` command', '`odudu mcp` published as a package of its own'],
   ['P5', 'Budgets across a delegation, attenuation and approval', 'ciba approvals'],
   ['P5', 'Delegation depth becomes a setting', '`max_depth`'],
@@ -174,13 +173,7 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'claim mapper an operator supplies',
     'eventlistener',
   ],
-  [
-    'P11',
-    'One instance only today',
-    'advisory lock',
-    'per-origin throttle',
-    'limiter for the "me" routes',
-  ],
+  ['P11', 'One instance only today', 'advisory lock', 'per-origin throttle'],
   [
     'P11',
     'Also a deadline',
@@ -359,12 +352,6 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       ['P7'],
       'carried by the gap-audit capability check above',
     ],
-    ['The "me" routes have no rate limit', ['P11'], ['the "me" routes\'']],
-    [
-      'A browser application on another origin',
-      ['P4i'],
-      ['a browser application on another origin'],
-    ],
     [
       '`tests/lint/production-guard-order.test.ts`',
       ['P12'],
@@ -433,6 +420,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       ['P5b'],
       'one validation pattern on the scope contract, owed to whichever phase next changes it, no product behaviour',
     ],
+    ['Accounts that differ only by the case', ['P11'], ['builds indexes concurrently']],
     [
       'The cleanup P4k left in branding and clients',
       ['P4h'],
