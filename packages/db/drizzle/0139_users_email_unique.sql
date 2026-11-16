@@ -3,8 +3,10 @@
 -- differing only by case cannot build it, and a migration that failed there
 -- would stop the server booting, so the build is skipped with a warning and
 -- the start-up step builds it on the first boot after `odudu reconcile-accounts`
--- has folded the pairs. The build reads `users` once and blocks writes to it
--- while it does. It can run again to no effect.
+-- has folded the pairs, concurrently. This build reads `users` once and blocks
+-- writes to it while it does. It can run again to no effect. users_email_search
+-- stays: it carries subject_id, which the subject list and the reconcile
+-- discovery order by, and the discovery reads the pairs this index forbids.
 DO $$
 BEGIN
   CREATE UNIQUE INDEX IF NOT EXISTS users_email_search_unique

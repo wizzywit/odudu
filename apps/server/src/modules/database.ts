@@ -36,7 +36,7 @@ export async function ensureEmailIndexAtStart(
   owner: DatabaseHandle,
   logger: Logger,
 ): Promise<void> {
-  const outcome = await ensureUniqueEmailIndex(owner.db);
+  const outcome = await ensureUniqueEmailIndex(owner.sql);
   if (outcome === 'built') logger.info({}, 'the unique address index was built');
   if (outcome === 'blocked') {
     logger.warn(

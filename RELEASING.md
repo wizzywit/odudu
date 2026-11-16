@@ -154,8 +154,10 @@ CREATE UNIQUE INDEX users_email_search_unique ON users (tenant_id, email_search)
 
 Release notes for the release with the index tell operators to run `odudu reconcile-accounts
 --dry-run`, then `odudu reconcile-accounts`, and to settle every group it refuses, before
-upgrading, and say the build blocks writes to `users` while it reads the table: Drizzle runs every
-pending migration in one transaction, so it is not built `CONCURRENTLY`. A check fails if the index
+upgrading, and say the migration's build blocks writes to `users` while it reads the table (Drizzle runs
+every pending migration in one transaction, so it is not `CONCURRENTLY`; the server is stopped for
+the upgrade), whereas the start-up step builds it `CONCURRENTLY`, under an advisory lock so two
+instances starting together build it once, and again at the next start if it was dropped. A check fails if the index
 is not there after the migrations (`packages/db/tests/email-unique-index.int.test.ts`).
 `docs/phases/p4f.md`, "Increment 11", has the argument.
 

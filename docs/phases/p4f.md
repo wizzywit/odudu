@@ -821,9 +821,13 @@ command to run). The statement, which `packages/protocol-admin/tests/reconcile-a
 CREATE UNIQUE INDEX users_email_search_unique ON users (tenant_id, email_search) WHERE email_search IS NOT NULL
 ```
 
-`git grep -n "CONCURRENTLY" packages/db/drizzle` finds nothing, and `packages/db/src/migrate.ts` hands every pending migration to
-Drizzle's migrator, which runs them in one transaction, so the index cannot be built `CONCURRENTLY` and is the plain statement above.
-It blocks writes to `users` while it builds: at 1,000,000 subjects in a tenant and 10,000 tenants the build reads the whole table once,
+`packages/db/src/migrate.ts` hands every pending migration to Drizzle's migrator, which runs them in one transaction, so the
+migration's build is the plain statement above; the start-up step is outside that transaction and builds it `CONCURRENTLY`,
+holding an advisory lock so two instances starting together build it once, reading for a pair first so a deployment that still
+holds one starts no build, and dropping an index an interrupted build left invalid. It is built again at the next start if an
+operator drops it. `users_email_search` (0073) stays beside it: it carries `subject_id`, which the subject list's keyset and
+the reconcile discovery order by, and the discovery has to read pairs, which the unique index cannot exist beside.
+The migration's build blocks writes to `users` while it runs: at 1,000,000 subjects in a tenant and 10,000 tenants the build reads the whole table once,
 a window of seconds to minutes for a large deployment, so the upgrade should be run with that in mind and a backup taken (spec
 section 8). `packages/db/tests/email-unique-index.int.test.ts` fails if the index is gone after the migrations and runs the migration
 over a database that holds a pair. `RELEASING.md` carries the order for operators.

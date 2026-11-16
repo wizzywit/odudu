@@ -39,7 +39,7 @@ async function tenant(): Promise<string> {
   return id;
 }
 
-async function user(tenantId: string, email: string): Promise<void> {
+async function user(tenantId: string, email: string | null): Promise<void> {
   const subject = newId();
   await owner.sql`insert into subjects (id, tenant_id, type) values (${subject}, ${tenantId}, 'user')`;
   await owner.sql`
@@ -69,7 +69,11 @@ describe('the unique address index', () => {
     const b = await tenant();
     await user(a, 'grace@example.com');
     await user(b, 'grace@example.com');
-    await owner.sql`select 1`;
+    const c = await tenant();
+    await user(c, null);
+    await user(c, null);
+    const held = await owner.sql`select 1 from users where tenant_id = ${c} and email is null`;
+    expect(held).toHaveLength(2);
   });
 });
 
@@ -98,12 +102,39 @@ describe('over a database that holds a pair of accounts differing by case', () =
 
   it('is left blocked by the start-up step, which says so, and builds once the pair is gone', async () => {
     await withPair(async (t) => {
-      expect(await ensureUniqueEmailIndex(owner.db)).toBe('blocked');
+      expect(await ensureUniqueEmailIndex(owner.sql)).toBe('blocked');
       expect(await indexDefinition()).toBeNull();
       await owner.sql`update users set email = null where tenant_id = ${t}`;
-      expect(await ensureUniqueEmailIndex(owner.db)).toBe('built');
+      expect(await ensureUniqueEmailIndex(owner.sql)).toBe('built');
       expect(await indexDefinition()).not.toBeNull();
-      expect(await ensureUniqueEmailIndex(owner.db)).toBe('present');
+      expect(await ensureUniqueEmailIndex(owner.sql)).toBe('present');
     });
+  });
+});
+
+describe('the start-up step', () => {
+  async function absent(): Promise<void> {
+    await owner.sql`drop index if exists ${owner.sql(INDEX)}`;
+  }
+
+  it('builds it once when two instances start at the same moment, and neither says blocked', async () => {
+    await absent();
+    const outcomes = await Promise.all([
+      ensureUniqueEmailIndex(owner.sql),
+      ensureUniqueEmailIndex(owner.sql),
+      ensureUniqueEmailIndex(owner.sql),
+    ]);
+    expect(outcomes.filter((outcome) => outcome === 'built')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome === 'blocked')).toHaveLength(0);
+    expect(await indexDefinition()).not.toBeNull();
+  });
+
+  it('replaces an index an interrupted build left invalid', async () => {
+    await owner.sql`
+      update pg_index set indisvalid = false where indexrelid = ${INDEX}::regclass`;
+    expect(await ensureUniqueEmailIndex(owner.sql)).toBe('built');
+    const valid = await owner.sql<{ indisvalid: boolean }[]>`
+      select indisvalid from pg_index where indexrelid = ${INDEX}::regclass`;
+    expect(valid[0]?.indisvalid).toBe(true);
   });
 });
