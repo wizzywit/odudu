@@ -305,9 +305,10 @@ Keep-Alive: timeout=72
 {"items":[{"id":"01a1e3f2-b0f7-7e32-acb2-d6eac4380f72","client_id":"odudu-admin","name":"Odudu administration","description":null,"name_i18n":{},"description_i18n":{},"type":"confidential","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":true,"registration_origin":"seeded","created_at":"2026-11-16T10:41:35.402Z","redirect_uris":["http://127.0.0.1:8080/callback","http://localhost:3000/console/auth/callback"],"grant_types":["authorization_code","refresh_token"],"token_endpoint_auth_method":"private_key_jwt","audiences":["urn:odudu:params:admin-api"],"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":["http://localhost:3000/console/"],"jwks":{"keys":[{"x":"aGq8ehE1zvB68TgqZayK_lkYRNm0vA6h952baJXQc8U","y":"oQ9TfiTytJOTeGH_4qdFyVQuZmlfg5GW_7ZokhBYvWg","alg":"ES256","crv":"P-256","kid":"ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs","kty":"EC","use":"sig"}]},"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"allowed_actions":[],"flow_id":null,"previous_secret_expires_at":null,"builtin_admin":true,"service_subject_id":null,"scopes":[{"id":"01a1e3f2-b0bf-70a1-ae6b-c6977bc5be1b","name":"address","assignment":"default"},{"id":"01a1e3f2-b0bd-773e-971e-a12d7fbb58a7","name":"email","assignment":"default"},{"id":"01a1e3f2-b0c6-7db6-b13d-319e0c9a9132","name":"groups","assignment":"default"},{"id":"01a1e3f2-b0c8-7408-b637-a873588a8ef0","name":"offline_access","assignment":"optional"},{"id":"01a1e3f2-b0b7-7bc2-ae5b-1a573bdc0ee1","name":"openid","assignment":"default"},{"id":"01a1e3f2-b0c2-7e1a-8f81-2c108f9b3946","name":"phone","assignment":"default"},{"id":"01a1e3f2-b0bb-7d46-ad93-50c8ec33088d","name":"profile","assignment":"default"},{"id":"01a1e3f2-b0c4-751e-9234-498a97ad2bcb","name":"roles","assignment":"default"}],"service_account_admin_reach":[]}]}
 ```
 
-The command above names port `3000`, not `3082` like the rest of this page. This one block was run again on a
-throwaway stack on that port (see [how the transcripts were made](../../../contributing/transcripts.md)), so the
-`redirect_uris` and `post_logout_redirect_uris` in its output name that port. Its ids, `ETag`s and times are that run's, not those of the blocks around it.
+**Two runs on this page.** The sign-in and the token above it are the earlier run, on port `3082`. Every block from the `whoami` request on, down to the end of the page, was run again on 2026-11-16 on port
+`3000` (see [how the transcripts were made](../../../contributing/transcripts.md)), so the
+`redirect_uris` and `post_logout_redirect_uris` in their output name that port, and their ids, `ETag`s and times are that run's,
+not those of the blocks above.
 
 The tenant cannot change how it authenticates. Neither the method nor the
 keys are among the fields the built-in client may be amended in, so an
@@ -550,8 +551,10 @@ docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
   "select c.redirect_uris, c.post_logout_redirect_uris from client_oidc_config c join clients k on k.id = c.client_id join tenants t on t.id = k.tenant_id where t.name = 'system' and k.client_id = 'odudu-admin';"
 ```
 
-A `system` tenant seeded before the console existed carries the loopback
-alone:
+On a stack with the console on, `system` carries the loopback and the console's
+pair. A tenant seeded with the console off carries the loopback alone, which
+[Converting a public admin client](#converting-a-public-admin-client) shows for
+`legacy`:
 
 ```
                                 redirect_uris                                 |    post_logout_redirect_uris

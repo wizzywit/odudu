@@ -540,9 +540,35 @@ Origin: https://spa.example
 HTTP/1.1 200 OK
 vary: Origin
 access-control-allow-origin: https://spa.example
+access-control-expose-headers: WWW-Authenticate, Retry-After
 Origin: https://other.example
 HTTP/1.1 200 OK
 vary: Origin
+```
+
+A script cannot read a header that is not exposed, and the step-up challenge and the wait of a `429` are headers, so
+every answer to an allowed origin names `WWW-Authenticate` and `Retry-After` in `access-control-expose-headers`. A refusal that
+comes before the token is read has no client to ask, so the origin is judged as the preflight judges it: allowed when some enabled
+client of the tenant lists it. A request with no usable token:
+
+```bash
+for o in https://spa.example https://other.example; do
+  echo "Origin: $o"
+  curl -sS -D - -o /dev/null -H "Authorization: Bearer nonsense" -H "Origin: $o" $ME/profile | grep -iE '^(HTTP|www-authenticate|access-control|vary)'
+done
+```
+
+```
+Origin: https://spa.example
+HTTP/1.1 401 Unauthorized
+access-control-allow-origin: https://spa.example
+vary: Origin
+access-control-expose-headers: WWW-Authenticate, Retry-After
+www-authenticate: Bearer error="invalid_token"
+Origin: https://other.example
+HTTP/1.1 401 Unauthorized
+vary: Origin
+www-authenticate: Bearer error="invalid_token"
 ```
 
 The preflight carries no token, so it is answered for an origin that any enabled client of the tenant lists, with the methods
@@ -569,19 +595,22 @@ vary: Origin
 ```
 
 Every request to these routes, a preflight included, spends a budget of 600 a minute for the address it comes from, before the token
-is read. Past it the answer is `429` with the seconds to wait. The block waits out the minute so that its count is its own; the limiter's window moves in steps, so the split falls a few requests short of 600:
+is read. Past it the answer is `429` with the seconds to wait. The block waits out the minute so that its count is its own; the limiter's window moves in steps, so the split falls a few requests short of 600. The last request names an origin, and its `429` carries the allowance and the exposed headers, since a script that cannot read the wait cannot back off (that allowance is itself limited, to 60 a minute from one address):
 
 ```bash
 sleep 61
 for i in $(seq 1 602); do curl -s -o /dev/null -w '%{http_code}\n' $ME/profile; done | sort | uniq -c
-curl -sS -D - -o /dev/null $ME/profile | grep -iE '^(HTTP|retry-after)'
+curl -sS -D - -o /dev/null -H 'Origin: https://spa.example' $ME/profile | grep -iE '^(HTTP|retry-after|access-control|vary)'
 ```
 
 ```
- 596 401
-   6 429
+ 595 401
+   7 429
 HTTP/1.1 429 Too Many Requests
-retry-after: 6
+access-control-allow-origin: https://spa.example
+vary: Origin
+access-control-expose-headers: WWW-Authenticate, Retry-After
+retry-after: 9
 ```
 
 What this page does not show: the API at a tenant's own domain (the path is `/me/profile` there, and a token for the path

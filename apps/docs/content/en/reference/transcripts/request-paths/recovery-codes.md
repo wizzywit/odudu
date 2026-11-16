@@ -148,7 +148,7 @@ curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authentica
 <p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a1e3f7-b368-78e8-824d-084be0d14321">
+  <input type="hidden" name="auth_session_id" value="01a1e44b-58ca-7fd3-a1c5-e326dd029475">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -163,19 +163,20 @@ The second field is what gets filled:
 ```bash
 curl -sS -i -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
   --data-urlencode "auth_session_id=$AUTH" \
-  --data-urlencode 'recovery_code=Q51Z3-NHTMW'
+  --data-urlencode 'recovery_code=B0BQH-BJWYR' | tee redirect.txt
+AUTHCODE=$(sed -n 's/^location:.*code=\([^&]*\)&.*/\1/Ip' redirect.txt | tr -d '\r')
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1e3f7-b3b8-773c-80e4-d2a168596243
-set-cookie: otp-demo-session=01a1e3f7-b3e9-7c26-b3f0-9b4f6e018578:3KQnnYRYkurh5frbF4Mh9y9hI7OPSikrIEhWZ2Ka1fk; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1e44b-5912-7e11-9016-2977752bc093
+set-cookie: otp-demo-session=01a1e44b-593f-7255-a34e-0a78e5bbd89f:0BGK5-3Y6pRpjEVU1N-H-c7vOdJ7YGkPPdpSV_EP1yg; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: otp-demo-device=pRQM6-wJJNbRqCrde5w7YA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: otp-demo-device=OD0JivyG0stvyvbPA2G28w; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/otp-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=YV8vbNer81as940fRvTH3naUYw5gxOBfU2dirgtAk4Y&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
+location: http://localhost:8080/callback?code=8esJhEgcx_o9HbK4wuFy-VRHKvem4j9_g3gZgw32xM4&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 content-length: 0
-Date: Mon, 16 Nov 2026 10:47:03 GMT
+Date: Mon, 16 Nov 2026 12:18:25 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -188,15 +189,29 @@ then produce a code from the authenticator they lost.
 
 The ID token says less about this login than the two-factor one above:
 
-```json
+```bash
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/protocol/openid-connect/token \
+  -d grant_type=authorization_code \
+  -d code=$AUTHCODE \
+  -d client_id=otp-spa \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk \
+  | jq -r .id_token | cut -d. -f2 \
+  | python3 -c "import sys,base64;s=sys.stdin.read().strip();print(base64.urlsafe_b64decode(s+'='*(-len(s)%4)).decode())" \
+  | jq '{sub,iss,aud,iat,exp,sid,amr,acr}'
+```
+
+```
 {
-  "sub": "01a137d3-946e-727f-91c9-3c754e9981c3",
-  "iss": "http://localhost:3094/tenants/otp-demo",
+  "sub": "01a1e44b-5161-776d-85e0-085b59517e04",
+  "iss": "http://localhost:3000/tenants/otp-demo",
   "aud": "otp-spa",
-  "iat": 1791937978,
-  "exp": 1791938278,
-  "sid": "01a1d098-5114-7fea-8ecb-dd3cc9dcd3b7",
-  "amr": ["pwd"],
+  "iat": 1794831505,
+  "exp": 1794831805,
+  "sid": "01a1e44b-593f-7255-a34e-0a78e5bbd89f",
+  "amr": [
+    "pwd"
+  ],
   "acr": "2"
 }
 ```
@@ -234,7 +249,7 @@ space where the hyphen was:
 ```bash
 curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
   --data-urlencode "auth_session_id=$AUTH" \
-  --data-urlencode 'recovery_code=q51z3 nhtmw'
+  --data-urlencode 'recovery_code=b0bqh bjwyr'
 ```
 
 ```
@@ -263,7 +278,7 @@ curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authentica
 </ul>
 </div>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a1e3f7-b400-7f6f-83f3-8accd037030a">
+  <input type="hidden" name="auth_session_id" value="01a1e44b-598d-741e-9f01-61e03546f715">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
   <button type="submit">Verify</button>
@@ -311,7 +326,7 @@ curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authentica
 </ul>
 </div>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a1e3f7-b400-7f6f-83f3-8accd037030a">
+  <input type="hidden" name="auth_session_id" value="01a1e44b-598d-741e-9f01-61e03546f715">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -357,8 +372,10 @@ both would succeed.
 
 A list that runs out is the lockout recovery codes exist to prevent, so spending
 the last one owes `generate-recovery-codes` again — in the login that spent it,
-not the next one. The section below runs in a tenant of its own, `rc8-demo`, on
-the stack above, with `otp_required` on: ada enrolled through the same two pages
+not the next one. **This section is an earlier capture, not part of the run above.** It was
+run on 2026-11-12 on a stack of its own on port `3094`, as its commands name, in a tenant of
+its own, `rc8-demo`, with `otp_required` on, by a script the page does not show, and its
+ids, cookies and times are that run's: ada enrolled through the same two pages
 as above, acknowledged her ten, and then spent them one login at a time, each a
 fresh `/authorize` and the password first. The numbers above belong to
 `otp-demo` and are untouched by it.
