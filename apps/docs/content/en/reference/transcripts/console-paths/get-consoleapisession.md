@@ -11,13 +11,13 @@ curl -sS -D - -c jar -b jar http://localhost:3000/console/api/session
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a17b02-dfdd-7f04-a1a9-78310e945b48
+x-request-id: 01a1e40a-a1b9-74b3-aff1-708a9e1662f8
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 97
-Date: Tue, 27 Oct 2026 01:39:08 GMT
+Date: Mon, 16 Nov 2026 11:07:44 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"tenant":"console-paths","subject_id":"01a17b02-1cb3-720a-ab9c-a0cc44e107a2","username":"grace"}
+{"tenant":"console-paths","subject_id":"01a1e40a-97ed-7c3e-844f-e4e718d05850","username":"grace"}
 ```

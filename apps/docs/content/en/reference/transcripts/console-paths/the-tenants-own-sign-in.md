@@ -20,17 +20,17 @@ at the end of the password form, where a `…` line says so.
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1e3f8-f638-7318-bf4b-e8e34380fe67
-set-cookie: odudu-sign-in=01a1e3f8-f641-74fa-a889-59138ed1bc77.GbqlhRaWH-_Te1nQNBi3iEF6N7af5Eeg29CKAiflKnw; HttpOnly; SameSite=Lax; Path=/tenants/console-paths/; Max-Age=1800
+x-request-id: 01a1e40a-9c67-77cd-977e-9299aaf9e999
+set-cookie: odudu-sign-in=01a1e40a-9c6e-7dc2-bb67-9ee780e76199.Iv3yC32GPDRGsFtSwlCT9xWLxFVPFc-w2Q2Tigi6PfU; HttpOnly; SameSite=Lax; Path=/tenants/console-paths/; Max-Age=1800
 content-type: text/html
-content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self' http://localhost:3000; base-uri 'none'; script-src 'nonce-J8SGRwKjWY+ncHgakU9Gpw=='; connect-src 'self'
+content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self' http://localhost:3000; base-uri 'none'; script-src 'nonce-wzIeEjgGPGQHv1JKRj0wTA=='; connect-src 'self'
 x-frame-options: DENY
 referrer-policy: no-referrer
 cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
 content-length: 3581
-Date: Mon, 16 Nov 2026 10:48:26 GMT
+Date: Mon, 16 Nov 2026 11:07:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -54,7 +54,7 @@ Keep-Alive: timeout=72
 <p class="tenant"><bdi>console-paths</bdi></p>
 </header>
 <form method="post" action="/tenants/console-paths/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a1e3f8-f641-74fa-a889-59138ed1bc77">
+  <input type="hidden" name="auth_session_id" value="01a1e40a-9c6e-7dc2-bb67-9ee780e76199">
   <label>Username <input type="text" name="username" autocomplete="username"></label>
   <label>Password <input type="password" name="password" autocomplete="current-password"></label>
   <button type="submit">Sign in</button>
@@ -79,14 +79,14 @@ curl -sS -D - -c jar -b jar -X POST \
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1e3f8-f655-77a4-b7dd-c0602b992562
-set-cookie: console-paths-session=01a1e3f8-f694-71a6-9006-5a79f17f84cf:KfiZNMipzwP1yIER-N18rq4M-YL2JZ84NSDmpj6U3fs; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1e40a-9c81-77f8-9412-5acf0ad2b349
+set-cookie: console-paths-session=01a1e40a-9ccb-7fb9-b81d-fe193820f4bc:Th1Jy-A2vQC6inJrp8zu-A0MrvPB9Li8XHh8bb29kC4; HttpOnly; SameSite=Lax; Path=/
 set-cookie: console-paths-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: console-paths-device=rMkF6VZ5VisaK4dN2-clCw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: console-paths-device=7uZOFjMCF2TN0YpZD2r-Bw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/console-paths/; Max-Age=0
-location: http://localhost:3000/console/auth/callback?code=8SdoVKQfEfRLzVUpaI6MbQLrARnauiWyR4QnqlE-FYI&state=01a1e3f8-ef88-7bd7-af39-bd6085c44bef.vK2hin2snNnTOZZuE7GuUzJcjlQ7exD_5DwhsoRQAFY&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsole-paths
+location: http://localhost:3000/console/auth/callback?code=TPYJy1W24fZC4lIciERQie-HnpWIvh9sK8jClNPoHh4&state=01a1e40a-95ad-78bf-80da-9bd2262c5363.BjO0JkIDSX4IKGzjT5SPzjFbf88k8pjLgVqbPXBFe48&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsole-paths
 content-length: 0
-Date: Mon, 16 Nov 2026 10:48:26 GMT
+Date: Mon, 16 Nov 2026 11:07:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```

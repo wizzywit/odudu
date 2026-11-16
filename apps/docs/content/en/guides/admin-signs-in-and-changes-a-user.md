@@ -20,8 +20,8 @@ curl -sS -D - -c jar -b jar \
 ```
 
 ```
-set-cookie: odudu-console-login=01a1e3fc-9af8-7020-9566-69c1cd5c12e7.TwJWYZEZ90Nz1EJ45gOL1YFtVk7nSxuIsLobkGYYGjU; HttpOnly; SameSite=Lax; Path=/; Max-Age=1800
-location: http://localhost:3000/tenants/console-paths/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fconsole%2Fauth%2Fcallback&scope=openid&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=01a1e3fc-9af8-7020-9566-69c1cd5c12e7.TwJWYZEZ90Nz1EJ45gOL1YFtVk7nSxuIsLobkGYYGjU&nonce=bxeYPz94iwq4T_ZueNKZRKDhEC5kbapBDit8Tbh_-po&code_challenge=FLQLirUWieXnMYpxuz50YVrIoRmvPei34PvKLjSb8Tk&code_challenge_method=S256
+set-cookie: odudu-console-login=01a1e40a-95ad-78bf-80da-9bd2262c5363.BjO0JkIDSX4IKGzjT5SPzjFbf88k8pjLgVqbPXBFe48; HttpOnly; SameSite=Lax; Path=/; Max-Age=1800
+location: http://localhost:3000/tenants/console-paths/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fconsole%2Fauth%2Fcallback&scope=openid&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=01a1e40a-95ad-78bf-80da-9bd2262c5363.BjO0JkIDSX4IKGzjT5SPzjFbf88k8pjLgVqbPXBFe48&nonce=n4P22nIWRyugG5cR5rX9nVVt-OleKFm0DfOCtcrlIko&code_challenge=rQSla7vgAf2zoYQqNOLL7awyoONHK79Quzfr05_N9Z8&code_challenge_method=S256
 ```
 
 The short-lived `odudu-console-login` cookie remembers this attempt. The redirect is an ordinary authorization request with PKCE.
@@ -34,7 +34,7 @@ The administrator signs in on the tenant's page, exactly as a user would.
 
 ```
 <form method="post" action="/tenants/console-paths/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a1e3fc-9eda-76ae-99fe-0c6a990dc56b">
+  <input type="hidden" name="auth_session_id" value="01a1e40a-9c6e-7dc2-bb67-9ee780e76199">
   <label>Username <input type="text" name="username" autocomplete="username"></label>
   <label>Password <input type="password" name="password" autocomplete="current-password"></label>
   <button type="submit">Sign in</button>
@@ -42,11 +42,11 @@ The administrator signs in on the tenant's page, exactly as a user would.
 ```
 
 ```
-set-cookie: console-paths-session=01a1e3fc-9f1b-75f7-aaef-9ad858ade7a6:bdwS9HTDfKTepV8mQhz3R_4pfK8eoAFXElfghtR7ttE; HttpOnly; SameSite=Lax; Path=/
+set-cookie: console-paths-session=01a1e40a-9ccb-7fb9-b81d-fe193820f4bc:Th1Jy-A2vQC6inJrp8zu-A0MrvPB9Li8XHh8bb29kC4; HttpOnly; SameSite=Lax; Path=/
 set-cookie: console-paths-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: console-paths-device=DAV96hHx8Q4YneBR5gYcFw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: console-paths-device=7uZOFjMCF2TN0YpZD2r-Bw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/console-paths/; Max-Age=0
-location: http://localhost:3000/console/auth/callback?code=fZ0E1JA90K7q2uI3TUefjO5fNnkUck_0FQpNFZWZeLs&state=01a1e3fc-9af8-7020-9566-69c1cd5c12e7.TwJWYZEZ90Nz1EJ45gOL1YFtVk7nSxuIsLobkGYYGjU&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsole-paths
+location: http://localhost:3000/console/auth/callback?code=TPYJy1W24fZC4lIciERQie-HnpWIvh9sK8jClNPoHh4&state=01a1e40a-95ad-78bf-80da-9bd2262c5363.BjO0JkIDSX4IKGzjT5SPzjFbf88k8pjLgVqbPXBFe48&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsole-paths
 ```
 
 Full transcript: [The tenant's own sign-in](../reference/transcripts/console-paths/the-tenants-own-sign-in.md).
@@ -62,7 +62,7 @@ curl -sS -D - -c jar -b jar "$LOCATION"
 ```
 set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 set-cookie: odudu-console-restart=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: odudu-console=01a1e3fc-9af8-7020-9566-69c1cd5c12e7.MEUWySMkZQC44FCs4fIwlmAoq50DP99U598tCfKyCqw; HttpOnly; SameSite=Strict; Path=/
+set-cookie: odudu-console=01a1e40a-95ad-78bf-80da-9bd2262c5363.GTbtIVRV1OixEar9QJTKhv-QgqU6xlrzBGWlszR2Ybc; HttpOnly; SameSite=Strict; Path=/
 location: /console/x
 ```
 
@@ -77,7 +77,7 @@ curl -sS -D - -c jar -b jar http://localhost:3000/console/api/session
 ```
 
 ```
-{"tenant":"console-paths","subject_id":"01a1e3fc-9cf1-78f9-acb7-b6599ccb0c91","username":"grace"}
+{"tenant":"console-paths","subject_id":"01a1e40a-97ed-7c3e-844f-e4e718d05850","username":"grace"}
 ```
 
 Full transcript: [GET /console/api/session](../reference/transcripts/console-paths/get-consoleapisession.md).
