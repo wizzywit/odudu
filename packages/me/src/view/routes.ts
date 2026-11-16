@@ -5,7 +5,7 @@ import {
   meRenameCredentialRequestSchema,
 } from '@odudu/contracts/me';
 import { isUuid, tenantAddressOf } from '@odudu/kernel';
-import { corsHeadersForRequest, normalizeOrigin } from '@odudu/protocol-oidc';
+import { normalizeOrigin } from '@odudu/protocol-oidc';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   agentNotPermitted,
@@ -34,7 +34,7 @@ import {
   type MeCaller,
 } from '#/usecase/admit-me';
 import { invalidToken } from '#/service/challenge';
-import { mePreflightHeaders } from '#/service/cors';
+import { meAnswerHeaders, mePreflightHeaders } from '#/service/cors';
 import { emailRequestOf, type EmailRoute } from '#/service/email-change';
 import {
   acrForRemoval,
@@ -135,29 +135,51 @@ async function allowOrigin(
   const origin = request.headers.origin;
   if (caller === undefined || origin === undefined) return caller;
   const allowed = await deps.cors.clientOrigins(caller.tenantId, caller.clientId);
-  reply.headers(corsHeadersForRequest(origin, allowed));
+  reply.headers(meAnswerHeaders(origin, allowed));
   return caller;
 }
 
-const admit = async (deps: MeDeps, request: MeRequest, reply: FastifyReply) => {
-  if (request.headers.origin !== undefined) reply.header('vary', 'Origin');
-  return allowOrigin(
-    deps,
-    request,
-    reply,
-    callerOrAnswer(await admitMeRead(deps, doorInput(deps, request)), reply),
-  );
-};
+// A refusal before there is a caller, a tenant's own among them, is read by a
+// script only if it carries the origin too. The token cannot say which client
+// to ask, so the origin is judged as a preflight judges it: allowed when some
+// enabled client of the tenant lists it, and never for a tenant that is not
+// there.
+export async function meRefusalHeaders(
+  deps: MeDeps,
+  tenantName: string,
+  origin: string | undefined,
+): Promise<Record<string, string>> {
+  if (origin === undefined) return {};
+  const tenant = await deps.findTenant(tenantName);
+  const normalized = normalizeOrigin(origin);
+  const allowed =
+    tenant?.enabled === true &&
+    normalized !== null &&
+    (await deps.cors.originAllowed(tenant.id, normalized))
+      ? new Set([normalized])
+      : new Set<string>();
+  return meAnswerHeaders(origin, allowed);
+}
 
-const admitWrite = async (deps: MeDeps, request: MeRequest, reply: FastifyReply) => {
+async function admitted(
+  deps: MeDeps,
+  request: MeRequest,
+  reply: FastifyReply,
+  admission: MeAdmission,
+): Promise<MeCaller | undefined> {
+  if (admission.kind !== 'admitted') {
+    reply.headers(await meRefusalHeaders(deps, request.params.tenant, request.headers.origin));
+    return callerOrAnswer(admission, reply);
+  }
   if (request.headers.origin !== undefined) reply.header('vary', 'Origin');
-  return allowOrigin(
-    deps,
-    request,
-    reply,
-    callerOrAnswer(await admitMeWrite(deps, doorInput(deps, request)), reply),
-  );
-};
+  return allowOrigin(deps, request, reply, callerOrAnswer(admission, reply));
+}
+
+const admit = async (deps: MeDeps, request: MeRequest, reply: FastifyReply) =>
+  admitted(deps, request, reply, await admitMeRead(deps, doorInput(deps, request)));
+
+const admitWrite = async (deps: MeDeps, request: MeRequest, reply: FastifyReply) =>
+  admitted(deps, request, reply, await admitMeWrite(deps, doorInput(deps, request)));
 
 // A preflight carries no token, so the only allowlist at that moment is the
 // tenant's union of what its enabled clients allow.

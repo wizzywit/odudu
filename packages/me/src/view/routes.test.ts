@@ -899,15 +899,45 @@ describe('cross-origin calls', () => {
     expect(res.headers.vary).toBe('Origin');
   });
 
-  it('withhold the header from any other origin, and from a call with no usable token', async () => {
-    const app = build({ origins: [ORIGIN] });
-    const other = await withOrigin(app, 'https://other.example');
+  it('withhold the header from any other origin', async () => {
+    const other = await withOrigin(build({ origins: [ORIGIN] }), 'https://other.example');
     expect(other.statusCode).toBe(200);
     expect(other.headers['access-control-allow-origin']).toBeUndefined();
+    expect(other.headers['access-control-expose-headers']).toBeUndefined();
     expect(other.headers.vary).toBe('Origin');
+  });
+
+  it('let a script read the challenge and the wait: both headers are exposed', async () => {
+    const res = await withOrigin(build({ origins: [ORIGIN] }), ORIGIN);
+    expect(res.headers['access-control-expose-headers']).toBe('WWW-Authenticate, Retry-After');
+  });
+
+  it('answer a refusal before admission to an origin the tenant lists, so a script reads the status', async () => {
+    const app = build({ origins: [ORIGIN] });
     const noToken = await withOrigin(app, ORIGIN, null);
     expect(noToken.statusCode).toBe(401);
-    expect(noToken.headers['access-control-allow-origin']).toBeUndefined();
+    expect(noToken.headers['access-control-allow-origin']).toBe(ORIGIN);
+    expect(noToken.headers['access-control-expose-headers']).toBe('WWW-Authenticate, Retry-After');
+    const unlisted = await withOrigin(app, 'https://other.example', null);
+    expect(unlisted.statusCode).toBe(401);
+    expect(unlisted.headers['access-control-allow-origin']).toBeUndefined();
+    expect(unlisted.headers.vary).toBe('Origin');
+  });
+
+  it('answer a refusal of a scope the token lacks the same way', async () => {
+    const res = await withOrigin(build({ origins: [ORIGIN], scope: 'openid' }), ORIGIN);
+    expect(res.statusCode).toBe(403);
+    expect(res.headers['access-control-allow-origin']).toBe(ORIGIN);
+  });
+
+  it('never reflect an origin for a tenant that is not there', async () => {
+    const res = await build({ origins: [ORIGIN] }).inject({
+      method: 'GET',
+      url: '/tenants/other/me/profile',
+      headers: { origin: ORIGIN },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 
   it('answer a preflight for an origin the tenant allows, and for no other', async () => {
