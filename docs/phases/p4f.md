@@ -1165,6 +1165,29 @@ Three gaps P4f had recorded against its own routes were built in the closing pas
 
 Nothing moves to another phase for these; the transcript of `the-me-api.md` has a section for the browser origin and the budget.
 
+### What the reviews of the closing pass found, and what was done
+
+- **A removal that takes a second factor needs a two-factor sign-in** (`acr`, not only age): the gate reads the session's authenticators once
+  (`MeSessionAuth.authenticators`, a primary-key read made only when a class is asked for) and refuses with the same RFC 9470 challenge
+  when `acrFor` is lower, which a client whose flow asks for a password alone gives. Tests: `freshness-gate.test.ts`, the route test and
+  `me-credential-removal.int.test.ts` (password-only and passkey sessions).
+- **CORS on the refusals, and the exposed headers.** `access-control-expose-headers: WWW-Authenticate, Retry-After` wherever the origin is
+  allowed; a `401`/`403` before admission and a `429` carry the origin when some enabled client of the tenant lists it (the preflight's
+  probe), never for a tenant that is not there. The `429`'s allowance costs two reads, so a second budget of 60 a minute for each address
+  bounds it (`meRefusalThrottle`); beyond it the `429` carries no allowance. `me-edges.int.test.ts` takes an address of its own for each case
+  and a fixed clock (`meThrottleNow`).
+- **A reload of the owed recovery-code page** is held to one set every 30 seconds (above).
+- **The unique address index** is built by migration `0139` and a start-up step (above); `RELEASING.md`, ADR 0037, the spec and the changelog agree.
+- **A first password** for a passkey-only account (spec 5.3): `signedInWithVerifiedPasskey`, `completeUpdatePassword(firstPassword)` under the
+  subject's row lock (a second writer is superseded), the `password_added` notice in English and Arabic, `password.changed` with `first_password`
+  and `notice`, the requested page without the current-password field, and the submission refusing a sign-in that did not verify a passkey.
+  `first-password.int.test.ts` and `authorize-action.int.test.ts` hold it. It does not reach a person at an address a tenant left, whose
+  passkey cannot sign in: they return through a switch back, a reset link or an administrator.
+- **The minors:** `me:write` needs `me:read` in `seed assign-scope`, a tenant import and a default assignment; migration 0132's rewrite is a one-off scan
+  (stated above); the changelog and the upgrading page say 0137 cannot be rolled back by redeploying the old image; section 11 says the orphan is bounded;
+  `PATCH /me/credentials/{id}` and `DELETE /me/sessions/{id}` check the id first. Agent tokens reading the "me" API stay on P5b (spec 5.9).
+- **Transcripts:** each page is one run or says on the page which section is an earlier capture; the ID tokens are decoded by their own blocks.
+
 ### Placements this increment leaves
 
 - **The unique index on `(tenant_id, email_search)`** is built (migration `0139`), not placed.
