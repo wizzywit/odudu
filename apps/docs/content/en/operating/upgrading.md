@@ -11,7 +11,7 @@ Odudu has no rolling upgrade yet. A rolling upgrade needs more than one instance
 
 ## 1. Take a backup
 
-The migrations only go forward. Odudu has no down migrations, so the way back from a bad upgrade is the backup you took beforehand. Follow [Backups](./backups.md) and keep the dump beside the version it came from.
+The migrations only go forward. Odudu has no down migrations, so the way back from a bad upgrade is the backup you took beforehand. Follow [Backups](./backups.md) and keep the dump beside the version it came from. The release that adds sign-in flows (migration `0137`) drops the table the previous release read a tenant's sign-in steps from, so redeploying the previous image over a migrated database does not work: the backup is the only way back, and it is required before that upgrade.
 
 ## 2. Read what changed
 

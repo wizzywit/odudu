@@ -77,6 +77,8 @@ function build(
     usernameEditable?: boolean;
     // The origins the token's client allows, and the tenant's union for a preflight.
     origins?: readonly string[];
+    // Each time the door looks a tenant up.
+    door?: string[];
   } = {},
 ) {
   const app = Fastify();
@@ -132,8 +134,9 @@ function build(
         scope: over.scope ?? 'openid me:read me:write',
         ...over.claims,
       }),
-    findTenant: (name) =>
-      Promise.resolve(
+    findTenant: (name) => {
+      over.door?.push(name);
+      return Promise.resolve(
         name === 'acme'
           ? {
               id: 'tenant-1',
@@ -143,7 +146,8 @@ function build(
               usernameEditable: over.usernameEditable ?? true,
             }
           : null,
-      ),
+      );
+    },
     reads,
     sessionAuth: {
       signedInAt: (t, s, sessionId) => {
@@ -992,5 +996,23 @@ describe('DELETE /me/credentials/{id}, on a sign-in that ran one factor', () => 
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toContain('acr_values="2"');
     expect(seen.some((entry) => entry.startsWith('deleteCredential'))).toBe(false);
+  });
+});
+
+describe('an id that is not one', () => {
+  it.each<['DELETE' | 'PATCH', string]>([
+    ['DELETE', 'sessions/not-an-id'],
+    ['PATCH', 'credentials/not-an-id'],
+    ['DELETE', 'credentials/not-an-id'],
+  ])('is answered 404 by %s %s before the door reads anything', async (method, path) => {
+    const door: string[] = [];
+    const res = await send(
+      build({ door }),
+      method,
+      path,
+      method === 'PATCH' ? { label: 'x' } : undefined,
+    );
+    expect(res.statusCode).toBe(404);
+    expect(door).toEqual([]);
   });
 });

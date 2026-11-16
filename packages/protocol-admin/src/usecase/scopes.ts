@@ -522,6 +522,28 @@ export async function amendScope(
         description: 'default_client_assignment must be default, optional or null',
       };
     }
+    // Every client made afterwards starts with the defaults, so me:write may
+    // be one only while me:read is.
+    if (locked.name === ME_WRITE_SCOPE && value !== null) {
+      const read = await clientScopeRepository(tx).byName(ME_READ_SCOPE);
+      if (read?.defaultClientAssignment == null) {
+        return {
+          kind: 'invalid_value',
+          field: 'default_client_assignment',
+          description: ME_WRITE_NEEDS_READ_MESSAGE,
+        };
+      }
+    }
+    if (locked.name === ME_READ_SCOPE && value === null) {
+      const write = await clientScopeRepository(tx).byName(ME_WRITE_SCOPE);
+      if (write?.defaultClientAssignment != null) {
+        return {
+          kind: 'invalid_value',
+          field: 'default_client_assignment',
+          description: ME_WRITE_NEEDS_READ_MESSAGE,
+        };
+      }
+    }
     patch.defaultClientAssignment = { value };
   }
 

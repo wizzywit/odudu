@@ -80,8 +80,10 @@ import {
   TENANT_ADMIN,
   TENANT_NAME_RULE,
   ClientIdConflictError,
+  ME_WRITE_NEEDS_READ_MESSAGE,
   distinctAllowedActions,
   isAllowedAction,
+  meWriteNeedsRead,
   unknownAllowedActions,
   type ClientRecord,
   type ClientScopeAssignment,
@@ -1799,6 +1801,10 @@ async function runAssignScopeCommand(
   return withTenant(runtimeDb, tenantId, async (tx) => {
     const clientDbId = await requireClientDbId(tx, clientId);
     const scopeId = await requireScopeId(tx, scopeName);
+    const held = (await clientScopeRepository(tx).forClient(clientDbId)).map((row) => row.name);
+    if (!meWriteNeedsRead([...held, scopeName])) {
+      throw new OduduError('seed_invalid_options', ME_WRITE_NEEDS_READ_MESSAGE);
+    }
     try {
       await clientScopeRepository(tx).assignOrUpdate(clientDbId, scopeId, assignment);
     } catch (error) {

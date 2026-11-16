@@ -28,6 +28,9 @@ import {
   ADMIN_CLIENT_ID,
   ALLOWED_ACTIONS_NEED_ME_READ,
   ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
+  ME_WRITE_NEEDS_READ_MESSAGE,
+  ME_WRITE_SCOPE,
+  meWriteNeedsRead,
   allowedActionsHaveMeRead,
   WIRE_CLIENTS_PER_TENANT,
   MCP_CLIENT_ID,
@@ -778,6 +781,41 @@ function invariantProblems(
   });
 }
 
+// A client holds me:write only together with me:read, as the admin API holds
+// every assignment to: a token for it could not be issued otherwise.
+function meScopeProblems(document: TenantDocument, problems: Problems): void {
+  const held = new Map<string, string[]>();
+  for (const scope of document.scopes) {
+    for (const entry of scope.clients) {
+      held.set(entry.client_id, [...(held.get(entry.client_id) ?? []), scope.name]);
+    }
+  }
+  const readDefault = document.scopes.find(
+    (scope) => scope.name === 'me:read',
+  )?.default_client_assignment;
+  document.scopes.forEach((scope, index) => {
+    if (
+      scope.name === ME_WRITE_SCOPE &&
+      scope.default_client_assignment != null &&
+      readDefault == null
+    ) {
+      problems.add(
+        `document.scopes[${String(index)}].default_client_assignment`,
+        ME_WRITE_NEEDS_READ_MESSAGE,
+      );
+    }
+    if (scope.name !== ME_WRITE_SCOPE) return;
+    scope.clients.forEach((entry, at) => {
+      if (!meWriteNeedsRead(held.get(entry.client_id) ?? [])) {
+        problems.add(
+          `document.scopes[${String(index)}].clients[${String(at)}]`,
+          ME_WRITE_NEEDS_READ_MESSAGE,
+        );
+      }
+    });
+  });
+}
+
 /**
  * Everything an import can be refused for, decided before anything is
  * written and reported together, each problem with its path: the schema,
@@ -804,6 +842,7 @@ export function validateTenantImport(
   roleProblems(document, graph, problems);
   groupProblems(document, graph, problems);
   scopeProblems(document, graph, environment, problems);
+  meScopeProblems(document, problems);
   subjectProblems(document, graph, problems);
   for (const problem of tenantSettingProblems(document.settings)) {
     problems.add(`document.settings.${problem.name}`, problem.message);

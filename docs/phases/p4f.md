@@ -406,6 +406,12 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
 
 - No path grew a list. An enrolment, an assertion and a recovery issue each read the tenant row once by primary key
   (`authenticatorPolicy`), as the flow settings already do; `recovery_code_count` bounds the hashes a set costs at 16.
+- **Migration 0132 is a one-off rewrite.** Its two `UPDATE`s each scan `user_credentials` once (no index serves the missing-key
+  predicate, only `user_credentials_by_subject (subject_id, type)`) and rewrite every TOTP and passkey row that lacks the keys, in the
+  migration's single transaction: at most one row for each enrolled authenticator, so at 1,000,000 subjects about as many rows as
+  there are authenticators, minutes of one pass and no rewrite for a row already holding the keys. It runs once, and a deployment
+  upgrades with no rolling replica (`operating/upgrading.md`). Batching inside one transaction would not shorten the lock; reading the
+  defaults in code instead of backfilling would, and was rejected because every reader of `secret_data` would then carry the default.
 
 ### Open placements
 

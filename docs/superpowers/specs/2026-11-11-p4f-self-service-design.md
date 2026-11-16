@@ -184,8 +184,9 @@ in the tenant's flow configuration and appear in the admin API and the console.
 
 A session is shown against the device it belongs to, which needs the stable
 browser identifier ADR 0033 derives and the umbrella spec's decision 1 defers.
-This phase amends ADR 0033 to state the identifier, and closes the orphan that
-ADR admits: under `k` concurrent logins the cap admits `cap + (k - 1)` and
+This phase amends ADR 0033 to state the identifier, and bounds the orphan that
+ADR admits (exact per person on a browser that holds the cookie, at most `cap - 1` orphaned on a first
+sign-in): under `k` concurrent logins the cap admits `cap + (k - 1)` and
 orphans one. The amendment decides whether the cap becomes exact or stays
 bounded, with the measurement the ADR asks for.
 
@@ -248,7 +249,7 @@ section 7; `tests/docs/roadmap-section-11.test.ts` holds the mapping.
 | per-tenant TOTP, WebAuthn and recovery-code policy, parameters stored per enrolment      | 5.6; increment 7     |
 | a tenant-wide switch asking everyone to enrol a passkey                                  | 5.6; increment 7     |
 | per-step authenticator configuration                                                     | 5.6; increment 7     |
-| a session against its device; ADR 0033 amended, orphan closed                            | 5.7; increment 8     |
+| a session against its device; ADR 0033 amended, orphan bounded                           | 5.7; increment 8     |
 | the option to end other sessions after a password change or reset                        | 5.8; increment 9     |
 | a breached-password check                                                                | 5.8; increment 9     |
 | a new verification email                                                                 | 5.8; increment 10    |

@@ -67,3 +67,51 @@ describe('me:write on a client', () => {
     expect((await del('me:read')).statusCode).toBe(204);
   });
 });
+
+describe('the default assignment of the me scopes', () => {
+  async function patcher() {
+    const t = await fixture.createTenant(`me-def-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+    const ids = new Map<string, string>();
+    for (const name of ['me:read', 'me:write']) {
+      const [row] = await fixture.owner.sql<{ id: string }[]>`
+        select id from client_scopes where tenant_id = ${t.id} and name = ${name}`;
+      ids.set(name, row?.id ?? '');
+    }
+    const setDefault = async (scope: string, value: string | null) => {
+      const url = `/admin/tenants/${t.name}/scopes/${ids.get(scope) ?? ''}`;
+      const got = await fixture.http.inject({
+        method: 'GET',
+        url,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      return fixture.http.inject({
+        method: 'PATCH',
+        url,
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+          'if-match': String(got.headers.etag),
+        },
+        payload: { default_client_assignment: value },
+      });
+    };
+    return { setDefault };
+  }
+
+  it('refuses me:write as a default while me:read is not one, naming the rule', async () => {
+    const { setDefault } = await patcher();
+    const res = await setDefault('me:write', 'optional');
+    expect(res.statusCode).toBe(400);
+    expect(res.payload).toContain(MESSAGE);
+  });
+
+  it('accepts it once me:read is a default, and then keeps me:read from being cleared', async () => {
+    const { setDefault } = await patcher();
+    expect((await setDefault('me:read', 'optional')).statusCode).toBe(200);
+    expect((await setDefault('me:write', 'optional')).statusCode).toBe(200);
+    const cleared = await setDefault('me:read', null);
+    expect(cleared.statusCode).toBe(400);
+    expect(cleared.payload).toContain(MESSAGE);
+  });
+});

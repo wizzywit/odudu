@@ -49,6 +49,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Changed
 
+- This release cannot be rolled back by redeploying the previous image: migration `0137` moves a tenant's sign-in steps into the new `flows` table and drops `authentication_executions`, which the previous release reads. Take a backup first (the Upgrading page says so); the way back is the backup restored into a fresh database.
 - The page a verification or registration link opens names the address and the tenant above its button, and still changes nothing until the button is pressed: a mail scanner that opens the link leaves it unspent. A link mailed before the upgrade opens the same page. The page a refused verification link shows now offers the new-link button, so it is a `verification` page where it was a `notice` one; a theme's `verification` template can place the way back to sign in with a new optional `links` part, and a theme without it shows the page without that link.
 - `max_sessions_per_browser` is now exact for one person's sessions on a browser that already holds the device cookie. Before, `k` sign-ins from one browser at the same instant left `cap + (k - 1)` sessions; they now leave the cap. Two people signing in at once on one browser are still counted only through the browser's cookies. A session one of them leaves that the browser's cookies no longer name still cannot be ended by signing out, and is listed under its device and counted against the cap. A browser's first sign-in, which has no device cookie yet, is bounded as before.
 - An application that sends a person to `generate-recovery-codes` now asks before it makes a first set, as it already did before replacing one. Nothing is made while the question is on the screen, so reloading it changes nothing and cancelling it no longer follows a set that was made at once.
@@ -60,6 +61,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Security
 
+- `odudu seed assign-scope`, a tenant import and a default assignment of `me:write` now refuse a client that would hold it without `me:read`, as the admin API's assignment already did.
 - A mail the person did not ask for no longer completes anything by being opened, and the page it opens says which address and tenant it would confirm, so it can be recognised and left alone. Asking for a new verification link tells nothing about whether an address exists or is waiting to be verified: the page, the status and the bytes are the same in every case.
 - Removing a second factor through the "me" API needs a sign-in that ran two factors (a password and an app code, or a passkey that verified the person), not only a recent one. A sign-in made through a client whose flow asks for a password alone is answered `401` with the RFC 9470 challenge naming `acr_values="2"`, as an application that ignores the challenge would otherwise pass.
 - A token that carries `act`, one issued to an agent acting for the person, may read the "me" API and is refused every write with `403` `agent_not_permitted`.

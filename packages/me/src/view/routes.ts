@@ -308,6 +308,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
   app.delete<{ Params: { tenant: string; id: string } }>(
     `${BASE}/sessions/:id`,
     async (request, reply) => {
+      if (!isUuid(request.params.id)) return respond(reply, 404, notFound('No such session'));
       const caller = await admitWrite(deps, request, reply);
       if (caller === undefined) return reply;
       if (!(await sessionIsLive(deps, caller, reply))) return reply;
@@ -332,6 +333,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
   app.patch<{ Params: { tenant: string; id: string } }>(
     `${BASE}/credentials/:id`,
     async (request, reply) => {
+      if (!isUuid(request.params.id)) return respond(reply, 404, notFound(NO_AUTHENTICATOR));
       const caller = await admitWrite(deps, request, reply);
       if (caller === undefined) return reply;
       if (!(await sessionIsLive(deps, caller, reply))) return reply;
@@ -348,9 +350,9 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
   app.delete<{ Params: { tenant: string; id: string } }>(
     `${BASE}/credentials/:id`,
     async (request, reply) => {
+      if (!isUuid(request.params.id)) return respond(reply, 404, notFound(NO_AUTHENTICATOR));
       const caller = await admitWrite(deps, request, reply);
       if (caller === undefined) return reply;
-      if (!isUuid(request.params.id)) return respond(reply, 404, notFound(NO_AUTHENTICATOR));
       const acr = await acrForRemoval(deps, caller);
       if (!(await signInIsFresh(deps, caller, reply, acr))) return reply;
       const outcome = await removeCredential(deps, caller, request.params.id);
