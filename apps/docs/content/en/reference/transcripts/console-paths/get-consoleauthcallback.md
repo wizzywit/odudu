@@ -13,14 +13,14 @@ curl -sS -D - -c jar -b jar "$LOCATION"
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a17b02-df75-71dd-a8fc-644850e6835e
+x-request-id: 01a1e3f8-f8e7-7936-bcac-7ff0970db5b5
 cache-control: no-store
 set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 set-cookie: odudu-console-restart=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: odudu-console=01a17b02-1a9a-78f4-a746-1a223a533ca7.GojT2OLYCr7eeXpTifOxiPPc41bqImwM5v9PNFsVueY; HttpOnly; SameSite=Strict; Path=/
+set-cookie: odudu-console=01a1e3f8-ef88-7bd7-af39-bd6085c44bef.xZrH5PylubWDpNnsqUI72b-KVUHF6X-X9ZVgU5mbWaM; HttpOnly; SameSite=Strict; Path=/
 location: /console/x
 content-length: 0
-Date: Tue, 27 Oct 2026 01:39:08 GMT
+Date: Mon, 16 Nov 2026 10:48:27 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
