@@ -804,22 +804,23 @@ Rulings:
   its credentials and address as they were), counted, and the run goes on; the report carries the error's kind and
   database code and never its message, which quotes an address.
 
-### The unique index, held back to the next release
+### The unique index
 
-The migration is not added here: the command ships in this release and the index in a later one, so an operator has run the
-command first. The statement, which `packages/protocol-admin/tests/reconcile-accounts.int.test.ts` runs against the real schema in
-a rolled-back transaction (it fails with `23505` over a duplicate and builds once the command has run):
+Built in the closing pass, as migration `0139_users_email_unique.sql`, which cannot fail the boot: the statement runs in a
+`DO` block that turns `unique_violation` into a warning and skips the build, and `ensureUniqueEmailIndex` (`@odudu/db`) runs at every
+start after the migrations and builds it once no pair remains (`'present'`, `'built'` or `'blocked'`, the last said aloud with the
+command to run). The statement, which `packages/protocol-admin/tests/reconcile-accounts.int.test.ts` runs against the real schema:
 
 ```sql
 CREATE UNIQUE INDEX users_email_search_unique ON users (tenant_id, email_search) WHERE email_search IS NOT NULL
 ```
 
 `git grep -n "CONCURRENTLY" packages/db/drizzle` finds nothing, and `packages/db/src/migrate.ts` hands every pending migration to
-Drizzle's migrator, which runs them in one transaction, so the index cannot be built `CONCURRENTLY` and is the plain statement
-above. It holds a lock that blocks writes to `users` while it builds: at 1,000,000 subjects in a tenant and 10,000 tenants the
-build reads the whole table once, so it is a window of seconds to minutes for a large deployment and the upgrade should be run with
-that in mind and a backup taken (spec section 8). A build over a database that still holds a duplicate fails and rolls the whole
-migration back, which is what the order is for. `docs/NEXT.md` and `RELEASING.md` carry the order.
+Drizzle's migrator, which runs them in one transaction, so the index cannot be built `CONCURRENTLY` and is the plain statement above.
+It blocks writes to `users` while it builds: at 1,000,000 subjects in a tenant and 10,000 tenants the build reads the whole table once,
+a window of seconds to minutes for a large deployment, so the upgrade should be run with that in mind and a backup taken (spec
+section 8). `packages/db/tests/email-unique-index.int.test.ts` fails if the index is gone after the migrations and runs the migration
+over a database that holds a pair. `RELEASING.md` carries the order for operators.
 
 ### At volume
 
@@ -1105,12 +1106,12 @@ null`, which the query-plan check's foreign-key rule accepts as a probe of the k
 3. **`docs/NEXT.md` headings read against the closed phases.** "What P4f and P4h inherit" is now "What P4h inherits" and its stale
    paragraph, "Two recovery-code gaps that need self-service", is gone (both gaps closed in increment 5). The row for "finish
    registration" is gone (increment 10). The me routes' rate limit, CORS and previous-address window are built (below), so their row is
-   gone. The unique-index row names P11, whose migration runner builds indexes concurrently, and a person's own recovery after a switch
+   gone. The unique index is built (migration `0139`), and a person's own recovery after a switch
    back to the path address, which P4f never built, is an owner question in "Decisions still open" with its candidate phases. The file
    is 396 lines and no section passes 130 (`next-budget.test.ts`).
 4. **The roadmap against section 11 and `docs/NEXT.md`, both ways.** `pnpm vitest run tests/docs/roadmap-section-11.test.ts` passes
    with P4f moved from the sentence claims to the shipped claims and from the placement list to the shipped set; the unique-index
-   row maps to the roadmap's P11 line. Tenant export and import of flows is placed on P7 in the roadmap, in `docs/NEXT.md` and in this
+   row is gone with the index. Tenant export and import of flows is placed on P7 in the roadmap, in `docs/NEXT.md` and in this
    note (13c), and the P7 criterion carries it.
 5. **The public surface.** `git grep -n -i -E 'planned|self-service|me api|P4f' -- apps/docs README.md tests/docs/questions.md`: the
    landing page's two "Planned" bands are the agent items (P5 and P5b), still planned. The README feature list and the landing
@@ -1160,8 +1161,7 @@ Nothing moves to another phase for these; the transcript of `the-me-api.md` has 
 
 ### Placements this increment leaves
 
-- **The unique index on `(tenant_id, email_search)`** is placed on P11, whose migration runner builds indexes concurrently, which that index
-  needs at a million accounts a tenant (`RELEASING.md` has the order of rollout).
+- **The unique index on `(tenant_id, email_search)`** is built (migration `0139`), not placed.
 - **A passkey-only person's own recovery at an address a tenant left** is not built by P4f, whose `update-password` action refuses a person
   who holds no password; the row in `docs/NEXT.md` asks the owner which phase takes it, with the candidates.
 - **Transcripts not run again:** the section of `two-factor-authentication-with-totp.md` on a policy that changes and the `rc8-demo` section

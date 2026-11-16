@@ -203,7 +203,8 @@ bounded, with the measurement the ADR asks for.
   the address and the tenant and needs a submitted form, so a mail the person
   did not ask for does not complete an account.
 - **Accounts that differ only by case** are reconciled by an operator-run
-  command, then a partial unique index is added on `(tenant_id, email_search)`.
+  command, then a partial unique index is added on `(tenant_id, email_search)`
+  (migration `0139`, which builds itself once no pair remains).
   The command reports what it merged and refuses to guess between two accounts
   that both have sign-ins.
 - **More required actions:** verify email, update profile, accept terms.
@@ -366,8 +367,9 @@ My calls, marked so they can be overruled:
   audit trail is rewritten. It refuses a group where several accounts have
   sign-ins, where none has a verified address, or where an unverified account
   has signed in (cannot say which is the person).
-  Rollout order: the command ships in one release, the unique index in a later
-  one, so an operator has run it first.
+  The index is migration `0139`, skipped with a warning where a pair remains and
+  built at the first start after the command has run, so the migration cannot
+  stop the server booting.
 - **Administrator-issued links in scope:** reset, verify and required-action
   links. The admin API gains an optional `client_id` on the request that issues
   one; absent, the link returns to the tenant's own account page.

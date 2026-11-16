@@ -38,6 +38,7 @@ beforeAll(async () => {
   container = await startTestDatabase();
   owner = createDatabase(container.adminUrl, { max: 2 });
   await runMigrations(owner.db, MIGRATIONS_DIR);
+  await owner.sql`drop index if exists users_email_search_unique`;
   app = createDatabase(await createAppRole(container.adminUrl), {
     max: 2,
     onQueryForTests: (query, parameters) => captured?.push({ query, parameters }),

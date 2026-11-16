@@ -8,6 +8,11 @@ export {
 export { MIGRATIONS_DIR, runMigrations } from '#/migrate';
 export { bypassesRowLevelSecurity } from '#/roles';
 export { stampPasskeyRelyingParty } from '#/credential-rp-id';
+export {
+  EMAIL_UNIQUE_INDEX,
+  ensureUniqueEmailIndex,
+  type EmailIndexOutcome,
+} from '#/email-unique-index';
 export { TENANT_PAGE_SIZE, tenantIdPages } from '#/tenant-pages';
 export {
   isUniqueViolation,

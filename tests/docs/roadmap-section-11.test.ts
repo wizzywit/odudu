@@ -420,7 +420,6 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       ['P5b'],
       'one validation pattern on the scope contract, owed to whichever phase next changes it, no product behaviour',
     ],
-    ['Accounts that differ only by the case', ['P11'], ['builds indexes concurrently']],
     [
       'The cleanup P4k left in branding and clients',
       ['P4h'],

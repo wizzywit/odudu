@@ -1,5 +1,6 @@
 import {
   bypassesRowLevelSecurity,
+  ensureUniqueEmailIndex,
   MIGRATIONS_DIR,
   runMigrations,
   stampPasskeyRelyingParty,
@@ -29,6 +30,23 @@ export async function stampPasskeysAtStart(
   if (stamped > 0) logger.info({ stamped, rpId }, 'passkeys stamped with their relying party');
 }
 
+// Two accounts that differ only by the case of an address block the build; it
+// is said aloud at every start until `odudu reconcile-accounts` has folded them.
+export async function ensureEmailIndexAtStart(
+  owner: DatabaseHandle,
+  logger: Logger,
+): Promise<void> {
+  const outcome = await ensureUniqueEmailIndex(owner.db);
+  if (outcome === 'built') logger.info({}, 'the unique address index was built');
+  if (outcome === 'blocked') {
+    logger.warn(
+      {},
+      'the unique address index was not built: accounts that differ only by the case of their ' +
+        'address exist; run odudu reconcile-accounts (see odudu help reconcile-accounts), then restart',
+    );
+  }
+}
+
 export function databaseModule(owner: DatabaseHandle, runtime: DatabaseHandle): OduduModule {
   return {
     name: 'database',
@@ -37,6 +55,7 @@ export function databaseModule(owner: DatabaseHandle, runtime: DatabaseHandle): 
       await runMigrations(owner.db, ctx.config.ODUDU_MIGRATIONS_DIR ?? MIGRATIONS_DIR);
       ctx.logger.info({}, 'migrations applied');
       await stampPasskeysAtStart(owner, ctx.config.ODUDU_PUBLIC_BASE_URL, ctx.logger);
+      await ensureEmailIndexAtStart(owner, ctx.logger);
     },
 
     stop: async () => {
