@@ -88,7 +88,7 @@ export async function beginRecoveryCodes(
   const claimed = await subjects.claimRecoveryIssue(
     input.subjectId,
     input.now,
-    reissueCutoff(input.now),
+    reissueCutoff(input.now, reissue),
     bypassesBound(reissue),
   );
   if (!claimed) {

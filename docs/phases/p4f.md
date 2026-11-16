@@ -289,16 +289,16 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
 
 ### Ruling
 
-- A person whose sign-in waits for a set (the `generate-recovery-codes` action is owed) is exempt from the bound, as the
-  first set and a used-up set are, so a reload of the owed page issues a fresh set and the bound never blocks a sign-in.
-  It is one input of the pure `reissueAllowed` (`owed`), read from the person's pending actions. A set asked for
-  voluntarily, by an application or otherwise, keeps the bound.
+- A person whose sign-in waits for a set (the `generate-recovery-codes` action is owed) is held to one set every 30 seconds
+  (`OWED_INTERVAL_MS`), not the hour: the first render issues at once, a reload inside the half minute is refused with the
+  same page and audit row, and the acknowledgement, which issues nothing, finishes the sign-in. Only a used-up set (and the
+  first) is exempt. It is one input of the pure `reissueAllowed` (`owed`), read from the person's pending actions, and
+  `reissueCutoff` takes the same standing so the claim and the read cannot differ. At most two sets a minute for a subject: 32
+  hashes.
 
 ### Open placements
 
-- While the recovery-codes action is owed, each reload of its page issues a set: ten Argon2id hashes, bound to a signed-in
-  session, with no limit on the count. Placed on P11 (load and p99). The cheap bound is a short cooldown that still lets the
-  sign-in finish.
+- None. The reload of the owed page was unbounded here and is bounded in the closing pass (see the ruling above).
 
 ### The low-count warning
 

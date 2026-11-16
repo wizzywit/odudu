@@ -116,7 +116,7 @@ location: http://127.0.0.1:8080/callback?code=xe-Z4RBU3bKU8IJyy8Wyzxjy1wHDcqkWqj
 
 A set can be replaced once an hour, counted from when the last was made, because each set costs ten password hashes. A person who
 asks inside the hour, while they still have codes to spend, is shown how many minutes to wait, with the way out, and the answer is
-`429`. The first set, a set with no code left to spend, and a set the person's sign-in is waiting for are never held back. The refusal is written to the audit trail as
+`429`. The first set and a set with no code left to spend are never held back, and a set the person's sign-in is waiting for is issued at once, though a reload of the page that shows it is held to one every 30 seconds. The refusal is written to the audit trail as
 `recovery_codes.refused`:
 
 ```

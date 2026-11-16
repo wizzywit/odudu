@@ -84,8 +84,10 @@ docker compose -p odudu-p4f-i14 -f infra/docker/compose.yaml exec -T postgres \
 
 Reloading the page is therefore not a way to see them twice: the render is a
 `POST` result, and a reload while the action is still owed issues a
-_different_ set and retires the set it just displayed: a sign-in that cannot
-finish without a set is never refused one. A person who asks for a set on their
+_different_ set and retires the set it just displayed, but no sooner than 30
+seconds after the last: a sooner reload is refused with the page that says how
+long to wait, and the acknowledgement that finishes the sign-in, which carries no
+code, is never refused. A person who asks for a set on their
 own, while one with codes left to spend was issued less than an hour ago, is
 refused with a page that says how many minutes to wait, and the set they hold
 stays. After the hour, or once every code is spent, a repeat issues a

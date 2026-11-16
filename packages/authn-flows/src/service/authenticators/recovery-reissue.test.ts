@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  OWED_INTERVAL_MS,
   REISSUE_INTERVAL_MS,
   bypassesBound,
   reissueAllowed,
@@ -27,8 +28,19 @@ describe('reissueAllowed', () => {
     });
   });
 
-  it('lets a set the sign-in is waiting for through at once', () => {
-    expect(reissueAllowed(ago(1000), { spentAll: false, owed: true }, NOW)).toEqual({ ok: true });
+  it('holds a reload of the page the sign-in is waiting on to one set every half minute', () => {
+    const last = ago(1000);
+    expect(reissueAllowed(last, { spentAll: false, owed: true }, NOW)).toEqual({
+      ok: false,
+      retryAt: new Date(last.getTime() + OWED_INTERVAL_MS),
+    });
+    expect(reissueAllowed(ago(OWED_INTERVAL_MS), { spentAll: false, owed: true }, NOW)).toEqual({
+      ok: true,
+    });
+  });
+
+  it('never holds back a used-up set, owed or not', () => {
+    expect(reissueAllowed(ago(1), { spentAll: true, owed: true }, NOW)).toEqual({ ok: true });
   });
 
   it('allows one exactly an hour after the last', () => {
@@ -39,8 +51,9 @@ describe('reissueAllowed', () => {
 });
 
 describe('reissueCutoff', () => {
-  it('is an hour before now', () => {
-    expect(reissueCutoff(NOW)).toEqual(ago(REISSUE_INTERVAL_MS));
+  it('is an hour before now, and half a minute where the sign-in is waiting', () => {
+    expect(reissueCutoff(NOW, { spentAll: false, owed: false })).toEqual(ago(REISSUE_INTERVAL_MS));
+    expect(reissueCutoff(NOW, { spentAll: false, owed: true })).toEqual(ago(OWED_INTERVAL_MS));
   });
 });
 
@@ -53,7 +66,7 @@ describe('retryInMinutes', () => {
 });
 
 describe('bypassesBound', () => {
-  it('is the one rule reissueAllowed follows, for every standing', () => {
+  it('is the one rule reissueAllowed follows for a set inside its interval, for every standing', () => {
     for (const spentAll of [false, true]) {
       for (const owed of [false, true]) {
         const standing = { spentAll, owed };
