@@ -189,6 +189,7 @@
 
 .unit,
 .unitSelect {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -205,6 +206,7 @@
 }
 
 .unitSelect {
+  min-inline-size: 5rem;
   cursor: pointer;
 }
 
@@ -230,6 +232,13 @@
   color: var(--ink-primary);
   background: var(--surface-panel);
   cursor: pointer;
+}
+
+.trigger[data-disabled] {
+  border-style: dashed;
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+  cursor: not-allowed;
 }
 
 .trigger[data-hovered] {

@@ -1,5 +1,8 @@
-.page {
+.frame {
   container: settings / inline-size;
+}
+
+.page {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;

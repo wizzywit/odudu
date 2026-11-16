@@ -232,26 +232,28 @@ function Sections({ tenant }: { tenant: string }) {
   return (
     <ReadGate read={read} label={words.loading} fields={4} failed={words.failed}>
       {(data, etag) => (
-        <div className={styles.page}>
-          <SectionNav label={words.navLabel} groups={nav} current={current} />
-          <div className={styles.sections}>
-            {plans.map((plan) =>
-              plan.kind === 'general' ? (
-                <General
-                  key={plan.section.id}
-                  tenant={tenant}
-                  data={data}
-                  etag={etag}
-                  gone={read.gone}
-                  plan={plan}
-                />
-              ) : (
-                <Fragment key={plan.section.id}>
-                  <Plain tenant={tenant} data={data} etag={etag} gone={read.gone} plan={plan} />
-                  {plan.kind === 'lockouts' ? <ClearLockouts tenant={tenant} /> : null}
-                </Fragment>
-              ),
-            )}
+        <div className={styles.frame}>
+          <div className={styles.page}>
+            <SectionNav label={words.navLabel} groups={nav} current={current} />
+            <div className={styles.sections}>
+              {plans.map((plan) =>
+                plan.kind === 'general' ? (
+                  <General
+                    key={plan.section.id}
+                    tenant={tenant}
+                    data={data}
+                    etag={etag}
+                    gone={read.gone}
+                    plan={plan}
+                  />
+                ) : (
+                  <Fragment key={plan.section.id}>
+                    <Plain tenant={tenant} data={data} etag={etag} gone={read.gone} plan={plan} />
+                    {plan.kind === 'lockouts' ? <ClearLockouts tenant={tenant} /> : null}
+                  </Fragment>
+                ),
+              )}
+            </div>
           </div>
         </div>
       )}
