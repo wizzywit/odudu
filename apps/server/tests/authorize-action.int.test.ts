@@ -823,6 +823,17 @@ describe('a first password for a person who holds a passkey and no password', ()
     expect(JSON.stringify(row?.detail)).not.toContain(NEW_PASSWORD);
   });
 
+  it('is not offered on a session older than the tenant window: a new sign-in comes first', async () => {
+    const w = await world();
+    const cookie = await passkeyOnly(w, ['passkey']);
+    await backdate(sessionIdOf(cookie), WINDOW_SECONDS + 60);
+    const res = await authorize(w, { action: 'update-password' }, cookie);
+    expect(rendersLoginForm(res)).toBe(true);
+    expect(res.body).not.toContain('name="password" autocomplete="new-password"');
+    expect(res.body).not.toContain('name="cancel"');
+    expect(await passwordRows(w)).toHaveLength(0);
+  });
+
   it('ends as an error when the passkey proved only possession, and sets nothing', async () => {
     const w = await world();
     const cookie = await passkeyOnly(w, ['passkey', 'passkey-unverified']);
