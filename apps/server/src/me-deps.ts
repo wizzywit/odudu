@@ -223,6 +223,10 @@ export function meSessionAuthFor(database: DatabaseHandle): MeSessionAuth {
       withTenant(database.db, tenantId, (tx) =>
         sessionRepository(tx).liveCreatedAt(subjectId, sessionId, lifespans, now),
       ),
+    authenticators: (tenantId, subjectId, sessionId, lifespans, now) =>
+      withTenant(database.db, tenantId, (tx) =>
+        sessionRepository(tx).liveAuthenticators(subjectId, sessionId, lifespans, now),
+      ),
   };
 }
 

@@ -265,6 +265,28 @@ export function sessionRepository(tx: TenantScopedDatabase) {
       return rows[0]?.createdAt ?? null;
     },
 
+    // The authenticators the sign-in behind one of the subject's live sessions
+    // ran, or null when none of theirs by that id is still live. One read by
+    // primary key.
+    async liveAuthenticators(
+      subjectId: string,
+      sessionId: string,
+      tenant: SessionLifespans,
+      now: Date,
+    ): Promise<readonly string[] | null> {
+      const rows = await tx
+        .select({ authenticators: sessions.authenticators })
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.id, sessionId),
+            eq(sessions.subjectId, subjectId),
+            liveSessionCondition(tenant, now),
+          ),
+        );
+      return rows[0]?.authenticators ?? null;
+    },
+
     // Whether the subject owns the session, live or not, taking its row lock
     // so the end that follows runs against the row it checked.
     async lockOwnedId(subjectId: string, sessionId: string): Promise<boolean> {

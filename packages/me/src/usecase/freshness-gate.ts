@@ -1,3 +1,4 @@
+import { acrFor } from '@odudu/protocol-oidc';
 import type { MeReads } from '#/repository/reads';
 import type { MeSessionAuth } from '#/repository/gate';
 import { invalidToken } from '#/service/challenge';
@@ -37,8 +38,29 @@ export async function requireFreshSignIn(
     now,
   );
   if (signedInAt === null) return gone;
-  if (isFresh(signedInAt, now, caller.freshnessSeconds)) return { kind: 'fresh' };
-  return { kind: 'stale', challenge: freshnessChallenge(caller.freshnessSeconds, acrValues) };
+  const stale: FreshnessOutcome = {
+    kind: 'stale',
+    challenge: freshnessChallenge(caller.freshnessSeconds, acrValues),
+  };
+  if (!isFresh(signedInAt, now, caller.freshnessSeconds)) return stale;
+  if (acrValues === null) return { kind: 'fresh' };
+  // A recent sign-in is not enough where a class is asked for: the one the
+  // session ran has to have reached it, as an application that ignores
+  // `acr_values` would otherwise pass with a weaker client's sign-in.
+  const ran = await deps.sessionAuth.authenticators(
+    caller.tenantId,
+    caller.subjectId,
+    caller.sessionId,
+    caller.lifespans,
+    now,
+  );
+  return ran !== null && reaches(acrFor(ran), acrValues) ? { kind: 'fresh' } : stale;
+}
+
+// `acr` values are the numbers of factors a sign-in ran, so one reaches another
+// when it is not lower; a session that recorded no authenticators reaches none.
+function reaches(achieved: string | null, asked: string): boolean {
+  return achieved !== null && Number(achieved) >= Number(asked);
 }
 
 // Whether the session the token was issued for still stands: every change

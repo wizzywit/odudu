@@ -72,6 +72,8 @@ function build(
     audits?: MeAuditEvent[];
     // When the session behind the token was signed in to; null for one that is gone.
     signedInAt?: Date | null;
+    // The authenticators the session behind the token ran.
+    authenticators?: readonly string[];
     usernameEditable?: boolean;
     // The origins the token's client allows, and the tenant's union for a preflight.
     origins?: readonly string[];
@@ -150,6 +152,7 @@ function build(
           over.signedInAt === undefined ? new Date(NOW.getTime() - 10_000) : over.signedInAt,
         );
       },
+      authenticators: () => Promise.resolve(over.authenticators ?? ['pwd', 'otp']),
     },
     writes: {
       transact: (tenantId, run) => {
@@ -941,5 +944,23 @@ describe('isMeRoute', () => {
     expect(isMeRoute('/tenants/:tenant/me/*')).toBe(true);
     expect(isMeRoute('/tenants/:tenant/mcp')).toBe(false);
     expect(isMeRoute(undefined)).toBe(false);
+  });
+});
+
+describe('DELETE /me/credentials/{id}, on a sign-in that ran one factor', () => {
+  it('refuses removing a second factor with the challenge, and removes nothing', async () => {
+    const seen: string[] = [];
+    const res = await send(
+      build({
+        authenticators: ['password'],
+        tx: { heldCredentials: () => Promise.resolve([PASSWORD, SUMMARY]) },
+        seen,
+      }),
+      'DELETE',
+      `credentials/${CRED_ID}`,
+    );
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toContain('acr_values="2"');
+    expect(seen.some((entry) => entry.startsWith('deleteCredential'))).toBe(false);
   });
 });

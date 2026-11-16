@@ -23,7 +23,10 @@ const CALLER: MeCaller = {
   },
 };
 
-function counting(signedInAt: Date | null): { sessionAuth: MeSessionAuth; reads: string[] } {
+function counting(
+  signedInAt: Date | null,
+  authenticators: readonly string[] | null = ['pwd'],
+): { sessionAuth: MeSessionAuth; reads: string[] } {
   const reads: string[] = [];
   return {
     reads,
@@ -31,6 +34,10 @@ function counting(signedInAt: Date | null): { sessionAuth: MeSessionAuth; reads:
       signedInAt: (tenantId, subjectId, sessionId) => {
         reads.push(`${tenantId} ${subjectId} ${sessionId}`);
         return Promise.resolve(signedInAt);
+      },
+      authenticators: (tenantId, subjectId, sessionId) => {
+        reads.push(`authenticators ${tenantId} ${subjectId} ${sessionId}`);
+        return Promise.resolve(authenticators);
       },
     },
   };
@@ -117,5 +124,46 @@ describe('requireLiveSession', () => {
     const world = counting(ago(1));
     expect(await live(world, { ...CALLER, sessionId: id })).toBe(false);
     expect(world.reads).toEqual([]);
+  });
+});
+
+describe('requireFreshSignIn, where the change names an authentication class', () => {
+  const CHALLENGE =
+    'Bearer error="insufficient_user_authentication", ' +
+    'error_description="A recent sign-in is required", max_age="300", acr_values="2"';
+
+  it('refuses a fresh sign-in that ran one factor, with the challenge', async () => {
+    expect(await gate(counting(ago(10), ['pwd']), CALLER, '2')).toEqual({
+      kind: 'stale',
+      challenge: CHALLENGE,
+    });
+  });
+
+  it('lets a fresh sign-in through that ran two factors, or a verified passkey', async () => {
+    expect(await gate(counting(ago(10), ['pwd', 'otp']), CALLER, '2')).toEqual({ kind: 'fresh' });
+    expect(await gate(counting(ago(10), ['passkey']), CALLER, '2')).toEqual({ kind: 'fresh' });
+  });
+
+  it('refuses a passkey that proved only possession, and a session that recorded nothing', async () => {
+    expect(
+      (await gate(counting(ago(10), ['passkey', 'passkey-unverified']), CALLER, '2')).kind,
+    ).toBe('stale');
+    expect((await gate(counting(ago(10), []), CALLER, '2')).kind).toBe('stale');
+  });
+
+  it('reads the authenticators only when a class is asked for', async () => {
+    const none = counting(ago(10));
+    await gate(none, CALLER);
+    expect(none.reads).toHaveLength(1);
+    const asked = counting(ago(10), ['pwd', 'otp']);
+    await gate(asked, CALLER, '2');
+    expect(asked.reads).toHaveLength(2);
+  });
+
+  it('asks for the age first, and reads nothing more for a stale or gone session', async () => {
+    const old = counting(ago(600), ['pwd', 'otp']);
+    expect((await gate(old, CALLER, '2')).kind).toBe('stale');
+    expect(old.reads).toHaveLength(1);
+    expect((await gate(counting(null), CALLER, '2')).kind).toBe('unauthenticated');
   });
 });

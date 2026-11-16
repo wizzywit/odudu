@@ -66,7 +66,8 @@ interface World {
   readonly sessionId: string;
 }
 
-async function world(): Promise<World> {
+// `ran` is what the person's sign-in ran: a client whose flow asks for a password alone gives ['password'].
+async function world(ran: string[] = ['password', 'otp']): Promise<World> {
   const name = `mcr-${newId()}`;
   const seeded = await seed({
     tenant: name,
@@ -85,7 +86,7 @@ async function world(): Promise<World> {
       tenantId,
       subjectId: seeded.userSubjectId ?? '',
       expiresAt: new Date(Date.now() + 3_600_000),
-      authenticators: ['pwd'],
+      authenticators: ran,
       secretHash: entry.secretHash(),
     }),
   );
@@ -398,6 +399,21 @@ describe('the gate on a removal', () => {
     expect(res.headers['www-authenticate']).toContain('max_age="300"');
     expect(res.headers['www-authenticate']).toContain('acr_values="2"');
     expect(await typesHeld(w)).toEqual(['password', 'totp']);
+  });
+
+  it('refuses a fresh sign-in that ran a password alone, as a password-only client flow gives', async () => {
+    const w = await world(['password']);
+    const totp = await hold(w, 'totp');
+    const res = await remove(w, totp);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toContain('acr_values="2"');
+    expect(await typesHeld(w)).toEqual(['password', 'totp']);
+  });
+
+  it('lets a fresh sign-in through that ran a verified passkey', async () => {
+    const w = await world(['passkey']);
+    const totp = await hold(w, 'totp');
+    expect((await remove(w, totp)).statusCode).toBe(204);
   });
 
   it('asks for a recent sign-in only, where the person holds no second factor', async () => {

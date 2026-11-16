@@ -1304,6 +1304,7 @@ export {
 export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { expandWebOrigins, isWellFormedWebOrigin, normalizeOrigin } from '#/service/web-origin';
 export { corsHeadersForRequest } from '#/service/cors';
+export { acrFor } from '#/service/acr';
 export {
   CLIENT_TOKEN_TTL_RANGES,
   clientTokenTtlProblem,
