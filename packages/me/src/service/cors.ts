@@ -1,8 +1,5 @@
 import { corsHeadersForRequest } from '@odudu/protocol-oidc';
 
-// The answer a browser's preflight gets for an origin some client of the
-// tenant allows. The real request is judged against its own client instead,
-// in the route.
 // What a script on an allowed origin may read of the answer beyond the headers
 // every response shows: the RFC 9470 challenge a gated change is refused with,
 // and how long to wait after a `429`.
@@ -20,6 +17,9 @@ export function meAnswerHeaders(
     : { ...headers, 'access-control-expose-headers': EXPOSED };
 }
 
+// The answer a browser's preflight gets for an origin some client of the
+// tenant allows. The real request is judged against its own client instead,
+// in the route.
 export function mePreflightHeaders(origin: string): Record<string, string> {
   return {
     'access-control-allow-origin': origin,
