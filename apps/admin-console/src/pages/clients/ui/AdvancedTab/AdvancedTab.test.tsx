@@ -187,11 +187,14 @@ it('offers the tenant default and the tenant’s flows, and saves the one chosen
   const section = screen.getByRole('region', { name: 'Sign-in flow' });
   await user.click(within(section).getByRole('button', { name: /^(?!Save).*Sign-in flow/u }));
   expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
-    'Tenant default',
+    'Tenant default: default',
     'default (the current default)',
     'staff',
   ]);
   await user.click(screen.getByRole('option', { name: 'staff' }));
+  expect(
+    within(section).getByRole('link', { name: 'Open the sign-in flow editor' }),
+  ).toHaveAttribute('href', '/console/acme/flow');
   await user.click(within(section).getByRole('button', { name: 'Save Sign-in flow' }));
   await waitFor(() => {
     expect(sent.find((s) => s.method === 'PATCH')).toMatchObject({
@@ -214,7 +217,7 @@ it('sends null when a client goes back to the tenant default', async () => {
   await open();
   const section = screen.getByRole('region', { name: 'Sign-in flow' });
   await user.click(within(section).getByRole('button', { name: /^(?!Save).*Sign-in flow/u }));
-  await user.click(await screen.findByRole('option', { name: 'Tenant default' }));
+  await user.click(await screen.findByRole('option', { name: /^Tenant default/u }));
   await user.click(within(section).getByRole('button', { name: 'Save Sign-in flow' }));
   await waitFor(() => {
     expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ flow_id: null });
@@ -270,6 +273,7 @@ it('says nothing of the flows when their read is refused', async () => {
     expect(within(section).queryByText(/could not be loaded/u)).toBeNull();
   });
   expect(within(section).queryByRole('button', { name: 'Try again' })).toBeNull();
+  expect(within(section).queryByRole('link')).toBeNull();
 });
 
 it('publishes a key set pasted here, and clears the address with it', async () => {

@@ -1,3 +1,4 @@
+import { areaAt, areaHref } from '#/entities/area';
 import { AUTO } from '#/pages/clients/services/choices';
 import type { FlowListItemWire } from '#/entities/flow';
 import { isRefused } from '#/shared/lib/services/failure';
@@ -27,7 +28,19 @@ export function flowChoices(
     current !== null && !listed.some((choice) => choice.id === current)
       ? [{ id: current, label: current }]
       : [];
-  return [{ id: AUTO, label: TENANT_DEFAULT }, ...listed, ...unread];
+  const standing = flows?.find((flow) => flow.is_default);
+  const first = {
+    id: AUTO,
+    label: standing === undefined ? TENANT_DEFAULT : `${TENANT_DEFAULT}: ${standing.name}`,
+  };
+  return [first, ...listed, ...unread];
+}
+
+export const FLOW_EDITOR_LABEL = 'Open the sign-in flow editor';
+
+// Where the flows are edited, offered to a person whose read of them was allowed.
+export function flowEditorHref(tenant: string, listed: boolean): string | null {
+  return listed ? areaHref(tenant, areaAt('flow')) : null;
 }
 
 // A read that failed leaves the choice at two entries. A refusal is the expected

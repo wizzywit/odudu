@@ -8,6 +8,7 @@ import { Installation } from '#/pages/clients/ui/Installation';
 import type { ClientTabProps } from '#/pages/clients/ui/ClientTabProps';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { Button } from '#/shared/ui/Button';
+import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { ChecklistField } from '#/shared/ui/ChecklistField';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import {
@@ -20,6 +21,7 @@ import {
   ToggleField,
   UrlField,
 } from '#/shared/ui/Field';
+import { InlineFailed } from '#/shared/ui/InlineFailed';
 import { Problem } from '#/shared/ui/Message';
 import { Panel } from '#/shared/ui/Panel';
 import { SecretDialog } from '#/shared/ui/SecretDialog';
@@ -289,10 +291,14 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
             }}
           />
           {page.flowsProblem === null ? null : (
-            <>
-              <Problem>{page.flowsProblem}</Problem>
-              <Button onPress={page.retryFlows}>Try again</Button>
-            </>
+            <InlineFailed message={page.flowsProblem} retry={page.retryFlows} />
+          )}
+          {page.flowEditorHref === null ? null : (
+            <div>
+              <ButtonLink href={page.flowEditorHref} size="small" variant="quiet">
+                {page.flowEditorLabel}
+              </ButtonLink>
+            </div>
           )}
         </SaveSection>
       </ReadOnlyFields>
