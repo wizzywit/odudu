@@ -71,6 +71,7 @@
 
 .settings > :not(.caption, .rule) {
   flex: 1 1 12rem;
+  grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
   max-inline-size: 16rem;
 }

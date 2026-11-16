@@ -51,7 +51,7 @@ demo
 Sign-in flow
 What a subject is asked, in what order, to sign in to this tenant.
 Steps
-The steps run in this order at every sign-in. Alternatives that sit next to each other are one run: passing any of them is enough. The whole list is replaced when you save.
+The steps run in this order at every sign-in. A required step must be passed at every sign-in. Alternatives that sit next to each other are one run: passing any of them is enough. A conditional step is asked only of a subject it applies to, and skipped for the rest. The whole list is replaced when you save.
 1
 passkey
 A passkey registered to the subject.
@@ -93,7 +93,7 @@ Disabled
 ▾
 3
 otp
-A one-time password from an authenticator app. Asked only of a subject it applies to; skipped for the rest.
+A one-time password from an authenticator app.
 Asked only of subjects who set up an authenticator app.
 Requirement for otp
 Conditional
@@ -126,7 +126,7 @@ Tenant setting (30 seconds)
 60 seconds
 4
 recovery-code
-One of the single-use recovery codes issued with a one-time password. Asked only of a subject it applies to; skipped for the rest.
+One of the single-use recovery codes issued with a one-time password.
 Requirement for recovery-code
 Conditional
 ▾
