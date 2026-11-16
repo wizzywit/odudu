@@ -31,8 +31,8 @@ odudu seed tenant --name otp-demo --set otp_required=true
 ```
 
 ```
-{"created":true,"tenant":"otp-demo","tenantId":"01a1e3f4-c245-7665-8689-ddd831abe8be","clientId":"otp-spa","userSubjectId":"01a1e3f4-c2e0-7767-8801-9e564d3486a9"}
-{"command":"tenant","created":false,"tenant":"otp-demo","tenantId":"01a1e3f4-c245-7665-8689-ddd831abe8be","settings":["otp_required"]}
+{"created":true,"tenant":"otp-demo","tenantId":"01a1e3f7-5f50-7ab6-8c04-8b7ed458f46d","clientId":"otp-spa","userSubjectId":"01a1e3f7-6007-7b13-9bdd-5efdd2179894"}
+{"command":"tenant","created":false,"tenant":"otp-demo","tenantId":"01a1e3f7-5f50-7ab6-8c04-8b7ed458f46d","settings":["otp_required"]}
 ```
 
 `created` is `false` because the line above it made the tenant: `seed tenant`
@@ -86,11 +86,11 @@ SECRET=$(sed -n 's/.*name="secret" value="\([^"]*\)".*/\1/p' enrol.html)
 </header>
 <p>Scan this with your authenticator app, or enter the key by hand.</p>
 <svg …>…</svg>
-<p><bdi dir="ltr"><code>otpauth://totp/otp-demo:ada?secret=ICJER66543CXOTEAFUAJFX4VGMTBFEGW&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code></bdi></p>
-<p>Key: <bdi dir="ltr"><code>ICJER66543CXOTEAFUAJFX4VGMTBFEGW</code></bdi></p>
+<p><bdi dir="ltr"><code>otpauth://totp/otp-demo:ada?secret=B56H7GHAFNTM2LCHCUABLTJNZCGNH4PI&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code></bdi></p>
+<p>Key: <bdi dir="ltr"><code>B56H7GHAFNTM2LCHCUABLTJNZCGNH4PI</code></bdi></p>
 <form method="post" action="/tenants/otp-demo/login-actions/required-action?action=configure-totp">
-  <input type="hidden" name="auth_session_id" value="01a1e3f4-c4ba-7e55-ae25-4879f0b8fdd4">
-  <input type="hidden" name="secret" value="ICJER66543CXOTEAFUAJFX4VGMTBFEGW">
+  <input type="hidden" name="auth_session_id" value="01a1e3f7-6225-7227-9c51-f09bb273a8b9">
+  <input type="hidden" name="secret" value="B56H7GHAFNTM2LCHCUABLTJNZCGNH4PI">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <button type="submit">Confirm</button>
 </form>
@@ -126,7 +126,7 @@ echo "$CODE"
 ```
 
 ```
-094209
+037314
 ```
 
 ```bash
@@ -139,7 +139,7 @@ curl -sS -i -X POST \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1e3f4-c56f-7d61-9f2f-5b505380a277
+x-request-id: 01a1e3f7-62df-74f4-a953-65ed3774b33f
 content-type: text/html
 content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self' http://localhost:8080; base-uri 'none'
 x-frame-options: DENY
@@ -148,7 +148,7 @@ cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
 content-length: 2019
-Date: Mon, 16 Nov 2026 10:43:51 GMT
+Date: Mon, 16 Nov 2026 10:46:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -172,19 +172,19 @@ Keep-Alive: timeout=72
 </header>
 <p>Each of these signs you in once, in place of your second factor, if you lose it. <strong>This is the only time they are shown.</strong> Print them or put them in a password manager before you continue — nobody, including an administrator, can show them to you again.</p>
 <ol>
-  <li><bdi dir="ltr"><code>P59WP-Q7TH6</code></bdi></li>
-  <li><bdi dir="ltr"><code>3HD8N-91PSW</code></bdi></li>
-  <li><bdi dir="ltr"><code>F2JBD-2DEA3</code></bdi></li>
-  <li><bdi dir="ltr"><code>GG809-N7PDM</code></bdi></li>
-  <li><bdi dir="ltr"><code>9CP94-6K2GX</code></bdi></li>
-  <li><bdi dir="ltr"><code>HKZYT-F4T3Z</code></bdi></li>
-  <li><bdi dir="ltr"><code>7GG1E-CKYVH</code></bdi></li>
-  <li><bdi dir="ltr"><code>2PHG0-F5JH8</code></bdi></li>
-  <li><bdi dir="ltr"><code>HYGV2-X36M2</code></bdi></li>
-  <li><bdi dir="ltr"><code>PCD2P-3ZVE6</code></bdi></li>
+  <li><bdi dir="ltr"><code>Q51Z3-NHTMW</code></bdi></li>
+  <li><bdi dir="ltr"><code>6PB97-QE1HM</code></bdi></li>
+  <li><bdi dir="ltr"><code>PAEHC-R028J</code></bdi></li>
+  <li><bdi dir="ltr"><code>JRKAP-S0034</code></bdi></li>
+  <li><bdi dir="ltr"><code>2FYR0-DEDZE</code></bdi></li>
+  <li><bdi dir="ltr"><code>W6SZG-Q401P</code></bdi></li>
+  <li><bdi dir="ltr"><code>Q567B-YTAMC</code></bdi></li>
+  <li><bdi dir="ltr"><code>4JFNY-Q9YWF</code></bdi></li>
+  <li><bdi dir="ltr"><code>ASZCF-APPK6</code></bdi></li>
+  <li><bdi dir="ltr"><code>C9HSD-8DAQK</code></bdi></li>
 </ol>
 <form method="post" action="/tenants/otp-demo/login-actions/required-action?action=generate-recovery-codes">
-  <input type="hidden" name="auth_session_id" value="01a1e3f4-c4ba-7e55-ae25-4879f0b8fdd4">
+  <input type="hidden" name="auth_session_id" value="01a1e3f7-6225-7227-9c51-f09bb273a8b9">
   <button type="submit">I have saved these codes</button>
 </form>
 </main>
@@ -217,14 +217,14 @@ AUTHCODE=$(sed -n 's/^location:.*code=\([^&]*\)&.*/\1/Ip' redirect.txt | tr -d '
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1e3f4-c60d-70f2-bb1c-7683e491f140
-set-cookie: otp-demo-session=01a1e3f4-c623-790b-b2fd-10de948abab9:QEw6Ei5bKQ-SPft9iYyX9iyM7tkhyygXT_nhKCf70hQ; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1e3f7-6402-7521-b97c-978fc55b9c6d
+set-cookie: otp-demo-session=01a1e3f7-6454-7101-a198-fe386eee656c:j2ZdcRn4Wr-G3QYxA0UfKm962RVsryqhxaBDE5djiM4; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: otp-demo-device=o6o-730xx2No6cWx1PGjGQ; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: otp-demo-device=z4LSr8LtdgLmkOJjG8XQvA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/otp-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=kd1DF9eTqZh5x-CwnJGO3uzWDEnO6GXVxqivJdUb93I&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
+location: http://localhost:8080/callback?code=_GFHFcTU6bXmcB4pn7iRQb81e79-bfoMV0ztrFdeyrM&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 content-length: 0
-Date: Mon, 16 Nov 2026 10:43:51 GMT
+Date: Mon, 16 Nov 2026 10:46:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -300,7 +300,7 @@ curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authentica
 <p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a1e3f4-c660-78f6-864c-0ddb417d7243">
+  <input type="hidden" name="auth_session_id" value="01a1e3f7-64a0-7999-8426-1152d8e38c6e">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -356,7 +356,7 @@ curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authentica
 </ul>
 </div>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a1e3f4-c660-78f6-864c-0ddb417d7243">
+  <input type="hidden" name="auth_session_id" value="01a1e3f7-64a0-7999-8426-1152d8e38c6e">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -386,14 +386,14 @@ console.log(totpCode('$SECRET', totpCounter(new Date(Date.now() + 30000))));
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1e3f4-c706-7c85-bf10-4569d9725353
-set-cookie: otp-demo-session=01a1e3f4-c71d-76b0-941f-0822a8def05f:-f8G5tXaBaAtDsEQVtqsBDZ2qXHOqb5PuDKuui_qN-Q; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1e3f7-654a-734b-b989-20f2581515c9
+set-cookie: otp-demo-session=01a1e3f7-655f-7446-b332-a09420d2d4db:pc9IX4ZZE-ZCOlrT3jjTjVD0PnGD0tJ6IqcRe8BH1sY; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: otp-demo-device=p95tKDJW6tKckHd6qRHKZA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: otp-demo-device=liYfODHxsSr_ji7ZUZl4sA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/otp-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=VHr69EC77hDGOoGl-livbfpGPLox1Te-rpd8Mt3hjDs&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
+location: http://localhost:8080/callback?code=TbArk0lS1FPHJc6F0-ZNld5nu6cruBM28GnReOtBAeA&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 content-length: 0
-Date: Mon, 16 Nov 2026 10:43:52 GMT
+Date: Mon, 16 Nov 2026 10:46:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```

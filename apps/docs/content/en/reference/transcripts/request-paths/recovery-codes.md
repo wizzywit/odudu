@@ -66,7 +66,7 @@ hash with the same parameters as a password — nothing anywhere holds the
 plaintext, so no later page and no administrator can print these again:
 
 ```bash
-docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
+docker compose -p odudu-p4f-i14 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "SELECT type, left(secret_data->>'hash', 30) AS hash_prefix,
           secret_data->>'usedAt' AS used_at
@@ -112,13 +112,15 @@ end of [Confirming the secret](./two-factor-authentication-with-totp.md#confirmi
 A fresh attempt, and this time the authenticator is gone. The request is
 parked and the password form rendered exactly as
 [Path A](./path-a-authorization-code-with-pkce.md) shows, for a new
-`auth_session_id`, `01a1d098-5090-7813-9f66-7dc57934cd6b`. The password step runs as always, and answers
+`auth_session_id`, which the next block keeps as `$AUTH`. The password step runs as always, and answers
 with the code form — the same two fields, because nothing about this
 submission says the authenticator is gone:
 
 ```bash
-curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d098-5090-7813-9f66-7dc57934cd6b' \
+AUTH=$(curl -sS 'http://localhost:3000/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -144,7 +146,7 @@ curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authentica
 <p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a1d098-5090-7813-9f66-7dc57934cd6b">
+  <input type="hidden" name="auth_session_id" value="01a1e3f7-b368-78e8-824d-084be0d14321">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -157,21 +159,21 @@ curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authentica
 The second field is what gets filled:
 
 ```bash
-curl -sS -i -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d098-5090-7813-9f66-7dc57934cd6b' \
-  --data-urlencode 'recovery_code=GTHNV-QXZB8'
+curl -sS -i -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
+  --data-urlencode 'recovery_code=Q51Z3-NHTMW'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1d098-50dd-7af0-9b11-212d43478da1
-set-cookie: otp-demo-session=01a1d098-5114-7fea-8ecb-dd3cc9dcd3b7:g73yHX0cH5J_fdhGWN4d9zZ3FGMRjySWupOMyfaCKC4; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1e3f7-b3b8-773c-80e4-d2a168596243
+set-cookie: otp-demo-session=01a1e3f7-b3e9-7c26-b3f0-9b4f6e018578:3KQnnYRYkurh5frbF4Mh9y9hI7OPSikrIEhWZ2Ka1fk; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: otp-demo-device=jjo6OVZ03BpaWeT-vAc9xg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: otp-demo-device=pRQM6-wJJNbRqCrde5w7YA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/otp-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=XyFUNU5TLGOGY22A6blNiljp-gandfg8h2f_sbjkFuk&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Fotp-demo
+location: http://localhost:8080/callback?code=YV8vbNer81as940fRvTH3naUYw5gxOBfU2dirgtAk4Y&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 content-length: 0
-Date: Thu, 12 Nov 2026 16:30:05 GMT
+Date: Mon, 16 Nov 2026 10:47:03 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -211,9 +213,11 @@ A third attempt, opened the same way as the one above — a `/authorize` that
 parks the request, then the password, which answers 200 with the code form:
 
 ```bash
+AUTH=$(curl -sS 'http://localhost:3000/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a16368-3f9d-7fc3-9628-30596ef3a88e' \
+  --data-urlencode "auth_session_id=$AUTH" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -226,9 +230,9 @@ Then the code that already signed somebody in — typed in lower case with a
 space where the hyphen was:
 
 ```bash
-curl -sS -X POST http://localhost:3195/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a16368-3f9d-7fc3-9628-30596ef3a88e' \
-  --data-urlencode 'recovery_code=zqm0z 2nqqk'
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
+  --data-urlencode 'recovery_code=q51z3 nhtmw'
 ```
 
 ```
@@ -257,7 +261,7 @@ curl -sS -X POST http://localhost:3195/tenants/otp-demo/login-actions/authentica
 </ul>
 </div>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a16368-3f9d-7fc3-9628-30596ef3a88e">
+  <input type="hidden" name="auth_session_id" value="01a1e3f7-b400-7f6f-83f3-8accd037030a">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
   <button type="submit">Verify</button>
@@ -274,8 +278,8 @@ confusable letters onto digits. And the refusal _says_ the code is spent,
 which a wrong code does not:
 
 ```bash
-curl -sS -X POST http://localhost:3195/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a16368-3f9d-7fc3-9628-30596ef3a88e' \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
   --data-urlencode 'recovery_code=ZZZZZ-ZZZZZ'
 ```
 
@@ -305,7 +309,7 @@ curl -sS -X POST http://localhost:3195/tenants/otp-demo/login-actions/authentica
 </ul>
 </div>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a16368-3f9d-7fc3-9628-30596ef3a88e">
+  <input type="hidden" name="auth_session_id" value="01a1e3f7-b400-7f6f-83f3-8accd037030a">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -327,7 +331,7 @@ What makes the refusal possible is that the row survives its use, marked
 rather than deleted:
 
 ```bash
-docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
+docker compose -p odudu-p4f-i14 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "SELECT count(*) AS codes, count(secret_data->>'usedAt') AS spent
      FROM user_credentials WHERE type = 'recovery-code'
@@ -511,7 +515,7 @@ application is what shows the warning to the person.
 ## Where the step sits in the flow
 
 ```bash
-docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
+docker compose -p odudu-p4f-i14 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "SELECT e.position - 1 AS index, e.step->>'authenticator' AS authenticator,
           e.step->>'requirement' AS requirement
