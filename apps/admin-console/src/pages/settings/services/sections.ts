@@ -14,10 +14,30 @@ export type {
   SettingsSection,
 } from '#/pages/settings/services/sectionTypes';
 
-export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
-  ...ACCESS_SECTIONS,
-  ...PLATFORM_SECTIONS,
+// How the page lists its sections: by what a person comes to change.
+export const SECTION_GROUPS: readonly { title: string; ids: readonly string[] }[] = [
+  { title: 'Tenant', ids: ['general', 'terms', 'profile'] },
+  {
+    title: 'Sign-in',
+    ids: [
+      'usernames',
+      'registration',
+      'authenticators',
+      'passkey-requirement',
+      'password',
+      'brute-force',
+    ],
+  },
+  { title: 'Sessions and tokens', ids: ['sessions', 'remember-me', 'tokens'] },
+  { title: 'Applications', ids: ['client-registration'] },
+  { title: 'Records', ids: ['retention'] },
 ];
+
+const DEFINED: readonly SettingsSection[] = [...ACCESS_SECTIONS, ...PLATFORM_SECTIONS];
+
+export const SETTINGS_SECTIONS: readonly SettingsSection[] = SECTION_GROUPS.flatMap((group) =>
+  group.ids.flatMap((id) => DEFINED.filter((section) => section.id === id)),
+);
 
 // Settings with a home of their own, which this page names rather than repeats.
 export const PLACED_ELSEWHERE: Readonly<Record<string, string>> = {

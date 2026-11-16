@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { controlViews, editedValue } from '#/pages/settings/services/controls';
+import {
+  controlGroups,
+  controlViews,
+  dependencyReason,
+  editedValue,
+} from '#/pages/settings/services/controls';
 import { SETTINGS_SECTIONS, type SettingsSection } from '#/pages/settings/services/sections';
 import { settingEntries, type SettingValue } from '#/pages/settings/services/values';
 import { SETTINGS } from '#/testing/settingsFixtures';
@@ -72,6 +77,66 @@ describe('controlViews', () => {
     );
     expect(views[0]).toMatchObject({ error: 'too short', changed: true });
     expect(views[1]).toMatchObject({ error: undefined, changed: false });
+  });
+});
+
+describe('cells', () => {
+  it('gives short selects a cell each, so three sit on a row, and long ones two columns', () => {
+    const app = viewsOf('authenticators').slice(0, 3);
+    expect(app.map((view) => view.cell)).toEqual([{}, {}, {}]);
+    expect(viewsOf('client-registration')[0]?.cell).toEqual({ span: 'wide' });
+    expect(viewsOf('terms').map((view) => view.cell)).toEqual([{ span: 'wide' }, {}]);
+  });
+});
+
+describe('numbers', () => {
+  it('pick their unit for seconds only, and carry the range the server holds', () => {
+    const idle = viewsOf('sessions')[0];
+    expect(idle).toMatchObject({ picker: true, min: 60 });
+    expect(idle?.control === 'number' ? idle.rangeMessage : '').toContain('Allowed: 1 minute to');
+    expect(viewsOf('password')[0]).toMatchObject({ picker: false, min: 8, max: 256 });
+  });
+});
+
+describe('groups', () => {
+  it('gather neighbouring controls of one group, in section order', () => {
+    expect(
+      controlGroups(viewsOf('authenticators')).map((group) => [group.title, group.controls.length]),
+    ).toEqual([
+      ['Authenticator app', 3],
+      ['Passkeys', 2],
+      ['Recovery codes', 2],
+    ]);
+  });
+
+  it('leave a section with no groups as one untitled run', () => {
+    expect(controlGroups(viewsOf('sessions')).map((group) => group.title)).toEqual([undefined]);
+  });
+});
+
+describe('a setting that depends on another', () => {
+  const field = section('password').fields.find((each) => each.name === 'breached_on_error');
+  const named = (check: string) =>
+    controlViews(
+      section('password'),
+      { values: { breached_check: check }, fieldErrors: {}, changed: [] },
+      {},
+    ).find((view) => view.name === 'breached_on_error');
+
+  it('is disabled with its reason until the other holds the value it needs', () => {
+    expect(named('dataset')).toMatchObject({
+      isDisabled: true,
+      description: 'Applies to the remote lookup only.',
+    });
+    expect(named('off')?.isDisabled).toBe(true);
+    expect(named('remote')).toMatchObject({ isDisabled: false });
+  });
+
+  it('names no reason for a field that depends on nothing', () => {
+    expect(field).toBeDefined();
+    expect(
+      dependencyReason({ name: 'x', label: 'X', control: 'toggle' }, { breached_check: 'off' }),
+    ).toBeUndefined();
   });
 });
 

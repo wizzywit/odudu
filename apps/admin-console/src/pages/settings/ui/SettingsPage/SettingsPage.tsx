@@ -1,5 +1,5 @@
 import type { Settings } from '#/entities/tenant';
-import { Fragment } from 'react';
+import { Fragment, useEffect } from 'react';
 import { AreaGate } from '#/widgets/shell';
 import type { ControlView } from '#/pages/settings/services/controls';
 import type { SectionPlan } from '#/pages/settings/services/sectionPlan';
@@ -13,16 +13,23 @@ import {
   useSettingsSection,
   type SettingsSave,
 } from '#/pages/settings/use-cases/useSettingsSection';
-import { Button } from '#/shared/ui/Button';
 import { ChecklistField } from '#/shared/ui/ChecklistField';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
-import { NumberWithUnitField, SelectField, TextField, ToggleField } from '#/shared/ui/Field';
+import {
+  NumberWithUnitField,
+  SelectField,
+  TextField,
+  ToggleField,
+  UrlField,
+} from '#/shared/ui/Field';
 import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';
 import { PageHeader } from '#/shared/ui/PageHeader';
+import { More } from '#/shared/ui/More';
 import { Note } from '#/shared/ui/Note';
 import { ReadGate } from '#/shared/ui/ReadGate';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { ClearLockouts } from '#/pages/settings/ui/ClearLockouts';
+import { SectionNav } from '#/pages/settings/ui/SectionNav';
 import styles from '#/pages/settings/ui/SettingsPage/SettingsPage.module.css';
 
 function Control({
@@ -60,11 +67,26 @@ function Control({
           }}
         />
       );
+    case 'url':
+      return (
+        <UrlField
+          {...shared}
+          value={view.value}
+          onChange={(next) => {
+            change(view.name, next);
+          }}
+        />
+      );
     case 'number':
       return (
         <NumberWithUnitField
           {...shared}
           unit={view.unit}
+          picker={view.picker}
+          echo={false}
+          {...(view.min === undefined ? {} : { minValue: view.min })}
+          {...(view.max === undefined ? {} : { maxValue: view.max })}
+          {...(view.rangeMessage === undefined ? {} : { rangeMessage: view.rangeMessage })}
           value={view.value}
           onChange={(next) => {
             change(view.name, next);
@@ -105,15 +127,30 @@ function Fields({
   save: SettingsSave;
   fixed: Readonly<Record<string, string>>;
 }) {
-  const { controls, change } = useSettingsFields(plan.section, save, fixed);
+  const { groups, change } = useSettingsFields(plan.section, save, fixed);
   return (
-    <FieldGrid>
-      {controls.map((view) => (
-        <GridCell key={view.name} {...view.cell}>
-          <Control view={view} change={change} />
-        </GridCell>
-      ))}
-    </FieldGrid>
+    <>
+      {groups.map((group) => {
+        const grid = (
+          <FieldGrid>
+            {group.controls.map((view) => (
+              <GridCell key={view.name} {...view.cell}>
+                <Control view={view} change={change} />
+                {view.more === undefined ? null : <More>{view.more}</More>}
+              </GridCell>
+            ))}
+          </FieldGrid>
+        );
+        return group.title === undefined ? (
+          <Fragment key="ungrouped">{grid}</Fragment>
+        ) : (
+          <fieldset key={group.title} className={styles.group}>
+            <legend className={styles.legend}>{group.title}</legend>
+            {grid}
+          </fieldset>
+        );
+      })}
+    </>
   );
 }
 
@@ -174,46 +211,42 @@ function General({ tenant, data, etag, gone, plan }: Props) {
   );
 }
 
+// A link to a section, opened in another tab or after a reload, lands on it.
+function useHashTarget(ready: boolean): void {
+  useEffect(() => {
+    if (!ready) return;
+    const hash = globalThis.location.hash.slice(1);
+    document.getElementById(hash)?.focus();
+  }, [ready]);
+}
+
 function Sections({ tenant }: { tenant: string }) {
-  const { read, plans, words } = useSettingsSections(tenant);
+  const { read, plans, nav, words } = useSettingsSections(tenant);
+  useHashTarget(read.data !== undefined);
   return (
     <ReadGate read={read} label={words.loading} fields={4} failed={words.failed}>
       {(data, etag) => (
         <div className={styles.page}>
-          <nav aria-label={words.navLabel} className={styles.nav}>
-            <ul className={styles.sections}>
-              {plans.map((plan) => (
-                <li key={plan.section.id}>
-                  <Button
-                    size="small"
-                    variant="quiet"
-                    onPress={() => {
-                      document.getElementById(plan.headingId)?.focus();
-                    }}
-                  >
-                    {plan.title}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </nav>
-          {plans.map((plan) =>
-            plan.kind === 'general' ? (
-              <General
-                key={plan.section.id}
-                tenant={tenant}
-                data={data}
-                etag={etag}
-                gone={read.gone}
-                plan={plan}
-              />
-            ) : (
-              <Fragment key={plan.section.id}>
-                <Plain tenant={tenant} data={data} etag={etag} gone={read.gone} plan={plan} />
-                {plan.kind === 'lockouts' ? <ClearLockouts tenant={tenant} /> : null}
-              </Fragment>
-            ),
-          )}
+          <SectionNav label={words.navLabel} groups={nav} />
+          <div className={styles.sections}>
+            {plans.map((plan) =>
+              plan.kind === 'general' ? (
+                <General
+                  key={plan.section.id}
+                  tenant={tenant}
+                  data={data}
+                  etag={etag}
+                  gone={read.gone}
+                  plan={plan}
+                />
+              ) : (
+                <Fragment key={plan.section.id}>
+                  <Plain tenant={tenant} data={data} etag={etag} gone={read.gone} plan={plan} />
+                  {plan.kind === 'lockouts' ? <ClearLockouts tenant={tenant} /> : null}
+                </Fragment>
+              ),
+            )}
+          </div>
         </div>
       )}
     </ReadGate>

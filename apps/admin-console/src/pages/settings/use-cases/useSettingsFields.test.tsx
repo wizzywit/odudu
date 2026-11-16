@@ -22,7 +22,7 @@ it('draws a control for each field of the section, with the value as read', asyn
   await waitFor(() => {
     expect(result.current.ready).toBe(true);
   });
-  expect(result.current.used.fields.controls[0]).toMatchObject({
+  expect(result.current.used.fields.groups[0]?.controls[0]).toMatchObject({
     name: 'sso_session_idle_seconds',
     control: 'number',
     value: 1800,
