@@ -14,10 +14,14 @@ describe('stepRows', () => {
     expect(rows.map((row) => row.position)).toEqual([1, 2, 3]);
     expect(rows[0]).toMatchObject({
       authenticator: 'password',
-      what: "The subject's password.",
-      requirementWhat: 'Every sign-in must pass it.',
+      summary: "The subject's password. Every sign-in must pass it.",
       requirementLabel: 'Requirement for password',
     });
+  });
+
+  it('leaves an alternative without a sentence about its requirement', () => {
+    const rows = stepRows([{ authenticator: 'passkey', requirement: 'alternative' }], null, {});
+    expect(rows[0]?.summary).toBe('A passkey registered to the subject.');
   });
 
   it('gives a step the controls of its authenticator, with the tenant’s values as the default', () => {

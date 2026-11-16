@@ -357,7 +357,7 @@ it('offers a step the settings of its authenticator, over the tenant’s value, 
   );
   const section = await steps();
   expect(within(section).queryByRole('button', { name: /Code length for password/u })).toBeNull();
-  const digits = await within(section).findByRole('button', { name: /Code length for otp/u });
+  const digits = await within(section).findByRole('button', { name: /Code length/u });
   expect(digits).toHaveTextContent('Tenant setting (6 digits)');
   await user.click(digits);
   await user.click(await screen.findByRole('option', { name: '8 digits' }));

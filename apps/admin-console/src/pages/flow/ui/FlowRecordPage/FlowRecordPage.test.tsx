@@ -145,7 +145,7 @@ it('offers a named flow’s step the settings of its authenticator and saves one
     }),
   );
   const region = await section();
-  await user.click(await within(region).findByRole('button', { name: /Algorithm for otp/u }));
+  await user.click(await within(region).findByRole('button', { name: /Algorithm/u }));
   await user.click(await screen.findByRole('option', { name: 'SHA256' }));
   await user.click(within(region).getByRole('button', { name: 'Save Steps' }));
   await waitFor(() => {

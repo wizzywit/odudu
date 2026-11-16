@@ -57,8 +57,8 @@ describe('settingControls', () => {
     });
   });
 
-  it('labels each control by the step it is on', () => {
-    expect(settingControls(OTP, TENANT)[0]?.label).toBe('Algorithm for otp');
+  it('words each control as the settings page does, since its step names the authenticator', () => {
+    expect(settingControls(OTP, TENANT)[0]?.label).toBe('Algorithm');
   });
 });
 

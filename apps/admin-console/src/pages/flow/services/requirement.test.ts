@@ -20,7 +20,7 @@ describe('REQUIREMENT_OPTIONS', () => {
 describe('requirementText', () => {
   it('says what each requirement means', () => {
     expect(requirementText('disabled')).toMatch(/skipped/u);
-    expect(requirementText('alternative')).toMatch(/any one/iu);
+    expect(requirementText('alternative')).toBeNull();
   });
 });
 

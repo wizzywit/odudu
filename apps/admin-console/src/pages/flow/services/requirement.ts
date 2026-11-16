@@ -7,15 +7,15 @@ export const REQUIREMENT_OPTIONS: readonly { id: ExecutionRequirement; label: st
   { id: 'disabled', label: 'Disabled' },
 ];
 
-const REQUIREMENT_TEXT: Readonly<Record<ExecutionRequirement, string>> = {
+// An alternative needs no line of its own: the section's rule says what a run of them means.
+const REQUIREMENT_TEXT: Readonly<Partial<Record<ExecutionRequirement, string>>> = {
   required: 'Every sign-in must pass it.',
-  alternative: 'Any one of a run of alternatives is enough.',
   conditional: 'Asked only of a subject it applies to; skipped for the rest.',
   disabled: 'Left in the flow but skipped, as if it were not there.',
 };
 
-export function requirementText(requirement: ExecutionRequirement): string {
-  return REQUIREMENT_TEXT[requirement];
+export function requirementText(requirement: ExecutionRequirement): string | null {
+  return REQUIREMENT_TEXT[requirement] ?? null;
 }
 
 export const OTP = 'otp';

@@ -21,7 +21,8 @@ describe('flowPage', () => {
     const { title, words } = flowPage();
     expect(title).toBe('Sign-in flow');
     expect(words.steps.noticeTitle).toBe('Sign-in flow');
-    expect(words.steps.up).toBe('Up');
+    expect(words.steps.up).toBe('▴');
+    expect(words.steps.settingsLabel('otp')).toBe('Settings of otp');
     expect(words.otp.title).toBe('One-time password');
     expect(words.steps.requirements.map((option) => option.id)).toEqual([
       'required',
