@@ -39,6 +39,7 @@ const FLOW_WORDS = {
     addLabel: 'Add a step',
     addRequirementLabel: 'Requirement of the new step',
     addButton: 'Add step',
+    settingsDisabled: 'A disabled step is not run, so the settings it names are not used.',
   },
   otp: { title: OTP_TITLE, rule: OTP_RULE, label: OTP_LABEL, noStep: NO_OTP_STEP },
 } as const;

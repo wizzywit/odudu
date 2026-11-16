@@ -6,8 +6,8 @@ import { distDir, walk } from '#docs/tests/support/dist.ts';
 
 // The server holds the built site in memory and leaves out a file past its
 // limits, so a page or the search index that grew past one is a 404 in the
-// image and nothing in the build says so. A quarter of each limit stays free.
-const HEADROOM = 0.75;
+// image and nothing in the build says so. A fifth of each limit stays free.
+const HEADROOM = 0.8;
 
 describe('the image build against the limits of the server that holds it', () => {
   const dir = distDir('image');

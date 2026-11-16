@@ -1354,3 +1354,15 @@ freshly built compose project `odudu-13c` (port `3000`, Postgres on `5463`, `ODU
 commit `1bfde6fa5`, on a database that began empty, with the same sign-in and shell as above: `get-flows-post-flows-and-the-flow-routes.md` whole,
 with its own variables set in its blocks and the blocks that name `flow_id` and `flow-in-use` added (the delete there sends the flow's tag), and
 `GET /admin/openapi.json` (856,642 to 858,768 bytes, 113 paths). The stack and its image were removed afterwards.
+
+The settings a step of a sign-in flow carries were run on 2026-11-13 on a freshly built compose project, `odudu-p4f-i7c` (port `3000`,
+Postgres on `5407`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit `ab06c1b2b` with only documentation files
+uncommitted. Each page ran whole, as one file per block in one shell, on a database emptied first (`down -v`, `up`, `seed admin`, a token as in
+Getting the token) and with the tenants the page names made through the admin API before it, so every id, time and request id on the page is that
+run's and its `ETag` values are the server's. The administrator's token was got again whenever it was more than 60 seconds old.
+`get-flowexecutions-and-put-flowexecutions.md` is that run with its new section, `Settings on a step` (tenants `demo`, `flow-demo`, `fields-demo`
+and `settings-demo`; its commands name port `3000`, where an earlier capture named `3080` and `3082`), and `get-flows-post-flows-and-the-flow-routes.md`
+is that run with its new `strict` flow made, refused and deleted (tenants `demo` and `other`). `GET /admin/openapi.json` was fetched again on the
+second stack (858,768 to 875,330 bytes, 113 paths). The blocks of the two flow pages that were not new came back as before, except for their ids,
+times and request ids. The prose of `two-factor-authentication-with-totp.md`, `enrolling-a-passkey.md` and `recovery-codes.md` gained a sentence
+about the settings of a step, and those pages' blocks were not run again. The stack and its image were removed afterwards.

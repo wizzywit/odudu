@@ -40,7 +40,7 @@ function getFlow(token: string, tenantName: string) {
 async function putFlow(
   token: string,
   tenantName: string,
-  steps: { authenticator: string; requirement: string }[],
+  steps: { authenticator: string; requirement: string; settings?: Record<string, unknown> }[],
 ) {
   return fixture.http.inject({
     method: 'PUT',
@@ -240,6 +240,35 @@ describe('PUT /admin/tenants/{t}/flow/executions', () => {
       expect(body.detail).toContain(name);
     }
     expect(body.detail).toMatch(/^unknown authenticator "bogus"; expected one of /u);
+  });
+
+  it('round-trips a step’s settings through GET and PUT, and refuses ones it does not read', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const steps = [
+      { authenticator: 'password', requirement: 'required' },
+      { authenticator: 'otp', requirement: 'required', settings: { digits: 8, period: 60 } },
+    ];
+    const written = await putFlow(token, t.name, steps);
+    expect(written.statusCode, written.body).toBe(200);
+    expect(written.json<{ items: { settings?: unknown }[] }>().items[1]?.settings).toEqual({
+      digits: 8,
+      period: 60,
+    });
+    const read = await getFlow(token, t.name);
+    expect(read.json<{ items: { settings?: unknown }[] }>().items[1]?.settings).toEqual({
+      digits: 8,
+      period: 60,
+    });
+
+    const refused = await putFlow(token, t.name, [
+      { authenticator: 'password', requirement: 'required', settings: { digits: 8 } },
+    ]);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<{ type: string; errors: { path: string }[] }>()).toMatchObject({
+      type: 'about:blank#flow-step-settings',
+      errors: [{ path: '[0].settings' }],
+    });
   });
 
   // The console tells the five refusals apart by type, and reads the step at
@@ -469,6 +498,9 @@ describe('audit', () => {
     expect(replaced.kind).toBe('ok');
     expect(ok.events).toHaveLength(1);
     expect(ok.events[0]?.action).toBe('flow.replace');
+    expect(ok.events[0]?.detail).toMatchObject({
+      steps: { after: [{ authenticator: 'password', requirement: 'required' }] },
+    });
 
     const refused = collector();
     const current = (await withTenant(fixture.app.db, t.id, (tx) => listFlow(tx, t.id))).etag;

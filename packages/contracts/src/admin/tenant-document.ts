@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { exportedMessageOverrideSchema, MESSAGE_OVERRIDE_LIMIT } from '#/admin/message-overrides';
 import { noBidiControls } from '#/bidi';
 import { clientTypeSchema } from '#/admin/clients';
-import { executionRequirementSchema } from '#/admin/flow';
+import { executionRequirementSchema, flowStepSettingsSchema } from '#/admin/flow';
 import { nameClaims, profileSchema } from '#/admin/profile';
 import { clientScopeAssignmentSchema } from '#/admin/scopes';
 import {
@@ -154,6 +154,7 @@ export const REGISTRATION_POLICY_SETTINGS: readonly string[] =
 export const exportedFlowStepSchema = z.strictObject({
   authenticator: z.string(),
   requirement: executionRequirementSchema,
+  settings: flowStepSettingsSchema.optional(),
 });
 
 // A set the admin API replaces whole, held to ASSIGNMENT_LIMIT: the refusal says

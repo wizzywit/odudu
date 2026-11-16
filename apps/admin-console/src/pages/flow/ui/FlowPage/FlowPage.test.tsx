@@ -337,3 +337,73 @@ it('passes axe in both themes, edited, refused and conflicted', async () => {
     ),
   ).toEqual({ light: [], dark: [] });
 });
+
+const WITH_TENANT_DIGITS = json(
+  { display_name: 'Acme', otp_required: false, totp_digits: 6 },
+  200,
+  {
+    etag: '"s1"',
+  },
+);
+
+it('offers a step the settings of its authenticator, over the tenant’s value, and saves one named', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    flowRoutes(undefined, {
+      [`GET ${ST}`]: WITH_TENANT_DIGITS,
+      [`PUT ${FL}`]: flowAnswer(FLOW_ITEMS, '"f2"'),
+    }),
+  );
+  const section = await steps();
+  expect(within(section).queryByRole('button', { name: /Code length for password/u })).toBeNull();
+  const digits = await within(section).findByRole('button', { name: /Code length for otp/u });
+  expect(digits).toHaveTextContent('Tenant setting (6 digits)');
+  await user.click(digits);
+  await user.click(await screen.findByRole('option', { name: '8 digits' }));
+  await user.click(within(section).getByRole('button', { name: 'Save Steps' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PUT')?.body).toContainEqual({
+      authenticator: 'otp',
+      requirement: 'conditional',
+      settings: { digits: 8 },
+    });
+  });
+});
+
+it('keeps the settings a flow already has when only the order is saved', async () => {
+  const user = userEvent.setup();
+  const named = [
+    step(0, 'passkey', 'alternative'),
+    step(1, 'password', 'alternative'),
+    { ...step(2, 'otp', 'conditional'), settings: { digits: 8 } },
+  ];
+  const { sent } = renderConsoleAt(
+    AT,
+    flowRoutes(undefined, {
+      [`GET ${FL}`]: flowAnswer(named),
+      [`PUT ${FL}`]: flowAnswer(named, '"f2"'),
+    }),
+  );
+  const section = await steps();
+  await user.click(within(section).getByRole('button', { name: 'Move password up' }));
+  await user.click(within(section).getByRole('button', { name: 'Save Steps' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PUT')?.body).toContainEqual({
+      authenticator: 'otp',
+      requirement: 'conditional',
+      settings: { digits: 8 },
+    });
+  });
+});
+
+it('says a disabled step’s settings are not used', async () => {
+  renderConsoleAt(
+    AT,
+    flowRoutes(undefined, {
+      [`GET ${FL}`]: flowAnswer([step(0, 'password', 'required'), step(1, 'otp', 'disabled')]),
+    }),
+  );
+  const section = await steps();
+  expect(within(section).getByText(/disabled step is not run/u)).toBeVisible();
+});

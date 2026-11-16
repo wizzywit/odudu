@@ -42,6 +42,7 @@ export interface RequiredActionResponseDeps extends ContinuationDeps {
     tenantName: string,
     tenantId: string,
     subjectId: string,
+    authSessionId: string,
   ): Promise<TotpEnrolmentOffer>;
   beginPasskeyEnrolment?(
     tenantName: string,
@@ -58,6 +59,7 @@ export interface RequiredActionResponseDeps extends ContinuationDeps {
   beginRecoveryCodes(
     tenantId: string,
     subjectId: string,
+    authSessionId: string,
     request: RequestContext,
     askFirst?: boolean,
   ): Promise<BeginRecoveryCodesOutcome>;
@@ -139,6 +141,7 @@ export async function sendRequiredActionPage(
       const issued = await deps.beginRecoveryCodes(
         tenant.id,
         subjectId,
+        authSessionId,
         requestContextFrom(reply.request),
         variant === 'requested',
       );
@@ -275,7 +278,7 @@ export async function sendRequiredActionPage(
   if (tenant === null) {
     return sendHtml(reply, 200, renderRequiredActionPage(action, signInPath, locale));
   }
-  const offer = await deps.beginTotpEnrolment(tenantName, tenant.id, subjectId);
+  const offer = await deps.beginTotpEnrolment(tenantName, tenant.id, subjectId, authSessionId);
   return send(
     pages.totp(tenantName, tenantAddressOf(reply.request), authSessionId, offer, undefined, locale),
   );

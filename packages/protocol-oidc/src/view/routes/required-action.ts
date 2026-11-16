@@ -214,7 +214,12 @@ export function registerRequiredActionRoute(
 
     // Confirmed: the set the person holds is replaced now, and shown once.
     if (outcome.kind === 'confirmed') {
-      const issued = await deps.beginRecoveryCodes(tenant.id, outcome.subjectId, context);
+      const issued = await deps.beginRecoveryCodes(
+        tenant.id,
+        outcome.subjectId,
+        outcome.authSessionId,
+        context,
+      );
       if (issued.kind === 'too_soon') {
         const shown = await continuation(deps, tenantName, outcome.authSessionId, reply, {
           subject: outcome.subjectId,
@@ -333,7 +338,12 @@ export function registerRequiredActionRoute(
     }
 
     if (outcome.action === 'generate-recovery-codes') {
-      const issued = await deps.beginRecoveryCodes(tenant.id, outcome.subjectId, context);
+      const issued = await deps.beginRecoveryCodes(
+        tenant.id,
+        outcome.subjectId,
+        outcome.authSessionId,
+        context,
+      );
       // The last TOTP was removed after the gate read what is owed, and the
       // action went with it: the parked login goes on without it.
       if (issued.kind === 'no_second_factor' && variant === 'requested') {
@@ -421,7 +431,12 @@ export function registerRequiredActionRoute(
       );
     }
 
-    const offer = await deps.beginTotpEnrolment(tenantName, tenant.id, outcome.subjectId);
+    const offer = await deps.beginTotpEnrolment(
+      tenantName,
+      tenant.id,
+      outcome.subjectId,
+      outcome.authSessionId,
+    );
     return sendHtml(
       reply,
       200,

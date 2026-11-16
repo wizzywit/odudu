@@ -9,12 +9,10 @@ import {
 import { timingSafeEqual } from 'node:crypto';
 import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
-import { flowRepository } from '#/repository/flows';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
-import { type FlowStep } from '#/schema/flow';
-import { resolveFlow } from '#/service/flow';
+import { flowSteps } from '#/usecase/flow-steps';
 import { passkeyCheckedAgainst } from '#/service/passkey-switch';
 import { SessionEntry } from '#/service/session-entry';
 import { hashSignInSecret, newSignInSecret, readSignInHandle } from '#/service/sign-in-handle';
@@ -558,20 +556,6 @@ function isApplicable(
 // the configure-totp required action instead.
 function enrolmentOwed(facts: FlowFacts): boolean {
   return otpApplies(facts) && !facts.hasTotp;
-}
-
-// The steps of the flow a sign-in runs: the one it names, else the tenant's
-// default, read with one query either way. A flow that is not there, or a
-// tenant with no default, has nothing to run, so the sign-in fails as one
-// whose flow is empty does, and says nothing of why.
-async function flowSteps(
-  tx: TenantScopedDatabase,
-  tenantId: string,
-  flowId: string | null,
-): Promise<readonly FlowStep[]> {
-  const found = await flowRepository(tx).forSignIn(tenantId, flowId);
-  const resolved = resolveFlow(found === null ? [] : [found], flowId);
-  return resolved.kind === 'ok' ? resolved.flow.steps : [];
 }
 
 // Returns the facts alongside the steps rather than making the caller ask

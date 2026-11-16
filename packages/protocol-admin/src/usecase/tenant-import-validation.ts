@@ -475,6 +475,9 @@ function flowAndSmtpProblems(
   if (flow.kind === 'duplicate_authenticator') {
     problems.add('document.flow', `names ${flow.name} more than once`);
   }
+  if (flow.kind === 'unread_settings') {
+    problems.add('document.flow', `${flow.name} does not read the settings it carries`);
+  }
   if (flow.kind === 'no_enabled_step') problems.add('document.flow', 'every step is disabled');
   if (flow.kind === 'ok' && !startsALogin(document.flow)) {
     problems.add('document.flow', 'no step can render the first challenge of a login');

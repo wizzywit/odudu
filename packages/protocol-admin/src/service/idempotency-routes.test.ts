@@ -48,6 +48,10 @@ const REVIEWED_NOT_SECRET: Record<string, string> = {
   '/admin/tenants/:tenant/theme/publish code': 'the code of a failed theme check, not a credential',
   '/admin/tenants/:tenant/clients/:id/theme/publish code':
     'the code of a failed theme check, not a credential',
+  '/admin/tenants/:tenant/flows resident_key':
+    'a passkey step\u2019s WebAuthn resident-key preference, not key material',
+  '/admin/tenants/:tenant/flows/:id/make-default resident_key':
+    'a passkey step\u2019s WebAuthn resident-key preference, not key material',
   '/admin/tenants/:tenant/roles client_key':
     'the client_id a role belongs to, public in every read',
 };

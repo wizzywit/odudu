@@ -82,6 +82,12 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'A step of a replacement authentication flow names an authenticator that is not ' +
       'registered. `detail` lists the ones that are.',
   },
+  'flow-step-settings': {
+    status: 400,
+    summary:
+      'A step of a sign-in flow carries `settings` its authenticator does not read, or the ' +
+      'authenticator reads none. `errors[]` names the step and the keys it reads.',
+  },
   'flow-limit': {
     status: 409,
     summary:

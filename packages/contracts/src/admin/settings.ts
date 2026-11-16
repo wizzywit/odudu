@@ -26,6 +26,8 @@ export interface TenantSettingRange {
 // the console words the same limits the server enforces;
 // tests/tenant-setting-checks.int.test.ts in @odudu/domain-tenant holds the
 // two in agreement.
+export const RECOVERY_CODE_COUNT_RANGE = { min: 8, max: 16 } as const;
+
 export const TENANT_SETTING_RANGES: Readonly<Partial<Record<string, TenantSettingRange>>> = {
   sso_session_idle_seconds: { min: 60, max: 2_592_000 },
   sso_session_max_seconds: { min: 60, max: 2_592_000 },
@@ -49,17 +51,22 @@ export const TENANT_SETTING_RANGES: Readonly<Partial<Record<string, TenantSettin
   reset_password_ttl_seconds: { min: 60, max: 86_400 },
   session_freshness_seconds: { min: 30, max: 3600 },
   recovery_code_warn_below: { min: 0, max: 10 },
-  recovery_code_count: { min: 8, max: 16 },
+  recovery_code_count: RECOVERY_CODE_COUNT_RANGE,
 };
 
 // The values a setting may take where the CHECK is a list rather than a range:
 // the TOTP and WebAuthn parameters an authenticator app or a browser understands.
+export const TOTP_ALGORITHM_CHOICES = ['SHA1', 'SHA256', 'SHA512'] as const;
+export const TOTP_DIGITS_CHOICES = [6, 8] as const;
+export const TOTP_PERIOD_CHOICES = [30, 60] as const;
+export const WEBAUTHN_REQUIREMENT_CHOICES = ['required', 'preferred', 'discouraged'] as const;
+
 export const TENANT_SETTING_CHOICES: Readonly<Record<string, readonly (string | number)[]>> = {
-  totp_algorithm: ['SHA1', 'SHA256', 'SHA512'],
-  totp_digits: [6, 8],
-  totp_period: [30, 60],
-  webauthn_user_verification: ['required', 'preferred', 'discouraged'],
-  webauthn_resident_key: ['required', 'preferred', 'discouraged'],
+  totp_algorithm: TOTP_ALGORITHM_CHOICES,
+  totp_digits: TOTP_DIGITS_CHOICES,
+  totp_period: TOTP_PERIOD_CHOICES,
+  webauthn_user_verification: WEBAUTHN_REQUIREMENT_CHOICES,
+  webauthn_resident_key: WEBAUTHN_REQUIREMENT_CHOICES,
   breached_check: ['off', 'dataset', 'remote'],
   breached_on_error: ['open', 'closed'],
 };

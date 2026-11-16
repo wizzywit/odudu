@@ -10,7 +10,7 @@ export const flowTools = [
     name: 'get_flow_executions',
     description:
       "Reads the tenant's default sign-in flow: the authenticators it runs in order, each required or " +
-      'alternative, and the authenticators that could be added.',
+      'alternative, any settings a step overrides, and the authenticators that could be added.',
     routeKey: tenantGet('/flow/executions'),
     capability: 'manage-tenant',
     shape: {},
@@ -29,7 +29,8 @@ export const flowTools = [
   valueTool({
     name: 'get_flow',
     description:
-      'Reads one sign-in flow: its name, whether it is the default, and its steps in order.',
+      'Reads one sign-in flow: its name, whether it is the default, and its steps in order, with any ' +
+      'authenticator settings a step overrides.',
     routeKey: tenantGet('/flows/:id'),
     capability: 'manage-tenant',
     shape: { id: idField('flow') },

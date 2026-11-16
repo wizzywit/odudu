@@ -129,3 +129,33 @@ it('says the authenticators could not be read, with a retry, instead of offering
   await user.click(screen.getByRole('button', { name: 'Try again' }));
   expect(await section()).toBeVisible();
 });
+
+it('offers a named flow’s step the settings of its authenticator and saves one under steps', async () => {
+  const user = userEvent.setup();
+  const withOtp = [...ONE_STEP, { authenticator: 'otp', requirement: 'conditional' }];
+  const { sent } = renderConsoleAt(
+    AT,
+    flowRoutes(undefined, {
+      [`GET ${STAFF}`]: json(flowRecordBody(STAFF_FLOW_ID, 'staff', false, withOtp), 200, {
+        etag: '"s1"',
+      }),
+      [`PUT ${STAFF}`]: json(flowRecordBody(STAFF_FLOW_ID, 'staff', false, withOtp), 200, {
+        etag: '"s2"',
+      }),
+    }),
+  );
+  const region = await section();
+  await user.click(await within(region).findByRole('button', { name: /Algorithm for otp/u }));
+  await user.click(await screen.findByRole('option', { name: 'SHA256' }));
+  await user.click(within(region).getByRole('button', { name: 'Save Steps' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PUT')).toMatchObject({
+      body: {
+        steps: [
+          ONE_STEP[0],
+          { authenticator: 'otp', requirement: 'conditional', settings: { algorithm: 'SHA256' } },
+        ],
+      },
+    });
+  });
+});

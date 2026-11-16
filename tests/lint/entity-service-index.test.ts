@@ -15,8 +15,8 @@ async function exemptEntities(): Promise<string[]> {
 }
 
 describe('an entity whose index a service may import for values', () => {
-  it('is named by the rule, and the names are the two that publish services only', async () => {
-    expect((await exemptEntities()).sort()).toEqual(['administrator', 'area']);
+  it('is named by the rule, and the names are the three that publish services only', async () => {
+    expect((await exemptEntities()).sort()).toEqual(['administrator', 'area', 'authenticator']);
   });
 
   it('exports nothing from use-cases, ui or repository', async () => {

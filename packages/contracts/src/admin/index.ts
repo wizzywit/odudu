@@ -78,6 +78,11 @@ export {
   TENANT_SETTING_CHOICES,
   TENANT_SETTING_RANGES,
   type TenantSettingRange,
+  RECOVERY_CODE_COUNT_RANGE,
+  TOTP_ALGORITHM_CHOICES,
+  TOTP_DIGITS_CHOICES,
+  TOTP_PERIOD_CHOICES,
+  WEBAUTHN_REQUIREMENT_CHOICES,
 } from '#/admin/settings';
 export {
   profileSchema,
@@ -458,6 +463,9 @@ export {
   type FlowWire,
   flowStepSchema,
   type FlowStepWire,
+  flowStepSettingsSchema,
+  type FlowStepSettings,
+  settingKeysOf,
   listFlowsResponseSchema,
   type ListFlowsResponse,
   saveFlowRequestSchema,

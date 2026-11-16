@@ -338,7 +338,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'flow',
-    alt: 'The Sign-in flow page: four steps in order, passkey, password, otp and recovery-code, each with a requirement menu and Up and Down buttons.',
+    alt: 'The Sign-in flow page: four steps in order, passkey, password, otp and recovery-code, each with a requirement menu and Up and Down buttons, and the passkey, otp and recovery-code steps with their own settings, each starting at the tenant setting.',
     caption: 'The steps a person is asked, in order, each with its requirement.',
     signedIn: true,
     expect: [

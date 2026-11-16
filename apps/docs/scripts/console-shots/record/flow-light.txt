@@ -65,6 +65,20 @@ Conditional
 Disabled
 Up
 Down
+User verification for passkey
+Tenant setting (Required)
+▾
+Tenant setting (Required)
+Required
+Preferred
+Discouraged
+Stored on the device for passkey
+Tenant setting (Required)
+▾
+Tenant setting (Required)
+Required
+Preferred
+Discouraged
 2
 password
 The subject's password.
@@ -92,6 +106,25 @@ Conditional
 Disabled
 Up
 Down
+Algorithm for otp
+Tenant setting (SHA1)
+▾
+Tenant setting (SHA1)
+SHA1
+SHA256
+SHA512
+Code length for otp
+Tenant setting (6 digits)
+▾
+Tenant setting (6 digits)
+6 digits
+8 digits
+Code period for otp
+Tenant setting (30 seconds)
+▾
+Tenant setting (30 seconds)
+30 seconds
+60 seconds
 4
 recovery-code
 One of the single-use recovery codes issued with a one-time password.
@@ -105,6 +138,19 @@ Conditional
 Disabled
 Up
 Down
+Codes in a set for recovery-code
+Tenant setting (10 codes)
+▾
+Tenant setting (10 codes)
+8 codes
+9 codes
+10 codes
+11 codes
+12 codes
+13 codes
+14 codes
+15 codes
+16 codes
 Every authenticator the server has is already a step.
 One-time password
 The one-time password step is asked of a subject who has set up an authenticator app. Turn this on to ask it of every subject, those who have not set one up included. A sign-in with a passkey is never asked again.

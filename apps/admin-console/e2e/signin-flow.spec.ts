@@ -70,6 +70,19 @@ test('the flow is reordered, a step disabled and one added, and the one-time pas
   await expect(section.getByText('Asked of every subject.')).toBeVisible();
   await expectAccessible(page);
 
+  await section.getByRole('button', { name: /Code length for otp/u }).click();
+  await page.getByRole('option', { name: '8 digits' }).click();
+  await section.getByRole('button', { name: 'Save Steps' }).click();
+  await expect(section.getByRole('button', { name: 'Save Steps' })).toBeHidden();
+  await expect
+    .poll(() =>
+      psql(
+        `select steps->2->'settings' from flows where is_default and tenant_id = ${inTenant(main.tenant)}`,
+      ),
+    )
+    .toBe('{"digits": 8}');
+  await expectAccessible(page);
+
   await page.reload();
   expect(await order(await openFlow(page, main.tenant))).toEqual([
     'password',

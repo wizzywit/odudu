@@ -35,6 +35,8 @@ function refusalText(
       } It has ${andList(available)}.`;
     case 'about:blank#flow-duplicate-authenticator':
       return `${named === undefined ? 'An authenticator' : `“${named}”`} is a step twice. An authenticator is one step.`;
+    case 'about:blank#flow-step-settings':
+      return `${named === undefined ? 'A step' : `“${named}”`} carries settings it does not read. Set them back to the tenant’s value.`;
     default:
       return title;
   }

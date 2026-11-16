@@ -1,5 +1,6 @@
 import type { FlowWire } from '#/pages/flow/types/flows';
 import { useRefusal } from '#/entities/session';
+import { useTenantSettingsRead } from '#/entities/tenant';
 import { flowRecordName } from '#/entities/flow';
 import { explainFlowSave } from '#/pages/flow/services/flows';
 import { useFlowSave, type FlowValues } from '#/pages/flow/repository/useFlows';
@@ -27,6 +28,7 @@ export function useFlowEditor({
 }): FlowEditor {
   const refusal = useRefusal(tenant);
   const saveFlow = useFlowSave(tenant, flow.id);
+  const settings = useTenantSettingsRead(tenant);
   const save = useSectionSave({
     tenant,
     record: flowRecordName(flow.id),
@@ -53,6 +55,7 @@ export function useFlowEditor({
     steps: save.values.steps,
     available,
     reading: null,
+    tenantSettings: settings.data,
     edit: (next) => {
       save.edit('steps', next);
     },

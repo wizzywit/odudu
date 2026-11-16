@@ -471,6 +471,9 @@ importers:
 
   packages/authn-flows:
     dependencies:
+      '@odudu/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@odudu/crypto':
         specifier: workspace:*
         version: link:../crypto

@@ -63,9 +63,16 @@ function stepPath(
   name: string,
   nth: number,
   prefix: string,
+  field = 'authenticator',
 ): string {
   const indices = steps.flatMap((step, index) => (step.authenticator === name ? [index] : []));
-  return `${prefix}[${String(indices[nth] ?? indices[0] ?? 0)}].authenticator`;
+  return `${prefix}[${String(indices[nth] ?? indices[0] ?? 0)}].${field}`;
+}
+
+function unreadSettingsMessage(keys: readonly string[], read: readonly string[]): string {
+  return read.length === 0
+    ? 'this authenticator reads no settings'
+    : `this authenticator reads ${read.join(', ')}, not ${keys.join(', ')}`;
 }
 
 function stepsProblem(
@@ -97,6 +104,17 @@ function stepsProblem(
         [{ path: stepPath(steps, outcome.name, 1, prefix), message: 'repeats an earlier step' }],
         `authenticator ${JSON.stringify(outcome.name)} appears more than once; a step is addressed by its authenticator, so a repeat has no unambiguous meaning`,
         'about:blank#flow-duplicate-authenticator',
+      );
+    case 'unread_settings':
+      return fieldProblem(
+        [
+          {
+            path: stepPath(steps, outcome.name, 0, prefix, 'settings'),
+            message: unreadSettingsMessage(outcome.keys, outcome.read),
+          },
+        ],
+        `step ${JSON.stringify(outcome.name)} carries settings it does not read`,
+        'about:blank#flow-step-settings',
       );
     case 'no_enabled_step':
       return problem(
