@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { Link } from 'react-aria-components';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
@@ -81,6 +82,7 @@ function columns(page: Page): readonly Column<TenantSession>[] {
 
 function List({ tenant }: { tenant: string }) {
   const page = useTenantSessionsPage(tenant);
+  const idle = useId();
   return (
     <>
       <ResourceListPage
@@ -89,15 +91,23 @@ function List({ tenant }: { tenant: string }) {
         title={AREA.label}
         description={page.text.rule}
         actions={
-          <Button
-            variant="danger"
-            isDisabled={page.list.rows.length === 0}
-            onPress={() => {
-              page.endAll.ask('all');
-            }}
-          >
-            End every session
-          </Button>
+          <div className={styles.actions}>
+            <Button
+              variant="danger"
+              isDisabled={page.list.rows.length === 0}
+              {...(page.list.rows.length === 0 ? { 'aria-describedby': idle } : {})}
+              onPress={() => {
+                page.endAll.ask('all');
+              }}
+            >
+              End every session
+            </Button>
+            {page.list.rows.length === 0 ? (
+              <span id={idle} className={styles.idle}>
+                {page.text.endIdle}
+              </span>
+            ) : null}
+          </div>
         }
         noun={page.text.noun}
         columns={columns(page)}

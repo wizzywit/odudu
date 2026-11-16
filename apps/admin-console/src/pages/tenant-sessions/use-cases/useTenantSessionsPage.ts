@@ -12,7 +12,12 @@ import {
   endFailure,
   endMoreText,
 } from '#/pages/tenant-sessions/services/endSessions';
-import { NOTHING_YET, NOUN, PAGE_RULE } from '#/pages/tenant-sessions/services/sessionListText';
+import {
+  END_IDLE,
+  NOTHING_YET,
+  NOUN,
+  PAGE_RULE,
+} from '#/pages/tenant-sessions/services/sessionListText';
 import { subjectCell, subjectLinkOf } from '#/pages/tenant-sessions/services/sessionSubject';
 import { useToast } from '#/shared/lib/repository/useToasts';
 import { holds } from '#/shared/lib/services/access';
@@ -29,7 +34,7 @@ export interface TenantSessionsPage {
   consequence: string;
   // What stays beside the button while more sessions are live.
   more: string | null;
-  text: { noun: typeof NOUN; rule: string; nothingYet: string };
+  text: { noun: typeof NOUN; rule: string; nothingYet: string; endIdle: string };
   // How a session names its subject: a label to read and the id it goes by.
   subjectOf: (session: TenantSession) => ReturnType<typeof subjectCell>;
 }
@@ -57,7 +62,7 @@ export function useTenantSessionsPage(tenant: string): TenantSessionsPage {
     }),
     consequence: endConsequence(tenant, isOwnTenant(principal, tenant)),
     more,
-    text: { noun: NOUN, rule: PAGE_RULE, nothingYet: NOTHING_YET },
+    text: { noun: NOUN, rule: PAGE_RULE, nothingYet: NOTHING_YET, endIdle: END_IDLE },
     subjectOf: (session) =>
       subjectCell(session, usernameOrId({ id: session.subjectId, username: session.username })),
   };
