@@ -780,5 +780,5 @@ Keep-Alive: timeout=72
 {"error":"agent_not_permitted","error_description":"A token issued to an agent may read this account and may not change it; the person makes the change themselves"}
 ```
 
-What this page does not show: the API at a tenant's own domain (the path is `/me/profile` there), and a rate limit and CORS on
-these routes, which they do not have yet.
+What this page does not show: the API at a tenant's own domain (the path is `/me/profile` there). The browser origin and the budget per
+origin of these routes are on [The me API](./the-me-api.md#a-browser-application-on-another-origin).

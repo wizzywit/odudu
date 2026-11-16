@@ -1097,22 +1097,20 @@ null`, which the query-plan check's foreign-key rule accepts as a probe of the k
    `pnpm vitest run tests/docs/not-implemented-placement.test.ts` (every item names a phase, a decision or an ADR) passes; each
    marker was then read for truth. P4f left Next and its five smaller capabilities (more required actions, the passkey switch, several
    flows, per-step configuration, the breached-password check) left Later, and Shipped gained a "Self-service" section. The reset
-   carve-out is in it: a password change offers to end the other sessions, a reset ends them all with no choice. Two lines were still
-   wrong and were fixed: the P5b sentence said P4f "builds" the action pages, and P11's sentence did not name the me routes' missing
-   limiter.
+   carve-out is in it: a password change offers to end the other sessions, a reset ends them all with no choice. One line was still
+   wrong and was fixed: the P5b sentence said P4f "builds" the action pages.
 2. **The numbers P4f moved.** `git grep -n '\bP4f\b' -- ':!docs/archive'`. Every hit in the roadmap, `docs/NEXT.md` and the roadmap
    tests was either removed (shipped) or re-addressed. `roadmap-shape.test.ts` no longer expects P4f in Next, and its
    "never cites a closed phase" check holds for the page.
 3. **`docs/NEXT.md` headings read against the closed phases.** "What P4f and P4h inherit" is now "What P4h inherits" and its stale
    paragraph, "Two recovery-code gaps that need self-service", is gone (both gaps closed in increment 5). The row for "finish
-   registration" is gone (increment 10). The rest of what P4f addressed moved:
-   the "me" routes' missing rate limit and their absence from the previous-address window are placed on **P11**, cross-origin calls from
-   a browser application on **P4i**, and a person's own recovery after a switch back to the path address, which P4f never built, is
-   left with the owner to place: the row says so. The unique-index row now names the release that carries it, which is an operator's
-   order in `RELEASING.md` and not a phase. The file is 399 lines and no section passes 130 (`next-budget.test.ts`).
+   registration" is gone (increment 10). The me routes' rate limit, CORS and previous-address window are built (below), so their row is
+   gone. The unique-index row names P11, whose migration runner builds indexes concurrently, and a person's own recovery after a switch
+   back to the path address, which P4f never built, is an owner question in "Decisions still open" with its candidate phases. The file
+   is 396 lines and no section passes 130 (`next-budget.test.ts`).
 4. **The roadmap against section 11 and `docs/NEXT.md`, both ways.** `pnpm vitest run tests/docs/roadmap-section-11.test.ts` passes
-   with P4f moved from the sentence claims to the shipped claims, from the placement list to the shipped set, and with the new P4i and
-   P11 sentences mapped to their rows. Tenant export and import of flows is placed on P7 in the roadmap, in `docs/NEXT.md` and in this
+   with P4f moved from the sentence claims to the shipped claims and from the placement list to the shipped set; the unique-index
+   row maps to the roadmap's P11 line. Tenant export and import of flows is placed on P7 in the roadmap, in `docs/NEXT.md` and in this
    note (13c), and the P7 criterion carries it.
 5. **The public surface.** `git grep -n -i -E 'planned|self-service|me api|P4f' -- apps/docs README.md tests/docs/questions.md`: the
    landing page's two "Planned" bands are the agent items (P5 and P5b), still planned. The README feature list and the landing
@@ -1126,13 +1124,9 @@ null`, which the query-plan check's foreign-key rule accepts as a probe of the k
 
 Run again on 2026-11-16 on a compose project, `odudu-p4f-i14`, as `contributing/transcripts.md` records: the whole of
 `delete-admintenantstenant.md`; the three blocks of `get-clients-post-clients-and-get-clientsid.md` that named port `3092`; the
-open-and-press blocks of `self-registration.md`; the two session pages, whose blocks now show `device`.
-
-**Not run again, and why.** The five console pages that continue one sign-in (`the-tenants-own-sign-in.md`,
-`get-consoleauthcallback-refused.md`, `get-consoleauthcallback-restarted.md`, `a-refresh-the-server-refuses.md` and
-`guides/admin-signs-in-and-changes-a-user.md`) need that console run replayed in order from its first page, across the console
-gateway's redirects; the remainder of `getting-the-token.md` (the console key's rotation and the converted public client); and the
-request-path blocks of the TOTP, passkey and recovery-code guides. Each keeps the note it already carries saying it was not replayed.
+open-and-press blocks of `self-registration.md`; the two session pages, whose blocks now show `device`; `the-me-api.md`; the sections of
+`getting-the-token.md` after the token; the TOTP, passkey-switch and recovery-code request paths; the five console pages and the guide that
+carried a note about the device cookie or field.
 
 `pnpm docs:screenshots` ran against a fresh stack (59 screens) and produced no change to any record or to the manifest; five light
 pictures differed by pixels alone and were reverted. `pnpm --filter @odudu/docs page-shots` after `pnpm --filter @odudu/instrument
@@ -1140,12 +1134,35 @@ build` left the manifest as it was, so no server page's markup or stylesheet has
 (`image-fits-server.test.ts`, headroom 0.8) and the landing first-load budget (185 KiB) pass unchanged, in the docs suite run on a
 fresh build (147 files, 853 tests).
 
+### The me routes' gaps, built
+
+Three gaps P4f had recorded against its own routes were built in the closing pass, because they belong to the phase's topic. Greps run first:
+`git grep -n -i "throttle\|limiter\|cors\|web_origins\|previousAddressServes" -- apps/server/src packages/me/src packages/mcp/src`
+(the MCP endpoint's `mcpOriginLimiter` in `apps/server/src/app.ts`; `corsHeadersForRequest` and `webOriginAllowed` in
+`packages/protocol-oidc`; `WINDOW_SERVES` in `apps/server/src/host-rules.ts`).
+
+- **A budget per origin.** `meOriginThrottle` (default 600 a minute, `DEFAULT_ME_ORIGIN_THROTTLE`) in `buildApp`, one `slidingWindow` of the
+  same primitive and kind as the MCP endpoint's, keyed by `throttleOrigin(request.ip)`, spent in an `onRequest` hook for every method on
+  a me route (`isMeRoute`) before the token is read, answered `429` with `Retry-After`. At 600 the counter variant holds constant memory
+  and every key is bounded by `MAX_THROTTLE_KEYS`; it is per process, as the MCP endpoint's is (the multi-instance work is P11's and
+  covers both). No new table, no query.
+- **CORS.** A response to a request that names an origin carries `access-control-allow-origin` when the token's client lists it
+  (`MeCors.clientOrigins`: two primary-key reads in the tenant's scope, the client's `enabled` flag and its expanded `web_origins`, as
+  `/userinfo` resolves them), and `Vary: Origin` whether or not. The preflight, `OPTIONS /tenants/:tenant/me/*`, is answered `204` for an
+  origin an enabled client of the tenant lists (`MeCors.originAllowed`: the `client_origins` probe `/token` already makes, one indexed
+  read) and with no allowance otherwise. Tests: `packages/me/src/view/routes.test.ts`, and `apps/server/tests/me-edges.int.test.ts` against
+  PostgreSQL, which also holds the foreign-tenant case (an origin only another tenant's client lists, and a client of the same id with no
+  origin) and the disabled client and tenant.
+- **The previous-address window.** `/me/{profile,credentials,sessions,consents}` joined `WINDOW_SERVES`, tested in `host-rules.test.ts` and
+  through a real switch in `me-edges.int.test.ts`.
+
+Nothing moves to another phase for these; the transcript of `the-me-api.md` has a section for the browser origin and the budget.
+
 ### Placements this increment leaves
 
-- **The me routes' limiter and previous-address window** go to P11, and **cross-origin calls from a browser application** to P4i, in
-  `docs/NEXT.md` and the roadmap. P4f left them open by choice at increments 1 and 2.
-- **A passkey-only person's own recovery at an address a tenant left** is not built by P4f, whose `update-password` action refuses a
-  person who holds no password. The row in `docs/NEXT.md` asks the owner which phase takes it.
-- **The unique index on `(tenant_id, email_search)`** waits for the release after the one that ships `odudu reconcile-accounts`
-  (`RELEASING.md`).
-- **Transcripts not run again**, listed above, each still carrying its on-page note.
+- **The unique index on `(tenant_id, email_search)`** is placed on P11, whose migration runner builds indexes concurrently, which that index
+  needs at a million accounts a tenant (`RELEASING.md` has the order of rollout).
+- **A passkey-only person's own recovery at an address a tenant left** is not built by P4f, whose `update-password` action refuses a person
+  who holds no password; the row in `docs/NEXT.md` asks the owner which phase takes it, with the candidates.
+- **Transcripts not run again:** the section of `two-factor-authentication-with-totp.md` on a policy that changes and the `rc8-demo` section
+  of `recovery-codes.md`, whose enrolments and sign-ins were driven by a script the pages do not show; each keeps its earlier capture.
