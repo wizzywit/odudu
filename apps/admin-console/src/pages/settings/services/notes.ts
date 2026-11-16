@@ -1,5 +1,6 @@
 import { TENANT_SETTING_RANGES } from '@odudu/contracts/admin';
 import { formatSpan } from '#/shared/lib/services/format';
+import { rangeSentence } from '#/shared/lib/services/numbers';
 import type { SettingField } from '#/pages/settings/services/sections';
 
 export interface SettingRange {
@@ -15,17 +16,12 @@ export function settingRange(field: SettingField): SettingRange | null {
   return range === undefined ? null : { min: range.min, max: range.max };
 }
 
-function bound(field: SettingField, value: number): string {
-  return field.control === 'seconds' ? formatSpan(value) : String(value);
-}
-
 export function rangeRule(field: SettingField): string | null {
   const range = settingRange(field);
   if (range === null) return null;
+  const seconds = field.control === 'seconds';
   const unit = field.control === 'count' && field.unit !== undefined ? ` ${field.unit}` : '';
-  return range.max === undefined
-    ? `Allowed: at least ${bound(field, range.min)}${unit}.`
-    : `Allowed: ${bound(field, range.min)} to ${bound(field, range.max)}${unit}.`;
+  return rangeSentence(range.min, range.max, seconds ? formatSpan : String, unit);
 }
 
 export function fieldDescription(field: SettingField): string | undefined {

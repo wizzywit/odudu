@@ -4,11 +4,13 @@ import {
   DURATION_UNITS,
   durationUnit,
   inUnit,
-  secondsAfterSwitch,
+  holds,
+  unitLabel,
   secondsOf,
   unitShown,
   type DurationUnit,
 } from '#/shared/lib/services/durationUnits';
+import { outsideRange } from '#/shared/lib/services/numbers';
 import { formatDuration } from '#/shared/lib/services/format';
 import {
   FieldsReadOnly,
@@ -62,10 +64,7 @@ export function NumberWithUnitField({
     return <ReadOnlyValue label={label} value={reading} mono changed={changed} />;
   }
   const shown = unitShown(value, picked);
-  const outside =
-    picker &&
-    Number.isFinite(value) &&
-    ((minValue !== undefined && value < minValue) || (maxValue !== undefined && value > maxValue));
+  const outside = picker && outsideRange(value, minValue, maxValue);
   const problem = error ?? (outside ? rangeMessage : undefined);
   return (
     <AriaNumberField
@@ -89,17 +88,15 @@ export function NumberWithUnitField({
           <select
             className={styles.unitSelect}
             data-unit
-            aria-label={`${label}, unit`}
+            aria-label={unitLabel(label)}
             disabled={isDisabled ?? false}
             value={shown.id}
             onChange={(event) => {
-              const to = durationUnit(event.target.value);
-              setPicked(to);
-              onChange(secondsAfterSwitch(value, to));
+              setPicked(durationUnit(event.target.value));
             }}
           >
             {DURATION_UNITS.map((each) => (
-              <option key={each.id} value={each.id}>
+              <option key={each.id} value={each.id} disabled={!holds(value, each)}>
                 {each.id}
               </option>
             ))}

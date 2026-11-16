@@ -3,7 +3,8 @@ import {
   durationUnit,
   fittingUnit,
   inUnit,
-  secondsAfterSwitch,
+  holds,
+  unitLabel,
   secondsOf,
   unitShown,
 } from '#/shared/lib/services/durationUnits';
@@ -30,12 +31,11 @@ describe('unitShown', () => {
   });
 });
 
-describe('secondsAfterSwitch', () => {
-  it('keeps the seconds where the unit divides them, else the nearest whole count', () => {
-    expect(secondsAfterSwitch(7200, durationUnit('h'))).toBe(7200);
-    expect(secondsAfterSwitch(5400, durationUnit('h'))).toBe(7200);
-    expect(secondsAfterSwitch(10, durationUnit('h'))).toBe(3600);
-    expect(secondsAfterSwitch(Number.NaN, durationUnit('h'))).toBeNaN();
+describe('holds', () => {
+  it('says whether a unit divides the seconds, and holds for a value not entered', () => {
+    expect(holds(7200, durationUnit('h'))).toBe(true);
+    expect(holds(5400, durationUnit('h'))).toBe(false);
+    expect(holds(Number.NaN, durationUnit('h'))).toBe(true);
   });
 });
 
@@ -46,4 +46,8 @@ describe('conversion', () => {
     expect(inUnit(Number.NaN, durationUnit('h'))).toBeNaN();
     expect(secondsOf(Number.NaN, durationUnit('h'))).toBeNaN();
   });
+});
+
+it('words the unit menu of a field', () => {
+  expect(unitLabel('Idle')).toBe('Idle, unit');
 });

@@ -1,9 +1,12 @@
 import { utcDay } from '#/shared/lib/services/dateTime';
+// The seconds in each unit of time, the one table durations are read and typed by.
+export const UNIT_SECONDS = { second: 1, minute: 60, hour: 3_600, day: 86_400 } as const;
+
 const UNITS = [
-  ['day', 86_400],
-  ['hour', 3_600],
-  ['minute', 60],
-  ['second', 1],
+  ['day', UNIT_SECONDS.day],
+  ['hour', UNIT_SECONDS.hour],
+  ['minute', UNIT_SECONDS.minute],
+  ['second', UNIT_SECONDS.second],
 ] as const;
 
 // A span in words, to the second: "1 hour 30 minutes".

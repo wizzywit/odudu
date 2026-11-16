@@ -1,10 +1,11 @@
 import type { Settings } from '#/entities/tenant';
-import { Fragment, useEffect } from 'react';
+import { Fragment } from 'react';
 import { AreaGate } from '#/widgets/shell';
 import type { ControlView } from '#/pages/settings/services/controls';
 import type { SectionPlan } from '#/pages/settings/services/sectionPlan';
 import type { SettingValue } from '#/pages/settings/services/values';
 import { usePasswordNote } from '#/pages/settings/use-cases/usePasswordNote';
+import { useHashFocus } from '#/pages/settings/use-cases/useHashFocus';
 import { useCurrentSection } from '#/pages/settings/use-cases/useCurrentSection';
 import { useSettingsFields } from '#/pages/settings/use-cases/useSettingsFields';
 import { useSettingsPage } from '#/pages/settings/use-cases/useSettingsPage';
@@ -128,24 +129,24 @@ function Fields({
   save: SettingsSave;
   fixed: Readonly<Record<string, string>>;
 }) {
-  const { groups, change } = useSettingsFields(plan.section, save, fixed);
+  const { groups, moreLabel, change } = useSettingsFields(plan.section, save, fixed);
   return (
     <>
-      {groups.map((group) => {
+      {groups.map((group, at) => {
         const grid = (
           <FieldGrid>
             {group.controls.map((view) => (
               <GridCell key={view.name} {...view.cell}>
                 <Control view={view} change={change} />
-                {view.more === undefined ? null : <More>{view.more}</More>}
+                {view.more === undefined ? null : <More label={moreLabel}>{view.more}</More>}
               </GridCell>
             ))}
           </FieldGrid>
         );
         return group.title === undefined ? (
-          <Fragment key="ungrouped">{grid}</Fragment>
+          <Fragment key={at}>{grid}</Fragment>
         ) : (
-          <fieldset key={group.title} className={styles.group}>
+          <fieldset key={at} className={styles.group}>
             <legend className={styles.legend}>{group.title}</legend>
             {grid}
           </fieldset>
@@ -212,29 +213,30 @@ function General({ tenant, data, etag, gone, plan }: Props) {
   );
 }
 
-// A link to a section, opened in another tab or after a reload, lands on it.
-function useHashTarget(ready: boolean): void {
-  useEffect(() => {
-    if (!ready) return;
-    const hash = globalThis.location.hash.slice(1);
-    document.getElementById(hash)?.focus();
-  }, [ready]);
-}
-
 function sectionOf(headingId: string): Element | null {
   return document.getElementById(headingId)?.closest('section') ?? null;
 }
 
+function focusHeading(headingId: string): void {
+  document.getElementById(headingId)?.focus();
+}
+
 function Sections({ tenant }: { tenant: string }) {
   const { read, plans, nav, words } = useSettingsSections(tenant);
-  const current = useCurrentSection(nav, sectionOf);
-  useHashTarget(read.data !== undefined);
+  const loaded = read.data !== undefined;
+  const current = useCurrentSection(nav, sectionOf, loaded);
+  useHashFocus(loaded, globalThis.location.hash.slice(1), focusHeading);
   return (
     <ReadGate read={read} label={words.loading} fields={4} failed={words.failed}>
       {(data, etag) => (
         <div className={styles.frame}>
           <div className={styles.page}>
-            <SectionNav label={words.navLabel} groups={nav} current={current} />
+            <SectionNav
+              label={words.navLabel}
+              unsavedLabel={words.unsaved}
+              groups={nav}
+              current={current}
+            />
             <div className={styles.sections}>
               {plans.map((plan) =>
                 plan.kind === 'general' ? (

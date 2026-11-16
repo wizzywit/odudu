@@ -50,6 +50,7 @@
 
 .otp {
   font-size: var(--type-13);
+  color: var(--ink-muted);
 }
 
 .controls {
@@ -70,6 +71,7 @@
 
 .settings > :not(.caption, .rule) {
   flex: 1 1 12rem;
+  min-inline-size: 0;
   max-inline-size: 16rem;
 }
 

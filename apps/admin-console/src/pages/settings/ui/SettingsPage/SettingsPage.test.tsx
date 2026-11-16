@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, expect, it } from 'vitest';
+import { act } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { inTurn, json, problem } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
@@ -62,6 +63,42 @@ it('lists the sections as links, each sending the focus to its heading', async (
   expect(screen.getByRole('heading', { level: 2, name: 'Audit retention' })).toHaveFocus();
 });
 
+it('marks the section in view in the list once the settings have loaded', async () => {
+  const observed: Element[] = [];
+  let notify: (entries: { target: Element; isIntersecting: boolean }[]) => void = () => undefined;
+  class Observer {
+    constructor(callback: typeof notify) {
+      notify = callback;
+    }
+    observe = (element: Element): void => {
+      observed.push(element);
+    };
+    disconnect = vi.fn();
+  }
+  vi.stubGlobal('IntersectionObserver', Observer);
+  try {
+    renderConsoleAt(AT, settingsRoutes());
+    await section('General');
+    await waitFor(() => {
+      expect(observed.length).toBe(14);
+    });
+    const terms = observed.find(
+      (element) => element.getAttribute('aria-labelledby') === 'settings-terms',
+    );
+    if (terms === undefined) throw new Error('the Terms section was not observed');
+    act(() => {
+      notify([{ target: terms, isIntersecting: true }]);
+    });
+    const nav = screen.getByRole('navigation', { name: 'On this page' });
+    expect(within(nav).getByRole('link', { name: 'Terms' })).toHaveAttribute(
+      'aria-current',
+      'location',
+    );
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 it('marks a section with unsaved edits in the list', async () => {
   const user = userEvent.setup();
   renderConsoleAt(AT, settingsRoutes());
@@ -97,13 +134,17 @@ it('sends seconds whichever unit a duration is typed in', async () => {
     }),
   );
   const sessions = await section('Sessions');
-  await user.selectOptions(
-    within(sessions).getByRole('combobox', { name: 'Idle timeout, unit' }),
-    'h',
-  );
+  expect(
+    within(within(sessions).getByRole('combobox', { name: 'Idle timeout, unit' })).getByRole(
+      'option',
+      {
+        name: 'h',
+      },
+    ),
+  ).toBeDisabled();
   const field = within(sessions).getByRole('textbox', { name: 'Idle timeout' });
   await user.clear(field);
-  await user.type(field, '2');
+  await user.type(field, '120');
   await user.tab();
   await user.click(within(sessions).getByRole('button', { name: 'Save Sessions' }));
   await waitFor(() => {

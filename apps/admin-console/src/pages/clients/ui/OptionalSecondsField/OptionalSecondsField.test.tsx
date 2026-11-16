@@ -21,7 +21,7 @@ function Field({
       offLabel="Use the tenant's access token lifetime"
       offText="Takes the tenant's."
       readText={secondsReading(value, "Takes the tenant's.")}
-      rule="Between 1 s and 3600 s · 1 hour."
+      rule="Allowed: 1 s to 3600 s · 1 hour."
       value={value}
       start={300}
       min={1}

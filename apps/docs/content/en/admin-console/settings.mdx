@@ -34,7 +34,7 @@ Choosing a name moves to that section and puts the focus on its heading. The sec
   caption="On a wide screen the list stays beside the sections, grouped, with the section in view marked."
 />
 
-Each field says what it does and the range the server accepts, as one line such as _Allowed: 1 minute to 30 days_. A longer explanation is folded under **More**. A duration is typed as a number with a unit menu beside it (`s`, `min`, `h` or `d`) and the console opens it in the largest unit that holds the value exactly, so 1800 seconds shows as `30 min`. Choosing another unit keeps the same duration where it divides evenly, and otherwise rounds to a whole count of the new unit. What is saved is always seconds. A value outside the range is marked before you save.
+Each field says what it does and the range the server accepts, as one line such as _Allowed: 1 minute to 30 days_. A longer explanation is folded under **More**. A duration is typed as a number with a unit menu beside it (`s`, `min`, `h` or `d`) and the console opens it in the largest unit that holds the value exactly, so 1800 seconds shows as `30 min`. A unit the value is not a whole count of is greyed out in the menu, so choosing a unit never changes the setting; what is saved is always seconds. A value outside the range is marked before you save.
 
 ## 2. Change a section and save it
 
@@ -127,7 +127,7 @@ The page the person sees lists every field they can edit, with what they hold, a
 
 <ConsoleShot
   name="settings-authenticators"
-  alt="The Authenticators and Passkey requirement sections of the Settings page. Authenticators has three groups: Authenticator app with algorithm, code length and code period on one row, Passkeys, and Recovery codes. Passkey requirement is a single switch."
+  alt="The Authenticators and Passkey requirement sections of the Settings page. Authenticators has three groups: Authenticator app with algorithm, code length and code period, Passkeys, and Recovery codes. Passkey requirement is a single switch."
   caption="Authenticators in three groups, and the passkey requirement in a section of its own."
 />
 

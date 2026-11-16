@@ -7,10 +7,9 @@ export const REQUIREMENT_OPTIONS: readonly { id: ExecutionRequirement; label: st
   { id: 'disabled', label: 'Disabled' },
 ];
 
-// An alternative needs no line of its own: the section's rule says what a run of them means.
+// Only what the section's rule does not already say: it explains required, alternative and
+// conditional once, so a row speaks only of a step that is switched off.
 const REQUIREMENT_TEXT: Readonly<Partial<Record<ExecutionRequirement, string>>> = {
-  required: 'Every sign-in must pass it.',
-  conditional: 'Asked only of a subject it applies to; skipped for the rest.',
   disabled: 'Left in the flow but skipped, as if it were not there.',
 };
 

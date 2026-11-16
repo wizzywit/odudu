@@ -94,15 +94,15 @@ function List({ tenant }: { tenant: string }) {
           <div className={styles.actions}>
             <Button
               variant="danger"
-              isDisabled={page.list.rows.length === 0}
-              {...(page.list.rows.length === 0 ? { 'aria-describedby': idle } : {})}
+              isDisabled={page.endHeld}
+              {...(page.endHeld ? { 'aria-describedby': idle } : {})}
               onPress={() => {
                 page.endAll.ask('all');
               }}
             >
               End every session
             </Button>
-            {page.list.rows.length === 0 ? (
+            {page.endHeld ? (
               <span id={idle} className={styles.idle}>
                 {page.text.endIdle}
               </span>

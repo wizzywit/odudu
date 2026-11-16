@@ -14,7 +14,7 @@ describe('stepRows', () => {
     expect(rows.map((row) => row.position)).toEqual([1, 2, 3]);
     expect(rows[0]).toMatchObject({
       authenticator: 'password',
-      summary: "The subject's password. Every sign-in must pass it.",
+      summary: "The subject's password.",
       requirementLabel: 'Requirement for password',
     });
   });

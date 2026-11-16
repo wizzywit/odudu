@@ -4,6 +4,8 @@ export const SETTINGS_PAGE_WORDS = {
   description:
     'How this tenant signs people in, what it asks of their passwords, and how long it keeps what it records. Every section saves on its own.',
   navLabel: 'On this page',
+  unsaved: ' (unsaved changes)',
+  more: 'More',
   loading: 'Loading the settings',
   failed: 'The settings could not be loaded',
 } as const;

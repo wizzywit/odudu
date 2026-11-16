@@ -119,21 +119,22 @@ describe('NumberWithUnitField with a unit picker', () => {
 
   it('keeps the seconds the same value in whatever unit it is typed', async () => {
     const user = userEvent.setup();
-    render(<Seconds start={1800} />);
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Idle, unit' }), 'h');
+    render(<Seconds start={7200} />);
+    expect(screen.getByRole('combobox', { name: 'Idle, unit' })).toHaveValue('h');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Idle, unit' }), 'min');
+    expect(screen.getByLabelText('seconds')).toHaveTextContent('7200');
     const input = screen.getByRole('textbox', { name: 'Idle' });
     await user.clear(input);
-    await user.type(input, '2');
+    await user.type(input, '180');
     await user.tab();
-    expect(screen.getByLabelText('seconds')).toHaveTextContent('7200');
+    expect(screen.getByLabelText('seconds')).toHaveTextContent('10800');
   });
 
-  it('rounds to a whole count of a unit that does not divide the value', async () => {
-    const user = userEvent.setup();
+  it('offers only the units the value is a whole count of, so looking changes nothing', () => {
     render(<Seconds start={5400} />);
-    expect(screen.getByRole('combobox', { name: 'Idle, unit' })).toHaveValue('min');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Idle, unit' }), 'h');
-    expect(screen.getByLabelText('seconds')).toHaveTextContent('7200');
+    expect(screen.getByRole('option', { name: 'h' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'min' })).toBeEnabled();
+    expect(screen.getByLabelText('seconds')).toHaveTextContent('5400');
   });
 
   it('flags a value outside the range with the message it was given', () => {

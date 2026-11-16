@@ -11,10 +11,13 @@ function go(headingId: string): void {
 
 export function SectionNav({
   label,
+  unsavedLabel,
   groups,
   current,
 }: {
   label: string;
+  // Read after the name of a section holding unsaved edits.
+  unsavedLabel: string;
   groups: readonly NavGroup[];
   // The id of the section in view.
   current: string | null;
@@ -41,7 +44,7 @@ export function SectionNav({
                   {item.dirty ? (
                     <>
                       <span className={styles.dot} aria-hidden="true" />
-                      <VisuallyHidden> (unsaved changes)</VisuallyHidden>
+                      <VisuallyHidden>{unsavedLabel}</VisuallyHidden>
                     </>
                   ) : null}
                 </a>

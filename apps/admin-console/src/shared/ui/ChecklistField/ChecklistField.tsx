@@ -82,7 +82,7 @@ export function ChecklistField({
   }
   return (
     <FieldCluster {...chrome}>
-      {headedRuns(options).map((run) => {
+      {headedRuns(options).map((run, at) => {
         const list = (
           <div className={styles.options} data-compact={isCompact(options) || undefined}>
             {run.options.map((option) => (
@@ -102,9 +102,9 @@ export function ChecklistField({
           </div>
         );
         return run.title === undefined ? (
-          <Fragment key="ungrouped">{list}</Fragment>
+          <Fragment key={at}>{list}</Fragment>
         ) : (
-          <div key={run.title} role="group" aria-label={run.title} className={styles.run}>
+          <div key={at} role="group" aria-label={run.title} className={styles.run}>
             <p className={styles.runTitle} aria-hidden="true">
               {run.title}
             </p>

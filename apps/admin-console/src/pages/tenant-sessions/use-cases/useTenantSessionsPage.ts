@@ -31,6 +31,8 @@ export interface TenantSessionsPage {
   // Where a session's subject has its page, or null where the caller may not read subjects.
   subjectLink: ((id: string) => string) | null;
   endAll: Confirming<'all'>;
+  // Whether End every session is held, there being no session to end.
+  endHeld: boolean;
   consequence: string;
   // What stays beside the button while more sessions are live.
   more: string | null;
@@ -60,6 +62,7 @@ export function useTenantSessionsPage(tenant: string): TenantSessionsPage {
         setMore(endMoreText(tenant, answer));
       },
     }),
+    endHeld: list.rows.length === 0,
     consequence: endConsequence(tenant, isOwnTenant(principal, tenant)),
     more,
     text: { noun: NOUN, rule: PAGE_RULE, nothingYet: NOTHING_YET, endIdle: END_IDLE },

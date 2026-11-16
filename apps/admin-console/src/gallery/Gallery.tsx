@@ -1169,7 +1169,9 @@ export function Gallery({
             />
           </Specimen>
           <Specimen label="More: the rest of a description, folded away until asked for">
-            <More>A person’s app must support another algorithm before they can use it.</More>
+            <More label="More">
+              A person’s app must support another algorithm before they can use it.
+            </More>
           </Specimen>
           <Specimen label="SaveBar on its own">
             <SaveBar section="Tokens" saving={false} onDiscard={() => undefined} />

@@ -15,11 +15,13 @@ const BAND = '-12% 0px -78% 0px';
 export function useCurrentSection(
   groups: readonly NavGroup[],
   sectionOf: (headingId: string) => Element | null,
+  // Whether the sections are on the page: they are not while the settings load.
+  ready: boolean,
 ): string | null {
   const [current, setCurrent] = useState<string | null>(null);
   const key = bandKey(groups);
   useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return;
+    if (!ready || typeof IntersectionObserver === 'undefined') return;
     const targets = bandTargets(key);
     const order = targets.map((target) => target.id);
     const ids = new Map<Element, string>();
@@ -46,6 +48,6 @@ export function useCurrentSection(
     return () => {
       observer.disconnect();
     };
-  }, [key, sectionOf]);
+  }, [key, sectionOf, ready]);
   return current;
 }

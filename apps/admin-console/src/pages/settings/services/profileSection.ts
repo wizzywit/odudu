@@ -4,7 +4,7 @@ export const PROFILE: SettingsSection = {
   id: 'profile',
   title: 'Profile',
   description:
-    'What a person has to fill in before the Complete the profile step of their sign-in ends. The page lists every field a person can edit and marks these; the others stay optional.',
+    'What a person has to fill in when their sign-in asks them to complete their profile. The page lists every field a person can edit and marks these; the others stay optional.',
   fields: [
     {
       name: 'required_profile_fields',

@@ -40,7 +40,7 @@ afterEach(() => {
 });
 
 it('is none until a section reaches the band, then the first one in page order', () => {
-  const { result } = renderHook(() => useCurrentSection(GROUPS, sectionOf));
+  const { result } = renderHook(() => useCurrentSection(GROUPS, sectionOf, true));
   expect(result.current).toBeNull();
   act(() => {
     seen[0]?.notify([
@@ -52,7 +52,7 @@ it('is none until a section reaches the band, then the first one in page order',
 });
 
 it('stays on the last section while none is in the band', () => {
-  const { result } = renderHook(() => useCurrentSection(GROUPS, sectionOf));
+  const { result } = renderHook(() => useCurrentSection(GROUPS, sectionOf, true));
   act(() => {
     seen[0]?.notify([{ target: SECTIONS.get('h-terms') as Element, isIntersecting: true }]);
   });
@@ -63,7 +63,7 @@ it('stays on the last section while none is in the band', () => {
 });
 
 it('stops watching when it goes away', () => {
-  const { unmount } = renderHook(() => useCurrentSection(GROUPS, sectionOf));
+  const { unmount } = renderHook(() => useCurrentSection(GROUPS, sectionOf, true));
   unmount();
   expect(seen[0]?.disconnect).toHaveBeenCalled();
 });
@@ -71,6 +71,6 @@ it('stops watching when it goes away', () => {
 it('does nothing where the browser has no observer', () => {
   vi.unstubAllGlobals();
   vi.stubGlobal('IntersectionObserver', undefined);
-  const { result } = renderHook(() => useCurrentSection(GROUPS, sectionOf));
+  const { result } = renderHook(() => useCurrentSection(GROUPS, sectionOf, true));
   expect(result.current).toBeNull();
 });

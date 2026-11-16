@@ -15,7 +15,14 @@ const GROUPS: readonly NavGroup[] = [
 ];
 
 function nav(current: string | null) {
-  return <SectionNav label="On this page" groups={GROUPS} current={current} />;
+  return (
+    <SectionNav
+      label="On this page"
+      unsavedLabel=" (unsaved changes)"
+      groups={GROUPS}
+      current={current}
+    />
+  );
 }
 
 it('marks the section in view as the current one, and no other', () => {

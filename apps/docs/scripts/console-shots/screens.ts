@@ -421,7 +421,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'settings-authenticators',
-    alt: 'The Authenticators and Passkey requirement sections of the Settings page. Authenticators has three groups: Authenticator app with algorithm, code length and code period on one row, Passkeys, and Recovery codes. Passkey requirement is a single switch.',
+    alt: 'The Authenticators and Passkey requirement sections of the Settings page. Authenticators has three groups: Authenticator app with algorithm, code length and code period, Passkeys, and Recovery codes. Passkey requirement is a single switch.',
     caption: 'Authenticators in three groups, and the passkey requirement in a section of its own.',
     signedIn: true,
     viewport: AUTHENTICATORS_VIEW,
