@@ -4,7 +4,7 @@ import { newId } from '@odudu/kernel';
 import { startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
-import { ensureUniqueEmailIndex } from '#/email-unique-index';
+import { ensureUniqueEmailIndex, EMAIL_INDEX_LOCK } from '#/email-unique-index';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
 
 // One address is one account whatever its case. The index is what keeps a
@@ -127,6 +127,20 @@ describe('the start-up step', () => {
     expect(outcomes.filter((outcome) => outcome === 'built')).toHaveLength(1);
     expect(outcomes.filter((outcome) => outcome === 'blocked')).toHaveLength(0);
     expect(await indexDefinition()).not.toBeNull();
+  }, 60_000);
+
+  it('gives up waiting for a build that another instance holds, and builds nothing itself', async () => {
+    await absent();
+    const holder = await owner.sql.reserve();
+    try {
+      await holder`select pg_advisory_lock(${EMAIL_INDEX_LOCK})`;
+      expect(await ensureUniqueEmailIndex(owner.sql, { waitMs: 300, pollMs: 50 })).toBe('skipped');
+      expect(await indexDefinition()).toBeNull();
+    } finally {
+      await holder`select pg_advisory_unlock(${EMAIL_INDEX_LOCK})`;
+      holder.release();
+    }
+    expect(await ensureUniqueEmailIndex(owner.sql)).toBe('built');
   });
 
   it('replaces an index an interrupted build left invalid', async () => {

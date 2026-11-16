@@ -3,29 +3,46 @@ import { isUniqueViolation } from '#/sqlstate';
 
 export const EMAIL_UNIQUE_INDEX = 'users_email_search_unique';
 
-export type EmailIndexOutcome = 'present' | 'built' | 'blocked';
+export type EmailIndexOutcome = 'present' | 'built' | 'blocked' | 'skipped';
 
-// Held across the build so two instances starting together take turns: the
-// second finds the index and builds nothing.
-const BUILD_LOCK = 5_139_002;
+// Taken, never waited on in the database: a session blocked in pg_advisory_lock
+// holds a snapshot that the build's last phase waits for, which Postgres cannot
+// see as a deadlock. A waiter polls instead and holds nothing between polls.
+export const EMAIL_INDEX_LOCK = 5_139_002;
 
-// The unique address index, built when it is missing. The migration that makes
-// it skips the build over accounts that differ only by the case of their
-// address; this runs at every start, so the first start after
-// `odudu reconcile-accounts` has folded them builds it. The pair is looked for
-// first with a read, so a deployment that still holds one never starts a build.
-// The build is CONCURRENTLY, so writes to `users` go on during it, and an
-// interrupted one leaves an invalid index, which is dropped and made again.
-// Run on the owner connection: an index build is not scoped by row-level
-// security.
-export async function ensureUniqueEmailIndex(sql: Sql): Promise<EmailIndexOutcome> {
+export interface EnsureOptions {
+  // How long to wait for another instance's build before leaving it to build.
+  waitMs?: number;
+  pollMs?: number;
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// The unique address index, built when it is missing (the migration skips it
+// over a pair; the first start after `odudu reconcile-accounts` builds it).
+// A pair is looked for first with a read that stops at the first one, so a
+// deployment holding one starts no build. The build is CONCURRENTLY, and an
+// interrupted one leaves an invalid index, dropped and made again. Run on the
+// owner connection: a build is not scoped by row-level security.
+export async function ensureUniqueEmailIndex(
+  sql: Sql,
+  options: EnsureOptions = {},
+): Promise<EmailIndexOutcome> {
+  const { waitMs = 120_000, pollMs = 250 } = options;
   const connection = await sql.reserve();
   try {
-    await connection`select pg_advisory_lock(${BUILD_LOCK})`;
+    const deadline = Date.now() + waitMs;
+    for (;;) {
+      const [taken] = await connection<{ ok: boolean }[]>`
+        select pg_try_advisory_lock(${EMAIL_INDEX_LOCK}) as ok`;
+      if (taken?.ok === true) break;
+      if (Date.now() >= deadline) return 'skipped';
+      await sleep(pollMs);
+    }
     try {
       return await buildIfMissing(connection);
     } finally {
-      await connection`select pg_advisory_unlock(${BUILD_LOCK})`;
+      await connection`select pg_advisory_unlock(${EMAIL_INDEX_LOCK})`;
     }
   } finally {
     connection.release();

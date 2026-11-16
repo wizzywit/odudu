@@ -823,8 +823,10 @@ CREATE UNIQUE INDEX users_email_search_unique ON users (tenant_id, email_search)
 
 `packages/db/src/migrate.ts` hands every pending migration to Drizzle's migrator, which runs them in one transaction, so the
 migration's build is the plain statement above; the start-up step is outside that transaction and builds it `CONCURRENTLY`,
-holding an advisory lock so two instances starting together build it once, reading for a pair first so a deployment that still
-holds one starts no build, and dropping an index an interrupted build left invalid. It is built again at the next start if an
+holding an advisory lock, taken by polling `pg_try_advisory_lock` (a session blocked in `pg_advisory_lock` holds a snapshot the
+build waits for, a deadlock Postgres cannot see) for up to two minutes, so two instances starting together build it once and a
+late one leaves it to the first, reading for a pair first so a deployment that still
+holds one starts no build (the read walks `users_email_search` in order and stops at the first duplicate: bounded and cheap at 1,000,000 users), and dropping an index an interrupted build left invalid. It is built again at the next start if an
 operator drops it. `users_email_search` (0073) stays beside it: it carries `subject_id`, which the subject list's keyset and
 the reconcile discovery order by, and the discovery has to read pairs, which the unique index cannot exist beside.
 The migration's build blocks writes to `users` while it runs: at 1,000,000 subjects in a tenant and 10,000 tenants the build reads the whole table once,
