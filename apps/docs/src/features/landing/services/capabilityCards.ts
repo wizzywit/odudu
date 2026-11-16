@@ -19,7 +19,7 @@ export const CAPABILITIES: Card[] = [
   },
   {
     title: 'Passwords and second factors',
-    body: 'Passwords with a policy and lockouts, passkeys, authenticator apps and recovery codes, chosen per tenant.',
+    body: 'Passwords with a policy and lockouts, passkeys, authenticator apps and recovery codes, chosen per tenant, and changed by the person through a "me" API.',
     to: '/admin-console/sign-in-flow/',
   },
   {
