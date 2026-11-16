@@ -27,6 +27,7 @@ import { LoadFailed } from '#/shared/ui/LoadFailed';
 import { LoadMore, LoadMoreFailed } from '#/shared/ui/LoadMore';
 import { LiveMessage, Problem } from '#/shared/ui/Message';
 import { NarrowedNote } from '#/shared/ui/NarrowedNote';
+import { More } from '#/shared/ui/More';
 import { Note, NoteCode } from '#/shared/ui/Note';
 import { ChunkFailed } from '#/shared/ui/ChunkBoundary';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
@@ -1140,6 +1141,35 @@ export function Gallery({
               value={['view-users']}
               onChange={() => undefined}
             />
+          </Specimen>
+          <Specimen label="ChecklistField: options under headings, tiled when none carries text">
+            <ChecklistField
+              label="Required profile fields"
+              options={[
+                { id: 'name', label: 'Full name', group: 'Name' },
+                { id: 'given_name', label: 'Given name', group: 'Name' },
+                { id: 'phone_number', label: 'Phone number', group: 'Contact' },
+              ]}
+              value={['given_name']}
+              onChange={() => undefined}
+            />
+          </Specimen>
+          <Specimen label="NumberWithUnitField: seconds typed in the unit that fits, with the range">
+            <NumberWithUnitField
+              label="Idle timeout"
+              unit="seconds"
+              picker
+              echo={false}
+              minValue={60}
+              maxValue={86_400}
+              rangeMessage="Allowed: 1 minute to 1 day."
+              description="Allowed: 1 minute to 1 day."
+              value={1800}
+              onChange={() => undefined}
+            />
+          </Specimen>
+          <Specimen label="More: the rest of a description, folded away until asked for">
+            <More>A person’s app must support another algorithm before they can use it.</More>
           </Specimen>
           <Specimen label="SaveBar on its own">
             <SaveBar section="Tokens" saving={false} onDiscard={() => undefined} />

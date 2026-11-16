@@ -1,6 +1,6 @@
 import { Fragment, use, useId } from 'react';
 import { CheckboxButton, CheckboxField } from 'react-aria-components';
-import { groupRuns, isCompact } from '#/shared/lib/services/checklist';
+import { headedRuns, isCompact } from '#/shared/lib/services/checklist';
 import { FieldCluster, FieldsReadOnly, ReadOnlyValue, type Chrome } from '#/shared/ui/Field';
 import styles from '#/shared/ui/ChecklistField/ChecklistField.module.css';
 
@@ -82,7 +82,7 @@ export function ChecklistField({
   }
   return (
     <FieldCluster {...chrome}>
-      {groupRuns(options).map((run) => {
+      {headedRuns(options).map((run) => {
         const list = (
           <div className={styles.options} data-compact={isCompact(options) || undefined}>
             {run.options.map((option) => (

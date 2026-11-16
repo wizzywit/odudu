@@ -5,6 +5,7 @@ import type { ControlView } from '#/pages/settings/services/controls';
 import type { SectionPlan } from '#/pages/settings/services/sectionPlan';
 import type { SettingValue } from '#/pages/settings/services/values';
 import { usePasswordNote } from '#/pages/settings/use-cases/usePasswordNote';
+import { useCurrentSection } from '#/pages/settings/use-cases/useCurrentSection';
 import { useSettingsFields } from '#/pages/settings/use-cases/useSettingsFields';
 import { useSettingsPage } from '#/pages/settings/use-cases/useSettingsPage';
 import { useSettingsSections } from '#/pages/settings/use-cases/useSettingsSections';
@@ -220,14 +221,19 @@ function useHashTarget(ready: boolean): void {
   }, [ready]);
 }
 
+function sectionOf(headingId: string): Element | null {
+  return document.getElementById(headingId)?.closest('section') ?? null;
+}
+
 function Sections({ tenant }: { tenant: string }) {
   const { read, plans, nav, words } = useSettingsSections(tenant);
+  const current = useCurrentSection(nav, sectionOf);
   useHashTarget(read.data !== undefined);
   return (
     <ReadGate read={read} label={words.loading} fields={4} failed={words.failed}>
       {(data, etag) => (
         <div className={styles.page}>
-          <SectionNav label={words.navLabel} groups={nav} />
+          <SectionNav label={words.navLabel} groups={nav} current={current} />
           <div className={styles.sections}>
             {plans.map((plan) =>
               plan.kind === 'general' ? (

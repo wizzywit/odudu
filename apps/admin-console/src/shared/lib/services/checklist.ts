@@ -1,10 +1,10 @@
-export interface Grouped {
+export interface Headed {
   group?: string;
 }
 
-// Neighbouring options of one group, in the order offered; options with no
+// Neighbouring options under one heading, in the order offered; options with no
 // group make one untitled run.
-export function groupRuns<T extends Grouped>(
+export function headedRuns<T extends Headed>(
   options: readonly T[],
 ): readonly { title: string | undefined; options: readonly T[] }[] {
   const runs: { title: string | undefined; options: T[] }[] = [];

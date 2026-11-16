@@ -92,3 +92,37 @@ export function currentSection(
 ): string | null {
   return order.find((id) => inBand.has(id)) ?? last;
 }
+
+// The sections a list observes, as one string that changes only when they do.
+export function bandKey(groups: readonly NavGroup[]): string {
+  return groups
+    .flatMap((group) => group.items.map((item) => `${item.id}=${item.headingId}`))
+    .join(' ');
+}
+
+export function bandTargets(key: string): { id: string; headingId: string }[] {
+  return key === ''
+    ? []
+    : key.split(' ').map((pair) => {
+        const [id = '', headingId = ''] = pair.split('=');
+        return { id, headingId };
+      });
+}
+
+export interface BandChange {
+  id: string;
+  intersecting: boolean;
+}
+
+// The sections in the reading band once these have entered or left it.
+export function bandAfter(
+  inBand: ReadonlySet<string>,
+  changes: readonly BandChange[],
+): Set<string> {
+  const next = new Set(inBand);
+  for (const change of changes) {
+    if (change.intersecting) next.add(change.id);
+    else next.delete(change.id);
+  }
+  return next;
+}

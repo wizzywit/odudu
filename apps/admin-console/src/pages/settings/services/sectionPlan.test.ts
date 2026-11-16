@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bandAfter,
+  bandKey,
+  bandTargets,
   currentSection,
   sectionKind,
   settingsNav,
@@ -64,5 +67,26 @@ describe('currentSection', () => {
   it('stays on the last one while none is in the band', () => {
     expect(currentSection(order, new Set(), 'terms')).toBe('terms');
     expect(currentSection(order, new Set(), null)).toBeNull();
+  });
+});
+
+describe('the reading band', () => {
+  const nav = settingsNav(settingsSections().plans, new Set());
+
+  it('names the observed sections as a key that reads back', () => {
+    const key = bandKey(nav);
+    expect(bandTargets(key)[0]).toEqual({ id: 'general', headingId: 'settings-general' });
+    expect(bandTargets(key)).toHaveLength(14);
+    expect(bandTargets('')).toEqual([]);
+  });
+
+  it('adds a section that enters and drops one that leaves, without changing the set it was given', () => {
+    const was = new Set(['a']);
+    const next = bandAfter(was, [
+      { id: 'b', intersecting: true },
+      { id: 'a', intersecting: false },
+    ]);
+    expect([...next]).toEqual(['b']);
+    expect([...was]).toEqual(['a']);
   });
 });

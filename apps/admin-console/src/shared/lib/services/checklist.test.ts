@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { groupRuns, isCompact } from '#/shared/lib/services/checklist';
+import { headedRuns, isCompact } from '#/shared/lib/services/checklist';
 
-describe('groupRuns', () => {
+describe('headedRuns', () => {
   it('gathers neighbouring options of one group and keeps the order', () => {
     const options: { id: string; group?: string }[] = [
       { id: 'a', group: 'Name' },
@@ -9,7 +9,7 @@ describe('groupRuns', () => {
       { id: 'c', group: 'Address' },
       { id: 'd', group: 'Name' },
     ];
-    const runs = groupRuns(options);
+    const runs = headedRuns(options);
     expect(runs.map((run) => [run.title, run.options.map((o) => o.id)])).toEqual([
       ['Name', ['a', 'b']],
       ['Address', ['c']],
@@ -19,7 +19,7 @@ describe('groupRuns', () => {
 
   it('makes one untitled run of options with no group', () => {
     const plain: { id: string; group?: string }[] = [{ id: 'a' }, { id: 'b' }];
-    expect(groupRuns(plain).map((run) => run.title)).toEqual([undefined]);
+    expect(headedRuns(plain).map((run) => run.title)).toEqual([undefined]);
   });
 });
 
