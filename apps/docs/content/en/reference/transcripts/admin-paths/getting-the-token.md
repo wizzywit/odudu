@@ -272,7 +272,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"subjectId":"01a1b0fc-0449-7630-8e75-09f82c1f14e2","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","issuerTenantName":"system","capabilities":["manage-clients","manage-domains","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-domains","view-users"],"crossTenant":false}
+{"subjectId":"01a1e3f2-b13b-706c-af66-5c3c0c9d0cd5","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","issuerTenantName":"system","capabilities":["manage-clients","manage-domains","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-domains","view-users"],"crossTenant":false}
 ```
 
 This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. `ada` there is a different subject, so `subjectId` differs.
@@ -294,15 +294,15 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1cc86-2770-7291-9e63-5902e74400da
+x-request-id: 01a1e3f2-b4ef-7945-9422-e6fbccd9d876
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 2462
-Date: Wed, 11 Nov 2026 21:31:46 GMT
+Date: Mon, 16 Nov 2026 10:41:36 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a1d397-01df-77e8-ab54-37fdd31a904e","client_id":"odudu-admin","name":"Odudu administration","description":null,"name_i18n":{},"description_i18n":{},"type":"confidential","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":true,"registration_origin":"seeded","created_at":"2026-11-13T06:27:31.338Z","redirect_uris":["http://127.0.0.1:8080/callback","http://localhost:3000/console/auth/callback"],"grant_types":["authorization_code","refresh_token"],"token_endpoint_auth_method":"private_key_jwt","audiences":["urn:odudu:params:admin-api"],"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":["http://localhost:3000/console/"],"jwks":{"keys":[{"x":"aGq8ehE1zvB68TgqZayK_lkYRNm0vA6h952baJXQc8U","y":"oQ9TfiTytJOTeGH_4qdFyVQuZmlfg5GW_7ZokhBYvWg","alg":"ES256","crv":"P-256","kid":"ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs","kty":"EC","use":"sig"}]},"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"allowed_actions":[],"flow_id":null,"previous_secret_expires_at":null,"builtin_admin":true,"service_subject_id":null,"scopes":[{"id":"01a1d397-019d-7c4f-8ac4-00e7d0b20c30","name":"openid","assignment":"default"},{"id":"01a1d397-01a1-7239-b686-086bb00ec2b4","name":"profile","assignment":"default"},{"id":"01a1d397-01a6-729d-8d9f-d207e5f0b618","name":"email","assignment":"default"},{"id":"01a1d397-01ac-7cdc-af4a-090bc0933735","name":"address","assignment":"default"},{"id":"01a1d397-01af-78e8-91bd-c8913b2ebd95","name":"phone","assignment":"default"},{"id":"01a1d397-01b1-730f-ac7f-5ba3819e0bb1","name":"roles","assignment":"default"},{"id":"01a1d397-01b4-7a12-8611-543108764b75","name":"groups","assignment":"default"},{"id":"01a1d397-01b5-7526-8ce4-eed1f4971ff8","name":"offline_access","assignment":"optional"}],"service_account_admin_reach":[]}]}
+{"items":[{"id":"01a1e3f2-b0f7-7e32-acb2-d6eac4380f72","client_id":"odudu-admin","name":"Odudu administration","description":null,"name_i18n":{},"description_i18n":{},"type":"confidential","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":true,"registration_origin":"seeded","created_at":"2026-11-16T10:41:35.402Z","redirect_uris":["http://127.0.0.1:8080/callback","http://localhost:3000/console/auth/callback"],"grant_types":["authorization_code","refresh_token"],"token_endpoint_auth_method":"private_key_jwt","audiences":["urn:odudu:params:admin-api"],"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":["http://localhost:3000/console/"],"jwks":{"keys":[{"x":"aGq8ehE1zvB68TgqZayK_lkYRNm0vA6h952baJXQc8U","y":"oQ9TfiTytJOTeGH_4qdFyVQuZmlfg5GW_7ZokhBYvWg","alg":"ES256","crv":"P-256","kid":"ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs","kty":"EC","use":"sig"}]},"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"allowed_actions":[],"flow_id":null,"previous_secret_expires_at":null,"builtin_admin":true,"service_subject_id":null,"scopes":[{"id":"01a1e3f2-b0bf-70a1-ae6b-c6977bc5be1b","name":"address","assignment":"default"},{"id":"01a1e3f2-b0bd-773e-971e-a12d7fbb58a7","name":"email","assignment":"default"},{"id":"01a1e3f2-b0c6-7db6-b13d-319e0c9a9132","name":"groups","assignment":"default"},{"id":"01a1e3f2-b0c8-7408-b637-a873588a8ef0","name":"offline_access","assignment":"optional"},{"id":"01a1e3f2-b0b7-7bc2-ae5b-1a573bdc0ee1","name":"openid","assignment":"default"},{"id":"01a1e3f2-b0c2-7e1a-8f81-2c108f9b3946","name":"phone","assignment":"default"},{"id":"01a1e3f2-b0bb-7d46-ad93-50c8ec33088d","name":"profile","assignment":"default"},{"id":"01a1e3f2-b0c4-751e-9234-498a97ad2bcb","name":"roles","assignment":"default"}],"service_account_admin_reach":[]}]}
 ```
 
 The command above names port `3000`, not `3082` like the rest of this page. This one block was run again on a
@@ -315,38 +315,42 @@ administrator cannot swap in a key of their own, and a secret has nothing to
 rotate:
 
 ```bash
+CID=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3000/admin/tenants/system/clients?client_id_exact=odudu-admin' | jq -r '.items[0].id')
+ETAG=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/system/clients/$CID | grep -i '^etag:' | cut -d' ' -f2 | tr -d '\r')
 curl -sS -D - -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "If-Match: $ETAG" -H 'content-type: application/json' \
   -d '{"token_endpoint_auth_method":"none"}' \
-  http://localhost:3082/admin/tenants/system/clients/01a1203a-f7c6-76b2-89fa-7c51f3507f28
+  http://localhost:3000/admin/tenants/system/clients/$CID
 curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3082/admin/tenants/system/clients/01a1203a-f7c6-76b2-89fa-7c51f3507f28/secret
+  http://localhost:3000/admin/tenants/system/clients/$CID/secret
 ```
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a1203b-ac86-7611-a96e-476b75ec60d5
+x-request-id: 01a1e3f2-b540-7d5a-9dc8-9112ad813902
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 274
-Date: Fri, 09 Oct 2026 10:35:44 GMT
+Date: Mon, 16 Nov 2026 10:41:36 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"token_endpoint_auth_method on odudu-admin, this tenant's built-in admin client, is not amendable: it could leave every administrator of this tenant locked out","instance":"01a1203b-ac86-7611-a96e-476b75ec60d5"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"token_endpoint_auth_method on odudu-admin, this tenant's built-in admin client, is not amendable: it could leave every administrator of this tenant locked out","instance":"01a1e3f2-b540-7d5a-9dc8-9112ad813902"}
 ```
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a1203b-ac3d-74c8-b0e4-58050288746e
+x-request-id: 01a1e3f2-b55d-7f46-b895-00730cd4897c
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 188
-Date: Fri, 09 Oct 2026 10:35:44 GMT
+Date: Mon, 16 Nov 2026 10:41:36 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"a client that authenticates with private_key_jwt has no secret to rotate","instance":"01a1203b-ac3d-74c8-b0e4-58050288746e"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"a client that authenticates with private_key_jwt has no secret to rotate","instance":"01a1e3f2-b55d-7f46-b895-00730cd4897c"}
 ```
 
 The key rotates from outside the API, with `odudu console provision`: the
@@ -361,20 +365,20 @@ nothing. A second tenant, `legacy`, seeded with `ODUDU_CONSOLE=false` for this
 one command, beside `system`:
 
 ```bash
-docker compose -p odudu-docs-12b exec -T -e ODUDU_CONSOLE=false odudu node dist/main.js seed tenant --name legacy
-docker compose -p odudu-docs-12b exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-p4f-i14 exec -T -e ODUDU_CONSOLE=false odudu node dist/main.js seed tenant --name legacy
+docker compose -p odudu-p4f-i14 exec -T postgres psql -U odudu -d odudu -c \
   "select t.name, k.type, k.secret_hash is null as no_secret_hash, c.token_endpoint_auth_method, c.jwks->'keys'->0->>'kid' as kid, c.redirect_uris from clients k join client_oidc_config c on c.client_id = k.id join tenants t on t.id = k.tenant_id where t.name in ('system', 'legacy') and k.client_id = 'odudu-admin' order by t.name;"
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"legacy","tenantId":"01a12041-7d62-7faa-a947-917341aa4f5a"}
+{"command":"tenant","created":true,"tenant":"legacy","tenantId":"01a1e3f2-b71e-75ff-88fa-14e720f6051c"}
 ```
 
 ```
   name  |     type     | no_secret_hash | token_endpoint_auth_method |                     kid                     |                                redirect_uris
 --------+--------------+----------------+----------------------------+---------------------------------------------+------------------------------------------------------------------------------
  legacy | public       | t              | none                       |                                             | {http://127.0.0.1:8080/callback}
- system | confidential | t              | private_key_jwt            | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs | {http://127.0.0.1:8080/callback,http://localhost:3082/console/auth/callback}
+ system | confidential | t              | private_key_jwt            | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs | {http://127.0.0.1:8080/callback,http://localhost:3000/console/auth/callback}
 (2 rows)
 ```
 
@@ -383,7 +387,9 @@ key and carries the console's redirect URI beside the loopback one, and `system`
 is as it was:
 
 ```bash
-docker compose -p odudu-docs-12b exec -T odudu node dist/main.js console provision
+docker compose -p odudu-p4f-i14 exec -T odudu node dist/main.js console provision
+docker compose -p odudu-p4f-i14 exec -T postgres psql -U odudu -d odudu -c \
+  "select t.name, k.type, k.secret_hash is null as no_secret_hash, c.token_endpoint_auth_method, c.jwks->'keys'->0->>'kid' as kid, c.redirect_uris from clients k join client_oidc_config c on c.client_id = k.id join tenants t on t.id = k.tenant_id where t.name in ('system', 'legacy') and k.client_id = 'odudu-admin' order by t.name;"
 ```
 
 ```
@@ -393,8 +399,8 @@ provisioned 2 tenants
 ```
   name  |     type     | no_secret_hash | token_endpoint_auth_method |                     kid                     |                                redirect_uris
 --------+--------------+----------------+----------------------------+---------------------------------------------+------------------------------------------------------------------------------
- legacy | confidential | t              | private_key_jwt            | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs | {http://127.0.0.1:8080/callback,http://localhost:3082/console/auth/callback}
- system | confidential | t              | private_key_jwt            | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs | {http://127.0.0.1:8080/callback,http://localhost:3082/console/auth/callback}
+ legacy | confidential | t              | private_key_jwt            | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs | {http://127.0.0.1:8080/callback,http://localhost:3000/console/auth/callback}
+ system | confidential | t              | private_key_jwt            | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs | {http://127.0.0.1:8080/callback,http://localhost:3000/console/auth/callback}
 (2 rows)
 ```
 
@@ -403,18 +409,18 @@ that last wrote a row, so a pass that writes nothing leaves it alone. Read
 after the first run, then after a second:
 
 ```bash
-docker compose -p odudu-docs-12b exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-p4f-i14 exec -T postgres psql -U odudu -d odudu -c \
   "select t.name, k.xmin::text as client_row, c.xmin::text as config_row from clients k join client_oidc_config c on c.client_id = k.id join tenants t on t.id = k.tenant_id where t.name in ('system', 'legacy') and k.client_id = 'odudu-admin' order by t.name;"
-docker compose -p odudu-docs-12b exec -T odudu node dist/main.js console provision
-docker compose -p odudu-docs-12b exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-p4f-i14 exec -T odudu node dist/main.js console provision
+docker compose -p odudu-p4f-i14 exec -T postgres psql -U odudu -d odudu -c \
   "select t.name, k.xmin::text as client_row, c.xmin::text as config_row from clients k join client_oidc_config c on c.client_id = k.id join tenants t on t.id = k.tenant_id where t.name in ('system', 'legacy') and k.client_id = 'odudu-admin' order by t.name;"
 ```
 
 ```
   name  | client_row | config_row
 --------+------------+------------
- legacy | 782        | 782
- system | 757        | 757
+ legacy | 758        | 758
+ system | 746        | 746
 (2 rows)
 ```
 
@@ -425,8 +431,8 @@ provisioned 2 tenants
 ```
   name  | client_row | config_row
 --------+------------+------------
- legacy | 782        | 782
- system | 757        | 757
+ legacy | 758        | 758
+ system | 746        | 746
 (2 rows)
 ```
 
@@ -439,13 +445,16 @@ line is the whole configuration entry). The query reads each tenant's registered
 key set:
 
 ```bash
-docker compose -p odudu-docs-12b exec -T odudu node dist/main.js console keygen
-docker compose -p odudu-docs-12b exec -T postgres psql -U odudu -d odudu -c \
+A=$(docker compose -p odudu-p4f-i14 exec -T odudu printenv ODUDU_CONSOLE_CLIENT_KEY)
+KEYGEN=$(docker compose -p odudu-p4f-i14 exec -T odudu node dist/main.js console keygen)
+B=${KEYGEN#ODUDU_CONSOLE_CLIENT_KEY=}
+echo "${KEYGEN:0:60}"
+docker compose -p odudu-p4f-i14 exec -T postgres psql -U odudu -d odudu -c \
   "select t.name, jsonb_array_length(c.jwks->'keys') as keys, c.jwks->'keys'->0->>'kid' as first_kid, c.jwks->'keys'->1->>'kid' as second_kid from client_oidc_config c join clients k on k.id = c.client_id join tenants t on t.id = k.tenant_id where k.client_id = 'odudu-admin' order by 1;"
 ```
 
 ```
-ODUDU_CONSOLE_CLIENT_KEY=eyJrdHkiOiJFQyIsIngiOiJ3N01waUxUaWZ
+ODUDU_CONSOLE_CLIENT_KEY=eyJrdHkiOiJFQyIsIngiOiJTTzI3MmJEMUF
 ```
 
 ```
@@ -461,8 +470,10 @@ the key it replaces. Both are registered, the signing key first, so a gateway
 still signing with `$A` is accepted, and so is one that has been rolled:
 
 ```bash
-docker compose -p odudu-docs-12b exec -T -e ODUDU_CONSOLE_CLIENT_KEY=$B -e ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS=$A \
+docker compose -p odudu-p4f-i14 exec -T -e ODUDU_CONSOLE_CLIENT_KEY=$B -e ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS=$A \
   odudu node dist/main.js console provision
+docker compose -p odudu-p4f-i14 exec -T postgres psql -U odudu -d odudu -c \
+  "select t.name, jsonb_array_length(c.jwks->'keys') as keys, c.jwks->'keys'->0->>'kid' as first_kid, c.jwks->'keys'->1->>'kid' as second_kid from client_oidc_config c join clients k on k.id = c.client_id join tenants t on t.id = k.tenant_id where k.client_id = 'odudu-admin' order by 1;"
 ```
 
 ```
@@ -472,8 +483,8 @@ provisioned 2 tenants
 ```
   name  | keys |                  first_kid                  |                 second_kid
 --------+------+---------------------------------------------+---------------------------------------------
- legacy |    2 | eI17EP1c344tSxqMmlBFXFhaedH7qc5F7KS2GFMv3i8 | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs
- system |    2 | eI17EP1c344tSxqMmlBFXFhaedH7qc5F7KS2GFMv3i8 | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs
+ legacy |    2 | dX57MvlrZyvqKNbAowOS1VDtou1tC0I9CEybMtRCxgk | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs
+ system |    2 | dX57MvlrZyvqKNbAowOS1VDtou1tC0I9CEybMtRCxgk | ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs
 (2 rows)
 ```
 
@@ -482,8 +493,10 @@ repeated. Step 4, `ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS` unset, drops `$A` from
 every tenant:
 
 ```bash
-docker compose -p odudu-docs-12b exec -T -e ODUDU_CONSOLE_CLIENT_KEY=$B \
+docker compose -p odudu-p4f-i14 exec -T -e ODUDU_CONSOLE_CLIENT_KEY=$B \
   odudu node dist/main.js console provision
+docker compose -p odudu-p4f-i14 exec -T postgres psql -U odudu -d odudu -c \
+  "select t.name, jsonb_array_length(c.jwks->'keys') as keys, c.jwks->'keys'->0->>'kid' as first_kid, c.jwks->'keys'->1->>'kid' as second_kid from client_oidc_config c join clients k on k.id = c.client_id join tenants t on t.id = k.tenant_id where k.client_id = 'odudu-admin' order by 1;"
 ```
 
 ```
@@ -493,8 +506,8 @@ provisioned 2 tenants
 ```
   name  | keys |                  first_kid                  | second_kid
 --------+------+---------------------------------------------+------------
- legacy |    1 | eI17EP1c344tSxqMmlBFXFhaedH7qc5F7KS2GFMv3i8 |
- system |    1 | eI17EP1c344tSxqMmlBFXFhaedH7qc5F7KS2GFMv3i8 |
+ legacy |    1 | dX57MvlrZyvqKNbAowOS1VDtou1tC0I9CEybMtRCxgk |
+ system |    1 | dX57MvlrZyvqKNbAowOS1VDtou1tC0I9CEybMtRCxgk |
 (2 rows)
 ```
 
@@ -502,7 +515,9 @@ The gateway still signs with `$A`, so the run ends by putting it back, the same
 command with the container's own environment:
 
 ```bash
-docker compose -p odudu-docs-12b exec -T odudu node dist/main.js console provision
+docker compose -p odudu-p4f-i14 exec -T odudu node dist/main.js console provision
+docker compose -p odudu-p4f-i14 exec -T postgres psql -U odudu -d odudu -c \
+  "select t.name, jsonb_array_length(c.jwks->'keys') as keys, c.jwks->'keys'->0->>'kid' as first_kid, c.jwks->'keys'->1->>'kid' as second_kid from client_oidc_config c join clients k on k.id = c.client_id join tenants t on t.id = k.tenant_id where k.client_id = 'odudu-admin' order by 1;"
 ```
 
 ```
@@ -539,9 +554,9 @@ A `system` tenant seeded before the console existed carries the loopback
 alone:
 
 ```
-          redirect_uris           | post_logout_redirect_uris
-----------------------------------+---------------------------
- {http://127.0.0.1:8080/callback} | {}
+                                redirect_uris                                 |    post_logout_redirect_uris
+------------------------------------------------------------------------------+----------------------------------
+ {http://127.0.0.1:8080/callback,http://localhost:3000/console/auth/callback} | {http://localhost:3000/console/}
 (1 row)
 ```
 
