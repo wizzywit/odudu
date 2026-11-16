@@ -95,12 +95,14 @@ it stops at the page. On a stack of its own on `http://localhost:3000`, started 
 a client `switch-spa` and `ada`:
 
 ```bash
-odudu seed --tenant switch-demo --client switch-spa --redirect-uri http://localhost:8080/callback \
-  --user ada --password correct-horse-battery
+SEED=$(odudu seed --tenant switch-demo --client switch-spa --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery)
+echo "$SEED"
+ADA=$(echo "$SEED" | jq -r .userSubjectId)
 ```
 
 ```
-{"created":true,"tenant":"switch-demo","tenantId":"01a1cfdb-2633-71b2-82b2-d2176a45d71c","clientId":"switch-spa","userSubjectId":"01a1cfdb-26f0-7925-b25a-93c21753df78"}
+{"created":true,"tenant":"switch-demo","tenantId":"01a1e3f5-b464-729f-810f-1ab3e6cf9e83","clientId":"switch-spa","userSubjectId":"01a1e3f5-b503-7606-b2e4-a90d63cc5926"}
 ```
 
 `sign_in` is a shell function that starts an authorization request with a cookie jar and posts `ada`'s password to the form it
@@ -142,7 +144,7 @@ odudu seed tenant --name switch-demo --set require_passkey=true
 ```
 HTTP/1.1 302 Found
 location: http://localhost:8080/callback?code=CODE&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fswitch-demo
-{"command":"tenant","created":false,"tenant":"switch-demo","tenantId":"01a1cfdb-2633-71b2-82b2-d2176a45d71c","settings":["require_passkey"]}
+{"command":"tenant","created":false,"tenant":"switch-demo","tenantId":"01a1e3f5-b464-729f-810f-1ab3e6cf9e83","settings":["require_passkey"]}
 ```
 
 Nothing happens to the session that is open. `ada` asks for another authorization with the same cookie jar and ends in the
@@ -175,6 +177,7 @@ HTTP/1.1 200 OK
 ----------+-------------------
  ada      | configure-passkey
 (1 row)
+
 0
 ```
 
@@ -203,7 +206,7 @@ sign_in jarD; rows
 ```
 
 ```
-{"command":"tenant","created":false,"tenant":"switch-demo","tenantId":"01a1cfdb-2633-71b2-82b2-d2176a45d71c","settings":["require_passkey"]}
+{"command":"tenant","created":false,"tenant":"switch-demo","tenantId":"01a1e3f5-b464-729f-810f-1ab3e6cf9e83","settings":["require_passkey"]}
 HTTP/1.1 200 OK
 <title>Add a passkey</title>
 <form method="post" action="/tenants/switch-demo/login-actions/required-action?action=configure-passkey" id="passkey-form" data-failed="Your device did not finish adding the passkey — {reason}. You can try again." data-cancelled="the request was cancelled">
@@ -214,14 +217,15 @@ HTTP/1.1 200 OK
 (1 row)
 ```
 
-An administrator clears it with the required-actions route. `ADA` is the `userSubjectId` the seed printed above, and
-`ADMIN_TOKEN` and the `ETag` are got as [the required-actions page](../admin-paths/get-subjectsidrequired-actions-and-put-subjectsidrequired-actions.md)
+An administrator clears it with the required-actions route. `ADA` is the `userSubjectId` the seed printed above, `ETAG` is read in the block, and
+`ADMIN_TOKEN` is got as [the required-actions page](../admin-paths/get-subjectsidrequired-actions-and-put-subjectsidrequired-actions.md)
 shows. The next sign-in, with the switch still off, ends in the redirect and nothing is owed:
 
 ```bash
-ADA=01a1cfdb-26f0-7925-b25a-93c21753df78
+ETAG=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/switch-demo/subjects/$ADA/required-actions | sed -n 's/^etag: //Ip' | tr -d '\r')
 curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H "If-Match: $ETAG" \
-  -d '{"actions":[]}' http://localhost:3000/admin/tenants/switch-demo/subjects/$ADA/required-actions
+  -d '{"actions":[]}' http://localhost:3000/admin/tenants/switch-demo/subjects/$ADA/required-actions; echo
 sign_in jarE; rows
 ```
 
@@ -243,7 +247,7 @@ sign_in jarF; rows
 ```
 
 ```
-{"command":"tenant","created":false,"tenant":"switch-demo","tenantId":"01a1cfdb-2633-71b2-82b2-d2176a45d71c","settings":["require_passkey"]}
+{"command":"tenant","created":false,"tenant":"switch-demo","tenantId":"01a1e3f5-b464-729f-810f-1ab3e6cf9e83","settings":["require_passkey"]}
 HTTP/1.1 200 OK
 <title>Add a passkey</title>
 <form method="post" action="/tenants/switch-demo/login-actions/required-action?action=configure-passkey" id="passkey-form" data-failed="Your device did not finish adding the passkey — {reason}. You can try again." data-cancelled="the request was cancelled">

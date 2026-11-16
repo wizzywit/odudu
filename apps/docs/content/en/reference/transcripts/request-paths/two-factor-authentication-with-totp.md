@@ -14,7 +14,7 @@ subject with no TOTP credential is given the `configure-totp` required
 action at their next login, and the login does not complete until they have
 enrolled.
 
-On a stack of its own, on `http://localhost:3094`, started on an empty volume,
+On a stack of its own, started on an empty volume (each block names its port),
 with this section, the `otp-demo` half of [Recovery codes](./recovery-codes.md)
 and its `rc8-demo` half run front to back against it. The HTML bodies are the
 bytes it served, line breaks, indentation and all. A fenced response block
@@ -31,8 +31,8 @@ odudu seed tenant --name otp-demo --set otp_required=true
 ```
 
 ```
-{"created":true,"tenant":"otp-demo","tenantId":"01a1d098-…","clientId":"otp-spa","userSubjectId":"01a1d098-…"}
-{"command":"tenant","created":false,"tenant":"otp-demo","tenantId":"01a1d098-1a57-783a-a0c2-fd26b14da41e","settings":["otp_required"]}
+{"created":true,"tenant":"otp-demo","tenantId":"01a1e3f4-c245-7665-8689-ddd831abe8be","clientId":"otp-spa","userSubjectId":"01a1e3f4-c2e0-7767-8801-9e564d3486a9"}
+{"command":"tenant","created":false,"tenant":"otp-demo","tenantId":"01a1e3f4-c245-7665-8689-ddd831abe8be","settings":["otp_required"]}
 ```
 
 `created` is `false` because the line above it made the tenant: `seed tenant`
@@ -47,20 +47,22 @@ second factor is decided before somebody has said who they are, because
 which account a code belongs to is not knowable until then.
 
 ```bash
-curl -sS 'http://localhost:3094/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+AUTH=$(curl -sS 'http://localhost:3000/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 ```
 
-The `auth_session_id` in that form — `01a137d3-98b1-7904-aeda-9a6709b81b53`
-in this run — is what every request below carries. Posting the correct
+The `auth_session_id` in that form, which the line above keeps as `$AUTH`, is what
+every request below carries. Posting the correct
 password answers 200 with an enrolment page rather than 302 with a code:
 the password was accepted, and the pending action is what stops the login
 from completing (no `set-cookie`, no `code`).
 
 ```bash
-curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d098-1efe-7c74-8e35-4a18df3bd375' \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
   --data-urlencode 'username=ada' \
-  --data-urlencode 'password=correct-horse-battery'
+  --data-urlencode 'password=correct-horse-battery' | tee enrol.html
+SECRET=$(sed -n 's/.*name="secret" value="\([^"]*\)".*/\1/p' enrol.html)
 ```
 
 ```
@@ -83,12 +85,12 @@ curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authentica
 <p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <p>Scan this with your authenticator app, or enter the key by hand.</p>
-<svg …>…</svg>
-<p><bdi dir="ltr"><code>otpauth://totp/otp-demo:ada?secret=RB6JLQATQG6K76IC45CZRAJFPXHD7PHN&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code></bdi></p>
-<p>Key: <bdi dir="ltr"><code>RB6JLQATQG6K76IC45CZRAJFPXHD7PHN</code></bdi></p>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 188 188"  preserveAspectRatio="xMinYMin meet"><rect width="100%" height="100%" fill="white" cx="0" cy="0"/><path d="M4,4l4,0 0,4 -4,0 0,-4z M8,4l4,0 0,4 -4,0 0,-4z M12,4l4,0 0,4 -4,0 0,-4z M16,4l4,0 0,4 -4,0 0,-4z M20,4l4,0 0,4 -4,0 0,-4z M24,4l4,0 0,4 -4,0 0,-4z M28,4l4,0 0,4 -4,0 0,-4z M36,4l4,0 0,4 -4,0 0,-4z M44,4l4,0 0,4 -4,0 0,-4z M60,4l4,0 0,4 -4,0 0,-4z M64,4l4,0 0,4 -4,0 0,-4z M68,4l4,0 0,4 -4,0 0,-4z M76,4l4,0 0,4 -4,0 0,-4z M84,4l4,0 0,4 -4,0 0,-4z M92,4l4,0 0,4 -4,0 0,-4z M108,4l4,0 0,4 -4,0 0,-4z M112,4l4,0 0,4 -4,0 0,-4z M124,4l4,0 0,4 -4,0 0,-4z M128,4l4,0 0,4 -4,0 0,-4z M132,4l4,0 0,4 -4,0 0,-4z M148,4l4,0 0,4 -4,0 0,-4z M156,4l4,0 0,4 -4,0 0,-4z M160,4l4,0 0,4 -4,0 0,-4z M164,4l4,0 0,4 -4,0 0,-4z M168,4l4,0 0,4 -4,0 0,-4z M172,4l4,0 0,4 -4,0 0,-4z M176,4l4,0 0,4 -4,0 0,-4z M180,4l4,0 0,4 -4,0 0,-4z M4,8l4,0 0,4 -4,0 0,-4z M28,8l4,0 0,4 -4,0 0,-4z M44,8l4,0 0,4 -4,0 0,-4z M48,8l4,0 0,4 -4,0 0,-4z M56,8l4,0 0,4 -4,0 0,-4z M80,8l4,0 0,4 -4,0 0,-4z M92,8l4,0 0,4 -4,0 0,-4z M96,8l4,0 0,4 -4,0 0,-4z M100,8l4,0 0,4 -4,0 0,-4z M104,8l4,0 0,4 -4,0 0,-4z M112,8l4,0 0,4 -4,0 0,-4z M128,8l4,0 0,4 -4,0 0,-4z M132,8l4,0 0,4 -4,0 0,-4z M136,8l4,0 0,4 -4,0 0,-4z M144,8l4,0 0,4 -4,0 0,-4z M156,8l4,0 0,4 -4,0 0,-4z M180,8l4,0 0,4 -4,0 0,-4z M4,12l4,0 0,4 -4,0 0,-4z M12,12l4,0 0,4 -4,0 0,-4z M16,12l4,0 0,4 -4,0 0,-4z M20,12l4,0 0,4 -4,0 0,-4z M28,12l4,0 0,4 -4,0 0,-4z M48,12l4,0 0,4 -4,0 0,-4z M56,12l4,0 0,4 -4,0 0,-4z M68,12l4,0 0,4 -4,0 0,-4z M80,12l4,0 0,4 -4,0 0,-4z M92,12l4,0 0,4 -4,0 0,-4z M96,12l4,0 0,4 -4,0 0,-4z M100,12l4,0 0,4 -4,0 0,-4z M108,12l4,0 0,4 -4,0 0,-4z M112,12l4,0 0,4 -4,0 0,-4z M116,12l4,0 0,4 -4,0 0,-4z M120,12l4,0 0,4 -4,0 0,-4z M128,12l4,0 0,4 -4,0 0,-4z M132,12l4,0 0,4 -4,0 0,-4z M136,12l4,0 0,4 -4,0 0,-4z M144,12l4,0 0,4 -4,0 0,-4z M156,12l4,0 0,4 -4,0 0,-4z M164,12l4,0 0,4 -4,0 0,-4z M168,12l4,0 0,4 -4,0 0,-4z M172,12l4,0 0,4 -4,0 0,-4z M180,12l4,0 0,4 -4,0 0,-4z M4,16l4,0 0,4 -4,0 0,-4z M12,16l4,0 0,4 -4,0 0,-4z M16,16l4,0 0,4 -4,0 0,-4z M20,16l4,0 0,4 -4,0 0,-4z M28,16l4,0 0,4 -4,0 0,-4z M36,16l4,0 0,4 -4,0 0,-4z M44,16l4,0 0,4 -4,0 0,-4z M48,16l4,0 0,4 -4,0 0,-4z M56,16l4,0 0,4 -4,0 0,-4z M68,16l4,0 0,4 -4,0 0,-4z M80,16l4,0 0,4 -4,0 0,-4z M84,16l4,0 0,4 -4,0 0,-4z M88,16l4,0 0,4 -4,0 0,-4z M92,16l4,0 0,4 -4,0 0,-4z M96,16l4,0 0,4 -4,0 0,-4z M100,16l4,0 0,4 -4,0 0,-4z M104,16l4,0 0,4 -4,0 0,-4z M116,16l4,0 0,4 -4,0 0,-4z M124,16l4,0 0,4 -4,0 0,-4z M144,16l4,0 0,4 -4,0 0,-4z M148,16l4,0 0,4 -4,0 0,-4z M156,16l4,0 0,4 -4,0 0,-4z M164,16l4,0 0,4 -4,0 0,-4z M168,16l4,0 0,4 -4,0 0,-4z M172,16l4,0 0,4 -4,0 0,-4z M180,16l4,0 0,4 -4,0 0,-4z M4,20l4,0 0,4 -4,0 0,-4z M12,20l4,0 0,4 -4,0 0,-4z M16,20l4,0 0,4 -4,0 0,-4z M20,20l4,0 0,4 -4,0 0,-4z M28,20l4,0 0,4 -4,0 0,-4z M36,20l4,0 0,4 -4,0 0,-4z M44,20l4,0 0,4 -4,0 0,-4z M60,20l4,0 0,4 -4,0 0,-4z M64,20l4,0 0,4 -4,0 0,-4z M72,20l4,0 0,4 -4,0 0,-4z M84,20l4,0 0,4 -4,0 0,-4z M88,20l4,0 0,4 -4,0 0,-4z M92,20l4,0 0,4 -4,0 0,-4z M96,20l4,0 0,4 -4,0 0,-4z M100,20l4,0 0,4 -4,0 0,-4z M108,20l4,0 0,4 -4,0 0,-4z M112,20l4,0 0,4 -4,0 0,-4z M120,20l4,0 0,4 -4,0 0,-4z M124,20l4,0 0,4 -4,0 0,-4z M132,20l4,0 0,4 -4,0 0,-4z M136,20l4,0 0,4 -4,0 0,-4z M140,20l4,0 0,4 -4,0 0,-4z M144,20l4,0 0,4 -4,0 0,-4z M148,20l4,0 0,4 -4,0 0,-4z M156,20l4,0 0,4 -4,0 0,-4z M164,20l4,0 0,4 -4,0 0,-4z M168,20l4,0 0,4 -4,0 0,-4z M172,20l4,0 0,4 -4,0 0,-4z M180,20l4,0 0,4 -4,0 0,-4z M4,24l4,0 0,4 -4,0 0,-4z M28,24l4,0 0,4 -4,0 0,-4z M36,24l4,0 0,4 -4,0 0,-4z M44,24l4,0 0,4 -4,0 0,-4z M48,24l4,0 0,4 -4,0 0,-4z M60,24l4,0 0,4 -4,0 0,-4z M64,24l4,0 0,4 -4,0 0,-4z M68,24l4,0 0,4 -4,0 0,-4z M76,24l4,0 0,4 -4,0 0,-4z M80,24l4,0 0,4 -4,0 0,-4z M84,24l4,0 0,4 -4,0 0,-4z M100,24l4,0 0,4 -4,0 0,-4z M104,24l4,0 0,4 -4,0 0,-4z M112,24l4,0 0,4 -4,0 0,-4z M124,24l4,0 0,4 -4,0 0,-4z M156,24l4,0 0,4 -4,0 0,-4z M180,24l4,0 0,4 -4,0 0,-4z M4,28l4,0 0,4 -4,0 0,-4z M8,28l4,0 0,4 -4,0 0,-4z M12,28l4,0 0,4 -4,0 0,-4z M16,28l4,0 0,4 -4,0 0,-4z M20,28l4,0 0,4 -4,0 0,-4z M24,28l4,0 0,4 -4,0 0,-4z M28,28l4,0 0,4 -4,0 0,-4z M36,28l4,0 0,4 -4,0 0,-4z M44,28l4,0 0,4 -4,0 0,-4z M52,28l4,0 0,4 -4,0 0,-4z M60,28l4,0 0,4 -4,0 0,-4z M68,28l4,0 0,4 -4,0 0,-4z M76,28l4,0 0,4 -4,0 0,-4z M84,28l4,0 0,4 -4,0 0,-4z M92,28l4,0 0,4 -4,0 0,-4z M100,28l4,0 0,4 -4,0 0,-4z M108,28l4,0 0,4 -4,0 0,-4z M116,28l4,0 0,4 -4,0 0,-4z M124,28l4,0 0,4 -4,0 0,-4z M132,28l4,0 0,4 -4,0 0,-4z M140,28l4,0 0,4 -4,0 0,-4z M148,28l4,0 0,4 -4,0 0,-4z M156,28l4,0 0,4 -4,0 0,-4z M160,28l4,0 0,4 -4,0 0,-4z M164,28l4,0 0,4 -4,0 0,-4z M168,28l4,0 0,4 -4,0 0,-4z M172,28l4,0 0,4 -4,0 0,-4z M176,28l4,0 0,4 -4,0 0,-4z M180,28l4,0 0,4 -4,0 0,-4z M36,32l4,0 0,4 -4,0 0,-4z M40,32l4,0 0,4 -4,0 0,-4z M44,32l4,0 0,4 -4,0 0,-4z M48,32l4,0 0,4 -4,0 0,-4z M52,32l4,0 0,4 -4,0 0,-4z M64,32l4,0 0,4 -4,0 0,-4z M68,32l4,0 0,4 -4,0 0,-4z M80,32l4,0 0,4 -4,0 0,-4z M84,32l4,0 0,4 -4,0 0,-4z M100,32l4,0 0,4 -4,0 0,-4z M104,32l4,0 0,4 -4,0 0,-4z M112,32l4,0 0,4 -4,0 0,-4z M124,32l4,0 0,4 -4,0 0,-4z M132,32l4,0 0,4 -4,0 0,-4z M144,32l4,0 0,4 -4,0 0,-4z M148,32l4,0 0,4 -4,0 0,-4z M4,36l4,0 0,4 -4,0 0,-4z M20,36l4,0 0,4 -4,0 0,-4z M28,36l4,0 0,4 -4,0 0,-4z M32,36l4,0 0,4 -4,0 0,-4z M36,36l4,0 0,4 -4,0 0,-4z M48,36l4,0 0,4 -4,0 0,-4z M56,36l4,0 0,4 -4,0 0,-4z M76,36l4,0 0,4 -4,0 0,-4z M84,36l4,0 0,4 -4,0 0,-4z M88,36l4,0 0,4 -4,0 0,-4z M92,36l4,0 0,4 -4,0 0,-4z M96,36l4,0 0,4 -4,0 0,-4z M100,36l4,0 0,4 -4,0 0,-4z M104,36l4,0 0,4 -4,0 0,-4z M108,36l4,0 0,4 -4,0 0,-4z M112,36l4,0 0,4 -4,0 0,-4z M120,36l4,0 0,4 -4,0 0,-4z M132,36l4,0 0,4 -4,0 0,-4z M136,36l4,0 0,4 -4,0 0,-4z M140,36l4,0 0,4 -4,0 0,-4z M144,36l4,0 0,4 -4,0 0,-4z M152,36l4,0 0,4 -4,0 0,-4z M156,36l4,0 0,4 -4,0 0,-4z M160,36l4,0 0,4 -4,0 0,-4z M164,36l4,0 0,4 -4,0 0,-4z M168,36l4,0 0,4 -4,0 0,-4z M180,36l4,0 0,4 -4,0 0,-4z M8,40l4,0 0,4 -4,0 0,-4z M20,40l4,0 0,4 -4,0 0,-4z M32,40l4,0 0,4 -4,0 0,-4z M40,40l4,0 0,4 -4,0 0,-4z M52,40l4,0 0,4 -4,0 0,-4z M64,40l4,0 0,4 -4,0 0,-4z M68,40l4,0 0,4 -4,0 0,-4z M72,40l4,0 0,4 -4,0 0,-4z M76,40l4,0 0,4 -4,0 0,-4z M88,40l4,0 0,4 -4,0 0,-4z M92,40l4,0 0,4 -4,0 0,-4z M96,40l4,0 0,4 -4,0 0,-4z M108,40l4,0 0,4 -4,0 0,-4z M112,40l4,0 0,4 -4,0 0,-4z M120,40l4,0 0,4 -4,0 0,-4z M124,40l4,0 0,4 -4,0 0,-4z M132,40l4,0 0,4 -4,0 0,-4z M144,40l4,0 0,4 -4,0 0,-4z M148,40l4,0 0,4 -4,0 0,-4z M156,40l4,0 0,4 -4,0 0,-4z M160,40l4,0 0,4 -4,0 0,-4z M172,40l4,0 0,4 -4,0 0,-4z M4,44l4,0 0,4 -4,0 0,-4z M28,44l4,0 0,4 -4,0 0,-4z M52,44l4,0 0,4 -4,0 0,-4z M56,44l4,0 0,4 -4,0 0,-4z M72,44l4,0 0,4 -4,0 0,-4z M88,44l4,0 0,4 -4,0 0,-4z M92,44l4,0 0,4 -4,0 0,-4z M96,44l4,0 0,4 -4,0 0,-4z M108,44l4,0 0,4 -4,0 0,-4z M124,44l4,0 0,4 -4,0 0,-4z M128,44l4,0 0,4 -4,0 0,-4z M132,44l4,0 0,4 -4,0 0,-4z M136,44l4,0 0,4 -4,0 0,-4z M148,44l4,0 0,4 -4,0 0,-4z M152,44l4,0 0,4 -4,0 0,-4z M156,44l4,0 0,4 -4,0 0,-4z M164,44l4,0 0,4 -4,0 0,-4z M168,44l4,0 0,4 -4,0 0,-4z M172,44l4,0 0,4 -4,0 0,-4z M176,44l4,0 0,4 -4,0 0,-4z M8,48l4,0 0,4 -4,0 0,-4z M12,48l4,0 0,4 -4,0 0,-4z M16,48l4,0 0,4 -4,0 0,-4z M44,48l4,0 0,4 -4,0 0,-4z M52,48l4,0 0,4 -4,0 0,-4z M56,48l4,0 0,4 -4,0 0,-4z M60,48l4,0 0,4 -4,0 0,-4z M76,48l4,0 0,4 -4,0 0,-4z M80,48l4,0 0,4 -4,0 0,-4z M84,48l4,0 0,4 -4,0 0,-4z M92,48l4,0 0,4 -4,0 0,-4z M100,48l4,0 0,4 -4,0 0,-4z M112,48l4,0 0,4 -4,0 0,-4z M128,48l4,0 0,4 -4,0 0,-4z M132,48l4,0 0,4 -4,0 0,-4z M136,48l4,0 0,4 -4,0 0,-4z M140,48l4,0 0,4 -4,0 0,-4z M144,48l4,0 0,4 -4,0 0,-4z M156,48l4,0 0,4 -4,0 0,-4z M176,48l4,0 0,4 -4,0 0,-4z M180,48l4,0 0,4 -4,0 0,-4z M4,52l4,0 0,4 -4,0 0,-4z M20,52l4,0 0,4 -4,0 0,-4z M24,52l4,0 0,4 -4,0 0,-4z M28,52l4,0 0,4 -4,0 0,-4z M32,52l4,0 0,4 -4,0 0,-4z M48,52l4,0 0,4 -4,0 0,-4z M52,52l4,0 0,4 -4,0 0,-4z M56,52l4,0 0,4 -4,0 0,-4z M60,52l4,0 0,4 -4,0 0,-4z M72,52l4,0 0,4 -4,0 0,-4z M76,52l4,0 0,4 -4,0 0,-4z M80,52l4,0 0,4 -4,0 0,-4z M92,52l4,0 0,4 -4,0 0,-4z M100,52l4,0 0,4 -4,0 0,-4z M108,52l4,0 0,4 -4,0 0,-4z M112,52l4,0 0,4 -4,0 0,-4z M128,52l4,0 0,4 -4,0 0,-4z M132,52l4,0 0,4 -4,0 0,-4z M140,52l4,0 0,4 -4,0 0,-4z M144,52l4,0 0,4 -4,0 0,-4z M148,52l4,0 0,4 -4,0 0,-4z M156,52l4,0 0,4 -4,0 0,-4z M4,56l4,0 0,4 -4,0 0,-4z M8,56l4,0 0,4 -4,0 0,-4z M12,56l4,0 0,4 -4,0 0,-4z M16,56l4,0 0,4 -4,0 0,-4z M20,56l4,0 0,4 -4,0 0,-4z M24,56l4,0 0,4 -4,0 0,-4z M36,56l4,0 0,4 -4,0 0,-4z M40,56l4,0 0,4 -4,0 0,-4z M48,56l4,0 0,4 -4,0 0,-4z M52,56l4,0 0,4 -4,0 0,-4z M56,56l4,0 0,4 -4,0 0,-4z M60,56l4,0 0,4 -4,0 0,-4z M68,56l4,0 0,4 -4,0 0,-4z M108,56l4,0 0,4 -4,0 0,-4z M116,56l4,0 0,4 -4,0 0,-4z M124,56l4,0 0,4 -4,0 0,-4z M128,56l4,0 0,4 -4,0 0,-4z M132,56l4,0 0,4 -4,0 0,-4z M144,56l4,0 0,4 -4,0 0,-4z M148,56l4,0 0,4 -4,0 0,-4z M156,56l4,0 0,4 -4,0 0,-4z M160,56l4,0 0,4 -4,0 0,-4z M172,56l4,0 0,4 -4,0 0,-4z M12,60l4,0 0,4 -4,0 0,-4z M20,60l4,0 0,4 -4,0 0,-4z M28,60l4,0 0,4 -4,0 0,-4z M36,60l4,0 0,4 -4,0 0,-4z M44,60l4,0 0,4 -4,0 0,-4z M68,60l4,0 0,4 -4,0 0,-4z M84,60l4,0 0,4 -4,0 0,-4z M88,60l4,0 0,4 -4,0 0,-4z M92,60l4,0 0,4 -4,0 0,-4z M112,60l4,0 0,4 -4,0 0,-4z M116,60l4,0 0,4 -4,0 0,-4z M120,60l4,0 0,4 -4,0 0,-4z M124,60l4,0 0,4 -4,0 0,-4z M128,60l4,0 0,4 -4,0 0,-4z M160,60l4,0 0,4 -4,0 0,-4z M164,60l4,0 0,4 -4,0 0,-4z M168,60l4,0 0,4 -4,0 0,-4z M172,60l4,0 0,4 -4,0 0,-4z M8,64l4,0 0,4 -4,0 0,-4z M12,64l4,0 0,4 -4,0 0,-4z M20,64l4,0 0,4 -4,0 0,-4z M24,64l4,0 0,4 -4,0 0,-4z M40,64l4,0 0,4 -4,0 0,-4z M52,64l4,0 0,4 -4,0 0,-4z M76,64l4,0 0,4 -4,0 0,-4z M80,64l4,0 0,4 -4,0 0,-4z M88,64l4,0 0,4 -4,0 0,-4z M92,64l4,0 0,4 -4,0 0,-4z M104,64l4,0 0,4 -4,0 0,-4z M108,64l4,0 0,4 -4,0 0,-4z M112,64l4,0 0,4 -4,0 0,-4z M124,64l4,0 0,4 -4,0 0,-4z M128,64l4,0 0,4 -4,0 0,-4z M132,64l4,0 0,4 -4,0 0,-4z M136,64l4,0 0,4 -4,0 0,-4z M140,64l4,0 0,4 -4,0 0,-4z M152,64l4,0 0,4 -4,0 0,-4z M164,64l4,0 0,4 -4,0 0,-4z M176,64l4,0 0,4 -4,0 0,-4z M12,68l4,0 0,4 -4,0 0,-4z M24,68l4,0 0,4 -4,0 0,-4z M28,68l4,0 0,4 -4,0 0,-4z M36,68l4,0 0,4 -4,0 0,-4z M44,68l4,0 0,4 -4,0 0,-4z M48,68l4,0 0,4 -4,0 0,-4z M52,68l4,0 0,4 -4,0 0,-4z M68,68l4,0 0,4 -4,0 0,-4z M72,68l4,0 0,4 -4,0 0,-4z M76,68l4,0 0,4 -4,0 0,-4z M80,68l4,0 0,4 -4,0 0,-4z M100,68l4,0 0,4 -4,0 0,-4z M108,68l4,0 0,4 -4,0 0,-4z M112,68l4,0 0,4 -4,0 0,-4z M120,68l4,0 0,4 -4,0 0,-4z M132,68l4,0 0,4 -4,0 0,-4z M136,68l4,0 0,4 -4,0 0,-4z M140,68l4,0 0,4 -4,0 0,-4z M160,68l4,0 0,4 -4,0 0,-4z M172,68l4,0 0,4 -4,0 0,-4z M4,72l4,0 0,4 -4,0 0,-4z M12,72l4,0 0,4 -4,0 0,-4z M16,72l4,0 0,4 -4,0 0,-4z M20,72l4,0 0,4 -4,0 0,-4z M24,72l4,0 0,4 -4,0 0,-4z M32,72l4,0 0,4 -4,0 0,-4z M44,72l4,0 0,4 -4,0 0,-4z M48,72l4,0 0,4 -4,0 0,-4z M56,72l4,0 0,4 -4,0 0,-4z M60,72l4,0 0,4 -4,0 0,-4z M68,72l4,0 0,4 -4,0 0,-4z M76,72l4,0 0,4 -4,0 0,-4z M80,72l4,0 0,4 -4,0 0,-4z M84,72l4,0 0,4 -4,0 0,-4z M100,72l4,0 0,4 -4,0 0,-4z M108,72l4,0 0,4 -4,0 0,-4z M120,72l4,0 0,4 -4,0 0,-4z M124,72l4,0 0,4 -4,0 0,-4z M128,72l4,0 0,4 -4,0 0,-4z M132,72l4,0 0,4 -4,0 0,-4z M136,72l4,0 0,4 -4,0 0,-4z M148,72l4,0 0,4 -4,0 0,-4z M152,72l4,0 0,4 -4,0 0,-4z M156,72l4,0 0,4 -4,0 0,-4z M160,72l4,0 0,4 -4,0 0,-4z M164,72l4,0 0,4 -4,0 0,-4z M168,72l4,0 0,4 -4,0 0,-4z M176,72l4,0 0,4 -4,0 0,-4z M180,72l4,0 0,4 -4,0 0,-4z M4,76l4,0 0,4 -4,0 0,-4z M8,76l4,0 0,4 -4,0 0,-4z M12,76l4,0 0,4 -4,0 0,-4z M28,76l4,0 0,4 -4,0 0,-4z M32,76l4,0 0,4 -4,0 0,-4z M40,76l4,0 0,4 -4,0 0,-4z M52,76l4,0 0,4 -4,0 0,-4z M56,76l4,0 0,4 -4,0 0,-4z M68,76l4,0 0,4 -4,0 0,-4z M80,76l4,0 0,4 -4,0 0,-4z M92,76l4,0 0,4 -4,0 0,-4z M108,76l4,0 0,4 -4,0 0,-4z M116,76l4,0 0,4 -4,0 0,-4z M120,76l4,0 0,4 -4,0 0,-4z M124,76l4,0 0,4 -4,0 0,-4z M128,76l4,0 0,4 -4,0 0,-4z M144,76l4,0 0,4 -4,0 0,-4z M148,76l4,0 0,4 -4,0 0,-4z M156,76l4,0 0,4 -4,0 0,-4z M164,76l4,0 0,4 -4,0 0,-4z M176,76l4,0 0,4 -4,0 0,-4z M4,80l4,0 0,4 -4,0 0,-4z M8,80l4,0 0,4 -4,0 0,-4z M20,80l4,0 0,4 -4,0 0,-4z M24,80l4,0 0,4 -4,0 0,-4z M32,80l4,0 0,4 -4,0 0,-4z M40,80l4,0 0,4 -4,0 0,-4z M52,80l4,0 0,4 -4,0 0,-4z M68,80l4,0 0,4 -4,0 0,-4z M72,80l4,0 0,4 -4,0 0,-4z M80,80l4,0 0,4 -4,0 0,-4z M92,80l4,0 0,4 -4,0 0,-4z M104,80l4,0 0,4 -4,0 0,-4z M108,80l4,0 0,4 -4,0 0,-4z M112,80l4,0 0,4 -4,0 0,-4z M116,80l4,0 0,4 -4,0 0,-4z M120,80l4,0 0,4 -4,0 0,-4z M128,80l4,0 0,4 -4,0 0,-4z M132,80l4,0 0,4 -4,0 0,-4z M140,80l4,0 0,4 -4,0 0,-4z M144,80l4,0 0,4 -4,0 0,-4z M148,80l4,0 0,4 -4,0 0,-4z M160,80l4,0 0,4 -4,0 0,-4z M164,80l4,0 0,4 -4,0 0,-4z M4,84l4,0 0,4 -4,0 0,-4z M8,84l4,0 0,4 -4,0 0,-4z M16,84l4,0 0,4 -4,0 0,-4z M20,84l4,0 0,4 -4,0 0,-4z M24,84l4,0 0,4 -4,0 0,-4z M28,84l4,0 0,4 -4,0 0,-4z M32,84l4,0 0,4 -4,0 0,-4z M36,84l4,0 0,4 -4,0 0,-4z M44,84l4,0 0,4 -4,0 0,-4z M52,84l4,0 0,4 -4,0 0,-4z M64,84l4,0 0,4 -4,0 0,-4z M68,84l4,0 0,4 -4,0 0,-4z M72,84l4,0 0,4 -4,0 0,-4z M76,84l4,0 0,4 -4,0 0,-4z M80,84l4,0 0,4 -4,0 0,-4z M84,84l4,0 0,4 -4,0 0,-4z M88,84l4,0 0,4 -4,0 0,-4z M92,84l4,0 0,4 -4,0 0,-4z M96,84l4,0 0,4 -4,0 0,-4z M100,84l4,0 0,4 -4,0 0,-4z M112,84l4,0 0,4 -4,0 0,-4z M120,84l4,0 0,4 -4,0 0,-4z M128,84l4,0 0,4 -4,0 0,-4z M132,84l4,0 0,4 -4,0 0,-4z M136,84l4,0 0,4 -4,0 0,-4z M140,84l4,0 0,4 -4,0 0,-4z M148,84l4,0 0,4 -4,0 0,-4z M152,84l4,0 0,4 -4,0 0,-4z M156,84l4,0 0,4 -4,0 0,-4z M160,84l4,0 0,4 -4,0 0,-4z M164,84l4,0 0,4 -4,0 0,-4z M168,84l4,0 0,4 -4,0 0,-4z M172,84l4,0 0,4 -4,0 0,-4z M180,84l4,0 0,4 -4,0 0,-4z M4,88l4,0 0,4 -4,0 0,-4z M8,88l4,0 0,4 -4,0 0,-4z M16,88l4,0 0,4 -4,0 0,-4z M20,88l4,0 0,4 -4,0 0,-4z M36,88l4,0 0,4 -4,0 0,-4z M48,88l4,0 0,4 -4,0 0,-4z M52,88l4,0 0,4 -4,0 0,-4z M68,88l4,0 0,4 -4,0 0,-4z M80,88l4,0 0,4 -4,0 0,-4z M84,88l4,0 0,4 -4,0 0,-4z M100,88l4,0 0,4 -4,0 0,-4z M108,88l4,0 0,4 -4,0 0,-4z M120,88l4,0 0,4 -4,0 0,-4z M124,88l4,0 0,4 -4,0 0,-4z M136,88l4,0 0,4 -4,0 0,-4z M144,88l4,0 0,4 -4,0 0,-4z M148,88l4,0 0,4 -4,0 0,-4z M164,88l4,0 0,4 -4,0 0,-4z M168,88l4,0 0,4 -4,0 0,-4z M172,88l4,0 0,4 -4,0 0,-4z M4,92l4,0 0,4 -4,0 0,-4z M20,92l4,0 0,4 -4,0 0,-4z M28,92l4,0 0,4 -4,0 0,-4z M36,92l4,0 0,4 -4,0 0,-4z M40,92l4,0 0,4 -4,0 0,-4z M44,92l4,0 0,4 -4,0 0,-4z M48,92l4,0 0,4 -4,0 0,-4z M56,92l4,0 0,4 -4,0 0,-4z M60,92l4,0 0,4 -4,0 0,-4z M64,92l4,0 0,4 -4,0 0,-4z M68,92l4,0 0,4 -4,0 0,-4z M76,92l4,0 0,4 -4,0 0,-4z M80,92l4,0 0,4 -4,0 0,-4z M84,92l4,0 0,4 -4,0 0,-4z M92,92l4,0 0,4 -4,0 0,-4z M100,92l4,0 0,4 -4,0 0,-4z M108,92l4,0 0,4 -4,0 0,-4z M116,92l4,0 0,4 -4,0 0,-4z M136,92l4,0 0,4 -4,0 0,-4z M148,92l4,0 0,4 -4,0 0,-4z M156,92l4,0 0,4 -4,0 0,-4z M164,92l4,0 0,4 -4,0 0,-4z M168,92l4,0 0,4 -4,0 0,-4z M176,92l4,0 0,4 -4,0 0,-4z M4,96l4,0 0,4 -4,0 0,-4z M8,96l4,0 0,4 -4,0 0,-4z M16,96l4,0 0,4 -4,0 0,-4z M20,96l4,0 0,4 -4,0 0,-4z M36,96l4,0 0,4 -4,0 0,-4z M40,96l4,0 0,4 -4,0 0,-4z M48,96l4,0 0,4 -4,0 0,-4z M52,96l4,0 0,4 -4,0 0,-4z M64,96l4,0 0,4 -4,0 0,-4z M72,96l4,0 0,4 -4,0 0,-4z M76,96l4,0 0,4 -4,0 0,-4z M84,96l4,0 0,4 -4,0 0,-4z M100,96l4,0 0,4 -4,0 0,-4z M104,96l4,0 0,4 -4,0 0,-4z M112,96l4,0 0,4 -4,0 0,-4z M128,96l4,0 0,4 -4,0 0,-4z M132,96l4,0 0,4 -4,0 0,-4z M144,96l4,0 0,4 -4,0 0,-4z M148,96l4,0 0,4 -4,0 0,-4z M164,96l4,0 0,4 -4,0 0,-4z M176,96l4,0 0,4 -4,0 0,-4z M180,96l4,0 0,4 -4,0 0,-4z M4,100l4,0 0,4 -4,0 0,-4z M8,100l4,0 0,4 -4,0 0,-4z M12,100l4,0 0,4 -4,0 0,-4z M20,100l4,0 0,4 -4,0 0,-4z M24,100l4,0 0,4 -4,0 0,-4z M28,100l4,0 0,4 -4,0 0,-4z M32,100l4,0 0,4 -4,0 0,-4z M36,100l4,0 0,4 -4,0 0,-4z M44,100l4,0 0,4 -4,0 0,-4z M48,100l4,0 0,4 -4,0 0,-4z M60,100l4,0 0,4 -4,0 0,-4z M68,100l4,0 0,4 -4,0 0,-4z M72,100l4,0 0,4 -4,0 0,-4z M84,100l4,0 0,4 -4,0 0,-4z M88,100l4,0 0,4 -4,0 0,-4z M92,100l4,0 0,4 -4,0 0,-4z M96,100l4,0 0,4 -4,0 0,-4z M100,100l4,0 0,4 -4,0 0,-4z M108,100l4,0 0,4 -4,0 0,-4z M124,100l4,0 0,4 -4,0 0,-4z M128,100l4,0 0,4 -4,0 0,-4z M132,100l4,0 0,4 -4,0 0,-4z M136,100l4,0 0,4 -4,0 0,-4z M140,100l4,0 0,4 -4,0 0,-4z M148,100l4,0 0,4 -4,0 0,-4z M152,100l4,0 0,4 -4,0 0,-4z M156,100l4,0 0,4 -4,0 0,-4z M160,100l4,0 0,4 -4,0 0,-4z M164,100l4,0 0,4 -4,0 0,-4z M168,100l4,0 0,4 -4,0 0,-4z M176,100l4,0 0,4 -4,0 0,-4z M180,100l4,0 0,4 -4,0 0,-4z M4,104l4,0 0,4 -4,0 0,-4z M8,104l4,0 0,4 -4,0 0,-4z M36,104l4,0 0,4 -4,0 0,-4z M60,104l4,0 0,4 -4,0 0,-4z M64,104l4,0 0,4 -4,0 0,-4z M76,104l4,0 0,4 -4,0 0,-4z M84,104l4,0 0,4 -4,0 0,-4z M92,104l4,0 0,4 -4,0 0,-4z M100,104l4,0 0,4 -4,0 0,-4z M108,104l4,0 0,4 -4,0 0,-4z M120,104l4,0 0,4 -4,0 0,-4z M124,104l4,0 0,4 -4,0 0,-4z M128,104l4,0 0,4 -4,0 0,-4z M136,104l4,0 0,4 -4,0 0,-4z M156,104l4,0 0,4 -4,0 0,-4z M160,104l4,0 0,4 -4,0 0,-4z M168,104l4,0 0,4 -4,0 0,-4z M172,104l4,0 0,4 -4,0 0,-4z M176,104l4,0 0,4 -4,0 0,-4z M4,108l4,0 0,4 -4,0 0,-4z M12,108l4,0 0,4 -4,0 0,-4z M16,108l4,0 0,4 -4,0 0,-4z M20,108l4,0 0,4 -4,0 0,-4z M24,108l4,0 0,4 -4,0 0,-4z M28,108l4,0 0,4 -4,0 0,-4z M40,108l4,0 0,4 -4,0 0,-4z M56,108l4,0 0,4 -4,0 0,-4z M60,108l4,0 0,4 -4,0 0,-4z M64,108l4,0 0,4 -4,0 0,-4z M72,108l4,0 0,4 -4,0 0,-4z M76,108l4,0 0,4 -4,0 0,-4z M84,108l4,0 0,4 -4,0 0,-4z M92,108l4,0 0,4 -4,0 0,-4z M100,108l4,0 0,4 -4,0 0,-4z M108,108l4,0 0,4 -4,0 0,-4z M112,108l4,0 0,4 -4,0 0,-4z M116,108l4,0 0,4 -4,0 0,-4z M124,108l4,0 0,4 -4,0 0,-4z M144,108l4,0 0,4 -4,0 0,-4z M148,108l4,0 0,4 -4,0 0,-4z M164,108l4,0 0,4 -4,0 0,-4z M176,108l4,0 0,4 -4,0 0,-4z M8,112l4,0 0,4 -4,0 0,-4z M16,112l4,0 0,4 -4,0 0,-4z M20,112l4,0 0,4 -4,0 0,-4z M32,112l4,0 0,4 -4,0 0,-4z M40,112l4,0 0,4 -4,0 0,-4z M44,112l4,0 0,4 -4,0 0,-4z M60,112l4,0 0,4 -4,0 0,-4z M68,112l4,0 0,4 -4,0 0,-4z M72,112l4,0 0,4 -4,0 0,-4z M76,112l4,0 0,4 -4,0 0,-4z M88,112l4,0 0,4 -4,0 0,-4z M96,112l4,0 0,4 -4,0 0,-4z M104,112l4,0 0,4 -4,0 0,-4z M128,112l4,0 0,4 -4,0 0,-4z M132,112l4,0 0,4 -4,0 0,-4z M140,112l4,0 0,4 -4,0 0,-4z M148,112l4,0 0,4 -4,0 0,-4z M156,112l4,0 0,4 -4,0 0,-4z M176,112l4,0 0,4 -4,0 0,-4z M16,116l4,0 0,4 -4,0 0,-4z M24,116l4,0 0,4 -4,0 0,-4z M28,116l4,0 0,4 -4,0 0,-4z M36,116l4,0 0,4 -4,0 0,-4z M44,116l4,0 0,4 -4,0 0,-4z M48,116l4,0 0,4 -4,0 0,-4z M56,116l4,0 0,4 -4,0 0,-4z M60,116l4,0 0,4 -4,0 0,-4z M76,116l4,0 0,4 -4,0 0,-4z M80,116l4,0 0,4 -4,0 0,-4z M88,116l4,0 0,4 -4,0 0,-4z M96,116l4,0 0,4 -4,0 0,-4z M104,116l4,0 0,4 -4,0 0,-4z M112,116l4,0 0,4 -4,0 0,-4z M128,116l4,0 0,4 -4,0 0,-4z M132,116l4,0 0,4 -4,0 0,-4z M140,116l4,0 0,4 -4,0 0,-4z M156,116l4,0 0,4 -4,0 0,-4z M160,116l4,0 0,4 -4,0 0,-4z M164,116l4,0 0,4 -4,0 0,-4z M168,116l4,0 0,4 -4,0 0,-4z M180,116l4,0 0,4 -4,0 0,-4z M4,120l4,0 0,4 -4,0 0,-4z M8,120l4,0 0,4 -4,0 0,-4z M20,120l4,0 0,4 -4,0 0,-4z M24,120l4,0 0,4 -4,0 0,-4z M32,120l4,0 0,4 -4,0 0,-4z M44,120l4,0 0,4 -4,0 0,-4z M48,120l4,0 0,4 -4,0 0,-4z M52,120l4,0 0,4 -4,0 0,-4z M56,120l4,0 0,4 -4,0 0,-4z M60,120l4,0 0,4 -4,0 0,-4z M80,120l4,0 0,4 -4,0 0,-4z M84,120l4,0 0,4 -4,0 0,-4z M88,120l4,0 0,4 -4,0 0,-4z M96,120l4,0 0,4 -4,0 0,-4z M108,120l4,0 0,4 -4,0 0,-4z M112,120l4,0 0,4 -4,0 0,-4z M120,120l4,0 0,4 -4,0 0,-4z M124,120l4,0 0,4 -4,0 0,-4z M132,120l4,0 0,4 -4,0 0,-4z M148,120l4,0 0,4 -4,0 0,-4z M152,120l4,0 0,4 -4,0 0,-4z M156,120l4,0 0,4 -4,0 0,-4z M160,120l4,0 0,4 -4,0 0,-4z M168,120l4,0 0,4 -4,0 0,-4z M172,120l4,0 0,4 -4,0 0,-4z M176,120l4,0 0,4 -4,0 0,-4z M4,124l4,0 0,4 -4,0 0,-4z M20,124l4,0 0,4 -4,0 0,-4z M24,124l4,0 0,4 -4,0 0,-4z M28,124l4,0 0,4 -4,0 0,-4z M36,124l4,0 0,4 -4,0 0,-4z M40,124l4,0 0,4 -4,0 0,-4z M64,124l4,0 0,4 -4,0 0,-4z M84,124l4,0 0,4 -4,0 0,-4z M92,124l4,0 0,4 -4,0 0,-4z M100,124l4,0 0,4 -4,0 0,-4z M104,124l4,0 0,4 -4,0 0,-4z M116,124l4,0 0,4 -4,0 0,-4z M124,124l4,0 0,4 -4,0 0,-4z M128,124l4,0 0,4 -4,0 0,-4z M152,124l4,0 0,4 -4,0 0,-4z M164,124l4,0 0,4 -4,0 0,-4z M168,124l4,0 0,4 -4,0 0,-4z M172,124l4,0 0,4 -4,0 0,-4z M176,124l4,0 0,4 -4,0 0,-4z M4,128l4,0 0,4 -4,0 0,-4z M8,128l4,0 0,4 -4,0 0,-4z M12,128l4,0 0,4 -4,0 0,-4z M24,128l4,0 0,4 -4,0 0,-4z M36,128l4,0 0,4 -4,0 0,-4z M44,128l4,0 0,4 -4,0 0,-4z M56,128l4,0 0,4 -4,0 0,-4z M60,128l4,0 0,4 -4,0 0,-4z M64,128l4,0 0,4 -4,0 0,-4z M72,128l4,0 0,4 -4,0 0,-4z M96,128l4,0 0,4 -4,0 0,-4z M104,128l4,0 0,4 -4,0 0,-4z M108,128l4,0 0,4 -4,0 0,-4z M112,128l4,0 0,4 -4,0 0,-4z M124,128l4,0 0,4 -4,0 0,-4z M128,128l4,0 0,4 -4,0 0,-4z M132,128l4,0 0,4 -4,0 0,-4z M140,128l4,0 0,4 -4,0 0,-4z M144,128l4,0 0,4 -4,0 0,-4z M148,128l4,0 0,4 -4,0 0,-4z M156,128l4,0 0,4 -4,0 0,-4z M160,128l4,0 0,4 -4,0 0,-4z M164,128l4,0 0,4 -4,0 0,-4z M4,132l4,0 0,4 -4,0 0,-4z M28,132l4,0 0,4 -4,0 0,-4z M32,132l4,0 0,4 -4,0 0,-4z M36,132l4,0 0,4 -4,0 0,-4z M48,132l4,0 0,4 -4,0 0,-4z M52,132l4,0 0,4 -4,0 0,-4z M56,132l4,0 0,4 -4,0 0,-4z M72,132l4,0 0,4 -4,0 0,-4z M76,132l4,0 0,4 -4,0 0,-4z M80,132l4,0 0,4 -4,0 0,-4z M88,132l4,0 0,4 -4,0 0,-4z M96,132l4,0 0,4 -4,0 0,-4z M100,132l4,0 0,4 -4,0 0,-4z M112,132l4,0 0,4 -4,0 0,-4z M120,132l4,0 0,4 -4,0 0,-4z M132,132l4,0 0,4 -4,0 0,-4z M136,132l4,0 0,4 -4,0 0,-4z M148,132l4,0 0,4 -4,0 0,-4z M152,132l4,0 0,4 -4,0 0,-4z M156,132l4,0 0,4 -4,0 0,-4z M172,132l4,0 0,4 -4,0 0,-4z M176,132l4,0 0,4 -4,0 0,-4z M8,136l4,0 0,4 -4,0 0,-4z M16,136l4,0 0,4 -4,0 0,-4z M20,136l4,0 0,4 -4,0 0,-4z M36,136l4,0 0,4 -4,0 0,-4z M48,136l4,0 0,4 -4,0 0,-4z M60,136l4,0 0,4 -4,0 0,-4z M92,136l4,0 0,4 -4,0 0,-4z M96,136l4,0 0,4 -4,0 0,-4z M104,136l4,0 0,4 -4,0 0,-4z M108,136l4,0 0,4 -4,0 0,-4z M112,136l4,0 0,4 -4,0 0,-4z M120,136l4,0 0,4 -4,0 0,-4z M124,136l4,0 0,4 -4,0 0,-4z M136,136l4,0 0,4 -4,0 0,-4z M144,136l4,0 0,4 -4,0 0,-4z M148,136l4,0 0,4 -4,0 0,-4z M160,136l4,0 0,4 -4,0 0,-4z M172,136l4,0 0,4 -4,0 0,-4z M180,136l4,0 0,4 -4,0 0,-4z M20,140l4,0 0,4 -4,0 0,-4z M28,140l4,0 0,4 -4,0 0,-4z M32,140l4,0 0,4 -4,0 0,-4z M36,140l4,0 0,4 -4,0 0,-4z M44,140l4,0 0,4 -4,0 0,-4z M48,140l4,0 0,4 -4,0 0,-4z M56,140l4,0 0,4 -4,0 0,-4z M64,140l4,0 0,4 -4,0 0,-4z M68,140l4,0 0,4 -4,0 0,-4z M72,140l4,0 0,4 -4,0 0,-4z M84,140l4,0 0,4 -4,0 0,-4z M96,140l4,0 0,4 -4,0 0,-4z M100,140l4,0 0,4 -4,0 0,-4z M108,140l4,0 0,4 -4,0 0,-4z M124,140l4,0 0,4 -4,0 0,-4z M128,140l4,0 0,4 -4,0 0,-4z M132,140l4,0 0,4 -4,0 0,-4z M136,140l4,0 0,4 -4,0 0,-4z M148,140l4,0 0,4 -4,0 0,-4z M152,140l4,0 0,4 -4,0 0,-4z M160,140l4,0 0,4 -4,0 0,-4z M164,140l4,0 0,4 -4,0 0,-4z M172,140l4,0 0,4 -4,0 0,-4z M176,140l4,0 0,4 -4,0 0,-4z M8,144l4,0 0,4 -4,0 0,-4z M12,144l4,0 0,4 -4,0 0,-4z M16,144l4,0 0,4 -4,0 0,-4z M20,144l4,0 0,4 -4,0 0,-4z M36,144l4,0 0,4 -4,0 0,-4z M44,144l4,0 0,4 -4,0 0,-4z M48,144l4,0 0,4 -4,0 0,-4z M52,144l4,0 0,4 -4,0 0,-4z M64,144l4,0 0,4 -4,0 0,-4z M72,144l4,0 0,4 -4,0 0,-4z M76,144l4,0 0,4 -4,0 0,-4z M80,144l4,0 0,4 -4,0 0,-4z M84,144l4,0 0,4 -4,0 0,-4z M88,144l4,0 0,4 -4,0 0,-4z M104,144l4,0 0,4 -4,0 0,-4z M116,144l4,0 0,4 -4,0 0,-4z M120,144l4,0 0,4 -4,0 0,-4z M124,144l4,0 0,4 -4,0 0,-4z M128,144l4,0 0,4 -4,0 0,-4z M132,144l4,0 0,4 -4,0 0,-4z M136,144l4,0 0,4 -4,0 0,-4z M160,144l4,0 0,4 -4,0 0,-4z M176,144l4,0 0,4 -4,0 0,-4z M4,148l4,0 0,4 -4,0 0,-4z M16,148l4,0 0,4 -4,0 0,-4z M20,148l4,0 0,4 -4,0 0,-4z M28,148l4,0 0,4 -4,0 0,-4z M36,148l4,0 0,4 -4,0 0,-4z M56,148l4,0 0,4 -4,0 0,-4z M60,148l4,0 0,4 -4,0 0,-4z M64,148l4,0 0,4 -4,0 0,-4z M68,148l4,0 0,4 -4,0 0,-4z M76,148l4,0 0,4 -4,0 0,-4z M84,148l4,0 0,4 -4,0 0,-4z M88,148l4,0 0,4 -4,0 0,-4z M92,148l4,0 0,4 -4,0 0,-4z M96,148l4,0 0,4 -4,0 0,-4z M100,148l4,0 0,4 -4,0 0,-4z M104,148l4,0 0,4 -4,0 0,-4z M108,148l4,0 0,4 -4,0 0,-4z M112,148l4,0 0,4 -4,0 0,-4z M124,148l4,0 0,4 -4,0 0,-4z M132,148l4,0 0,4 -4,0 0,-4z M136,148l4,0 0,4 -4,0 0,-4z M148,148l4,0 0,4 -4,0 0,-4z M152,148l4,0 0,4 -4,0 0,-4z M156,148l4,0 0,4 -4,0 0,-4z M160,148l4,0 0,4 -4,0 0,-4z M164,148l4,0 0,4 -4,0 0,-4z M172,148l4,0 0,4 -4,0 0,-4z M36,152l4,0 0,4 -4,0 0,-4z M40,152l4,0 0,4 -4,0 0,-4z M52,152l4,0 0,4 -4,0 0,-4z M76,152l4,0 0,4 -4,0 0,-4z M84,152l4,0 0,4 -4,0 0,-4z M100,152l4,0 0,4 -4,0 0,-4z M104,152l4,0 0,4 -4,0 0,-4z M108,152l4,0 0,4 -4,0 0,-4z M112,152l4,0 0,4 -4,0 0,-4z M116,152l4,0 0,4 -4,0 0,-4z M120,152l4,0 0,4 -4,0 0,-4z M124,152l4,0 0,4 -4,0 0,-4z M128,152l4,0 0,4 -4,0 0,-4z M132,152l4,0 0,4 -4,0 0,-4z M136,152l4,0 0,4 -4,0 0,-4z M148,152l4,0 0,4 -4,0 0,-4z M164,152l4,0 0,4 -4,0 0,-4z M172,152l4,0 0,4 -4,0 0,-4z M176,152l4,0 0,4 -4,0 0,-4z M4,156l4,0 0,4 -4,0 0,-4z M8,156l4,0 0,4 -4,0 0,-4z M12,156l4,0 0,4 -4,0 0,-4z M16,156l4,0 0,4 -4,0 0,-4z M20,156l4,0 0,4 -4,0 0,-4z M24,156l4,0 0,4 -4,0 0,-4z M28,156l4,0 0,4 -4,0 0,-4z M36,156l4,0 0,4 -4,0 0,-4z M40,156l4,0 0,4 -4,0 0,-4z M44,156l4,0 0,4 -4,0 0,-4z M52,156l4,0 0,4 -4,0 0,-4z M60,156l4,0 0,4 -4,0 0,-4z M68,156l4,0 0,4 -4,0 0,-4z M72,156l4,0 0,4 -4,0 0,-4z M76,156l4,0 0,4 -4,0 0,-4z M80,156l4,0 0,4 -4,0 0,-4z M84,156l4,0 0,4 -4,0 0,-4z M92,156l4,0 0,4 -4,0 0,-4z M100,156l4,0 0,4 -4,0 0,-4z M104,156l4,0 0,4 -4,0 0,-4z M108,156l4,0 0,4 -4,0 0,-4z M120,156l4,0 0,4 -4,0 0,-4z M128,156l4,0 0,4 -4,0 0,-4z M144,156l4,0 0,4 -4,0 0,-4z M148,156l4,0 0,4 -4,0 0,-4z M156,156l4,0 0,4 -4,0 0,-4z M164,156l4,0 0,4 -4,0 0,-4z M168,156l4,0 0,4 -4,0 0,-4z M176,156l4,0 0,4 -4,0 0,-4z M4,160l4,0 0,4 -4,0 0,-4z M28,160l4,0 0,4 -4,0 0,-4z M48,160l4,0 0,4 -4,0 0,-4z M56,160l4,0 0,4 -4,0 0,-4z M68,160l4,0 0,4 -4,0 0,-4z M84,160l4,0 0,4 -4,0 0,-4z M100,160l4,0 0,4 -4,0 0,-4z M104,160l4,0 0,4 -4,0 0,-4z M108,160l4,0 0,4 -4,0 0,-4z M120,160l4,0 0,4 -4,0 0,-4z M128,160l4,0 0,4 -4,0 0,-4z M132,160l4,0 0,4 -4,0 0,-4z M140,160l4,0 0,4 -4,0 0,-4z M144,160l4,0 0,4 -4,0 0,-4z M148,160l4,0 0,4 -4,0 0,-4z M164,160l4,0 0,4 -4,0 0,-4z M176,160l4,0 0,4 -4,0 0,-4z M4,164l4,0 0,4 -4,0 0,-4z M12,164l4,0 0,4 -4,0 0,-4z M16,164l4,0 0,4 -4,0 0,-4z M20,164l4,0 0,4 -4,0 0,-4z M28,164l4,0 0,4 -4,0 0,-4z M36,164l4,0 0,4 -4,0 0,-4z M40,164l4,0 0,4 -4,0 0,-4z M44,164l4,0 0,4 -4,0 0,-4z M48,164l4,0 0,4 -4,0 0,-4z M60,164l4,0 0,4 -4,0 0,-4z M80,164l4,0 0,4 -4,0 0,-4z M84,164l4,0 0,4 -4,0 0,-4z M88,164l4,0 0,4 -4,0 0,-4z M92,164l4,0 0,4 -4,0 0,-4z M96,164l4,0 0,4 -4,0 0,-4z M100,164l4,0 0,4 -4,0 0,-4z M108,164l4,0 0,4 -4,0 0,-4z M112,164l4,0 0,4 -4,0 0,-4z M124,164l4,0 0,4 -4,0 0,-4z M132,164l4,0 0,4 -4,0 0,-4z M144,164l4,0 0,4 -4,0 0,-4z M148,164l4,0 0,4 -4,0 0,-4z M152,164l4,0 0,4 -4,0 0,-4z M156,164l4,0 0,4 -4,0 0,-4z M160,164l4,0 0,4 -4,0 0,-4z M164,164l4,0 0,4 -4,0 0,-4z M180,164l4,0 0,4 -4,0 0,-4z M4,168l4,0 0,4 -4,0 0,-4z M12,168l4,0 0,4 -4,0 0,-4z M16,168l4,0 0,4 -4,0 0,-4z M20,168l4,0 0,4 -4,0 0,-4z M28,168l4,0 0,4 -4,0 0,-4z M44,168l4,0 0,4 -4,0 0,-4z M52,168l4,0 0,4 -4,0 0,-4z M56,168l4,0 0,4 -4,0 0,-4z M68,168l4,0 0,4 -4,0 0,-4z M72,168l4,0 0,4 -4,0 0,-4z M80,168l4,0 0,4 -4,0 0,-4z M84,168l4,0 0,4 -4,0 0,-4z M88,168l4,0 0,4 -4,0 0,-4z M92,168l4,0 0,4 -4,0 0,-4z M108,168l4,0 0,4 -4,0 0,-4z M124,168l4,0 0,4 -4,0 0,-4z M132,168l4,0 0,4 -4,0 0,-4z M136,168l4,0 0,4 -4,0 0,-4z M156,168l4,0 0,4 -4,0 0,-4z M168,168l4,0 0,4 -4,0 0,-4z M172,168l4,0 0,4 -4,0 0,-4z M4,172l4,0 0,4 -4,0 0,-4z M12,172l4,0 0,4 -4,0 0,-4z M16,172l4,0 0,4 -4,0 0,-4z M20,172l4,0 0,4 -4,0 0,-4z M28,172l4,0 0,4 -4,0 0,-4z M40,172l4,0 0,4 -4,0 0,-4z M60,172l4,0 0,4 -4,0 0,-4z M76,172l4,0 0,4 -4,0 0,-4z M84,172l4,0 0,4 -4,0 0,-4z M88,172l4,0 0,4 -4,0 0,-4z M92,172l4,0 0,4 -4,0 0,-4z M108,172l4,0 0,4 -4,0 0,-4z M116,172l4,0 0,4 -4,0 0,-4z M120,172l4,0 0,4 -4,0 0,-4z M124,172l4,0 0,4 -4,0 0,-4z M128,172l4,0 0,4 -4,0 0,-4z M136,172l4,0 0,4 -4,0 0,-4z M156,172l4,0 0,4 -4,0 0,-4z M164,172l4,0 0,4 -4,0 0,-4z M168,172l4,0 0,4 -4,0 0,-4z M176,172l4,0 0,4 -4,0 0,-4z M4,176l4,0 0,4 -4,0 0,-4z M28,176l4,0 0,4 -4,0 0,-4z M52,176l4,0 0,4 -4,0 0,-4z M56,176l4,0 0,4 -4,0 0,-4z M76,176l4,0 0,4 -4,0 0,-4z M84,176l4,0 0,4 -4,0 0,-4z M92,176l4,0 0,4 -4,0 0,-4z M96,176l4,0 0,4 -4,0 0,-4z M104,176l4,0 0,4 -4,0 0,-4z M112,176l4,0 0,4 -4,0 0,-4z M120,176l4,0 0,4 -4,0 0,-4z M128,176l4,0 0,4 -4,0 0,-4z M132,176l4,0 0,4 -4,0 0,-4z M140,176l4,0 0,4 -4,0 0,-4z M144,176l4,0 0,4 -4,0 0,-4z M148,176l4,0 0,4 -4,0 0,-4z M152,176l4,0 0,4 -4,0 0,-4z M164,176l4,0 0,4 -4,0 0,-4z M168,176l4,0 0,4 -4,0 0,-4z M4,180l4,0 0,4 -4,0 0,-4z M8,180l4,0 0,4 -4,0 0,-4z M12,180l4,0 0,4 -4,0 0,-4z M16,180l4,0 0,4 -4,0 0,-4z M20,180l4,0 0,4 -4,0 0,-4z M24,180l4,0 0,4 -4,0 0,-4z M28,180l4,0 0,4 -4,0 0,-4z M36,180l4,0 0,4 -4,0 0,-4z M40,180l4,0 0,4 -4,0 0,-4z M44,180l4,0 0,4 -4,0 0,-4z M48,180l4,0 0,4 -4,0 0,-4z M56,180l4,0 0,4 -4,0 0,-4z M60,180l4,0 0,4 -4,0 0,-4z M72,180l4,0 0,4 -4,0 0,-4z M84,180l4,0 0,4 -4,0 0,-4z M96,180l4,0 0,4 -4,0 0,-4z M100,180l4,0 0,4 -4,0 0,-4z M108,180l4,0 0,4 -4,0 0,-4z M112,180l4,0 0,4 -4,0 0,-4z M124,180l4,0 0,4 -4,0 0,-4z M128,180l4,0 0,4 -4,0 0,-4z M132,180l4,0 0,4 -4,0 0,-4z M140,180l4,0 0,4 -4,0 0,-4z M144,180l4,0 0,4 -4,0 0,-4z M148,180l4,0 0,4 -4,0 0,-4z M152,180l4,0 0,4 -4,0 0,-4z M160,180l4,0 0,4 -4,0 0,-4z M168,180l4,0 0,4 -4,0 0,-4z M180,180l4,0 0,4 -4,0 0,-4z " stroke="transparent" fill="black"/></svg>
+<p><bdi dir="ltr"><code>otpauth://totp/otp-demo:ada?secret=ICJER66543CXOTEAFUAJFX4VGMTBFEGW&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code></bdi></p>
+<p>Key: <bdi dir="ltr"><code>ICJER66543CXOTEAFUAJFX4VGMTBFEGW</code></bdi></p>
 <form method="post" action="/tenants/otp-demo/login-actions/required-action?action=configure-totp">
-  <input type="hidden" name="auth_session_id" value="01a1d098-1efe-7c74-8e35-4a18df3bd375">
-  <input type="hidden" name="secret" value="RB6JLQATQG6K76IC45CZRAJFPXHD7PHN">
+  <input type="hidden" name="auth_session_id" value="01a1e3f4-c4ba-7e55-ae25-4879f0b8fdd4">
+  <input type="hidden" name="secret" value="ICJER66543CXOTEAFUAJFX4VGMTBFEGW">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <button type="submit">Confirm</button>
 </form>
@@ -116,27 +118,28 @@ This run generated its codes with the algorithm's own implementation rather
 than a phone:
 
 ```bash
-node --input-type=module -e "
-import { totpCode, totpCounter } from './packages/crypto/src/service/totp.ts';
-console.log(totpCode('RB6JLQATQG6K76IC45CZRAJFPXHD7PHN', totpCounter(new Date())));
-"
+CODE=$(node --input-type=module -e "
+import { totpCode, totpCounter } from '/Users/wep/WebstormProjects/odudu/packages/crypto/src/service/totp.ts';
+console.log(totpCode('$SECRET', totpCounter(new Date())));
+")
+echo "$CODE"
 ```
 
 ```
-148889
+094209
 ```
 
 ```bash
 curl -sS -i -X POST \
-  'http://localhost:3094/tenants/otp-demo/login-actions/required-action?action=configure-totp' \
-  --data-urlencode 'auth_session_id=01a1d098-1efe-7c74-8e35-4a18df3bd375' \
-  --data-urlencode 'secret=RB6JLQATQG6K76IC45CZRAJFPXHD7PHN' \
-  --data-urlencode 'code=148889'
+  'http://localhost:3000/tenants/otp-demo/login-actions/required-action?action=configure-totp' \
+  --data-urlencode "auth_session_id=$AUTH" \
+  --data-urlencode "secret=$SECRET" \
+  --data-urlencode "code=$CODE"
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d098-201c-7251-91d6-74f7d954353a
+x-request-id: 01a1e3f4-c56f-7d61-9f2f-5b505380a277
 content-type: text/html
 content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self' http://localhost:8080; base-uri 'none'
 x-frame-options: DENY
@@ -145,7 +148,7 @@ cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
 content-length: 2019
-Date: Thu, 12 Nov 2026 16:29:53 GMT
+Date: Mon, 16 Nov 2026 10:43:51 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -169,19 +172,19 @@ Keep-Alive: timeout=72
 </header>
 <p>Each of these signs you in once, in place of your second factor, if you lose it. <strong>This is the only time they are shown.</strong> Print them or put them in a password manager before you continue — nobody, including an administrator, can show them to you again.</p>
 <ol>
-  <li><bdi dir="ltr"><code>GTHNV-QXZB8</code></bdi></li>
-  <li><bdi dir="ltr"><code>5CPB8-K6X9K</code></bdi></li>
-  <li><bdi dir="ltr"><code>7162B-HBZYV</code></bdi></li>
-  <li><bdi dir="ltr"><code>88CQ3-FBA79</code></bdi></li>
-  <li><bdi dir="ltr"><code>EDFSM-8Z98Z</code></bdi></li>
-  <li><bdi dir="ltr"><code>2Z3RE-H9QWS</code></bdi></li>
-  <li><bdi dir="ltr"><code>0FJP7-3W7Y4</code></bdi></li>
-  <li><bdi dir="ltr"><code>ZGJ7K-0NX81</code></bdi></li>
-  <li><bdi dir="ltr"><code>MQ74V-P2SKE</code></bdi></li>
-  <li><bdi dir="ltr"><code>B52ST-MAZ4J</code></bdi></li>
+  <li><bdi dir="ltr"><code>P59WP-Q7TH6</code></bdi></li>
+  <li><bdi dir="ltr"><code>3HD8N-91PSW</code></bdi></li>
+  <li><bdi dir="ltr"><code>F2JBD-2DEA3</code></bdi></li>
+  <li><bdi dir="ltr"><code>GG809-N7PDM</code></bdi></li>
+  <li><bdi dir="ltr"><code>9CP94-6K2GX</code></bdi></li>
+  <li><bdi dir="ltr"><code>HKZYT-F4T3Z</code></bdi></li>
+  <li><bdi dir="ltr"><code>7GG1E-CKYVH</code></bdi></li>
+  <li><bdi dir="ltr"><code>2PHG0-F5JH8</code></bdi></li>
+  <li><bdi dir="ltr"><code>HYGV2-X36M2</code></bdi></li>
+  <li><bdi dir="ltr"><code>PCD2P-3ZVE6</code></bdi></li>
 </ol>
 <form method="post" action="/tenants/otp-demo/login-actions/required-action?action=generate-recovery-codes">
-  <input type="hidden" name="auth_session_id" value="01a1d098-1efe-7c74-8e35-4a18df3bd375">
+  <input type="hidden" name="auth_session_id" value="01a1e3f4-c4ba-7e55-ae25-4879f0b8fdd4">
   <button type="submit">I have saved these codes</button>
 </form>
 </main>
@@ -207,20 +210,21 @@ amendment). Acknowledging it finishes the login:
 
 ```bash
 curl -sS -i -X POST \
-  'http://localhost:3094/tenants/otp-demo/login-actions/required-action?action=generate-recovery-codes' \
-  --data-urlencode 'auth_session_id=01a1d098-1efe-7c74-8e35-4a18df3bd375'
+  'http://localhost:3000/tenants/otp-demo/login-actions/required-action?action=generate-recovery-codes' \
+  --data-urlencode "auth_session_id=$AUTH" | tee redirect.txt
+AUTHCODE=$(sed -n 's/^location:.*code=\([^&]*\)&.*/\1/Ip' redirect.txt | tr -d '\r')
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1d098-210f-71a7-8143-a8051bc80855
-set-cookie: otp-demo-session=01a1d098-213a-7e18-82bc-53dc14a09815:vGA-knCVRSm7imfqP3ot_b1lR7ir4gSQbEhPBs6T-yA; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1e3f4-c60d-70f2-bb1c-7683e491f140
+set-cookie: otp-demo-session=01a1e3f4-c623-790b-b2fd-10de948abab9:QEw6Ei5bKQ-SPft9iYyX9iyM7tkhyygXT_nhKCf70hQ; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: otp-demo-device=RbaWYjhccVb_DxjOIzNmZg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: otp-demo-device=o6o-730xx2No6cWx1PGjGQ; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/otp-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=kHdSfB3eRa_LFJ4gu0OU3-i22EVN0xNXt46Rg8HHqEY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Fotp-demo
+location: http://localhost:8080/callback?code=kd1DF9eTqZh5x-CwnJGO3uzWDEnO6GXVxqivJdUb93I&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 content-length: 0
-Date: Thu, 12 Nov 2026 16:29:53 GMT
+Date: Mon, 16 Nov 2026 10:43:51 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -231,9 +235,9 @@ a session cookie of the form `<session id>:<secret>`.
 ## What two factors do to the ID token
 
 ```bash
-curl -sS -X POST http://localhost:3094/tenants/otp-demo/protocol/openid-connect/token \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/protocol/openid-connect/token \
   -d grant_type=authorization_code \
-  -d code=kHdSfB3eRa_LFJ4gu0OU3-i22EVN0xNXt46Rg8HHqEY \
+  -d code=$AUTHCODE \
   -d client_id=otp-spa \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
@@ -264,11 +268,13 @@ then. The enrolment's code is the `otp` in it.
 ## The next login answers the password with a code form
 
 A fresh attempt, parked by the same `/authorize` as above, for a new
-`auth_session_id`, `01a137d3-9bc1-7987-8c23-f806ce89510f`:
+`auth_session_id`:
 
 ```bash
-curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d098-219a-7cc0-94b1-f1bf067ce541' \
+AUTH=$(curl -sS 'http://localhost:3000/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -294,7 +300,7 @@ curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authentica
 <p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a1d098-219a-7cc0-94b1-f1bf067ce541">
+  <input type="hidden" name="auth_session_id" value="01a1e3f4-c660-78f6-864c-0ddb417d7243">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -316,14 +322,12 @@ form that named the account would let a second factor answer for somebody
 who never passed the first one.
 
 Submitting the code that confirmed the enrolment does **not** work — it answers
-with the same form again, saying so. (This one is from a run on `http://localhost:3195`, against `otp2-demo`, a
-tenant seeded the way `otp-demo` is, where the enrolment's code was `483676`.
-The two recovery code refusals below are from the same stack.)
+with the same form again, saying so:
 
 ```bash
-curl -sS -X POST http://localhost:3195/tenants/otp2-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a16368-8465-73e2-abe3-fda7b84b4ef9' \
-  --data-urlencode 'code=483676'
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
+  --data-urlencode "code=$CODE"
 ```
 
 ```
@@ -344,15 +348,15 @@ curl -sS -X POST http://localhost:3195/tenants/otp2-demo/login-actions/authentic
 <header class="intro">
 <h1>Enter your authentication code</h1>
 <p class="context">to continue to <bdi>otp-spa</bdi></p>
-<p class="tenant"><bdi>otp2-demo</bdi></p>
+<p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <div class="alert" role="alert" id="form-error">
 <ul>
 <li id="form-error-0">That code did not work. Check it and try again.</li>
 </ul>
 </div>
-<form method="post" action="/tenants/otp2-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a16368-8465-73e2-abe3-fda7b84b4ef9">
+<form method="post" action="/tenants/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a1e3f4-c660-78f6-864c-0ddb417d7243">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -372,21 +376,24 @@ code spent that step when it created the credential. A code from the next
 step is accepted, and with nothing owed any more it finishes the login:
 
 ```bash
-curl -sS -i -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d098-219a-7cc0-94b1-f1bf067ce541' \
-  --data-urlencode 'code=581754'
+curl -sS -i -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
+  --data-urlencode "code=$(node --input-type=module -e "
+import { totpCode, totpCounter } from '/Users/wep/WebstormProjects/odudu/packages/crypto/src/service/totp.ts';
+console.log(totpCode('$SECRET', totpCounter(new Date(Date.now() + 30000))));
+")"
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1d098-4184-782a-b62a-380d83726297
-set-cookie: otp-demo-session=01a1d098-41b1-7dfd-ac35-672382c164a4:WlwJIHfZYwiPYV4bsTjybWnbtz3dnxht8mf0PKAw0pU; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1e3f4-c706-7c85-bf10-4569d9725353
+set-cookie: otp-demo-session=01a1e3f4-c71d-76b0-941f-0822a8def05f:-f8G5tXaBaAtDsEQVtqsBDZ2qXHOqb5PuDKuui_qN-Q; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: otp-demo-device=1RZiZ8CPBzcKpBH96TOpYg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: otp-demo-device=p95tKDJW6tKckHd6qRHKZA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/otp-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=6Pq4aM7M6qQ-azHy61jVs41FHk2P2rT2cae1l9SQ2xM&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Fotp-demo
+location: http://localhost:8080/callback?code=VHr69EC77hDGOoGl-livbfpGPLox1Te-rpd8Mt3hjDs&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 content-length: 0
-Date: Thu, 12 Nov 2026 16:30:01 GMT
+Date: Mon, 16 Nov 2026 10:43:52 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
