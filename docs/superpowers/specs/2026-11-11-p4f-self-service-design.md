@@ -132,9 +132,21 @@ runs both against a live session before the gate is written.
   request is gated like 5.2: it forces a new sign-in only when the session's
   `auth_time` is older than the tenant's window, and the `update-password`
   page asks for the current password whatever the age (my call). A person who
-  holds no password has none to prove and the action cannot create one, so the
-  request ends in `action_status=error`; a first password comes through a reset
-  link or the administrator's `update-password` required action.
+  holds a password keeps that prompt. A person who holds **no** password (a
+  passkey-only account) has none to prove, and `update-password` then sets a
+  **first** password only on a sign-in whose passkey assertion verified the
+  person (`user_verified`): NIST SP 800-63B-4 §4.1.2.1 asks that adding an
+  authenticator be authenticated at the lower of the account's current highest
+  assurance and the new authenticator's, and a verified passkey is two factors
+  where a password is one. A sign-in that ran no passkey, or one that proved only
+  possession (`passkey-unverified`, WebAuthn L3 §6.1.3), ends in
+  `action_status=error`, as before. The tenant's password policy and the
+  breached-password check apply; the address on file is told by mail
+  (`password_added`, §4.1.2.1 and §4.6: a channel independent of the
+  transaction, verified addresses only, as the other notices); the audit row is
+  `password.changed` with `first_password` true; the person's sign-in flow does
+  not change. The same first password is what the administrator's owed
+  `update-password` action sets for such a person, on the sign-in that owes it.
 - **Page.** Odudu renders the page it already has for that required action and
   returns to the client's registered `redirect_uri` with the standard response
   plus `action_status` of `success`, `cancelled` or `error`. The page is the

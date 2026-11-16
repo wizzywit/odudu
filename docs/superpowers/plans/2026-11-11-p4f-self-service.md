@@ -233,6 +233,10 @@ Failure modes the spec implies that no single task's happy path exercises, most 
 
 ---
 
+## Increment 14a: A first password for a passkey-only account (closing pass)
+
+- [ ] **Task 14a:** Spec 5.3 amended. Tests first: `signedInWithVerifiedPasskey` (authn-flows service), `completeUpdatePassword` creating the first password only when the caller says the sign-in verified a passkey (policy, breach check, `password_added` notice, `password.changed` with `first_password`, race against a second writer, history untouched), the requested page and submission for an account with no password (no current-password prompt; refused as `action_status=error` without a verified passkey), and an integration test through `/authorize?action=update-password`. Then the code; then the guide, transcript and CHANGELOG.
+
 ## Increment 14: Close (about 5 h)
 
 - [ ] **Task 14.1:** The six checks of CLAUDE.md "The pass that closes a phase", each with its command in the phase note: read the "What is not implemented" markers; `git grep -n '\bP4f\b' -- ':!docs/archive'`; read `docs/NEXT.md` headings; reconcile the roadmap and section 11 both ways (`pnpm vitest run tests/docs/roadmap-section-11.test.ts`); `git grep -n -i -E 'planned|self-service|me api' -- apps/docs README.md` and fix every hit; write the phase into `CHANGELOG.md` under `## [Unreleased]`.
