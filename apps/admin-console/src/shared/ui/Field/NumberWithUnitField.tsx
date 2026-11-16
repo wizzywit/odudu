@@ -73,6 +73,8 @@ export function NumberWithUnitField({
       isDisabled={isDisabled ?? false}
       value={picker ? inUnit(value, shown) : value}
       onChange={(entered) => {
+        // What is typed stays in the unit it was typed in, whatever it comes to.
+        if (picker) setPicked(shown);
         onChange(picker ? secondsOf(entered, shown) : entered);
       }}
       formatOptions={{ useGrouping: false, maximumFractionDigits: 0 }}

@@ -185,7 +185,7 @@ it('saves one section on the ETag it was read with, sending only what changed', 
       body: { sso_session_idle_seconds: 3600 },
     });
   });
-  expect(await within(sessions).findByRole('textbox', { name: 'Idle timeout' })).toHaveValue('1');
+  expect(await within(sessions).findByRole('textbox', { name: 'Idle timeout' })).toHaveValue('60');
 });
 
 it('keeps a cleared number as it was rather than sending nothing for it', async () => {

@@ -130,6 +130,18 @@ describe('NumberWithUnitField with a unit picker', () => {
     expect(screen.getByLabelText('seconds')).toHaveTextContent('10800');
   });
 
+  it('keeps the unit a value is typed in, even when another would fit it', async () => {
+    const user = userEvent.setup();
+    render(<Seconds start={1800} />);
+    const input = screen.getByRole('textbox', { name: 'Idle' });
+    await user.clear(input);
+    await user.type(input, '60');
+    await user.tab();
+    expect(screen.getByLabelText('seconds')).toHaveTextContent('3600');
+    expect(input).toHaveValue('60');
+    expect(screen.getByRole('combobox', { name: 'Idle, unit' })).toHaveValue('min');
+  });
+
   it('offers only the units the value is a whole count of, so looking changes nothing', () => {
     render(<Seconds start={5400} />);
     expect(screen.getByRole('option', { name: 'h' })).toBeDisabled();
