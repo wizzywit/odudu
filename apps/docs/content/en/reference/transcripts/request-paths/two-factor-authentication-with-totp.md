@@ -14,9 +14,10 @@ subject with no TOTP credential is given the `configure-totp` required
 action at their next login, and the login does not complete until they have
 enrolled.
 
-On a stack of its own, on `http://localhost:3094`, started on an empty volume,
-with this section, the `otp-demo` half of [Recovery codes](./recovery-codes.md)
-and its `rc8-demo` half run front to back against it. The HTML bodies are the
+On a stack of its own, started on an empty volume (each block names its port), this
+section, down to the one on a policy that changes, and the `otp-demo` half of
+[Recovery codes](./recovery-codes.md) were run front to back against it. The policy
+section and the `rc8-demo` half of that page are earlier captures and say so. The HTML bodies are the
 bytes it served, line breaks, indentation and all. A fenced response block
 carries no language tag, so Prettier leaves them alone.
 
@@ -31,8 +32,8 @@ odudu seed tenant --name otp-demo --set otp_required=true
 ```
 
 ```
-{"created":true,"tenant":"otp-demo","tenantId":"01a1d098-…","clientId":"otp-spa","userSubjectId":"01a1d098-…"}
-{"command":"tenant","created":false,"tenant":"otp-demo","tenantId":"01a1d098-1a57-783a-a0c2-fd26b14da41e","settings":["otp_required"]}
+{"created":true,"tenant":"otp-demo","tenantId":"01a1e44b-50d0-765b-8219-009a158c88b6","clientId":"otp-spa","userSubjectId":"01a1e44b-5161-776d-85e0-085b59517e04"}
+{"command":"tenant","created":false,"tenant":"otp-demo","tenantId":"01a1e44b-50d0-765b-8219-009a158c88b6","settings":["otp_required"]}
 ```
 
 `created` is `false` because the line above it made the tenant: `seed tenant`
@@ -47,20 +48,22 @@ second factor is decided before somebody has said who they are, because
 which account a code belongs to is not knowable until then.
 
 ```bash
-curl -sS 'http://localhost:3094/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+AUTH=$(curl -sS 'http://localhost:3000/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 ```
 
-The `auth_session_id` in that form — `01a137d3-98b1-7904-aeda-9a6709b81b53`
-in this run — is what every request below carries. Posting the correct
+The `auth_session_id` in that form, which the line above keeps as `$AUTH`, is what
+every request below carries. Posting the correct
 password answers 200 with an enrolment page rather than 302 with a code:
 the password was accepted, and the pending action is what stops the login
 from completing (no `set-cookie`, no `code`).
 
 ```bash
-curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d098-1efe-7c74-8e35-4a18df3bd375' \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
   --data-urlencode 'username=ada' \
-  --data-urlencode 'password=correct-horse-battery'
+  --data-urlencode 'password=correct-horse-battery' | tee enrol.html
+SECRET=$(sed -n 's/.*name="secret" value="\([^"]*\)".*/\1/p' enrol.html)
 ```
 
 ```
@@ -77,18 +80,18 @@ curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authentica
 </head>
 <body>
 <main class="page">
-<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<p class="brand"><svg …>…</svg><span class="wordmark">odudu</span></p>
 <header class="intro">
 <h1>Set up your authenticator</h1>
 <p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <p>Scan this with your authenticator app, or enter the key by hand.</p>
 <svg …>…</svg>
-<p><bdi dir="ltr"><code>otpauth://totp/otp-demo:ada?secret=RB6JLQATQG6K76IC45CZRAJFPXHD7PHN&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code></bdi></p>
-<p>Key: <bdi dir="ltr"><code>RB6JLQATQG6K76IC45CZRAJFPXHD7PHN</code></bdi></p>
+<p><bdi dir="ltr"><code>otpauth://totp/otp-demo:ada?secret=MHCZ3NPJNKOMIK75KLGKRDA2TAAQLKGF&amp;issuer=otp-demo&amp;algorithm=SHA1&amp;digits=6&amp;period=30</code></bdi></p>
+<p>Key: <bdi dir="ltr"><code>MHCZ3NPJNKOMIK75KLGKRDA2TAAQLKGF</code></bdi></p>
 <form method="post" action="/tenants/otp-demo/login-actions/required-action?action=configure-totp">
-  <input type="hidden" name="auth_session_id" value="01a1d098-1efe-7c74-8e35-4a18df3bd375">
-  <input type="hidden" name="secret" value="RB6JLQATQG6K76IC45CZRAJFPXHD7PHN">
+  <input type="hidden" name="auth_session_id" value="01a1e44b-536c-7d43-a75c-ff803e1ff592">
+  <input type="hidden" name="secret" value="MHCZ3NPJNKOMIK75KLGKRDA2TAAQLKGF">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <button type="submit">Confirm</button>
 </form>
@@ -116,27 +119,28 @@ This run generated its codes with the algorithm's own implementation rather
 than a phone:
 
 ```bash
-node --input-type=module -e "
-import { totpCode, totpCounter } from './packages/crypto/src/service/totp.ts';
-console.log(totpCode('RB6JLQATQG6K76IC45CZRAJFPXHD7PHN', totpCounter(new Date())));
-"
+CODE=$(node --input-type=module -e "
+import { totpCode, totpCounter } from '/Users/wep/WebstormProjects/odudu/packages/crypto/src/service/totp.ts';
+console.log(totpCode('$SECRET', totpCounter(new Date())));
+")
+echo "$CODE"
 ```
 
 ```
-148889
+816508
 ```
 
 ```bash
 curl -sS -i -X POST \
-  'http://localhost:3094/tenants/otp-demo/login-actions/required-action?action=configure-totp' \
-  --data-urlencode 'auth_session_id=01a1d098-1efe-7c74-8e35-4a18df3bd375' \
-  --data-urlencode 'secret=RB6JLQATQG6K76IC45CZRAJFPXHD7PHN' \
-  --data-urlencode 'code=148889'
+  'http://localhost:3000/tenants/otp-demo/login-actions/required-action?action=configure-totp' \
+  --data-urlencode "auth_session_id=$AUTH" \
+  --data-urlencode "secret=$SECRET" \
+  --data-urlencode "code=$CODE"
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1d098-201c-7251-91d6-74f7d954353a
+x-request-id: 01a1e44b-5423-70b9-8e70-5b0714696668
 content-type: text/html
 content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self' http://localhost:8080; base-uri 'none'
 x-frame-options: DENY
@@ -145,7 +149,7 @@ cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
 content-length: 2019
-Date: Thu, 12 Nov 2026 16:29:53 GMT
+Date: Mon, 16 Nov 2026 12:18:24 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -162,26 +166,26 @@ Keep-Alive: timeout=72
 </head>
 <body>
 <main class="page">
-<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<p class="brand"><svg …>…</svg><span class="wordmark">odudu</span></p>
 <header class="intro">
 <h1>Save your recovery codes</h1>
 <p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <p>Each of these signs you in once, in place of your second factor, if you lose it. <strong>This is the only time they are shown.</strong> Print them or put them in a password manager before you continue — nobody, including an administrator, can show them to you again.</p>
 <ol>
-  <li><bdi dir="ltr"><code>GTHNV-QXZB8</code></bdi></li>
-  <li><bdi dir="ltr"><code>5CPB8-K6X9K</code></bdi></li>
-  <li><bdi dir="ltr"><code>7162B-HBZYV</code></bdi></li>
-  <li><bdi dir="ltr"><code>88CQ3-FBA79</code></bdi></li>
-  <li><bdi dir="ltr"><code>EDFSM-8Z98Z</code></bdi></li>
-  <li><bdi dir="ltr"><code>2Z3RE-H9QWS</code></bdi></li>
-  <li><bdi dir="ltr"><code>0FJP7-3W7Y4</code></bdi></li>
-  <li><bdi dir="ltr"><code>ZGJ7K-0NX81</code></bdi></li>
-  <li><bdi dir="ltr"><code>MQ74V-P2SKE</code></bdi></li>
-  <li><bdi dir="ltr"><code>B52ST-MAZ4J</code></bdi></li>
+  <li><bdi dir="ltr"><code>B0BQH-BJWYR</code></bdi></li>
+  <li><bdi dir="ltr"><code>HE4RP-V13RV</code></bdi></li>
+  <li><bdi dir="ltr"><code>A3FMF-7DQFC</code></bdi></li>
+  <li><bdi dir="ltr"><code>H4E1A-ERA6Q</code></bdi></li>
+  <li><bdi dir="ltr"><code>EDE4Z-3T2FA</code></bdi></li>
+  <li><bdi dir="ltr"><code>WMD0S-8CHR3</code></bdi></li>
+  <li><bdi dir="ltr"><code>5JCWJ-84CBC</code></bdi></li>
+  <li><bdi dir="ltr"><code>BDYW9-ATHZP</code></bdi></li>
+  <li><bdi dir="ltr"><code>7XAD4-ZNFQ7</code></bdi></li>
+  <li><bdi dir="ltr"><code>7XN5C-9VTVF</code></bdi></li>
 </ol>
 <form method="post" action="/tenants/otp-demo/login-actions/required-action?action=generate-recovery-codes">
-  <input type="hidden" name="auth_session_id" value="01a1d098-1efe-7c74-8e35-4a18df3bd375">
+  <input type="hidden" name="auth_session_id" value="01a1e44b-536c-7d43-a75c-ff803e1ff592">
   <button type="submit">I have saved these codes</button>
 </form>
 </main>
@@ -207,20 +211,21 @@ amendment). Acknowledging it finishes the login:
 
 ```bash
 curl -sS -i -X POST \
-  'http://localhost:3094/tenants/otp-demo/login-actions/required-action?action=generate-recovery-codes' \
-  --data-urlencode 'auth_session_id=01a1d098-1efe-7c74-8e35-4a18df3bd375'
+  'http://localhost:3000/tenants/otp-demo/login-actions/required-action?action=generate-recovery-codes' \
+  --data-urlencode "auth_session_id=$AUTH" | tee redirect.txt
+AUTHCODE=$(sed -n 's/^location:.*code=\([^&]*\)&.*/\1/Ip' redirect.txt | tr -d '\r')
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1d098-210f-71a7-8143-a8051bc80855
-set-cookie: otp-demo-session=01a1d098-213a-7e18-82bc-53dc14a09815:vGA-knCVRSm7imfqP3ot_b1lR7ir4gSQbEhPBs6T-yA; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1e44b-54c6-7998-a73f-8255fc66ba34
+set-cookie: otp-demo-session=01a1e44b-54e5-7385-87d8-b87ac5ebbf7b:-Ijyxqk5fqZP4iZHLbGHUbsykb7Jjhxs86ZXXttdENg; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: otp-demo-device=RbaWYjhccVb_DxjOIzNmZg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: otp-demo-device=XJtt_iJCYOMEvOZf5naRXQ; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/otp-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=kHdSfB3eRa_LFJ4gu0OU3-i22EVN0xNXt46Rg8HHqEY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Fotp-demo
+location: http://localhost:8080/callback?code=w7deQ5VTkKjK6UdK91aXePjUfVOaMm_jPHaz-04reTs&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 content-length: 0
-Date: Thu, 12 Nov 2026 16:29:53 GMT
+Date: Mon, 16 Nov 2026 12:18:24 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -231,26 +236,32 @@ a session cookie of the form `<session id>:<secret>`.
 ## What two factors do to the ID token
 
 ```bash
-curl -sS -X POST http://localhost:3094/tenants/otp-demo/protocol/openid-connect/token \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/protocol/openid-connect/token \
   -d grant_type=authorization_code \
-  -d code=kHdSfB3eRa_LFJ4gu0OU3-i22EVN0xNXt46Rg8HHqEY \
+  -d code=$AUTHCODE \
   -d client_id=otp-spa \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
-  -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+  -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk \
+  | jq -r .id_token | cut -d. -f2 \
+  | python3 -c "import sys,base64;s=sys.stdin.read().strip();print(base64.urlsafe_b64decode(s+'='*(-len(s)%4)).decode())" \
+  | jq '{sub,iss,aud,iat,exp,sid,amr,acr}'
 ```
 
-The ID token's payload (decoded; `id_token` itself is the usual three
+The ID token's payload, decoded by the command (`id_token` itself is the usual three
 base64url segments):
 
-```json
+```
 {
-  "sub": "01a1d098-1baa-7cab-a67c-415d7af7ceb1",
-  "iss": "http://localhost:3094/tenants/otp-demo",
+  "sub": "01a1e44b-5161-776d-85e0-085b59517e04",
+  "iss": "http://localhost:3000/tenants/otp-demo",
   "aud": "otp-spa",
-  "iat": 1794500993,
-  "exp": 1794501293,
-  "sid": "01a1d098-213a-7e18-82bc-53dc14a09815",
-  "amr": ["otp", "pwd"],
+  "iat": 1794831504,
+  "exp": 1794831804,
+  "sid": "01a1e44b-54e5-7385-87d8-b87ac5ebbf7b",
+  "amr": [
+    "otp",
+    "pwd"
+  ],
   "acr": "2"
 }
 ```
@@ -264,11 +275,13 @@ then. The enrolment's code is the `otp` in it.
 ## The next login answers the password with a code form
 
 A fresh attempt, parked by the same `/authorize` as above, for a new
-`auth_session_id`, `01a137d3-9bc1-7987-8c23-f806ce89510f`:
+`auth_session_id`:
 
 ```bash
-curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d098-219a-7cc0-94b1-f1bf067ce541' \
+AUTH=$(curl -sS 'http://localhost:3000/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -287,14 +300,14 @@ curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authentica
 </head>
 <body>
 <main class="page">
-<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<p class="brand"><svg …>…</svg><span class="wordmark">odudu</span></p>
 <header class="intro">
 <h1>Enter your authentication code</h1>
 <p class="context">to continue to <bdi>otp-spa</bdi></p>
 <p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a1d098-219a-7cc0-94b1-f1bf067ce541">
+  <input type="hidden" name="auth_session_id" value="01a1e44b-5537-7dea-a516-d28c92cc4d5c">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -316,14 +329,12 @@ form that named the account would let a second factor answer for somebody
 who never passed the first one.
 
 Submitting the code that confirmed the enrolment does **not** work — it answers
-with the same form again, saying so. (This one is from a run on `http://localhost:3195`, against `otp2-demo`, a
-tenant seeded the way `otp-demo` is, where the enrolment's code was `483676`.
-The two recovery code refusals below are from the same stack.)
+with the same form again, saying so:
 
 ```bash
-curl -sS -X POST http://localhost:3195/tenants/otp2-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a16368-8465-73e2-abe3-fda7b84b4ef9' \
-  --data-urlencode 'code=483676'
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
+  --data-urlencode "code=$CODE"
 ```
 
 ```
@@ -340,19 +351,19 @@ curl -sS -X POST http://localhost:3195/tenants/otp2-demo/login-actions/authentic
 </head>
 <body>
 <main class="page">
-<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<p class="brand"><svg …>…</svg><span class="wordmark">odudu</span></p>
 <header class="intro">
 <h1>Enter your authentication code</h1>
 <p class="context">to continue to <bdi>otp-spa</bdi></p>
-<p class="tenant"><bdi>otp2-demo</bdi></p>
+<p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <div class="alert" role="alert" id="form-error">
 <ul>
 <li id="form-error-0">That code did not work. Check it and try again.</li>
 </ul>
 </div>
-<form method="post" action="/tenants/otp2-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a16368-8465-73e2-abe3-fda7b84b4ef9">
+<form method="post" action="/tenants/otp-demo/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="01a1e44b-5537-7dea-a516-d28c92cc4d5c">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -372,26 +383,33 @@ code spent that step when it created the credential. A code from the next
 step is accepted, and with nothing owed any more it finishes the login:
 
 ```bash
-curl -sS -i -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a1d098-219a-7cc0-94b1-f1bf067ce541' \
-  --data-urlencode 'code=581754'
+curl -sS -i -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
+  --data-urlencode "code=$(node --input-type=module -e "
+import { totpCode, totpCounter } from '/Users/wep/WebstormProjects/odudu/packages/crypto/src/service/totp.ts';
+console.log(totpCode('$SECRET', totpCounter(new Date(Date.now() + 30000))));
+")"
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a1d098-4184-782a-b62a-380d83726297
-set-cookie: otp-demo-session=01a1d098-41b1-7dfd-ac35-672382c164a4:WlwJIHfZYwiPYV4bsTjybWnbtz3dnxht8mf0PKAw0pU; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1e44b-55e5-72d4-8649-01ccac0f7461
+set-cookie: otp-demo-session=01a1e44b-55fc-7e11-92d3-f81be48988aa:TF19vY5ObCqgJ_lG56QuwqhY2vUpOfeLJPHzpwp_q9U; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: otp-demo-device=1RZiZ8CPBzcKpBH96TOpYg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
+set-cookie: otp-demo-device=yI3vtNI6natXxNuIzj-w4g; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/otp-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=6Pq4aM7M6qQ-azHy61jVs41FHk2P2rT2cae1l9SQ2xM&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Fotp-demo
+location: http://localhost:8080/callback?code=KocCFb1Rpb5WfrIBr3MXURXn3ja-QnE6iC476af-DPI&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 content-length: 0
-Date: Thu, 12 Nov 2026 16:30:01 GMT
+Date: Mon, 16 Nov 2026 12:18:24 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
 
 ## A policy that changes after somebody enrolled
+
+**This section is an earlier capture, not part of the run above.** It was run on 2026-11-13 on a stack of its own, as its
+commands name, by a script the page does not show: the enrolments and sign-ins whose pages are quoted below were driven by
+that script, and only the commands shown are the ones that ran.
 
 A tenant's `totp_algorithm`, `totp_digits` and `totp_period` say what the next authenticator app is made with: `SHA1`, 6
 digits and 30 seconds unless the tenant changed them. The credential keeps the three it was made under, in its row beside

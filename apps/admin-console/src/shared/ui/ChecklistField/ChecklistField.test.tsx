@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { ChecklistField, type ChecklistOption } from '#/shared/ui/ChecklistField/ChecklistField';
@@ -58,4 +58,24 @@ it('passes axe in both themes', async () => {
       />
     )),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('lists options under the heading of their group, and keeps them in one set', async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(
+    <ChecklistField
+      label="Pick"
+      options={[
+        { id: 'a', label: 'Alpha', group: 'First' },
+        { id: 'b', label: 'Beta', group: 'Second' },
+      ]}
+      value={['a']}
+      onChange={onChange}
+    />,
+  );
+  const second = screen.getByRole('group', { name: 'Second' });
+  await user.click(within(second).getByRole('checkbox', { name: 'Beta' }));
+  expect(onChange).toHaveBeenLastCalledWith(['a', 'b']);
+  expect(screen.getByRole('group', { name: 'First' })).toBeVisible();
 });

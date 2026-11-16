@@ -169,6 +169,7 @@ describe('what it says about the product matches the roadmap', () => {
     [/English and Arabic/u, /Arabic is the right-to-left language shipped/u],
     [/admin API/u, /An admin API of more than a hundred operations/u],
     [/console with a page for every area/u, /An admin console with a page for every area/u],
+    [/"me" API/u, /A "me" API at/u],
     [/audit/iu, /Every administrative change, sign-in, refusal/u],
     [/one container/iu, /The container image and the Docker Compose quick start/u],
   ];

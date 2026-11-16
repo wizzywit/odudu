@@ -1,5 +1,16 @@
-import { use } from 'react';
+import { use, useState } from 'react';
 import { Group, Input, NumberField as AriaNumberField, Text } from 'react-aria-components';
+import {
+  DURATION_UNITS,
+  durationUnit,
+  inUnit,
+  holds,
+  unitLabel,
+  secondsOf,
+  unitShown,
+  type DurationUnit,
+} from '#/shared/lib/services/durationUnits';
+import { outsideRange } from '#/shared/lib/services/numbers';
 import { formatDuration } from '#/shared/lib/services/format';
 import {
   FieldsReadOnly,
@@ -27,13 +38,24 @@ export function NumberWithUnitField({
   unit,
   minValue,
   maxValue,
+  picker = false,
+  echo = true,
+  rangeMessage,
 }: Chrome & {
   value: number;
   onChange: (value: number) => void;
   unit: string;
+  // The range in seconds, or in the unit given.
   minValue?: number;
   maxValue?: number;
+  // Seconds entered in seconds, minutes, hours or days; the value stays seconds.
+  picker?: boolean;
+  // Whether the value is read back beneath the field.
+  echo?: boolean;
+  // Said under a picker field whose value is outside the range, before the server is asked.
+  rangeMessage?: string;
 }) {
+  const [picked, setPicked] = useState<DurationUnit | null>(null);
   const reading =
     unit === 'seconds' || !Number.isFinite(value)
       ? formatDuration(value)
@@ -41,31 +63,59 @@ export function NumberWithUnitField({
   if (use(FieldsReadOnly)) {
     return <ReadOnlyValue label={label} value={reading} mono changed={changed} />;
   }
+  const shown = unitShown(value, picked);
+  const outside = picker && outsideRange(value, minValue, maxValue);
+  const problem = error ?? (outside ? rangeMessage : undefined);
   return (
     <AriaNumberField
       {...VALIDATION}
-      {...invalid(error)}
+      {...invalid(problem)}
       isDisabled={isDisabled ?? false}
-      value={value}
-      onChange={onChange}
+      value={picker ? inUnit(value, shown) : value}
+      onChange={(entered) => {
+        // What is typed stays in the unit it was typed in, whatever it comes to.
+        if (picker) setPicked(shown);
+        onChange(picker ? secondsOf(entered, shown) : entered);
+      }}
       formatOptions={{ useGrouping: false, maximumFractionDigits: 0 }}
-      {...(minValue === undefined ? {} : { minValue })}
-      {...(maxValue === undefined ? {} : { maxValue })}
+      {...(minValue === undefined || picker ? {} : { minValue })}
+      {...(maxValue === undefined || picker ? {} : { maxValue })}
       className={styles.field ?? ''}
       data-changed={changed === true || undefined}
     >
       <Header label={label} {...(changed === undefined ? {} : { changed })} />
       <Group className={styles.unitGroup ?? ''} data-control>
         <Input className={styles.input ?? ''} data-mono />
-        <span className={styles.unit} data-unit aria-hidden="true">
-          {UNIT_SYMBOL[unit] ?? unit}
-        </span>
+        {picker ? (
+          <select
+            className={styles.unitSelect}
+            data-unit
+            aria-label={unitLabel(label)}
+            disabled={isDisabled ?? false}
+            value={shown.id}
+            onChange={(event) => {
+              setPicked(durationUnit(event.target.value));
+            }}
+          >
+            {DURATION_UNITS.map((each) => (
+              <option key={each.id} value={each.id} disabled={!holds(value, each)}>
+                {each.id}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className={styles.unit} data-unit aria-hidden="true">
+            {UNIT_SYMBOL[unit] ?? unit}
+          </span>
+        )}
       </Group>
-      <Text slot="description" className={styles.description ?? ''}>
-        <span className={styles.reading}>{reading}</span>
-        {description === undefined ? null : <span>{description}</span>}
-      </Text>
-      <Message error={error} />
+      {echo || description !== undefined ? (
+        <Text slot="description" className={styles.description ?? ''}>
+          {echo ? <span className={styles.reading}>{reading}</span> : null}
+          {description === undefined ? null : <span>{description}</span>}
+        </Text>
+      ) : null}
+      <Message error={problem} />
     </AriaNumberField>
   );
 }

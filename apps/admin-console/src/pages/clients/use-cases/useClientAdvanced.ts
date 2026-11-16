@@ -54,6 +54,8 @@ import { choiceOf } from '#/pages/clients/services/choices';
 import {
   flowChoices,
   flowsReadProblem,
+  FLOW_EDITOR_LABEL,
+  flowEditorHref,
   FLOW_LABEL,
   FLOW_RULE,
 } from '#/pages/clients/services/clientFlow';
@@ -117,6 +119,8 @@ export interface ClientAdvanced {
   flowOptions: Choice[];
   // Why the choice is short, when the flows could not be read.
   flowsProblem: string | null;
+  flowEditorLabel: string;
+  flowEditorHref: string | null;
   retryFlows: () => void;
 }
 
@@ -281,6 +285,8 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     flowRule: FLOW_RULE,
     flowOptions: flowChoices(flows.data?.items, client.flow_id),
     flowsProblem: flowsReadProblem(flows.status, flows.failure),
+    flowEditorLabel: FLOW_EDITOR_LABEL,
+    flowEditorHref: flowEditorHref(args.tenant, flows.data !== undefined),
     retryFlows: flows.retry,
   };
 }

@@ -12,7 +12,7 @@ import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { REISSUE_INTERVAL_MS } from '#/service/authenticators/recovery-reissue';
+import { OWED_INTERVAL_MS, REISSUE_INTERVAL_MS } from '#/service/authenticators/recovery-reissue';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 import { beginRecoveryCodes, type BeginRecoveryCodesOutcome } from '#/usecase/recovery-codes';
@@ -128,6 +128,7 @@ describe('bounding the re-issue of a recovery set', () => {
       kind: 'too_soon',
       retryAt: at(REISSUE_INTERVAL_MS),
       retryInMinutes: 50,
+      retryInSeconds: 50 * 60,
     });
     expect(await hashes(account)).toEqual(held);
   });
@@ -142,9 +143,7 @@ describe('bounding the re-issue of a recovery set', () => {
     ]);
   });
 
-  it('does not hold back a set the sign-in is waiting for, a reload included', async () => {
-    const account = await seedAccount();
-    await begin(account, T0);
+  async function owe(account: Account): Promise<void> {
     await withTenant(app.db, account.tenantId, (tx) =>
       requiredActionRepository(tx).add(
         account.tenantId,
@@ -152,9 +151,53 @@ describe('bounding the re-issue of a recovery set', () => {
         'generate-recovery-codes',
       ),
     );
-    const first = await hashes(account);
-    expect((await begin(account, at(1000))).kind).toBe('issued');
-    expect(await hashes(account)).not.toEqual(first);
+  }
+
+  it('lets the sign-in finish: a set it waits for is not held to the hour', async () => {
+    const account = await seedAccount();
+    await begin(account, T0);
+    await owe(account);
+    expect((await begin(account, at(1000))).kind).toBe('too_soon');
+    expect((await begin(account, at(OWED_INTERVAL_MS))).kind).toBe('issued');
+  });
+
+  it('holds a reload of that page to one set every half minute, hashing nothing in between', async () => {
+    const account = await seedAccount();
+    await owe(account);
+    expect((await begin(account, T0)).kind).toBe('issued');
+    const held = await hashes(account);
+    for (const second of [1, 5, 29]) {
+      const refused = await begin(account, at(second * 1000));
+      expect(refused.kind, `after ${String(second)} s`).toBe('too_soon');
+      if (refused.kind === 'too_soon') {
+        expect(refused.retryInSeconds).toBe(OWED_INTERVAL_MS / 1000 - second);
+      }
+    }
+    expect(await hashes(account)).toEqual(held);
+    expect((await begin(account, at(OWED_INTERVAL_MS))).kind).toBe('issued');
+    expect(await hashes(account)).not.toEqual(held);
+  });
+
+  it('writes one audit row for each refused reload, and none issues a set', async () => {
+    const account = await seedAccount();
+    await owe(account);
+    await begin(account, T0);
+    await begin(account, at(1000));
+    await begin(account, at(2000));
+    expect(await auditRows(account)).toEqual([
+      { action: 'recovery_codes.issued', outcome: 'allowed' },
+      { action: 'recovery_codes.refused', outcome: 'refused' },
+      { action: 'recovery_codes.refused', outcome: 'refused' },
+    ]);
+  });
+
+  it('refuses two reloads at the same instant but one', async () => {
+    const account = await seedAccount();
+    await owe(account);
+    await begin(account, T0);
+    const later = at(OWED_INTERVAL_MS);
+    const outcomes = await Promise.all([begin(account, later), begin(account, later)]);
+    expect(outcomes.map((outcome) => outcome.kind).sort()).toEqual(['issued', 'too_soon']);
   });
 
   it('does not hold back a set with nothing left to spend', async () => {
@@ -214,6 +257,7 @@ describe('asking before issuing', () => {
       kind: 'too_soon',
       retryAt: at(REISSUE_INTERVAL_MS),
       retryInMinutes: 60,
+      retryInSeconds: 60 * 60 - 1,
     });
   });
 });

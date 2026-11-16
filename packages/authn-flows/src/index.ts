@@ -58,6 +58,7 @@ export {
   type WebauthnSecret,
 } from '#/service/authenticators/passkey';
 export { PASSKEY_UNVERIFIED } from '#/service/authenticators/names';
+export { signedInWithVerifiedPasskey } from '#/service/authenticators/verified-passkey';
 export {
   otpApplicable,
   totpStep,
@@ -105,6 +106,7 @@ export {
   type RecoveryCodesOffer,
 } from '#/view/recovery-codes-html';
 export {
+  renderRequestedFirstPasswordPage,
   renderUpdatePasswordPage,
   renderRequestedUpdatePasswordPage,
 } from '#/view/update-password-html';

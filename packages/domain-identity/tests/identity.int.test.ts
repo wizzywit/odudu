@@ -36,6 +36,9 @@ beforeAll(async () => {
   ownerHandle = createDatabase(container.adminUrl);
   owner = ownerHandle;
   await runMigrations(owner.db, MIGRATIONS_DIR);
+  // These tests read databases that still hold accounts differing only by the
+  // case of an address, which the unique index a migrated database has refuses.
+  await owner.sql`drop index if exists users_email_search_unique`;
 
   const appUrl = await createAppRole(container.adminUrl);
   appHandle = createDatabase(appUrl, { max: 5 });

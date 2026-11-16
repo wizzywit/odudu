@@ -45,6 +45,7 @@ data on their own servers.
 - Many tenants on one server, kept apart by the database itself.
 - A public address of its own for a tenant, such as `login.acme.com`, proved by a DNS record and served behind your reverse proxy, with a switch back to the default at any moment.
 - Passwords with a policy and lockouts, passkeys, authenticator codes and recovery codes.
+- A "me" API for a person's own profile, credentials, sessions and consents, and application-initiated actions such as a password change.
 - Every page the server shows, and its mail, in a tenant's theme and a client's branding: colours, font, images, a stylesheet and page templates, previewed and published as versions.
 - A public address of its own for a tenant, such as `login.acme.com`, proved by a DNS record, switched to and back, with the issuer, cookies and mail links following it.
 - An MCP server that gives an AI agent 64 read tools and 12 write tools over the admin API (two of them, which list and count the tenants, only for a system administrator's agent), held to the same capabilities as everyone else, read-only unless the person allows it to change descriptive text and the wording of the sign-in pages (the display name, the languages and message overrides), to prepare a draft of a theme that only a person can publish, and to add roles, groups and scopes that grant nothing, on a ten-minute token. Access-changing, credential and destructive operations are not available to an agent yet.

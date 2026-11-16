@@ -98,6 +98,12 @@ export const en = {
   'own.passkeyAdded.text': 'A passkey was added to your {tenant} account.',
   'own.passkeyAdded.reason':
     'You received this because a sign-in method on your account at {tenant} was changed.',
+  'own.passwordAdded.subject': 'A password was added to your {tenant} account',
+  'own.passwordAdded.preheader': 'You can now use it to sign in.',
+  'own.passwordAdded.heading': 'A password was added',
+  'own.passwordAdded.text': 'A password was added to your {tenant} account.',
+  'own.passwordAdded.reason':
+    'You received this because a sign-in method on your account at {tenant} was changed.',
   'own.totpRemoved.subject': 'An authenticator app was removed from your {tenant} account',
   'own.totpRemoved.preheader': 'It can no longer be used to sign in.',
   'own.totpRemoved.heading': 'An authenticator app was removed',

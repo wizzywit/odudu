@@ -297,6 +297,31 @@ describe('POST /admin/tenant-imports', () => {
     expect((await exportOf(token, name)).settings.display_name).toBe('x'.repeat(256));
   });
 
+  it('refuses a client that holds me:write without me:read, as the admin API does, naming the entry', async () => {
+    const source = await fixture.createTenant(`mewrite-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const index = original.scopes.findIndex((scope) => scope.name === 'me:write');
+    expect(index).toBeGreaterThanOrEqual(0);
+    const scopes = original.scopes.map((scope, at) =>
+      at === index
+        ? {
+            ...scope,
+            clients: [...scope.clients, { client_id: 'odudu-mcp', assignment: 'optional' }],
+          }
+        : scope,
+    );
+    const name = `mewrite-${newId()}`;
+    const refused = await postImport(token, { name, document: { ...original, scopes } });
+    expect(refused.statusCode).toBe(400);
+    const errors = refused.json<ImportRefusal>().errors ?? [];
+    expect(errors.map((error) => error.path)).toEqual([
+      `document.scopes[${String(index)}].clients[${String((scopes[index]?.clients.length ?? 1) - 1)}]`,
+    ]);
+    expect(errors[0]?.message).toMatch(/me:write is held only together with me:read/u);
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
   it('refuses a request display name of 257 characters, and makes no tenant', async () => {
     const source = await fixture.createTenant(`bound-req-${newId()}`);
     const token = await operatorToken();

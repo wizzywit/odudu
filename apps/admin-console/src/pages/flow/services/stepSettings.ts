@@ -1,5 +1,9 @@
 import { flowStepSettingsSchema } from '@odudu/contracts/admin';
-import { authenticatorChoiceLabel, authenticatorOptions } from '#/entities/authenticator';
+import {
+  authenticatorChoiceLabel,
+  authenticatorOptions,
+  authenticatorSettingWord,
+} from '#/entities/authenticator';
 import type { FlowStepSettings } from '#/pages/flow/types/executions';
 import type { Step } from '#/pages/flow/services/steps';
 
@@ -10,7 +14,6 @@ interface ControlSpec {
   key: SettingKey;
   // The tenant setting a key left out takes the value of.
   tenantSetting: string;
-  label: string;
 }
 
 export interface SettingControl {
@@ -25,41 +28,15 @@ const NUMERIC: ReadonlySet<SettingKey> = new Set(['digits', 'period', 'count']);
 
 const SPECS: Readonly<Record<string, readonly ControlSpec[]>> = {
   otp: [
-    {
-      key: 'algorithm',
-      tenantSetting: 'totp_algorithm',
-      label: 'Algorithm',
-    },
-    {
-      key: 'digits',
-      tenantSetting: 'totp_digits',
-      label: 'Code length',
-    },
-    {
-      key: 'period',
-      tenantSetting: 'totp_period',
-      label: 'Code period',
-    },
+    { key: 'algorithm', tenantSetting: 'totp_algorithm' },
+    { key: 'digits', tenantSetting: 'totp_digits' },
+    { key: 'period', tenantSetting: 'totp_period' },
   ],
   passkey: [
-    {
-      key: 'user_verification',
-      tenantSetting: 'webauthn_user_verification',
-      label: 'User verification',
-    },
-    {
-      key: 'resident_key',
-      tenantSetting: 'webauthn_resident_key',
-      label: 'Stored on the device',
-    },
+    { key: 'user_verification', tenantSetting: 'webauthn_user_verification' },
+    { key: 'resident_key', tenantSetting: 'webauthn_resident_key' },
   ],
-  'recovery-code': [
-    {
-      key: 'count',
-      tenantSetting: 'recovery_code_count',
-      label: 'Codes in a set',
-    },
-  ],
+  'recovery-code': [{ key: 'count', tenantSetting: 'recovery_code_count' }],
 };
 
 function tenantChoice(
@@ -87,7 +64,7 @@ export function settingControls(
       const named = step.settings?.[spec.key];
       return {
         key: spec.key,
-        label: `${spec.label} for ${step.authenticator}`,
+        label: authenticatorSettingWord(spec.tenantSetting),
         options: [
           { id: '', label: inheritedLabel(spec, tenant) },
           ...authenticatorOptions(spec.tenantSetting),

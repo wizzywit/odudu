@@ -22,8 +22,7 @@ amendment). Each entry carries `id`, `created_at`, `last_active_at`,
 `remembered`, `client_ids` — the OAuth `client_id` of every enabled
 client the session holds a grant for — and `device`, an opaque id shared by
 the sessions opened on one browser, `null` for one opened before it was
-recorded. The blocks on this page were captured before `device` existed;
-[A session's device](../request-paths/the-me-api.md#a-sessions-device) runs it. Paginated the same way every other
+recorded. [A session's device](../request-paths/the-me-api.md#a-sessions-device) runs it. Paginated the same way every other
 list in this API is: `?limit=` and `?cursor=`, a `Link: rel="next"` header
 and a body `next` while more remain, ordered by `id` — a subject's sessions
 are bounded per browser by `max_sessions_per_browser`, but unbounded across
@@ -55,7 +54,7 @@ answers `404`.
 A session needs a login, and a subject this API created has no password, so
 this section runs against `bob` — seeded with
 `seed user --tenant demo --username bob --password …`, subject
-`01a0d6fd-ede7-704b-8d83-fa3801d427a0` — signing in through `demo-app`, a
+`01a1e3b4-347b-7f61-b1a2-42e93c2fc9d4` — signing in through `demo-app`, a
 public `authorization_code` client created for it. **`verify_email` was set
 back to `false` first**: `PATCH /settings` above had turned it on, and with
 it on the login ends on "Can't sign in yet" rather than in a session.
@@ -63,11 +62,11 @@ it on the login ends on "Can't sign in yet" rather than in a session.
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-ede7-704b-8d83-fa3801d427a0/sessions
+  http://localhost:3141/admin/tenants/demo/subjects/01a1e3b4-347b-7f61-b1a2-42e93c2fc9d4/sessions
 ```
 
 ```
-{"items":[{"id":"01a0d6fe-9d8f-783b-b244-ea4a85ab9bfb","created_at":"2026-09-25T05:16:45.837Z","last_active_at":"2026-09-25T05:16:45.837Z","remembered":false,"client_ids":["demo-app"]}]}
+{"items":[{"id":"01a1e3b4-f3d1-7238-aa60-6fd875f15f35","created_at":"2026-11-16T09:34:09.358Z","last_active_at":"2026-11-16T09:34:09.358Z","remembered":false,"client_ids":["demo-app"],"device":"99e7c806bb4972f2e2e4ae9cd7d83bd076caeb9abbcb88f8801671ffe5e8fec3"}]}
 ```
 
 `DELETE` twice over the same id, then the listing again — `204` both times,
@@ -76,26 +75,26 @@ and nothing left:
 ```bash
 curl -sS -D - -X DELETE \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-ede7-704b-8d83-fa3801d427a0/sessions/01a0d6fe-9d8f-783b-b244-ea4a85ab9bfb
+  http://localhost:3141/admin/tenants/demo/subjects/01a1e3b4-347b-7f61-b1a2-42e93c2fc9d4/sessions/01a1e3b4-f3d1-7238-aa60-6fd875f15f35
 curl -sS -D - -X DELETE \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-ede7-704b-8d83-fa3801d427a0/sessions/01a0d6fe-9d8f-783b-b244-ea4a85ab9bfb
+  http://localhost:3141/admin/tenants/demo/subjects/01a1e3b4-347b-7f61-b1a2-42e93c2fc9d4/sessions/01a1e3b4-f3d1-7238-aa60-6fd875f15f35
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-ede7-704b-8d83-fa3801d427a0/sessions
+  http://localhost:3141/admin/tenants/demo/subjects/01a1e3b4-347b-7f61-b1a2-42e93c2fc9d4/sessions
 ```
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a0d6fe-9df1-760b-8e13-7763f4c28a3d
+x-request-id: 01a1e3b4-f4aa-70f3-91e5-a78c26836357
 cache-control: no-store
-Date: Tue, 27 Oct 2026 01:32:58 GMT
+Date: Mon, 16 Nov 2026 09:34:09 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 HTTP/1.1 204 No Content
-x-request-id: 01a0d6fe-9e09-7004-9844-b3c1b3abb219
+x-request-id: 01a1e3b4-f4d9-7bf6-86f4-e52a4f122d37
 cache-control: no-store
-Date: Tue, 27 Oct 2026 01:32:58 GMT
+Date: Mon, 16 Nov 2026 09:34:09 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

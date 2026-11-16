@@ -20,7 +20,9 @@ describe('REQUIREMENT_OPTIONS', () => {
 describe('requirementText', () => {
   it('says what each requirement means', () => {
     expect(requirementText('disabled')).toMatch(/skipped/u);
-    expect(requirementText('alternative')).toMatch(/any one/iu);
+    for (const spoken of ['required', 'alternative', 'conditional'] as const) {
+      expect(requirementText(spoken)).toBeNull();
+    }
   });
 });
 

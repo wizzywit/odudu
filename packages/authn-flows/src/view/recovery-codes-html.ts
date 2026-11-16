@@ -110,13 +110,20 @@ export function renderRequestedRecoveryCodesConfirmPage(
   return page(t(locale, 'recoveryCodes.title'), body, null, [], locale, 'recovery-codes');
 }
 
-// A replacement the hourly bound refuses: the codes the person holds still
-// work. Only a page an application sent them to has a way out, as the others do.
+export interface RecoveryCodesWait {
+  minutes: number;
+  seconds: number;
+}
+
+// A reissue the bound refuses. A replacement an application asked for is told
+// the codes held still work, and may be left. The set the sign-in waits for
+// was never seen, so it is told how long until the page can ask again, and
+// is given the button that asks.
 export function renderRecoveryCodesTooSoonPage(
   tenant: string,
   address: TenantAddress,
   authSessionId: string,
-  retryInMinutes: number,
+  wait: RecoveryCodesWait,
   variant: ActionPageVariant | undefined,
   locale: PageLocale,
 ): RenderedPage {
@@ -128,18 +135,24 @@ export function renderRecoveryCodesTooSoonPage(
     {
       intro: intro(tHtml(locale, 'recoveryCodes.title'), tenant),
       error: problemSummary([
-        { fields: [], html: tHtml(locale, 'recoveryCodes.tooSoon', { minutes: retryInMinutes }) },
+        {
+          fields: [],
+          html:
+            variant === undefined
+              ? tHtml(locale, 'recoveryCodes.preparing', { seconds: wait.seconds })
+              : tHtml(locale, 'recoveryCodes.tooSoon', { minutes: wait.minutes }),
+        },
       ]),
       instructions: '',
       notice: '',
       codes: '',
-      'form.open':
+      'form.open': `<form method="post" action="${target}">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">${variant === undefined ? '\n  <input type="hidden" name="confirm" value="1">' : ''}`,
+      submit:
         variant === undefined
-          ? ''
-          : `<form method="post" action="${target}">
-  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
-      submit: cancelButton(variant, locale).trimStart(),
-      'form.close': variant === undefined ? '' : '</form>',
+          ? `<button type="submit">${tHtml(locale, 'recoveryCodes.tryAgain')}</button>`
+          : cancelButton(variant, locale).trimStart(),
+      'form.close': '</form>',
     },
     locale,
   );

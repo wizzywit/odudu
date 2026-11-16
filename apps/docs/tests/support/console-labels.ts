@@ -81,6 +81,7 @@ const EMAIL_RELAY = 'email/services/relay.ts';
 const EMAIL_MAIL = 'email/services/mailWording.ts';
 const EMAIL_MAIL_QUERY = 'email/services/mailQuery.ts';
 const ACCESS = 'settings/services/accessSections.ts';
+const PASSWORD = 'settings/services/passwordSection.ts';
 const PLATFORM = 'settings/services/platformSections.ts';
 const SETTINGS_WORDS = 'settings/services/settingsPageWords.ts';
 const KEYS_WORDS = 'signing-keys/services/keysWords.ts';
@@ -357,10 +358,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/ui/SubjectRecordPage/GrantsTab.tsx',
     'confirmLabel="Revoke grants"',
   ),
-  Device: several(
-    page('subjects/ui/SubjectRecordPage/SessionsTab.tsx', "header: 'Device'"),
-    page('tenant-sessions/ui/TenantSessionsPage/TenantSessionsPage.tsx', "header: 'Device'"),
-    page('clients/ui/SessionsTab/SessionsTab.tsx', "header: 'Device'"),
+  Browser: several(
+    page('subjects/ui/SubjectRecordPage/SessionsTab.tsx', 'header: DEVICE_HEADER'),
+    page('tenant-sessions/ui/TenantSessionsPage/TenantSessionsPage.tsx', 'header: DEVICE_HEADER'),
+    page('clients/ui/SessionsTab/SessionsTab.tsx', 'header: DEVICE_HEADER'),
+    shared('ui/DeviceCell/deviceHeader.ts', "DEVICE_HEADER = 'Browser'"),
   ),
   'End session': page(
     'subjects/ui/SubjectRecordPage/SessionsTab.tsx',
@@ -480,8 +482,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Alternative: page(FLOW_REQUIREMENTS, "label: 'Alternative'"),
   Conditional: page(FLOW_REQUIREMENTS, "label: 'Conditional'"),
   Disabled: page(FLOW_REQUIREMENTS, "label: 'Disabled'"),
-  Up: page(FLOW_WORDS, "up: 'Up'"),
-  Down: page(FLOW_WORDS, "down: 'Down'"),
+  Move: page('flow/services/stepRows.ts', '`Move ${authenticator} ${direction}`'),
   'Requirement for password': template(
     [inPage('flow/services/stepRows.ts', '`Requirement for ${step.authenticator}`')],
     'Requirement for ${step.authenticator}',
@@ -535,7 +536,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Stage key': page(KEYS_WORDS, "submit: 'Stage key'"),
   Algorithm: several(
     page(KEYS_WORDS, "algorithm: 'Algorithm'"),
-    page('flow/services/stepSettings.ts', "label: 'Algorithm'"),
+    entity('authenticator/services/authenticatorChoices.ts', "totp_algorithm: 'Algorithm'"),
   ),
   Rotating: page('signing-keys/services/laneWording.ts', "title: 'Rotating'"),
   Active: page('signing-keys/services/laneWording.ts', "title: 'Active'"),
@@ -553,7 +554,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Registration and recovery': page(ACCESS, "title: 'Registration and recovery'"),
   'Remember me': page(ACCESS, "title: 'Remember me'"),
   Usernames: page(ACCESS, "title: 'Usernames'"),
-  'Password policy': page(ACCESS, "title: 'Password policy'"),
+  'Password policy': page(PASSWORD, "title: 'Password policy'"),
   Terms: page(ACCESS, "title: 'Terms'"),
   'Picture address': page('settings/services/profileSection.ts', "label: 'Picture address'"),
   Language: page('settings/services/profileSection.ts', "label: 'Language'"),
@@ -585,8 +586,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Maximum lifetime': page(ACCESS, "label: 'Maximum lifetime'"),
   'Self-registration': page(ACCESS, "label: 'Self-registration'"),
   'Verify email addresses': page(ACCESS, "label: 'Verify email addresses'"),
-  'Minimum length': page(ACCESS, "label: 'Minimum length'"),
-  'Password lifetime': page(ACCESS, "label: 'Password lifetime'"),
+  'Minimum length': page(PASSWORD, "label: 'Minimum length'"),
+  'Password lifetime': page(PASSWORD, "label: 'Password lifetime'"),
   'Failures before a lockout': page(ACCESS, "label: 'Failures before a lockout'"),
   'Keep events for': page(PLATFORM, "label: 'Keep events for'"),
   Enabled: page(ACCESS, "label: 'Enabled'"),
@@ -918,54 +919,74 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'settings/services/accessSections.ts',
     "label: 'Recent sign-in window'",
   ),
-  'Recovery code warning': page(
-    'settings/services/authenticatorsSection.ts',
-    "label: 'Recovery code warning'",
-  ),
   'Require a passkey': page(
     'settings/services/authenticatorsSection.ts',
     "label: 'Require a passkey'",
   ),
   'Tenant setting': page('flow/services/stepSettings.ts', "'Tenant setting'"),
-  'Code length': page('flow/services/stepSettings.ts', "label: 'Code length'"),
-  'Code period': page('flow/services/stepSettings.ts', "label: 'Code period'"),
-  'User verification': page('flow/services/stepSettings.ts', "label: 'User verification'"),
-  'Stored on the device': page('flow/services/stepSettings.ts', "label: 'Stored on the device'"),
-  'Codes in a set': page('flow/services/stepSettings.ts', "label: 'Codes in a set'"),
+  'Code length': entity(
+    'authenticator/services/authenticatorChoices.ts',
+    "totp_digits: 'Code length'",
+  ),
+  'Code period': entity(
+    'authenticator/services/authenticatorChoices.ts',
+    "totp_period: 'Code period'",
+  ),
+  'User verification': entity(
+    'authenticator/services/authenticatorChoices.ts',
+    "webauthn_user_verification: 'User verification'",
+  ),
+  'Stored on the device': entity(
+    'authenticator/services/authenticatorChoices.ts',
+    "webauthn_resident_key: 'Stored on the device'",
+  ),
+  'Codes in a set': entity(
+    'authenticator/services/authenticatorChoices.ts',
+    "recovery_code_count: 'Codes in a set'",
+  ),
   Authenticators: page('settings/services/authenticatorsSection.ts', "title: 'Authenticators'"),
-  'Authenticator app algorithm': page(
+  'Passkey requirement': page(
     'settings/services/authenticatorsSection.ts',
-    "label: 'Authenticator app algorithm'",
+    "title: 'Passkey requirement'",
+  ),
+  'Authenticator app': page(
+    'settings/services/authenticatorsSection.ts',
+    "const APP = 'Authenticator app'",
+  ),
+  Passkeys: page('settings/services/authenticatorsSection.ts', "const PASSKEY = 'Passkeys'"),
+  'Recovery codes': page(
+    'settings/services/authenticatorsSection.ts',
+    "const RECOVERY = 'Recovery codes'",
+  ),
+  'Warn when fewer than': page(
+    'settings/services/authenticatorsSection.ts',
+    "label: 'Warn when fewer than'",
+  ),
+  Tenant: page('settings/services/sections.ts', "title: 'Tenant'"),
+  'Sign-in': page('settings/services/sections.ts', "title: 'Sign-in'"),
+  'Sessions and tokens': page('settings/services/sections.ts', "title: 'Sessions and tokens'"),
+  Applications: page('settings/services/sections.ts', "title: 'Applications'"),
+  Records: page('settings/services/sections.ts', "title: 'Records'"),
+  'On the web': page('settings/services/profileSection.ts', "group: 'On the web'"),
+  'About the person': page('settings/services/profileSection.ts', "group: 'About the person'"),
+  Contact: page('settings/services/profileSection.ts', "group: 'Contact'"),
+  'Length and complexity': page(PASSWORD, "group: 'Length and complexity'"),
+  'Must not contain': page(PASSWORD, "group: 'Must not contain'"),
+  'Reuse and age': page(PASSWORD, "group: 'Reuse and age'"),
+  'Breached passwords': page(PASSWORD, "group: 'Breached passwords'"),
+  'Open the sign-in flow editor': page(
+    'clients/services/clientFlow.ts',
+    "FLOW_EDITOR_LABEL = 'Open the sign-in flow editor'",
   ),
   SHA1: entity('authenticator/services/authenticatorChoices.ts', "'SHA1'"),
   SHA256: entity('authenticator/services/authenticatorChoices.ts', "'SHA256'"),
   SHA512: entity('authenticator/services/authenticatorChoices.ts', "'SHA512'"),
-  'Authenticator app code length': page(
-    'settings/services/authenticatorsSection.ts',
-    "label: 'Authenticator app code length'",
-  ),
   '6 digits': entity('authenticator/services/authenticatorChoices.ts', "'6 digits'"),
   '8 digits': entity('authenticator/services/authenticatorChoices.ts', "'8 digits'"),
-  'Authenticator app code period': page(
-    'settings/services/authenticatorsSection.ts',
-    "label: 'Authenticator app code period'",
-  ),
   '30 seconds': entity('authenticator/services/authenticatorChoices.ts', "'30 seconds'"),
   '60 seconds': entity('authenticator/services/authenticatorChoices.ts', "'60 seconds'"),
-  'Passkey user verification': page(
-    'settings/services/authenticatorsSection.ts',
-    "label: 'Passkey user verification'",
-  ),
   Preferred: entity('authenticator/services/authenticatorChoices.ts', "'Preferred'"),
   Discouraged: entity('authenticator/services/authenticatorChoices.ts', "'Discouraged'"),
-  'Passkey stored on the device': page(
-    'settings/services/authenticatorsSection.ts',
-    "label: 'Passkey stored on the device'",
-  ),
-  'Recovery codes in a set': page(
-    'settings/services/authenticatorsSection.ts',
-    "label: 'Recovery codes in a set'",
-  ),
   'Offer remember me': page('settings/services/accessSections.ts', "label: 'Offer remember me'"),
   'Verification link lifetime': page(
     'settings/services/accessSections.ts',
@@ -987,38 +1008,20 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'settings/services/accessSections.ts',
     "label: 'Sign in with a verified email address'",
   ),
-  'Require a digit': page('settings/services/accessSections.ts', "label: 'Require a digit'"),
-  'Require an uppercase letter': page(
-    'settings/services/accessSections.ts',
-    "label: 'Require an uppercase letter'",
-  ),
-  'Require a lowercase letter': page(
-    'settings/services/accessSections.ts',
-    "label: 'Require a lowercase letter'",
-  ),
-  'Require a special character': page(
-    'settings/services/accessSections.ts',
-    "label: 'Require a special character'",
-  ),
-  'Refuse the username': page(
-    'settings/services/accessSections.ts',
-    "label: 'Refuse the username'",
-  ),
-  'Refuse the email address': page(
-    'settings/services/accessSections.ts',
-    "label: 'Refuse the email address'",
-  ),
-  'Passwords remembered': page(
-    'settings/services/accessSections.ts',
-    "label: 'Passwords remembered'",
-  ),
-  Off: page(ACCESS, "label: 'Off'"),
-  'Check against known breaches': page(ACCESS, "label: 'Check against known breaches'"),
-  'When a remote lookup fails': page(ACCESS, "label: 'When a remote lookup fails'"),
-  'Dataset loaded on the server': page(ACCESS, "label: 'Dataset loaded on the server'"),
-  'Remote range lookup': page(ACCESS, "label: 'Remote range lookup'"),
-  'Accept the password': page(ACCESS, "label: 'Accept the password'"),
-  'Refuse it and ask to try again': page(ACCESS, "label: 'Refuse it and ask to try again'"),
+  'Require a digit': page(PASSWORD, "label: 'Require a digit'"),
+  'Require an uppercase letter': page(PASSWORD, "label: 'Require an uppercase letter'"),
+  'Require a lowercase letter': page(PASSWORD, "label: 'Require a lowercase letter'"),
+  'Require a special character': page(PASSWORD, "label: 'Require a special character'"),
+  'Refuse the username': page(PASSWORD, "label: 'Refuse the username'"),
+  'Refuse the email address': page(PASSWORD, "label: 'Refuse the email address'"),
+  'Passwords remembered': page(PASSWORD, "label: 'Passwords remembered'"),
+  Off: page(PASSWORD, "label: 'Off'"),
+  'Check against known breaches': page(PASSWORD, "label: 'Check against known breaches'"),
+  'When a remote lookup fails': page(PASSWORD, "label: 'When a remote lookup fails'"),
+  'Dataset loaded on the server': page(PASSWORD, "label: 'Dataset loaded on the server'"),
+  'Remote range lookup': page(PASSWORD, "label: 'Remote range lookup'"),
+  'Accept the password': page(PASSWORD, "label: 'Accept the password'"),
+  'Refuse it and ask to try again': page(PASSWORD, "label: 'Refuse it and ask to try again'"),
   'First lockout': page('settings/services/accessSections.ts', "label: 'First lockout'"),
   'Longest lockout': page('settings/services/accessSections.ts', "label: 'Longest lockout'"),
   'Failures forgotten after': page(

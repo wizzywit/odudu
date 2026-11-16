@@ -144,6 +144,9 @@ export const en = {
   'acceptTerms.stale':
     'The terms changed while this page was open. Read the new version, and accept it if you agree.',
   'acceptTerms.required': 'Tick the box to accept the terms and continue.',
+  'recoveryCodes.preparing':
+    'A set of recovery codes was created a moment ago. You can create a new set and see it on this page in {seconds, plural, one {{seconds, number, ::group-off} second} other {{seconds, number, ::group-off} seconds}}.',
+  'recoveryCodes.tryAgain': 'Create new recovery codes',
   'recoveryCodes.tooSoon':
     'Your recovery codes were issued recently and still work. You can replace them in {minutes, plural, one {{minutes, number, ::group-off} minute} other {{minutes, number, ::group-off} minutes}}.',
 };

@@ -83,6 +83,7 @@ What to read depends on the action:
 - `update-profile`: `GET /me/profile`. The page, "Complete your profile", lists every profile field a person can edit through `PATCH /me/profile`, with
   what they hold, and ends only when each field the tenant requires (`required_profile_fields`, given and family name by default) has a value, and every value sent is accepted by the same rules. Nothing is written until
   the whole form is acceptable. The address is not on this page.
+- `update-password` for a person who holds no password, only a passkey: no current password is asked, and a first password is set only if this sign-in's passkey verified them; a person whose sign-in did not, or who has no passkey in it, ends in `action_status=error`. The credential list then gains a `password` entry dated from the change, and the person is mailed a notice.
 - `update-password`: the list shows the password by type either way, so it cannot show a change. Each credential lists when it was
   made, and a new password is dated from the change, so compare the password's `created_at` from before the action with the one
   after it. Section 5 shows it.
@@ -116,7 +117,7 @@ location: http://127.0.0.1:8080/callback?code=xe-Z4RBU3bKU8IJyy8Wyzxjy1wHDcqkWqj
 
 A set can be replaced once an hour, counted from when the last was made, because each set costs ten password hashes. A person who
 asks inside the hour, while they still have codes to spend, is shown how many minutes to wait, with the way out, and the answer is
-`429`. The first set, a set with no code left to spend, and a set the person's sign-in is waiting for are never held back. The refusal is written to the audit trail as
+`429`. The first set and a set with no code left to spend are never held back, and a set the person's sign-in is waiting for is issued at once, though a reload of the page that shows it is held to one every 30 seconds, and the page it then shows says how many seconds remain and has a button that asks again. The refusal is written to the audit trail as
 `recovery_codes.refused`:
 
 ```

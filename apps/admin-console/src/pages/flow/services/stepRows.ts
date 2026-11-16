@@ -15,8 +15,8 @@ export interface StepRow {
   authenticator: string;
   position: number;
   disabled: boolean;
-  what: string;
-  requirementWhat: string;
+  // What the authenticator is and, where it differs from the rest, what its requirement means.
+  summary: string;
   // Whom the one-time password step asks, on that step alone.
   otpReading: string | null;
   requirement: ExecutionRequirement;
@@ -47,8 +47,9 @@ export function stepRows(
     authenticator: step.authenticator,
     position: at + 1,
     disabled: step.requirement === 'disabled',
-    what: authenticatorText(step.authenticator),
-    requirementWhat: requirementText(step.requirement),
+    summary: [authenticatorText(step.authenticator), requirementText(step.requirement)]
+      .filter((part) => part !== null)
+      .join(' '),
     otpReading: step.authenticator === OTP ? reading : null,
     requirement: step.requirement,
     requirementLabel: `Requirement for ${step.authenticator}`,

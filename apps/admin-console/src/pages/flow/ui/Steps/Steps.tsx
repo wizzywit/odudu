@@ -86,49 +86,57 @@ export function Steps({
             </span>
             <div className={styles.name}>
               <code>{row.authenticator}</code>
-              <span className={styles.what}>{row.what}</span>
-              <span className={styles.what}>{row.requirementWhat}</span>
+              <span className={styles.what}>{row.summary}</span>
               {row.otpReading === null ? null : (
                 <span className={styles.otp}>{row.otpReading}</span>
               )}
             </div>
-            <InlineFields>
-              <SelectField
-                label={row.requirementLabel}
-                hideLabel
-                options={words.requirements}
-                value={row.requirement}
-                onChange={(value) => {
-                  flow.setRequirement(row.authenticator, value);
-                }}
-              />
-            </InlineFields>
-            <div className={styles.moves}>
-              <Button
-                size="small"
-                variant="quiet"
-                aria-label={row.up.label}
-                isDisabled={!row.up.enabled}
-                onPress={() => {
-                  move(row.authenticator, 'up');
-                }}
-              >
-                {words.up}
-              </Button>
-              <Button
-                size="small"
-                variant="quiet"
-                aria-label={row.down.label}
-                isDisabled={!row.down.enabled}
-                onPress={() => {
-                  move(row.authenticator, 'down');
-                }}
-              >
-                {words.down}
-              </Button>
+            <div className={styles.controls}>
+              <InlineFields>
+                <SelectField
+                  label={row.requirementLabel}
+                  hideLabel
+                  options={words.requirements}
+                  value={row.requirement}
+                  onChange={(value) => {
+                    flow.setRequirement(row.authenticator, value);
+                  }}
+                />
+              </InlineFields>
+              <div className={styles.moves}>
+                <Button
+                  size="small"
+                  variant="quiet"
+                  aria-label={row.up.label}
+                  isDisabled={!row.up.enabled}
+                  onPress={() => {
+                    move(row.authenticator, 'up');
+                  }}
+                >
+                  <span aria-hidden="true">{words.up}</span>
+                </Button>
+                <Button
+                  size="small"
+                  variant="quiet"
+                  aria-label={row.down.label}
+                  isDisabled={!row.down.enabled}
+                  onPress={() => {
+                    move(row.authenticator, 'down');
+                  }}
+                >
+                  <span aria-hidden="true">{words.down}</span>
+                </Button>
+              </div>
             </div>
             {row.settings.length === 0 ? null : (
-              <div className={styles.settings}>
+              <div
+                role="group"
+                aria-label={words.settingsLabel(row.authenticator)}
+                className={styles.settings}
+              >
+                <p className={styles.caption} aria-hidden="true">
+                  {words.settingsCaption}
+                </p>
                 {row.settings.map((control) => (
                   <SelectField
                     key={control.key}

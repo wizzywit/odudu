@@ -241,12 +241,12 @@ for them, so the tenant holds nothing else:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3092/admin/tenants/mcp-demo/clients" \
+  "http://localhost:3141/admin/tenants/mcp-demo/clients" \
   | jq -c '.items[] | {client_id, type, builtin_admin, token_endpoint_auth_method, redirect_uris, grant_types, audiences, consent_required}'
 ```
 
 ```
-{"client_id":"odudu-admin","type":"confidential","builtin_admin":true,"token_endpoint_auth_method":"private_key_jwt","redirect_uris":["http://127.0.0.1:8080/callback","http://localhost:3092/console/auth/callback"],"grant_types":["authorization_code","refresh_token"],"audiences":["urn:odudu:params:admin-api"],"consent_required":false}
+{"client_id":"odudu-admin","type":"confidential","builtin_admin":true,"token_endpoint_auth_method":"private_key_jwt","redirect_uris":["http://127.0.0.1:8080/callback","http://localhost:3141/console/auth/callback"],"grant_types":["authorization_code","refresh_token"],"audiences":["urn:odudu:params:admin-api"],"consent_required":false}
 {"client_id":"odudu-mcp","type":"public","builtin_admin":false,"token_endpoint_auth_method":"none","redirect_uris":["http://127.0.0.1","http://[::1]"],"grant_types":["authorization_code","refresh_token"],"audiences":["urn:odudu:params:admin-api"],"consent_required":true}
 ```
 
@@ -257,11 +257,11 @@ curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"client_id": "odudu-mcp", "token_endpoint_auth_method": "none"}' \
-  http://localhost:3092/admin/tenants/mcp-demo/clients
+  http://localhost:3141/admin/tenants/mcp-demo/clients
 ```
 
 ```
-{"type":"about:blank","title":"Conflict","status":409,"detail":"the client_id \"odudu-mcp\" is reserved","instance":"01a1ac04-0eae-7942-8cef-2fd94ae8d699"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the client_id \"odudu-mcp\" is reserved","instance":"01a1e3b2-d8f8-746c-a748-f09bc47ef21d"}
 ```
 
 `/authorize` accepts any port for a loopback IP literal that a public client
@@ -274,7 +274,7 @@ URI`):
 ```bash
 Q='response_type=code&client_id=odudu-mcp&scope=mcp%3Aread&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=s&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 for R in 'http%3A%2F%2F127.0.0.1%3A53211%2F' 'http%3A%2F%2Flocalhost%3A53211%2F' 'http%3A%2F%2F127.0.0.1%3A53211%2Fcallback'; do
-  curl -sS -o /dev/null -w '%{http_code}\n' "http://localhost:3092/tenants/mcp-demo/protocol/openid-connect/auth?$Q&redirect_uri=$R"
+  curl -sS -o /dev/null -w '%{http_code}\n' "http://localhost:3141/tenants/mcp-demo/protocol/openid-connect/auth?$Q&redirect_uri=$R"
 done
 ```
 

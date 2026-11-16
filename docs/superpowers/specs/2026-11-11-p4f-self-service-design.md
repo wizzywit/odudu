@@ -131,7 +131,22 @@ runs both against a live session before the gate is written.
   `generate-recovery-codes`, the names the server already uses. An action
   request is gated like 5.2: it forces a new sign-in only when the session's
   `auth_time` is older than the tenant's window, and the `update-password`
-  page asks for the current password whatever the age (my call).
+  page asks for the current password whatever the age (my call). A person who
+  holds a password keeps that prompt. A person who holds **no** password (a
+  passkey-only account) has none to prove, and `update-password` then sets a
+  **first** password only on a sign-in whose passkey assertion verified the
+  person (`user_verified`): NIST SP 800-63B-4 §4.1.2.1 asks that adding an
+  authenticator be authenticated at the lower of the account's current highest
+  assurance and the new authenticator's, and a verified passkey is two factors
+  where a password is one. A sign-in that ran no passkey, or one that proved only
+  possession (`passkey-unverified`, WebAuthn L3 §6.1.3), ends in
+  `action_status=error`, as before. The tenant's password policy and the
+  breached-password check apply; the address on file is told by mail
+  (`password_added`, §4.1.2.1 and §4.6: a channel independent of the
+  transaction, verified addresses only, as the other notices); the audit row is
+  `password.changed` with `first_password` true; the person's sign-in flow does
+  not change. The same first password is what the administrator's owed
+  `update-password` action sets for such a person, on the sign-in that owes it.
 - **Page.** Odudu renders the page it already has for that required action and
   returns to the client's registered `redirect_uri` with the standard response
   plus `action_status` of `success`, `cancelled` or `error`. The page is the
@@ -181,8 +196,9 @@ in the tenant's flow configuration and appear in the admin API and the console.
 
 A session is shown against the device it belongs to, which needs the stable
 browser identifier ADR 0033 derives and the umbrella spec's decision 1 defers.
-This phase amends ADR 0033 to state the identifier, and closes the orphan that
-ADR admits: under `k` concurrent logins the cap admits `cap + (k - 1)` and
+This phase amends ADR 0033 to state the identifier, and bounds the orphan that
+ADR admits (exact per person on a browser that holds the cookie, at most `cap - 1` orphaned on a first
+sign-in): under `k` concurrent logins the cap admits `cap + (k - 1)` and
 orphans one. The amendment decides whether the cap becomes exact or stays
 bounded, with the measurement the ADR asks for.
 
@@ -200,7 +216,8 @@ bounded, with the measurement the ADR asks for.
   the address and the tenant and needs a submitted form, so a mail the person
   did not ask for does not complete an account.
 - **Accounts that differ only by case** are reconciled by an operator-run
-  command, then a partial unique index is added on `(tenant_id, email_search)`.
+  command, then a partial unique index is added on `(tenant_id, email_search)`
+  (migration `0139`, which builds itself once no pair remains).
   The command reports what it merged and refuses to guess between two accounts
   that both have sign-ins.
 - **More required actions:** verify email, update profile, accept terms.
@@ -244,7 +261,7 @@ section 7; `tests/docs/roadmap-section-11.test.ts` holds the mapping.
 | per-tenant TOTP, WebAuthn and recovery-code policy, parameters stored per enrolment      | 5.6; increment 7     |
 | a tenant-wide switch asking everyone to enrol a passkey                                  | 5.6; increment 7     |
 | per-step authenticator configuration                                                     | 5.6; increment 7     |
-| a session against its device; ADR 0033 amended, orphan closed                            | 5.7; increment 8     |
+| a session against its device; ADR 0033 amended, orphan bounded                           | 5.7; increment 8     |
 | the option to end other sessions after a password change or reset                        | 5.8; increment 9     |
 | a breached-password check                                                                | 5.8; increment 9     |
 | a new verification email                                                                 | 5.8; increment 10    |
@@ -330,11 +347,13 @@ My calls, marked so they can be overruled:
 - **Where `auth_time` comes from.** `auth_time` is an ID-token claim today
   (`token-issuance.ts`), not an access-token one. The gate reads the session
   the token's `sid` names, one indexed read, on gated requests only; plain
-  reads stay stateless. A token whose session has ended is refused with `401`
-  and no challenge, since a fresh sign-in is a new session. _assumption:_ the
+  reads stay stateless. Every write checks that the session stands; a token whose
+  session has ended is refused a write with `401` and no challenge, since a fresh
+  sign-in is a new session, while plain reads still answer until the token
+  expires. _assumption:_ the
   access token carries `sid`; the spike confirms it, and if not, the token
   gains it in increment 1.
-- **Ending the caller's own session** is allowed and ends the token's use; the
+- **Ending the caller's own session** is allowed and ends the token's use for writes (reads still answer until it expires); the
   response says so.
 - **An action request issues a normal authorization response** (a code) with
   `action_status` added. `cancelled` is produced by the page's own cancel
@@ -355,11 +374,15 @@ My calls, marked so they can be overruled:
   per-step) and one for the flow model, its admin surface and its override.
   Their number in section 7 stays; the plan numbers the parts.
 - **Case reconciliation** keeps one account: the one with a verified address,
-  then the oldest. It moves credentials, sessions, grants and consents to the
-  survivor in one transaction per pair and rewrites nothing in the audit trail.
-  It refuses a pair where both have sign-ins (cannot say which is the person).
-  Rollout order: the command ships in one release, the unique index in a later
-  one, so an operator has run it first.
+  then the one that has signed in, then the oldest. It moves the credentials and
+  consents of a verified account with no sign-ins to the survivor in one
+  transaction per group; sessions and grants are never moved, and nothing in the
+  audit trail is rewritten. It refuses a group where several accounts have
+  sign-ins, where none has a verified address, or where an unverified account
+  has signed in (cannot say which is the person).
+  The index is migration `0139`, skipped with a warning where a pair remains and
+  built at the first start after the command has run, so the migration cannot
+  stop the server booting.
 - **Administrator-issued links in scope:** reset, verify and required-action
   links. The admin API gains an optional `client_id` on the request that issues
   one; absent, the link returns to the tenant's own account page.
@@ -368,7 +391,8 @@ My calls, marked so they can be overruled:
 
 - **Removing a credential.** Refused whenever it would leave the person with no
   way to sign in. Where the tenant requires a second factor, the last second
-  factor is refused too. The last passkey may go while a password remains; with
+  factor is refused too. The last passkey may go while a password remains, unless the tenant requires a
+  second factor and no TOTP is held; with
   the tenant's passkey switch on, the next sign-in asks for a new one. A
   person locked out recovers through an administrator or a reset. The refusal
   is a stable error code with its own catalogue message.

@@ -1,0 +1,114 @@
+/* A strip across the top of the viewport while the page is narrow, a rail
+   beside the sections when it is wide; either way it stays in view. */
+.nav {
+  position: sticky;
+  inset-block-start: var(--sticky-top, 0px);
+  z-index: 5;
+  display: flex;
+  gap: var(--space-4);
+  min-inline-size: 0;
+  padding-block: var(--space-2);
+  overflow-x: auto;
+  background: var(--surface-page);
+  border-block-end: var(--hairline);
+}
+
+.group {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.groupTitle {
+  display: none;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+
+.items {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--target-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  font-size: var(--type-13);
+  white-space: nowrap;
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+  text-decoration: none;
+}
+
+.link:hover {
+  border-color: var(--ink-muted);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.link[aria-current='location'] {
+  border-color: var(--signal-active-ink);
+  color: var(--signal-active-ink);
+  background: var(--signal-active);
+}
+
+.dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--signal-warning-ink);
+}
+
+@container settings (inline-size >= 64rem) {
+  .nav {
+    flex-direction: column;
+    gap: var(--space-4);
+    max-block-size: calc(100vh - var(--sticky-top, 0px) - var(--space-6));
+    padding: 0;
+    overflow-x: visible;
+    overflow-y: auto;
+    border-block-end: 0;
+    background: transparent;
+  }
+
+  .group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .groupTitle {
+    display: block;
+  }
+
+  .items {
+    flex-direction: column;
+  }
+
+  .link {
+    inline-size: 100%;
+    min-block-size: 32px;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .link[aria-current='location'] {
+    border-color: var(--signal-active-ink);
+    background: var(--signal-active);
+  }
+}

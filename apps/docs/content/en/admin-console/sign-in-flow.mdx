@@ -12,13 +12,13 @@ When a person signs in, Odudu asks them for something, then perhaps for somethin
 
 <ConsoleShot
   name="flow"
-  alt="The Sign-in flow page: four steps in order, passkey, password, otp and recovery-code, each with a requirement menu and Up and Down buttons, and the passkey, otp and recovery-code steps with their own settings, each starting at the tenant setting."
+  alt="The Sign-in flow page: four steps in order, passkey, password, otp and recovery-code, each with a requirement menu and a pair of chevron buttons that move it up or down, and the passkey, otp and recovery-code steps with a Settings group of their own, each starting at the tenant setting."
   caption="The steps a person is asked, in order, each with its requirement."
 />
 
 ## 1. Read the steps
 
-Under **Steps**, each row is one thing a person can be asked: a passkey, a password, an `otp` (a one-time password from an authenticator app) or a `recovery-code`. The steps run in the order shown, at every sign-in.
+Under **Steps**, each row is one thing a person can be asked: a passkey, a password, an `otp` (a one-time password from an authenticator app) or a `recovery-code`. The steps run in the order shown, at every sign-in. A row says what the step is in one muted line, and says more only for a step that is disabled. The rule above the list explains required, alternative and conditional steps once.
 
 ## 2. Choose how strictly each is asked
 
@@ -33,7 +33,7 @@ To require a password every time, change **Requirement for password** to **Requi
 
 ## 3. Change the order
 
-Use **Up** and **Down** on a row to move a step. Two alternatives that end up apart are no longer one run, so check the order you leave behind.
+Use the up and down chevrons at the end of a row to move a step, named **Move** and the step and the direction for a screen reader. A step that cannot go further in a direction has that chevron faded out. Two alternatives that end up apart are no longer one run, so check the order you leave behind.
 
 ## Add a step
 
@@ -58,7 +58,7 @@ The steps above are those of the tenant's default flow, which every sign-in runs
 
 ## Authenticator settings on a step
 
-The enrolment settings under **Authenticators** in [Settings](./settings.mdx#authenticators) are the tenant's. A step of an authenticator that has settings can override them for itself, so one flow can ask for 8-digit codes while the rest of the tenant keeps 6. Under each such step the editor shows its controls, each starting at **Tenant setting** with the tenant's value beside it:
+The enrolment settings under **Authenticators** in [Settings](./settings.mdx#authenticators) are the tenant's. A step of an authenticator that has settings can override them for itself, so one flow can ask for 8-digit codes while the rest of the tenant keeps 6. Under each such step the editor shows a **Settings** group with its controls, named as they are under [Authenticators](./settings.mdx#authenticators), and each starting at **Tenant setting** with the tenant's value beside it:
 
 - `otp`: **Algorithm**, **Code length** and **Code period**.
 - `passkey`: **User verification** and **Stored on the device**.
@@ -70,7 +70,7 @@ A person who enrols during a sign-in is enrolled under the flow that sign-in run
 
 ## Passkeys
 
-A passkey step does nothing for a person until they have registered a passkey. To ask everyone for one, turn on **Require a passkey** under **Authenticators** in [Settings](./settings.mdx#asking-everyone-for-a-passkey). To ask one person, tick **Register a passkey** under **Required actions** on their record, or email them the link, and they register one in their browser at their next sign-in. A passkey is tied to the host name of the address the tenant signs in at: the server's public address, `ODUDU_PUBLIC_BASE_URL`, or the tenant's domain once it has one. If that host changes, because the tenant switches to a domain or back, passkeys made under the old one are not offered until the address is switched back, and nothing is deleted. If the server's own host changes, they stop working. Browsers offer passkeys only on an https address, or on `localhost`.
+A passkey step does nothing for a person until they have registered a passkey. To ask everyone for one, turn on **Require a passkey** under **Passkey requirement** in [Settings](./settings.mdx#asking-everyone-for-a-passkey). To ask one person, tick **Register a passkey** under **Required actions** on their record, or email them the link, and they register one in their browser at their next sign-in. A passkey is tied to the host name of the address the tenant signs in at: the server's public address, `ODUDU_PUBLIC_BASE_URL`, or the tenant's domain once it has one. If that host changes, because the tenant switches to a domain or back, passkeys made under the old one are not offered until the address is switched back, and nothing is deleted. If the server's own host changes, they stop working. Browsers offer passkeys only on an https address, or on `localhost`.
 
 ## Things that cannot be undone, or that lock people out
 

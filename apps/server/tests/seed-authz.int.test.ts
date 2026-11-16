@@ -900,3 +900,46 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     expect(rows[0]?.name).toBe('Ada Lovelace');
   });
 });
+
+describe('seed assign-scope and the me scopes', () => {
+  async function client(): Promise<string> {
+    const tenantName = `me-scope-${newId()}`;
+    await seed(['tenant', '--name', tenantName]);
+    await seed([
+      'client',
+      '--tenant',
+      tenantName,
+      '--client-id',
+      'app',
+      '--public',
+      '--redirect-uri',
+      REDIRECT_URI,
+    ]);
+    return tenantName;
+  }
+  const assign = (tenantName: string, scope: string) =>
+    seed([
+      'assign-scope',
+      '--tenant',
+      tenantName,
+      '--client-id',
+      'app',
+      '--scope',
+      scope,
+      '--assignment',
+      'optional',
+    ]);
+
+  it('refuses me:write for a client that does not hold me:read, as the admin API does', async () => {
+    const tenantName = await client();
+    await expect(assign(tenantName, 'me:write')).rejects.toThrow(
+      /me:write is held only together with me:read/u,
+    );
+  });
+
+  it('accepts me:write once the client holds me:read', async () => {
+    const tenantName = await client();
+    await assign(tenantName, 'me:read');
+    await expect(assign(tenantName, 'me:write')).resolves.toMatchObject({ scope: 'me:write' });
+  });
+});

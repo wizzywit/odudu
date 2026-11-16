@@ -1,10 +1,15 @@
+import { PASSWORD } from '#/pages/settings/services/passwordSection';
 import { PROFILE } from '#/pages/settings/services/profileSection';
-import { AUTHENTICATORS } from '#/pages/settings/services/authenticatorsSection';
+import {
+  AUTHENTICATORS,
+  PASSKEY_REQUIREMENT,
+} from '#/pages/settings/services/authenticatorsSection';
 import type { SettingsSection } from '#/pages/settings/services/sectionTypes';
+
+export { PASSWORD_SECTION } from '#/pages/settings/services/passwordSection';
 
 export const GENERAL_SECTION = 'general';
 export const LOCKOUT_SECTION = 'brute-force';
-export const PASSWORD_SECTION = 'password';
 export const TERMS_SECTION = 'terms';
 
 export const ACCESS_SECTIONS: readonly SettingsSection[] = [
@@ -19,7 +24,13 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         control: 'text',
         description: 'Leave it empty to use the tenant name.',
       },
-      { name: 'enabled', label: 'Enabled', control: 'toggle' },
+      {
+        name: 'enabled',
+        label: 'Enabled',
+        control: 'toggle',
+        description:
+          'Off stops every sign-in in this tenant. Saving it off asks you to type the tenant name first.',
+      },
     ],
   },
   {
@@ -56,8 +67,8 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         name: 'session_freshness_seconds',
         label: 'Recent sign-in window',
         control: 'seconds',
-        description:
-          'A person must have signed in this recently to change their address or username, end all their other sessions, withdraw a consent or remove an authenticator.',
+        description: 'How recently a person must have signed in to change something sensitive.',
+        more: 'A person must have signed in this recently to change their address or username, end all their other sessions, withdraw a consent or remove an authenticator.',
       },
     ],
   },
@@ -127,12 +138,12 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
     id: TERMS_SECTION,
     title: 'Terms',
     description:
-      'The terms a person accepts when asked to. Setting them asks nobody: an administrator asks a person under Required actions, and again when the terms change.',
+      'The terms a person accepts when asked to. Setting them asks nobody: an administrator asks a person from the Required actions tab of their record, and again when the terms change.',
     fields: [
       {
         name: 'terms_uri',
         label: 'Terms address',
-        control: 'text',
+        control: 'url',
         description:
           'An https address, or http to this machine, with no fragment. Leave it empty for no terms.',
       },
@@ -140,6 +151,7 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         name: 'terms_version',
         label: 'Terms version',
         control: 'text',
+        short: true,
         description:
           'Up to 64 characters. A person accepts one version. Changing it asks nobody again by itself.',
       },
@@ -147,6 +159,7 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
   },
   PROFILE,
   AUTHENTICATORS,
+  PASSKEY_REQUIREMENT,
   {
     id: 'usernames',
     title: 'Usernames',
@@ -166,70 +179,7 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
       },
     ],
   },
-  {
-    id: PASSWORD_SECTION,
-    title: 'Password policy',
-    description: 'What a password must satisfy when somebody sets or changes one.',
-    fields: [
-      {
-        name: 'password_min_length',
-        label: 'Minimum length',
-        control: 'count',
-        unit: 'characters',
-      },
-      { name: 'password_require_digit', label: 'Require a digit', control: 'toggle' },
-      {
-        name: 'password_require_uppercase',
-        label: 'Require an uppercase letter',
-        control: 'toggle',
-      },
-      {
-        name: 'password_require_lowercase',
-        label: 'Require a lowercase letter',
-        control: 'toggle',
-      },
-      { name: 'password_require_special', label: 'Require a special character', control: 'toggle' },
-      { name: 'password_not_username', label: 'Refuse the username', control: 'toggle' },
-      { name: 'password_not_email', label: 'Refuse the email address', control: 'toggle' },
-      {
-        name: 'password_history_depth',
-        label: 'Passwords remembered',
-        control: 'count',
-        unit: 'passwords',
-        description: 'A new password may not repeat one of this many before it. 0 remembers none.',
-      },
-      {
-        name: 'password_max_age_days',
-        label: 'Password lifetime',
-        control: 'count',
-        unit: 'days',
-        description: 'A password older than this has to be changed. 0 never expires one.',
-      },
-      {
-        name: 'breached_check',
-        label: 'Check against known breaches',
-        control: 'choice',
-        description:
-          'A new password that passed the rules above is refused if it is a password known from breaches. The dataset is the hash list an operator loaded into the server, and nothing leaves it. Remote asks a range service for the first five characters of the SHA-1 hash and nothing else. Off skips the check, and the audit trail records that.',
-        options: [
-          { id: 'off', label: 'Off' },
-          { id: 'dataset', label: 'Dataset loaded on the server' },
-          { id: 'remote', label: 'Remote range lookup' },
-        ],
-      },
-      {
-        name: 'breached_on_error',
-        label: 'When a remote lookup fails',
-        control: 'choice',
-        description:
-          'Applies to the remote lookup only, when it times out, is refused or is too busy. The dataset has no such failure.',
-        options: [
-          { id: 'open', label: 'Accept the password' },
-          { id: 'closed', label: 'Refuse it and ask to try again' },
-        ],
-      },
-    ],
-  },
+  PASSWORD,
   {
     id: LOCKOUT_SECTION,
     title: 'Brute force',

@@ -68,6 +68,8 @@ export interface RequiredActionResponseDeps extends ContinuationDeps {
   pendingActions(tenantId: string, subjectId: string): Promise<readonly RequiredAction[]>;
   // Whether the subject has a password at all.
   holdsPassword(tenantId: string, subjectId: string): Promise<boolean>;
+  // Whether the sign-in ran a passkey assertion that verified the person.
+  signedInWithVerifiedPasskey(tenantId: string, authSessionId: string): Promise<boolean>;
   // The step an action an application requested has reached: audited, and
   // when it is an ending, parked for the response.
   recordActionStep(
@@ -173,7 +175,7 @@ export async function sendRequiredActionPage(
               tenantName,
               tenantAddressOf(reply.request),
               authSessionId,
-              issued.retryInMinutes,
+              { minutes: issued.retryInMinutes, seconds: issued.retryInSeconds },
               variant,
               locale,
             ),
@@ -194,18 +196,20 @@ export async function sendRequiredActionPage(
   }
   if (action === 'update-password') {
     const tenant = await deps.findTenant(tenantName);
-    // A person who signs in without a password has none to prove or change.
+    // A person who signs in without a password has none to prove or change; they
+    // may set a first one only on a sign-in whose passkey verified them.
+    const holds = tenant === null ? true : await deps.holdsPassword(tenant.id, subjectId);
     if (
       tenant !== null &&
-      variant === 'requested' &&
-      !(await deps.holdsPassword(tenant.id, subjectId))
+      !holds &&
+      !(await deps.signedInWithVerifiedPasskey(tenant.id, authSessionId))
     ) {
       await record('error');
       return sendActionUnavailable(reply, deps, tenantName, authSessionId);
     }
     if (tenant !== null) {
       return send(
-        pages.updatePassword(
+        (holds ? pages.updatePassword : pages.firstPassword)(
           tenantName,
           tenantAddressOf(reply.request),
           authSessionId,

@@ -8,17 +8,33 @@ import { ConsoleShot } from '@site/src/shared/ui/ConsoleShot';
 
 # Settings in the console
 
-Most of what makes one tenant behave differently from another is a setting: how long a sign-in lasts, whether people may register themselves, what a password must contain, how many wrong guesses lock an account. They all live on one page, in sections you can reach from a row of names at the top, and each section saves on its own. It needs the `manage-tenant` capability; the menu entry is **Settings** under **TENANT**.
+Most of what makes one tenant behave differently from another is a setting: how long a sign-in lasts, whether people may register themselves, what a password must contain, how many wrong guesses lock an account. They all live on one page, in sections you can reach from a list of names that stays in view as you scroll, and each section saves on its own. It needs the `manage-tenant` capability; the menu entry is **Settings** under **TENANT**.
 
 <ConsoleShot
   name="settings"
-  alt="The Settings page: a row of section names from General to Audit retention, then the General and Sessions sections with their fields."
+  alt="The Settings page: a strip of section links from General to Audit retention, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min."
   caption="Every section of the settings saves on its own."
 />
 
 ## 1. Find the section
 
-Choose a name from the row at the top to jump to it: **General**, **Sessions**, **Remember me**, **Registration and recovery**, **Terms**, **Profile**, **Authenticators**, **Usernames**, **Password policy**, **Brute force**, **Token lifetimes**, **Client registration** and **Audit retention**. Each field says what it does and the range the server accepts. Durations show the plain reading beside the seconds, for example `1800 s · 30 minutes`.
+The list of sections is made of links, so a section can be opened from a bookmark or sent to somebody. It stays at the top of the screen as a strip, and beside the sections as a rail when the page is wide. It names the sections under five headings:
+
+- **Tenant**: **General**, **Terms** and **Profile**.
+- **Sign-in**: **Usernames**, **Registration and recovery**, **Authenticators**, **Passkey requirement**, **Password policy** and **Brute force**.
+- **Sessions and tokens**: **Sessions**, **Remember me** and **Token lifetimes**.
+- **Applications**: **Client registration**.
+- **Records**: **Audit retention**.
+
+Choosing a name moves to that section and puts the focus on its heading. The section in view is marked, and a section with changes you have not saved has a dot, so one scrolled out of sight is not forgotten.
+
+<ConsoleShot
+  name="settings-rail"
+  alt="The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications and Records, with the section in view marked."
+  caption="On a wide screen the list stays beside the sections, grouped, with the section in view marked."
+/>
+
+Each field says what it does and the range the server accepts, as one line such as _Allowed: 1 minute to 30 days_. A longer explanation is folded under **More**. A duration is typed as a number with a unit menu beside it (`s`, `min`, `h` or `d`) and the console opens it in the largest unit that holds the value exactly, so 1800 seconds shows as `30 min`. A unit the value is not a whole count of is greyed out in the menu, so choosing a unit never changes the setting; what is saved is always seconds. A value outside the range is marked before you save.
 
 ## 2. Change a section and save it
 
@@ -90,6 +106,12 @@ The link stops working once it is used, and it asks for one click first, so a ma
 
 ### Terms
 
+<ConsoleShot
+  name="settings-profile"
+  alt="The Terms and Profile sections of the Settings page. Terms has an address field and a short version field. Profile lists the twenty fields a person can edit under Name, On the web, About the person, Contact and Address, in columns."
+  caption="The Terms section, and the Profile section with its fields grouped."
+/>
+
 - **Terms address** (`terms_uri`): where the terms are published. An https address, or http to this machine, with no fragment. Leave it empty for none; the admin API clears it with an empty string.
 - **Terms version** (`terms_version`): up to 64 characters, `1` by default. A person accepts one version.
 
@@ -97,22 +119,29 @@ Setting the address asks nobody. An administrator ticks **Accept the terms** on 
 
 ### Profile
 
-- **Required profile fields** (`required_profile_fields`): the claims the **Complete the profile** action needs a person to have before it ends, chosen from the twenty a person can edit through the me API (**Full name**, **Given name**, **Family name**, **Middle name**, **Nickname**, **Preferred username**, **Profile page**, **Picture address**, **Website**, **Gender**, **Birthdate**, **Time zone**, **Language**, **Phone number**, **Address**, **Street**, **City**, **Region**, **Postal code** and **Country**). **Given name** and **Family name** by default. The email address is never among them: an address is changed through its own proof.
+- **Required profile fields** (`required_profile_fields`): the claims the **Complete the profile** action needs a person to have before it ends, chosen from the twenty a person can edit through the me API, listed under five headings and laid out in columns: **Name** (**Full name**, **Given name**, **Family name**, **Middle name**, **Nickname** and **Preferred username**), **On the web** (**Profile page**, **Picture address** and **Website**), **About the person** (**Gender**, **Birthdate**, **Time zone** and **Language**), **Contact** (**Phone number**) and **Address** (**Address**, **Street**, **City**, **Region**, **Postal code** and **Country**). **Given name** and **Family name** by default. The email address is never among them: an address is changed through its own proof.
 
 The page the person sees lists every field they can edit, with what they hold, and marks the required ones. It ends when every required field has a value after the form is sent; the other fields are optional, and every value sent is checked by the rules `PATCH /me/profile` applies, all the refusals at once. Nothing is written until the whole form is acceptable. Choose none and the page is only reviewed and submitted. An empty list is saved as an empty list; the admin API takes `[]`.
 
 ### Authenticators
 
-- **Authenticator app algorithm** (`totp_algorithm`): **SHA1**, **SHA256** or **SHA512**. `SHA1` is the default and the one every authenticator app supports.
-- **Authenticator app code length** (`totp_digits`): **6 digits** or **8 digits**.
-- **Authenticator app code period** (`totp_period`): **30 seconds** or **60 seconds**.
-- **Passkey user verification** (`webauthn_user_verification`): **Required**, **Preferred** or **Discouraged**, the WebAuthn values of the same names (`required`, `preferred`, `discouraged`). Required is the default.
-- **Passkey stored on the device** (`webauthn_resident_key`): **Required**, **Preferred** or **Discouraged**, with the same three values. Required is the default.
-- **Require a passkey** (`require_passkey`): off by default. On, a person who signs in and holds no passkey for the address they signed in at is asked to register one before the sign-in completes. It does nothing where the deployment has no public base URL (`ODUDU_PUBLIC_BASE_URL`), or one that is an IP address, unless the tenant has a domain of its own: nobody is asked, whatever the switch says. [Asking everyone for a passkey](#asking-everyone-for-a-passkey) says what that does and does not touch.
-- **Recovery codes in a set** (`recovery_code_count`): how many codes a newly issued set holds, 8 to 16 and 10 by default.
-- **Recovery code warning** (`recovery_code_warn_below`): a person left with fewer unspent recovery codes than this is flagged by `recovery_codes_low` in the "me" API's credentials answer. 3 by default, 0 to 10 and no more than the size of a set, and 0 turns the warning off.
+<ConsoleShot
+  name="settings-authenticators"
+  alt="The Authenticators and Passkey requirement sections of the Settings page. Authenticators has three groups: Authenticator app with algorithm, code length and code period, Passkeys, and Recovery codes. Passkey requirement is a single switch."
+  caption="Authenticators in three groups, and the passkey requirement in a section of its own."
+/>
 
-The enrolment settings above apply to the next enrolment; **Require a passkey** is a sign-in policy and acts on people who are already enrolled, at their next sign-in. An authenticator app keeps the algorithm, digits and period it was made with and is checked by them, so changing the tenant's choice strands nobody; a person who wants the new parameters enrols the app again. A passkey keeps the user verification and resident key it was made with, and a set of recovery codes keeps its size. A step of the [sign-in flow](./sign-in-flow.mdx#authenticator-settings-on-a-step) can override any of the enrolment settings above for itself, and what it leaves out takes the value set here. A person who is enrolling an app is shown what it must support when the parameters are not `SHA1`, 6 digits and 30 seconds, because many apps do not support the others and a code the app cannot make never confirms. Choose them only for an app you know.
+The section has three groups, one for each kind of authenticator.
+
+- **Authenticator app**: **Algorithm** (`totp_algorithm`), **SHA1**, **SHA256** or **SHA512**, where `SHA1` is the default and the one every authenticator app supports. **Code length** (`totp_digits`), **6 digits** or **8 digits**. **Code period** (`totp_period`), **30 seconds** or **60 seconds**.
+- **Passkeys**: **User verification** (`webauthn_user_verification`), **Required**, **Preferred** or **Discouraged**, the WebAuthn values of the same names (`required`, `preferred`, `discouraged`), with Required the default. **Stored on the device** (`webauthn_resident_key`), the same three values and the same default.
+- **Recovery codes**: **Codes in a set** (`recovery_code_count`), how many codes a newly issued set holds, 8 to 16 and 10 by default. **Warn when fewer than** (`recovery_code_warn_below`), where a person left with fewer unspent recovery codes than this is flagged by `recovery_codes_low` in the "me" API's credentials answer. 3 by default, 0 to 10 and no more than the size of a set, and 0 turns the warning off.
+
+### Passkey requirement
+
+- **Require a passkey** (`require_passkey`): off by default. On, a person who signs in and holds no passkey for the address they signed in at is asked to register one before the sign-in completes. It does nothing where the deployment has no public base URL (`ODUDU_PUBLIC_BASE_URL`), or one that is an IP address, unless the tenant has a domain of its own: nobody is asked, whatever the switch says. [Asking everyone for a passkey](#asking-everyone-for-a-passkey) says what that does and does not touch.
+
+The enrolment settings above apply to the next enrolment; **Require a passkey**, in its own section, is a sign-in policy and acts on people who are already enrolled, at their next sign-in. An authenticator app keeps the algorithm, digits and period it was made with and is checked by them, so changing the tenant's choice strands nobody; a person who wants the new parameters enrols the app again. A passkey keeps the user verification and resident key it was made with, and a set of recovery codes keeps its size. A step of the [sign-in flow](./sign-in-flow.mdx#authenticator-settings-on-a-step) can override any of the enrolment settings above for itself, and what it leaves out takes the value set here. A person who is enrolling an app is shown what it must support when the parameters are not `SHA1`, 6 digits and 30 seconds, because many apps do not support the others and a code the app cannot make never confirms. Choose them only for an app you know.
 
 A passkey made without user verification can still give a verified sign-in, but when an assertion lacks verification it proves possession of a key and nothing else, so that sign-in is one factor and not two. The person is still asked for an authenticator app code where they have one or the tenant requires one. A sign-in by that passkey alone reports `acr` `1` and no `user` method; with the authenticator app step also completed, the token reports `acr` `2`. Choose `preferred` or `discouraged` only if you accept that. Sign-in always asks the browser for `preferred` verification, and each passkey is then judged by the policy it was made under: a passkey made while verification was required is refused when its assertion lacks verification, whatever the tenant has chosen since, and a passkey made under `preferred` still signs in after the tenant moves to `required`.
 
@@ -137,13 +166,21 @@ With **Require a passkey** on, a sign-in that completes adds the `configure-pass
 
 ### Password policy
 
+<ConsoleShot
+  name="settings-password"
+  alt="The Password policy section of the Settings page, in four groups: Length and complexity, Must not contain, Reuse and age, and Breached passwords, where the setting for a failed remote lookup is dimmed because the check is not set to the remote lookup."
+  caption="The password policy in groups; the remote lookup setting waits for the remote lookup."
+/>
+
+The fields sit in four groups: **Length and complexity**, **Must not contain**, **Reuse and age** and **Breached passwords**.
+
 - **Minimum length** (`password_min_length`), 8 to 256 characters.
 - **Require a digit**, **Require an uppercase letter**, **Require a lowercase letter** and **Require a special character** (`password_require_digit`, `password_require_uppercase`, `password_require_lowercase`, `password_require_special`).
 - **Refuse the username** (`password_not_username`) and **Refuse the email address** (`password_not_email`): a password may not be only that.
 - **Passwords remembered** (`password_history_depth`): a new password may not repeat one of this many before it. 0 remembers none, 24 is the most.
 - **Password lifetime** (`password_max_age_days`): a password older than this must be changed. 0 never expires one.
 - **Check against known breaches** (`breached_check`): **Off**, **Dataset loaded on the server** (`dataset`, the default) or **Remote range lookup** (`remote`). [Passwords known from breaches](#passwords-known-from-breaches) says what each does.
-- **When a remote lookup fails** (`breached_on_error`): **Accept the password** (`open`, the default) or **Refuse it and ask to try again** (`closed`). It applies to the remote lookup only.
+- **When a remote lookup fails** (`breached_on_error`): **Accept the password** (`open`, the default) or **Refuse it and ask to try again** (`closed`). It applies to the remote lookup only, so the console dims it, and says so, unless **Check against known breaches** is set to the remote lookup.
 - `otp_required` is the **Ask every subject for a one-time password** switch of [Sign-in flow](./sign-in-flow.mdx).
 
 #### Passwords known from breaches

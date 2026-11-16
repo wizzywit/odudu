@@ -70,7 +70,7 @@ import {
   registerResourceMetadataRoute,
   type ToolLimiterOptions,
 } from '@odudu/mcp';
-import { registerMeRoutes } from '@odudu/me';
+import { isMeRoute, meRefusalHeaders, registerMeRoutes } from '@odudu/me';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -270,6 +270,19 @@ export interface AppDeps {
    * anything is read for them. Defaults to `DEFAULT_MCP_ORIGIN_THROTTLE`.
    */
   readonly mcpOriginThrottle?: ThrottleSettings;
+  /**
+   * The budget per origin on the "me" routes, a preflight included, spent before
+   * the token is looked at. Defaults to `DEFAULT_ME_ORIGIN_THROTTLE`.
+   */
+  readonly meOriginThrottle?: ThrottleSettings;
+  /**
+   * How many refused "me" requests an origin may have answered with the
+   * origin's own allowance, which costs two reads. Defaults to
+   * `DEFAULT_ME_REFUSAL_THROTTLE`.
+   */
+  readonly meRefusalThrottle?: ThrottleSettings;
+  /** The clock of the two "me" limiters, so a test can fix it. */
+  readonly meThrottleNow?: () => Date;
   /** The proxy's domain question; its own budget, per origin. */
   readonly domainCheckThrottle?: ThrottleSettings;
   /**
@@ -338,6 +351,26 @@ export const DEFAULT_DOMAIN_CHECK_THROTTLE: ThrottleSettings = { limit: 300, win
 // bounds what garbage tokens can cost in tenant and key reads before the
 // per-principal budget, which needs a verified token, applies.
 export const DEFAULT_MCP_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, windowSeconds: 60 };
+
+// An application's backend calls the "me" routes for many people from one
+// address, so the budget is that of the MCP endpoint: generous, and a bound on
+// what one origin can make the server verify, not a limit on a person.
+export const DEFAULT_ME_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, windowSeconds: 60 };
+
+// A refused request is answered before anything about it is read; the origin's
+// allowance, which lets a script see the refusal, costs two reads, so only this
+// many an origin a minute get it.
+export const DEFAULT_ME_REFUSAL_THROTTLE: ThrottleSettings = { limit: 60, windowSeconds: 60 };
+
+function tenantParam(request: { readonly params: unknown }): string | undefined {
+  const params = request.params;
+  return typeof params === 'object' &&
+    params !== null &&
+    'tenant' in params &&
+    typeof params.tenant === 'string'
+    ? params.tenant
+    : undefined;
+}
 
 export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
 
@@ -626,6 +659,35 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     neutraliseRequestInput(request);
   });
 
+  // The "me" routes verify a token before they know whose request it is, so an
+  // origin spends its own budget first, whichever method it uses.
+  const meNow = deps.meThrottleNow ?? (() => new Date());
+  const meOriginLimiter: RateLimiter = slidingWindow({
+    ...(deps.meOriginThrottle ?? DEFAULT_ME_ORIGIN_THROTTLE),
+    now: meNow,
+  });
+  const meRefusalLimiter: RateLimiter = slidingWindow({
+    ...(deps.meRefusalThrottle ?? DEFAULT_ME_REFUSAL_THROTTLE),
+    now: meNow,
+  });
+  app.addHook('onRequest', async (request, reply) => {
+    const route = request.routeOptions.url;
+    if (!isMeRoute(route)) return;
+    const decision = meOriginLimiter.check(throttleOrigin(request.ip));
+    if (decision.allowed) return;
+    // Without the origin's allowance a script sees a network error, not the
+    // wait; with it, only for as many refusals as the second budget allows.
+    const tenant = tenantParam(request);
+    if (
+      tenant !== undefined &&
+      request.headers.origin !== undefined &&
+      meRefusalLimiter.check(throttleOrigin(request.ip)).allowed
+    ) {
+      reply.headers(await meRefusalHeaders(meDeps, tenant, request.headers.origin));
+    }
+    return refuse(reply, route ?? '', decision.retryAfterSeconds);
+  });
+
   // After the throttle, so a throttled request costs no statement about its
   // tenant. A domain host's own lookup cannot wait: it decides the route.
   app.addHook('onRequest', pathAddressCheck);
@@ -830,21 +892,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     ),
   );
   const mailGate = deps.mailGate ?? createMailGate(() => systemClock.now());
-  registerMeRoutes(
-    app,
-    meRouteDepsFor({
-      database: deps.database,
-      ownerDatabase: deps.ownerDatabase,
-      kek: deps.kek,
-      logger: deps.logger,
-      publicBaseUrl: deps.publicBaseUrl,
-      mail: {
-        resolveMailLook: mailLook,
-        mailGate,
-        deploymentSmtp: deps.deploymentSmtp ?? false,
-      },
-    }),
-  );
+  const meDeps = meRouteDepsFor({
+    database: deps.database,
+    ownerDatabase: deps.ownerDatabase,
+    kek: deps.kek,
+    logger: deps.logger,
+    publicBaseUrl: deps.publicBaseUrl,
+    mail: {
+      resolveMailLook: mailLook,
+      mailGate,
+      deploymentSmtp: deps.deploymentSmtp ?? false,
+    },
+  });
+  registerMeRoutes(app, meDeps);
 
   // getCurrentEmail, markVerified and setPassword are the only points where
   // @odudu/account reaches @odudu/domain-identity's users and credentials

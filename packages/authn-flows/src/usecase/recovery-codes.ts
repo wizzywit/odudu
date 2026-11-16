@@ -11,6 +11,7 @@ import {
   reissueAllowed,
   reissueCutoff,
   retryInMinutes,
+  retryInSeconds,
 } from '#/service/authenticators/recovery-reissue';
 import { type RecoveryCodesOffer } from '#/view/recovery-codes-html';
 
@@ -30,7 +31,7 @@ export interface IssueRecoveryCodes {
 export type BeginRecoveryCodesOutcome =
   | { kind: 'issued'; offer: RecoveryCodesOffer }
   | { kind: 'ask'; replaces: boolean }
-  | { kind: 'too_soon'; retryAt: Date; retryInMinutes: number }
+  | { kind: 'too_soon'; retryAt: Date; retryInMinutes: number; retryInSeconds: number }
   | { kind: 'no_second_factor' };
 
 // Returns the plaintext codes exactly once, to the page that shows them:
@@ -79,6 +80,7 @@ export async function beginRecoveryCodes(
       kind: 'too_soon',
       retryAt: verdict.retryAt,
       retryInMinutes: retryInMinutes(verdict.retryAt, input.now),
+      retryInSeconds: retryInSeconds(verdict.retryAt, input.now),
     };
   };
 
@@ -88,7 +90,7 @@ export async function beginRecoveryCodes(
   const claimed = await subjects.claimRecoveryIssue(
     input.subjectId,
     input.now,
-    reissueCutoff(input.now),
+    reissueCutoff(input.now, reissue),
     bypassesBound(reissue),
   );
   if (!claimed) {

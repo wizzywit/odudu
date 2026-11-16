@@ -80,6 +80,7 @@ const requiredAction = (app: FastifyInstance): void => {
   registerRequiredActionRoute(app, {
     ...continuationDeps,
     authenticatedSubject: vi.fn().mockResolvedValue('s1'),
+    holdsPassword: vi.fn().mockResolvedValue(true),
   } as unknown as RequiredActionRouteDeps);
 };
 

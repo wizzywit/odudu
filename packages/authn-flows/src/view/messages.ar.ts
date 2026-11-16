@@ -136,6 +136,9 @@ export const ar: Readonly<Record<string, string>> = {
   'recoveryCodes.confirmIssue':
     'سينشئ هذا مجموعة من رموز الاسترداد. يتيح كل رمز تسجيل الدخول مرة واحدة بدلًا من عامل التحقق الثاني إذا فقدته.',
   'recoveryCodes.confirmCreate': 'إنشاء رموز الاسترداد',
+  'recoveryCodes.preparing':
+    'أُنشئت مجموعة من رموز الاسترداد قبل لحظات. يمكنك إنشاء مجموعة جديدة وعرضها في هذه الصفحة بعد {seconds, plural, zero {{seconds, number, ::group-off} ثانية} one {ثانية واحدة} two {ثانيتين} few {{seconds, number, ::group-off} ثوانٍ} many {{seconds, number, ::group-off} ثانية} other {{seconds, number, ::group-off} ثانية}}.',
+  'recoveryCodes.tryAgain': 'إنشاء رموز استرداد جديدة',
   'recoveryCodes.tooSoon':
     'صدرت رموز الاسترداد الخاصة بك مؤخرًا وما زالت صالحة. يمكنك استبدالها بعد {minutes, plural, zero {{minutes, number, ::group-off} دقيقة} one {دقيقة واحدة} two {دقيقتين} few {{minutes, number, ::group-off} دقائق} many {{minutes, number, ::group-off} دقيقة} other {{minutes, number, ::group-off} دقيقة}}.',
 };

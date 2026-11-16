@@ -62,10 +62,14 @@ afterAll(async () => {
   await container.stop();
 });
 
+// A preflight carries no token and answers no data, so it is not a route a
+// token opens; the "me" one is checked on its own below.
 const tableOf = (door: string) =>
   registered.filter(
     (route) =>
-      route.url === `/tenants/:tenant/${door}` || route.url.startsWith(`/tenants/:tenant/${door}/`),
+      route.method !== 'OPTIONS' &&
+      (route.url === `/tenants/:tenant/${door}` ||
+        route.url.startsWith(`/tenants/:tenant/${door}/`)),
   );
 
 async function tokenFor(

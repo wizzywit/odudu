@@ -187,9 +187,13 @@
   border-end-end-radius: 0;
 }
 
-.unit {
+.unit,
+.unitSelect {
+  flex: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-inline-size: 7ch;
   padding: 0 var(--space-3);
   border: 1px solid var(--border-strong);
   border-inline-start: 0;
@@ -199,6 +203,16 @@
   font-size: var(--type-13);
   color: var(--ink-muted);
   background: var(--surface-sunken);
+}
+
+.unitSelect {
+  min-inline-size: 5rem;
+  cursor: pointer;
+}
+
+.unitSelect:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
 }
 
 .trigger {
@@ -218,6 +232,13 @@
   color: var(--ink-primary);
   background: var(--surface-panel);
   cursor: pointer;
+}
+
+.trigger[data-disabled] {
+  border-style: dashed;
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+  cursor: not-allowed;
 }
 
 .trigger[data-hovered] {

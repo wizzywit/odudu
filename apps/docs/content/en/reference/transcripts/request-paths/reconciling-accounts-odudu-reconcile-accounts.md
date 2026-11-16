@@ -8,9 +8,10 @@ description: 'Accounts that hold one address in different cases are folded into 
 `users_email_unique` compares addresses byte for byte, so `Grace@Example.com` and
 `grace@example.com` could be two accounts, although registration and a mailed link
 treat them as one address. `odudu reconcile-accounts` finds each such group in every
-tenant and keeps one account. A later release adds a unique index on
-`(tenant_id, email_search)`, which cannot be built while a pair remains, so an
-operator runs this command first.
+tenant and keeps one account. Migration `0139` builds a unique index on
+`(tenant_id, email_search)`, which cannot be built while a pair remains, so it
+is skipped with a warning until an operator has run this command, and the next
+start builds it.
 
 **What ran before.** A freshly built compose stack (`ODUDU_REAP_ENABLED=false`,
 `ODUDU_OUTBOX_ENABLED=false`), driven only as far as this page shows: no administrator
@@ -224,7 +225,7 @@ odudu reconcile-accounts
 A second run finds only what was refused. Settle those groups by hand, for example by
 disabling one account and clearing its address through
 `PATCH /admin/tenants/<name>/subjects/<id>`, and the command has nothing left, which is what
-the later unique index needs.
+the unique index needs.
 
 A sign-in is seen from a live session, a grant, a credential that was used or an audit row
 recording a successful sign-in. Audit retention and the reaper delete old rows, so a person

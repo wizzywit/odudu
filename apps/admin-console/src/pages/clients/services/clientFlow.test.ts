@@ -16,7 +16,7 @@ const FLOWS = [
 describe('flowChoices', () => {
   it('offers the tenant default first, then each flow by name with the current default marked', () => {
     expect(flowChoices(FLOWS, null)).toEqual([
-      { id: AUTO, label: TENANT_DEFAULT },
+      { id: AUTO, label: `${TENANT_DEFAULT}: default` },
       { id: 'f-1', label: 'default (the current default)' },
       { id: 'f-2', label: 'staff' },
     ]);

@@ -12,4 +12,14 @@ export interface MeSessionAuth {
     lifespans: MeSessionLifespans,
     now: Date,
   ): Promise<Date | null>;
+  // The authenticators the sign-in behind the session ran, or null when the
+  // session is not live. One read by primary key, made only for a change that
+  // asks for an authentication class.
+  authenticators(
+    tenantId: string,
+    subjectId: string,
+    sessionId: string,
+    lifespans: MeSessionLifespans,
+    now: Date,
+  ): Promise<readonly string[] | null>;
 }

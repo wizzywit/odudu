@@ -83,6 +83,22 @@
     "width": 1100,
     "height": 900
   },
+  "settings-rail": {
+    "width": 1500,
+    "height": 1000
+  },
+  "settings-profile": {
+    "width": 1100,
+    "height": 1070
+  },
+  "settings-authenticators": {
+    "width": 1100,
+    "height": 1040
+  },
+  "settings-password": {
+    "width": 1100,
+    "height": 890
+  },
   "email": {
     "width": 1100,
     "height": 900

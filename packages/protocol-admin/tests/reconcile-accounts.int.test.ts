@@ -11,8 +11,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { accountReconcileRepository } from '#/repository/account-reconcile';
 import { reconcileDuplicateAccounts, reconcileGroup } from '#/usecase/reconcile-accounts';
 
-// The statement the later release's migration carries, built here against
-// the real schema so that what the operating notes say is what runs.
+// The statement migration 0139 and the start-up step carry. The index is
+// dropped for these tests, since they make the pairs the command folds, which
+// a database with the index cannot hold; it is built again where the tests say.
 const UNIQUE_INDEX =
   'CREATE UNIQUE INDEX users_email_search_unique ON users (tenant_id, email_search) WHERE email_search IS NOT NULL';
 
@@ -24,6 +25,7 @@ beforeAll(async () => {
   container = await startTestDatabase();
   owner = createDatabase(container.adminUrl, { max: 4 });
   await runMigrations(owner.db, MIGRATIONS_DIR);
+  await owner.sql`drop index if exists users_email_search_unique`;
   app = createDatabase(await createAppRole(container.adminUrl), { max: 4 });
 }, 180_000);
 

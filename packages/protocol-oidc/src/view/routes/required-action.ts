@@ -50,6 +50,17 @@ async function variantFor(
   return requestedVariant(requestedAction, owed) === action ? 'requested' : undefined;
 }
 
+// Whether the person behind the sign-in holds a password: the form is asked for
+// the current one only if so.
+async function holdsPasswordOf(
+  deps: Pick<RequiredActionRouteDeps, 'authenticatedSubject' | 'holdsPassword'>,
+  tenantId: string,
+  authSessionId: string,
+): Promise<boolean> {
+  const subjectId = await deps.authenticatedSubject(tenantId, authSessionId);
+  return subjectId === null ? true : deps.holdsPassword(tenantId, subjectId);
+}
+
 // Every field the browser posted as text, for the profile form, which picks
 // out the ones it asked for and ignores the rest.
 function textFields(body: Record<string, string | string[] | undefined>): Record<string, string> {
@@ -111,7 +122,9 @@ export function registerRequiredActionRoute(
         reply,
         400,
         continuing(
-          pages.updatePassword(
+          ((await holdsPasswordOf(deps, found.id, authSessionId))
+            ? pages.updatePassword
+            : pages.firstPassword)(
             tenantName,
             tenantAddressOf(request),
             authSessionId,
@@ -181,7 +194,9 @@ export function registerRequiredActionRoute(
         reply,
         400,
         continuing(
-          pages.updatePassword(
+          ((await holdsPasswordOf(deps, tenant.id, outcome.authSessionId))
+            ? pages.updatePassword
+            : pages.firstPassword)(
             tenantName,
             tenantAddressOf(request),
             outcome.authSessionId,
@@ -232,12 +247,15 @@ export function registerRequiredActionRoute(
               tenantName,
               tenantAddressOf(request),
               outcome.authSessionId,
-              issued.retryInMinutes,
-              'requested',
+              { minutes: issued.retryInMinutes, seconds: issued.retryInSeconds },
+              outcome.requested ? 'requested' : undefined,
               shown.locale,
             ),
           ),
         );
+      }
+      if (issued.kind !== 'issued' && !outcome.requested) {
+        return sendSignInExpired(reply, deps, tenantName, outcome.authSessionId);
       }
       if (issued.kind !== 'issued') {
         await deps.recordActionStep(
@@ -382,7 +400,7 @@ export function registerRequiredActionRoute(
               tenantName,
               tenantAddressOf(request),
               outcome.authSessionId,
-              issued.retryInMinutes,
+              { minutes: issued.retryInMinutes, seconds: issued.retryInSeconds },
               variant,
               locale,
             ),

@@ -12,6 +12,18 @@ export function rangeSentence(
   unit = '',
 ): string {
   return max === undefined
-    ? `At least ${show(min)}${unit}.`
-    : `Between ${show(min)} and ${show(max)}${unit}.`;
+    ? `Allowed: at least ${show(min)}${unit}.`
+    : `Allowed: ${show(min)} to ${show(max)}${unit}.`;
+}
+
+// Whether a number is outside the range; one not entered is not.
+export function outsideRange(
+  value: number,
+  min: number | undefined,
+  max: number | undefined,
+): boolean {
+  return (
+    Number.isFinite(value) &&
+    ((min !== undefined && value < min) || (max !== undefined && value > max))
+  );
 }

@@ -251,6 +251,10 @@ type CredentialInput =
       readonly detail?: WithReason<{
         ended_other_sessions: boolean;
         breached_check?: BreachedCheckOutcome;
+        // True for the first password of an account that held none, with
+        // `notice` saying whether the owner was told by mail.
+        first_password?: boolean;
+        notice?: 'sent' | 'skipped_unverified' | 'skipped_none';
       }>;
     })
   // `detail.version` is the version of the tenant's terms that was accepted.
@@ -296,7 +300,7 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'factor.offered': ['factor'],
   'client.authenticate': ['method'],
   'session.ended': ['via'],
-  'password.changed': ['ended_other_sessions', 'breached_check'],
+  'password.changed': ['ended_other_sessions', 'breached_check', 'first_password', 'notice'],
   'password.reset': ['breached_check'],
   'account.registered': ['breached_check'],
   'token.issue': ['grant_type', 'scope'],
@@ -356,7 +360,12 @@ function isValidDetailValue(key: string, value: unknown): boolean {
     return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }
   if (key === 'breached_check') return BREACHED_CHECK_OUTCOMES.includes(String(value));
-  if (key === 'user_verified' || key === 'ended_other_sessions' || key === 'carried_over') {
+  if (
+    key === 'user_verified' ||
+    key === 'ended_other_sessions' ||
+    key === 'carried_over' ||
+    key === 'first_password'
+  ) {
     return typeof value === 'boolean';
   }
   if (key === 'survivor' || key === 'loser') return typeof value === 'string';

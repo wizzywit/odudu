@@ -64,7 +64,7 @@ test('every lockout is cleared by keyboard alone', async ({ page }) => {
   await signIn(page, keyed);
   await openSettings(page, keyed.tenant);
   const nav = page.getByRole('navigation', { name: 'On this page' });
-  await nav.getByRole('button', { name: 'Brute force' }).press('Enter');
+  await nav.getByRole('link', { name: 'Brute force' }).press('Enter');
   const button = page.getByRole('button', { name: 'Clear all lockouts' });
   await tabsWithin(40)(page, button);
   await page.keyboard.press('Enter');

@@ -6,10 +6,13 @@ import {
   TENANT_SETTING_ORDERINGS,
   TENANT_SETTING_RANGES,
 } from '@odudu/contracts/admin';
+import { ACCESS_SECTIONS } from '#/pages/settings/services/accessSections';
+import { PLATFORM_SECTIONS } from '#/pages/settings/services/platformSections';
 import { SETTINGS_WORDS } from '#/pages/settings/services/settingsPageWords';
 import { describe, expect, it } from 'vitest';
 import {
   PLACED_ELSEWHERE,
+  SECTION_GROUPS,
   sectionHeadingId,
   SETTINGS_SECTIONS,
 } from '#/pages/settings/services/sections';
@@ -80,15 +83,23 @@ describe('the authenticator policy', () => {
       'totp_period',
       'webauthn_user_verification',
       'webauthn_resident_key',
-      'require_passkey',
       'recovery_code_count',
       'recovery_code_warn_below',
     ]);
   });
 
-  it('separates the sign-in policy from the enrolment parameters and names its prerequisite', () => {
-    expect(home?.description).toContain('whether sign-in asks everyone for a passkey');
-    expect(named('require_passkey')?.description).toContain('no public base URL');
+  it('lays the fields out in three groups, one per kind of authenticator', () => {
+    expect([...new Set(home?.fields.map((field) => field.group))]).toEqual([
+      'Authenticator app',
+      'Passkeys',
+      'Recovery codes',
+    ]);
+  });
+
+  it('keeps the sign-in policy in a section of its own and names its prerequisite', () => {
+    const policy = SETTINGS_SECTIONS.find((section) => section.id === 'passkey-requirement');
+    expect(policy?.fields.map((field) => field.name)).toEqual(['require_passkey']);
+    expect(policy?.fields[0]?.more).toContain('no public base URL');
   });
 
   it('offers exactly the values the server accepts, digits and period as numbers', () => {
@@ -125,16 +136,20 @@ describe('the breached-password check', () => {
     expect(named('breached_check')?.options?.find((option) => option.id === 'off')?.label).toBe(
       'Off',
     );
-    expect(named('breached_on_error')?.description).toContain('remote');
+    expect(named('breached_on_error')?.dependsOn).toEqual({
+      on: 'breached_check',
+      value: 'remote',
+      otherwise: 'Applies to the remote lookup only.',
+    });
   });
 });
 
 describe('the terms', () => {
   const home = SETTINGS_SECTIONS.find((section) => section.id === 'terms');
 
-  it('are two text settings in a section of their own, address first', () => {
+  it('are an address and a version in a section of their own, address first', () => {
     expect(home?.fields.map((field) => [field.name, field.control])).toEqual([
-      ['terms_uri', 'text'],
+      ['terms_uri', 'url'],
       ['terms_version', 'text'],
     ]);
   });
@@ -156,6 +171,29 @@ describe('the required profile fields', () => {
 
   it('fix none of them, since an empty list is allowed', () => {
     expect(home?.fields[0]?.options?.some((option) => option.fixed !== undefined)).toBe(false);
+  });
+});
+
+describe('SECTION_GROUPS', () => {
+  it('lists every section once, in the order the page draws them', () => {
+    const listed = SECTION_GROUPS.flatMap((group) => group.ids);
+    expect(listed).toEqual(SETTINGS_SECTIONS.map((section) => section.id));
+    expect(new Set(listed).size).toBe(listed.length);
+    const defined = [...ACCESS_SECTIONS, ...PLATFORM_SECTIONS].map((section) => section.id);
+    expect([...listed].sort()).toEqual([...defined].sort());
+  });
+
+  it('keeps the password rules beside the lockout that guards them', () => {
+    const signIn = SECTION_GROUPS.find((group) => group.title === 'Sign-in')?.ids ?? [];
+    expect(signIn).toEqual(expect.arrayContaining(['password', 'brute-force']));
+  });
+});
+
+describe('the password policy groups', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'password');
+
+  it('puts every field in a group', () => {
+    expect(home?.fields.every((field) => field.group !== undefined)).toBe(true);
   });
 });
 

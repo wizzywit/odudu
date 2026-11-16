@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { MAX_LIMIT } from '@odudu/contracts/me';
 import type { MeAuditEvent, MeWriteTx } from '#/index';
 import { REMOVAL_REFUSAL_MESSAGES, UsernameTakenError } from '#/service/errors';
-import { ME_ROUTES, registerMeRoutes, type MeDeps } from '#/view/routes';
+import { ME_ROUTES, isMeRoute, registerMeRoutes, type MeDeps } from '#/view/routes';
 
 type MeReads = MeDeps['reads'];
 
@@ -72,7 +72,15 @@ function build(
     audits?: MeAuditEvent[];
     // When the session behind the token was signed in to; null for one that is gone.
     signedInAt?: Date | null;
+    // The authenticators the session behind the token ran.
+    authenticators?: readonly string[];
     usernameEditable?: boolean;
+    // The origins the token's client allows, and the tenant's union for a preflight.
+    origins?: readonly string[];
+    // The tenant's origin allowlist cannot be read.
+    originsFail?: boolean;
+    // Each time the door looks a tenant up.
+    door?: string[];
   } = {},
 ) {
   const app = Fastify();
@@ -128,8 +136,9 @@ function build(
         scope: over.scope ?? 'openid me:read me:write',
         ...over.claims,
       }),
-    findTenant: (name) =>
-      Promise.resolve(
+    findTenant: (name) => {
+      over.door?.push(name);
+      return Promise.resolve(
         name === 'acme'
           ? {
               id: 'tenant-1',
@@ -139,7 +148,8 @@ function build(
               usernameEditable: over.usernameEditable ?? true,
             }
           : null,
-      ),
+      );
+    },
     reads,
     sessionAuth: {
       signedInAt: (t, s, sessionId) => {
@@ -148,6 +158,7 @@ function build(
           over.signedInAt === undefined ? new Date(NOW.getTime() - 10_000) : over.signedInAt,
         );
       },
+      authenticators: () => Promise.resolve(over.authenticators ?? ['pwd', 'otp']),
     },
     writes: {
       transact: (tenantId, run) => {
@@ -194,6 +205,14 @@ function build(
         };
         return run(tx);
       },
+    },
+    cors: {
+      clientOrigins: (_tenantId, clientId) =>
+        Promise.resolve(new Set(clientId === 'app' ? (over.origins ?? []) : [])),
+      originAllowed: (_tenantId, origin) =>
+        over.originsFail === true
+          ? Promise.reject(new Error('allowlist unavailable'))
+          : Promise.resolve((over.origins ?? []).includes(origin)),
     },
     now: () => NOW,
     logger: { warn: () => undefined },
@@ -867,5 +886,145 @@ describe('DELETE /me/credentials/:id', () => {
     const seen: string[] = [];
     expect((await remove(build({ seen }), 'nope')).statusCode).toBe(404);
     expect(seen).toEqual([]);
+  });
+});
+
+describe('cross-origin calls', () => {
+  const ORIGIN = 'https://spa.example';
+  const withOrigin = (app: FastifyInstance, origin: string, token: string | null = TOKEN) =>
+    app.inject({
+      method: 'GET',
+      url: '/tenants/acme/me/profile',
+      headers: {
+        origin,
+        ...(token === null ? {} : { authorization: `Bearer ${token}` }),
+      },
+    });
+
+  it('echo the origin the token’s client allows, and say Vary', async () => {
+    const res = await withOrigin(build({ origins: [ORIGIN] }), ORIGIN);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['access-control-allow-origin']).toBe(ORIGIN);
+    expect(res.headers.vary).toBe('Origin');
+  });
+
+  it('withhold the header from any other origin', async () => {
+    const other = await withOrigin(build({ origins: [ORIGIN] }), 'https://other.example');
+    expect(other.statusCode).toBe(200);
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
+    expect(other.headers['access-control-expose-headers']).toBeUndefined();
+    expect(other.headers.vary).toBe('Origin');
+  });
+
+  it('let a script read the challenge and the wait: both headers are exposed', async () => {
+    const res = await withOrigin(build({ origins: [ORIGIN] }), ORIGIN);
+    expect(res.headers['access-control-expose-headers']).toBe('WWW-Authenticate, Retry-After');
+  });
+
+  it('answer a refusal before admission to an origin the tenant lists, so a script reads the status', async () => {
+    const app = build({ origins: [ORIGIN] });
+    const noToken = await withOrigin(app, ORIGIN, null);
+    expect(noToken.statusCode).toBe(401);
+    expect(noToken.headers['access-control-allow-origin']).toBe(ORIGIN);
+    expect(noToken.headers['access-control-expose-headers']).toBe('WWW-Authenticate, Retry-After');
+    const unlisted = await withOrigin(app, 'https://other.example', null);
+    expect(unlisted.statusCode).toBe(401);
+    expect(unlisted.headers['access-control-allow-origin']).toBeUndefined();
+    expect(unlisted.headers.vary).toBe('Origin');
+  });
+
+  it('keep a refusal a refusal when the allowlist cannot be read', async () => {
+    const res = await withOrigin(build({ origins: [ORIGIN], originsFail: true }), ORIGIN, null);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    expect(res.headers.vary).toBe('Origin');
+  });
+
+  it('answer a refusal of a scope the token lacks the same way', async () => {
+    const res = await withOrigin(build({ origins: [ORIGIN], scope: 'openid' }), ORIGIN);
+    expect(res.statusCode).toBe(403);
+    expect(res.headers['access-control-allow-origin']).toBe(ORIGIN);
+  });
+
+  it('never reflect an origin for a tenant that is not there', async () => {
+    const res = await build({ origins: [ORIGIN] }).inject({
+      method: 'GET',
+      url: '/tenants/other/me/profile',
+      headers: { origin: ORIGIN },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('answer a preflight for an origin the tenant allows, and for no other', async () => {
+    const app = build({ origins: [ORIGIN] });
+    const ask = (origin: string) =>
+      app.inject({
+        method: 'OPTIONS',
+        url: '/tenants/acme/me/sessions/abc',
+        headers: { origin, 'access-control-request-method': 'DELETE' },
+      });
+    const allowed = await ask(ORIGIN);
+    expect(allowed.statusCode).toBe(204);
+    expect(allowed.headers['access-control-allow-origin']).toBe(ORIGIN);
+    expect(allowed.headers['access-control-allow-methods']).toBe('GET, PATCH, DELETE, OPTIONS');
+    const refused = await ask('https://other.example');
+    expect(refused.statusCode).toBe(204);
+    expect(refused.headers['access-control-allow-origin']).toBeUndefined();
+    expect(refused.headers.vary).toBe('Origin');
+  });
+
+  it('answer a preflight for an unknown tenant with no allowance', async () => {
+    const res = await build({ origins: [ORIGIN] }).inject({
+      method: 'OPTIONS',
+      url: '/tenants/other/me/profile',
+      headers: { origin: ORIGIN, 'access-control-request-method': 'GET' },
+    });
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
+});
+
+describe('isMeRoute', () => {
+  it('holds for what is under a tenant’s me address, the preflight route included', () => {
+    expect(isMeRoute('/tenants/:tenant/me/profile')).toBe(true);
+    expect(isMeRoute('/tenants/:tenant/me/*')).toBe(true);
+    expect(isMeRoute('/tenants/:tenant/mcp')).toBe(false);
+    expect(isMeRoute(undefined)).toBe(false);
+  });
+});
+
+describe('DELETE /me/credentials/{id}, on a sign-in that ran one factor', () => {
+  it('refuses removing a second factor with the challenge, and removes nothing', async () => {
+    const seen: string[] = [];
+    const res = await send(
+      build({
+        authenticators: ['password'],
+        tx: { heldCredentials: () => Promise.resolve([PASSWORD, SUMMARY]) },
+        seen,
+      }),
+      'DELETE',
+      `credentials/${CRED_ID}`,
+    );
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toContain('acr_values="2"');
+    expect(seen.some((entry) => entry.startsWith('deleteCredential'))).toBe(false);
+  });
+});
+
+describe('an id that is not one', () => {
+  it.each<['DELETE' | 'PATCH', string]>([
+    ['DELETE', 'sessions/not-an-id'],
+    ['PATCH', 'credentials/not-an-id'],
+    ['DELETE', 'credentials/not-an-id'],
+  ])('is answered 404 by %s %s before the door reads anything', async (method, path) => {
+    const door: string[] = [];
+    const res = await send(
+      build({ door }),
+      method,
+      path,
+      method === 'PATCH' ? { label: 'x' } : undefined,
+    );
+    expect(res.statusCode).toBe(404);
+    expect(door).toEqual([]);
   });
 });

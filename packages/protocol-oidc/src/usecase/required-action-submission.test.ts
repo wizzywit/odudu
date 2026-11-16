@@ -53,6 +53,8 @@ interface Harness {
   sendVerificationLink: Mock;
   completeUpdateProfile: Mock;
   completeAcceptTerms: Mock;
+  holdsPassword: Mock;
+  signedInWithVerifiedPasskey: Mock;
 }
 
 function harness(): Harness {
@@ -71,6 +73,8 @@ function harness(): Harness {
   const sendVerificationLink = vi.fn().mockResolvedValue('queued');
   const completeUpdateProfile = vi.fn().mockResolvedValue({ kind: 'completed' });
   const completeAcceptTerms = vi.fn().mockResolvedValue({ kind: 'accepted' });
+  const holdsPassword = vi.fn().mockResolvedValue(true);
+  const signedInWithVerifiedPasskey = vi.fn().mockResolvedValue(false);
   return {
     deps: {
       findTenant,
@@ -86,7 +90,11 @@ function harness(): Harness {
       sendVerificationLink,
       completeUpdateProfile,
       completeAcceptTerms,
+      holdsPassword,
+      signedInWithVerifiedPasskey,
     },
+    holdsPassword,
+    signedInWithVerifiedPasskey,
     completeVerifyEmail,
     sendVerificationLink,
     completeUpdateProfile,
@@ -361,6 +369,9 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
         deps.sendVerificationLink(tenantId, subjectId, request),
       completeUpdateProfile: (input, request) => deps.completeUpdateProfile(input, request),
       completeAcceptTerms: (input, request) => deps.completeAcceptTerms(input, request),
+      holdsPassword: (tenantId, subjectId) => deps.holdsPassword(tenantId, subjectId),
+      signedInWithVerifiedPasskey: (tenantId, authSessionId) =>
+        deps.signedInWithVerifiedPasskey(tenantId, authSessionId),
       loadPendingRequest: (tenantId, authSessionId) =>
         deps.loadPendingRequest(tenantId, authSessionId),
       recordActionStep: (input, request) => deps.recordActionStep(input, request),
@@ -423,6 +434,59 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
     const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+  });
+});
+
+describe('handleRequiredActionSubmission — a first password', () => {
+  const submit = (deps: Harness['deps']) =>
+    handleRequiredActionSubmission(
+      deps,
+      'acme',
+      { ...SUBMISSION, action: 'update-password', password: 'a first passphrase for me' },
+      REQUEST,
+    );
+
+  it('is set for a person with no password on a sign-in that verified a passkey', async () => {
+    const {
+      deps,
+      pendingActions,
+      holdsPassword,
+      signedInWithVerifiedPasskey,
+      completeUpdatePassword,
+    } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+    holdsPassword.mockResolvedValue(false);
+    signedInWithVerifiedPasskey.mockResolvedValue(true);
+
+    expect(await submit(deps)).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+    expect(signedInWithVerifiedPasskey).toHaveBeenCalledWith('tenant-1', AUTH_SESSION_ID);
+    expect(completeUpdatePassword).toHaveBeenCalledWith(
+      {
+        tenantId: 'tenant-1',
+        subjectId: 'subject-1',
+        password: 'a first passphrase for me',
+        firstPassword: true,
+      },
+      REQUEST,
+    );
+  });
+
+  it('is refused, nothing written, where the sign-in did not verify a passkey', async () => {
+    const { deps, pendingActions, holdsPassword, completeUpdatePassword } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+    holdsPassword.mockResolvedValue(false);
+
+    expect(await submit(deps)).toEqual({ kind: 'unsupported', action: 'update-password' });
+    expect(completeUpdatePassword).not.toHaveBeenCalled();
+  });
+
+  it('is never what a person who holds a password does, whatever the sign-in ran', async () => {
+    const { deps, pendingActions, signedInWithVerifiedPasskey, completeUpdatePassword } = harness();
+    pendingActions.mockResolvedValue(['update-password']);
+    signedInWithVerifiedPasskey.mockResolvedValue(true);
+
+    await submit(deps);
+    expect(completeUpdatePassword.mock.calls[0]?.[0]).not.toHaveProperty('firstPassword');
   });
 });
 
@@ -838,8 +902,8 @@ describe('handleRequiredActionSubmission — an action an application requested'
     expect(completeRecoveryCodes).not.toHaveBeenCalled();
   });
 
-  it('ignores a confirmation for a set the tenant owes', async () => {
-    const { deps, pendingActions, loadPendingRequest } = harness();
+  it('passes the retry of a set the tenant owes on without acknowledging the unseen one', async () => {
+    const { deps, pendingActions, loadPendingRequest, completeRecoveryCodes } = harness();
     pendingActions.mockResolvedValue(['generate-recovery-codes']);
     loadPendingRequest.mockResolvedValue({ action: 'generate-recovery-codes' });
 
@@ -850,7 +914,13 @@ describe('handleRequiredActionSubmission — an action an application requested'
       REQUEST,
     );
 
-    expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
+    expect(outcome).toEqual({
+      kind: 'confirmed',
+      authSessionId: AUTH_SESSION_ID,
+      subjectId: 'subject-1',
+      requested: false,
+    });
+    expect(completeRecoveryCodes).not.toHaveBeenCalled();
   });
 });
 

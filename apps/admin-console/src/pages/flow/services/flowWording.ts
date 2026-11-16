@@ -16,7 +16,7 @@ export function authenticatorText(authenticator: string): string {
 }
 
 const FLOW_RULE =
-  'The steps run in this order at every sign-in. Alternatives that sit next to each other are one run: passing any of them is enough. The whole list is replaced when you save.';
+  'The steps run in this order at every sign-in. A required step must be passed at every sign-in. Alternatives that sit next to each other are one run: passing any of them is enough. A conditional step is asked only of a subject it applies to, and skipped for the rest. The whole list is replaced when you save.';
 
 export function flowArea(): { area: Area; title: string } {
   return areaTitled('flow');
@@ -32,8 +32,10 @@ const FLOW_WORDS = {
     noticeTitle: flowArea().title,
     listLabel: 'Sign-in steps',
     rule: FLOW_RULE,
-    up: 'Up',
-    down: 'Down',
+    up: '▴',
+    down: '▾',
+    settingsCaption: 'Settings',
+    settingsLabel: (authenticator: string) => `Settings of ${authenticator}`,
     requirements: REQUIREMENT_OPTIONS,
     allAdded: 'Every authenticator the server has is already a step.',
     addLabel: 'Add a step',

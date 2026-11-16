@@ -7,6 +7,7 @@ import {
 import { auditRepository } from '@odudu/domain-audit';
 import {
   BREACH_CHECK_UNAVAILABLE,
+  type BreachedCheckAudit,
   type BreachedPasswordCheck,
   type BreachedPrepared,
   credentialRepository,
@@ -16,10 +17,13 @@ import {
   loginFailureRepository,
   passwordExpired,
   REUSED_PASSWORD,
+  subjectRepository,
   userRepository,
   verifyUserPassword,
 } from '@odudu/domain-identity';
+import { type MailLookResolver } from '@odudu/email';
 import { OduduError, systemClock, type Clock } from '@odudu/kernel';
+import { noticeOwnChange } from '#/usecase/own-change-notice';
 import { type PasswordViolation } from '#/schema/password-violation';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
@@ -69,6 +73,13 @@ export interface UpdatePassword {
   // transaction. Absent, they are left; never run for a candidate that was
   // refused or lost a race, since no password changed.
   endOtherSessions?: (tx: TenantScopedDatabase) => Promise<void>;
+  // Present only where the sign-in ran a passkey assertion that verified the
+  // person, which is what lets an account that holds no password take a first
+  // one: nothing to prove, and nothing to rotate. The caller decides it from
+  // the sign-in (`signedInWithVerifiedPasskey`); it is never read from the
+  // form. A person who holds a password is not offered this path, and a
+  // submission that finds one now is told it was superseded.
+  firstPassword?: { resolveMailLook: MailLookResolver | undefined };
 }
 
 // A subject's password, and the candidates a reuse check has to refuse:
@@ -214,7 +225,17 @@ export async function completeUpdatePassword(
   // nothing to rotate. Unreachable through the only thing that owes this
   // action today — expiry, which reads the credential it expires — so it is
   // a broken account rather than a refusal to render.
+  // A first password is written under the subject's row lock, so two writers
+  // at once take turns and the second finds the first's.
+  if (input.firstPassword !== undefined) await subjectRepository(tx).lock(input.subjectId);
   const state = await passwordState(tx, input.subjectId);
+  if (state === null && input.firstPassword !== undefined) {
+    return storeFirstPassword(tx, input, input.firstPassword, breached.audit, clock);
+  }
+  if (state !== null && input.firstPassword !== undefined) {
+    await requiredActionRepository(tx).complete(input.subjectId, 'update-password');
+    return { kind: 'superseded' };
+  }
   if (state === null) {
     throw new OduduError(
       'credential_not_found',
@@ -251,6 +272,48 @@ export async function completeUpdatePassword(
     detail: {
       ended_other_sessions: input.endOtherSessions !== undefined,
       breached_check: breached.audit,
+    },
+  });
+  return { kind: 'updated' };
+}
+
+// The first password of an account that held none. It is not a rotation: there
+// is no hash to replace and no history to keep, and the tenant's policy and the
+// breached-password check have already judged the candidate. The address on
+// file is told by mail, in this transaction.
+async function storeFirstPassword(
+  tx: TenantScopedDatabase,
+  input: UpdatePassword,
+  first: { resolveMailLook: MailLookResolver | undefined },
+  breachedAudit: BreachedCheckAudit,
+  clock: Clock,
+): Promise<UpdatePasswordOutcome> {
+  await credentialRepository(tx).insert({
+    tenantId: input.tenantId,
+    subjectId: input.subjectId,
+    type: 'password',
+    secret: { kind: 'password', hash: await hashUserPassword(input.password) },
+  });
+  await requiredActionRepository(tx).complete(input.subjectId, 'update-password');
+  await input.endOtherSessions?.(tx);
+  const notice = await noticeOwnChange(
+    tx,
+    { tenantId: input.tenantId, subjectId: input.subjectId, now: clock.now() },
+    { kind: 'password_added' },
+    first.resolveMailLook,
+  );
+  await auditRepository(tx).record({
+    eventType: 'credential',
+    action: 'password.changed',
+    outcome: 'allowed',
+    actorSubjectId: input.subjectId,
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+    detail: {
+      ended_other_sessions: input.endOtherSessions !== undefined,
+      breached_check: breachedAudit,
+      first_password: true,
+      notice,
     },
   });
   return { kind: 'updated' };

@@ -230,7 +230,7 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
   be restarted; the restart link otherwise carries `action`. No audit row is written for that return, which is a link, not a
   request.
 - The "me" write refusal for an agent token has no counterpart at `/authorize`: no session or grant carries an agent marker.
-- `update-password` for a person with no password, and the passkey ceremony, are covered by integration tests and not by a
+- `update-password` for a person with no password (a first password after a verified passkey, from the closing pass), and the passkey ceremony, are covered by integration tests and not by a
   transcript, which cannot reach them from a shell.
 - The close-of-phase pass (the roadmap, section 11 and `docs/NEXT.md` read against each other) still owns the P4f row.
 
@@ -289,16 +289,16 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
 
 ### Ruling
 
-- A person whose sign-in waits for a set (the `generate-recovery-codes` action is owed) is exempt from the bound, as the
-  first set and a used-up set are, so a reload of the owed page issues a fresh set and the bound never blocks a sign-in.
-  It is one input of the pure `reissueAllowed` (`owed`), read from the person's pending actions. A set asked for
-  voluntarily, by an application or otherwise, keeps the bound.
+- A person whose sign-in waits for a set (the `generate-recovery-codes` action is owed) is held to one set every 30 seconds
+  (`OWED_INTERVAL_MS`), not the hour: the first render issues at once, a reload inside the half minute is refused with the
+  same page and audit row, and the acknowledgement, which issues nothing, finishes the sign-in. Only a used-up set (and the
+  first) is exempt. It is one input of the pure `reissueAllowed` (`owed`), read from the person's pending actions, and
+  `reissueCutoff` takes the same standing so the claim and the read cannot differ. At most two sets a minute for a subject: 32
+  hashes.
 
 ### Open placements
 
-- While the recovery-codes action is owed, each reload of its page issues a set: ten Argon2id hashes, bound to a signed-in
-  session, with no limit on the count. Placed on P11 (load and p99). The cheap bound is a short cooldown that still lets the
-  sign-in finish.
+- None. The reload of the owed page was unbounded here and is bounded in the closing pass (see the ruling above).
 
 ### The low-count warning
 
@@ -406,6 +406,12 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
 
 - No path grew a list. An enrolment, an assertion and a recovery issue each read the tenant row once by primary key
   (`authenticatorPolicy`), as the flow settings already do; `recovery_code_count` bounds the hashes a set costs at 16.
+- **Migration 0132 is a one-off rewrite.** Its two `UPDATE`s each scan `user_credentials` once (no index serves the missing-key
+  predicate, only `user_credentials_by_subject (subject_id, type)`) and rewrite every TOTP and passkey row that lacks the keys, in the
+  migration's single transaction: at most one row for each enrolled authenticator, so at 1,000,000 subjects about as many rows as
+  there are authenticators, minutes of one pass and no rewrite for a row already holding the keys. It runs once, and a deployment
+  upgrades with no rolling replica (`operating/upgrading.md`). Batching inside one transaction would not shorten the lock; reading the
+  defaults in code instead of backfilling would, and was rejected because every reader of `secret_data` would then carry the default.
 
 ### Open placements
 
@@ -804,22 +810,29 @@ Rulings:
   its credentials and address as they were), counted, and the run goes on; the report carries the error's kind and
   database code and never its message, which quotes an address.
 
-### The unique index, held back to the next release
+### The unique index
 
-The migration is not added here: the command ships in this release and the index in a later one, so an operator has run the
-command first. The statement, which `packages/protocol-admin/tests/reconcile-accounts.int.test.ts` runs against the real schema in
-a rolled-back transaction (it fails with `23505` over a duplicate and builds once the command has run):
+Built in the closing pass, as migration `0139_users_email_unique.sql`, which cannot fail the boot: the statement runs in a
+`DO` block that turns `unique_violation` into a warning and skips the build, and `ensureUniqueEmailIndex` (`@odudu/db`) runs at every
+start after the migrations and builds it once no pair remains (`'present'`, `'built'` or `'blocked'`, the last said aloud with the
+command to run). The statement, which `packages/protocol-admin/tests/reconcile-accounts.int.test.ts` runs against the real schema:
 
 ```sql
 CREATE UNIQUE INDEX users_email_search_unique ON users (tenant_id, email_search) WHERE email_search IS NOT NULL
 ```
 
-`git grep -n "CONCURRENTLY" packages/db/drizzle` finds nothing, and `packages/db/src/migrate.ts` hands every pending migration to
-Drizzle's migrator, which runs them in one transaction, so the index cannot be built `CONCURRENTLY` and is the plain statement
-above. It holds a lock that blocks writes to `users` while it builds: at 1,000,000 subjects in a tenant and 10,000 tenants the
-build reads the whole table once, so it is a window of seconds to minutes for a large deployment and the upgrade should be run with
-that in mind and a backup taken (spec section 8). A build over a database that still holds a duplicate fails and rolls the whole
-migration back, which is what the order is for. `docs/NEXT.md` and `RELEASING.md` carry the order.
+`packages/db/src/migrate.ts` hands every pending migration to Drizzle's migrator, which runs them in one transaction, so the
+migration's build is the plain statement above; the start-up step is outside that transaction and builds it `CONCURRENTLY`,
+holding an advisory lock, taken by polling `pg_try_advisory_lock` (a session blocked in `pg_advisory_lock` holds a snapshot the
+build waits for, a deadlock Postgres cannot see) for up to two minutes, so two instances starting together build it once and a
+late one leaves it to the first, reading for a pair first so a deployment that still
+holds one starts no build (the read walks `users_email_search` in order and stops at the first duplicate: bounded and cheap at 1,000,000 users), and dropping an index an interrupted build left invalid. It is built again at the next start if an
+operator drops it. `users_email_search` (0073) stays beside it: it carries `subject_id`, which the subject list's keyset and
+the reconcile discovery order by, and the discovery has to read pairs, which the unique index cannot exist beside.
+The migration's build blocks writes to `users` while it runs: at 1,000,000 subjects in a tenant and 10,000 tenants the build reads the whole table once,
+a window of seconds to minutes for a large deployment, so the upgrade should be run with that in mind and a backup taken (spec
+section 8). `packages/db/tests/email-unique-index.int.test.ts` fails if the index is gone after the migrations and runs the migration
+over a database that holds a pair. `RELEASING.md` carries the order for operators.
 
 ### At volume
 
@@ -1088,3 +1101,104 @@ null`, which the query-plan check's foreign-key rule accepts as a probe of the k
 - A tenant export carries the default flow only, so a client's `flow_id`, and every other flow, are not exported and an import restores
   neither. P7 takes it with the document's move between installations (roadmap, section 11 and `docs/NEXT.md` name it).
 - The per-step authenticator settings of 7c are on the steps now (increment 7c).
+
+## Increment 14: the closing pass
+
+### The six checks, each with its command and result
+
+1. **"What is not implemented" on the roadmap** (`apps/docs/content/en/roadmap.md`: Next, Later, Decided against).
+   `pnpm vitest run tests/docs/not-implemented-placement.test.ts` (every item names a phase, a decision or an ADR) passes; each
+   marker was then read for truth. P4f left Next and its five smaller capabilities (more required actions, the passkey switch, several
+   flows, per-step configuration, the breached-password check) left Later, and Shipped gained a "Self-service" section. The reset
+   carve-out is in it: a password change offers to end the other sessions, a reset ends them all with no choice. One line was still
+   wrong and was fixed: the P5b sentence said P4f "builds" the action pages.
+2. **The numbers P4f moved.** `git grep -n '\bP4f\b' -- ':!docs/archive'`. Every hit in the roadmap, `docs/NEXT.md` and the roadmap
+   tests was either removed (shipped) or re-addressed. `roadmap-shape.test.ts` no longer expects P4f in Next, and its
+   "never cites a closed phase" check holds for the page.
+3. **`docs/NEXT.md` headings read against the closed phases.** "What P4f and P4h inherit" is now "What P4h inherits" and its stale
+   paragraph, "Two recovery-code gaps that need self-service", is gone (both gaps closed in increment 5). The row for "finish
+   registration" is gone (increment 10). The me routes' rate limit, CORS and previous-address window are built (below), so their row is
+   gone. The unique index is built (migration `0139`), and a person's own recovery after a switch
+   back to the path address, which P4f never built, is an owner question in "Decisions still open" with its candidate phases. The file
+   is 396 lines and no section passes 130 (`next-budget.test.ts`).
+4. **The roadmap against section 11 and `docs/NEXT.md`, both ways.** `pnpm vitest run tests/docs/roadmap-section-11.test.ts` passes
+   with P4f moved from the sentence claims to the shipped claims and from the placement list to the shipped set; the unique-index
+   row is gone with the index. Tenant export and import of flows is placed on P7 in the roadmap, in `docs/NEXT.md` and in this
+   note (13c), and the P7 criterion carries it.
+5. **The public surface.** `git grep -n -i -E 'planned|self-service|me api|P4f' -- apps/docs README.md tests/docs/questions.md`: the
+   landing page's two "Planned" bands are the agent items (P5 and P5b), still planned. The README feature list and the landing
+   page's second capability card gained the "me" API, and `readme-front-door.test.ts` holds the README line to the roadmap. No other
+   hit describes anything that does not exist.
+6. **`CHANGELOG.md`, `## [Unreleased]`.** Written by the increments that shipped each change; read once whole against this note. It
+   names the me API, the actions, the flows, the settings, the device, the notices, the required actions and the breached check, and
+   nothing duplicated.
+
+### Transcripts and pictures
+
+Run again on 2026-11-16 on a compose project, `odudu-p4f-i14`, as `contributing/transcripts.md` records: the whole of
+`delete-admintenantstenant.md`; the three blocks of `get-clients-post-clients-and-get-clientsid.md` that named port `3092`; the
+open-and-press blocks of `self-registration.md`; the two session pages, whose blocks now show `device`; `the-me-api.md`; the sections of
+`getting-the-token.md` after the token; the TOTP, passkey-switch and recovery-code request paths; the five console pages and the guide that
+carried a note about the device cookie or field.
+
+`pnpm docs:screenshots` ran against a fresh stack (59 screens) and produced no change to any record or to the manifest; five light
+pictures differed by pixels alone and were reverted. `pnpm --filter @odudu/docs page-shots` after `pnpm --filter @odudu/instrument
+build` left the manifest as it was, so no server page's markup or stylesheet has drifted from its picture. The docs image test
+(`image-fits-server.test.ts`, headroom 0.8) and the landing first-load budget (185 KiB) pass unchanged, in the docs suite run on a
+fresh build (147 files, 853 tests).
+
+### The me routes' gaps, built
+
+Three gaps P4f had recorded against its own routes were built in the closing pass, because they belong to the phase's topic. Greps run first:
+`git grep -n -i "throttle\|limiter\|cors\|web_origins\|previousAddressServes" -- apps/server/src packages/me/src packages/mcp/src`
+(the MCP endpoint's `mcpOriginLimiter` in `apps/server/src/app.ts`; `corsHeadersForRequest` and `webOriginAllowed` in
+`packages/protocol-oidc`; `WINDOW_SERVES` in `apps/server/src/host-rules.ts`).
+
+- **A budget per origin.** `meOriginThrottle` (default 600 a minute, `DEFAULT_ME_ORIGIN_THROTTLE`) in `buildApp`, one `slidingWindow` of the
+  same primitive and kind as the MCP endpoint's, keyed by `throttleOrigin(request.ip)`, spent in an `onRequest` hook for every method on
+  a me route (`isMeRoute`) before the token is read, answered `429` with `Retry-After`. At 600 the counter variant holds constant memory
+  and every key is bounded by `MAX_THROTTLE_KEYS`; it is per process, as the MCP endpoint's is (the multi-instance work is P11's and
+  covers both). No new table, no query.
+- **CORS.** A response to a request that names an origin carries `access-control-allow-origin` when the token's client lists it
+  (`MeCors.clientOrigins`: two primary-key reads in the tenant's scope, the client's `enabled` flag and its expanded `web_origins`, as
+  `/userinfo` resolves them), and `Vary: Origin` whether or not. The preflight, `OPTIONS /tenants/:tenant/me/*`, is answered `204` for an
+  origin an enabled client of the tenant lists (`MeCors.originAllowed`: the `client_origins` probe `/token` already makes, one indexed
+  read) and with no allowance otherwise. Tests: `packages/me/src/view/routes.test.ts`, and `apps/server/tests/me-edges.int.test.ts` against
+  PostgreSQL, which also holds the foreign-tenant case (an origin only another tenant's client lists, and a client of the same id with no
+  origin) and the disabled client and tenant.
+- **The previous-address window.** `/me/{profile,credentials,sessions,consents}` joined `WINDOW_SERVES`, tested in `host-rules.test.ts` and
+  through a real switch in `me-edges.int.test.ts`.
+
+Nothing moves to another phase for these; the transcript of `the-me-api.md` has a section for the browser origin and the budget.
+
+### What the reviews of the closing pass found, and what was done
+
+- **A removal that takes a second factor needs a two-factor sign-in** (`acr`, not only age): the gate reads the session's authenticators once
+  (`MeSessionAuth.authenticators`, a primary-key read made only when a class is asked for) and refuses with the same RFC 9470 challenge
+  when `acrFor` is lower, which a client whose flow asks for a password alone gives. Tests: `freshness-gate.test.ts`, the route test and
+  `me-credential-removal.int.test.ts` (password-only and passkey sessions).
+- **CORS on the refusals, and the exposed headers.** `access-control-expose-headers: WWW-Authenticate, Retry-After` wherever the origin is
+  allowed; a `401`/`403` before admission and a `429` carry the origin when some enabled client of the tenant lists it (the preflight's
+  probe), never for a tenant that is not there. The `429`'s allowance costs two reads, so a second budget of 60 a minute for each address
+  bounds it (`meRefusalThrottle`); beyond it the `429` carries no allowance. `me-edges.int.test.ts` takes an address of its own for each case
+  and a fixed clock (`meThrottleNow`).
+- **A reload of the owed recovery-code page** is held to one set every 30 seconds (above).
+- **The unique address index** is built by migration `0139` and a start-up step (above); `RELEASING.md`, ADR 0037, the spec and the changelog agree.
+- **A first password** for a passkey-only account (spec 5.3): `signedInWithVerifiedPasskey`, `completeUpdatePassword(firstPassword)` under the
+  subject's row lock (a second writer is superseded), the `password_added` notice in English and Arabic, `password.changed` with `first_password`
+  and `notice`, the requested page without the current-password field, and the submission refusing a sign-in that did not verify a passkey.
+  `first-password.int.test.ts` and `authorize-action.int.test.ts` hold it. It does not reach a person at an address a tenant left, whose
+  passkey cannot sign in: they return through a switch back, a reset link or an administrator.
+- **The minors:** `me:write` needs `me:read` in `seed assign-scope`, a tenant import and a default assignment; migration 0132's rewrite is a one-off scan
+  (stated above); the changelog and the upgrading page say 0137 cannot be rolled back by redeploying the old image; section 11 says the orphan is bounded;
+  `PATCH /me/credentials/{id}` and `DELETE /me/sessions/{id}` check the id first. Agent tokens reading the "me" API stay on P5b (spec 5.9).
+- **Transcripts:** each page is one run or says on the page which section is an earlier capture; the ID tokens are decoded by their own blocks.
+
+### Placements this increment leaves
+
+- **The unique index on `(tenant_id, email_search)`** is built (migration `0139`), not placed.
+- **A passkey-only person's first password** is built (spec 5.3, increment 14a): `update-password` sets one on a sign-in whose passkey verified the person.
+  It helps while the passkey still works; at an address a tenant left the passkey cannot sign in, so that person still returns through a
+  switch back, a reset link (which gives a person with no password a first one) or an administrator, as `custom-domains.md` says.
+- **Transcripts not run again:** the section of `two-factor-authentication-with-totp.md` on a policy that changes and the `rc8-demo` section
+  of `recovery-codes.md`, whose enrolments and sign-ins were driven by a script the pages do not show; each keeps its earlier capture.

@@ -45,6 +45,9 @@ it('says nobody is signed in when no session is live, and offers no end', async 
   renderConsoleAt(AT, sessionRoutes(undefined, { [`GET ${SESSIONS}`]: json({ items: [] }) }));
   expect(await screen.findByText('No sessions yet')).toBeVisible();
   expect(screen.getByRole('button', { name: 'End every session' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'End every session' })).toHaveAccessibleDescription(
+    'There is no session to end.',
+  );
 });
 
 it('reads one page at a time, from the cursor the server gave', async () => {

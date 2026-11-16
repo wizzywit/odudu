@@ -12,18 +12,16 @@ function field(name: string): SettingField {
 
 describe('rangeRule', () => {
   it('words a duration’s range with its reading', () => {
-    expect(rangeRule(field('login_ttl_seconds'))).toBe(
-      'Between 60 s · 1 minute and 86400 s · 1 day.',
-    );
+    expect(rangeRule(field('login_ttl_seconds'))).toBe('Allowed: 1 minute to 1 day.');
   });
 
   it('words a count’s range in its unit', () => {
-    expect(rangeRule(field('password_min_length'))).toBe('Between 8 and 256 characters.');
+    expect(rangeRule(field('password_min_length'))).toBe('Allowed: 8 to 256 characters.');
   });
 
   it('words a range with no top as at least', () => {
-    expect(rangeRule(field('max_clients'))).toBe('At least 0 clients.');
-    expect(rangeRule(field('refresh_token_ttl_seconds'))).toBe('At least 1 s.');
+    expect(rangeRule(field('max_clients'))).toBe('Allowed: at least 0 clients.');
+    expect(rangeRule(field('refresh_token_ttl_seconds'))).toBe('Allowed: at least 1 second.');
   });
 
   it('says nothing for a setting the server holds to no range', () => {
@@ -44,12 +42,12 @@ describe('fieldDescription', () => {
   it('puts what a setting does before the range the server holds it to', () => {
     const text = fieldDescription(field('password_history_depth'));
     expect(text).toMatch(
-      /^A new password may not repeat .+ 0 remembers none\. Between 0 and 24 passwords\.$/u,
+      /^A new password may not repeat .+ 0 remembers none\. Allowed: 0 to 24 passwords\.$/u,
     );
   });
 
   it('is only the range when a setting explains nothing more', () => {
-    expect(fieldDescription(field('password_min_length'))).toBe('Between 8 and 256 characters.');
+    expect(fieldDescription(field('password_min_length'))).toBe('Allowed: 8 to 256 characters.');
   });
 
   it('is just the range when a setting has no explanation', () => {
