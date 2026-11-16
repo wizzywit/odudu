@@ -6,11 +6,9 @@ sidebar_position: 3
 
 # An admin signs in and changes a user
 
-> **Not replayed after the device cookie.** A response on this page that ends a sign-in now also carries a `set-cookie` for `<tenant>-device`, which the blocks below do not show, because this page was captured before that cookie existed and has not been run again. [A session's device](../reference/transcripts/request-paths/the-me-api.md#a-sessions-device) is a live capture of the cookie.
-
 The admin console signs an administrator in through the same flow your users meet, then does the admin work for them. The browser holds one cookie and no token: the tokens stay on the server. This guide follows one administrator, `grace`, from sign-in to changing another user, `hopper`.
 
-The excerpts come from several real runs on different stacks: steps 1 to 4 from one, steps 5 to 7 from another and step 8 from a third. Ports and ids therefore differ between steps, and each full transcript says which run it is. Every command keeps one cookie jar, `jar`.
+The excerpts come from several real runs on different stacks: steps 1 to 4 from one run of this checkout, steps 5 to 7 from another and step 8 from a third. Ports and ids therefore differ between steps, and each full transcript says which run it is. Every command keeps one cookie jar, `jar`.
 
 ## 1. Start the sign-in
 
@@ -22,8 +20,8 @@ curl -sS -D - -c jar -b jar \
 ```
 
 ```
-set-cookie: odudu-console-login=01a17b02-1a9a-78f4-a746-1a223a533ca7.3CtlssHNJxU43xqp5aDXjUjTYI3DUcyyvPx-gvAS0dI; HttpOnly; SameSite=Lax; Path=/; Max-Age=1800
-location: http://localhost:3000/tenants/console-paths/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fconsole%2Fauth%2Fcallback&scope=openid&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=01a17b02-1a9a-78f4-a746-1a223a533ca7.3CtlssHNJxU43xqp5aDXjUjTYI3DUcyyvPx-gvAS0dI&nonce=HcUdPjfBTMLeGeP6XZ_3eawPUTiu8R4t-AfRbz2-sws&code_challenge=GJ-7-iCZ_2Fy5TJS3iKKu5QbvHcZx4ZWGoPZiWsf14Y&code_challenge_method=S256
+set-cookie: odudu-console-login=01a1e3fc-9af8-7020-9566-69c1cd5c12e7.TwJWYZEZ90Nz1EJ45gOL1YFtVk7nSxuIsLobkGYYGjU; HttpOnly; SameSite=Lax; Path=/; Max-Age=1800
+location: http://localhost:3000/tenants/console-paths/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fconsole%2Fauth%2Fcallback&scope=openid&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=01a1e3fc-9af8-7020-9566-69c1cd5c12e7.TwJWYZEZ90Nz1EJ45gOL1YFtVk7nSxuIsLobkGYYGjU&nonce=bxeYPz94iwq4T_ZueNKZRKDhEC5kbapBDit8Tbh_-po&code_challenge=FLQLirUWieXnMYpxuz50YVrIoRmvPei34PvKLjSb8Tk&code_challenge_method=S256
 ```
 
 The short-lived `odudu-console-login` cookie remembers this attempt. The redirect is an ordinary authorization request with PKCE.
@@ -36,7 +34,7 @@ The administrator signs in on the tenant's page, exactly as a user would.
 
 ```
 <form method="post" action="/tenants/console-paths/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a17b02-8ad6-7f28-a5de-160ccba3fde5">
+  <input type="hidden" name="auth_session_id" value="01a1e3fc-9eda-76ae-99fe-0c6a990dc56b">
   <label>Username <input type="text" name="username" autocomplete="username"></label>
   <label>Password <input type="password" name="password" autocomplete="current-password"></label>
   <button type="submit">Sign in</button>
@@ -44,10 +42,11 @@ The administrator signs in on the tenant's page, exactly as a user would.
 ```
 
 ```
-set-cookie: console-paths-session=01a17b02-c90d-7d65-a61c-8380a55dceed:JcZY8IODtyTttYAwKcuAlTa9PDDtc1ho--5ZtooaGT4; HttpOnly; SameSite=Lax; Path=/
+set-cookie: console-paths-session=01a1e3fc-9f1b-75f7-aaef-9ad858ade7a6:bdwS9HTDfKTepV8mQhz3R_4pfK8eoAFXElfghtR7ttE; HttpOnly; SameSite=Lax; Path=/
 set-cookie: console-paths-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: console-paths-device=DAV96hHx8Q4YneBR5gYcFw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/console-paths/; Max-Age=0
-location: http://localhost:3000/console/auth/callback?code=85eAmeU6LFGcTdS2rwRq1DbseXWPhqCrhtszaj9-Q34&state=01a17b02-1a9a-78f4-a746-1a223a533ca7.3CtlssHNJxU43xqp5aDXjUjTYI3DUcyyvPx-gvAS0dI&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsole-paths
+location: http://localhost:3000/console/auth/callback?code=fZ0E1JA90K7q2uI3TUefjO5fNnkUck_0FQpNFZWZeLs&state=01a1e3fc-9af8-7020-9566-69c1cd5c12e7.TwJWYZEZ90Nz1EJ45gOL1YFtVk7nSxuIsLobkGYYGjU&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsole-paths
 ```
 
 Full transcript: [The tenant's own sign-in](../reference/transcripts/console-paths/the-tenants-own-sign-in.md).
@@ -63,7 +62,7 @@ curl -sS -D - -c jar -b jar "$LOCATION"
 ```
 set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 set-cookie: odudu-console-restart=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: odudu-console=01a17b02-1a9a-78f4-a746-1a223a533ca7.GojT2OLYCr7eeXpTifOxiPPc41bqImwM5v9PNFsVueY; HttpOnly; SameSite=Strict; Path=/
+set-cookie: odudu-console=01a1e3fc-9af8-7020-9566-69c1cd5c12e7.MEUWySMkZQC44FCs4fIwlmAoq50DP99U598tCfKyCqw; HttpOnly; SameSite=Strict; Path=/
 location: /console/x
 ```
 
@@ -78,7 +77,7 @@ curl -sS -D - -c jar -b jar http://localhost:3000/console/api/session
 ```
 
 ```
-{"tenant":"console-paths","subject_id":"01a17b02-1cb3-720a-ab9c-a0cc44e107a2","username":"grace"}
+{"tenant":"console-paths","subject_id":"01a1e3fc-9cf1-78f9-acb7-b6599ccb0c91","username":"grace"}
 ```
 
 Full transcript: [GET /console/api/session](../reference/transcripts/console-paths/get-consoleapisession.md).
