@@ -34,7 +34,7 @@ function criteria(): Map<string, string> {
 
 it("names every audit-placed capability in its phase's exit criterion", () => {
   const items = placedItems();
-  expect(items.length).toBeGreaterThan(10);
+  expect(items.length).toBeGreaterThanOrEqual(8);
   const rows = criteria();
   const missing = items
     .filter(({ capability, phase }) => !(rows.get(phase) ?? '').includes(capability.toLowerCase()))

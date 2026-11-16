@@ -85,28 +85,6 @@ function roadmapFor(phase: string): string {
 // A sentence of a roadmap bullet, the phrases of its phase's criterion that
 // carry it, or none where the sentence states a status and places nothing.
 const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion: string[]])[] = [
-  ['P4f', 'A "me" API', '"me" api', 'application-initiated actions'],
-  [
-    'P4f',
-    'It also brings fresh recovery codes',
-    'fresh set of recovery codes',
-    'warning when fewer',
-    'owner notice by mail',
-    "end the subject's other sessions",
-  ],
-  [
-    'P4f',
-    'A person can ask for a new verification email',
-    'a new verification email',
-    'per-tenant totp policy',
-    'a session shown against the device',
-  ],
-  [
-    'P4f',
-    'A link an administrator mailed',
-    'a place to return to for a mailed link an administrator issued',
-  ],
-  ['P4f', 'It also reconciles accounts', 'differ only by case', 'more than one click'],
   [
     'P4h',
     'Every string in the admin console',
@@ -133,6 +111,7 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ],
   ['P4i', 'Each ships with a guide', 'a runnable example in ci', 'a version of its own'],
   ['P4i', 'They wrap what exists', 'the "me" api wrapped'],
+  ['P4i', 'A browser application on another origin', 'on another origin able to call it'],
   ['P4i', 'The `odudu mcp` command', '`odudu mcp` published as a package of its own'],
   ['P5', 'Budgets across a delegation, attenuation and approval', 'ciba approvals'],
   ['P5', 'Delegation depth becomes a setting', '`max_depth`'],
@@ -195,7 +174,13 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'claim mapper an operator supplies',
     'eventlistener',
   ],
-  ['P11', 'One instance only today', 'advisory lock', 'per-origin throttle'],
+  [
+    'P11',
+    'One instance only today',
+    'advisory lock',
+    'per-origin throttle',
+    'limiter for the "me" routes',
+  ],
   [
     'P11',
     'Also a deadline',
@@ -254,6 +239,29 @@ const SHIPPED_CLAIMS: readonly (readonly [
     'P5a',
     'a service account only while it holds the `client_credentials` grant',
     "create a client's service account when its client credentials grant is switched on",
+  ],
+  ['P4f', 'a "me" api', '"me" api'],
+  ['P4f', 'application-initiated actions', 'application-initiated actions'],
+  ['P4f', 'recovery_code_warn_below', 'warning when fewer'],
+  ['P4f', 'is told by mail', 'owner notice by mail'],
+  ['P4f', 'offers to end the other sessions', "end the subject's other sessions"],
+  ['P4f', 'ask every person to register a passkey', 'asks everyone to enrol a passkey'],
+  ['P4f', 'up to 20 named sign-in flows', 'several sign-in flows with a per-client override'],
+  ['P4f', 'can set them for that flow alone', 'per-step authenticator configuration'],
+  [
+    'P4f',
+    'three more required actions',
+    'more required actions (verify email, update profile, accept terms)',
+  ],
+  ['P4f', 'known from breaches', 'a breached-password check'],
+  ['P4f', 'shown against the browser', 'a session shown against the device'],
+  ['P4f', 'asks for a new one', 'a new verification email'],
+  ['P4f', 'reconcile-accounts', 'differ only by case'],
+  ['P4f', 'the page a verification or registration link opens names', 'more than one click'],
+  [
+    'P4f',
+    'return the person to an application',
+    'a place to return to for a mailed link an administrator issued',
   ],
 ];
 
@@ -316,7 +324,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     const missing: string[] = [];
     let seen = 0;
     // A phase that has shipped leaves "Next" and "Later" for "Shipped".
-    const shipped = new Set(['P4b', 'P4k', 'P5a']);
+    const shipped = new Set(['P4b', 'P4k', 'P5a', 'P4f']);
     for (const [phase, row] of criteria()) {
       const at = row.indexOf(MARKER);
       if (at === -1) continue;
@@ -348,13 +356,14 @@ describe('the roadmap and section 11 of the design spec agree', () => {
   ])[] = [
     [
       'Twelve administrative capabilities',
-      ['P4f'],
+      ['P7'],
       'carried by the gap-audit capability check above',
     ],
+    ['The "me" routes have no rate limit', ['P11'], ['the "me" routes\'']],
     [
-      'The "me" reads do not check that the session or grant',
-      ['P4f'],
-      'details of the "me" API the P4f line already places; the phase note holds them',
+      'A browser application on another origin',
+      ['P4i'],
+      ['a browser application on another origin'],
     ],
     [
       '`tests/lint/production-guard-order.test.ts`',
@@ -386,11 +395,8 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ['`audit_events` at 100,000,000 rows', ['P11'], ['partitioned by month']],
     ['Tenant delete is one transaction', ['P11'], ['chunked and resumable']],
     ['The audit trail can be rewritten', ['P12'], ['audit trail']],
-    ['Self-service credential gaps', ['P4f'], ['other sessions', 'passkey']],
     ['No composite index serves', ['P11'], 'an index decision that waits on the measurement'],
     ['An address can be spent by anyone', ['P11'], ['per-address mail limit']],
-    ['A person who confirms a "finish registration"', ['P4f'], ['more than one click']],
-    ['Accounts that differ only by the case', ['P4f'], ['differ only by case']],
     ['The Node major moves by hand', ['P12'], ['even-numbered node lts']],
     [
       "The domain verification throttle and the check endpoint's limiter",
@@ -398,11 +404,6 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       "an in-process bound, held by the P11 criterion's every bound held in one process's memory",
     ],
     ['The edge reads the tenant', ['P11'], ['documented p99']],
-    [
-      'A person with no password and only passkeys',
-      ['P4f'],
-      ['their own profile, credentials, sessions and consents'],
-    ],
     ["The MCP endpoint's request limits", ['P11'], ["the mcp endpoint's request limits"]],
     ['`odudu mcp` runs only from', ['P4i'], ['`odudu mcp` command']],
     ["The admin API's OpenAPI document grew", ['P4i'], ['the published openapi document']],

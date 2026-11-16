@@ -5,7 +5,7 @@ const PAGE = 'apps/docs/content/en/roadmap.md';
 const SPEC = 'docs/superpowers/specs/2026-09-10-odudu-design.md';
 const RELEASE = 'P4g';
 // Closed after the release row in the table, which is in execution order.
-const SHIPPED_AFTER_RELEASE = ['P4b', 'P4k', 'P4j', 'P5a'];
+const SHIPPED_AFTER_RELEASE = ['P4b', 'P4k', 'P4j', 'P5a', 'P4f'];
 
 // What the roadmap table orders: the release and every phase before it are
 // closed, and the rest are ahead, except those shipped after it.
@@ -128,8 +128,6 @@ describe('the roadmap page', () => {
     ['PKCE is mandatory', 'ADR 0016'],
     ['response_type=code', 'ADR 0016'],
     ['`resource`', 'decision'],
-    ['recovery codes', 'P4f'],
-    ['other sessions', 'P4f'],
     ['CIBA', 'P5'],
     ['device authorization grant', 'P13'],
     ['password credentials grant', 'decision'],
@@ -157,10 +155,6 @@ describe('the roadmap page', () => {
     ['backup and restore', 'P12'],
     ['Expired state', 'ADR 0024'],
     ['Four operator commands', 'ADR 0024'],
-    ['more required actions', 'P4f'],
-    ['several sign-in flows', 'P4f'],
-    ['per-step authenticator configuration', 'P4f'],
-    ['a breached-password check', 'P4f'],
     ['custom subject attributes', 'P7'],
     ['fine-grained admin permissions', 'P9'],
     ['per-client dedicated mappers', 'P10'],
