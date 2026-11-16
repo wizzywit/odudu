@@ -77,6 +77,8 @@ function build(
     usernameEditable?: boolean;
     // The origins the token's client allows, and the tenant's union for a preflight.
     origins?: readonly string[];
+    // The tenant's origin allowlist cannot be read.
+    originsFail?: boolean;
     // Each time the door looks a tenant up.
     door?: string[];
   } = {},
@@ -207,7 +209,10 @@ function build(
     cors: {
       clientOrigins: (_tenantId, clientId) =>
         Promise.resolve(new Set(clientId === 'app' ? (over.origins ?? []) : [])),
-      originAllowed: (_tenantId, origin) => Promise.resolve((over.origins ?? []).includes(origin)),
+      originAllowed: (_tenantId, origin) =>
+        over.originsFail === true
+          ? Promise.reject(new Error('allowlist unavailable'))
+          : Promise.resolve((over.origins ?? []).includes(origin)),
     },
     now: () => NOW,
     logger: { warn: () => undefined },
@@ -926,6 +931,13 @@ describe('cross-origin calls', () => {
     expect(unlisted.statusCode).toBe(401);
     expect(unlisted.headers['access-control-allow-origin']).toBeUndefined();
     expect(unlisted.headers.vary).toBe('Origin');
+  });
+
+  it('keep a refusal a refusal when the allowlist cannot be read', async () => {
+    const res = await withOrigin(build({ origins: [ORIGIN], originsFail: true }), ORIGIN, null);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    expect(res.headers.vary).toBe('Origin');
   });
 
   it('answer a refusal of a scope the token lacks the same way', async () => {

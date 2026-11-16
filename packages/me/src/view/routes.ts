@@ -150,15 +150,22 @@ export async function meRefusalHeaders(
   origin: string | undefined,
 ): Promise<Record<string, string>> {
   if (origin === undefined) return {};
-  const tenant = await deps.findTenant(tenantName);
   const normalized = normalizeOrigin(origin);
-  const allowed =
-    tenant?.enabled === true &&
-    normalized !== null &&
-    (await deps.cors.originAllowed(tenant.id, normalized))
-      ? new Set([normalized])
-      : new Set<string>();
-  return meAnswerHeaders(origin, allowed);
+  try {
+    const tenant = await deps.findTenant(tenantName);
+    const allowed =
+      tenant?.enabled === true &&
+      normalized !== null &&
+      (await deps.cors.originAllowed(tenant.id, normalized))
+        ? new Set([normalized])
+        : new Set<string>();
+    return meAnswerHeaders(origin, allowed);
+  } catch (error) {
+    // The refusal is the answer; failing to read an allowlist for it must not
+    // replace it with a 500, and an origin that cannot be judged is not allowed.
+    deps.logger.warn({ err: error }, 'me: origin allowlist unreadable for a refusal');
+    return meAnswerHeaders(origin, new Set<string>());
+  }
 }
 
 async function admitted(
