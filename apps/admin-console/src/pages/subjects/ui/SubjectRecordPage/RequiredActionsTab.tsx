@@ -66,7 +66,7 @@ function Ready({
   return (
     <SaveSection
       title="Required actions"
-      description={`What ${name}'s next sign-in asks for, in this order, before it lets them in. Each is cleared once done.`}
+      description={`What ${name}'s next sign-in asks for, in the order listed, before it lets them in. Each is cleared once done.`}
       save={s}
     >
       <ReadOnlyFields when={!canManage}>
