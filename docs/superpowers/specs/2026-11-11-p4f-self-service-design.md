@@ -131,7 +131,10 @@ runs both against a live session before the gate is written.
   `generate-recovery-codes`, the names the server already uses. An action
   request is gated like 5.2: it forces a new sign-in only when the session's
   `auth_time` is older than the tenant's window, and the `update-password`
-  page asks for the current password whatever the age (my call).
+  page asks for the current password whatever the age (my call). A person who
+  holds no password has none to prove and the action cannot create one, so the
+  request ends in `action_status=error`; a first password comes through a reset
+  link or the administrator's `update-password` required action.
 - **Page.** Odudu renders the page it already has for that required action and
   returns to the client's registered `redirect_uri` with the standard response
   plus `action_status` of `success`, `cancelled` or `error`. The page is the
@@ -330,11 +333,13 @@ My calls, marked so they can be overruled:
 - **Where `auth_time` comes from.** `auth_time` is an ID-token claim today
   (`token-issuance.ts`), not an access-token one. The gate reads the session
   the token's `sid` names, one indexed read, on gated requests only; plain
-  reads stay stateless. A token whose session has ended is refused with `401`
-  and no challenge, since a fresh sign-in is a new session. _assumption:_ the
+  reads stay stateless. Every write checks that the session stands; a token whose
+  session has ended is refused a write with `401` and no challenge, since a fresh
+  sign-in is a new session, while plain reads still answer until the token
+  expires. _assumption:_ the
   access token carries `sid`; the spike confirms it, and if not, the token
   gains it in increment 1.
-- **Ending the caller's own session** is allowed and ends the token's use; the
+- **Ending the caller's own session** is allowed and ends the token's use for writes (reads still answer until it expires); the
   response says so.
 - **An action request issues a normal authorization response** (a code) with
   `action_status` added. `cancelled` is produced by the page's own cancel
@@ -355,9 +360,12 @@ My calls, marked so they can be overruled:
   per-step) and one for the flow model, its admin surface and its override.
   Their number in section 7 stays; the plan numbers the parts.
 - **Case reconciliation** keeps one account: the one with a verified address,
-  then the oldest. It moves credentials, sessions, grants and consents to the
-  survivor in one transaction per pair and rewrites nothing in the audit trail.
-  It refuses a pair where both have sign-ins (cannot say which is the person).
+  then the one that has signed in, then the oldest. It moves the credentials and
+  consents of a verified account with no sign-ins to the survivor in one
+  transaction per group; sessions and grants are never moved, and nothing in the
+  audit trail is rewritten. It refuses a group where several accounts have
+  sign-ins, where none has a verified address, or where an unverified account
+  has signed in (cannot say which is the person).
   Rollout order: the command ships in one release, the unique index in a later
   one, so an operator has run it first.
 - **Administrator-issued links in scope:** reset, verify and required-action
@@ -368,7 +376,8 @@ My calls, marked so they can be overruled:
 
 - **Removing a credential.** Refused whenever it would leave the person with no
   way to sign in. Where the tenant requires a second factor, the last second
-  factor is refused too. The last passkey may go while a password remains; with
+  factor is refused too. The last passkey may go while a password remains, unless the tenant requires a
+  second factor and no TOTP is held; with
   the tenant's passkey switch on, the next sign-in asks for a new one. A
   person locked out recovers through an administrator or a reset. The refusal
   is a stable error code with its own catalogue message.

@@ -80,7 +80,7 @@ Failure modes the spec implies that no single task's happy path exercises, most 
 ### Task 1.3: The door
 
 **Files:** Create `packages/me/src/usecase/validate-me-token.ts`, `packages/me/src/service/me-token.ts`; test beside.
-**Interfaces:** Consumes `deps.verifyAccessToken` (S4). Produces `validateMeToken(deps, input): Promise<MeAuthOutcome>` where success is `{kind:'ok', subjectId, tenantId, clientId, sessionId: string|null, scopes: string[], isAgent: boolean}` (`isAgent` true when the payload has an `act` claim: assumption: the agent token's marker is the RFC 8693 `act` claim per ADR 0050; confirm with `git grep -n "act:" packages/protocol-oidc/src/usecase/mint-agent-token.ts` or the file `git grep -ln mintAgentToken` names).
+**Interfaces:** Consumes `deps.verifyAccessToken` (S4). Produces `validateMeToken(deps, input): Promise<MeAuthOutcome>` where success is `{kind:'ok', subjectId, tenantId, clientId, sessionId: string|null, scopes: string[], isAgent: boolean}` (session liveness is not checked here: the freshness gate checks it for writes, and reads answer until the token expires; `isAgent` true when the payload has an `act` claim: assumption: the agent token's marker is the RFC 8693 `act` claim per ADR 0050; confirm with `git grep -n "act:" packages/protocol-oidc/src/usecase/mint-agent-token.ts` or the file `git grep -ln mintAgentToken` names).
 
 - [ ] **Step 1:** Tests, one per refusal: missing credentials; wrong audience (an MCP-audience token, an admin-audience token, a `/userinfo` token); token for another tenant's issuer; expired; `sub` missing; session ended (`sid` present, row gone) is `401` with no challenge.
 - [ ] **Step 2:** Implement modelled on `validateMcpToken`, audience `meAudienceOfIssuer(accepted issuer)` plus the reverse check: add the me audience to the refusals in `validateMcpToken`, the admin door (`authenticate-admin.ts`) and `/userinfo` (`git grep -n "audience" packages/protocol-oidc/src/usecase/userinfo.ts`), each with a test.
@@ -166,7 +166,7 @@ Failure modes the spec implies that no single task's happy path exercises, most 
 ### Task 5.1: Early re-issue and the bound
 
 **Files:** migration adding `last_issued_at timestamptz` to the recovery set (assumption: recovery codes are rows in `user_credentials` with `type='recovery-code'`, per `credentials.ts:269`; a set marker needs a home: spike `git grep -n "recovery" packages/db/drizzle | head` and add the column to `subject` or a `recovery_sets` table in the migration, the choice recorded in the phase note). `packages/authn-flows/src/usecase/recovery-codes.ts`.
-**Interfaces:** `reissueAllowed(lastIssuedAt: Date | null, spentAll: boolean, now: Date): {ok: true} | {ok: false, retryAt: Date}` (pure; first generation and a used-up set are exempt, spec §10a); the issue is one conditional `UPDATE … WHERE last_issued_at IS NULL OR last_issued_at <= now - interval '1 hour'` so concurrent calls cannot both pass (Review Focus 5).
+**Interfaces:** `reissueAllowed(lastIssuedAt: Date | null, spentAll: boolean, now: Date): {ok: true} | {ok: false, retryAt: Date}` (pure; first generation and a used-up set are exempt, spec §10a); the issue is one conditional `UPDATE … WHERE last_issued_at IS NULL OR last_issued_at <= now - interval '1 hour'`, whose condition is dropped when the caller passes `exempt` (a used-up set or an owed action: `bypassesBound`), so concurrent calls cannot both pass (Review Focus 5).
 
 - [ ] Tests first: concurrent pair (one wins); retry time in refusal; audit row; foreign-tenant probe. Implement; commit.
 
