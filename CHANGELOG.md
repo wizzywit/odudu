@@ -60,6 +60,9 @@ All notable changes to Odudu are written here, newest first. The format follows
 - A mailed link keeps its four actions: `POST .../actions-email` takes `update-password`, `configure-totp`, `configure-passkey` and `generate-recovery-codes`, and refuses the others with `400`, since a link cannot show the pages of the rest.
 - A sign-in clears an owed action no page could finish instead of stopping at it: `verify-email` for an address already verified or not there, `accept-terms` for terms the tenant no longer has or a version the person accepted, and `generate-recovery-codes` for a person with no authenticator app, as before.
 
+- The console's Settings page is easier to read and to move around. Its sections are listed by links under five headings, in a strip or a rail that stays in view, with the section in view marked and a dot on one that holds unsaved changes. Authenticators is split into groups for the authenticator app, passkeys and recovery codes, and **Require a passkey** has a section of its own, **Passkey requirement**. Password policy and Profile are grouped, a duration is typed with a unit menu (seconds, minutes, hours or days) and a value outside its range is marked before you save. **When a remote lookup fails** is dimmed unless the breached-password check is set to the remote lookup.
+- The sign-in flow's step rows say less. A step's settings carry the names the Settings page uses, under a **Settings** heading, and the move buttons are chevrons. A client's sign-in flow choice names the tenant default flow and links to the flow editor, and the Sessions lists call the device column **Browser**.
+
 ### Security
 
 - `odudu seed assign-scope`, a tenant import and a default assignment of `me:write` now refuse a client that would hold it without `me:read`, as the admin API's assignment already did.

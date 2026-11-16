@@ -51,6 +51,7 @@ demo
 Sessions
 Every browser sign-in in this tenant that has neither ended nor idled out, whoever holds it, in the order the server keeps them. One subject’s sessions are listed, and ended one at a time, on the subject’s own Sessions tab.
 End every session
+There is no session to end.
 Nothing yet
 No sessions yet
 Nobody is signed in to this tenant.

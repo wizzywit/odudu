@@ -55,7 +55,6 @@ The steps run in this order at every sign-in. Alternatives that sit next to each
 1
 passkey
 A passkey registered to the subject.
-Any one of a run of alternatives is enough.
 Requirement for passkey
 Alternative
 ▾
@@ -63,16 +62,17 @@ Required
 Alternative
 Conditional
 Disabled
-Up
-Down
-User verification for passkey
+▴
+▾
+Settings
+User verification
 Tenant setting (Required)
 ▾
 Tenant setting (Required)
 Required
 Preferred
 Discouraged
-Stored on the device for passkey
+Stored on the device
 Tenant setting (Required)
 ▾
 Tenant setting (Required)
@@ -82,7 +82,6 @@ Discouraged
 2
 password
 The subject's password.
-Any one of a run of alternatives is enough.
 Requirement for password
 Alternative
 ▾
@@ -90,12 +89,11 @@ Required
 Alternative
 Conditional
 Disabled
-Up
-Down
+▴
+▾
 3
 otp
-A one-time password from an authenticator app.
-Asked only of a subject it applies to; skipped for the rest.
+A one-time password from an authenticator app. Asked only of a subject it applies to; skipped for the rest.
 Asked only of subjects who set up an authenticator app.
 Requirement for otp
 Conditional
@@ -104,22 +102,23 @@ Required
 Alternative
 Conditional
 Disabled
-Up
-Down
-Algorithm for otp
+▴
+▾
+Settings
+Algorithm
 Tenant setting (SHA1)
 ▾
 Tenant setting (SHA1)
 SHA1
 SHA256
 SHA512
-Code length for otp
+Code length
 Tenant setting (6 digits)
 ▾
 Tenant setting (6 digits)
 6 digits
 8 digits
-Code period for otp
+Code period
 Tenant setting (30 seconds)
 ▾
 Tenant setting (30 seconds)
@@ -127,8 +126,7 @@ Tenant setting (30 seconds)
 60 seconds
 4
 recovery-code
-One of the single-use recovery codes issued with a one-time password.
-Asked only of a subject it applies to; skipped for the rest.
+One of the single-use recovery codes issued with a one-time password. Asked only of a subject it applies to; skipped for the rest.
 Requirement for recovery-code
 Conditional
 ▾
@@ -136,9 +134,10 @@ Required
 Alternative
 Conditional
 Disabled
-Up
-Down
-Codes in a set for recovery-code
+▴
+▾
+Settings
+Codes in a set
 Tenant setting (10 codes)
 ▾
 Tenant setting (10 codes)
