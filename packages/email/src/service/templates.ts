@@ -377,6 +377,7 @@ export type OwnChange =
   | { readonly kind: 'totp_removed'; readonly codes: boolean }
   | { readonly kind: 'passkey_removed' }
   | { readonly kind: 'recovery_set_issued' }
+  | { readonly kind: 'password_added' }
   | { readonly kind: 'address_change_requested' };
 
 export interface OwnChangeInput extends NoticeInput {
@@ -390,6 +391,7 @@ const OWN_CHANGE_PREFIX = {
   totp_removed: 'own.totpRemoved',
   passkey_removed: 'own.passkeyRemoved',
   recovery_set_issued: 'own.recoverySet',
+  password_added: 'own.passwordAdded',
   address_change_requested: 'own.addressChange',
 } as const;
 

@@ -83,6 +83,7 @@ What to read depends on the action:
 - `update-profile`: `GET /me/profile`. The page, "Complete your profile", lists every profile field a person can edit through `PATCH /me/profile`, with
   what they hold, and ends only when each field the tenant requires (`required_profile_fields`, given and family name by default) has a value, and every value sent is accepted by the same rules. Nothing is written until
   the whole form is acceptable. The address is not on this page.
+- `update-password` for a person who holds no password, only a passkey: no current password is asked, and a first password is set only if this sign-in's passkey verified them; a person whose sign-in did not, or who has no passkey in it, ends in `action_status=error`. The credential list then gains a `password` entry dated from the change, and the person is mailed a notice.
 - `update-password`: the list shows the password by type either way, so it cannot show a change. Each credential lists when it was
   made, and a new password is dated from the change, so compare the password's `created_at` from before the action with the one
   after it. Section 5 shows it.

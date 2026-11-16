@@ -388,7 +388,7 @@ location: http://127.0.0.1:8080/callback?code=oU-Sy-FuYT0n_8sDs8Y63IU4krq4TE9SCS
 `lin` holds no authenticator, so recovery codes, which stand in for one, are not available to `lin`. The page that says so is shown
 to the person, who stays at Odudu until they choose to leave: it has the link back to the application, which carries
 `access_denied` and `action_status=error`. The action is recorded as `action.failed`.
-The same page is shown to a person who has no password and is sent for `update-password`, which the run does not show:
+The same page is shown to a person who has no password and is sent for `update-password` on a sign-in whose passkey did not verify them, which the run does not show (a person whose passkey did verify them is asked for a new password and no current one, and sets a first password; the integration test `authorize-action.int.test.ts` runs both):
 
 ```bash
 authorize profile-app "action=generate-recovery-codes"
@@ -454,5 +454,4 @@ curl -sS -H "Authorization: Bearer $ADMIN" "$BASE/admin/tenants/actions-demo/aud
 An action that was started and never ended, a tab closed on the page, writes no redirect and no `action.completed` row: nothing
 reaches the client, so an application that waits for the redirect has to be able to wait forever, and reads the credential list
 when the person comes back. Three more things the run does not reach: the browser ceremony that enrols a passkey, which needs an
-authenticator; the unavailable page for `update-password`, which needs a person with no password, and a shell signs in with
-one; and the sign-in older than the window when the person left the page by closing it, which sends no request.
+authenticator; the pages of `update-password` for a person with no password, whose passkey sign-in a shell cannot make; and the sign-in older than the window when the person left the page by closing it, which sends no request.

@@ -230,7 +230,7 @@ no such pass: the table cannot hold more rows than the tenant has subjects. A no
   be restarted; the restart link otherwise carries `action`. No audit row is written for that return, which is a link, not a
   request.
 - The "me" write refusal for an agent token has no counterpart at `/authorize`: no session or grant carries an agent marker.
-- `update-password` for a person with no password, and the passkey ceremony, are covered by integration tests and not by a
+- `update-password` for a person with no password (a first password after a verified passkey, from the closing pass), and the passkey ceremony, are covered by integration tests and not by a
   transcript, which cannot reach them from a shell.
 - The close-of-phase pass (the roadmap, section 11 and `docs/NEXT.md` read against each other) still owns the P4f row.
 
@@ -1168,7 +1168,8 @@ Nothing moves to another phase for these; the transcript of `the-me-api.md` has 
 ### Placements this increment leaves
 
 - **The unique index on `(tenant_id, email_search)`** is built (migration `0139`), not placed.
-- **A passkey-only person's own recovery at an address a tenant left** is not built by P4f, whose `update-password` action refuses a person
-  who holds no password; the row in `docs/NEXT.md` asks the owner which phase takes it, with the candidates.
+- **A passkey-only person's first password** is built (spec 5.3, increment 14a): `update-password` sets one on a sign-in whose passkey verified the person.
+  It helps while the passkey still works; at an address a tenant left the passkey cannot sign in, so that person still returns through a
+  switch back, a reset link (which gives a person with no password a first one) or an administrator, as `custom-domains.md` says.
 - **Transcripts not run again:** the section of `two-factor-authentication-with-totp.md` on a policy that changes and the `rc8-demo` section
   of `recovery-codes.md`, whose enrolments and sign-ins were driven by a script the pages do not show; each keeps its earlier capture.

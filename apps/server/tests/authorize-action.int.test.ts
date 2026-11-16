@@ -784,6 +784,85 @@ describe('a password change for a person with no password', () => {
   });
 });
 
+describe('a first password for a person who holds a passkey and no password', () => {
+  async function passkeyOnly(w: World, ran: string[]): Promise<string> {
+    const cookie = await signIn(w);
+    await owner.sql`delete from user_credentials
+                     where tenant_id = ${w.tenantId} and subject_id = ${w.subjectId}
+                       and type = 'password'`;
+    await owner.sql`update sessions set authenticators = ${ran}
+                     where id = ${sessionIdOf(cookie)}`;
+    return cookie;
+  }
+  const passwordRows = (w: World) =>
+    owner.sql<{ id: string }[]>`select id from user_credentials
+                                 where tenant_id = ${w.tenantId} and subject_id = ${w.subjectId}
+                                   and type = 'password'`;
+  const changedRows = (w: World) =>
+    owner.sql<{ detail: Record<string, unknown> }[]>`select detail from audit_events
+                                 where tenant_id = ${w.tenantId} and action = 'password.changed'`;
+
+  it('is set on a sign-in whose passkey verified the person, with no current password asked', async () => {
+    const w = await world();
+    const cookie = await passkeyOnly(w, ['passkey']);
+    const page = await authorize(w, { action: 'update-password' }, cookie);
+    expect(page.statusCode).toBe(200);
+    expect(page.body).not.toContain('name="current_password"');
+    expect(page.body).toContain('name="cancel"');
+    const done = await form(w, 'required-action?action=update-password', {
+      auth_session_id: field(page, 'auth_session_id'),
+      password: NEW_PASSWORD,
+    });
+    expect(done.statusCode).toBe(302);
+    expect(locationOf(done).searchParams.get('action_status')).toBe('success');
+    expect(await passwordRows(w)).toHaveLength(1);
+    expect((await signInAs(w, NEW_PASSWORD)).statusCode).toBe(302);
+    expect(await auditActions(w)).toEqual(['action.requested', 'action.completed']);
+    const [row] = await changedRows(w);
+    expect(row?.detail).toMatchObject({ first_password: true });
+    expect(JSON.stringify(row?.detail)).not.toContain(NEW_PASSWORD);
+  });
+
+  it('ends as an error when the passkey proved only possession, and sets nothing', async () => {
+    const w = await world();
+    const cookie = await passkeyOnly(w, ['passkey', 'passkey-unverified']);
+    const res = await authorize(w, { action: 'update-password' }, cookie);
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain('action_status=error');
+    expect(await passwordRows(w)).toHaveLength(0);
+  });
+
+  it('ends as an error for a sign-in that ran no passkey', async () => {
+    const w = await world();
+    const cookie = await passkeyOnly(w, ['password']);
+    const res = await authorize(w, { action: 'update-password' }, cookie);
+    expect(res.statusCode).toBe(400);
+    expect(await passwordRows(w)).toHaveLength(0);
+  });
+
+  it('answers a refused candidate with the same page, still asking no current password', async () => {
+    const w = await world();
+    const cookie = await passkeyOnly(w, ['passkey']);
+    const page = await authorize(w, { action: 'update-password' }, cookie);
+    const refused = await form(w, 'required-action?action=update-password', {
+      auth_session_id: field(page, 'auth_session_id'),
+      password: 'short',
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.body).not.toContain('name="current_password"');
+    expect(refused.body).toContain('name="cancel"');
+    expect(await passwordRows(w)).toHaveLength(0);
+  });
+
+  it('is not offered to a person who holds a password, who is still asked for it', async () => {
+    const w = await world();
+    const cookie = await signIn(w);
+    await owner.sql`update sessions set authenticators = ${['passkey']} where id = ${sessionIdOf(cookie)}`;
+    const page = await authorize(w, { action: 'update-password' }, cookie);
+    expect(page.body).toContain('name="current_password"');
+  });
+});
+
 describe('an action requested through the account chooser', () => {
   it('shows the action after the account is chosen', async () => {
     const w = await world();

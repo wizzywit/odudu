@@ -29,6 +29,7 @@ const OWN_CHANGES = [
   { kind: 'totp_removed', codes: true },
   { kind: 'passkey_removed' },
   { kind: 'recovery_set_issued' },
+  { kind: 'password_added' },
   { kind: 'address_change_requested' },
 ] as const;
 

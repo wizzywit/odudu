@@ -1,6 +1,7 @@
 import {
   renderPasskeyEnrolmentPage,
   renderRecoveryCodesPage,
+  renderRequestedFirstPasswordPage,
   renderRequestedPasskeyEnrolmentPage,
   renderRequestedRecoveryCodesPage,
   renderRequestedTotpEnrolmentPage,
@@ -16,6 +17,8 @@ import {
 
 export interface ActionPages {
   readonly updatePassword: typeof renderUpdatePasswordPage;
+  // The same page for a person who holds no password: no current one to ask for.
+  readonly firstPassword: typeof renderUpdatePasswordPage;
   readonly totp: typeof renderTotpEnrolmentPage;
   readonly passkey: typeof renderPasskeyEnrolmentPage;
   readonly recoveryCodes: typeof renderRecoveryCodesPage;
@@ -25,6 +28,7 @@ export interface ActionPages {
 
 const OWED: ActionPages = {
   updatePassword: renderUpdatePasswordPage,
+  firstPassword: renderUpdatePasswordPage,
   totp: renderTotpEnrolmentPage,
   passkey: renderPasskeyEnrolmentPage,
   recoveryCodes: renderRecoveryCodesPage,
@@ -34,6 +38,7 @@ const OWED: ActionPages = {
 
 const REQUESTED: ActionPages = {
   updatePassword: renderRequestedUpdatePasswordPage,
+  firstPassword: renderRequestedFirstPasswordPage,
   totp: renderRequestedTotpEnrolmentPage,
   passkey: renderRequestedPasskeyEnrolmentPage,
   recoveryCodes: renderRequestedRecoveryCodesPage,

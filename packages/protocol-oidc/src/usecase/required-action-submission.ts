@@ -180,10 +180,18 @@ export interface RequiredActionSubmissionDeps {
       subjectId: string;
       password: string;
       currentPassword?: string;
+      // A first password for an account that holds none; set only where the
+      // sign-in verified a passkey.
+      firstPassword?: true;
       endOtherSessions?: { except: string | null; issuer: string };
     },
     request: RequestContext,
   ): Promise<UpdatePasswordOutcome>;
+  // Whether the subject has a password at all.
+  holdsPassword(tenantId: string, subjectId: string): Promise<boolean>;
+  // Whether the sign-in this authentication session ran included a passkey
+  // assertion that verified the person.
+  signedInWithVerifiedPasskey(tenantId: string, authSessionId: string): Promise<boolean>;
   // Whether the subject's address is verified now, read again here.
   completeVerifyEmail(tenantId: string, subjectId: string): Promise<VerifyEmailOutcome>;
   // Queues the mail that proves the address on file, within the limit on mail to
@@ -384,12 +392,20 @@ async function performAction(
   }
 
   if (action === 'update-password') {
+    // A person with no password has none to prove or to rotate. They set a
+    // first one only on a sign-in whose passkey verified them: an account is
+    // not given a password by a sign-in that proved less than that.
+    const holds = await deps.holdsPassword(tenantId, subjectId);
+    if (!holds && !(await deps.signedInWithVerifiedPasskey(tenantId, authSessionId))) {
+      return { kind: 'unsupported', action: 'update-password' };
+    }
     const changed = await deps.completeUpdatePassword(
       {
         tenantId,
         subjectId,
         password: submission.password ?? '',
-        ...(requested ? { currentPassword: submission.currentPassword ?? '' } : {}),
+        ...(holds ? {} : { firstPassword: true as const }),
+        ...(requested && holds ? { currentPassword: submission.currentPassword ?? '' } : {}),
         ...(submission.endOtherSessions
           ? { endOtherSessions: { except: sessionInUse, issuer: submission.issuer } }
           : {}),

@@ -126,7 +126,7 @@ A switch is one change, and it is worth reading this list before you make it, be
 
 ### A person with only passkeys
 
-Password sign-in is not affected by a switch, so a person with a password signs in at the new address as before. A person whose way in was a passkey registered at the old address, and who has no password, is not offered it at the new one. Recovery codes do not help: a code stands in for an authenticator-app code and nothing else. They can get back in three ways:
+Password sign-in is not affected by a switch, so a person with a password signs in at the new address as before. A person whose way in was a passkey registered at the old address, and who has no password, is not offered it at the new one. Recovery codes do not help: a code stands in for an authenticator-app code and nothing else. Before a switch, a person who has only passkeys can add a password, which does not depend on the address: an application can send them to `update-password`, which sets a first password after a sign-in whose passkey verified them. They can get back in three ways:
 
 - You switch the tenant back, which needs nothing from the domain.
 - They ask for a password reset, if reset is switched on for the tenant and mail works, or an administrator issues them a one-time password. Either gives them a password.

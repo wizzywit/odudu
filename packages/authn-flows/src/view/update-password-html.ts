@@ -57,6 +57,8 @@ function updatePasswordPage(
   rules: PasswordRules,
   locale: PageLocale,
   variant: ActionPageVariant | undefined,
+  // False for a person with no password, who has none to prove.
+  askCurrent = true,
 ): RenderedPage {
   const target = escapeHtml(
     addressPath(address, '/login-actions/required-action?action=update-password'),
@@ -77,7 +79,7 @@ function updatePasswordPage(
   // the password in force is what separates them from somebody at their
   // unlocked browser.
   const current =
-    variant === 'requested'
+    variant === 'requested' && askCurrent
       ? `<label>${tHtml(locale, 'updatePassword.currentPassword')} <input type="password" name="current_password" autocomplete="current-password"${invalidAttributes(problems, 'current_password')}${currentRefused ? ' autofocus' : ''}></label>\n`
       : '';
   const title = t(locale, 'updatePassword.title');
@@ -124,4 +126,26 @@ export function renderRequestedUpdatePasswordPage(
   locale: PageLocale,
 ): RenderedPage {
   return updatePasswordPage(tenant, address, authSessionId, violations, rules, locale, 'requested');
+}
+
+// The requested page for a person who holds no password, who may leave it again
+// and is asked for no current password, since none exists.
+export function renderRequestedFirstPasswordPage(
+  tenant: string,
+  address: TenantAddress,
+  authSessionId: string,
+  violations: readonly PasswordViolation[] = [],
+  rules: PasswordRules,
+  locale: PageLocale,
+): RenderedPage {
+  return updatePasswordPage(
+    tenant,
+    address,
+    authSessionId,
+    violations,
+    rules,
+    locale,
+    'requested',
+    false,
+  );
 }

@@ -87,6 +87,12 @@ export const ar: Readonly<Record<string, string>> = {
   'own.passkeyAdded.text': 'أُضيف مفتاح مرور إلى حسابك في {tenant}.',
   'own.passkeyAdded.reason':
     'وصلتك هذه الرسالة لأن إحدى طرق تسجيل الدخول إلى حسابك لدى {tenant} تغيّرت.',
+  'own.passwordAdded.subject': 'أُضيفت كلمة مرور إلى حسابك في {tenant}',
+  'own.passwordAdded.preheader': 'يمكنك الآن استخدامها لتسجيل الدخول.',
+  'own.passwordAdded.heading': 'أُضيفت كلمة مرور',
+  'own.passwordAdded.text': 'أُضيفت كلمة مرور إلى حسابك في {tenant}.',
+  'own.passwordAdded.reason':
+    'وصلتك هذه الرسالة لأن إحدى طرق تسجيل الدخول إلى حسابك لدى {tenant} تغيّرت.',
   'own.totpRemoved.subject': 'أُزيل تطبيق مصادقة من حسابك في {tenant}',
   'own.totpRemoved.preheader': 'لم يعد بالإمكان استخدامه لتسجيل الدخول.',
   'own.totpRemoved.heading': 'أُزيل تطبيق مصادقة',

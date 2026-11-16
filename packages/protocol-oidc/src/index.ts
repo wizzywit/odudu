@@ -4,6 +4,7 @@ import {
   admitSession,
   advance,
   authenticatedSession,
+  signedInWithVerifiedPasskey,
   authenticatedSubject,
   beginPasskeyAuthentication,
   beginPasskeyEnrolment,
@@ -720,6 +721,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       );
     const holdsPasswordFor = (tenantId: string, subjectId: string) =>
       withTenant(deps.database.db, tenantId, (tx) => holdsPassword(tx, subjectId));
+    const verifiedPasskeyFor = (tenantId: string, authSessionId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
+        const session = await authenticatedSession(tx, authSessionId, clock);
+        return session !== null && signedInWithVerifiedPasskey(session.authenticators);
+      });
 
     // What the address, profile and terms pages show, for every door that can
     // render them and for the submission that has to render them again.
@@ -915,6 +921,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       beginRecoveryCodes: startRecoveryCodes,
       recordActionStep: recordActionStepFor,
       holdsPassword: holdsPasswordFor,
+      signedInWithVerifiedPasskey: verifiedPasskeyFor,
       beginVerifyEmail: startVerifyEmail,
       beginUpdateProfile: startUpdateProfile,
       beginAcceptTerms: startAcceptTerms,
@@ -1005,6 +1012,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       beginRecoveryCodes: startRecoveryCodes,
       recordActionStep: recordActionStepFor,
       holdsPassword: holdsPasswordFor,
+      signedInWithVerifiedPasskey: verifiedPasskeyFor,
       beginVerifyEmail: startVerifyEmail,
       beginUpdateProfile: startUpdateProfile,
       beginAcceptTerms: startAcceptTerms,
@@ -1095,7 +1103,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           (tx) => completeAcceptTerms(tx, { ...input, now: clock.now() }),
           request,
         ),
-      completeUpdatePassword: async ({ endOtherSessions: ending, ...input }, request) => {
+      completeUpdatePassword: async (
+        { endOtherSessions: ending, firstPassword, ...input },
+        request,
+      ) => {
         const breachedPrepared = await prepareUpdatePassword(
           deps.database.db,
           input,
@@ -1110,6 +1121,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
               ...input,
               breachedCheck: deps.breachedPasswordCheck,
               breachedPrepared,
+              ...(firstPassword === true
+                ? {
+                    firstPassword: {
+                      resolveMailLook: deps.resolveMailLook,
+                    },
+                  }
+                : {}),
               ...(ending === undefined
                 ? {}
                 : {
@@ -1149,6 +1167,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       beginRecoveryCodes: startRecoveryCodes,
       recordActionStep: recordActionStepFor,
       holdsPassword: holdsPasswordFor,
+      signedInWithVerifiedPasskey: verifiedPasskeyFor,
       beginVerifyEmail: startVerifyEmail,
       beginUpdateProfile: startUpdateProfile,
       beginAcceptTerms: startAcceptTerms,
