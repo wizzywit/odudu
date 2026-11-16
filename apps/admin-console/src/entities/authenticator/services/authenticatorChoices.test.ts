@@ -3,6 +3,7 @@ import {
   authenticatorChoiceLabel,
   authenticatorChoices,
   authenticatorOptions,
+  authenticatorSettingWord,
 } from '#/entities/authenticator/services/authenticatorChoices';
 
 describe('authenticator choices', () => {
@@ -36,5 +37,12 @@ describe('authenticator choices', () => {
     expect(authenticatorChoices('nonesuch')).toEqual([]);
     expect(authenticatorChoices('constructor')).toEqual([]);
     expect(authenticatorChoices('toString')).toEqual([]);
+  });
+});
+
+describe('authenticator setting words', () => {
+  it('names a setting shortly, and an unknown one by its own key', () => {
+    expect(authenticatorSettingWord('totp_digits')).toBe('Code length');
+    expect(authenticatorSettingWord('constructor')).toBe('constructor');
   });
 });

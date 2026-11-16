@@ -6,11 +6,8 @@ const UNITS = [
   ['second', 1],
 ] as const;
 
-// Exact to the second, never "about a minute"; the raw value stays as given.
-export function formatDuration(seconds: number): string {
-  if (!Number.isFinite(seconds)) return '—';
-  const raw = `${String(seconds)} s`;
-  if (seconds < 60) return raw;
+// A span in words, to the second: "1 hour 30 minutes".
+export function formatSpan(seconds: number): string {
   let rest = Math.round(seconds);
   const parts: string[] = [];
   for (const [unit, size] of UNITS) {
@@ -18,7 +15,14 @@ export function formatDuration(seconds: number): string {
     rest -= count * size;
     if (count > 0) parts.push(counted(count, unit, `${unit}s`));
   }
-  return `${raw} · ${parts.join(' ')}`;
+  return parts.length === 0 ? '0 seconds' : parts.join(' ');
+}
+
+// Exact to the second, never "about a minute"; the raw value stays as given.
+export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds)) return '—';
+  const raw = `${String(seconds)} s`;
+  return seconds < 60 ? raw : `${raw} · ${formatSpan(seconds)}`;
 }
 
 export function formatAbsolute(instant: Date): string {

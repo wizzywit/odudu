@@ -46,3 +46,18 @@ export function authenticatorOptions(setting: string): { id: string; label: stri
     label: authenticatorChoiceLabel(setting, choice),
   }));
 }
+
+const SETTING_WORDS: Readonly<Record<string, string>> = {
+  totp_algorithm: 'Algorithm',
+  totp_digits: 'Code length',
+  totp_period: 'Code period',
+  webauthn_user_verification: 'User verification',
+  webauthn_resident_key: 'Stored on the device',
+  recovery_code_count: 'Codes in a set',
+};
+
+// The short name of an authenticator setting, where the group it sits in
+// already says which authenticator it belongs to.
+export function authenticatorSettingWord(setting: string): string {
+  return (Object.hasOwn(SETTING_WORDS, setting) ? SETTING_WORDS[setting] : undefined) ?? setting;
+}

@@ -88,3 +88,74 @@ describe('NumberWithUnitField on a page that cannot be changed', () => {
     expect(screen.queryByRole('textbox')).toBeNull();
   });
 });
+
+describe('NumberWithUnitField with a unit picker', () => {
+  function Seconds({ start, echo = false }: { start: number; echo?: boolean }) {
+    const [value, setValue] = useState(start);
+    return (
+      <>
+        <NumberWithUnitField
+          label="Idle"
+          unit="seconds"
+          picker
+          echo={echo}
+          minValue={60}
+          maxValue={86_400}
+          rangeMessage="Allowed: 1 minute to 1 day."
+          value={value}
+          onChange={setValue}
+        />
+        <output aria-label="seconds">{String(value)}</output>
+      </>
+    );
+  }
+
+  it('shows the unit that fits and no reading beneath it', () => {
+    render(<Seconds start={1800} />);
+    expect(screen.getByRole('textbox', { name: 'Idle' })).toHaveValue('30');
+    expect(screen.getByRole('combobox', { name: 'Idle, unit' })).toHaveValue('min');
+    expect(screen.queryByText(/1800 s/u)).toBeNull();
+  });
+
+  it('keeps the seconds the same value in whatever unit it is typed', async () => {
+    const user = userEvent.setup();
+    render(<Seconds start={1800} />);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Idle, unit' }), 'h');
+    const input = screen.getByRole('textbox', { name: 'Idle' });
+    await user.clear(input);
+    await user.type(input, '2');
+    await user.tab();
+    expect(screen.getByLabelText('seconds')).toHaveTextContent('7200');
+  });
+
+  it('rounds to a whole count of a unit that does not divide the value', async () => {
+    const user = userEvent.setup();
+    render(<Seconds start={5400} />);
+    expect(screen.getByRole('combobox', { name: 'Idle, unit' })).toHaveValue('min');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Idle, unit' }), 'h');
+    expect(screen.getByLabelText('seconds')).toHaveTextContent('7200');
+  });
+
+  it('flags a value outside the range with the message it was given', () => {
+    render(<Seconds start={30} />);
+    expect(screen.getByRole('textbox', { name: 'Idle' })).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText('Allowed: 1 minute to 1 day.')).toBeVisible();
+  });
+
+  it('passes axe in both themes', async () => {
+    expect(await axeInBothThemes(() => <Seconds start={1800} />)).toEqual({
+      light: [],
+      dark: [],
+    });
+  });
+});
+
+describe('NumberWithUnitField without the reading', () => {
+  it('leaves the value unechoed beneath a count', () => {
+    render(
+      <NumberWithUnitField label="Uses" unit="uses" echo={false} value={25} onChange={vi.fn()} />,
+    );
+    expect(screen.queryByText('25 uses')).toBeNull();
+    expect(screen.getByText('uses', { selector: '[data-unit]' })).toBeInTheDocument();
+  });
+});
