@@ -258,7 +258,9 @@ test('registration, the unverified account and password reset', async ({ page, p
 
   // The inputs carry `required`, so a browser stops an empty submit itself;
   // this step is about the server's refusal.
-  await page.locator('main form').evaluate((form) => form.setAttribute('novalidate', ''));
+  await page.locator('main form').evaluate((form) => {
+    form.setAttribute('novalidate', '');
+  });
   await page.locator('main button[type="submit"]').click();
   await expect(page.getByRole('alert')).toBeVisible();
   await look(page, 'registration-required');

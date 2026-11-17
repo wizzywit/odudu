@@ -351,7 +351,9 @@ test('registration, the unverified account, password reset and their links', asy
   // Nothing filled in: each empty field says so, in place, and the first has focus.
   // The inputs carry `required`, so a browser would stop the submit itself;
   // this step is about the server's refusal.
-  await page.locator('main form').evaluate((form) => form.setAttribute('novalidate', ''));
+  await page.locator('main form').evaluate((form) => {
+    form.setAttribute('novalidate', '');
+  });
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Create account' })).toBeVisible();
   await expect(page.getByRole('alert')).toContainText('Enter a username.');
