@@ -489,6 +489,8 @@ export {
   tenantSettingsExportSchema,
   type TenantSettingsDocument,
   exportedFlowStepSchema,
+  exportedNamedFlowSchema,
+  type ExportedNamedFlow,
   exportedClientSchema,
   type ExportedClient,
   exportedRoleSchema,

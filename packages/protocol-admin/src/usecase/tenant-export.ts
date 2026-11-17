@@ -1,4 +1,4 @@
-import { flowRepository, userRequiredActions } from '@odudu/authn-flows';
+import { DEFAULT_FLOW_NAME, flowRepository, userRequiredActions } from '@odudu/authn-flows';
 import {
   ASSIGNMENT_LIMIT,
   EXPORT_COLLECTION_CAP,
@@ -347,7 +347,8 @@ interface ClientRow {
   readonly id: string;
   readonly serviceSubjectId: string | null;
   readonly strippedKeys: readonly number[];
-  readonly exported: Omit<ExportedClient, 'service_account_roles'>;
+  readonly flowId: string | null;
+  readonly exported: Omit<ExportedClient, 'service_account_roles' | 'flow'>;
 }
 
 async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<ClientRow[]> {
@@ -396,6 +397,7 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
       defaultMaxAge: clientOidcConfig.defaultMaxAge,
       requireAuthTime: clientOidcConfig.requireAuthTime,
       allowedActions: clientOidcConfig.allowedActions,
+      flowId: clientOidcConfig.flowId,
     })
     .from(clients)
     .innerJoin(clientOidcConfig, eq(clients.id, clientOidcConfig.clientId))
@@ -406,6 +408,7 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
       id: row.id,
       serviceSubjectId: row.serviceSubjectId,
       strippedKeys: jwks.strippedKeys,
+      flowId: row.flowId,
       exported: {
         client_id: row.clientId,
         name: row.name,
@@ -707,8 +710,10 @@ export async function exportTenant(
     Object.fromEntries(Object.entries(record).filter(([name]) => policyNames.has(name))),
   );
 
-  const defaultFlow = await flowRepository(tx).defaultForTenant(tenantId);
+  const flowRows = await flowRepository(tx).forTenant(tenantId);
+  const defaultFlow = flowRows.find((flow) => flow.isDefault);
   const steps = defaultFlow?.steps ?? [];
+  const flowNameById = new Map(flowRows.map((flow) => [flow.id, flow.name]));
 
   const roleRows = await readRoles(tx, tenantId);
   const roleById = new Map(roleRows.map((role) => [role.id, role]));
@@ -730,6 +735,7 @@ export async function exportTenant(
       : (serviceRoles.get(row.serviceSubjectId) ?? []);
   const exportedClients: ExportedClient[] = clientRows.map((row) => ({
     ...row.exported,
+    flow: row.flowId === null ? null : (flowNameById.get(row.flowId) ?? null),
     service_account_roles: exportedRoles(row),
   }));
   const exportedGroups = await exportGroups(tx, tenantId, roleById);
@@ -750,6 +756,11 @@ export async function exportTenant(
     version: 1,
     settings,
     flow: steps,
+    flow_name: defaultFlow?.name ?? DEFAULT_FLOW_NAME,
+    flows: flowRows
+      .filter((flow) => !flow.isDefault)
+      .sort(byKey((flow) => flow.name))
+      .map((flow) => ({ name: flow.name, steps: flow.steps })),
     clients: exportedClients,
     roles: await exportRoles(tx, tenantId, roleRows, roleById),
     groups: exportedGroups.groups,

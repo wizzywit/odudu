@@ -125,7 +125,7 @@ export const listFlowsResponseSchema = z.object({
 export type ListFlowsResponse = z.infer<typeof listFlowsResponseSchema>;
 
 // The length is counted in code points, as the table's CHECK counts it.
-const flowNameSchema = noNul(noBidiControls(z.string().trim().min(1))).refine(
+export const flowNameSchema = noNul(noBidiControls(z.string().trim().min(1))).refine(
   (name) => characterCount(name) <= FLOW_NAME_MAX,
   { error: `name must be at most ${String(FLOW_NAME_MAX)} characters` },
 );

@@ -133,6 +133,7 @@ import {
 import {
   exportedClientSchema,
   exportedFlowStepSchema,
+  exportedNamedFlowSchema,
   exportedGroupSchema,
   exportedRoleSchema,
   exportedScopeSchema,
@@ -946,6 +947,11 @@ describeFields(exportedClientSchema, {
   require_auth_time: 'Whether ID tokens always carry the `auth_time` claim.',
   allowed_actions:
     'The required actions the client may start for a signed-in person through `/authorize`: `verify-email`, `update-password`, `configure-totp`, `configure-passkey`, `generate-recovery-codes`, `update-profile`. `accept-terms` is not among them: it records consent to the tenant\u2019s own terms and has to come from the tenant. Empty allows none. A client with any holds the `me:read` scope, which is how it reads the outcome; refused with `allowed_actions_need_me_read` otherwise.',
+  flow: 'The name of the sign-in flow the client uses: one of `flows` or `flow_name`. Null follows the tenant’s default flow. Absent from a document exported before named flows existed, which imports with null.',
+});
+describeFields(exportedNamedFlowSchema, {
+  name: 'The flow’s name, unique in the document and different from `flow_name`.',
+  steps: 'The flow’s steps, in order, at most 20.',
 });
 describeFields(exportedFlowStepSchema, {
   authenticator: 'The sign-in step to run.',
@@ -1021,7 +1027,11 @@ describeFields(registrationPolicySchema, {
 describeFields(tenantDocumentSchema, {
   version: 'The document format version; always 1.',
   settings: 'The tenant’s settings.',
-  flow: 'The sign-in flow, in order.',
+  flow: 'The default sign-in flow, in order.',
+  flow_name:
+    'The name of the default flow, which the tenant may have changed. Absent from a document exported before named flows existed, which imports it as `default`.',
+  flows:
+    'Every other sign-in flow, each by name, in name order, at most 19. Absent from a document exported before named flows existed, which imports with none.',
   clients: 'The tenant’s clients. Secrets are never exported.',
   roles: 'The tenant’s roles.',
   groups: 'The tenant’s groups.',
