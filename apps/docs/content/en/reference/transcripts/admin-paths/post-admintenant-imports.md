@@ -144,16 +144,16 @@ cat import.json
 
 ```
 HTTP/1.1 201 Created
-x-request-id: 01a1e9bd-9b5f-795a-8cea-7d485c677595
+x-request-id: 01a1e9de-2c93-71d0-99a0-3c5f81f07df1
 cache-control: no-store
-etag: "798d2ac2c8b4c532013f2a02708f90b5e0064bbb69a9f7a5b92727708188cb43"
+etag: "6e344039075bd5326b6d93fdb0f99c2081d16587424804cf677e2c2abde8cfd3"
 content-type: application/json; charset=utf-8
 content-length: 264
-Date: Tue, 17 Nov 2026 13:41:20 GMT
+Date: Tue, 17 Nov 2026 14:16:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"tenant":{"id":"01a1e9bd-9b84-773a-b00c-d9635f2005a0","name":"import-demo2","display_name":"Import demo","enabled":true,"created_at":"2026-11-17T13:41:19.876Z"},"client_secrets":[{"client_id":"billing-app","secret":"Hqi7K7083VeGGkr9hQ-roNPXxBUzQamYvMu1jfniZPo"}]}
+{"tenant":{"id":"01a1e9de-2cb3-7da6-95fd-714aa536feed","name":"import-demo2","display_name":"Import demo","enabled":true,"created_at":"2026-11-17T14:16:54.195Z"},"client_secrets":[{"client_id":"billing-app","secret":"Tktvs8GsPA2v7MWwNaSvdY5hUHlQ_Yx4Ma_pQoy4vxE"}]}
 ```
 
 The secret it answered authenticates at the new tenant's `/token`:
@@ -235,16 +235,16 @@ echo
 ```
 
 ```
-HTTP/1.1 400 Bad Reques
-x-request-id: 01a1e9bd-9d78-789f-8d4c-86b35a8709dc
+HTTP/1.1 400 Bad Request
+x-request-id: 01a1e9de-2e90-733d-bf7a-3ae8206fc556
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 265
-Date: Tue, 17 Nov 2026 13:41:20 GMT
+Date: Tue, 17 Nov 2026 14:16:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.clients[0].flow","message":"names no flow no-such-flow"}],"instance":"01a1e9bd-9d78-789f-8d4c-86b35a8709dc"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.clients[0].flow","message":"names no flow no-such-flow"}],"instance":"01a1e9de-2e90-733d-bf7a-3ae8206fc556"}
 {"count":0,"capped":false}
 ```
 
@@ -266,9 +266,9 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-["01a1e9bd-9837-758f-85d8-7724c7357ac4"]
-["01a1e9bd-9bd4-71ea-9dab-a66912b51d58"]
-{"items":[{"id":"01a1e9bd-9c7b-7b79-bf62-2e7fde664287","occurred_at":"2026-11-17T13:41:19.876Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a1e9bd-875b-72eb-8c68-983161bed4cb","actor_client_id":"01a1e9bd-86d8-77c2-b1fd-ae324cae229d","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a1e9bd-9b84-773a-b00c-d9635f2005a0","request_id":"01a1e9bd-9b5f-795a-8cea-7d485c677595","ip":"172.20.0.1","detail":{"counts":{"flows":2,"roles":11,"groups":1,"scopes":12,"clients":2,"subjects":1,"message_overrides":1},"source_version":1}}]}
+["01a1e9de-2a2d-739d-84b5-2b7b1e90ce99"]
+["01a1e9de-2d00-7c6a-b8df-39e1442d7f18"]
+{"items":[{"id":"01a1e9de-2da5-7488-8d0d-a42ab4f81d9a","occurred_at":"2026-11-17T14:16:54.195Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a1e9de-139e-7ae0-b2d8-baf747f747cb","actor_client_id":"01a1e9de-135b-7052-9821-4f717f901cba","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a1e9de-2cb3-7da6-95fd-714aa536feed","request_id":"01a1e9de-2c93-71d0-99a0-3c5f81f07df1","ip":"172.20.0.1","detail":{"counts":{"flows":2,"roles":11,"groups":1,"scopes":12,"clients":2,"subjects":1,"message_overrides":1},"source_version":1}}]}
 ```
 
 A document broken in two places at once — a scope mapping naming a role
