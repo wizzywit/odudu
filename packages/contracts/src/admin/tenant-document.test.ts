@@ -476,6 +476,11 @@ describe('the flows of a document', () => {
     expect(parse(names(FLOW_LIMIT)).success).toBe(false);
   });
 
+  it('compares names exactly, apart from the trimming a name always gets', () => {
+    expect(parse([named('Staff'), named('staff')]).success).toBe(true);
+    expect(parse([named('staff'), named(' staff ')]).success).toBe(false);
+  });
+
   it('refuses a duplicate name', () => {
     expect(parse([named('staff'), named('staff')]).success).toBe(false);
   });

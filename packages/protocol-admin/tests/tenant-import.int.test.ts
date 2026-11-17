@@ -1780,6 +1780,26 @@ describe('POST /admin/tenant-imports', () => {
       expect(await tenantIdOf(name)).toBeNull();
     });
 
+    it('keeps flows whose names differ only by case apart, as the tenant’s own unique name does', async () => {
+      const { token, base } = await flowDocument();
+      const name = `import-${newId()}`;
+
+      const res = await postImport(token, {
+        name,
+        document: {
+          ...base,
+          flows: [
+            { name: 'staff', steps: [PASSWORD] },
+            { name: 'Staff', steps: WITH_OTP },
+          ],
+        },
+      });
+
+      expect(res.statusCode, res.payload).toBe(201);
+      const again = await exportOf(token, name);
+      expect(again.flows.map((flow) => flow.name)).toEqual(['Staff', 'staff']);
+    });
+
     it('leaves no flow behind when a later write fails', async () => {
       const { token, base } = await flowDocument();
       const flowName = `late-${newId()}`;
