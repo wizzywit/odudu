@@ -711,14 +711,16 @@ export async function exportTenant(
     Object.fromEntries(Object.entries(record).filter(([name]) => policyNames.has(name))),
   );
 
+  const roleRows = await readRoles(tx, tenantId);
+  const roleById = new Map(roleRows.map((role) => [role.id, role]));
+  const clientRows = await readClients(tx, tenantId);
+  // Read after the clients: a flow a client names cannot be deleted while it
+  // is named, so every name a client row holds is in this list even when
+  // another administrator creates a flow and assigns it during the export.
   const flowRows = await flowRepository(tx).forTenant(tenantId);
   const defaultFlow = flowRows.find((flow) => flow.isDefault);
   const steps = defaultFlow?.steps ?? [];
   const flowNameById = new Map(flowRows.map((flow) => [flow.id, flow.name]));
-
-  const roleRows = await readRoles(tx, tenantId);
-  const roleById = new Map(roleRows.map((role) => [role.id, role]));
-  const clientRows = await readClients(tx, tenantId);
   const serviceRoles = await subjectRoleReferences(
     tx,
     tenantId,
