@@ -1,5 +1,9 @@
 import { tenants, type Database } from '@odudu/db';
 import { eq } from 'drizzle-orm';
+import {
+  isRegistrationUsernameMode,
+  type RegistrationUsernameMode,
+} from '#/service/username-choice';
 
 // Duplicated rather than imported from @odudu/domain-identity: @odudu/account
 // depends on neither that package nor @odudu/domain-authz
@@ -37,6 +41,7 @@ export interface TenantSettings {
   verifyEmailTtlSeconds: number;
   registrationAllowed: boolean;
   resetPasswordAllowed: boolean;
+  registrationUsername: RegistrationUsernameMode;
   // What a page of this tenant is offered in and shown in by default.
   supportedLocales: string[];
   defaultLocale: string | null;
@@ -65,6 +70,9 @@ export function tenantSettingsRepository(db: Database) {
             verifyEmailTtlSeconds: row.verifyEmailTtlSeconds,
             registrationAllowed: row.registrationAllowed,
             resetPasswordAllowed: row.resetPasswordAllowed,
+            registrationUsername: isRegistrationUsernameMode(row.registrationUsername)
+              ? row.registrationUsername
+              : 'required',
             supportedLocales: row.supportedLocales,
             defaultLocale: row.defaultLocale,
             passwordPolicy: {

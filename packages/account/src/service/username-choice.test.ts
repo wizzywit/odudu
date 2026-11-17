@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { chooseUsername, generateHandle, HANDLE_ATTEMPTS } from '#/service/username-choice';
+import {
+  chooseUsername,
+  generateHandle,
+  HANDLE_ATTEMPTS,
+  isRegistrationUsernameMode,
+} from '#/service/username-choice';
 
 describe('generateHandle', () => {
   it('maps zero bytes to the first letter', () => {
@@ -30,6 +35,15 @@ describe('generateHandle', () => {
     expect(generateHandle(new Uint8Array(16).fill(1))).toBe(
       generateHandle(new Uint8Array(10).fill(1)),
     );
+  });
+});
+
+describe('isRegistrationUsernameMode', () => {
+  it('admits the three modes and nothing else', () => {
+    for (const mode of ['required', 'optional', 'generated']) {
+      expect(isRegistrationUsernameMode(mode)).toBe(true);
+    }
+    expect(isRegistrationUsernameMode('sometimes')).toBe(false);
   });
 });
 

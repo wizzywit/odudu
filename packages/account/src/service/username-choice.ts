@@ -3,6 +3,10 @@
 // not depend on).
 export type RegistrationUsernameMode = 'required' | 'optional' | 'generated';
 
+export function isRegistrationUsernameMode(value: string): value is RegistrationUsernameMode {
+  return value === 'required' || value === 'optional' || value === 'generated';
+}
+
 export type UsernameChoice =
   | { readonly kind: 'use'; readonly username: string }
   | { readonly kind: 'generate' }

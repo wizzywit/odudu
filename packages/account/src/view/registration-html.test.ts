@@ -2,6 +2,7 @@ import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { ARABIC, FRENCH } from '@odudu/testkit/i18n';
 import { describe, expect, it, vi } from 'vitest';
 import { en } from '#/view/messages';
+import { ar } from '#/view/messages.ar';
 import {
   renderRegistrationFailedPage,
   renderRegistrationForm,
@@ -72,9 +73,9 @@ describe('renderRegistrationForm', () => {
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username <input type="text" name="username" autocomplete="username"></label>
-  <label>Email <input type="email" name="email" autocomplete="email"></label>
-  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label>Username (required) <input type="text" name="username" autocomplete="username" required></label>
+  <label>Email (required) <input type="email" name="email" autocomplete="email" required></label>
+  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -83,7 +84,7 @@ describe('renderRegistrationForm', () => {
     </ul>
   </div>
   <script nonce="N">…</script>
-  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="N">…</script>
   <button type="submit">Create account</button>
 </form>`);
@@ -121,10 +122,10 @@ describe('renderRegistrationForm', () => {
 </ul>
 </div>
 <form`);
-    expect(body).toContain('name="username" autocomplete="username" value="newcomer">');
-    expect(body).toContain('name="email" autocomplete="email" value="new@example.test">');
+    expect(body).toContain('name="username" autocomplete="username" required value="newcomer">');
+    expect(body).toContain('name="email" autocomplete="email" required value="new@example.test">');
     expect(body).toContain(
-      'name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 password-rules-list" autofocus>',
+      'name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 password-rules-list" autofocus>',
     );
     expect(body).not.toMatch(/name="password"[^>]*value=/u);
   });
@@ -139,10 +140,10 @@ describe('renderRegistrationForm', () => {
     expect(body).toContain('<li id="form-error-0">Enter an email address.</li>');
     expect(body).toContain('<li id="form-error-1">Enter a password.</li>');
     expect(body).toContain(
-      'name="email" autocomplete="email" aria-invalid="true" aria-describedby="form-error-0" autofocus>',
+      'name="email" autocomplete="email" required aria-invalid="true" aria-describedby="form-error-0" autofocus>',
     );
     expect(body).toContain(
-      'name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-1 password-rules-list">',
+      'name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-1 password-rules-list">',
     );
     expect(body).not.toMatch(/name="username"[^>]*aria-invalid/u);
   });
@@ -194,8 +195,8 @@ describe('renderRegistrationForm', () => {
     );
     expect(page.html).toContain('<html lang="fr" dir="ltr">');
     expect(page.title).toBe('Créer un compte');
-    expect(page.body).toContain(`<label>Nom d&#39;utilisateur <input`);
-    expect(page.body).toContain(`<label>${en['registration.email']} <input`);
+    expect(page.body).toContain(`<label>Nom d&#39;utilisateur (required) <input`);
+    expect(page.body).toContain(`<label>${en['registration.email']} (required) <input`);
     expect(page.body).toContain(`>${en['registration.submit']}</button>`);
     expect(
       renderRegistrationForm(
@@ -354,5 +355,78 @@ describe('a refused registration form reads coherently to a screen reader', () =
         DEFAULT_PAGE_LOCALE,
       ).body,
     );
+  });
+});
+
+describe('the required and optional markers', () => {
+  const render = (
+    usernameMode: 'required' | 'optional' | 'generated',
+    extra: Partial<Parameters<typeof renderRegistrationForm>[2]> = {},
+    locale = DEFAULT_PAGE_LOCALE,
+  ) =>
+    renderRegistrationForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      { rules: RULES, usernameMode, ...extra },
+      locale,
+    ).body;
+  const inputOf = (body: string, name: string): string =>
+    new RegExp(`<input[^>]*name="${name}"[^>]*>`, 'u').exec(body)?.[0] ?? '';
+
+  it('marks all four fields required, and holds the attribute on each input', () => {
+    const body = render('required');
+    for (const label of ['Username', 'Email', 'Password', 'Confirm password']) {
+      expect(body).toContain(`<label>${label} (required) <input`);
+    }
+    for (const name of ['username', 'email', 'password', 'password_confirm']) {
+      expect(inputOf(body, name)).toMatch(/ required[ >]/u);
+    }
+  });
+
+  it('is the required form when the mode is not given', () => {
+    expect(
+      withoutScript(
+        renderRegistrationForm(
+          'acme',
+          pathAddress('https://idp.example', 'acme'),
+          { rules: RULES },
+          DEFAULT_PAGE_LOCALE,
+        ).body,
+      ),
+    ).toBe(withoutScript(render('required')));
+  });
+
+  it('marks the username optional, with no required attribute, and the rest required', () => {
+    const body = render('optional');
+    expect(body).toContain('<label>Username (optional) <input');
+    expect(inputOf(body, 'username')).not.toContain('required');
+    for (const label of ['Email', 'Password', 'Confirm password']) {
+      expect(body).toContain(`<label>${label} (required) <input`);
+    }
+    expect(inputOf(body, 'email')).toMatch(/ required[ >]/u);
+  });
+
+  it('has no username label or input when the username is generated', () => {
+    const body = render('generated');
+    expect(body).not.toContain('name="username"');
+    expect(body).not.toContain('Username');
+    for (const label of ['Email', 'Password', 'Confirm password']) {
+      expect(body).toContain(`<label>${label} (required) <input`);
+    }
+  });
+
+  it('gives back no username in a refused generated form', () => {
+    const body = render('generated', {
+      failure: { refusal: 'email_taken' },
+      username: 'mallory',
+      email: 'a@example.test',
+    });
+    expect(body).not.toContain('mallory');
+    expect(body).toContain('value="a@example.test"');
+  });
+
+  it('has an Arabic word for each marker', () => {
+    expect(ar['registration.required']).toBe('مطلوب');
+    expect(ar['registration.optional']).toBe('اختياري');
   });
 });

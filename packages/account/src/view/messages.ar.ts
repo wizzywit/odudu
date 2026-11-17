@@ -27,6 +27,8 @@ export const ar: Readonly<Record<string, string>> = {
   'registration.title': 'إنشاء حساب',
   'registration.username': 'اسم المستخدم',
   'registration.email': 'البريد الإلكتروني',
+  'registration.required': 'مطلوب',
+  'registration.optional': 'اختياري',
   'registration.password': 'كلمة المرور',
   'registration.passwordConfirm': 'تأكيد كلمة المرور',
   'registration.submit': 'إنشاء حساب',

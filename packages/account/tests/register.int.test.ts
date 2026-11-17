@@ -806,7 +806,9 @@ describe('self-registration', () => {
       expect(res.body).toContain(en['registration.refusal.invalidUsername']);
       // The refused name is not put back in the field to reorder the text.
       expect(res.body).not.toMatch(/[\u202a-\u202e\u2066-\u2069]/u);
-      expect(res.body).toContain('name="username" autocomplete="username" aria-invalid="true"');
+      expect(res.body).toContain(
+        'name="username" autocomplete="username" required aria-invalid="true"',
+      );
     }
     for (const username of usernames) {
       const found = await withTenant(app.db, tenantId, (tx) =>

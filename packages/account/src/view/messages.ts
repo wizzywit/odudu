@@ -34,6 +34,8 @@ export const en = {
   'registration.title': 'Create account',
   'registration.username': 'Username',
   'registration.email': 'Email',
+  'registration.required': 'required',
+  'registration.optional': 'optional',
   'registration.password': 'Password',
   'registration.passwordConfirm': 'Confirm password',
   'registration.submit': 'Create account',
