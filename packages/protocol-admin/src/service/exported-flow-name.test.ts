@@ -5,11 +5,13 @@ const NAMES = new Map([['f1', 'staff']]);
 
 describe('exportedFlowName', () => {
   it('names the flow, and gives null for a client that follows the default', () => {
-    expect(exportedFlowName(NAMES, 'f1', 'c')).toBe('staff');
-    expect(exportedFlowName(NAMES, null, 'c')).toBeNull();
+    expect(exportedFlowName(NAMES, 'f1', 'c', 't')).toBe('staff');
+    expect(exportedFlowName(NAMES, null, 'c', 't')).toBeNull();
   });
 
   it('throws on a flow the tenant does not hold, naming the client and the flow', () => {
-    expect(() => exportedFlowName(NAMES, 'gone', 'billing')).toThrow(/billing.*gone/u);
+    expect(() => exportedFlowName(NAMES, 'gone', 'billing', 'acme-id')).toThrow(
+      /billing.*acme-id.*gone/u,
+    );
   });
 });

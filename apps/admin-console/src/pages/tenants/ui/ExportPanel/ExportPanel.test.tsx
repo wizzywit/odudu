@@ -133,7 +133,7 @@ it('says an export carries every sign-in flow and each client’s flow, and an i
   renderConsoleAt(AT, routes(DOCUMENT_ANSWER));
   const lead = await screen.findByText(/A file of acme's configuration/u);
   expect(lead).toHaveTextContent(
-    'every sign-in flow, each by name, with the flow each client runs',
+    'every sign-in flow, each by name, with the flow each client is pinned to',
   );
   expect(lead).toHaveTextContent('Importing it creates a new tenant with the same flows');
 });

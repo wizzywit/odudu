@@ -85,7 +85,13 @@ describe('exportLead', () => {
   it('says the file carries every sign-in flow by name and each client’s flow, and that an import restores them', () => {
     const lead = exportLead('acme');
     expect(lead).toContain("acme's configuration");
-    expect(lead).toContain('every sign-in flow, each by name, with the flow each client runs');
+    expect(lead).toContain(
+      'every sign-in flow, each by name, with the flow each client is pinned to',
+    );
     expect(lead).toContain('Importing it creates a new tenant with the same flows');
+    expect(lead).toContain('a client that followed the default flow still following it');
+    expect(lead).toContain(
+      "does not carry the published theme, the clients' themes or the images they use",
+    );
   });
 });

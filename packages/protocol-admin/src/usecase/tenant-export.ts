@@ -736,7 +736,7 @@ export async function exportTenant(
       : (serviceRoles.get(row.serviceSubjectId) ?? []);
   const exportedClients: ExportedClient[] = clientRows.map((row) => ({
     ...row.exported,
-    flow: exportedFlowName(flowNameById, row.flowId, row.exported.client_id),
+    flow: exportedFlowName(flowNameById, row.flowId, row.exported.client_id, tenantId),
     service_account_roles: exportedRoles(row),
   }));
   const exportedGroups = await exportGroups(tx, tenantId, roleById);
