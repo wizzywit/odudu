@@ -40,6 +40,16 @@ describe('chooseUsername', () => {
     expect(chooseUsername('required', 'ann')).toEqual({ kind: 'use', username: 'ann' });
   });
 
+  it('passes a posted name through as typed while required, blanks included', () => {
+    expect(chooseUsername('required', ' ann ')).toEqual({ kind: 'use', username: ' ann ' });
+    expect(chooseUsername('required', ' ')).toEqual({ kind: 'use', username: ' ' });
+  });
+
+  it('stores a name as typed while optional, and treats whitespace alone as blank', () => {
+    expect(chooseUsername('optional', ' ann ')).toEqual({ kind: 'use', username: ' ann ' });
+    expect(chooseUsername('optional', '   ')).toEqual({ kind: 'generate' });
+  });
+
   it('uses a posted name while optional, and generates when none came', () => {
     expect(chooseUsername('optional', 'ann')).toEqual({ kind: 'use', username: 'ann' });
     expect(chooseUsername('optional', undefined)).toEqual({ kind: 'generate' });

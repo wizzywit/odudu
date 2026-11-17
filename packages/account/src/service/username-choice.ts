@@ -31,7 +31,12 @@ export function chooseUsername(
   posted: string | undefined,
 ): UsernameChoice {
   if (mode === 'generated') return { kind: 'generate' };
-  const username = posted?.trim() ?? '';
-  if (username !== '') return { kind: 'use', username };
-  return mode === 'optional' ? { kind: 'generate' } : { kind: 'missing' };
+  if (mode === 'required') {
+    return posted === undefined || posted === ''
+      ? { kind: 'missing' }
+      : { kind: 'use', username: posted };
+  }
+  return posted === undefined || posted.trim() === ''
+    ? { kind: 'generate' }
+    : { kind: 'use', username: posted };
 }
