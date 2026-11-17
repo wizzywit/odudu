@@ -22,7 +22,8 @@ const EVERY_SETTING = [
   ...REGISTRATION_POLICY_SETTINGS,
 ];
 
-const PLACED = SETTINGS_SECTIONS.flatMap((section) => section.fields.map((field) => field.name));
+const PLACED_FIELDS = SETTINGS_SECTIONS.flatMap((section) => section.fields);
+const PLACED = PLACED_FIELDS.map((field) => field.name);
 
 describe('SETTINGS_SECTIONS', () => {
   it('places every tenant setting in a section, or names where else it lives', () => {
@@ -74,7 +75,6 @@ describe('SETTINGS_SECTIONS', () => {
 
 describe('the authenticator policy', () => {
   const home = SETTINGS_SECTIONS.find((section) => section.id === 'authenticators');
-  const named = (name: string) => home?.fields.find((field) => field.name === name);
 
   it('sits in one section with the recovery warning its count bounds', () => {
     expect(home?.fields.map((field) => field.name)).toEqual([
@@ -104,10 +104,9 @@ describe('the authenticator policy', () => {
 
   it('offers exactly the values the server accepts, digits and period as numbers', () => {
     for (const [name, choices] of Object.entries(TENANT_SETTING_CHOICES)) {
-      // These two live in the password policy, and registration_username in the
-      // registration section, each with a test of its own below.
-      if (name.startsWith('breached_') || name === 'registration_username') continue;
-      const field = named(name);
+      // A choice may sit in any section: the authenticators, the password
+      // policy or the registration section.
+      const field = PLACED_FIELDS.find((each) => each.name === name);
       expect(field?.control).toBe('choice');
       expect(field?.options?.map((option) => option.id)).toEqual(choices.map(String));
       expect(field?.numeric === true).toBe(typeof choices[0] === 'number');

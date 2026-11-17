@@ -404,6 +404,10 @@ it('shows the server’s refusal of the username mode under its field, not as a 
             path: 'login_with_email',
             message: 'must stay on while registration_username is optional or generated',
           },
+          {
+            path: 'verify_email',
+            message: 'must stay on while registration_username is optional or generated',
+          },
         ],
       }),
     }),
