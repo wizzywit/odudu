@@ -128,6 +128,9 @@ describe('the registration_username setting', () => {
       'document.settings.registration_username',
       'document.registration_policy.verify_email',
     ]);
+    expect(errors[1]?.message).toBe(
+      'is off, which registration_username optional or generated needs',
+    );
     const both = await importWith({
       ...document,
       settings: { ...document.settings, login_with_email: false },
@@ -139,8 +142,5 @@ describe('the registration_username setting', () => {
       'document.settings.login_with_email',
       'document.registration_policy.verify_email',
     ]);
-    expect(errors[1]?.message).toBe(
-      'is off, which registration_username optional or generated needs',
-    );
   });
 });

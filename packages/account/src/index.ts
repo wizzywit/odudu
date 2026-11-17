@@ -102,6 +102,7 @@ export {
   chooseUsername,
   generateHandle,
   HANDLE_ATTEMPTS,
+  REGISTRATION_USERNAME_MODES,
   type RegistrationUsernameMode,
   type UsernameChoice,
 } from '#/service/username-choice';

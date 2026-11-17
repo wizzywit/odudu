@@ -74,6 +74,7 @@ export {
   type AmendSettingsRequest,
   settingsSchema,
   type Settings,
+  REGISTRATION_USERNAME_CHOICES,
   TENANT_SETTING_ORDERINGS,
   TENANT_SETTING_CHOICES,
   TENANT_SETTING_RANGES,

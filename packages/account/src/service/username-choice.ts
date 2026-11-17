@@ -1,10 +1,11 @@
 // The three values of the tenant setting `registration_username`
 // (REGISTRATION_USERNAME_CHOICES in @odudu/contracts, which this package does
 // not depend on).
-export type RegistrationUsernameMode = 'required' | 'optional' | 'generated';
+export const REGISTRATION_USERNAME_MODES = ['required', 'optional', 'generated'] as const;
+export type RegistrationUsernameMode = (typeof REGISTRATION_USERNAME_MODES)[number];
 
 export function isRegistrationUsernameMode(value: string): value is RegistrationUsernameMode {
-  return value === 'required' || value === 'optional' || value === 'generated';
+  return REGISTRATION_USERNAME_MODES.some((mode) => mode === value);
 }
 
 export type UsernameChoice =
