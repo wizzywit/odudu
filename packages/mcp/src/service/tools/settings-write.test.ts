@@ -91,6 +91,7 @@ describe('update_tenant_text_settings', () => {
     'login_with_email',
     'cimd_enabled',
     'username_editable',
+    'registration_username',
     'not_a_setting',
   ];
 
