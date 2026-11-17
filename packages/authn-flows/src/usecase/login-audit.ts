@@ -43,7 +43,9 @@ export type AuditFailureLogger = Pick<Logger, 'error'>;
 export interface LoginAudit {
   // Uncaught: a success nobody can find a record of is worse than a failed
   // login, so a failure to write it fails the attempt.
-  allowed(authenticator: string, subjectId: string): Promise<void>;
+  // `userVerified` is stated only for a passkey, whose assertion may carry
+  // the person's verification or only their presence.
+  allowed(authenticator: string, subjectId: string, userVerified?: boolean): Promise<void>;
   // Never changes the refusal the caller gets. The write runs in a savepoint
   // so a failed insert leaves the attempt's own writes (the failure count)
   // standing; the failure is logged instead. `lockoutTripped` adds the
@@ -80,13 +82,16 @@ export async function loginAuditFor(
   const audit = auditRepository(tx);
 
   return {
-    allowed: (authenticator, subjectId) =>
+    allowed: (authenticator, subjectId, userVerified) =>
       audit.record({
         ...common,
         action: loginActionFor(authenticator),
         outcome: 'allowed',
         actorSubjectId: subjectId,
-        detail: { factor: authenticator },
+        detail: {
+          factor: authenticator,
+          ...(userVerified === undefined ? {} : { user_verified: userVerified }),
+        },
       }),
     refused: async (authenticator, subjectId, reason, lockoutTripped = false) => {
       const events: AuditEventInput[] = [

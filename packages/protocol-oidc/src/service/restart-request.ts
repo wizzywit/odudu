@@ -1,5 +1,6 @@
 import { addressPath, type TenantAddress } from '@odudu/kernel';
 import { type PendingRequest } from '@odudu/authn-flows';
+import { requestedActionOf } from '#/service/action-request';
 import { MAX_CLAIMS_PARAMETER_BYTES } from '#/service/claims-request';
 
 type ParkedClaims = NonNullable<PendingRequest['claims']>;
@@ -68,5 +69,7 @@ export function restartAuthorizeLocation(
   // list applied; naming them all would be refused as invalid_target.
   if (pending.resource?.length === 1) query.set('resource', pending.resource[0] ?? '');
   if (claims !== '') query.set('claims', claims);
+  const action = requestedActionOf(pending);
+  if (action !== null) query.set('action', action);
   return addressPath(address, `/protocol/openid-connect/auth?${query.toString()}`);
 }

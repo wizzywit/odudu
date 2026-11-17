@@ -28,6 +28,7 @@ export interface PendingRegistrationInput {
 
 export interface WaitingRegistration {
   readonly username: string;
+  readonly email: string;
 }
 
 export interface PendingRegistration {
@@ -77,7 +78,7 @@ export function pendingRegistrationRepository(tx: TenantScopedDatabase) {
     // anybody. Changes nothing, so a mail scanner's visit leaves it be.
     async waiting(key: string, now: Date): Promise<WaitingRegistration | null> {
       const rows = await tx
-        .select({ username: pendingRegistrations.username })
+        .select({ username: pendingRegistrations.username, email: pendingRegistrations.email })
         .from(pendingRegistrations)
         .where(
           and(

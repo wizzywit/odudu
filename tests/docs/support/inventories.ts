@@ -196,6 +196,9 @@ export const PAGE_KIND_ALIASES: Readonly<Record<string, readonly string[]>> = {
   'required-action-html': ['required action'],
   'totp-enrolment-html': ['authenticator app', 'one-time password'],
   'update-password-html': ['change your password', 'choose a new password', 'update your password'],
+  'verify-email-html': ['verify your email address'],
+  'update-profile-html': ['complete your profile'],
+  'accept-terms-html': ['accept the terms'],
   'refusal-html': ['refusal page', 'refused'],
   'authorize-html': ['sign-in page', 'sign in page', 'login page'],
   'consent-html': ['consent screen', 'consent page'],
@@ -258,6 +261,8 @@ export const PROTOCOL_TERMS: readonly (readonly [string, string])[] = [
   ['claims', 'claims'],
   ['ui_locales', 'ui_locales'],
   ['response_mode', 'response_mode'],
+  ['action', 'action'],
+  ['action_status', 'action_status'],
 ];
 
 function protocolTerms(): Item[] {

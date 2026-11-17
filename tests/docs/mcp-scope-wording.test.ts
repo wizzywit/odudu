@@ -19,3 +19,20 @@ describe('the MCP scope rows', () => {
     }
   });
 });
+
+const ME_MIGRATION = readFileSync(
+  new URL('../../packages/db/drizzle/0125_me_scopes.sql', import.meta.url),
+  'utf8',
+);
+
+describe('the "me" scope rows', () => {
+  it('is the same in provisioning and in the backfill migration', () => {
+    const me = DEFAULT_SCOPES.filter(({ scope }) => scope.name.startsWith('me:'));
+    expect(me).toHaveLength(2);
+    for (const { scope } of me) {
+      for (const text of [scope.name, scope.description]) {
+        expect(ME_MIGRATION).toContain(`'${(text ?? '').replaceAll("'", "''")}'`);
+      }
+    }
+  });
+});

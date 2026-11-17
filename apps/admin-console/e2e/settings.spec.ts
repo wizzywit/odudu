@@ -47,8 +47,10 @@ test('sessions, the password policy and the recorded events are saved, each on i
   await expectAccessible(page);
 
   const sessions = region(page, 'Sessions');
-  await type(sessions.getByRole('textbox', { name: 'Idle timeout' }), '3600');
-  await expect(sessions.getByText('3600 s · 1 hour').first()).toBeVisible();
+  const idle = sessions.getByRole('textbox', { name: 'Idle timeout' });
+  await expect(sessions.getByRole('combobox', { name: 'Idle timeout, unit' })).toHaveValue('min');
+  await type(idle, '60');
+  await expect(idle).toHaveValue('60');
   await expectAccessible(page);
   await sessions.getByRole('button', { name: 'Save Sessions' }).click();
   await expect(sessions.getByRole('button', { name: 'Save Sessions' })).toBeHidden();
@@ -76,13 +78,19 @@ test('sessions, the password policy and the recorded events are saved, each on i
 
   await page.reload();
   await expect(region(page, 'Sessions').getByRole('textbox', { name: 'Idle timeout' })).toHaveValue(
-    '3600',
+    '1',
   );
+  await expect(
+    region(page, 'Sessions').getByRole('combobox', { name: 'Idle timeout, unit' }),
+  ).toHaveValue('h');
   await expect(
     region(page, 'Audit retention').getByRole('checkbox', { name: /Tokens issued/u }),
   ).not.toBeChecked();
 
   // An idle lifetime past the maximum is the server's to refuse, and it names the field.
+  await region(page, 'Sessions')
+    .getByRole('combobox', { name: 'Idle timeout, unit' })
+    .selectOption('s');
   await type(region(page, 'Sessions').getByRole('textbox', { name: 'Idle timeout' }), '99999999');
   await region(page, 'Sessions').getByRole('button', { name: 'Save Sessions' }).click();
   await expect(region(page, 'Sessions').getByText(/must not exceed/u)).toBeVisible();
@@ -123,7 +131,7 @@ test('settings changed behind the open page are shown beside the edit, and kept 
   await signIn(page, behind);
   await openSettings(page, behind.tenant);
   const sessions = region(page, 'Sessions');
-  await type(sessions.getByRole('textbox', { name: 'Idle timeout' }), '3600');
+  await type(sessions.getByRole('textbox', { name: 'Idle timeout' }), '60');
   psql(`update tenants set sso_session_idle_seconds = 7200 where name = '${behind.tenant}'`);
   await sessions.getByRole('button', { name: 'Save Sessions' }).click();
   await expect(sessions.getByRole('button', { name: /Keep mine/u })).toBeVisible();
@@ -225,7 +233,7 @@ test('a section is reached from the list at the top by keyboard alone, the focus
   await signIn(page, settings.fixed);
   await openSettings(page, settings.fixed.tenant);
   const nav = page.getByRole('navigation', { name: 'On this page' });
-  const target = nav.getByRole('button', { name: 'Brute force' });
+  const target = nav.getByRole('link', { name: 'Brute force' });
   await tabTo(page, target);
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { level: 2, name: 'Brute force' })).toBeFocused();

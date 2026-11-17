@@ -4,7 +4,7 @@
   }
 }
 Odudu console
-17 options available.
+20 options available.
 Skip to content
 odudu · acme
 Overview
@@ -295,6 +295,9 @@ Authenticator app set-up
 Passkey set-up
 Recovery codes
 Change password
+Email address check
+Profile
+Terms
 Required action
 Registration
 Password reset
@@ -328,6 +331,12 @@ Page-kind class: Passkey set-up
 Page-kind class: Recovery codes
 .page-update-password
 Page-kind class: Change password
+.page-verify-email
+Page-kind class: Email address check
+.page-update-profile
+Page-kind class: Profile
+.page-accept-terms
+Page-kind class: Terms
 .page-required-action
 Page-kind class: Required action
 .page-registration

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { type RequiredAction } from '#/schema/required-action';
 import { nextRequiredAction } from '#/usecase/required-actions';
 
 describe('nextRequiredAction', () => {
@@ -17,20 +18,33 @@ describe('nextRequiredAction', () => {
     expect(nextRequiredAction(['update-password', 'configure-totp'])).toBe('update-password');
   });
 
-  it('runs every action in the fixed order: update-password, configure-totp, configure-passkey, generate-recovery-codes', () => {
-    const all: (
-      'update-password' | 'configure-totp' | 'configure-passkey' | 'generate-recovery-codes'
-    )[] = ['generate-recovery-codes', 'configure-passkey', 'configure-totp', 'update-password'];
-    expect(nextRequiredAction(all)).toBe('update-password');
-    expect(nextRequiredAction(all.filter((action) => action !== 'update-password'))).toBe(
+  it('runs every action in the fixed order', () => {
+    const order: RequiredAction[] = [
+      'verify-email',
+      'update-password',
       'configure-totp',
+      'configure-passkey',
+      'generate-recovery-codes',
+      'update-profile',
+      'accept-terms',
+    ];
+    const owed = [...order].reverse();
+    const walked: RequiredAction[] = [];
+    for (let left = owed; left.length > 0;) {
+      const next = nextRequiredAction(left);
+      if (next === null) break;
+      walked.push(next);
+      left = left.filter((action) => action !== next);
+    }
+    expect(walked).toEqual(order);
+  });
+
+  it('proves an address before anything else, and asks for the profile and terms last', () => {
+    expect(nextRequiredAction(['update-password', 'verify-email'])).toBe('verify-email');
+    expect(nextRequiredAction(['accept-terms', 'update-profile'])).toBe('update-profile');
+    expect(nextRequiredAction(['accept-terms', 'generate-recovery-codes'])).toBe(
+      'generate-recovery-codes',
     );
-    expect(
-      nextRequiredAction(
-        all.filter((action) => !['update-password', 'configure-totp'].includes(action)),
-      ),
-    ).toBe('configure-passkey');
-    expect(nextRequiredAction(['generate-recovery-codes'])).toBe('generate-recovery-codes');
   });
 
   it('ignores a duplicate entry rather than treating it specially', () => {

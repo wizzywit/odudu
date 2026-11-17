@@ -20,8 +20,8 @@ describe('the lifetimes a client may be given', () => {
   });
 
   it('says the range with its duration reading', () => {
-    expect(lifetimeRule('id_token_ttl_seconds')).toBe('Between 1 s and 3600 s · 1 hour.');
-    expect(lifetimeRule('refresh_token_ttl_seconds')).toBe('At least 1 s.');
+    expect(lifetimeRule('id_token_ttl_seconds')).toBe('Allowed: 1 s to 3600 s · 1 hour.');
+    expect(lifetimeRule('refresh_token_ttl_seconds')).toBe('Allowed: at least 1 s.');
   });
 
   it('starts every lifetime within the range', () => {

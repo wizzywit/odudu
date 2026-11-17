@@ -1,9 +1,11 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { TOTP_OFFERS_HELD } from '#/service/totp-offer';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { isUuid } from '@odudu/kernel';
 import {
   authenticationSessions,
+  type ActionStatus,
   type AuthenticationSessionRecord,
   type PendingRequest,
 } from '#/schema/authentication-sessions';
@@ -160,6 +162,46 @@ export function authenticationSessionRepository(tx: TenantScopedDatabase) {
           pendingRequest: sql`jsonb_set(${authenticationSessions.pendingRequest}, '{rememberMe}', to_jsonb(${rememberMe}))`,
         })
         .where(eq(authenticationSessions.id, id));
+    },
+
+    // Appends to `pendingRequest.totpOffers` in place, keeping the latest
+    // TOTP_OFFERS_HELD, so two enrolment pages open at once can each be
+    // confirmed by the parameters they showed.
+    async recordTotpOffer(id: string, offer: object): Promise<void> {
+      const held = sql`(coalesce(${authenticationSessions.pendingRequest}->'totpOffers', '[]'::jsonb) || jsonb_build_array(${JSON.stringify(offer)}::jsonb))`;
+      await tx
+        .update(authenticationSessions)
+        .set({
+          pendingRequest: sql`jsonb_set(${authenticationSessions.pendingRequest}, '{totpOffers}', (select coalesce(jsonb_agg(e.value order by e.ordinality), '[]'::jsonb) from (select value, ordinality from jsonb_array_elements(${held}) with ordinality order by ordinality desc limit ${TOTP_OFFERS_HELD}) e))`,
+        })
+        .where(eq(authenticationSessions.id, id));
+    },
+
+    // Drops the offers once an enrolment is confirmed, so none can be replayed.
+    async clearTotpOffers(id: string): Promise<void> {
+      await tx
+        .update(authenticationSessions)
+        .set({ pendingRequest: sql`${authenticationSessions.pendingRequest} - 'totpOffers'` })
+        .where(eq(authenticationSessions.id, id));
+    },
+
+    // Patches `pendingRequest.actionStatus` in place, and only where none is
+    // written yet, so the first outcome of a requested action is the one that
+    // stands. Returns whether this call wrote it.
+    async recordActionStatus(id: string, status: ActionStatus): Promise<boolean> {
+      const rows = await tx
+        .update(authenticationSessions)
+        .set({
+          pendingRequest: sql`jsonb_set(${authenticationSessions.pendingRequest}, '{actionStatus}', to_jsonb(${status}::text))`,
+        })
+        .where(
+          and(
+            eq(authenticationSessions.id, id),
+            sql`not (${authenticationSessions.pendingRequest} ? 'actionStatus')`,
+          ),
+        )
+        .returning({ id: authenticationSessions.id });
+      return rows.length > 0;
     },
 
     // Puts the attempt back to how it started, for the one refusal whose

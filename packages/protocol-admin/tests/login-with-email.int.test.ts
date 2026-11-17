@@ -141,6 +141,9 @@ describe('signing in with an email address', () => {
   });
 
   it('answers an address two subjects hold in different cases as a miss', async () => {
+    // A database that still holds such a pair has no unique index (the
+    // migration skips it until `odudu reconcile-accounts` has folded them).
+    await fixture.owner.sql`drop index if exists users_email_search_unique`;
     const setup = await tenantWithEmailLogin(true);
     await userWithEmail(setup.tenant.id, 'ada', 'ada@example.com', true);
     await userWithEmail(setup.tenant.id, 'ada2', 'ADA@example.com', true);

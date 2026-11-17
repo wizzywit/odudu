@@ -23,6 +23,7 @@ const SESSION: TenantSession = {
   lastActiveAt: '2026-09-28T09:41:53.858Z',
   remembered: false,
   clientIds: [],
+  device: null,
 };
 
 function page() {

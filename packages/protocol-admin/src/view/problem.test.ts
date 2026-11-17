@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { fieldPath } from '#/service/field-path';
 import {
   ceilingProblem,
+  ifMatchRequired,
   fieldProblem,
   installProblemDetailsHandler,
   problem,
@@ -178,5 +179,19 @@ describe('a bidirectional control a repository refused after every schema let it
       { path: 'username', message: BIDI_REFUSED_MESSAGE, code: BIDI_REFUSED },
     ]);
     await app.close();
+  });
+});
+
+describe('ifMatchRequired', () => {
+  it('words a replacement by default, and any other action as named', () => {
+    expect(ifMatchRequired('a flow', undefined).detail).toBe(
+      'If-Match is required to replace a flow',
+    );
+    expect(
+      ifMatchRequired('a flow the default', undefined, { to: 'make', ing: 'making' }).detail,
+    ).toBe('If-Match is required to make a flow the default');
+    expect(ifMatchRequired('a flow the default', '*', { to: 'make', ing: 'making' }).detail).toBe(
+      'If-Match must name a version you read; * is not accepted when making a flow the default',
+    );
   });
 });

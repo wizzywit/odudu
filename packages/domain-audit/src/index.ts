@@ -19,6 +19,7 @@ export {
   type AuditEventType,
   type AuditOutcome,
   type AuditReason,
+  type BreachedCheckOutcome,
   type VocabularyEventInput,
   type VocabularyEventType,
 } from '#/service/vocabulary';

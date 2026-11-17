@@ -315,7 +315,7 @@ describe('odudu mcp with a service account key', () => {
     const read = await run(KEY_ARGS, { env: { ODUDU_MCP_KEY: keyText }, input: SESSION });
     const readNames = toolNames(read.lines);
     expect(readNames).toEqual(TENANT_TOOLS.filter((t) => t.access === 'read').map((t) => t.name));
-    expect(readNames.length).toBe(59);
+    expect(readNames.length).toBe(62);
 
     const a = authority();
     const write = await run([...KEY_ARGS, '--allow-writes'], {

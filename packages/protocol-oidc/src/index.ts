@@ -1,8 +1,10 @@
+import { randomBytes } from 'node:crypto';
 import { lookupLocalised } from '@odudu/contracts';
 import {
   admitSession,
   advance,
   authenticatedSession,
+  signedInWithVerifiedPasskey,
   authenticatedSubject,
   beginPasskeyAuthentication,
   beginPasskeyEnrolment,
@@ -10,9 +12,17 @@ import {
   pendingActionsFor,
   beginTotpEnrolment,
   completePasskeyEnrolment,
+  completeAcceptTerms,
   completeRecoveryCodes,
   completeTotpEnrolment,
+  completeUpdateProfile,
+  completeVerifyEmail,
+  profileOffer,
+  termsOffer,
+  verifyEmailOffer,
+  type MailLookResolver,
   completeUpdatePassword,
+  prepareUpdatePassword,
   consumeAuthenticationSession,
   initialChallenge,
   loadPendingRequest,
@@ -20,8 +30,13 @@ import {
   authenticatorsSatisfyFlow,
   pendingChallenge,
   pendingSession,
+  newDeviceId,
+  readDeviceId,
   readSessionEntries,
   recordRememberMe,
+  holdsPassword,
+  recordActionStep,
+  type RecordActionStep,
   resetAuthenticationProgress,
   sessionRepository,
   startAuthentication,
@@ -33,6 +48,7 @@ import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
+  type BreachedPasswordCheck,
   hashPassword,
   subjectIsEnabled,
   subjectRepository,
@@ -98,7 +114,7 @@ import {
 } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
 import { type DiscoveryUsecaseDeps } from '#/usecase/discovery';
-import { endSession } from '#/usecase/end-session';
+import { endOtherSessions, endSession } from '#/usecase/end-session';
 import { registerAsMetadataRoutes } from '#/view/routes/as-metadata';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
 import { registerClientRegistrationRoute } from '#/view/routes/client-registration';
@@ -123,6 +139,10 @@ export interface OidcRoutesDeps {
   // can sign access and ID tokens. Required, not defaulted: there is no
   // safe placeholder for a key-encryption key.
   kek: Uint8Array;
+  // What a password written through the required-action form is checked
+  // against after the tenant's other rules. Required: a deployment that
+  // wires none would silently skip a tenant's remote source.
+  breachedPasswordCheck: BreachedPasswordCheck;
   // Whether this process serves over TLS (ODUDU_TLS): the __Host- prefix and
   // Secure attribute of every cookie these routes write. No default, so a
   // caller cannot lose it silently.
@@ -190,6 +210,19 @@ export interface OidcRoutesDeps {
   // The tenant's own wording for the language a page is shown in; the server
   // wires the reader here. None means every page reads the catalogue alone.
   resolveOverrides?: OverridesResolver;
+  // Queues the mail that proves the address a person holds, for the page that
+  // asks them to prove it, within the limit on mail to one address; answers
+  // `verified` where there is nothing left to prove. Absent, no link can be
+  // sent and the page says so.
+  queueVerificationLink?: (
+    tenantId: string,
+    subjectId: string,
+    request: RequestContext,
+  ) => Promise<'queued' | 'limited' | 'unavailable' | 'verified'>;
+  // How the mail that tells a person of a change to their own sign-in methods
+  // is dressed and worded; the server wires the same resolver its other mail
+  // uses. Absent, that mail is unthemed.
+  resolveMailLook?: MailLookResolver;
   // How a Client ID Metadata Document is fetched, for the tenants that turn
   // them on. Absent, no document can be fetched and a URL client_id is refused
   // like any unknown one. The limiter is shared by every request, so the
@@ -370,6 +403,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       );
     };
 
+    // The device cookie the browser presented, or a fresh value for one that
+    // presented none; the login response writes it back either way.
+    const deviceOf = (tenantName: string, header: string | undefined) =>
+      readDeviceId(header, tenantName, tls) ?? newDeviceId(() => randomBytes(16));
+
     // Whether the login page offers a passkey button at all: the relying
     // party id comes from ODUDU_PUBLIC_BASE_URL and nowhere else, so
     // without it there is nothing behind one.
@@ -505,6 +543,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
                 browserSessions: input.browserSessions,
                 maxSessionsPerBrowser: input.maxSessionsPerBrowser,
                 lifespans: input.lifespans,
+                device: input.device,
               },
               clock,
             );
@@ -645,18 +684,64 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // One definition for both doors onto the enrolment page: the login
     // submission that discovers the action is owed, and the enrolment
     // submission that has to re-render it after a wrong code.
-    const startTotpEnrolment = (tenantName: string, tenantId: string, subjectId: string) =>
-      withTenant(deps.database.db, tenantId, (tx) => beginTotpEnrolment(tx, tenantName, subjectId));
+    const startTotpEnrolment = (
+      tenantName: string,
+      tenantId: string,
+      subjectId: string,
+      authSessionId: string,
+    ) =>
+      withTenant(deps.database.db, tenantId, (tx) =>
+        beginTotpEnrolment(tx, tenantId, tenantName, subjectId, authSessionId),
+      );
 
     // One definition for the same two doors: the login that discovers the
     // action is owed, and the acknowledgement that has to re-render it.
-    const startRecoveryCodes = (tenantId: string, subjectId: string, request: RequestContext) =>
+    const startRecoveryCodes = (
+      tenantId: string,
+      subjectId: string,
+      authSessionId: string,
+      request: RequestContext,
+      askFirst = false,
+    ) =>
       withTenant(
         deps.database.db,
         tenantId,
-        (tx) => beginRecoveryCodes(tx, { tenantId, subjectId }),
+        (tx) =>
+          beginRecoveryCodes(tx, {
+            tenantId,
+            subjectId,
+            authSessionId,
+            askFirst,
+            now: clock.now(),
+            ...(deps.resolveMailLook === undefined
+              ? {}
+              : { resolveMailLook: deps.resolveMailLook }),
+          }),
         request,
       );
+    const holdsPasswordFor = (tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => holdsPassword(tx, subjectId));
+    const verifiedPasskeyFor = (tenantId: string, authSessionId: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
+        const session = await authenticatedSession(tx, authSessionId, clock);
+        return session !== null && signedInWithVerifiedPasskey(session.authenticators);
+      });
+
+    // What the address, profile and terms pages show, for every door that can
+    // render them and for the submission that has to render them again.
+    const startVerifyEmail = (tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => verifyEmailOffer(tx, subjectId));
+    const startUpdateProfile = (tenantId: string, subjectId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => profileOffer(tx, tenantId, subjectId));
+    const startAcceptTerms = (tenantId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => termsOffer(tx, tenantId));
+
+    // One definition for every door that shows an action an application
+    // requested, and for the submission that ends it.
+    const recordActionStepFor = (
+      input: { tenantId: string } & RecordActionStep,
+      request: RequestContext,
+    ) => withTenant(deps.database.db, input.tenantId, (tx) => recordActionStep(tx, input), request);
 
     // Both halves of passkey enrolment exist only where a relying party can
     // be derived; where it cannot, the routes have nothing to call and say
@@ -710,7 +795,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
               withTenant(
                 deps.database.db,
                 input.tenantId,
-                (tx) => completePasskeyEnrolment(tx, { ...input, publicBaseUrl }),
+                (tx) =>
+                  completePasskeyEnrolment(tx, {
+                    ...input,
+                    publicBaseUrl,
+                    now: clock.now(),
+                    ...(deps.resolveMailLook === undefined
+                      ? {}
+                      : { resolveMailLook: deps.resolveMailLook }),
+                  }),
                 request,
               ),
           };
@@ -722,7 +815,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // action is owed, and the required-action route that will not act on
     // one that is not.
     const pendingActions = (tenantId: string, subjectId: string) =>
-      withTenant(deps.database.db, tenantId, (tx) => pendingActionsFor(tx, subjectId));
+      withTenant(deps.database.db, tenantId, (tx) => pendingActionsFor(tx, tenantId, subjectId));
 
     const recoverPendingRequest = (tenantId: string, authSessionId: string) =>
       withTenant(deps.database.db, tenantId, (tx) => loadPendingRequest(tx, authSessionId));
@@ -815,8 +908,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           }
           return startAuthentication(tx, tenantId, request, clock);
         }),
-      initialChallenge: (tenantId) =>
-        withTenant(deps.database.db, tenantId, (tx) => initialChallenge(tx, tenantId)),
+      initialChallenge: (tenantId, flowId) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
+          initialChallenge(tx, tenantId, undefined, flowId),
+        ),
       now: () => clock.now(),
       resolveSessions,
       authenticatedSubject: authenticatedSubjectOf,
@@ -824,6 +919,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       pendingActions,
       beginTotpEnrolment: startTotpEnrolment,
       beginRecoveryCodes: startRecoveryCodes,
+      recordActionStep: recordActionStepFor,
+      holdsPassword: holdsPasswordFor,
+      signedInWithVerifiedPasskey: verifiedPasskeyFor,
+      beginVerifyEmail: startVerifyEmail,
+      beginUpdateProfile: startUpdateProfile,
+      beginAcceptTerms: startAcceptTerms,
       ...passkeyEnrolment,
       consentContext,
       grantedScopeIds,
@@ -863,9 +964,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           }
           return enabled;
         }),
-      sessionMeetsFlow: (tenantId, subjectId, authenticators) =>
+      sessionMeetsFlow: (tenantId, subjectId, authenticators, flowId) =>
         withTenant(deps.database.db, tenantId, (tx) =>
-          authenticatorsSatisfyFlow(tx, tenantId, subjectId, authenticators),
+          authenticatorsSatisfyFlow(tx, tenantId, subjectId, authenticators, flowId),
         ),
       markAuthenticated: (tenantId, authSessionId, subjectId, authenticators) =>
         withTenant(deps.database.db, tenantId, (tx) =>
@@ -909,6 +1010,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       subjectLocale,
       beginTotpEnrolment: startTotpEnrolment,
       beginRecoveryCodes: startRecoveryCodes,
+      recordActionStep: recordActionStepFor,
+      holdsPassword: holdsPasswordFor,
+      signedInWithVerifiedPasskey: verifiedPasskeyFor,
+      beginVerifyEmail: startVerifyEmail,
+      beginUpdateProfile: startUpdateProfile,
+      beginAcceptTerms: startAcceptTerms,
       ...passkeyEnrolment,
       resetAuthenticationProgress: (tenantId: string, authSessionId: string) =>
         withTenant(deps.database.db, tenantId, (tx) =>
@@ -951,6 +1058,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       grantedScopeIds,
       completeLogin,
       resolveSessions,
+      deviceOf,
     };
 
     registerRequiredActionRoute(app, {
@@ -960,18 +1068,85 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withTenant(
           deps.database.db,
           input.tenantId,
-          (tx) => completeTotpEnrolment(tx, input, clock),
+          (tx) =>
+            completeTotpEnrolment(
+              tx,
+              {
+                ...input,
+                ...(deps.resolveMailLook === undefined
+                  ? {}
+                  : { resolveMailLook: deps.resolveMailLook }),
+              },
+              clock,
+            ),
           request,
         ),
       completeRecoveryCodes: (input) =>
         withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
-      completeUpdatePassword: (input, request) =>
+      completeVerifyEmail: (tenantId, subjectId) =>
+        withTenant(deps.database.db, tenantId, (tx) => completeVerifyEmail(tx, subjectId)),
+      sendVerificationLink: (tenantId, subjectId, request) =>
+        deps.queueVerificationLink === undefined
+          ? Promise.resolve('unavailable')
+          : deps.queueVerificationLink(tenantId, subjectId, request),
+      completeUpdateProfile: (input, request) =>
         withTenant(
           deps.database.db,
           input.tenantId,
-          (tx) => completeUpdatePassword(tx, input),
+          (tx) => completeUpdateProfile(tx, input),
           request,
         ),
+      completeAcceptTerms: (input, request) =>
+        withTenant(
+          deps.database.db,
+          input.tenantId,
+          (tx) => completeAcceptTerms(tx, { ...input, now: clock.now() }),
+          request,
+        ),
+      completeUpdatePassword: async (
+        { endOtherSessions: ending, firstPassword, ...input },
+        request,
+      ) => {
+        const breachedPrepared = await prepareUpdatePassword(
+          deps.database.db,
+          input,
+          deps.breachedPasswordCheck,
+          request,
+        );
+        return withTenant(
+          deps.database.db,
+          input.tenantId,
+          (tx) =>
+            completeUpdatePassword(tx, {
+              ...input,
+              breachedCheck: deps.breachedPasswordCheck,
+              breachedPrepared,
+              ...(firstPassword === true
+                ? {
+                    firstPassword: {
+                      resolveMailLook: deps.resolveMailLook,
+                    },
+                  }
+                : {}),
+              ...(ending === undefined
+                ? {}
+                : {
+                    endOtherSessions: (inTx) =>
+                      endOtherSessions(
+                        inTx,
+                        { kek: deps.kek },
+                        {
+                          tenantId: input.tenantId,
+                          subjectId: input.subjectId,
+                          now: clock.now(),
+                          ...ending,
+                        },
+                      ),
+                  }),
+            }),
+          request,
+        );
+      },
     });
     registerLoginRoute(app, { ...loginSubmission, ...passkeyAssertion });
     registerConsentRoute(app, {
@@ -990,6 +1165,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       pendingActions,
       beginTotpEnrolment: startTotpEnrolment,
       beginRecoveryCodes: startRecoveryCodes,
+      recordActionStep: recordActionStepFor,
+      holdsPassword: holdsPasswordFor,
+      signedInWithVerifiedPasskey: verifiedPasskeyFor,
+      beginVerifyEmail: startVerifyEmail,
+      beginUpdateProfile: startUpdateProfile,
+      beginAcceptTerms: startAcceptTerms,
       ...passkeyEnrolment,
       ...branding,
       subjectLocale,
@@ -1001,6 +1182,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         ),
       completeLogin,
       resolveSessions,
+      deviceOf,
     });
     registerLogoutRoute(app, {
       findTenant,
@@ -1123,6 +1305,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 export { acceptedIssuersLookup } from '#/repository/accepted-issuers';
 export { acceptedIssuers, tenantIssuer, type AcceptedIssuersLookup } from '#/service/issuer';
 export { extractBearerToken } from '#/service/bearer-token';
+export { unverifiedIssuer } from '#/service/unverified-issuer';
 export { restartAuthorizeLocation } from '#/service/restart-request';
 export { sendThrottledPage } from '#/view/routes/throttled';
 export { sendPreviousAddressPage } from '#/view/routes/previous-address';
@@ -1130,6 +1313,7 @@ export { answerNotFound, answerServerError, type UnroutedDeps } from '#/view/rou
 export { isApiPath, wantsHtmlPage } from '#/service/page-negotiation';
 export { AS_METADATA_PATH_FORM } from '#/view/routes/as-metadata';
 export { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
+export { ME_READ_SCOPE, ME_SCOPES, ME_WRITE_SCOPE } from '#/service/me-scopes';
 export {
   configureIssuerBase,
   configureTenantAddress,
@@ -1137,7 +1321,9 @@ export {
   tenantIssuerFor,
 } from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
-export { isWellFormedWebOrigin } from '#/service/web-origin';
+export { expandWebOrigins, isWellFormedWebOrigin, normalizeOrigin } from '#/service/web-origin';
+export { corsHeadersForRequest } from '#/service/cors';
+export { acrFor } from '#/service/acr';
 export {
   CLIENT_TOKEN_TTL_RANGES,
   clientTokenTtlProblem,
@@ -1284,10 +1470,14 @@ export { refreshTokens } from '#/schema/refresh-tokens';
 export { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';
 export {
   endAllAccess,
+  endOtherSessions,
   endSession,
+  endSessions,
   type EndAllAccessInput,
+  type EndOtherSessionsInput,
   type EndSessionDeps,
   type EndSessionInput,
+  type EndSessionsInput,
 } from '#/usecase/end-session';
 export {
   auditRefusalBudgetKey,

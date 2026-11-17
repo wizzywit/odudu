@@ -7,7 +7,7 @@ import {
   verifyJwt,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { type ClaimMapperRegistry } from '@odudu/kernel';
+import { namesMeAudience, type ClaimMapperRegistry } from '@odudu/kernel';
 import { presentedBearerToken } from '#/service/bearer-token';
 import {
   type ClaimContext,
@@ -207,6 +207,7 @@ export async function resolveUserinfo(
   }
 
   const clientId = typeof payload.client_id === 'string' ? payload.client_id : undefined;
+  if (namesMeAudience(payload.aud, accepted)) return { kind: 'invalid_token', clientId };
 
   const scope = scopesOf(payload.scope);
   if (!scope.includes('openid')) return { kind: 'insufficient_scope', clientId };

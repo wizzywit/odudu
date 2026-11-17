@@ -283,9 +283,11 @@ now do the same work, in the transaction that sets it.
   reset and enrols again.
 - **Case.** A reset request finds the account by the address ignoring ASCII case, as
   registration does, and mails the stored address. Registration and an administrator's creation
-  take the address lock before they look for an existing holder. No unique index is added: rows
-  that differ only by case may exist, and a migration that fails on data already there is worse
-  than the gap. Reconciling them, then adding the index, is P4f's (`docs/NEXT.md`).
+  take the address lock before they look for an existing holder. P4f closed the gap it left: `odudu
+reconcile-accounts` folds the pairs, and migration `0139` builds the partial unique index on
+  `(tenant_id, email_search)`, skipping itself with a warning where a pair remains (a migration
+  that failed on data already there would be worse than the gap) and built by the first start
+  after the command has run.
 
 **Accepted.**
 
@@ -300,6 +302,7 @@ now do the same work, in the transaction that sets it.
 - **A registration the victim confirms.** Somebody who confirms a "finish registration" mail
   they did not ask for gets the account its sender chose, and the sender may then enrol a
   factor, since the address is verified from that click. The mail and the confirm page name the
-  account. Asking for more than the click is registration flow, so P4f's.
+  account. P4f made the confirmation page name the address, the account and the tenant and change
+  nothing until its button is pressed, which is the whole of what is asked for.
 - **Timing on old rows.** A password that is not in NFC form costs one more hash check on an
   account whose hash predates normalising. The row converts at its next sign-in.

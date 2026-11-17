@@ -22,6 +22,7 @@ import {
   formatAbsolute,
   formatDuration,
   formatRelative,
+  formatSpan,
   lowerFirst,
   orBlank,
   plural,
@@ -52,6 +53,18 @@ describe('formatDuration', () => {
     [Number.NEGATIVE_INFINITY, '—'],
   ])('reads %s seconds as "%s"', (seconds, expected) => {
     expect(formatDuration(seconds)).toBe(expected);
+  });
+});
+
+describe('formatSpan', () => {
+  it.each([
+    [0, '0 seconds'],
+    [59, '59 seconds'],
+    [60, '1 minute'],
+    [2592000, '30 days'],
+    [5400, '1 hour 30 minutes'],
+  ])('reads %s seconds as "%s"', (seconds, expected) => {
+    expect(formatSpan(seconds)).toBe(expected);
   });
 });
 

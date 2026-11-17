@@ -24,6 +24,7 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 import { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -301,6 +302,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

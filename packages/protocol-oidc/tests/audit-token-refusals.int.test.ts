@@ -50,6 +50,7 @@ import {
   signClientAssertion,
 } from '#/testing/private-key-jwt-fixture';
 import { recordRefusal } from '#/usecase/record-refusal';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -406,6 +407,7 @@ async function buildHttp(options: {
   await instance.register(formbody);
   await instance.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

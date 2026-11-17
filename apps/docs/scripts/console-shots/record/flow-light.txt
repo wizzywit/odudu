@@ -51,11 +51,10 @@ demo
 Sign-in flow
 What a subject is asked, in what order, to sign in to this tenant.
 Steps
-The steps run in this order at every sign-in. Alternatives that sit next to each other are one run: passing any of them is enough. The whole list is replaced when you save.
+The steps run in this order at every sign-in. A required step must be passed at every sign-in. Alternatives that sit next to each other are one run: passing any of them is enough. A conditional step is asked only of a subject it applies to, and skipped for the rest. The whole list is replaced when you save.
 1
 passkey
 A passkey registered to the subject.
-Any one of a run of alternatives is enough.
 Requirement for passkey
 Alternative
 ▾
@@ -63,12 +62,26 @@ Required
 Alternative
 Conditional
 Disabled
-Up
-Down
+▴
+▾
+Settings
+User verification
+Tenant setting (Required)
+▾
+Tenant setting (Required)
+Required
+Preferred
+Discouraged
+Stored on the device
+Tenant setting (Required)
+▾
+Tenant setting (Required)
+Required
+Preferred
+Discouraged
 2
 password
 The subject's password.
-Any one of a run of alternatives is enough.
 Requirement for password
 Alternative
 ▾
@@ -76,12 +89,11 @@ Required
 Alternative
 Conditional
 Disabled
-Up
-Down
+▴
+▾
 3
 otp
 A one-time password from an authenticator app.
-Asked only of a subject it applies to; skipped for the rest.
 Asked only of subjects who set up an authenticator app.
 Requirement for otp
 Conditional
@@ -90,12 +102,31 @@ Required
 Alternative
 Conditional
 Disabled
-Up
-Down
+▴
+▾
+Settings
+Algorithm
+Tenant setting (SHA1)
+▾
+Tenant setting (SHA1)
+SHA1
+SHA256
+SHA512
+Code length
+Tenant setting (6 digits)
+▾
+Tenant setting (6 digits)
+6 digits
+8 digits
+Code period
+Tenant setting (30 seconds)
+▾
+Tenant setting (30 seconds)
+30 seconds
+60 seconds
 4
 recovery-code
 One of the single-use recovery codes issued with a one-time password.
-Asked only of a subject it applies to; skipped for the rest.
 Requirement for recovery-code
 Conditional
 ▾
@@ -103,10 +134,41 @@ Required
 Alternative
 Conditional
 Disabled
-Up
-Down
+▴
+▾
+Settings
+Codes in a set
+Tenant setting (10 codes)
+▾
+Tenant setting (10 codes)
+8 codes
+9 codes
+10 codes
+11 codes
+12 codes
+13 codes
+14 codes
+15 codes
+16 codes
 Every authenticator the server has is already a step.
 One-time password
 The one-time password step is asked of a subject who has set up an authenticator app. Turn this on to ask it of every subject, those who have not set one up included. A sign-in with a passkey is never asked again.
 Ask every subject for a one-time password
 Off
+Flows
+The default flow is what a sign-in runs when nothing names another, and it is never deleted. A tenant holds at most 20 flows.
+Name
+Steps
+Clients
+Actions
+Name
+default
+Default
+Steps
+4 steps: passkey, password, otp, recovery-code
+Clients
+None
+Actions
+Edit
+default
+New flow

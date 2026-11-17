@@ -1,8 +1,29 @@
-import { verifyTotp } from '@odudu/crypto';
+import { verifyTotp, type TotpAlgorithm } from '@odudu/crypto';
 import { type CredentialSecret } from '@odudu/domain-identity';
-import { OTP, PASSKEY } from '#/service/authenticators/names';
+import { OTP, PASSKEY, PASSKEY_UNVERIFIED } from '#/service/authenticators/names';
 
 export type TotpSecret = Extract<CredentialSecret, { kind: 'totp' }>;
+
+// What verifyTotp is told about a credential, read from the credential and
+// never from the tenant: a policy change applies to the next enrolment only.
+const CRYPTO_ALGORITHM: Readonly<Record<NonNullable<TotpSecret['algorithm']>, TotpAlgorithm>> = {
+  SHA1: 'SHA-1',
+  SHA256: 'SHA-256',
+  SHA512: 'SHA-512',
+};
+const LEGACY_PERIOD_SECONDS = 30;
+
+export function totpParameters(secret: TotpSecret): {
+  algorithm: TotpAlgorithm;
+  digits: number;
+  periodSeconds: number;
+} {
+  return {
+    algorithm: CRYPTO_ALGORITHM[secret.algorithm ?? 'SHA1'],
+    digits: secret.digits,
+    periodSeconds: secret.period ?? LEGACY_PERIOD_SECONDS,
+  };
+}
 
 export interface TotpInput {
   code?: string;
@@ -35,7 +56,13 @@ export type TotpStepOutcome =
 // earlier step is far more often a drifted clock than a replay, so it
 // counts as a wrong code.
 function isSpentCode(secret: TotpSecret, code: string, now: Date): boolean {
-  const unbounded = verifyTotp({ secret: secret.secret, code, now, lastStep: null });
+  const unbounded = verifyTotp({
+    secret: secret.secret,
+    code,
+    now,
+    lastStep: null,
+    ...totpParameters(secret),
+  });
   return unbounded.ok && unbounded.step === secret.lastStep;
 }
 
@@ -54,6 +81,7 @@ export function totpStep(input: TotpInput, verification: TotpVerification): Totp
     code: input.code,
     now: verification.now,
     lastStep: secret.lastStep,
+    ...totpParameters(secret),
   });
 
   if (verified.ok) return { kind: 'success', subjectId, step: verified.step };
@@ -72,14 +100,17 @@ export function totpEnrolmentUri(input: {
   issuer: string;
   account: string;
   secret: string;
+  algorithm: NonNullable<TotpSecret['algorithm']>;
+  digits: number;
+  period: number;
 }): string {
   const label = `${encodeURIComponent(input.issuer)}:${encodeURIComponent(input.account)}`;
   const params = new URLSearchParams({
     secret: input.secret,
     issuer: input.issuer,
-    algorithm: 'SHA1',
-    digits: '6',
-    period: '30',
+    algorithm: input.algorithm,
+    digits: String(input.digits),
+    period: String(input.period),
   });
   return `otpauth://totp/${label}?${params.toString()}`;
 }
@@ -108,7 +139,8 @@ export function otpApplicable(
   // user verification, so an assertion is possession of the key and the
   // authenticator's own check of whoever held it — two factors, which is
   // what FACTOR_COUNT (protocol-oidc's service/acr.ts) also counts it as.
-  // A tenant's otp_required is a floor, not a tax.
-  if (satisfied.has(PASSKEY)) return false;
+  // A tenant's otp_required is a floor, not a tax. A passkey whose assertion
+  // did not verify the person is one factor, so the floor still applies.
+  if (satisfied.has(PASSKEY) && !satisfied.has(PASSKEY_UNVERIFIED)) return false;
   return subject.hasTotp || tenant.otpRequired;
 }

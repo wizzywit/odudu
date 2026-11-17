@@ -1,10 +1,12 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
+import { namesMeAudience } from '@odudu/kernel';
 import { ADMIN_API_AUDIENCE, holdsMcpScope, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import {
   extractBearerToken,
   narrowActClaim,
   tenantIssuer,
+  unverifiedIssuer,
   type AcceptedIssuersLookup,
   type TenantLookup,
   type TokenGrantRecord,
@@ -105,24 +107,6 @@ export interface AuthenticateAdminInput {
   now: Date;
 }
 
-// Read before the signature verifies, only to decide which tenant's keys
-// to verify against (spec §7 step 1) — trusted for nothing else, and
-// re-read from the verified payload once the signature checks out.
-export function unverifiedIssuer(token: string): string | undefined {
-  const segments = token.split('.');
-  const segment = segments[1];
-  if (segments.length !== 3 || segment === undefined || segment.length === 0) return undefined;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
-  } catch {
-    return undefined;
-  }
-  if (typeof parsed !== 'object' || parsed === null) return undefined;
-  const iss = (parsed as Record<string, unknown>).iss;
-  return typeof iss === 'string' && iss.length > 0 ? iss : undefined;
-}
-
 function unauthenticated(reason: string): AdminAuthOutcome {
   return { kind: 'unauthenticated', reason };
 }
@@ -155,32 +139,38 @@ async function namesTarget(
   deps: AuthenticateAdminDeps,
   input: AuthenticateAdminInput,
   iss: string,
-): Promise<boolean> {
-  if (input.targetTenantName === SYSTEM_TENANT_NAME) return iss === input.targetTenantIssuer;
-  if (iss === input.systemTenantIssuer) return false;
+): Promise<readonly string[] | undefined> {
+  if (input.targetTenantName === SYSTEM_TENANT_NAME) {
+    return iss === input.targetTenantIssuer ? [iss] : undefined;
+  }
+  if (iss === input.systemTenantIssuer) return undefined;
   const accepted = await deps.acceptedIssuers(
     { id: input.targetTenant.id, name: input.targetTenantName },
     input.targetTenantIssuer,
     input.now,
   );
-  return accepted.includes(iss);
+  return accepted.includes(iss) ? accepted : undefined;
 }
 
+// The tenant a token's issuer names, with every issuer that tenant accepts.
 async function matchIssuer(
   deps: AuthenticateAdminDeps,
   input: AuthenticateAdminInput,
   iss: string,
-): Promise<MatchedTenant | undefined> {
-  const name = (await namesTarget(deps, input, iss))
-    ? input.targetTenantName
-    : iss === input.systemTenantIssuer
-      ? SYSTEM_TENANT_NAME
-      : undefined;
-  if (name === undefined) return undefined;
+): Promise<{ tenant: MatchedTenant; issuers: readonly string[] } | undefined> {
+  const accepted = await namesTarget(deps, input, iss);
+  const issuers = accepted ?? (iss === input.systemTenantIssuer ? [iss] : undefined);
+  const name =
+    accepted !== undefined
+      ? input.targetTenantName
+      : issuers !== undefined
+        ? SYSTEM_TENANT_NAME
+        : undefined;
+  if (name === undefined || issuers === undefined) return undefined;
 
   const tenant = name === input.targetTenantName ? input.targetTenant : await deps.findTenant(name);
   if (!tenant?.enabled) return undefined;
-  return { id: tenant.id, name, lifespans: lifespansOf(tenant) };
+  return { tenant: { id: tenant.id, name, lifespans: lifespansOf(tenant) }, issuers };
 }
 
 function bareOriginHost(iss: string): string | undefined {
@@ -350,8 +340,8 @@ export async function authenticateAdmin(
   const iss = unverifiedIssuer(token);
   if (iss === undefined) return unauthenticated('malformed_token');
 
-  const matched = await matchIssuer(deps, input, iss);
-  if (matched === undefined) {
+  const match = await matchIssuer(deps, input, iss);
+  if (match === undefined) {
     let foreignIssuer: ForeignIssuer | undefined;
     try {
       foreignIssuer = await resolveForeignIssuer(deps, input, token, iss);
@@ -363,6 +353,7 @@ export async function authenticateAdmin(
       : { kind: 'unauthenticated', reason: 'issuer_mismatch', foreignIssuer };
   }
 
+  const matched = match.tenant;
   const keys = await deps.listPublishableKeys(matched.id);
   let payload;
   try {
@@ -379,6 +370,7 @@ export async function authenticateAdmin(
   if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
     return unauthenticated('invalid_token');
   }
+  if (namesMeAudience(payload.aud, match.issuers)) return unauthenticated('invalid_token');
 
   const claims = readAgentClaims(payload);
   if (claims === undefined) return unauthenticated('invalid_token');

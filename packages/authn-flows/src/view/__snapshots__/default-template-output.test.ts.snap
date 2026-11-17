@@ -180,6 +180,176 @@ exports[`the TOTP enrolment page under the default template > renders hostile te
 </html>"
 `;
 
+exports[`the accept-terms page under the default template > renders a box left unticked byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Accept the terms</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Accept the terms</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Read the terms, then confirm that you accept them to continue.</p>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">Tick the box to accept the terms and continue.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=accept-terms">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <input type="hidden" name="version" value="2026-01">
+  <p><a href="https://example.com/terms" rel="noopener noreferrer" target="_blank">Read the terms</a> (Version <bdi>2026-01</bdi>)</p>
+  <label><input type="checkbox" name="accept" value="true" aria-invalid="true" aria-describedby="form-error-0" autofocus> I accept these terms</label>
+  <button type="submit">Continue</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the accept-terms page under the default template > renders byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>قبول الشروط</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>قبول الشروط</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>اقرأ الشروط، ثم أكّد قبولك لها للمتابعة.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=accept-terms">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <input type="hidden" name="version" value="2026-01">
+  <p><a href="https://example.com/terms" rel="noopener noreferrer" target="_blank">اقرأ الشروط</a> (الإصدار <bdi>2026-01</bdi>)</p>
+  <label><input type="checkbox" name="accept" value="true"> أقبل هذه الشروط</label>
+  <button type="submit">متابعة</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the accept-terms page under the default template > renders byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Accept the terms</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Accept the terms</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Read the terms, then confirm that you accept them to continue.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=accept-terms">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <input type="hidden" name="version" value="2026-01">
+  <p><a href="https://example.com/terms" rel="noopener noreferrer" target="_blank">Read the terms</a> (Version <bdi>2026-01</bdi>)</p>
+  <label><input type="checkbox" name="accept" value="true"> I accept these terms</label>
+  <button type="submit">Continue</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the accept-terms page under the default template > renders byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Accept the terms</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Accept the terms</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Read the terms, then confirm that you accept them to continue.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=accept-terms">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <input type="hidden" name="version" value="2026-01">
+  <p><a href="https://example.com/terms" rel="noopener noreferrer" target="_blank">Read the terms</a> (Version <bdi>2026-01</bdi>)</p>
+  <label><input type="checkbox" name="accept" value="true"> I accept these terms</label>
+  <button type="submit">Continue</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the accept-terms page under the default template > renders hostile text byte-identically 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>قبول الشروط</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>قبول الشروط</h1>
+<p class="tenant"><bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
+</header>
+<p>اقرأ الشروط، ثم أكّد قبولك لها للمتابعة.</p>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">تغيّرت الشروط أثناء فتح هذه الصفحة. اقرأ الإصدار الجديد ووافق عليه إن كنت موافقًا.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/required-action?action=accept-terms">
+  <input type="hidden" name="auth_session_id" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
+  <input type="hidden" name="version" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
+  <p><a href="https://example.com/?q=&lt;script&gt;" rel="noopener noreferrer" target="_blank">اقرأ الشروط</a> (الإصدار <bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi>)</p>
+  <label><input type="checkbox" name="accept" value="true" aria-invalid="true" aria-describedby="form-error-0" autofocus> أقبل هذه الشروط</label>
+  <button type="submit">متابعة</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
 exports[`the passkey enrolment page under the default template > renders a refused enrolment byte-identically 1`] = `
 "<!doctype html>
 <html lang="en" dir="ltr">
@@ -1119,6 +1289,7 @@ exports[`the update-password page under the default template > renders a refused
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -1199,6 +1370,7 @@ exports[`the update-password page under the default template > renders a violati
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -1274,6 +1446,7 @@ exports[`the update-password page under the default template > renders byte-iden
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> إنهاء جلساتي الأخرى</label>
   <button type="submit">تحديث كلمة المرور</button>
 </form>
 </main>
@@ -1349,6 +1522,7 @@ exports[`the update-password page under the default template > renders byte-iden
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -1424,6 +1598,7 @@ exports[`the update-password page under the default template > renders byte-iden
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -1503,6 +1678,7 @@ exports[`the update-password page under the default template > renders every rul
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>
 </main>
@@ -1586,7 +1762,466 @@ exports[`the update-password page under the default template > renders hostile t
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> إنهاء جلساتي الأخرى</label>
   <button type="submit">تحديث كلمة المرور</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the update-profile page under the default template > renders byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>أكمل ملفك الشخصي</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>أكمل ملفك الشخصي</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>راجع بياناتك واملأ الحقول المعلَّمة بأنها مطلوبة قبل المتابعة.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <label>اسم المستخدم <input type="text" name="username" value="ada" autocomplete="username"></label>
+  <label>الاسم الكامل (مطلوب) <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label>تاريخ الميلاد (مطلوب) <input type="text" name="birthdate" value="" autocomplete="bday"></label>
+  <label>الموقع الإلكتروني <input type="url" name="website" value="" autocomplete="url"></label>
+  <label>رقم الهاتف <input type="tel" name="phone_number" value="" autocomplete="tel"></label>
+  <button type="submit">حفظ ومتابعة</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the update-profile page under the default template > renders byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Complete your profile</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Complete your profile</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Check your details and fill in the ones marked as required before you continue.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <label>Username <input type="text" name="username" value="ada" autocomplete="username"></label>
+  <label>Full name (required) <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label>Birthdate (required) <input type="text" name="birthdate" value="" autocomplete="bday"></label>
+  <label>Website <input type="url" name="website" value="" autocomplete="url"></label>
+  <label>Phone number <input type="tel" name="phone_number" value="" autocomplete="tel"></label>
+  <button type="submit">Save and continue</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the update-profile page under the default template > renders byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Complete your profile</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Complete your profile</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Check your details and fill in the ones marked as required before you continue.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <label>Username <input type="text" name="username" value="ada" autocomplete="username"></label>
+  <label>Full name (required) <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label>Birthdate (required) <input type="text" name="birthdate" value="" autocomplete="bday"></label>
+  <label>Website <input type="url" name="website" value="" autocomplete="url"></label>
+  <label>Phone number <input type="tel" name="phone_number" value="" autocomplete="tel"></label>
+  <button type="submit">Save and continue</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the update-profile page under the default template > renders hostile text byte-identically 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>أكمل ملفك الشخصي</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>أكمل ملفك الشخصي</h1>
+<p class="tenant"><bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
+</header>
+<p>راجع بياناتك واملأ الحقول المعلَّمة بأنها مطلوبة قبل المتابعة.</p>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">يجب ألا يحتوي الاسم الكامل على محارف التحكم في الاتجاه.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/required-action?action=update-profile">
+  <input type="hidden" name="auth_session_id" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
+  <label>الاسم الكامل (مطلوب) <input type="text" name="name" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co" autocomplete="name" aria-invalid="true" aria-describedby="form-error-0"></label>
+  <button type="submit">حفظ ومتابعة</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the update-profile page under the default template > renders refused fields byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Complete your profile</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Complete your profile</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Check your details and fill in the ones marked as required before you continue.</p>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">Fill in the required fields.</li>
+<li id="form-error-1">Phone number is not in a form this field accepts.</li>
+<li id="form-error-2">That username is taken. Choose another.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <label>Username <input type="text" name="username" value="ada" autocomplete="username" aria-invalid="true" aria-describedby="form-error-2"></label>
+  <label>Full name (required) <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label>Birthdate (required) <input type="text" name="birthdate" value="" autocomplete="bday" aria-invalid="true" aria-describedby="form-error-0"></label>
+  <label>Website <input type="url" name="website" value="" autocomplete="url" aria-invalid="true" aria-describedby="form-error-0"></label>
+  <label>Phone number <input type="tel" name="phone_number" value="" autocomplete="tel" aria-invalid="true" aria-describedby="form-error-1"></label>
+  <button type="submit">Save and continue</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verify-email page under the default template > renders an address already verified byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Verify your email address</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>This account needs a verified email address before you can continue.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=verify-email">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <p>Address: <bdi>ada@example.com</bdi></p>
+  <p role="status">This address is already verified.</p>
+  <button type="submit">I have verified it</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verify-email page under the default template > renders byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تأكيد عنوان بريدك الإلكتروني</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>تأكيد عنوان بريدك الإلكتروني</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>يحتاج هذا الحساب إلى عنوان بريد إلكتروني مؤكَّد قبل أن تتمكن من المتابعة.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=verify-email">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <p>العنوان: <bdi>ada@example.com</bdi></p>
+  <button type="submit" name="send" value="1" formnovalidate>أرسل لي رابطًا</button> <button type="submit">لقد أكّدته</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verify-email page under the default template > renders byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Verify your email address</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>This account needs a verified email address before you can continue.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=verify-email">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <p>Address: <bdi>ada@example.com</bdi></p>
+  <button type="submit" name="send" value="1" formnovalidate>Send me a link</button> <button type="submit">I have verified it</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verify-email page under the default template > renders byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Verify your email address</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>This account needs a verified email address before you can continue.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=verify-email">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <p>Address: <bdi>ada@example.com</bdi></p>
+  <button type="submit" name="send" value="1" formnovalidate>Send me a link</button> <button type="submit">I have verified it</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verify-email page under the default template > renders hostile text byte-identically 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تأكيد عنوان بريدك الإلكتروني</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>تأكيد عنوان بريدك الإلكتروني</h1>
+<p class="tenant"><bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
+</header>
+<p>يحتاج هذا الحساب إلى عنوان بريد إلكتروني مؤكَّد قبل أن تتمكن من المتابعة.</p>
+<form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/required-action?action=verify-email">
+  <input type="hidden" name="auth_session_id" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
+  <p>العنوان: <bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
+  <p role="status">أرسلنا رابطًا إلى هذا العنوان. افتحه، ثم عُد واختر &quot;لقد أكّدته&quot;.</p>
+  <button type="submit" name="send" value="1" formnovalidate>أرسل لي رابطًا</button> <button type="submit">لقد أكّدته</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verify-email page under the default template > renders the limited notice byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Verify your email address</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>This account needs a verified email address before you can continue.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=verify-email">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <p>Address: <bdi>ada@example.com</bdi></p>
+  <p role="status">Links have been sent to this address several times already. Wait a while before asking for another.</p>
+  <button type="submit" name="send" value="1" formnovalidate>Send me a link</button> <button type="submit">I have verified it</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verify-email page under the default template > renders the not_verified notice byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Verify your email address</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>This account needs a verified email address before you can continue.</p>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">That address is not verified yet. Open the link we sent, then try again.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=verify-email">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <p>Address: <bdi>ada@example.com</bdi></p>
+  <button type="submit" name="send" value="1" formnovalidate>Send me a link</button> <button type="submit">I have verified it</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verify-email page under the default template > renders the sent notice byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Verify your email address</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>This account needs a verified email address before you can continue.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=verify-email">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <p>Address: <bdi>ada@example.com</bdi></p>
+  <p role="status">We sent a link to this address. Open it, then come back and choose &quot;I have verified it&quot;.</p>
+  <button type="submit" name="send" value="1" formnovalidate>Send me a link</button> <button type="submit">I have verified it</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verify-email page under the default template > renders the unavailable notice byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Verify your email address</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>This account needs a verified email address before you can continue.</p>
+<form method="post" action="/tenants/acme/login-actions/required-action?action=verify-email">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <p>Address: <bdi>ada@example.com</bdi></p>
+  <p role="status">This server cannot send mail right now. Ask an administrator to verify the address.</p>
+  <button type="submit" name="send" value="1" formnovalidate>Send me a link</button> <button type="submit">I have verified it</button>
 </form>
 </main>
 </body>

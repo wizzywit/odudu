@@ -33,6 +33,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -214,6 +215,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,
@@ -602,6 +604,7 @@ describe('a deployment that cannot name a relying party', () => {
       await unconfigured.register(formbody);
       await unconfigured.register(
         oidcRoutes({
+          breachedPasswordCheck: noBreachedLookup,
           tls: false,
           database: app,
           ownerDatabase: owner,

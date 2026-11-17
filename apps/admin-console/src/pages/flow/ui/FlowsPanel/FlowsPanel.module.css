@@ -1,0 +1,18 @@
+.rule {
+  margin: 0;
+  max-inline-size: 72ch;
+  overflow-wrap: anywhere;
+  color: var(--ink-muted);
+}
+
+.name {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

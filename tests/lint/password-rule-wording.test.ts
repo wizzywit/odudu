@@ -18,6 +18,8 @@ const SHARED = [
   'notEmail',
   'notReused',
   'common',
+  'breached',
+  'breachCheckUnavailable',
 ] as const;
 
 const HINTS = [

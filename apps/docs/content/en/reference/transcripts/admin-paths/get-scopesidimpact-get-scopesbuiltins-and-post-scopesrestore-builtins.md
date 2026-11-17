@@ -11,7 +11,7 @@ All three require `manage-tenant`. They are what deleting a built-in scope needs
 around it: what the delete would take, which built-ins a tenant is missing, and
 the way to create a missing one again. A **built-in** scope is one every tenant
 is given when it is created: `openid`, `profile`, `email`, `address`, `phone`,
-`roles`, `groups`, `offline_access`, `mcp:read` and `mcp:write`. `DELETE /scopes/:id` deletes any of them
+`roles`, `groups`, `offline_access`, `mcp:read`, `mcp:write`, `me:read` and `me:write`. `DELETE /scopes/:id` deletes any of them
 but `openid`, and only when its `confirm` query parameter names the scope again,
 as `DELETE /admin/tenants/{tenant}` does for a tenant, so a script cannot take
 one by accident. Built-in status is decided by the name alone, so a scope created under one of those names is built in too, and a restore will not create a name that exists. An ordinary scope needs no `confirm`, and one sent with it is

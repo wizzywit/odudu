@@ -32,7 +32,12 @@ export const PREVIEW_PAGES: Readonly<Record<AccountKind, PreviewRender>> = {
   reset: (tenant, locale) =>
     renderResetPasswordForm(tenant, pathAddress('', tenant), KEY, undefined, RULES, locale),
   verification: (tenant, locale) =>
-    renderEmailConfirmPage(pathAddress('', tenant), KEY, 'ada', locale),
+    renderEmailConfirmPage(
+      pathAddress('', tenant),
+      KEY,
+      { username: 'ada', email: 'ada@example.test', tenant },
+      locale,
+    ),
   'required-actions': (tenant, locale) =>
     renderRequiredActionsForm(
       tenant,

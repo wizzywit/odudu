@@ -1,8 +1,16 @@
+import { PASSWORD } from '#/pages/settings/services/passwordSection';
+import { PROFILE } from '#/pages/settings/services/profileSection';
+import {
+  AUTHENTICATORS,
+  PASSKEY_REQUIREMENT,
+} from '#/pages/settings/services/authenticatorsSection';
 import type { SettingsSection } from '#/pages/settings/services/sectionTypes';
+
+export { PASSWORD_SECTION } from '#/pages/settings/services/passwordSection';
 
 export const GENERAL_SECTION = 'general';
 export const LOCKOUT_SECTION = 'brute-force';
-export const PASSWORD_SECTION = 'password';
+export const TERMS_SECTION = 'terms';
 
 export const ACCESS_SECTIONS: readonly SettingsSection[] = [
   {
@@ -16,7 +24,13 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         control: 'text',
         description: 'Leave it empty to use the tenant name.',
       },
-      { name: 'enabled', label: 'Enabled', control: 'toggle' },
+      {
+        name: 'enabled',
+        label: 'Enabled',
+        control: 'toggle',
+        description:
+          'Off stops every sign-in in this tenant. Saving it off asks you to type the tenant name first.',
+      },
     ],
   },
   {
@@ -48,6 +62,13 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         label: 'Time to finish a sign-in',
         control: 'seconds',
         description: 'A sign-in left unfinished this long has to be started again.',
+      },
+      {
+        name: 'session_freshness_seconds',
+        label: 'Recent sign-in window',
+        control: 'seconds',
+        description: 'How recently a person must have signed in to change something sensitive.',
+        more: 'A person must have signed in this recently to change their address or username, end all their other sessions, withdraw a consent or remove an authenticator.',
       },
     ],
   },
@@ -114,6 +135,32 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
     ],
   },
   {
+    id: TERMS_SECTION,
+    title: 'Terms',
+    description:
+      'The terms a person accepts when asked to. Setting them asks nobody: an administrator asks a person from the Required actions tab of their record, and again when the terms change.',
+    fields: [
+      {
+        name: 'terms_uri',
+        label: 'Terms address',
+        control: 'url',
+        description:
+          'An https address, or http to this machine, with no fragment. Leave it empty for no terms.',
+      },
+      {
+        name: 'terms_version',
+        label: 'Terms version',
+        control: 'text',
+        short: true,
+        description:
+          'Up to 64 characters. A person accepts one version. Changing it asks nobody again by itself.',
+      },
+    ],
+  },
+  PROFILE,
+  AUTHENTICATORS,
+  PASSKEY_REQUIREMENT,
+  {
     id: 'usernames',
     title: 'Usernames',
     description: 'How a person is named, and what they type to sign in.',
@@ -132,47 +179,7 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
       },
     ],
   },
-  {
-    id: PASSWORD_SECTION,
-    title: 'Password policy',
-    description: 'What a password must satisfy when somebody sets or changes one.',
-    fields: [
-      {
-        name: 'password_min_length',
-        label: 'Minimum length',
-        control: 'count',
-        unit: 'characters',
-      },
-      { name: 'password_require_digit', label: 'Require a digit', control: 'toggle' },
-      {
-        name: 'password_require_uppercase',
-        label: 'Require an uppercase letter',
-        control: 'toggle',
-      },
-      {
-        name: 'password_require_lowercase',
-        label: 'Require a lowercase letter',
-        control: 'toggle',
-      },
-      { name: 'password_require_special', label: 'Require a special character', control: 'toggle' },
-      { name: 'password_not_username', label: 'Refuse the username', control: 'toggle' },
-      { name: 'password_not_email', label: 'Refuse the email address', control: 'toggle' },
-      {
-        name: 'password_history_depth',
-        label: 'Passwords remembered',
-        control: 'count',
-        unit: 'passwords',
-        description: 'A new password may not repeat one of this many before it. 0 remembers none.',
-      },
-      {
-        name: 'password_max_age_days',
-        label: 'Password lifetime',
-        control: 'count',
-        unit: 'days',
-        description: 'A password older than this has to be changed. 0 never expires one.',
-      },
-    ],
-  },
+  PASSWORD,
   {
     id: LOCKOUT_SECTION,
     title: 'Brute force',

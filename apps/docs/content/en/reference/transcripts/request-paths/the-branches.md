@@ -526,24 +526,26 @@ otherwise):
 
 ```
 HTTP/1.1 302 Found
-set-cookie: cap-demo-session=01a17aa1-2304-…:apbh0c0f0axp…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: cap-demo-session=01a1d09f-19a8-…:2SYhbaz99Ben…; HttpOnly; SameSite=Lax; Path=/
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: cap-demo-session=01a17aa1-2304-…:apbh0c0f0axp….01a17aa1-2368-…:cJlQ59sYOvtX…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: cap-demo-session=01a1d09f-19a8-…:2SYhbaz99Ben….01a1d09f-1a10-…:MA8Hoas5HROZ…; HttpOnly; SameSite=Lax; Path=/
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: cap-demo-session=01a17aa1-2368-…:cJlQ59sYOvtX….01a17aa1-23c3-…:cMjvGbQ-cR0v…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: cap-demo-session=01a1d09f-1a10-…:MA8Hoas5HROZ….01a1d09f-1a76-…:NJmOyZrwuGmd…; HttpOnly; SameSite=Lax; Path=/
 ```
 
 (Entries truncated to the start of the id and of the secret; each response
-also carried the cleared persistent cookie, `Max-Age=0`, and the cleared
-sign-in cookie, omitted here since nothing about them changes. A login writes
+also carried the cleared persistent cookie, `Max-Age=0`, the browser's device
+cookie, `cap-demo-device`, and the cleared sign-in cookie, omitted here since
+nothing about them changes: the three responses of this run carried the same
+device cookie. A login writes
 back the entries its browser presented, secrets unchanged.) The third login's
-list still holds two entries, not three: `2304`, the first
+list still holds two entries, not three: `19a8`, the first
 login's session, is gone, evicted by `admitSession` as the least recently
 active once a third session tried to join a browser already at the cap —
 the second and third logins' own ids are exactly what survive. Nothing
@@ -557,8 +559,11 @@ session is named by neither. That session is still live, but
 can end, so it cannot be reached that way — an orphan, not a size problem.
 It idles out at `sso_session_idle_seconds` (thirty minutes by default), or
 at `remember_me_idle_seconds` (seven days by default) if the losing login
-was a remembered one. ADR 0033's amendment has the full account and why it
-is accepted rather than fixed now.
+was a remembered one. ADR 0033's amendments have the full account. Since the
+device cookie, admission also counts the subject's sessions on the browser's
+device, so such a race no longer admits more than the cap, and the orphan is
+listed under its device in the session lists; it is still not reachable
+through logout.
 
 ### Choosing among sessions
 

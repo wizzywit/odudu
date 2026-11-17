@@ -6,6 +6,7 @@ export interface ClientSession {
   last_active_at: string;
   remembered: boolean;
   client_ids: string[];
+  device: string | null;
 }
 
 export interface ClientSessionList {

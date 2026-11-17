@@ -6,6 +6,8 @@ import {
   isValidLocale,
   isValidProfileUrl,
   isValidZoneinfo,
+  CLAIM_KEY,
+  shapeInvalidityFor,
 } from '#/service/profile';
 
 describe('birthdate', () => {
@@ -69,5 +71,29 @@ describe('the claim shapes', () => {
     expect(isValidLocale).toBe(contract.isValidLocale);
     expect(isValidProfileUrl).toBe(contract.isValidProfileUrl);
     expect(isValidE164).toBe(contract.isValidE164);
+  });
+});
+
+describe('shapeInvalidityFor', () => {
+  it.each([
+    ['birthdate', '90-01-31'],
+    ['zoneinfo', '+1'],
+    ['locale', 'not a locale'],
+    ['website', 'ftp://example.com'],
+  ])('names why %s %s is refused', (field, value) => {
+    expect(shapeInvalidityFor(field, value)).toContain(JSON.stringify(value));
+  });
+
+  it('accepts a valid value and a field with no shape of its own', () => {
+    expect(shapeInvalidityFor('birthdate', '1990-01-31')).toBeNull();
+    expect(shapeInvalidityFor('nickname', 'anything')).toBeNull();
+  });
+});
+
+describe('CLAIM_KEY', () => {
+  it('maps the wire name of a claim to its column key', () => {
+    expect(CLAIM_KEY.given_name).toBe('givenName');
+    expect(CLAIM_KEY.address_postal_code).toBe('addressPostalCode');
+    expect(CLAIM_KEY.email).toBeUndefined();
   });
 });

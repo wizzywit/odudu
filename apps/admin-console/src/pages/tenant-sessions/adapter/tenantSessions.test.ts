@@ -28,6 +28,7 @@ it('reads one page of the tenant’s sessions with the cursor it is given', asyn
         lastActiveAt: '2026-09-29T19:01:31.945Z',
         remembered: false,
         clientIds: [],
+        device: null,
       },
       {
         id: '01a0ee8b-27fa-7271-bb21-8bf1dec2d0fa',
@@ -37,6 +38,7 @@ it('reads one page of the tenant’s sessions with the cursor it is given', asyn
         lastActiveAt: '2026-09-29T19:01:32.281Z',
         remembered: false,
         clientIds: ['ops-app'],
+        device: null,
       },
     ],
     next: sessionList.next,

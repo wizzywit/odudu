@@ -8,7 +8,7 @@ describe('a page in Arabic isolates what somebody else wrote', () => {
     const page = renderEmailConfirmPage(
       pathAddress('https://idp.example', 'acme'),
       'key',
-      'evil<b>_user & "co"',
+      { username: 'evil<b>_user & "co"', email: null, tenant: 'acme' },
       ARABIC,
     );
     expect(page.body).toContain('اسم الحساب: <bdi>evil&lt;b&gt;_user &amp; &quot;co&quot;</bdi>');

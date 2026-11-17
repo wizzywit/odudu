@@ -11,10 +11,13 @@ import { loadSource, PROTOCOL_PAGES } from './markdown.js';
 const DOCUMENTS = [PROTOCOL_PAGES] as const;
 
 const ACTIONS = [
+  'verify-email',
   'update-password',
   'configure-totp',
   'configure-passkey',
   'generate-recovery-codes',
+  'update-profile',
+  'accept-terms',
 ] as const;
 
 // Derived by asking the resolver, not read off the constant: what a

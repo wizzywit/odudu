@@ -3,11 +3,21 @@ import { renderPasskeyEnrolmentPage } from '#/view/passkey-enrolment-html';
 import { renderRecoveryCodesPage } from '#/view/recovery-codes-html';
 import { renderRequiredActionPage } from '#/view/required-action-html';
 import { renderTotpEnrolmentPage } from '#/view/totp-enrolment-html';
+import { renderAcceptTermsPage } from '#/view/accept-terms-html';
 import { renderUpdatePasswordPage } from '#/view/update-password-html';
+import { renderUpdateProfilePage } from '#/view/update-profile-html';
+import { renderVerifyEmailPage } from '#/view/verify-email-html';
 
 type AuthnKind = Extract<
   PageKind,
-  'totp-enrolment' | 'passkey-enrolment' | 'recovery-codes' | 'update-password' | 'required-action'
+  | 'totp-enrolment'
+  | 'passkey-enrolment'
+  | 'recovery-codes'
+  | 'update-password'
+  | 'required-action'
+  | 'verify-email'
+  | 'update-profile'
+  | 'accept-terms'
 >;
 
 const SESSION = 'preview-session';
@@ -65,6 +75,43 @@ export const PREVIEW_PAGES: Readonly<Record<AuthnKind, PreviewRender>> = {
         requireLowercase: true,
         requireSpecial: false,
       },
+      locale,
+    ),
+  'verify-email': (tenant, locale) =>
+    renderVerifyEmailPage(
+      tenant,
+      pathAddress('', tenant),
+      SESSION,
+      { email: 'ada@example.com', verified: false },
+      undefined,
+      locale,
+    ),
+  'update-profile': (tenant, locale) =>
+    renderUpdateProfilePage(
+      tenant,
+      pathAddress('', tenant),
+      SESSION,
+      {
+        fields: ['name', 'given_name', 'family_name', 'birthdate', 'phone_number'],
+        required: ['given_name', 'family_name'],
+        values: {
+          name: 'Ada Example',
+          given_name: 'Ada',
+          family_name: '',
+          birthdate: '',
+          phone_number: '',
+        },
+      },
+      [],
+      locale,
+    ),
+  'accept-terms': (tenant, locale) =>
+    renderAcceptTermsPage(
+      tenant,
+      pathAddress('', tenant),
+      SESSION,
+      { uri: 'https://example.com/terms', version: '1' },
+      undefined,
       locale,
     ),
   'required-action': (_tenant, locale) =>

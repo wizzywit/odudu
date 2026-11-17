@@ -129,6 +129,15 @@ it('sends a list without the rows left empty or padded', async () => {
   expect(fake.sent.at(-1)?.body).toEqual({ redirect_uris: ['https://a.example/cb'] });
 });
 
+it('sends the allowed actions as a list, and an empty list to allow none', async () => {
+  const fake = fakeTransport({ [`PATCH ${C}/c-bill`]: json(detail, 200, { etag: '"b2"' }) });
+  const gateway = fake.transport.gateway;
+  await amendClient(gateway, 'acme', 'c-bill', { allowed_actions: ['configure-totp'] }, '"b1"');
+  expect(fake.sent.at(-1)?.body).toEqual({ allowed_actions: ['configure-totp'] });
+  await amendClient(gateway, 'acme', 'c-bill', { allowed_actions: [] }, '"b2"');
+  expect(fake.sent.at(-1)?.body).toEqual({ allowed_actions: [] });
+});
+
 it('deletes a client', async () => {
   const fake = fakeTransport({ [`DELETE ${C}/c-bill`]: () => new Response(null, { status: 204 }) });
   expect(await deleteClient(fake.transport.gateway, 'acme', 'c-bill')).toMatchObject({ ok: true });

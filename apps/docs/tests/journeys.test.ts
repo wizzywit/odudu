@@ -82,6 +82,7 @@ const JOURNEYS = [
   'admin-signs-in-and-changes-a-user',
   'read-a-refusal',
   'refresh-and-end-a-session',
+  'send-a-person-to-change-a-credential',
   'sign-a-user-in',
 ];
 const journeyPages = JOURNEYS.map((name) => path.join(GUIDES, `${name}.md`));

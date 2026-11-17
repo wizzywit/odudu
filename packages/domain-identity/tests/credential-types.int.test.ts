@@ -250,6 +250,34 @@ describe('credentialRepository — widened credential types', () => {
     });
   });
 
+  it('says whether a subject holds a passkey under a relying party, and says no under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subject = await seedSubject(tx, tenantId);
+        const bare = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        await credentialRepository(tx).insert({
+          tenantId,
+          subjectId: subject,
+          type: 'webauthn',
+          secret: { kind: 'webauthn', publicKey: 'pk', counter: 0, transports: ['internal'] },
+          lookupKey: `holds-${tenantId}`,
+          rpId: 'id.example',
+        });
+        return { subject, bare: bare.id };
+      },
+      verifySeeded: async (tx, { subject, bare }) => {
+        expect(await credentialRepository(tx).holdsPasskey(subject, 'id.example')).toBe(true);
+        expect(await credentialRepository(tx).holdsPasskey(subject, 'other.example')).toBe(false);
+        expect(await credentialRepository(tx).holdsPasskey(bare, 'id.example')).toBe(false);
+      },
+      attempt: async (tx, { subject }) =>
+        credentialRepository(tx).holdsPasskey(subject, 'id.example'),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+    });
+  });
+
   it('counts no passkey of another tenant, whatever relying party it names', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {

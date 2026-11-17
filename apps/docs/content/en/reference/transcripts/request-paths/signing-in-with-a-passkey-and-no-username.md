@@ -63,8 +63,10 @@ What the flow is, stated rather than shown:
    the stored public key and counter as inputs.
 5. The server reads and clears the challenge in one statement, then verifies
    the assertion against it — origin, relying party id, signature, and the
-   authenticator's user-verified flag, which is required rather than
-   preferred.
+   authenticator's user-verified flag, which is required for a passkey made
+   under a policy that required it, and every passkey was before the tenant
+   could choose (the `webauthn_user_verification` setting, whose default is
+   `required`).
 6. The signature counter must have advanced past the stored one, or the
    credential is answering from two places at once. The write is a
    compare-and-swap, so two assertions replaying one counter value cannot
@@ -77,6 +79,15 @@ What the flow is, stated rather than shown:
    assertion is possession of a key plus a check of who held it. That is two
    factors, and `otp_required` is a floor rather than a tax.
 
+   A passkey made where the tenant allowed `preferred` or `discouraged`, and
+   asserted without the user-verified flag, is possession alone. The session
+   then records `passkey` and `passkey-unverified`, the ID token says
+   `amr: ["hwk"]` and `acr: "1"`, and the second factor applies as it does
+   after a password. Like the enrolment above it, this was run by an
+   integration test and not against a stack: `curl` cannot sign an assertion.
+   Where the setting is not `required`, the options ask the browser for `preferred`, so an older
+   passkey made with verification required is refused if its authenticator skips it.
+
 Refused, each for its own reason:
 
 - An assertion whose counter did not increase. One that reports zero from a
@@ -87,6 +98,6 @@ Refused, each for its own reason:
   was cleared by the statement that read it, so there is nothing left to
   verify against.
 - An assertion for a credential enrolled in another tenant.
-- An assertion the authenticator did not verify anybody for.
+- An assertion the authenticator did not verify anybody for, from a passkey made where verification was required.
 - An assertion whose credential id names nothing in this tenant, which
   answers exactly as a wrong password does: `invalid_credentials`.

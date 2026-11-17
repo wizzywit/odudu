@@ -37,6 +37,7 @@ function sessionWireShape(view: SessionView): Session {
     last_active_at: view.lastActiveAt.toISOString(),
     remembered: view.remembered,
     client_ids: [...view.clientIds],
+    device: view.device,
   };
 }
 

@@ -92,6 +92,38 @@ export const tenants = pgTable('tenants', {
   loginTtlSeconds: integer('login_ttl_seconds').notNull().default(1800),
   verifyEmailTtlSeconds: integer('verify_email_ttl_seconds').notNull().default(43_200),
   resetPasswordTtlSeconds: integer('reset_password_ttl_seconds').notNull().default(300),
+  // How recent a sign-in must be for the "me" API to accept a sensitive change
+  // (packages/db/drizzle/0126_session_freshness.sql).
+  sessionFreshnessSeconds: integer('session_freshness_seconds').notNull().default(300),
+  // How few unspent recovery codes a person may hold before they are warned
+  // (packages/db/drizzle/0131_recovery_code_warn_below.sql); 0 turns it off.
+  recoveryCodeWarnBelow: integer('recovery_code_warn_below').notNull().default(3),
+  // What a tenant asks of the authenticators enrolled from now on; an enrolment
+  // keeps the values it was made under (packages/db/drizzle/0132_authenticator_policy.sql).
+  totpAlgorithm: text('totp_algorithm').notNull().default('SHA1'),
+  totpDigits: integer('totp_digits').notNull().default(6),
+  totpPeriod: integer('totp_period').notNull().default(30),
+  webauthnUserVerification: text('webauthn_user_verification').notNull().default('required'),
+  webauthnResidentKey: text('webauthn_resident_key').notNull().default('required'),
+  recoveryCodeCount: integer('recovery_code_count').notNull().default(10),
+  // Whether every person who signs in is asked to hold a passkey
+  // (packages/db/drizzle/0133_require_passkey.sql).
+  requirePasskey: boolean('require_passkey').notNull().default(false),
+  // Where a new password is checked against known breaches, and whether a
+  // check that could not finish accepts or refuses it
+  // (packages/db/drizzle/0135_breached_passwords.sql).
+  breachedCheck: text('breached_check').notNull().default('dataset'),
+  breachedOnError: text('breached_on_error').notNull().default('open'),
+  // The terms a person is asked to accept, and the version they accept
+  // (packages/db/drizzle/0136_more_required_actions.sql).
+  termsUri: text('terms_uri'),
+  termsVersion: text('terms_version').notNull().default('1'),
+  // The profile claims the update-profile action needs a person to have
+  // (packages/db/drizzle/0136_more_required_actions.sql).
+  requiredProfileFields: text('required_profile_fields')
+    .array()
+    .notNull()
+    .default(sql`ARRAY['given_name', 'family_name']`),
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),

@@ -80,3 +80,35 @@ export interface UserRecord {
   addressPostalCode: string | null;
   addressCountry: string | null;
 }
+
+// Every field a caller may set through updateProfile: every OIDC Core §5.1
+// claim column except the identity columns (subjectId, tenantId, username)
+// and email, which create() and its own validation already own.
+export interface ProfileUpdate {
+  name?: string | null;
+  givenName?: string | null;
+  familyName?: string | null;
+  middleName?: string | null;
+  nickname?: string | null;
+  preferredUsername?: string | null;
+  profile?: string | null;
+  picture?: string | null;
+  website?: string | null;
+  gender?: string | null;
+  birthdate?: string | null;
+  zoneinfo?: string | null;
+  locale?: string | null;
+  phoneNumber?: string | null;
+  phoneNumberVerified?: boolean;
+  addressFormatted?: string | null;
+  addressStreet?: string | null;
+  addressLocality?: string | null;
+  addressRegion?: string | null;
+  addressPostalCode?: string | null;
+  addressCountry?: string | null;
+}
+
+export interface VerificationUpdate {
+  emailVerified?: boolean;
+  phoneNumberVerified?: boolean;
+}

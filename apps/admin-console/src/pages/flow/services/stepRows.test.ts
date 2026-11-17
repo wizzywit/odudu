@@ -10,29 +10,43 @@ const STEPS: readonly Step[] = [
 
 describe('stepRows', () => {
   it('numbers the steps from one and says what each is and asks', () => {
-    const rows = stepRows(STEPS, null);
+    const rows = stepRows(STEPS, null, undefined);
     expect(rows.map((row) => row.position)).toEqual([1, 2, 3]);
     expect(rows[0]).toMatchObject({
       authenticator: 'password',
-      what: "The subject's password.",
-      requirementWhat: 'Every sign-in must pass it.',
+      summary: "The subject's password.",
       requirementLabel: 'Requirement for password',
     });
   });
 
+  it('leaves an alternative without a sentence about its requirement', () => {
+    const rows = stepRows([{ authenticator: 'passkey', requirement: 'alternative' }], null, {});
+    expect(rows[0]?.summary).toBe('A passkey registered to the subject.');
+  });
+
+  it('gives a step the controls of its authenticator, with the tenant’s values as the default', () => {
+    const rows = stepRows(STEPS, null, { totp_digits: 6 });
+    expect(rows.map((row) => row.settings.length)).toEqual([0, 3, 2]);
+    expect(rows[1]?.settings[1]?.options[0]?.label).toBe('Tenant setting (6 digits)');
+  });
+
   it('marks a disabled step and no other', () => {
-    expect(stepRows(STEPS, null).map((row) => row.disabled)).toEqual([false, false, true]);
+    expect(stepRows(STEPS, null, undefined).map((row) => row.disabled)).toEqual([
+      false,
+      false,
+      true,
+    ]);
   });
 
   it('keeps the first from moving up and the last from moving down', () => {
-    const rows = stepRows(STEPS, null);
+    const rows = stepRows(STEPS, null, undefined);
     expect(rows[0]?.up).toEqual({ label: 'Move password up', enabled: false });
     expect(rows[0]?.down.enabled).toBe(true);
     expect(rows[2]?.down).toEqual({ label: 'Move passkey down', enabled: false });
   });
 
   it('shows whom the one-time password asks on that step alone', () => {
-    const rows = stepRows(STEPS, 'Asked of every subject.');
+    const rows = stepRows(STEPS, 'Asked of every subject.', undefined);
     expect(rows.map((row) => row.otpReading)).toEqual([null, 'Asked of every subject.', null]);
   });
 });

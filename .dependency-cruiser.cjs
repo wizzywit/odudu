@@ -103,14 +103,14 @@ module.exports = {
       severity: 'error',
       comment:
         'An entity index reaches views and usecases, so a service may import it for types only. ' +
-        'entities/area and entities/administrator are the exceptions: their indexes publish pure ' +
+        'entities/area, entities/administrator and entities/authenticator are the exceptions: their indexes publish pure ' +
         'data and services, and tests/lint/entity-service-index.test.ts holds them to that.',
       from: {
         path: '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: {
-        path: '(^|/)apps/admin-console/src/entities/(?!(?:area|administrator)/)[^/]+/index\\.ts$',
+        path: '(^|/)apps/admin-console/src/entities/(?!(?:area|administrator|authenticator)/)[^/]+/index\\.ts$',
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -412,6 +412,30 @@ module.exports = {
         'into it, a protocol package included.',
       from: { path: '(^|/)(?:packages|apps)/', pathNot: '(^|/)(?:packages/mcp|apps/server)/' },
       to: { path: '(^|/)packages/mcp/' },
+    },
+    {
+      name: 'me-allowlist',
+      severity: 'error',
+      comment:
+        "The me package serves the signed-in person's own account (ADR 0052) and sits above " +
+        'protocol-oidc, so of the workspace it may import the kernel, the contracts, the ' +
+        'identity, tenant and audit domain packages and the OIDC package, and nothing else. ' +
+        'The rule covers src/ minus its *.test.ts files.',
+      from: { path: '(^|/)packages/me/src/', pathNot: '\\.test\\.ts$' },
+      to: {
+        path: '(^|/)packages/',
+        pathNot:
+          '(^|/)node_modules/|(^|/)packages/(?:me|kernel|contracts|domain-identity|domain-tenant|domain-audit|protocol-oidc)/',
+      },
+    },
+    {
+      name: 'me-imported-only-by-server',
+      severity: 'error',
+      comment:
+        'Only apps/server composes the me package (ADR 0052); no other package or app reaches ' +
+        'into it, a protocol package included.',
+      from: { path: '(^|/)(?:packages|apps)/', pathNot: '(^|/)(?:packages/me|apps/server)/' },
+      to: { path: '(^|/)packages/me/' },
     },
     // `/src/(.+/)?view/` fails dependency-cruiser's safe-regex check (star
     // height > 1: the optional group wraps a quantifier). The alternation

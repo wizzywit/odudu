@@ -216,3 +216,8 @@ curl -sS -w '\n' -X POST \
 </body>
 </html>
 ```
+
+The link in this run was sent with no client, so neither page above offers a way
+back. A link sent with a `client_id` ends on the same pages with one more link,
+"Return to the application", to a redirect address the client registered, as
+[the admin page](../admin-paths/post-subjectsidactions-email.md) shows.

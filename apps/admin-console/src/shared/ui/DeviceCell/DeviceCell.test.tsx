@@ -1,0 +1,35 @@
+import { render, screen } from '@testing-library/react';
+import { expect, it } from 'vitest';
+import { DeviceCell } from '#/shared/ui/DeviceCell';
+import { axeInBothThemes } from '#/testing/axeInBothThemes';
+
+const DEVICE = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
+
+it('shows the start of a device id, copies all of it, and keeps the whole value readable', () => {
+  render(<DeviceCell device={DEVICE} />);
+  expect(screen.getByText('a1b2c3d4…')).toBeInTheDocument();
+  expect(screen.getByText(DEVICE)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Copy device id' })).toBeVisible();
+});
+
+it('says how many sessions the device holds when told', () => {
+  render(<DeviceCell device={DEVICE} caption="3 sessions on this device" />);
+  expect(screen.getByText('3 sessions on this device')).toBeInTheDocument();
+});
+
+it('shows a dash for a session opened before the id was recorded', () => {
+  render(<DeviceCell device={null} />);
+  expect(screen.getByText('—')).toBeInTheDocument();
+  expect(screen.queryByRole('button')).toBeNull();
+});
+
+it('passes axe in both themes, with and without a device', async () => {
+  expect(
+    await axeInBothThemes(() => (
+      <>
+        <DeviceCell device={DEVICE} />
+        <DeviceCell device={null} />
+      </>
+    )),
+  ).toEqual({ light: [], dark: [] });
+});

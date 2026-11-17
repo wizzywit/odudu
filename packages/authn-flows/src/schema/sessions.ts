@@ -26,6 +26,9 @@ export const sessions = pgTable('sessions', {
   // on a row that predates it, which is never live
   // (packages/db/drizzle/0071_session_secret.sql).
   secretHash: text('secret_hash'),
+  // Digest of the device cookie of the browser this session was opened on;
+  // null where there was none (packages/db/drizzle/0134_session_device.sql).
+  deviceId: text('device_id'),
 }).enableRLS();
 
 export interface SessionRecord {
@@ -37,4 +40,5 @@ export interface SessionRecord {
   lastActiveAt: Date;
   authenticators: string[];
   remembered: boolean;
+  deviceId: string | null;
 }

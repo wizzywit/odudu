@@ -91,3 +91,43 @@ export const amendProfileRequestSchema = z.object({
   username: z.unknown().optional(),
 });
 export type AmendProfileRequest = z.infer<typeof amendProfileRequestSchema>;
+
+// The claims a person writes about themselves, by wire name: every claim of the
+// profile but the verification flags and the stamp, which are proved or set by
+// the write. The order is the one a form lays them out in.
+export const PROFILE_CLAIM_NAMES = [
+  'name',
+  'given_name',
+  'family_name',
+  'middle_name',
+  'nickname',
+  'preferred_username',
+  'profile',
+  'picture',
+  'website',
+  'gender',
+  'birthdate',
+  'zoneinfo',
+  'locale',
+  'phone_number',
+  'address_formatted',
+  'address_street',
+  'address_locality',
+  'address_region',
+  'address_postal_code',
+  'address_country',
+] as const;
+export type ProfileClaimName = (typeof PROFILE_CLAIM_NAMES)[number];
+
+// What the `update-profile` action asks a tenant's people for until the tenant
+// chooses.
+export const DEFAULT_REQUIRED_PROFILE_FIELDS: readonly ProfileClaimName[] = [
+  'given_name',
+  'family_name',
+];
+
+// A text's length in characters, as the database counts them, not in UTF-16
+// units: an astral character is one.
+export function characterCount(text: string): number {
+  return Array.from(text).length;
+}

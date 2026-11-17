@@ -30,7 +30,7 @@ interface OpenApiOperation {
   readonly description?: string;
   readonly parameters: readonly OpenApiParameterOrRef[];
   readonly requestBody?: {
-    readonly required: true;
+    readonly required: boolean;
     readonly content: Readonly<Record<string, { readonly schema: JsonSchema }>>;
   };
   readonly responses: Readonly<Record<string, OpenApiResponse>>;
@@ -237,7 +237,7 @@ function operationFor(route: AdminRoute): OpenApiOperation {
       ? {}
       : {
           requestBody: {
-            required: true as const,
+            required: !route.bodySchema.safeParse(undefined).success,
             content: { 'application/json': { schema: jsonSchemaFor(route.bodySchema) } },
           },
         }),

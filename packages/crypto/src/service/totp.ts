@@ -15,7 +15,6 @@ const SECRET_BYTES = 20; // RFC 6238 §5.1: a key SHOULD match the HMAC output i
 const VERIFY_WINDOW_STEPS = 1; // RFC 6238 §5.2/§6: one time step of network delay/clock drift either side.
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-const VERIFY_CODE_SHAPE = /^\d{6}$/u;
 
 function alphabetChar(index: number): string {
   const char = BASE32_ALPHABET[index];
@@ -108,18 +107,22 @@ export function verifyTotp(input: {
   code: string;
   now: Date;
   lastStep: number | null;
+  algorithm?: TotpAlgorithm;
+  digits?: number;
+  periodSeconds?: number;
 }): { ok: false } | { ok: true; step: number } {
   const { secret, code, now, lastStep } = input;
-  if (!VERIFY_CODE_SHAPE.test(code)) return { ok: false };
+  const digits = input.digits ?? DEFAULT_DIGITS;
+  if (code.length !== digits || !/^\d+$/u.test(code)) return { ok: false };
 
   const codeBuffer = Buffer.from(code, 'utf8');
-  const currentStep = totpCounter(now);
+  const currentStep = totpCounter(now, input.periodSeconds ?? DEFAULT_STEP_SECONDS);
 
   for (let offset = -VERIFY_WINDOW_STEPS; offset <= VERIFY_WINDOW_STEPS; offset++) {
     const step = currentStep + offset;
     if (lastStep !== null && step <= lastStep) continue;
 
-    const candidate = totpCode(secret, step, DEFAULT_DIGITS, DEFAULT_ALGORITHM);
+    const candidate = totpCode(secret, step, digits, input.algorithm ?? DEFAULT_ALGORITHM);
     if (timingSafeEqual(codeBuffer, Buffer.from(candidate, 'utf8'))) {
       return { ok: true, step };
     }

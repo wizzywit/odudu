@@ -2,6 +2,7 @@ import {
   GENERAL_SECTION,
   LOCKOUT_SECTION,
   PASSWORD_SECTION,
+  SECTION_GROUPS,
   sectionHeadingId,
   SETTINGS_SECTIONS,
   type SettingsSection,
@@ -48,4 +49,80 @@ export function settingsSections(): { plans: readonly SectionPlan[]; words: Sett
     })),
     words: SETTINGS_PAGE_WORDS,
   };
+}
+
+export interface NavItem {
+  id: string;
+  headingId: string;
+  title: string;
+  // Unsaved edits in its section, which a person scrolled elsewhere cannot see.
+  dirty: boolean;
+}
+
+export interface NavGroup {
+  title: string;
+  items: readonly NavItem[];
+}
+
+export function settingsNav(
+  plans: readonly SectionPlan[],
+  dirty: ReadonlySet<string>,
+): readonly NavGroup[] {
+  return SECTION_GROUPS.map((group) => ({
+    title: group.title,
+    items: group.ids.flatMap((id) =>
+      plans
+        .filter((plan) => plan.section.id === id)
+        .map((plan) => ({
+          id,
+          headingId: plan.headingId,
+          title: plan.title,
+          dirty: dirty.has(id),
+        })),
+    ),
+  }));
+}
+
+// The first of the sections, in page order, that is in the reading band; the
+// last one stays current while none is, as between two short sections.
+export function currentSection(
+  order: readonly string[],
+  inBand: ReadonlySet<string>,
+  last: string | null,
+): string | null {
+  return order.find((id) => inBand.has(id)) ?? last;
+}
+
+// The sections a list observes, as one string that changes only when they do.
+export function bandKey(groups: readonly NavGroup[]): string {
+  return groups
+    .flatMap((group) => group.items.map((item) => `${item.id}=${item.headingId}`))
+    .join(' ');
+}
+
+export function bandTargets(key: string): { id: string; headingId: string }[] {
+  return key === ''
+    ? []
+    : key.split(' ').map((pair) => {
+        const [id = '', headingId = ''] = pair.split('=');
+        return { id, headingId };
+      });
+}
+
+export interface BandChange {
+  id: string;
+  intersecting: boolean;
+}
+
+// The sections in the reading band once these have entered or left it.
+export function bandAfter(
+  inBand: ReadonlySet<string>,
+  changes: readonly BandChange[],
+): Set<string> {
+  const next = new Set(inBand);
+  for (const change of changes) {
+    if (change.intersecting) next.add(change.id);
+    else next.delete(change.id);
+  }
+  return next;
 }

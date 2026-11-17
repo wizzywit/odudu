@@ -41,6 +41,7 @@ import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { ensureServiceAccount, retireServiceAccount } from '#/usecase/service-account';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -323,6 +324,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

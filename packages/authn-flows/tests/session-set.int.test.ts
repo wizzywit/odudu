@@ -19,6 +19,7 @@ import { sessionRepository } from '#/repository/sessions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
 import { sessions } from '#/schema/sessions';
 import { authenticationSessionDigest } from '#/service/authentication-session-digest';
+import { deviceDigest, newDeviceId } from '#/service/device-id';
 import { SessionEntry } from '#/service/session-entry';
 import { isSessionLive } from '#/service/session-liveness';
 import { admitSession } from '#/usecase/session-admission';
@@ -304,6 +305,7 @@ describe('the live session set', () => {
             browserSessions,
             maxSessionsPerBrowser: cap,
             lifespans: TENANT_LIFESPANS,
+            device: null,
           },
           clock,
         ),
@@ -353,6 +355,7 @@ describe('the live session set', () => {
           browserSessions: [held, forged(other)],
           maxSessionsPerBrowser: 2,
           lifespans: TENANT_LIFESPANS,
+          device: null,
         },
         new FakeClock(now),
       ),
@@ -415,6 +418,7 @@ describe('the live session set', () => {
               browserSessions: seeded,
               maxSessionsPerBrowser: cap,
               lifespans: TENANT_LIFESPANS,
+              device: null,
             },
             clock,
           ),
@@ -492,6 +496,7 @@ describe('the live session set', () => {
         browserSessions: [],
         maxSessionsPerBrowser: 3,
         lifespans: TENANT_LIFESPANS,
+        device: null,
       });
     });
 
@@ -601,6 +606,137 @@ describe('liveBySubject', () => {
       await seedTenant(tx, otherTenantId);
       const live = await sessionRepository(tx).liveBySubject(subjectId, TENANT_LIFESPANS, now);
       expect(live).toEqual([]);
+    });
+  });
+
+  describe('the device a session was opened on', () => {
+    const deviceA = deviceDigest(newDeviceId(() => new Uint8Array(16).fill(1)));
+    const deviceB = deviceDigest(newDeviceId(() => new Uint8Array(16).fill(2)));
+
+    async function deviceOf(tenantId: string, sessionId: string): Promise<string | null> {
+      return withTenant(app.db, tenantId, async (tx) => {
+        const rows = await tx.select().from(sessions).where(eq(sessions.id, sessionId));
+        return rows[0]?.deviceId ?? null;
+      });
+    }
+
+    function admit(
+      tenantId: string,
+      subjectId: string,
+      device: string | null,
+      browserSessions: SessionEntry[] = [],
+    ) {
+      return withTenant(app.db, tenantId, (tx) =>
+        admitSession(tx, {
+          tenantId,
+          subjectId,
+          authenticators: [],
+          remembered: false,
+          browserSessions,
+          maxSessionsPerBrowser: 5,
+          lifespans: TENANT_LIFESPANS,
+          device,
+        }),
+      );
+    }
+
+    it('is recorded on each session, so two logins of one browser share one device', async () => {
+      const tenantId = newId();
+      const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+        await seedTenant(tx, tenantId);
+        return (await subjectRepository(tx).create({ tenantId, type: 'user' })).id;
+      });
+
+      const first = await admit(tenantId, subjectId, deviceA);
+      const second = await admit(tenantId, subjectId, deviceA, [first.entry]);
+
+      expect(first.sessionId).not.toBe(second.sessionId);
+      expect(await deviceOf(tenantId, first.sessionId)).toBe(deviceA);
+      expect(await deviceOf(tenantId, second.sessionId)).toBe(deviceA);
+    });
+
+    it('is null for a login that presented no device cookie', async () => {
+      const tenantId = newId();
+      const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+        await seedTenant(tx, tenantId);
+        return (await subjectRepository(tx).create({ tenantId, type: 'user' })).id;
+      });
+
+      const { sessionId } = await admit(tenantId, subjectId, null);
+
+      expect(await deviceOf(tenantId, sessionId)).toBeNull();
+    });
+
+    it('counts another subject’s sessions on the same device value for nothing', async () => {
+      const tenantId = newId();
+      const now = new Date();
+      const { victim, forger } = await withTenant(app.db, tenantId, async (tx) => {
+        await seedTenant(tx, tenantId);
+        const victimSubject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        const forgerSubject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        const entry = SessionEntry.issue(newId());
+        await sessionRepository(tx).create({
+          id: entry.id,
+          tenantId,
+          subjectId: victimSubject.id,
+          expiresAt: new Date(now.getTime() + 3_600_000),
+          authenticators: [],
+          secretHash: entry.secretHash(),
+          deviceId: deviceB,
+        });
+        return { victim: { id: victimSubject.id, entry }, forger: forgerSubject.id };
+      });
+
+      await withTenant(app.db, tenantId, (tx) =>
+        admitSession(tx, {
+          tenantId,
+          subjectId: forger,
+          authenticators: [],
+          remembered: false,
+          browserSessions: [],
+          maxSessionsPerBrowser: 1,
+          lifespans: TENANT_LIFESPANS,
+          device: deviceB,
+        }),
+      );
+
+      await withTenant(app.db, tenantId, async (tx) => {
+        const live = await sessionRepository(tx).liveByEntries(
+          [victim.entry],
+          TENANT_LIFESPANS,
+          now,
+        );
+        expect(live).toHaveLength(1);
+      });
+    });
+
+    it('evicts the least recently active of the subject’s sessions on the device, cookie or not', async () => {
+      const tenantId = newId();
+      const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+        await seedTenant(tx, tenantId);
+        return (await subjectRepository(tx).create({ tenantId, type: 'user' })).id;
+      });
+      const first = await admit(tenantId, subjectId, deviceA);
+      for (let i = 0; i < 4; i++) await admit(tenantId, subjectId, deviceA);
+
+      await withTenant(app.db, tenantId, (tx) =>
+        admitSession(tx, {
+          tenantId,
+          subjectId,
+          authenticators: [],
+          remembered: false,
+          browserSessions: [],
+          maxSessionsPerBrowser: 5,
+          lifespans: TENANT_LIFESPANS,
+          device: deviceA,
+        }),
+      );
+
+      const live = await withTenant(app.db, tenantId, (tx) =>
+        sessionRepository(tx).liveByDevice(subjectId, deviceA, TENANT_LIFESPANS, new Date(), 50),
+      );
+      expect(live).toHaveLength(5);
+      expect(live.map((session) => session.id)).not.toContain(first.sessionId);
     });
   });
 });

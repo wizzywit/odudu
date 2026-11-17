@@ -223,6 +223,21 @@ const DRIVES: Record<string, (ctx: Ctx) => Promise<Sent>> = {
   },
   '/admin/tenants/:tenant/groups': () =>
     Promise.resolve({ path: '/groups', body: { name: `g-${newId()}` } }),
+  '/admin/tenants/:tenant/flows': () =>
+    Promise.resolve({
+      path: '/flows',
+      body: {
+        name: `f-${newId()}`,
+        steps: [{ authenticator: 'password', requirement: 'required' }],
+      },
+    }),
+  '/admin/tenants/:tenant/flows/:id/make-default': async (ctx) => {
+    const flow = await made(ctx, '/flows', {
+      name: `f-${newId()}`,
+      steps: [{ authenticator: 'password', requirement: 'required' }],
+    });
+    return { path: `/flows/${flow.id}/make-default`, headers: { 'if-match': flow.etag } };
+  },
   '/admin/tenants/:tenant/scopes': () =>
     Promise.resolve({ path: '/scopes', body: { name: `s-${newId()}` } }),
   '/admin/tenants/:tenant/scopes/restore-builtins': () =>

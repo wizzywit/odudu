@@ -19,7 +19,7 @@ export const CAPABILITIES: Card[] = [
   },
   {
     title: 'Passwords and second factors',
-    body: 'Passwords with a policy and lockouts, passkeys, authenticator apps and recovery codes, chosen per tenant.',
+    body: 'Passwords with a policy and lockouts, passkeys, authenticator apps and recovery codes, chosen per tenant, and changed by the person through a "me" API.',
     to: '/admin-console/sign-in-flow/',
   },
   {
@@ -29,7 +29,7 @@ export const CAPABILITIES: Card[] = [
   },
   {
     title: 'Services and agents',
-    body: "Client credentials for a service that signs in as itself, token exchange for acting on someone else's behalf, and an MCP server with 61 read tools and 12 write tools over the admin API, where access-changing, credential and destructive operations are not available yet.",
+    body: "Client credentials for a service that signs in as itself, token exchange for acting on someone else's behalf, and an MCP server with 64 read tools and 12 write tools over the admin API, where access-changing, credential and destructive operations are not available yet.",
     to: '/guides/protect-an-mcp-server/',
   },
   {

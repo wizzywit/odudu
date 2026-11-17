@@ -23,6 +23,7 @@ export const ar: Readonly<Record<string, string>> = {
   'error.wayOn.return': 'العودة إلى التطبيق',
   'error.signInExpired': 'محاولة تسجيل الدخول هذه لم تعد صالحة. ارجع وابدأ من جديد.',
   'error.noPendingAction': 'لا يوجد لهذا الحساب إجراء معلّق من هذا النوع.',
+  'error.actionUnavailable': 'هذا التغيير غير متاح لحسابك.',
   'error.pendingActionNotReady': 'لا يمكن إكمال هذا الإجراء المعلّق هنا بعد.',
   'error.passwordTooLong': 'الحد الأقصى لطول كلمة المرور هو {max, number, ::group-off} من الأحرف.',
   'error.unknownTenant': 'مستأجر غير معروف.',

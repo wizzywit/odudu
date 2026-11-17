@@ -169,3 +169,59 @@ describe('createdDetail', () => {
     });
   });
 });
+
+describe('the passkey switch', () => {
+  it('shows the switch by value, so a tenant-wide mandate is on the trail', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        { require_passkey: false, verify_email: false },
+        { require_passkey: true, verify_email: true },
+      ),
+    ).toEqual({ require_passkey: { before: false, after: true } });
+  });
+});
+
+describe('the breached-password settings', () => {
+  it('show by value, so a tenant that stops checking is on the trail', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        { breached_check: 'dataset', breached_on_error: 'open' },
+        { breached_check: 'off', breached_on_error: 'closed' },
+      ),
+    ).toEqual({
+      breached_check: { before: 'dataset', after: 'off' },
+      breached_on_error: { before: 'open', after: 'closed' },
+    });
+  });
+});
+
+describe('the terms settings', () => {
+  it('show by value, so a change of terms is on the trail', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        { terms_uri: null, terms_version: '1' },
+        { terms_uri: 'https://example.com/terms', terms_version: '2' },
+      ),
+    ).toEqual({
+      terms_uri: { before: null, after: 'https://example.com/terms' },
+      terms_version: { before: '1', after: '2' },
+    });
+  });
+});
+
+describe('the required profile fields', () => {
+  it('show by value, so a change of what a profile needs is on the trail', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        { required_profile_fields: ['given_name', 'family_name'] },
+        { required_profile_fields: ['name'] },
+      ),
+    ).toEqual({
+      required_profile_fields: { before: ['given_name', 'family_name'], after: ['name'] },
+    });
+  });
+});

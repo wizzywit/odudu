@@ -1,12 +1,18 @@
 import { type RequiredAction } from '#/schema/required-action';
 
-// Two pending actions always run in the same sequence, and password comes
-// first so an expired password can never be used to enrol a second factor.
+// Two pending actions always run in the same sequence. An unproved address
+// comes first, since proving it asks nothing of the person but the mailbox,
+// then the password, so an expired password can never be used to enrol a
+// second factor. The profile and the tenant's terms come last: nothing
+// before them depends on either.
 const REQUIRED_ACTION_ORDER: readonly RequiredAction[] = [
+  'verify-email',
   'update-password',
   'configure-totp',
   'configure-passkey',
   'generate-recovery-codes',
+  'update-profile',
+  'accept-terms',
 ];
 
 // The one thing that decides which pending action a login must complete

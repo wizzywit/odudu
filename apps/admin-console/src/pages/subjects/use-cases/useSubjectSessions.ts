@@ -20,6 +20,7 @@ import {
 } from '#/pages/subjects/services/sessions';
 import { useConfirmedSubjectChange } from '#/pages/subjects/use-cases/useConfirmedSubjectChange';
 import { notLacking } from '#/shared/lib/services/access';
+import { deviceCaptionOf, groupByDevice } from '#/entities/session';
 import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import type { Confirming } from '#/shared/lib/use-cases/useConfirmedChange';
 import { type Consent } from '#/pages/subjects/types/consent';
@@ -36,6 +37,7 @@ export function useHolds(tenant: string, capability: AdminCapability): boolean {
 export interface SubjectSessions {
   name: string;
   list: ResourceListState<SubjectSession>;
+  deviceCaption: (device: string | null) => string | null;
   endLabel: (session: SubjectSession) => string;
   end: Confirming<SubjectSession>;
   endAll: Confirming<'all'>;
@@ -43,9 +45,11 @@ export interface SubjectSessions {
 
 export function useSubjectSessions(tenant: string, subject: Subject): SubjectSessions {
   const name = subjectName(subject);
+  const list = useSessionList(tenant, subject.id);
   return {
     name,
-    list: useSessionList(tenant, subject.id),
+    list: { ...list, rows: groupByDevice(list.rows) },
+    deviceCaption: deviceCaptionOf(list.rows),
     endLabel: endSessionLabel,
     end: useConfirmedSubjectChange({
       tenant,

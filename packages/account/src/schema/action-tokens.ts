@@ -25,9 +25,20 @@ export const actionTokens = pgTable('action_tokens', {
   // (packages/db/drizzle/0101_sign_in_resume.sql). Never in the link itself,
   // and not a foreign key: a sign-in is reaped long before its token.
   authenticationSessionId: uuid('authentication_session_id'),
+  // The client an administrator-issued link returns to and the one of its
+  // redirect URIs the page offers (packages/db/drizzle/0129_action_token_return.sql).
+  // Both or neither; not a foreign key, because the page checks them against
+  // the client's registration as it stands when the link is opened.
+  clientId: uuid('client_id'),
+  returnUri: text('return_uri'),
 }).enableRLS();
 
 export type ActionTokenType = 'verify_email' | 'reset_password' | 'execute_actions';
+
+export interface ReturnTarget {
+  clientId: string;
+  uri: string;
+}
 
 export interface ActionTokenRecord {
   id: string;
@@ -41,4 +52,5 @@ export interface ActionTokenRecord {
   expiresAt: Date;
   consumedAt: Date | null;
   authenticationSessionId: string | null;
+  returnTo: ReturnTarget | null;
 }

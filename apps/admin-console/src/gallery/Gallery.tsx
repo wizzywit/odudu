@@ -27,12 +27,14 @@ import { LoadFailed } from '#/shared/ui/LoadFailed';
 import { LoadMore, LoadMoreFailed } from '#/shared/ui/LoadMore';
 import { LiveMessage, Problem } from '#/shared/ui/Message';
 import { NarrowedNote } from '#/shared/ui/NarrowedNote';
+import { More } from '#/shared/ui/More';
 import { Note, NoteCode } from '#/shared/ui/Note';
 import { ChunkFailed } from '#/shared/ui/ChunkBoundary';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { ConflictPanel } from '#/shared/ui/ConflictPanel';
 import { ContextBar } from '#/shared/ui/ContextBar';
 import { CopyValue } from '#/shared/ui/CopyValue';
+import { DeviceCell } from '#/shared/ui/DeviceCell';
 import { Count } from '#/shared/ui/Count';
 import { DataTable, type Column } from '#/shared/ui/DataTable';
 import { Duration } from '#/shared/ui/Duration';
@@ -1015,6 +1017,16 @@ export function Gallery({
               <CopyValue label="JWKS" value={JWKS_SAMPLE} block />
             </div>
           </Specimen>
+          <Specimen label="DeviceCell">
+            <div className={styles.stack}>
+              <DeviceCell device="3f1c7a9e5b2d4c68a0e91f37d5b84c2a6e7f90b1d3c5a8e2f4b6d7091a3c5e8f" />
+              <DeviceCell
+                device="3f1c7a9e5b2d4c68a0e91f37d5b84c2a6e7f90b1d3c5a8e2f4b6d7091a3c5e8f"
+                caption="2 sessions on this device"
+              />
+              <DeviceCell device={null} />
+            </div>
+          </Specimen>
           <Specimen label="Timestamp · Duration · Count">
             <div className={styles.stack}>
               <Timestamp value="2026-09-28T13:41:05Z" now={NOW} />
@@ -1129,6 +1141,37 @@ export function Gallery({
               value={['view-users']}
               onChange={() => undefined}
             />
+          </Specimen>
+          <Specimen label="ChecklistField: options under headings, tiled when none carries text">
+            <ChecklistField
+              label="Required profile fields"
+              options={[
+                { id: 'name', label: 'Full name', group: 'Name' },
+                { id: 'given_name', label: 'Given name', group: 'Name' },
+                { id: 'phone_number', label: 'Phone number', group: 'Contact' },
+              ]}
+              value={['given_name']}
+              onChange={() => undefined}
+            />
+          </Specimen>
+          <Specimen label="NumberWithUnitField: seconds typed in the unit that fits, with the range">
+            <NumberWithUnitField
+              label="Idle timeout"
+              unit="seconds"
+              picker
+              echo={false}
+              minValue={60}
+              maxValue={86_400}
+              rangeMessage="Allowed: 1 minute to 1 day."
+              description="Allowed: 1 minute to 1 day."
+              value={1800}
+              onChange={() => undefined}
+            />
+          </Specimen>
+          <Specimen label="More: the rest of a description, folded away until asked for">
+            <More label="More">
+              A person’s app must support another algorithm before they can use it.
+            </More>
           </Specimen>
           <Specimen label="SaveBar on its own">
             <SaveBar section="Tokens" saving={false} onDiscard={() => undefined} />

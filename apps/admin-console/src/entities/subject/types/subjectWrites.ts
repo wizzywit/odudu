@@ -1,5 +1,7 @@
 export type {
   AdminCapabilitiesResponse,
+  ApplicationAction,
+  LinkedAction,
   RequiredAction,
   SetRequiredActionsResponse,
   SetRolesResponse,

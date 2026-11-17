@@ -7,7 +7,7 @@ import {
 } from '@odudu/kernel';
 import { sendVerificationHtml } from '#/view/verification-html';
 import { escapeHtml, intro, page } from '#/view/document';
-import { links, type WayOn } from '#/view/links';
+import { applicationWay, links, type WayOn } from '#/view/links';
 import {
   echoedValue,
   firstInvalidField,
@@ -172,23 +172,26 @@ export function renderResetPasswordForm(
 
 export function renderResetPasswordSucceededPage(
   signInPath: string | null,
+  application: string | null,
   locale: PageLocale,
 ): RenderedPage {
-  return resetSucceeded(signInPath, locale, false);
+  return resetSucceeded(signInPath, locale, false, application);
 }
 
 // The same page for a reset that also removed the account's factors.
 export function renderResetPasswordFactorsRemovedPage(
   signInPath: string | null,
+  application: string | null,
   locale: PageLocale,
 ): RenderedPage {
-  return resetSucceeded(signInPath, locale, true);
+  return resetSucceeded(signInPath, locale, true, application);
 }
 
 function resetSucceeded(
   signInPath: string | null,
   locale: PageLocale,
   factorsRemoved: boolean,
+  application: string | null,
 ): RenderedPage {
   return page(
     t(locale, 'reset.succeeded.title'),
@@ -196,11 +199,12 @@ function resetSucceeded(
       `<h1>${tHtml(locale, 'reset.succeeded.heading')}</h1>
 <p>${tHtml(locale, signInPath === null ? 'reset.succeeded.next' : 'reset.succeeded.nextWithLink')}</p>${
         factorsRemoved ? `\n<p>${tHtml(locale, 'reset.succeeded.factorsRemoved')}</p>` : ''
-      }${
+      }${links([
         signInPath === null
-          ? ''
-          : links([{ href: signInPath, text: tHtml(locale, 'link.continueToSignIn') }])
-      }`,
+          ? null
+          : { href: signInPath, text: tHtml(locale, 'link.continueToSignIn') },
+        applicationWay(application, tHtml(locale, 'link.returnToApplication')),
+      ])}`,
       '',
       locale,
     ),
@@ -216,6 +220,7 @@ function resetSucceeded(
 export function renderResetLinkFailedPage(
   requestNewPath: string | null,
   signInPath: string | null,
+  application: string | null,
   locale: PageLocale,
 ): RenderedPage {
   const next: WayOn | null =
@@ -226,7 +231,11 @@ export function renderResetLinkFailedPage(
     t(locale, 'reset.linkFailed.title'),
     fillNotice(
       `<h1>${tHtml(locale, 'reset.linkFailed.heading')}</h1>
-<p>${tHtml(locale, 'reset.linkFailed.reason')}</p>${links([next, backToSignIn(signInPath, locale)])}`,
+<p>${tHtml(locale, 'reset.linkFailed.reason')}</p>${links([
+        next,
+        backToSignIn(signInPath, locale),
+        applicationWay(application, tHtml(locale, 'link.returnToApplication')),
+      ])}`,
       '',
       locale,
     ),

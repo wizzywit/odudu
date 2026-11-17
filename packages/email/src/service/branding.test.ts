@@ -4,6 +4,7 @@ import { MARK_CID } from '#/service/mark';
 import { MAIL_PALETTE } from '#/service/palette.generated';
 import {
   renderFinishRegistration,
+  renderOwnChange,
   renderRecoveryCodesRevoked,
   renderRegistrationDuplicate,
   renderRequiredActions,
@@ -245,6 +246,13 @@ describe('every kind of mail takes the theme', () => {
     actions: renderRequiredActions({ ...base, branding, actions: ['update-password'] }),
     factor: renderSecondFactorRemoved({ ...base, branding, factor: 'totp', codes: false }),
     codes: renderRecoveryCodesRevoked({ ...base, branding, newSet: false }),
+    own: renderOwnChange({
+      to: base.to,
+      tenantDisplayName: 'Acme',
+      now: NOW,
+      branding,
+      change: { kind: 'passkey_added' },
+    }),
   };
   it.each(Object.entries(kinds))('%s carries the logo and the palette', (_, message) => {
     expect(message.html).toContain('aa.png');

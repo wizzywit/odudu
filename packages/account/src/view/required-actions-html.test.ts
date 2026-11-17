@@ -215,11 +215,11 @@ describe('renderRequiredActionsForm', () => {
 
 describe('renderRequiredActionsSucceededPage', () => {
   it('keeps the English markup exactly, with nothing remaining and with something remaining', () => {
-    const done = renderRequiredActionsSucceededPage([], null, EN);
+    const done = renderRequiredActionsSucceededPage([], null, null, EN);
     expect(done.title).toBe('Account updated');
     expect(done.body).toBe(`<h1>Your account is updated</h1>
 <p>Return to the application you were signing in to and sign in again.</p>`);
-    expect(renderRequiredActionsSucceededPage(['configure-passkey'], null, EN).body)
+    expect(renderRequiredActionsSucceededPage(['configure-passkey'], null, null, EN).body)
       .toBe(`<h1>Your account is updated</h1>
 <p>Sign in to the application to finish:</p>
 <ul>
@@ -228,16 +228,16 @@ describe('renderRequiredActionsSucceededPage', () => {
   });
 
   it('reads French where the fixture has it and English for the rest', () => {
-    expect(renderRequiredActionsSucceededPage([], null, FRENCH).body).toContain(
+    expect(renderRequiredActionsSucceededPage([], null, null, FRENCH).body).toContain(
       '<p>Vous pouvez fermer cette page.</p>',
     );
-    expect(renderRequiredActionsSucceededPage(['configure-totp'], null, FRENCH).body).toContain(
-      `<p>${en['requiredActions.succeeded.finish']}</p>`,
-    );
+    expect(
+      renderRequiredActionsSucceededPage(['configure-totp'], null, null, FRENCH).body,
+    ).toContain(`<p>${en['requiredActions.succeeded.finish']}</p>`);
   });
 
   it('writes lang and dir for a right-to-left locale', () => {
-    expect(renderRequiredActionsSucceededPage([], null, ARABIC).html).toContain(
+    expect(renderRequiredActionsSucceededPage([], null, null, ARABIC).html).toContain(
       '<html lang="ar" dir="rtl">',
     );
   });
@@ -259,14 +259,26 @@ describe('the actions pages with the way back a mailed link carried', () => {
         EN,
       ).body,
     ).not.toContain('return_to');
-    expect(renderRequiredActionsSucceededPage([], way, EN).body)
+    expect(renderRequiredActionsSucceededPage([], way, null, EN).body)
       .toBe(`<h1>Your account is updated</h1>
 <p class="links">
 <a href="/tenants/acme/protocol/openid-connect/auth?client_id=c&amp;state=x">Continue to sign in</a>
 </p>`);
-    expect(renderRequiredActionsSucceededPage(['configure-passkey'], way, EN).body).toContain(
+    expect(renderRequiredActionsSucceededPage(['configure-passkey'], way, null, EN).body).toContain(
       '<li>Register a passkey</li>\n</ul>\n<p class="links">',
     );
-    expect(renderRequiredActionsSucceededPage([], null, EN).body).not.toContain('links');
+    expect(renderRequiredActionsSucceededPage([], null, null, EN).body).not.toContain('links');
+  });
+});
+
+describe('the way back to an application', () => {
+  it('replaces the sentence about closing the page, and is absent without one', () => {
+    const href = 'https://app.example/after?action_status=success';
+    const returning = renderRequiredActionsSucceededPage([], null, href, EN).body;
+    expect(returning).toContain('Return to the application</a>');
+    expect(returning).not.toContain('you were signing in to');
+    const plain = renderRequiredActionsSucceededPage([], null, null, EN).body;
+    expect(plain).toContain('you were signing in to');
+    expect(plain).not.toContain('<a ');
   });
 });

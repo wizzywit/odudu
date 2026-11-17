@@ -45,6 +45,10 @@ export interface TenantLookup {
   clientRegistrationPolicy: 'disabled' | 'open' | 'token' | 'mcp';
   // Whether a URL client_id is resolved to its Client ID Metadata Document.
   cimdEnabled: boolean;
+  // What the "me" API reads of the tenant: how recent a sign-in a sensitive
+  // change needs, and whether a person may rename themselves.
+  sessionFreshnessSeconds: number;
+  usernameEditable: boolean;
   // The languages the tenant's pages are offered in and, when it has set one,
   // the one used ahead of the browser's preference; discovery advertises the
   // list as `ui_locales_supported`.
@@ -76,6 +80,8 @@ const LOOKUP_COLUMNS = {
   maxSessionsPerBrowser: tenants.maxSessionsPerBrowser,
   clientRegistrationPolicy: tenants.clientRegistrationPolicy,
   cimdEnabled: tenants.cimdEnabled,
+  sessionFreshnessSeconds: tenants.sessionFreshnessSeconds,
+  usernameEditable: tenants.usernameEditable,
   supportedLocales: tenants.supportedLocales,
   defaultLocale: tenants.defaultLocale,
   passwordMinLength: tenants.passwordMinLength,

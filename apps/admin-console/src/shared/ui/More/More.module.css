@@ -1,0 +1,22 @@
+.more {
+  margin-block-start: var(--space-1);
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}
+
+.summary {
+  inline-size: fit-content;
+  cursor: pointer;
+  color: var(--signal-active-ink);
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.body {
+  max-inline-size: 60ch;
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+}

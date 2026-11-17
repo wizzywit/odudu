@@ -41,9 +41,9 @@ A client that asks for a scope it was not assigned is refused with `invalid_scop
 
 ## The built-in scopes
 
-Every tenant starts with ten scopes: `openid`, `profile`, `email`, `address`, `phone`, `roles`, `groups`, `offline_access`, `mcp:read` and `mcp:write`, which no client has until assigned. You can edit them, for example to give `profile` a consent text, which can be translated into the tenant's languages. You can also delete them, except `openid`, which every client's sign-in depends on. Deleting one takes it off every client that carries it and unmaps every role mapped to it. The console counts both first and asks you to type the scope's name. The admin API refuses to delete a built-in scope until the request names it again.
+Every tenant starts with twelve scopes: `openid`, `profile`, `email`, `address`, `phone`, `roles`, `groups`, `offline_access`, `mcp:read`, `mcp:write`, `me:read` and `me:write`, which no client holds until assigned. You can edit them, for example to give `profile` a consent text, which can be translated into the tenant's languages. You can also delete them, except `openid`, which every client's sign-in depends on. Deleting one takes it off every client that carries it and unmaps every role mapped to it. The console counts both first and asks you to type the scope's name. The admin API refuses to delete a built-in scope until the request names it again.
 
-Whether a scope is built in is decided by its name alone. A scope you create under one of those ten names counts as built in: deleting it needs the same confirmation.
+Whether a scope is built in is decided by its name alone. A scope you create under one of those twelve names counts as built in: deleting it needs the same confirmation.
 
 A deleted built-in scope can be created again. The restore makes each missing one with the settings a new tenant gets and leaves any that exist alone. It does not bring back the client assignments or role mappings the deletion removed. You do it from the scopes list in the console, with `POST /admin/tenants/{tenant}/scopes/restore-builtins` in the admin API, or with `odudu seed restore-scopes --tenant <name>`. Doing it twice is harmless.
 

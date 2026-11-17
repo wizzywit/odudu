@@ -6,6 +6,7 @@ import {
   type Client,
   type ClientRecord,
   type CreateClientResponse,
+  type FieldError,
   type RotateClientSecretResponse,
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
@@ -240,11 +241,7 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           fieldProblem([{ path: outcome.field, message: outcome.reason }]),
         );
       case 'invalid_value':
-        return sendProblem(
-          reply,
-          request,
-          fieldProblem([{ path: outcome.field, message: outcome.description }]),
-        );
+        return sendProblem(reply, request, fieldProblem([invalidValueError(outcome)]));
       case 'at_capacity':
         return sendProblem(
           reply,
@@ -269,6 +266,18 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
   };
 }
 
+function invalidValueError(outcome: {
+  field: string;
+  description: string;
+  code?: string;
+}): FieldError {
+  return {
+    path: outcome.field,
+    message: outcome.description,
+    ...(outcome.code === undefined ? {} : { code: outcome.code }),
+  };
+}
+
 function amendmentProblem(
   reply: FastifyReply,
   request: AdminRequest,
@@ -284,11 +293,7 @@ function amendmentProblem(
         fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
-      return sendProblem(
-        reply,
-        request,
-        fieldProblem([{ path: outcome.field, message: outcome.description }]),
-      );
+      return sendProblem(reply, request, fieldProblem([invalidValueError(outcome)]));
     case 'invalid_metadata':
       return sendProblem(reply, request, metadataProblem(outcome));
     case 'precondition_required':

@@ -1,5 +1,6 @@
-import { use, useId } from 'react';
+import { Fragment, use, useId } from 'react';
 import { CheckboxButton, CheckboxField } from 'react-aria-components';
+import { headedRuns, isCompact } from '#/shared/lib/services/checklist';
 import { FieldCluster, FieldsReadOnly, ReadOnlyValue, type Chrome } from '#/shared/ui/Field';
 import styles from '#/shared/ui/ChecklistField/ChecklistField.module.css';
 
@@ -7,6 +8,8 @@ export interface ChecklistOption {
   id: string;
   label: string;
   description?: string;
+  // The heading it is listed under, with the options beside it.
+  group?: string;
   // A fact about the option as it stands, such as another path it is held by.
   note?: string | null;
   // Why it cannot be chosen here, or nothing when it can.
@@ -79,22 +82,36 @@ export function ChecklistField({
   }
   return (
     <FieldCluster {...chrome}>
-      <div className={styles.options}>
-        {options.map((option) => (
-          <Option
-            key={option.id}
-            option={option}
-            checked={value.includes(option.id)}
-            disabled={chrome.isDisabled === true}
-            onChange={(checked) => {
-              const next = new Set(value);
-              if (checked) next.add(option.id);
-              else next.delete(option.id);
-              onChange(options.map((each) => each.id).filter((id) => next.has(id)));
-            }}
-          />
-        ))}
-      </div>
+      {headedRuns(options).map((run, at) => {
+        const list = (
+          <div className={styles.options} data-compact={isCompact(options) || undefined}>
+            {run.options.map((option) => (
+              <Option
+                key={option.id}
+                option={option}
+                checked={value.includes(option.id)}
+                disabled={chrome.isDisabled === true}
+                onChange={(checked) => {
+                  const next = new Set(value);
+                  if (checked) next.add(option.id);
+                  else next.delete(option.id);
+                  onChange(options.map((each) => each.id).filter((id) => next.has(id)));
+                }}
+              />
+            ))}
+          </div>
+        );
+        return run.title === undefined ? (
+          <Fragment key={at}>{list}</Fragment>
+        ) : (
+          <div key={at} role="group" aria-label={run.title} className={styles.run}>
+            <p className={styles.runTitle} aria-hidden="true">
+              {run.title}
+            </p>
+            {list}
+          </div>
+        );
+      })}
     </FieldCluster>
   );
 }

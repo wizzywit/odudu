@@ -296,7 +296,7 @@ function seedAccess(access: Seeded['access']): void {
   grant(flows.fixedClientsOnly, 'odudu-admin:manage-clients');
   for (const account of [flows.main, flows.keyed]) {
     psql(
-      `delete from authentication_executions where authenticator = 'recovery-code' and tenant_id = ${inTenant(account.tenant)}`,
+      `update flows set steps = (select coalesce(jsonb_agg(e.step order by e.position), '[]'::jsonb) from jsonb_array_elements(steps) with ordinality as e(step, position) where e.step->>'authenticator' <> 'recovery-code') where is_default and tenant_id = ${inTenant(account.tenant)}`,
     );
   }
   for (const account of [keys.main, keys.young, keys.raced, keys.keyed, keys.fixed]) {

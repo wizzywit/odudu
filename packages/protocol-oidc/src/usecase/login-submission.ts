@@ -1,4 +1,5 @@
 import {
+  deviceDigest,
   nextRequiredAction,
   type AdvanceInput,
   type AdvanceOutcome,
@@ -14,6 +15,7 @@ import { isUuid, addressIssuer, type TenantAddress } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tenantLifetimesRepository } from '#/repository/tenant-lifetimes';
 import { type TenantLookup } from '#/repository/tenant-lookup';
+import { actionStatusParameter, owedWithRequested } from '#/service/action-request';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { EMPTY_CLAIMS_REQUEST, type ClaimsRequest } from '#/service/claims-request';
 import { decideConsent } from '#/service/consent';
@@ -147,6 +149,9 @@ export type LoginSubmissionOutcome =
       ephemeralSessions: readonly SessionEntry[];
       persistentSessions: readonly SessionEntry[];
       persistentMaxAgeSeconds: number;
+      // The value of the browser's device cookie, written back on every
+      // sign-in so its lifetime restarts and a first sign-in sets it.
+      device: string;
     };
 
 // Everything the atomic completion step needs to establish the SSO session
@@ -175,6 +180,9 @@ export interface CompleteLoginInput {
   // never needs a lookup of its own inside the transaction it runs in.
   lifespans: SessionLifespans;
   maxSessionsPerBrowser: number;
+  // Digest of the browser's device cookie, stored on the session admitSession
+  // creates and read to count the subject's sessions on that device.
+  device: string;
   // The entries this browser's cookies proved, read before completeLogin
   // runs — admitSession evicts from exactly this list, never a subject-wide
   // one: the cap is per browser, and a browser can hold sessions for more
@@ -397,6 +405,9 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
     },
     header: string | undefined,
   ): Promise<PresentedSession[]>;
+  // The browser's device cookie value, or a fresh one when it presented
+  // none. Used for grouping sessions only; it proves nothing about anyone.
+  deviceOf(tenantName: string, header: string | undefined): string;
 }
 
 // An authorization error response delivered to the parked request's own
@@ -424,7 +435,7 @@ export function errorRedirect(
 // the atomic consume. `clientId` is never resolved again here: every
 // caller already needed it before reaching this tail.
 export async function completeAuthorizedLogin(
-  deps: Pick<LoginSubmissionDeps, 'completeLogin' | 'resolveSessions'>,
+  deps: Pick<LoginSubmissionDeps, 'completeLogin' | 'resolveSessions' | 'deviceOf'>,
   tenant: {
     id: string;
     name: string;
@@ -476,6 +487,7 @@ export async function completeAuthorizedLogin(
     header,
   );
 
+  const device = deps.deviceOf(tenant.name, header);
   const completed = await deps.completeLogin({
     tenantId: tenant.id,
     authSessionId,
@@ -490,6 +502,7 @@ export async function completeAuthorizedLogin(
     remembered: rememberMeRequested,
     lifespans,
     maxSessionsPerBrowser: tenant.maxSessionsPerBrowser,
+    device: deviceDigest(device),
     browserSessions: before.map((session) => session.entry),
     authenticators,
     ...(reuseSession !== undefined ? { reuseSession } : {}),
@@ -515,6 +528,10 @@ export async function completeAuthorizedLogin(
   location.searchParams.set('code', code);
   if (pending.state !== null) location.searchParams.set('state', pending.state);
   location.searchParams.set('iss', addressIssuer(address));
+  // A hint at how the credential action the client asked for ended; the
+  // client reads the outcome from the "me" API, not from this.
+  const actionStatus = actionStatusParameter(pending);
+  if (actionStatus !== null) location.searchParams.set('action_status', actionStatus);
 
   // The browser's other live sessions, joined with this one, split by the
   // cookie each already belongs to — not by which cookie the request
@@ -550,6 +567,7 @@ export async function completeAuthorizedLogin(
     // `rememberMeRequested`, which says nothing about a survivor already
     // in the list.
     persistentMaxAgeSeconds: tenant.rememberMeMaxSeconds,
+    device,
   };
 }
 
@@ -689,7 +707,9 @@ export async function handleLoginSubmission(
   // it. Nothing is established and nothing is issued until the action is
   // done, and the authentication session is deliberately left unconsumed
   // so the same parked request survives the detour.
-  const action = nextRequiredAction(await deps.pendingActions(tenant.id, result.subjectId));
+  const action = nextRequiredAction(
+    owedWithRequested(await deps.pendingActions(tenant.id, result.subjectId), pending),
+  );
   if (action !== null) {
     // Parked for the same reason the consent branch parks it: the login
     // resumes from the required-action route, whose form has no such field.

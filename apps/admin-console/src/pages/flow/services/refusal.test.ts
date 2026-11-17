@@ -62,6 +62,19 @@ describe('flowOutcome', () => {
     );
   });
 
+  it('names the step whose settings its authenticator does not read', () => {
+    const text = said(
+      outcome(
+        bad('about:blank#flow-step-settings', [
+          { path: '[1].settings', message: 'this authenticator reads no settings' },
+        ]),
+      ),
+    );
+    expect(text).toBe(
+      '“password” carries settings it does not read. Set them back to the tenant’s value.',
+    );
+  });
+
   it('names the step a repeat is, from its path in what was sent', () => {
     const text = said(
       outcome(
@@ -94,6 +107,22 @@ describe('flowOutcome', () => {
     );
     const paths = result.ok || result.kind !== 'problem' ? [] : (result.problem.errors ?? []);
     expect(paths.map((error) => error.path)).toEqual(['steps']);
+  });
+
+  it('finds the step by its path under steps, as a named flow sends it', () => {
+    const text = said(
+      outcome(
+        bad('about:blank#flow-duplicate-authenticator', [
+          { path: 'steps[2].authenticator', message: 'repeats an earlier step' },
+        ]),
+      ),
+    );
+    expect(text).toBe('“password” is a step twice. An authenticator is one step.');
+  });
+
+  it('leaves a refused name to be placed under the name', () => {
+    const refused = bad('about:blank', [{ path: 'name', message: 'too long' }]);
+    expect(outcome(refused)).toBe(refused);
   });
 
   it('leaves a success, a lost answer and any other status as it came', () => {

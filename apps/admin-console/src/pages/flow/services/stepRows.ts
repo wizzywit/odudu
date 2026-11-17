@@ -1,6 +1,7 @@
 import type { ExecutionRequirement } from '#/pages/flow/types/executions';
 import { authenticatorText } from '#/pages/flow/services/flowWording';
 import { OTP, requirementText } from '#/pages/flow/services/requirement';
+import { settingControls, type SettingControl } from '#/pages/flow/services/stepSettings';
 import { canMove, type Direction, type Step } from '#/pages/flow/services/steps';
 
 interface MoveButton {
@@ -14,12 +15,14 @@ export interface StepRow {
   authenticator: string;
   position: number;
   disabled: boolean;
-  what: string;
-  requirementWhat: string;
+  // What the authenticator is and, where it differs from the rest, what its requirement means.
+  summary: string;
   // Whom the one-time password step asks, on that step alone.
   otpReading: string | null;
   requirement: ExecutionRequirement;
   requirementLabel: string;
+  // What the step may override of the tenant's settings.
+  settings: SettingControl[];
   up: MoveButton;
   down: MoveButton;
 }
@@ -35,16 +38,22 @@ function moveButton(steps: readonly Step[], authenticator: string, direction: Di
   };
 }
 
-export function stepRows(steps: readonly Step[], reading: string | null): StepRow[] {
+export function stepRows(
+  steps: readonly Step[],
+  reading: string | null,
+  tenant: Readonly<Record<string, unknown>> | undefined,
+): StepRow[] {
   return steps.map((step, at) => ({
     authenticator: step.authenticator,
     position: at + 1,
     disabled: step.requirement === 'disabled',
-    what: authenticatorText(step.authenticator),
-    requirementWhat: requirementText(step.requirement),
+    summary: [authenticatorText(step.authenticator), requirementText(step.requirement)]
+      .filter((part) => part !== null)
+      .join(' '),
     otpReading: step.authenticator === OTP ? reading : null,
     requirement: step.requirement,
     requirementLabel: `Requirement for ${step.authenticator}`,
+    settings: settingControls(step, tenant),
     up: moveButton(steps, step.authenticator, 'up'),
     down: moveButton(steps, step.authenticator, 'down'),
   }));

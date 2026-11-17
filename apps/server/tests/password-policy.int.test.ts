@@ -15,7 +15,12 @@ import {
 } from '@odudu/email';
 import { loadConfig, MAX_PASSWORD_LENGTH, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { userCredentials } from '@odudu/domain-identity';
+import {
+  breachedHash,
+  insertBreachedHashes,
+  type RangeFetch,
+  userCredentials,
+} from '@odudu/domain-identity';
 import { and, eq, sql } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -93,9 +98,10 @@ async function drainOutbox(into: EmailSender): Promise<void> {
   );
 }
 
-function buildTestApp(): FastifyInstance {
+function buildTestApp(breachedRangeFetch?: RangeFetch): FastifyInstance {
   const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' });
   return buildApp({
+    ...(breachedRangeFetch === undefined ? {} : { breachedRangeFetch }),
     tls: false,
     database: appDb,
     ownerDatabase: owner,
@@ -113,6 +119,8 @@ async function setTenantSettings(
     registrationAllowed?: boolean;
     resetPasswordAllowed?: boolean;
     passwordMaxAgeDays?: number;
+    breachedCheck?: 'off' | 'dataset' | 'remote';
+    breachedOnError?: 'open' | 'closed';
   },
 ): Promise<void> {
   await owner.db.update(tenants).set(settings).where(eq(tenants.id, tenantId));
@@ -610,5 +618,143 @@ describe('a password over the maximum is refused wherever one is read', () => {
         email: 'ada@example.test',
       }),
     ).rejects.toThrow(/password does not satisfy the tenant's password policy/);
+  });
+});
+
+const BREACHED = 'That password has appeared in a data breach. Choose a different one.';
+const LEAKED_PASSWORD = 'a passphrase found in a breach dump';
+
+describe('the breached-password check binds the self-service writers', () => {
+  beforeAll(async () => {
+    await insertBreachedHashes(owner.db, [breachedHash(LEAKED_PASSWORD)]);
+  });
+
+  function register(app: FastifyInstance, tenantName: string, password: string) {
+    return formPost(app, `/tenants/${tenantName}/login-actions/registration`, {
+      username: 'ada',
+      email: 'ada@example.test',
+      password,
+      password_confirm: password,
+    });
+  }
+
+  it('refuses a dataset password at registration and accepts it once the check is off', async () => {
+    const tenantName = `breach-reg-${newId()}`;
+    const seeded = await seed({
+      tenant: tenantName,
+      clientId: 'policy-spa',
+      redirectUris: [REDIRECT_URI],
+    });
+    await setTenantSettings(seeded.tenantId, { registrationAllowed: true });
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const refused = await register(app, tenantName, LEAKED_PASSWORD);
+      expect(refused.statusCode).toBe(400);
+      expect(refused.body).toContain(BREACHED);
+
+      await setTenantSettings(seeded.tenantId, { breachedCheck: 'off' });
+      expect((await register(app, tenantName, LEAKED_PASSWORD)).statusCode).toBe(201);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('sends only the five-character prefix of the hash for a remote tenant, from every writer', async () => {
+    const tenantName = `breach-remote-${newId()}`;
+    const seeded = await seed({
+      tenant: tenantName,
+      clientId: 'policy-spa',
+      redirectUris: [REDIRECT_URI],
+    });
+    await setTenantSettings(seeded.tenantId, {
+      registrationAllowed: true,
+      breachedCheck: 'remote',
+    });
+    const { prefix, suffix } = breachedHash(LEAKED_PASSWORD);
+    const asked: string[] = [];
+    const fetchRange: RangeFetch = (url) => {
+      asked.push(url.href);
+      return Promise.resolve({ status: 200, body: `${suffix}:7\r\n${'0'.repeat(35)}:0` });
+    };
+    const app = buildTestApp(fetchRange);
+    await app.ready();
+    try {
+      const refused = await register(app, tenantName, LEAKED_PASSWORD);
+      expect(refused.statusCode).toBe(400);
+      expect(refused.body).toContain(BREACHED);
+      expect(asked).toEqual([`https://api.pwnedpasswords.com/range/${prefix}`]);
+      for (const sent of asked) {
+        expect(sent).not.toContain(suffix);
+        expect(sent).not.toContain(encodeURIComponent(LEAKED_PASSWORD));
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('settles a remote lookup that failed by the tenant, for registration', async () => {
+    const tenantName = `breach-down-${newId()}`;
+    const seeded = await seed({
+      tenant: tenantName,
+      clientId: 'policy-spa',
+      redirectUris: [REDIRECT_URI],
+    });
+    await setTenantSettings(seeded.tenantId, {
+      registrationAllowed: true,
+      breachedCheck: 'remote',
+      breachedOnError: 'closed',
+    });
+    const app = buildTestApp(() => Promise.reject(new Error('host unreachable')));
+    await app.ready();
+    try {
+      const closed = await register(app, tenantName, STRONG_PASSWORD);
+      expect(closed.statusCode).toBe(400);
+      expect(closed.body).toContain(
+        'The password could not be checked against known breaches. Try again in a moment.',
+      );
+
+      await setTenantSettings(seeded.tenantId, { breachedOnError: 'open' });
+      expect((await register(app, tenantName, STRONG_PASSWORD)).statusCode).toBe(201);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('refuses a dataset password at the change-password required action', async () => {
+    const tenantName = `breach-change-${newId()}`;
+    const seeded = await seed({
+      tenant: tenantName,
+      clientId: 'policy-spa',
+      redirectUris: [REDIRECT_URI],
+      username: 'ada',
+      password: STRONG_PASSWORD,
+      email: 'ada@example.test',
+    });
+    await setTenantSettings(seeded.tenantId, { passwordMaxAgeDays: 1 });
+    await agePassword(seeded.tenantId, 7);
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const authSessionId = await startAuthSession(app, tenantName);
+      const login = await formPost(app, `/tenants/${tenantName}/login-actions/authenticate`, {
+        auth_session_id: authSessionId,
+        username: 'ada',
+        password: STRONG_PASSWORD,
+      });
+      expect(login.statusCode).toBe(200);
+
+      const res = await formPost(
+        app,
+        `/tenants/${tenantName}/login-actions/required-action?action=update-password`,
+        { auth_session_id: authSessionId, password: LEAKED_PASSWORD },
+      );
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toContain(BREACHED);
+      expect(res.body).toContain('Change your password');
+    } finally {
+      await app.close();
+    }
   });
 });

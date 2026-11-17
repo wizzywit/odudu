@@ -36,6 +36,8 @@ const TENANT: TenantLookup = {
   maxSessionsPerBrowser: 5,
   clientRegistrationPolicy: 'disabled',
   cimdEnabled: false,
+  sessionFreshnessSeconds: 300,
+  usernameEditable: false,
   supportedLocales: ['en'],
   defaultLocale: null,
   passwordRules: {

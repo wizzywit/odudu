@@ -14,6 +14,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { sessionRepository } from '#/repository/sessions';
+import { deviceDigest, newDeviceId } from '#/service/device-id';
 import { SessionEntry } from '#/service/session-entry';
 import { type PendingRequest } from '#/schema/authentication-sessions';
 
@@ -87,6 +88,48 @@ describe('sessionRepository', () => {
       },
       attempt: async (tx, entry) =>
         sessionRepository(tx).liveByEntries([entry], lifespans, new Date()),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+
+  it('cannot list a device’s sessions under a different tenant context', async () => {
+    const lifespans = {
+      ssoSessionIdleSeconds: 1800,
+      ssoSessionMaxSeconds: 36_000,
+      rememberMeIdleSeconds: 604_800,
+      rememberMeMaxSeconds: 2_592_000,
+    };
+    const device = deviceDigest(newDeviceId(() => new Uint8Array(16).fill(7)));
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        const entry = SessionEntry.issue(newId());
+        await sessionRepository(tx).create({
+          id: entry.id,
+          tenantId,
+          subjectId: subject.id,
+          expiresAt: new Date(Date.now() + 3_600_000),
+          authenticators: [],
+          secretHash: entry.secretHash(),
+          deviceId: device,
+        });
+        return subject.id;
+      },
+      verifySeeded: async (tx, subjectId) => {
+        const found = await sessionRepository(tx).liveByDevice(
+          subjectId,
+          device,
+          lifespans,
+          new Date(),
+          10,
+        );
+        expect(found).toHaveLength(1);
+      },
+      attempt: async (tx, subjectId) =>
+        sessionRepository(tx).liveByDevice(subjectId, device, lifespans, new Date(), 10),
       expectBlocked: (result) => {
         expect(result).toEqual([]);
       },
@@ -271,6 +314,37 @@ describe('authenticationSessionRepository', () => {
       verifyTenantAUnaffected: async (tx, id) => {
         const found = await authenticationSessionRepository(tx).byId(id);
         expect(found?.consumedAt).toBeNull();
+      },
+    });
+  });
+
+  it('cannot record a TOTP offer on an authentication session of another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const id = newId();
+        await authenticationSessionRepository(tx).create({
+          id,
+          tenantId,
+          pendingRequest: PENDING_REQUEST,
+          expiresAt: new Date(Date.now() + 600_000),
+        });
+        return id;
+      },
+      verifySeeded: async (tx, id) => {
+        const found = await authenticationSessionRepository(tx).byId(id);
+        expect(found?.pendingRequest.totpOffers).toBeUndefined();
+      },
+      attempt: async (tx, id) => {
+        await authenticationSessionRepository(tx).recordTotpOffer(id, { digits: 8 });
+        return (await authenticationSessionRepository(tx).byId(id))?.pendingRequest.totpOffers;
+      },
+      expectBlocked: (result) => {
+        expect(result).toBeUndefined();
+      },
+      verifyTenantAUnaffected: async (tx, id) => {
+        const found = await authenticationSessionRepository(tx).byId(id);
+        expect(found?.pendingRequest.totpOffers).toBeUndefined();
       },
     });
   });

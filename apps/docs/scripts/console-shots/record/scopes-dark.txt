@@ -58,7 +58,7 @@ Search
 or press 
 ↩ 
 Return
-10 scopes
+12 scopes
 Scope
 Description
 Created
@@ -120,6 +120,18 @@ Scope
 mcp:write
 Description
 Change the tenant through an MCP client, with a short-lived access token.
+Created
+recently
+Scope
+me:read
+Description
+Read the signed-in person's own profile, credentials, sessions and consents.
+Created
+recently
+Scope
+me:write
+Description
+Change the signed-in person's own profile, sessions, consents and credentials.
 Created
 recently
 Previous

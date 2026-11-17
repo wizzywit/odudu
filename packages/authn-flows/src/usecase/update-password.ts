@@ -1,15 +1,29 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import {
+  type Database,
+  type RequestContext,
+  type TenantScopedDatabase,
+  withTenant,
+} from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import {
+  BREACH_CHECK_UNAVAILABLE,
+  type BreachedCheckAudit,
+  type BreachedPasswordCheck,
+  type BreachedPrepared,
   credentialRepository,
   evaluatePassword,
   hashUserPassword,
+  isLockedOut,
+  loginFailureRepository,
   passwordExpired,
   REUSED_PASSWORD,
+  subjectRepository,
   userRepository,
   verifyUserPassword,
 } from '@odudu/domain-identity';
+import { type MailLookResolver } from '@odudu/email';
 import { OduduError, systemClock, type Clock } from '@odudu/kernel';
+import { noticeOwnChange } from '#/usecase/own-change-notice';
 import { type PasswordViolation } from '#/schema/password-violation';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
@@ -33,10 +47,39 @@ export const SUPERSEDED_PASSWORD: PasswordViolation = {
   message: 'password superseded',
 };
 
+// The current password was not the one in force, or the account is locked
+// out: the page cannot tell the two apart, and neither can a guesser.
+export const CURRENT_PASSWORD_REFUSED: PasswordViolation = {
+  rule: 'current-password',
+  message: 'current password is not correct',
+};
+
 export interface UpdatePassword {
   tenantId: string;
   subjectId: string;
   password: string;
+  // Asked of a candidate that passed the tenant's other rules, before the
+  // reuse check: one lookup, where the reuse check can be twenty-five hashes.
+  // `breachedPrepared` is what `prepareUpdatePassword` learned before this
+  // transaction opened; null when it found the candidate already refused.
+  breachedCheck: BreachedPasswordCheck;
+  breachedPrepared: BreachedPrepared | null;
+  // Present where the person has to prove the password in force before
+  // choosing a new one, an empty string included: a form that left the field
+  // out is a wrong answer, not an exemption. Absent for the action a tenant
+  // owes the subject at sign-in, which has just proved it.
+  currentPassword?: string;
+  // Ends the person's other sessions once the new password is stored, in this
+  // transaction. Absent, they are left; never run for a candidate that was
+  // refused or lost a race, since no password changed.
+  endOtherSessions?: (tx: TenantScopedDatabase) => Promise<void>;
+  // Present only where the sign-in ran a passkey assertion that verified the
+  // person, which is what lets an account that holds no password take a first
+  // one: nothing to prove, and nothing to rotate. The caller decides it from
+  // the sign-in (`signedInWithVerifiedPasskey`); it is never read from the
+  // form. A person who holds a password is not offered this path, and a
+  // submission that finds one now is told it was superseded.
+  firstPassword?: { resolveMailLook: MailLookResolver | undefined };
 }
 
 // A subject's password, and the candidates a reuse check has to refuse:
@@ -69,6 +112,59 @@ async function reusesAKnownPassword(candidate: string, state: PasswordState): Pr
   return false;
 }
 
+// A wrong answer counts as a failed sign-in against the tenant's lockout, and
+// an account already locked out is refused without the answer being looked at,
+// the way a second-factor guess is: this check must not be a way round the
+// lockout the sign-in form enforces.
+async function currentPasswordProved(
+  tx: TenantScopedDatabase,
+  input: UpdatePassword,
+  answer: string,
+  now: Date,
+): Promise<boolean> {
+  const failures = loginFailureRepository(tx);
+  const { lockout } = await tenantSettingsRepository(tx).flowSettings(input.tenantId);
+  if (isLockedOut(await failures.forSubject(input.subjectId), now)) {
+    await failures.recordFailure(input.subjectId, lockout, now);
+    return false;
+  }
+  const current = await credentialRepository(tx).passwordFor(input.subjectId);
+  if (current !== null && (await verifyUserPassword(current, answer))) {
+    // As a completed sign-in with a password ends the run before it.
+    await failures.clear(input.subjectId);
+    return true;
+  }
+  await failures.recordFailure(input.subjectId, lockout, now);
+  return false;
+}
+
+// Read-only, before the writing transaction: judges the candidate by the
+// tenant's rules and, only if they pass, asks the breached-password check to
+// prepare, so a remote service is asked while no connection is held.
+export async function prepareUpdatePassword(
+  database: Database,
+  input: { tenantId: string; subjectId: string; password: string },
+  check: BreachedPasswordCheck,
+  request: RequestContext,
+): Promise<BreachedPrepared | null> {
+  const clean = await withTenant(
+    database,
+    input.tenantId,
+    async (tx) => {
+      const policy = await tenantSettingsRepository(tx).passwordPolicy(input.tenantId);
+      const user = await userRepository(tx).bySubjectId(input.subjectId);
+      if (user === null) return false;
+      return (
+        evaluatePassword(input.password, policy, { username: user.username, email: user.email })
+          .length === 0
+      );
+    },
+    request,
+  );
+  if (!clean) return null;
+  return check.prepare(database, input.tenantId, input.password, request);
+}
+
 // The fourth writer of a password in a tenant, bound by the same policy as
 // registration, reset redemption and the seed CLI — and the only one that
 // consults history, which is why it is the only one that keeps any.
@@ -80,7 +176,14 @@ async function reusesAKnownPassword(candidate: string, state: PasswordState): Pr
 export async function completeUpdatePassword(
   tx: TenantScopedDatabase,
   input: UpdatePassword,
+  clock: Clock = systemClock,
 ): Promise<UpdatePasswordOutcome> {
+  if (
+    input.currentPassword !== undefined &&
+    !(await currentPasswordProved(tx, input, input.currentPassword, clock.now()))
+  ) {
+    return { kind: 'rejected', violations: [{ ...CURRENT_PASSWORD_REFUSED }] };
+  }
   const policy = await tenantSettingsRepository(tx).passwordPolicy(input.tenantId);
   const user = await userRepository(tx).bySubjectId(input.subjectId);
   if (user === null) {
@@ -100,11 +203,39 @@ export async function completeUpdatePassword(
     };
   }
 
+  // Rules passed here but not when it was prepared: the policy changed in
+  // between, so nothing was asked and the person is told to try again.
+  if (input.breachedPrepared === null) {
+    return { kind: 'rejected', violations: [{ ...BREACH_CHECK_UNAVAILABLE }] };
+  }
+  const breached = await input.breachedCheck.judge(
+    tx,
+    input.tenantId,
+    input.password,
+    input.breachedPrepared,
+  );
+  if (breached.violations.length > 0) {
+    return {
+      kind: 'rejected',
+      violations: breached.violations.map(({ rule, message }) => ({ rule, message })),
+    };
+  }
+
   // Nothing in the tenant holds a password for this subject, so there is
   // nothing to rotate. Unreachable through the only thing that owes this
   // action today — expiry, which reads the credential it expires — so it is
   // a broken account rather than a refusal to render.
+  // A first password is written under the subject's row lock, so two writers
+  // at once take turns and the second finds the first's.
+  if (input.firstPassword !== undefined) await subjectRepository(tx).lock(input.subjectId);
   const state = await passwordState(tx, input.subjectId);
+  if (state === null && input.firstPassword !== undefined) {
+    return storeFirstPassword(tx, input, input.firstPassword, breached.audit, clock);
+  }
+  if (state !== null && input.firstPassword !== undefined) {
+    await requiredActionRepository(tx).complete(input.subjectId, 'update-password');
+    return { kind: 'superseded' };
+  }
   if (state === null) {
     throw new OduduError(
       'credential_not_found',
@@ -130,6 +261,7 @@ export async function completeUpdatePassword(
   // on a false return it is the one the other transaction set.
   await requiredActionRepository(tx).complete(input.subjectId, 'update-password');
   if (!rotated) return { kind: 'superseded' };
+  await input.endOtherSessions?.(tx);
   await auditRepository(tx).record({
     eventType: 'credential',
     action: 'password.changed',
@@ -137,6 +269,52 @@ export async function completeUpdatePassword(
     actorSubjectId: input.subjectId,
     resourceType: 'subject',
     resourceId: input.subjectId,
+    detail: {
+      ended_other_sessions: input.endOtherSessions !== undefined,
+      breached_check: breached.audit,
+    },
+  });
+  return { kind: 'updated' };
+}
+
+// The first password of an account that held none. It is not a rotation: there
+// is no hash to replace and no history to keep, and the tenant's policy and the
+// breached-password check have already judged the candidate. The address on
+// file is told by mail, in this transaction.
+async function storeFirstPassword(
+  tx: TenantScopedDatabase,
+  input: UpdatePassword,
+  first: { resolveMailLook: MailLookResolver | undefined },
+  breachedAudit: BreachedCheckAudit,
+  clock: Clock,
+): Promise<UpdatePasswordOutcome> {
+  await credentialRepository(tx).insert({
+    tenantId: input.tenantId,
+    subjectId: input.subjectId,
+    type: 'password',
+    secret: { kind: 'password', hash: await hashUserPassword(input.password) },
+  });
+  await requiredActionRepository(tx).complete(input.subjectId, 'update-password');
+  await input.endOtherSessions?.(tx);
+  const notice = await noticeOwnChange(
+    tx,
+    { tenantId: input.tenantId, subjectId: input.subjectId, now: clock.now() },
+    { kind: 'password_added' },
+    first.resolveMailLook,
+  );
+  await auditRepository(tx).record({
+    eventType: 'credential',
+    action: 'password.changed',
+    outcome: 'allowed',
+    actorSubjectId: input.subjectId,
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+    detail: {
+      ended_other_sessions: input.endOtherSessions !== undefined,
+      breached_check: breachedAudit,
+      first_password: true,
+      notice,
+    },
   });
   return { kind: 'updated' };
 }
@@ -158,4 +336,10 @@ export async function recordPasswordExpiryIfOwed(
   const [credential] = await credentialRepository(tx).listFor(subjectId, 'password');
   if (credential === undefined || !passwordExpired(credential, maxAgeDays, clock.now())) return;
   await requiredActionRepository(tx).add(tenantId, subjectId, 'update-password');
+}
+
+// Whether the subject has a password to prove or change: one who signs in with
+// a passkey alone has none, and a password change cannot be asked of them.
+export async function holdsPassword(tx: TenantScopedDatabase, subjectId: string): Promise<boolean> {
+  return (await credentialRepository(tx).passwordFor(subjectId)) !== null;
 }

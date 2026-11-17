@@ -10,9 +10,11 @@ import {
 import { auditRepository } from '@odudu/domain-audit';
 import { effectiveRoles, roleRepository } from '@odudu/domain-authz';
 import {
+  breachedHash,
   credentialRepository,
   evaluatePassword,
   hashUserPassword,
+  insertBreachedHashes,
   subjectRepository,
   userRepository,
   verifyPassword,
@@ -255,6 +257,30 @@ beforeEach(async () => {
 });
 
 describe('self-registration', () => {
+  it.each([
+    ['no body and no content type', undefined, undefined],
+    ['a JSON null body', 'null', 'application/json'],
+  ] as const)('answers %s as it answers an empty form', async (_label, payload, contentType) => {
+    const { tenantName } = await seedTenant(`tenant-${newId()}`, { registrationAllowed: true });
+    const url = `/tenants/${tenantName}/login-actions/registration`;
+    const empty = await httpApp.inject({
+      method: 'POST',
+      url,
+      payload: '',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    const res = await httpApp.inject({
+      method: 'POST',
+      url,
+      ...(payload === undefined ? {} : { payload }),
+      ...(contentType === undefined ? {} : { headers: { 'content-type': contentType } }),
+    });
+    expect(res.statusCode).toBe(empty.statusCode);
+    expect(res.statusCode).toBeLessThan(500);
+    const bare = (html: string): string => html.replace(/nonce="[^"]*"/g, 'nonce=""');
+    expect(bare(res.body)).toBe(bare(empty.body));
+  });
+
   it('is not served at all when the tenant has not enabled it', async () => {
     const { tenantName } = await seedTenant(`tenant-${newId()}`, { registrationAllowed: false });
 
@@ -392,6 +418,127 @@ describe('self-registration', () => {
     expect(
       await withTenant(app.db, tenantId, (tx) => userRepository(tx).byUsername('ada')),
     ).toBeNull();
+  });
+
+  describe('the breached-password check', () => {
+    const LEAKED = 'a leaked passphrase of some length';
+
+    beforeAll(async () => {
+      await insertBreachedHashes(owner.db, [breachedHash(LEAKED)]);
+    });
+
+    async function credentialDetails(tenantId: string) {
+      const rows = await withTenant(app.db, tenantId, (tx) =>
+        auditRepository(tx).list({ eventType: 'credential', limit: 50 }),
+      );
+      return rows.map((row) => row.detail);
+    }
+
+    it('refuses a password in the dataset with its own reason, and creates nothing', async () => {
+      const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
+        registrationAllowed: true,
+      });
+
+      const res = await submitRegistration(tenantName, {
+        username: 'ada',
+        email: 'ada@example.test',
+        password: LEAKED,
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toContain(
+        '>That password has appeared in a data breach. Choose a different one.</li>',
+      );
+      expect(
+        await withTenant(app.db, tenantId, (tx) => userRepository(tx).byUsername('ada')),
+      ).toBeNull();
+    });
+
+    it('refuses it before a verification mail is queued or a request is kept', async () => {
+      const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
+        registrationAllowed: true,
+        verifyEmail: true,
+      });
+
+      const res = await submitRegistration(tenantName, {
+        username: 'ada',
+        email: 'ada@example.test',
+        password: LEAKED,
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(await rawSelectAllPending(tenantId)).toEqual([]);
+      expect(await outboxRows(tenantId)).toEqual([]);
+    });
+
+    it('accepts it for a tenant that switched the check off, and records that', async () => {
+      const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
+        registrationAllowed: true,
+      });
+      await owner.db.update(tenants).set({ breachedCheck: 'off' }).where(eq(tenants.id, tenantId));
+
+      const res = await submitRegistration(tenantName, {
+        username: 'ada',
+        email: 'ada@example.test',
+        password: LEAKED,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(await credentialDetails(tenantId)).toEqual([{ breached_check: 'off' }]);
+    });
+
+    it('records that an accepted password passed', async () => {
+      const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
+        registrationAllowed: true,
+      });
+
+      const res = await submitRegistration(tenantName, {
+        username: 'ada',
+        email: 'ada@example.test',
+        password: 'an unlisted passphrase of length',
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(await credentialDetails(tenantId)).toEqual([{ breached_check: 'passed' }]);
+    });
+
+    it('is not asked of a password the other rules already refused', async () => {
+      const { tenantName } = await seedTenant(`tenant-${newId()}`, { registrationAllowed: true });
+      const asked: string[] = [];
+      const instance = Fastify();
+      instance.register(formbody);
+      registerRegistrationRoute(instance, {
+        ...accountTestDeps,
+        breachedCheck: {
+          ...accountTestDeps.breachedCheck,
+          run: (database, tenantId, password, request) => {
+            asked.push(password);
+            return accountTestDeps.breachedCheck.run(database, tenantId, password, request);
+          },
+        },
+        findHeldSignIn: () => Promise.resolve(null),
+        database: app,
+        findTenant: (name) => tenantSettingsRepository(owner.db).byName(name),
+        publicBaseUrl,
+        now: () => new Date(),
+        createAccount,
+        evaluatePassword,
+      });
+      const res = await instance.inject({
+        method: 'POST',
+        url: `/tenants/${tenantName}/login-actions/registration`,
+        payload: new URLSearchParams({
+          username: 'ada',
+          email: 'ada@example.test',
+          password: 'short',
+          password_confirm: 'short',
+        }).toString(),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      });
+      await instance.close();
+      expect(res.statusCode).toBe(400);
+      expect(asked).toEqual([]);
+    });
   });
 
   it('refuses the tenant name, the username and the email name on their own', async () => {
@@ -1285,10 +1432,15 @@ describe('a registration that waits for its mailed link', () => {
     const unknown = await follow(tenant.tenantName, 'reg_nothing-holds-this');
     const plain = await follow(tenant.tenantName, 'not-a-registration-key');
 
-    for (const res of [foreign, spent, expired, unknown, plain]) {
+    for (const res of [foreign, spent, expired, unknown]) {
       expect(res.statusCode).toBe(400);
-      expect(res.body).toBe(plain.body);
+      expect(res.body).toBe(unknown.body);
     }
+    // A key that is no registration's is a verification link's to refuse, so
+    // its page also offers a new one: no form here, which is the one difference.
+    expect(plain.statusCode).toBe(400);
+    expect(unknown.body).not.toContain('<form');
+    expect(plain.body).toContain('resend-verification');
     expect(await holder(other.tenantId, 'ada')).toBeNull();
   });
 
@@ -1325,7 +1477,7 @@ describe('a registration that waits for its mailed link', () => {
     const res = await follow(tenant.tenantName, key);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body).toBe((await follow(tenant.tenantName, 'not-a-registration-key')).body);
+    expect(res.body).toBe((await follow(tenant.tenantName, 'reg_nothing-holds-this')).body);
     expect(await holder(tenant.tenantId, 'ada')).toBeNull();
   });
 

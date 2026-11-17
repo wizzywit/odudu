@@ -6,6 +6,7 @@ import { en } from '#/view/messages';
 import {
   renderEmailConfirmPage,
   renderVerificationFailedPage,
+  renderVerificationResentPage,
   renderVerificationSucceededPage,
   sendVerificationHtml,
 } from '#/view/verification-html';
@@ -28,14 +29,14 @@ function expectFragment(page: { html: string; body: string }): void {
 
 describe('renderVerificationSucceededPage', () => {
   it('returns a body fragment and a title beside the document', () => {
-    const page = renderVerificationSucceededPage(null, DEFAULT_PAGE_LOCALE);
+    const page = renderVerificationSucceededPage(null, null, DEFAULT_PAGE_LOCALE);
     expect(page.title).toBe('Email confirmed');
     expect(page.body).toContain('is confirmed');
     expectFragment(page);
   });
 
   it('keeps the English markup exactly', () => {
-    expect(renderVerificationSucceededPage(null, DEFAULT_PAGE_LOCALE).body)
+    expect(renderVerificationSucceededPage(null, null, DEFAULT_PAGE_LOCALE).body)
       .toBe(`<h1>Your email address is confirmed</h1>
 <p>Return to the application you were signing in to and sign in again.</p>`);
   });
@@ -44,6 +45,7 @@ describe('renderVerificationSucceededPage', () => {
     expect(
       renderVerificationSucceededPage(
         '/tenants/acme/protocol/openid-connect/auth?client_id=c',
+        null,
         DEFAULT_PAGE_LOCALE,
       ).body,
     ).toBe(`<h1>Your email address is confirmed</h1>
@@ -53,7 +55,7 @@ describe('renderVerificationSucceededPage', () => {
   });
 
   it('reads French where the fixture has it and English for the rest', () => {
-    const page = renderVerificationSucceededPage(null, FRENCH);
+    const page = renderVerificationSucceededPage(null, null, FRENCH);
     expect(page.html).toContain('<html lang="fr" dir="ltr">');
     expect(page.title).toBe('Adresse e-mail vérifiée');
     expect(page.body).toContain('<h1>Votre adresse e-mail est vérifiée</h1>');
@@ -61,7 +63,7 @@ describe('renderVerificationSucceededPage', () => {
   });
 
   it('writes lang and dir for a right-to-left locale', () => {
-    expect(renderVerificationSucceededPage(null, ARABIC).html).toContain(
+    expect(renderVerificationSucceededPage(null, null, ARABIC).html).toContain(
       '<html lang="ar" dir="rtl">',
     );
   });
@@ -69,27 +71,29 @@ describe('renderVerificationSucceededPage', () => {
 
 describe('renderVerificationFailedPage', () => {
   it('returns a body fragment and a title beside the document', () => {
-    const page = renderVerificationFailedPage(null, DEFAULT_PAGE_LOCALE);
+    const page = renderVerificationFailedPage(null, null, null, DEFAULT_PAGE_LOCALE);
     expect(page.title).toBe("Can't verify this link");
     expect(page.body).toContain('This link can&#39;t be used');
     expectFragment(page);
   });
 
   it('keeps the English markup exactly, apostrophe escaped as the catalogue escapes it', () => {
-    expect(renderVerificationFailedPage(null, DEFAULT_PAGE_LOCALE).body)
+    expect(renderVerificationFailedPage(null, null, null, DEFAULT_PAGE_LOCALE).body)
       .toBe(`<h1>This link can&#39;t be used</h1>
 <p>It may have already been used, expired, or no longer matches your email address. Request a new verification email and try again.</p>`);
   });
 
   it('reads French where the fixture has it and English for the rest', () => {
-    const page = renderVerificationFailedPage(null, FRENCH);
+    const page = renderVerificationFailedPage(null, null, null, FRENCH);
     expect(page.title).toBe(en['verification.failed.title']);
     expect(page.body).toContain('<h1>Ce lien n&#39;est pas utilisable</h1>');
     expect(page.body).toContain(en['verification.failed.reason']);
   });
 
   it('writes lang and dir for a right-to-left locale', () => {
-    expect(renderVerificationFailedPage(null, ARABIC).html).toContain('<html lang="ar" dir="rtl">');
+    expect(renderVerificationFailedPage(null, null, null, ARABIC).html).toContain(
+      '<html lang="ar" dir="rtl">',
+    );
   });
 });
 
@@ -97,7 +101,7 @@ describe('sendVerificationHtml', () => {
   async function respond(locale: typeof DEFAULT_PAGE_LOCALE) {
     const app = Fastify();
     app.get('/', (_request, reply) =>
-      sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, locale)),
+      sendVerificationHtml(reply, 400, renderVerificationFailedPage(null, null, null, locale)),
     );
     const response = await app.inject({ method: 'GET', url: '/' });
     await app.close();
@@ -123,23 +127,27 @@ describe('the pages a mailed link opens, with the way back it carried', () => {
     '<p class="links">\n<a href="/tenants/acme/protocol/openid-connect/auth?client_id=c&amp;state=x">Back to sign in</a>\n</p>';
 
   it('links back from the verified and the failed page, and from neither without it', () => {
-    expect(renderVerificationSucceededPage(way, DEFAULT_PAGE_LOCALE).body).toContain(
+    expect(renderVerificationSucceededPage(way, null, DEFAULT_PAGE_LOCALE).body).toContain(
       anchor.replace('Back to sign in', 'Continue to sign in'),
     );
-    expect(renderVerificationFailedPage(way, DEFAULT_PAGE_LOCALE).body).toContain(anchor);
-    expect(renderVerificationSucceededPage(null, DEFAULT_PAGE_LOCALE).body).not.toContain('links');
-    expect(renderVerificationFailedPage(null, DEFAULT_PAGE_LOCALE).body).not.toContain('links');
+    expect(renderVerificationFailedPage(way, null, null, DEFAULT_PAGE_LOCALE).body).toContain(
+      anchor,
+    );
+    expect(renderVerificationSucceededPage(null, null, DEFAULT_PAGE_LOCALE).body).not.toContain(
+      'links',
+    );
+    expect(renderVerificationFailedPage(null, null, null, DEFAULT_PAGE_LOCALE).body).not.toContain(
+      'links',
+    );
   });
 });
 
 describe('renderEmailConfirmPage', () => {
+  const acme = pathAddress('https://idp.example', 'acme');
+  const who = { username: null, email: 'ada@example.test', tenant: 'Acme' };
+
   it('asks for one click, and carries the key only in the form', () => {
-    const page = renderEmailConfirmPage(
-      pathAddress('https://idp.example', 'acme'),
-      'k"ey',
-      null,
-      DEFAULT_PAGE_LOCALE,
-    );
+    const page = renderEmailConfirmPage(acme, 'k"ey', who, DEFAULT_PAGE_LOCALE);
 
     expectFragment(page);
     expect(page.body).toContain('<h1>Confirm your email address</h1>');
@@ -153,14 +161,97 @@ describe('renderEmailConfirmPage', () => {
     expect(page.script).toBeNull();
   });
 
+  it('names the address and the tenant, isolated and escaped', () => {
+    const page = renderEmailConfirmPage(
+      acme,
+      'k',
+      { username: null, email: 'a<b>@example.test', tenant: 'Ac"me & <Co>' },
+      DEFAULT_PAGE_LOCALE,
+    );
+
+    expect(page.body).toContain('Email address: <bdi>a&lt;b&gt;@example.test</bdi>');
+    expect(page.body).toContain('Account at <bdi>Ac&quot;me &amp; &lt;Co&gt;</bdi>');
+  });
+
+  it('names no address where the page has none to name', () => {
+    const page = renderEmailConfirmPage(acme, 'k', { ...who, email: null }, DEFAULT_PAGE_LOCALE);
+    expect(page.body).not.toContain('Email address');
+    expect(page.body).toContain('Account at <bdi>Acme</bdi>');
+  });
+
   it('names the account a registration link will create, isolated', () => {
     const page = renderEmailConfirmPage(
-      pathAddress('https://idp.example', 'acme'),
+      acme,
       'k',
-      '<ada>',
+      { ...who, username: '<ada>' },
       DEFAULT_PAGE_LOCALE,
     );
 
     expect(page.body).toContain('Account name: <bdi>&lt;ada&gt;</bdi>');
+  });
+});
+
+describe('the control a refused link offers for a new one', () => {
+  const acme = pathAddress('https://idp.example', 'acme');
+
+  it('is a form that posts the key, and the page keeps its way back', () => {
+    const page = renderVerificationFailedPage(
+      '/in',
+      null,
+      { address: acme, key: 'k"ey' },
+      DEFAULT_PAGE_LOCALE,
+    );
+
+    expectFragment(page);
+    expect(page.body).toContain(
+      '<form method="post" action="/tenants/acme/login-actions/resend-verification">',
+    );
+    expect(page.body).toContain('<input type="hidden" name="key" value="k&quot;ey">');
+    expect(page.body).toContain('<button type="submit">Send a new link</button>');
+    expect(page.body).toContain('Back to sign in</a>');
+    expect(page.script).toBeNull();
+  });
+
+  it('is absent when the page holds no key', () => {
+    const page = renderVerificationFailedPage(null, null, null, DEFAULT_PAGE_LOCALE);
+    expect(page.body).not.toContain('<form');
+  });
+});
+
+describe('renderVerificationResentPage', () => {
+  it('says what happens if the address needs verifying, and nothing about whether it did', () => {
+    const page = renderVerificationResentPage(DEFAULT_PAGE_LOCALE);
+
+    expectFragment(page);
+    expect(page.body).toContain('If this address needs verifying, a new link is on its way.');
+    expect(page.body.match(/<a |<form/gu)).toBeNull();
+  });
+});
+
+describe('the way back to an application', () => {
+  const back =
+    '<a href="https://app.example/after?action_status=success">Return to the application</a>';
+
+  it('is one more link on the page, and the page is otherwise as it was', () => {
+    const plain = renderVerificationSucceededPage(null, null, DEFAULT_PAGE_LOCALE).body;
+    const returning = renderVerificationSucceededPage(
+      null,
+      'https://app.example/after?action_status=success',
+      DEFAULT_PAGE_LOCALE,
+    ).body;
+    expect(plain).not.toContain('<a ');
+    expect(returning).toContain(back);
+    expect(returning.replace(/\n<p class="links">[\s\S]*<\/p>/u, '')).toBe(plain);
+  });
+
+  it('sits beside the way back to sign in on a refused link', () => {
+    const refused = renderVerificationFailedPage(
+      '/tenants/acme/protocol/openid-connect/auth?client_id=c',
+      'https://app.example/after?action_status=error',
+      null,
+      DEFAULT_PAGE_LOCALE,
+    ).body;
+    expect(refused).toContain('Back to sign in</a>');
+    expect(refused).toContain('action_status=error">Return to the application</a>');
   });
 });

@@ -78,10 +78,11 @@ The person types a name and a password, or uses a passkey. You do nothing while 
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=01a0de0f-e0c1-…:ymX2RgGntNQX…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=01a1d09d-b8ea-…:-f-lehfJxhKV…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: demo-device=C74Nzrm4yL83SYBrNJWgWg; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/demo/; Max-Age=0
-location: http://localhost:8080/callback?code=BHGxL9ZKCpm7…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
+location: http://localhost:8080/callback?code=7Dk1_YDCRJAn…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 ```
 
 Check three things before you use the code. `state` must equal what you sent. `iss` must name the Odudu tenant you started with. The code lives for 60 seconds by default and works once.

@@ -33,10 +33,12 @@ owes drops an owed set from somebody with no TOTP, so a correct sign-in goes on
 instead of meeting a page that cannot be shown; the one page door that can still
 meet the race continues the parked login the same way.
 
-Every render of the page writes one `credential` audit row,
+Every set issued writes one `credential` audit row,
 `recovery_codes.issued`, in the transaction that stores the hashes — the
-forced first set included, and again for each set a re-render issues in
-its place. The row carries no code.
+forced first set included, and again for each set issued in its place. A
+replacement the hourly bound refuses writes `recovery_codes.refused` instead.
+Neither row carries a code. A set issued also queues a notice to the subject's verified address, which carries no code either,
+and the row's `detail.notice` says `sent`, `skipped_unverified` or `skipped_none`.
 
 Every command and response below continues the same stack, the same
 `otp-demo` tenant and, to begin with, the same `auth_session_id`.
@@ -47,6 +49,11 @@ The page is the response to the enrolment's own submission, printed in full
 under [Confirming the secret enrols it](./two-factor-authentication-with-totp.md#confirming-the-secret-enrols-it-and-is-the-logins-second-factor)
 above.
 
+A set holds ten codes unless the tenant's `recovery_code_count` says otherwise, 8
+to 16 ([the settings page](../../../admin-console/settings.mdx#authenticators)).
+It takes effect on the next set issued, and a set already issued keeps its size. A `recovery-code` step of the sign-in flow
+can name its own `count`, which then sets the size of a set issued during a sign-in on that flow
+([the sign-in flow page](../../../admin-console/sign-in-flow.mdx#authenticator-settings-on-a-step)).
 Ten characters each from Crockford's 32-character base32 alphabet, printed
 as two groups of five: 32^10, which is 2^50 per code. The alphabet's
 excluded letters — `I`, `L` and `O` — are the ones a reader confuses with
@@ -59,7 +66,7 @@ hash with the same parameters as a password — nothing anywhere holds the
 plaintext, so no later page and no administrator can print these again:
 
 ```bash
-docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
+docker compose -p odudu-p4f-i14 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "SELECT type, left(secret_data->>'hash', 30) AS hash_prefix,
           secret_data->>'usedAt' AS used_at
@@ -76,20 +83,26 @@ docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
 ```
 
 Reloading the page is therefore not a way to see them twice: the render is a
-`POST` result, and repeating it issues a _different_ ten and retires the set
-it just displayed. Whatever was on the screen the first time is gone either
-way.
+`POST` result, and a reload while the action is still owed issues a
+_different_ set and retires the set it just displayed, but no sooner than 30
+seconds after the last: a sooner reload is refused with the page that says how
+long to wait, and the acknowledgement that finishes the sign-in, which carries no
+code, is never refused. A person who asks for a set on their
+own, while one with codes left to spend was issued less than an hour ago, is
+refused with a page that says how many minutes to wait, and the set they hold
+stays. After the hour, or once every code is spent, a repeat issues a
+_different_ set.
 
-That reload is not free, and the cost is worth naming: each one is ten
-Argon2id hashes (about 40 ms, run together), a delete and ten inserts, and it
-is repeatable for as long as the action is owed by anybody holding a valid
-password for the account. It is bounded — a password gets past the first
-factor, and acknowledging the page ends it — but it is a heavier multiplier
-than verification's, and the per-account lockout does not reach it: that
-counts failures, and this path needs a password that works
-([the roadmap](../../../roadmap.md#next) plans the self-service fix). Re-serving the same
-set instead would cost less and be worse: a second render of a live secret
-is the one thing this page must not do.
+The bound keeps the voluntary path cheap. Each set is one Argon2id hash per code (ten by default, about
+40 ms, run together), a delete and one insert per code, and the lockout does not reach
+it, because that counts failures and this path needs a password that works; the
+owed path is limited by the sign-in itself, which acknowledging the page ends. The
+hour is counted from `subjects.recovery_codes_issued_at`, claimed by one
+conditional `UPDATE` under the subject's row lock, so two requests at once
+cannot both pass. A refusal costs that lock, a read and one audit insert, and no hash. Re-serving
+the same set instead would cost less and be worse: a second render of a live
+secret is the one thing this page must not do. The refusal itself is shown, run
+live, in [Replacing the recovery codes](./sending-a-person-to-change-a-credential.md#replacing-the-recovery-codes).
 
 The acknowledgement carries no code back — only the session id. It says the
 page was read, and it is what completes the action. With nothing else owed,
@@ -101,13 +114,15 @@ end of [Confirming the secret](./two-factor-authentication-with-totp.md#confirmi
 A fresh attempt, and this time the authenticator is gone. The request is
 parked and the password form rendered exactly as
 [Path A](./path-a-authorization-code-with-pkce.md) shows, for a new
-`auth_session_id`, `01a137d3-9df0-76d0-b626-fe71c6edce91`. The password step runs as always, and answers
+`auth_session_id`, which the next block keeps as `$AUTH`. The password step runs as always, and answers
 with the code form — the same two fields, because nothing about this
 submission says the authenticator is gone:
 
 ```bash
-curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a137d3-9df0-76d0-b626-fe71c6edce91' \
+AUTH=$(curl -sS 'http://localhost:3000/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -133,7 +148,7 @@ curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authentica
 <p class="tenant"><bdi>otp-demo</bdi></p>
 </header>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a137d3-9df0-76d0-b626-fe71c6edce91">
+  <input type="hidden" name="auth_session_id" value="01a1e44b-58ca-7fd3-a1c5-e326dd029475">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -146,20 +161,22 @@ curl -sS -X POST http://localhost:3094/tenants/otp-demo/login-actions/authentica
 The second field is what gets filled:
 
 ```bash
-curl -sS -i -X POST http://localhost:3094/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a137d3-9df0-76d0-b626-fe71c6edce91' \
-  --data-urlencode 'recovery_code=TKBYN-J8QGH'
+curl -sS -i -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
+  --data-urlencode 'recovery_code=B0BQH-BJWYR' | tee redirect.txt
+AUTHCODE=$(sed -n 's/^location:.*code=\([^&]*\)&.*/\1/Ip' redirect.txt | tr -d '\r')
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a137d3-9ea5-72a6-b4d1-3d451af1a220
-set-cookie: otp-demo-session=01a137d3-9ee4-774c-a1f0-7b51a53740c3:j1qO2TJFYsDsCP29koTcK5BgwzgDtSYtdpuBiFsEXD4; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1e44b-5912-7e11-9016-2977752bc093
+set-cookie: otp-demo-session=01a1e44b-593f-7255-a34e-0a78e5bbd89f:0BGK5-3Y6pRpjEVU1N-H-c7vOdJ7YGkPPdpSV_EP1yg; HttpOnly; SameSite=Lax; Path=/
 set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: otp-demo-device=OD0JivyG0stvyvbPA2G28w; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/otp-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=5I3UGs_lZLJ8IzO16HHeB478eel2UUMkRKTQ7rbbDQs&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Fotp-demo
+location: http://localhost:8080/callback?code=8esJhEgcx_o9HbK4wuFy-VRHKvem4j9_g3gZgw32xM4&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 content-length: 0
-Date: Wed, 14 Oct 2026 00:32:58 GMT
+Date: Mon, 16 Nov 2026 12:18:25 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -172,15 +189,29 @@ then produce a code from the authenticator they lost.
 
 The ID token says less about this login than the two-factor one above:
 
-```json
+```bash
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/protocol/openid-connect/token \
+  -d grant_type=authorization_code \
+  -d code=$AUTHCODE \
+  -d client_id=otp-spa \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  -d code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk \
+  | jq -r .id_token | cut -d. -f2 \
+  | python3 -c "import sys,base64;s=sys.stdin.read().strip();print(base64.urlsafe_b64decode(s+'='*(-len(s)%4)).decode())" \
+  | jq '{sub,iss,aud,iat,exp,sid,amr,acr}'
+```
+
+```
 {
-  "sub": "01a137d3-946e-727f-91c9-3c754e9981c3",
-  "iss": "http://localhost:3094/tenants/otp-demo",
+  "sub": "01a1e44b-5161-776d-85e0-085b59517e04",
+  "iss": "http://localhost:3000/tenants/otp-demo",
   "aud": "otp-spa",
-  "iat": 1791937978,
-  "exp": 1791938278,
-  "sid": "01a137d3-9ee4-774c-a1f0-7b51a53740c3",
-  "amr": ["pwd"],
+  "iat": 1794831505,
+  "exp": 1794831805,
+  "sid": "01a1e44b-593f-7255-a34e-0a78e5bbd89f",
+  "amr": [
+    "pwd"
+  ],
   "acr": "2"
 }
 ```
@@ -199,9 +230,11 @@ A third attempt, opened the same way as the one above — a `/authorize` that
 parks the request, then the password, which answers 200 with the code form:
 
 ```bash
+AUTH=$(curl -sS 'http://localhost:3000/tenants/otp-demo/protocol/openid-connect/auth?response_type=code&client_id=otp-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+  | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a16368-3f9d-7fc3-9628-30596ef3a88e' \
+  --data-urlencode "auth_session_id=$AUTH" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery'
 ```
@@ -214,9 +247,9 @@ Then the code that already signed somebody in — typed in lower case with a
 space where the hyphen was:
 
 ```bash
-curl -sS -X POST http://localhost:3195/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a16368-3f9d-7fc3-9628-30596ef3a88e' \
-  --data-urlencode 'recovery_code=zqm0z 2nqqk'
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
+  --data-urlencode 'recovery_code=b0bqh bjwyr'
 ```
 
 ```
@@ -245,7 +278,7 @@ curl -sS -X POST http://localhost:3195/tenants/otp-demo/login-actions/authentica
 </ul>
 </div>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a16368-3f9d-7fc3-9628-30596ef3a88e">
+  <input type="hidden" name="auth_session_id" value="01a1e44b-598d-741e-9f01-61e03546f715">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
   <button type="submit">Verify</button>
@@ -262,8 +295,8 @@ confusable letters onto digits. And the refusal _says_ the code is spent,
 which a wrong code does not:
 
 ```bash
-curl -sS -X POST http://localhost:3195/tenants/otp-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a16368-3f9d-7fc3-9628-30596ef3a88e' \
+curl -sS -X POST http://localhost:3000/tenants/otp-demo/login-actions/authenticate \
+  --data-urlencode "auth_session_id=$AUTH" \
   --data-urlencode 'recovery_code=ZZZZZ-ZZZZZ'
 ```
 
@@ -293,7 +326,7 @@ curl -sS -X POST http://localhost:3195/tenants/otp-demo/login-actions/authentica
 </ul>
 </div>
 <form method="post" action="/tenants/otp-demo/login-actions/authenticate">
-  <input type="hidden" name="auth_session_id" value="01a16368-3f9d-7fc3-9628-30596ef3a88e">
+  <input type="hidden" name="auth_session_id" value="01a1e44b-598d-741e-9f01-61e03546f715">
   <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
   <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
   <button type="submit">Verify</button>
@@ -315,7 +348,7 @@ What makes the refusal possible is that the row survives its use, marked
 rather than deleted:
 
 ```bash
-docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
+docker compose -p odudu-p4f-i14 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
   "SELECT count(*) AS codes, count(secret_data->>'usedAt') AS spent
      FROM user_credentials WHERE type = 'recovery-code'
@@ -339,8 +372,10 @@ both would succeed.
 
 A list that runs out is the lockout recovery codes exist to prevent, so spending
 the last one owes `generate-recovery-codes` again — in the login that spent it,
-not the next one. The section below runs in a tenant of its own, `rc8-demo`, on
-the stack above, with `otp_required` on: ada enrolled through the same two pages
+not the next one. **This section is an earlier capture, not part of the run above.** It was
+run on 2026-11-12 on a stack of its own on port `3094`, as its commands name, in a tenant of
+its own, `rc8-demo`, with `otp_required` on, by a script the page does not show, and its
+ids, cookies and times are that run's: ada enrolled through the same two pages
 as above, acknowledged her ten, and then spent them one login at a time, each a
 fresh `/authorize` and the password first. The numbers above belong to
 `otp-demo` and are untouched by it.
@@ -350,19 +385,20 @@ unspent behind it:
 
 ```bash
 curl -sS -i -X POST http://localhost:3094/tenants/rc8-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a137d4-5cca-713b-903c-d3ce599a19c2' \
-  --data-urlencode 'recovery_code=ZBA0Z-8N4XS'
+  --data-urlencode 'auth_session_id=01a1d098-5195-7db3-8f23-20079f733ef0' \
+  --data-urlencode 'recovery_code=43XY4-8EJRF'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a137d4-5d60-7709-a701-0194a352560d
-set-cookie: rc8-demo-session=01a137d4-5e4e-7a32-826d-3d83b7545e54:-Z5iI7GF488P51f-1HRCTMKKXHGGsUyCG8mZF2ES0Ao; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d098-51e1-756b-bb3e-4e5373e4de29
+set-cookie: rc8-demo-session=01a1d098-52e4-7368-b17e-2db54818b2a6:NDT2xLEGKYZntoF6BesakFRZCq0Cr0G-y9DCwXJZNqU; HttpOnly; SameSite=Lax; Path=/
 set-cookie: rc8-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: rc8-demo-device=otJtFLQiJUWifAlJmvyiDA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/rc8-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=4ClFExsSD-g_CG_ClPjfnaN3kBwgHoorQMiZiJELTvE&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Frc8-demo
+location: http://localhost:8080/callback?code=gytRpnZUOxud7FYQdKkdr9kvJMpAUjhGLYP5HwJTVTc&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Frc8-demo
 content-length: 0
-Date: Wed, 14 Oct 2026 00:33:47 GMT
+Date: Thu, 12 Nov 2026 16:30:06 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -371,8 +407,8 @@ The tenth authenticates just as well, and does not redirect:
 
 ```bash
 curl -sS -i -X POST http://localhost:3094/tenants/rc8-demo/login-actions/authenticate \
-  --data-urlencode 'auth_session_id=01a137d4-5f25-7dd5-b54e-f530dd226d0d' \
-  --data-urlencode 'recovery_code=W7762-A4QFZ'
+  --data-urlencode 'auth_session_id=01a1d098-5364-7e03-8fef-5a36cd6c9609' \
+  --data-urlencode 'recovery_code=43HNC-B8PXY'
 ```
 
 The codes themselves are elided here — the set shown above is the one this
@@ -380,7 +416,7 @@ document prints, and a test holds it to exactly one:
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a137d4-5faf-7d4c-867b-86e075e0ac38
+x-request-id: 01a1d098-53a6-7be0-baa7-02b81aba7680
 content-type: text/html
 content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self' http://localhost:8080; base-uri 'none'
 x-frame-options: DENY
@@ -389,7 +425,7 @@ cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
 content-length: 2107
-Date: Wed, 14 Oct 2026 00:33:47 GMT
+Date: Thu, 12 Nov 2026 16:30:06 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -417,7 +453,7 @@ Keep-Alive: timeout=72
   …ten of them…
 </ol>
 <form method="post" action="/tenants/rc8-demo/login-actions/required-action?action=generate-recovery-codes">
-  <input type="hidden" name="auth_session_id" value="01a137d4-5f25-7dd5-b54e-f530dd226d0d">
+  <input type="hidden" name="auth_session_id" value="01a1d098-5364-7e03-8fef-5a36cd6c9609">
   <button type="submit">I have saved these codes</button>
 </form>
 </main>
@@ -432,18 +468,19 @@ finishes the login, exactly as it did there:
 ```bash
 curl -sS -i -X POST \
   'http://localhost:3094/tenants/rc8-demo/login-actions/required-action?action=generate-recovery-codes' \
-  --data-urlencode 'auth_session_id=01a137d4-5f25-7dd5-b54e-f530dd226d0d'
+  --data-urlencode 'auth_session_id=01a1d098-5364-7e03-8fef-5a36cd6c9609'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a137d4-6212-702f-98e3-e260b931935c
-set-cookie: rc8-demo-session=01a137d4-6228-72ef-acce-7825c414d1ce:s-AxqiUj8ccFNiWeaAltx-kfFz_ZHL4TTnKs6mn1xvk; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d098-55cf-7cc9-809f-09ee0ed8c87e
+set-cookie: rc8-demo-session=01a1d098-55ee-793d-abe5-900f5cfdab4d:CuQjseXFw2A60boDHe1EMX2iw2KjfLgHs99-PCIFlZw; HttpOnly; SameSite=Lax; Path=/
 set-cookie: rc8-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: rc8-demo-device=5MBYFcweeea6duDHr0p6JA; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/rc8-demo/; Max-Age=0
-location: http://localhost:8080/callback?code=0X0v6AqfNZkZMfluApYongAIiQ1N0ovrRGryRx984X0&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Frc8-demo
+location: http://localhost:8080/callback?code=4YumKeuBtJOHNle5mYoslLikelwxA8WFcDTPSsI0XhY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3094%2Ftenants%2Frc8-demo
 content-length: 0
-Date: Wed, 14 Oct 2026 00:33:48 GMT
+Date: Thu, 12 Nov 2026 16:30:06 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -486,19 +523,24 @@ reading the row count finds them provided for and owes nothing, which is a
 locked-out account with no page to show it. Keycloak re-presents its own
 setup at the same moment, for the same reason.
 
-Two ways out that this does not provide, both needing a page this server does
-not have yet: asking for a fresh set _before_ running out, and a warning as
-the list gets short. Both are self-service, which [the roadmap](../../../roadmap.md#next) plans: an
-application-initiated action for the fresh set, and the "me" API's count for
-the warning.
+A fresh set _before_ running out is asked for by an application, with the
+`generate-recovery-codes` action ([Sending a person to change a credential](./sending-a-person-to-change-a-credential.md)),
+and replaces the set only when the person confirms and the last was issued more
+than an hour ago. `GET /me/credentials` ([The me API](./the-me-api.md#the-four-reads)) returns
+`recovery_codes_low`, true when the person holds fewer unspent codes than the
+tenant setting `recovery_code_warn_below` (3 by default, 0 turns it off). The
+application is what shows the warning to the person.
 
 ## Where the step sits in the flow
 
 ```bash
-docker compose -p odudu-17a -f infra/docker/compose.yaml exec -T postgres \
+docker compose -p odudu-p4f-i14 -f infra/docker/compose.yaml exec -T postgres \
   psql -U odudu -d odudu -c \
-  "SELECT index, authenticator, requirement FROM authentication_executions e
-     JOIN tenants r ON r.id = e.tenant_id WHERE r.name = 'otp-demo' ORDER BY index;"
+  "SELECT e.position - 1 AS index, e.step->>'authenticator' AS authenticator,
+          e.step->>'requirement' AS requirement
+     FROM flows f JOIN tenants r ON r.id = f.tenant_id,
+          jsonb_array_elements(f.steps) WITH ORDINALITY AS e(step, position)
+    WHERE r.name = 'otp-demo' AND f.is_default ORDER BY e.position;"
 ```
 
 ```

@@ -118,6 +118,17 @@ describe('decideMcpRegistration', () => {
   });
 });
 
+describe('the "me" scopes under the registration policy', () => {
+  it('are not registrable: the policy admits no scope outside its own list', () => {
+    expect(refusal({ scope: 'me:read' }).description).toContain('me:read');
+    expect(refusal({ scope: 'me:read me:write' }).error).toBe('invalid_client_metadata');
+    expect(decideMcpRegistration(input({ scope: 'openid me:write mcp:read' }))).toMatchObject({
+      kind: 'ok',
+      scope: 'openid mcp:read',
+    });
+  });
+});
+
 describe('audiencesUnderPolicy', () => {
   it('replaces the list with the MCP URL under the mcp policy', () => {
     expect(audiencesUnderPolicy(['https://api.example'], MCP, true)).toEqual([MCP]);

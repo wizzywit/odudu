@@ -71,7 +71,7 @@ describe('the MCP scopes backfill', () => {
       select gen_random_uuid(), id, 'mcp:read', 'the owner wrote this', 'optional'
         from tenants where name = 'owner'`;
     const others = await raw<{ n: number }[]>`
-      select count(*)::int as n from client_scopes where name not in ('mcp:read', 'mcp:write')`;
+      select count(*)::int as n from client_scopes where name not in ('mcp:read', 'mcp:write', 'me:read', 'me:write')`;
 
     await runMigrations(handle().db, MIGRATIONS_DIR);
     const once = await mcpScopes();
@@ -98,7 +98,7 @@ describe('the MCP scopes backfill', () => {
     await runMigrations(handle().db, MIGRATIONS_DIR);
     expect(await mcpScopes()).toEqual(once);
     const after = await raw<{ n: number }[]>`
-      select count(*)::int as n from client_scopes where name not in ('mcp:read', 'mcp:write')`;
+      select count(*)::int as n from client_scopes where name not in ('mcp:read', 'mcp:write', 'me:read', 'me:write')`;
     expect(after[0]?.n).toBe(others[0]?.n);
   });
 

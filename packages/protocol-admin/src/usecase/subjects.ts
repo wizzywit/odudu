@@ -1,6 +1,7 @@
 import { type MailLookResolver } from '@odudu/email';
 import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
 import {
+  editableProfileFields,
   onSecondFactorRemoved,
   requiredActionRepository,
   type RequiredAction,
@@ -30,6 +31,7 @@ import {
   lockEmailForCreation,
   loginFailures,
   passwordExpired,
+  pendingEmailRepository,
   subjectRepository,
   subjects,
   userCredentials,
@@ -56,6 +58,13 @@ import {
 } from 'drizzle-orm';
 import { type SelectedFields } from 'drizzle-orm/pg-core';
 import { redactedDiff } from '#/service/audit-detail';
+import {
+  addedActions,
+  readsNeeded,
+  requiredActionRefusal,
+  type RequiredActionRefusal,
+  type RequiredActionSources,
+} from '#/service/required-action-refusal';
 import {
   capabilitiesOfGroupsAndAncestors,
   capabilitiesReachableFrom,
@@ -738,6 +747,15 @@ async function amendSubjectUnguarded(
     await subjectRepository(tx).setEnabled(input.subjectId, patch.enabled.value);
   }
   if (patch.email !== undefined) {
+    // An administrator's address replaces whatever the person asked for: a link
+    // mailed for the earlier request must not swap an old target back in. The
+    // address lock is the one a completed change takes, so the two take turns.
+    if (patch.email.value !== null) {
+      await lockEmailForCreation(tx, locked.subject.tenantId, patch.email.value);
+      const holder = await userRepository(tx).holderOfEmail(patch.email.value);
+      if (holder !== null && holder !== input.subjectId) throw new EmailTakenError();
+    }
+    await pendingEmailRepository(tx).clear(input.subjectId);
     await userRepository(tx).updateEmail(input.subjectId, patch.email.value);
   }
   if (patch.username !== undefined) {
@@ -1071,6 +1089,8 @@ export type SetRequiredActionsOutcome =
   | TargetCeilingRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
+  // An action in the list cannot be owed to this subject here.
+  | { kind: 'refused'; reason: RequiredActionRefusal }
   | { kind: 'ok'; actions: readonly RequiredAction[]; etag: string };
 
 // Sorted before it is hashed, never as it is sent: `pendingFor` imposes no
@@ -1091,6 +1111,30 @@ export async function readRequiredActions(
   if (subject === null) return { kind: 'not_found' };
   const actions = await requiredActionRepository(tx).pendingFor(subjectId);
   return { kind: 'ok', actions, etag: requiredActionsEtag(actions) };
+}
+
+// Only what the actions being added ask about is read.
+async function requiredActionSources(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  subjectId: string,
+  actions: readonly RequiredAction[],
+): Promise<RequiredActionSources> {
+  const needed = readsNeeded(actions);
+  const user = needed.user ? await userRepository(tx).bySubjectId(subjectId) : null;
+  const tenant = needed.tenant ? await tenantSettingsRepository(tx).byId(tenantId) : null;
+  return {
+    ...(needed.user ? { email: user?.email ?? null } : {}),
+    ...(tenant === null
+      ? {}
+      : {
+          termsUri: typeof tenant.terms_uri === 'string' ? tenant.terms_uri : null,
+          requiredProfileFields: Array.isArray(tenant.required_profile_fields)
+            ? tenant.required_profile_fields
+            : [],
+          editableProfileFields: editableProfileFields(tenant.username_editable === true),
+        }),
+  };
 }
 
 /** Replaces a subject's required actions wholesale — an action left out is one the caller clears. */
@@ -1121,6 +1165,13 @@ export async function setRequiredActions(
       ? { kind: 'precondition_required' }
       : { kind: 'precondition_failed' };
   }
+
+  const added = addedActions(current, input.actions);
+  const refusal = requiredActionRefusal(
+    added,
+    await requiredActionSources(tx, input.tenantId, input.subjectId, added),
+  );
+  if (refusal !== null) return { kind: 'refused', reason: refusal };
 
   await requiredActionRepository(tx).replaceAll(input.tenantId, input.subjectId, input.actions);
 

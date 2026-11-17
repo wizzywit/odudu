@@ -78,6 +78,7 @@ function serverSource(): string {
   const files = [
     ...globSync('packages/protocol-oidc/src/**/*.ts', { cwd: REPO_ROOT }),
     ...globSync('apps/server/src/**/*.ts', { cwd: REPO_ROOT }),
+    ...globSync('packages/me/src/**/*.ts', { cwd: REPO_ROOT }),
   ].filter((file) => !file.includes('.test.'));
 
   if (files.length === 0) throw new Error('found no server source to scan for error codes');

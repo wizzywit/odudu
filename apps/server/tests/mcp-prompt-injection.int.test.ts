@@ -293,7 +293,7 @@ function instructionsIn(text: string): Attempt[] {
 // Every table of the tenant that the serving role reads and that carries a tenant_id.
 // A table added to the schema fails this until someone has asked whether a write
 // an agent may make can reach it.
-const TABLES = 45;
+const TABLES = 47;
 
 const READ_NAMES = new Set(TOOLS.filter((t) => t.access === 'read').map((t) => t.name));
 

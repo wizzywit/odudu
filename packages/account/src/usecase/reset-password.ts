@@ -9,11 +9,13 @@ import {
   type MailContext,
 } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
+import { type ReturnTarget } from '#/schema/action-tokens';
 import { mailAddressOf } from '#/usecase/mail-address';
 import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
 import { type TenantAddress } from '@odudu/kernel';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { type MailGate } from '#/service/mail-gate';
+import { type BreachedCheck, type BreachedPrepared } from '#/service/breached-check';
 import { withMinimum } from '#/service/password-violations';
 
 // Re-exported so the view layer can reach these without importing the
@@ -102,6 +104,8 @@ export interface ActionLinkTenant {
   // The sign-in the link came out of, so its page can lead the same browser
   // back to it; an administrator's link has none.
   readonly authenticationSessionId?: string | null;
+  // The client an administrator's link returns to; a self-service link has none.
+  readonly returnTo?: ReturnTarget | undefined;
   readonly resolveMailLook?: MailLookResolver | undefined;
 }
 
@@ -132,6 +136,7 @@ export async function enqueueResetLink(
     ...(tenant.authenticationSessionId === undefined
       ? {}
       : { authenticationSessionId: tenant.authenticationSessionId }),
+    returnTo: tenant.returnTo,
     ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'reset_password'),
   });
   const link = actionLink(address, token);
@@ -209,6 +214,9 @@ export interface CompletePasswordResetDeps extends AccountRecoveryDeps {
     subject: { username: string; email: string | null },
   ) => PolicyViolation[];
   readonly getUsername: (tx: TenantScopedDatabase, subjectId: string) => Promise<string>;
+  // After the rules and before the link is spent, so a refused password
+  // burns nothing; what it decided is recorded on the password.reset row.
+  readonly breachedCheck: BreachedCheck;
   // The one policy rule no candidate decides on its own: whether it is the
   // password already in force. Injected as the violations to report rather
   // than as a predicate, for the reason setPassword is — the stored hash,
@@ -245,6 +253,42 @@ export async function completePasswordReset(
   key: string,
   newPassword: string,
 ): Promise<CompletePasswordResetResult> {
+  // Read-only, so the rules decide before anything is asked of a remote
+  // service, and the service is asked with no connection held.
+  const ready = await withTenant(
+    deps.database.db,
+    deps.tenantId,
+    async (tx): Promise<CompletePasswordResetResult | null> => {
+      const peeked = await actionTokenRepository(tx).peek(key);
+      if (peeked?.type !== 'reset_password') return { kind: 'invalid' };
+      const violations = deps.evaluatePassword(newPassword, deps.passwordPolicy, {
+        username: await deps.getUsername(tx, peeked.subjectId),
+        email: peeked.email,
+      });
+      if (violations.length === 0) return null;
+      return {
+        kind: 'invalid_password',
+        violations: withMinimum(violations, deps.passwordPolicy.minLength),
+      };
+    },
+    deps.request,
+  );
+  if (ready !== null) return ready;
+  const prepared = await deps.breachedCheck.prepare(
+    deps.database.db,
+    deps.tenantId,
+    newPassword,
+    deps.request,
+  );
+  return writeReset(deps, key, newPassword, prepared);
+}
+
+async function writeReset(
+  deps: CompletePasswordResetDeps,
+  key: string,
+  newPassword: string,
+  prepared: BreachedPrepared,
+): Promise<CompletePasswordResetResult> {
   return withTenant(
     deps.database.db,
     deps.tenantId,
@@ -262,6 +306,11 @@ export async function completePasswordReset(
           kind: 'invalid_password',
           violations: withMinimum(violations, deps.passwordPolicy.minLength),
         };
+      }
+
+      const breached = await deps.breachedCheck.judge(tx, deps.tenantId, newPassword, prepared);
+      if (breached.violations.length > 0) {
+        return { kind: 'invalid_password', violations: [...breached.violations] };
       }
 
       // Before the link is spent, for the same reason the rules above are:
@@ -285,6 +334,7 @@ export async function completePasswordReset(
         actorSubjectId: record.subjectId,
         resourceType: 'subject',
         resourceId: record.subjectId,
+        detail: { breached_check: breached.audit },
       });
       return { kind: 'reset', factorsRemoved };
     },

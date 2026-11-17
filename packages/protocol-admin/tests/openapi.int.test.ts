@@ -65,7 +65,8 @@ describe('the published OpenAPI document', () => {
     for (const route of withBody) {
       const path = route.pattern.replace(/:(\w+)/gu, '{$1}');
       const operation = doc.paths[path]?.[route.method.toLowerCase()];
-      expect(operation?.requestBody?.required, `${route.method} ${path}`).toBe(true);
+      const optional = route.bodySchema?.safeParse(undefined).success === true;
+      expect(operation?.requestBody?.required, `${route.method} ${path}`).toBe(!optional);
     }
   });
 

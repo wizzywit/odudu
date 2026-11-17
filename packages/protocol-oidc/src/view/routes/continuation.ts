@@ -1,4 +1,4 @@
-import { type PendingRequest } from '@odudu/authn-flows';
+import { type PendingRequest, type RequiredAction } from '@odudu/authn-flows';
 import { negotiatePageLocale } from '@odudu/i18n';
 import {
   brandLocale,
@@ -10,6 +10,7 @@ import {
   tenantAddressOf,
 } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
+import { requestedActionOf } from '#/service/action-request';
 import { restartAuthorizeLocation } from '#/service/restart-request';
 
 // What a tenant says about the languages of its pages.
@@ -136,6 +137,9 @@ export interface PageContinuation {
   // already loaded; null when there is none or it cannot be rebuilt faithfully
   // (one tied to a subject by a hint). No read of its own.
   readonly signInPath: string | null;
+  // The action an application asked the person to take that is still to be
+  // shown, from the parked request; null when none was asked or it has ended.
+  readonly requestedAction: RequiredAction | null;
 }
 
 // Loads the parked request once and answers both questions that need it: the
@@ -183,6 +187,7 @@ export async function continuation(
     continuing: (page) => (pending === null ? page : { ...page, redirectsTo: pending.redirectUri }),
     signInPath:
       pending === null ? null : restartAuthorizeLocation(tenantAddressOf(reply.request), pending),
+    requestedAction: pending === null ? null : requestedActionOf(pending),
     clientName: async () =>
       tenant === null || pending === null
         ? undefined

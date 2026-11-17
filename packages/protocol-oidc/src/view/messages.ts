@@ -30,6 +30,7 @@ export const en = {
   'error.wayOn.return': 'Return to the application',
   'error.signInExpired': 'This sign-in attempt is no longer valid. Go back and start again.',
   'error.noPendingAction': 'This account has no such pending action.',
+  'error.actionUnavailable': 'This change is not available for your account.',
   'error.pendingActionNotReady': 'That pending action cannot be completed here yet.',
   'error.passwordTooLong': 'Password must be at most {max, number, ::group-off} characters long.',
   'error.unknownTenant': 'Unknown tenant.',

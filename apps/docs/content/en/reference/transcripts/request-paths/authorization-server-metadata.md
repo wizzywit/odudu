@@ -9,14 +9,14 @@ A client that knows only a resource, such as an MCP server that names this tenan
 authorization server, asks the authorization server what it offers
 (RFC 8414). A tenant answers with the same issuer and
 endpoints as its [discovery document](./path-a-authorization-code-with-pkce.md), in the members
-RFC 8414 defines, and with the scopes `mcp:read` and `mcp:write` added to its own. RFC 8414 §3.1
+RFC 8414 defines, and with the scopes `mcp:read` and `mcp:write` always listed. RFC 8414 §3.1
 puts the well-known suffix between the host and the issuer's path, so the tenant's issuer decides
 where the document is: `/.well-known/oauth-authorization-server/tenants/<name>` at the path
 address, and `/.well-known/oauth-authorization-server` on a tenant's own domain. The reading note
 is `docs/protocols/rfc8414.md`.
 
-Every command was run, in this order, on a freshly built compose stack (the project
-`odudu-p5a-i11c`, port `3000`, the throttles at `10000`, the schedules off) driven only as far as
+Every command was run, in this order, on a freshly built stack (port `3000`, the
+throttles at `10000`, the schedules off) driven only as far as
 this page goes: the tenant `demo`, its client `demo-spa` and its user `ada` made as
 [Bootstrap](./bootstrap.md) makes them, then a second tenant `gone-demo` made and switched off
 (below), then the domain `login.acme-corp.dev` seeded as the tenant's address. No DNS names that
@@ -34,11 +34,11 @@ curl -sS -D - -o /dev/null http://localhost:3000/.well-known/oauth-authorization
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1b041-9a5b-7dbf-b4a3-4e0270260c82
+x-request-id: 01a1cb3b-f92e-7897-934d-ee1391e114a0
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 1514
-Date: Fri, 06 Nov 2026 09:47:31 GMT
+content-length: 1535
+Date: Wed, 11 Nov 2026 15:31:07 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -111,6 +111,8 @@ curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/de
     "groups",
     "mcp:read",
     "mcp:write",
+    "me:read",
+    "me:write",
     "offline_access",
     "openid",
     "phone",
@@ -120,12 +122,13 @@ curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/de
 }
 ```
 
-(`jq` only indents what the server sent as one line, 1,514 bytes.) Three things in it are there
+(`jq` only indents what the server sent as one line, 1,535 bytes.) Three things in it are there
 because a client reads them. `none` beside `private_key_jwt` in `token_endpoint_auth_methods_supported`
 says a public client may use the token endpoint, which Claude requires before it will use a client
 identifier that is a URL. The three `..._auth_signing_alg_values_supported` lists are required by §2
-wherever `private_key_jwt` is listed. `mcp:read` and `mcp:write` are advertised only: a tenant's own
-scopes are the rows it defines, and these two are not among them. `registration_endpoint` is absent
+wherever `private_key_jwt` is listed. `mcp:read` and `mcp:write` are in the list because every tenant starts with them
+as scopes, as it does with `me:read` and `me:write`; this document also lists the two `mcp` scopes for a tenant that
+has deleted them, and never adds a `me` scope the tenant does not define. `registration_endpoint` is absent
 because `demo` does not open client registration, and `client_id_metadata_document_supported` is
 absent because `demo` has not turned on client ID metadata documents.
 
@@ -286,11 +289,11 @@ curl -sS -D - -o /dev/null -H "Host: login.acme-corp.dev" http://localhost:3000/
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1b041-bbc6-7851-82fc-3663265378cf
+x-request-id: 01a1cb3c-1864-7a0d-9464-61a2148b4cd0
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 1466
-Date: Fri, 06 Nov 2026 09:47:40 GMT
+content-length: 1487
+Date: Wed, 11 Nov 2026 15:31:15 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -329,10 +332,10 @@ curl -sS -D - -o /dev/null -H "Host: login.acme-corp.dev" http://localhost:3000/
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1b041-bc54-76ff-8978-4c65bfab2546
+x-request-id: 01a1cb3c-1899-7258-a645-852ce211f700
 content-type: application/problem+json; charset=utf-8
 content-length: 151
-Date: Fri, 06 Nov 2026 09:47:40 GMT
+Date: Wed, 11 Nov 2026 15:31:15 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

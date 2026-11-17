@@ -171,13 +171,40 @@ export const listCredentialsResponseSchema = z.object({
 });
 export type ListCredentialsResponse = z.infer<typeof listCredentialsResponseSchema>;
 
+// In the order a sign-in asks for them. An unverified address is proved first,
+// the profile and the tenant's terms last.
 export const requiredActionSchema = z.enum([
+  'verify-email',
+  'update-password',
+  'configure-totp',
+  'configure-passkey',
+  'generate-recovery-codes',
+  'update-profile',
+  'accept-terms',
+]);
+export type RequiredAction = z.infer<typeof requiredActionSchema>;
+
+// What a mailed link can take a person through: the four that need no page of
+// the sign-in flow to be reached from an inbox.
+export const linkedActionSchema = z.enum([
   'update-password',
   'configure-totp',
   'configure-passkey',
   'generate-recovery-codes',
 ]);
-export type RequiredAction = z.infer<typeof requiredActionSchema>;
+export type LinkedAction = z.infer<typeof linkedActionSchema>;
+
+// What an application may start through `/authorize`: every action but the
+// acceptance of the tenant's own terms, which has to come from the tenant.
+export const applicationActionSchema = z.enum([
+  'verify-email',
+  'update-password',
+  'configure-totp',
+  'configure-passkey',
+  'generate-recovery-codes',
+  'update-profile',
+]);
+export type ApplicationAction = z.infer<typeof applicationActionSchema>;
 
 export const setRequiredActionsRequestSchema = z.object({
   actions: z.array(requiredActionSchema),
@@ -189,9 +216,21 @@ export const setRequiredActionsResponseSchema = z.object({
 });
 export type SetRequiredActionsResponse = z.infer<typeof setRequiredActionsResponseSchema>;
 
+// The client a mailed link returns to when it finishes: its `client_id`, and
+// the one registered `redirect_uri` of its to use, which only a client with
+// more than one needs to name.
+const returnToFields = {
+  client_id: z.string().min(1).optional(),
+  redirect_uri: z.string().min(1).optional(),
+};
+
+// The body of the reset and verification sends, which need none.
+export const sendAccountLinkRequestSchema = z.object(returnToFields).strict();
+export type SendAccountLinkRequest = z.infer<typeof sendAccountLinkRequestSchema>;
+
 // A mailed link takes the subject through `actions`.
 export const sendActionsEmailRequestSchema = z
-  .object({ actions: z.array(requiredActionSchema).min(1) })
+  .object({ actions: z.array(linkedActionSchema).min(1), ...returnToFields })
   .strict();
 export type SendActionsEmailRequest = z.infer<typeof sendActionsEmailRequestSchema>;
 

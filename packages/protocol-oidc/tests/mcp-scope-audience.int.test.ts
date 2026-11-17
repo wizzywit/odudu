@@ -31,6 +31,7 @@ import { authorizationCodeRepository } from '#/repository/codes';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 // mcp:read and mcp:write are asked for at a tenant's MCP endpoint (and the
 // admin API it calls) and nowhere else: refused at /authorize, and at /token
@@ -283,6 +284,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: ownerHandle,

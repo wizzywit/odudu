@@ -24,7 +24,14 @@ import {
   type McpPolicyGrant,
 } from '#/service/mcp-registration-policy';
 import { scopesCoherentWithAudience } from '#/service/mcp-scopes';
-import { isUuid, mcpAudienceOfIssuer } from '@odudu/kernel';
+import { meAudienceRequestAllowed } from '#/service/me-scopes';
+import {
+  actionRefusal,
+  effectiveMaxAge,
+  owedWithRequested,
+  parseAction,
+} from '#/service/action-request';
+import { isUuid, mcpAudienceOfIssuer, meAudienceOfIssuer } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
@@ -177,6 +184,9 @@ export interface ResolvedClient {
 const NO_CLIENT: ResolvedClient = { client: null, config: null, scopes: [] };
 
 export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
+  // Whether a passkey can be enrolled here: the deployment names a public
+  // address a relying party can be derived from.
+  passkeyLogin?: boolean;
   findTenant(name: string): Promise<TenantLookup | null>;
   // The tenant's own signing keys, which is the whole of "did this server
   // issue that ID Token?" (OIDC Core §3.1.2.2). The same set /jwks
@@ -213,7 +223,8 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // authentication session exists — also the honest way to notice a flow
   // with no applicable execution at all: OIDC Core §3.1.2.1's `prompt=login`
   // MUST, "an error is returned if reauthentication cannot be performed".
-  initialChallenge(tenantId: string): Promise<AuthenticatorResult>;
+  // `flowId` is the flow the client names, or null for the tenant's default.
+  initialChallenge(tenantId: string, flowId: string | null): Promise<AuthenticatorResult>;
   // The browser's session cookies, resolved to their live rows (never
   // trusted for anything but that lookup) — sessionRepository(tx).liveByEntries
   // scoped to the tenant's own idle window. decideReuse decides over the
@@ -247,6 +258,7 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
     tenantId: string,
     subjectId: string,
     authenticators: readonly string[],
+    flowId: string | null,
   ): Promise<boolean>;
   // Which of `subjectIds` are enabled. A session of a subject disabled since
   // it was made is not reused and not offered by the chooser: the login form
@@ -414,6 +426,7 @@ export async function handleAuthorizationRequest(
   // with no registered audience (every client in this repository, today)
   // still succeeds with an empty resolved audience — see parseResource.
   const mcpAudience = mcpAudienceOfIssuer(issuer);
+  const meAudience = meAudienceOfIssuer(issuer);
   const resourceOutcome = parseResource(
     resourceParam(rawParams),
     audiencesHeld(
@@ -435,14 +448,39 @@ export async function handleAuthorizationRequest(
       audience,
       mcpAudience,
       ADMIN_API_AUDIENCE,
-    )
+      meAudience,
+    ) ||
+    !meAudienceRequestAllowed(requestedScopeTokens(asked.scope), audience, meAudience)
   ) {
     return reject('invalid_scope');
   }
 
+  // An action the client asks the person to take is refused here, below the
+  // §4.1.2.1 boundary, so the client hears of it at its own redirect_uri.
+  const actionParsed = parseAction(rawParams);
+  if (actionParsed.kind === 'invalid') {
+    return reject('invalid_request', AUTHORIZE_REQUEST_DESCRIPTIONS.actionInvalid);
+  }
+  const requestedAction = actionParsed.kind === 'action' ? actionParsed.action : null;
+  if (requestedAction !== null) {
+    const refused = actionRefusal({
+      action: requestedAction,
+      allowedActions: resolved.config?.allowedActions ?? [],
+      holdsMeRead: resolved.scopes.includes('me:read'),
+      prompts: outcome.prompts,
+      passkeyAvailable: deps.passkeyLogin ?? false,
+    });
+    if (refused !== null) return reject('invalid_request', refused);
+  }
+
   // OIDC Dynamic Client Registration §2: a request's own `max_age` wins,
-  // and the client's `default_max_age` stands in where it carries none.
-  const maxAge = outcome.maxAge ?? resolved.config?.defaultMaxAge ?? null;
+  // and the client's `default_max_age` stands in where it carries none. An
+  // action needs a sign-in no older than the tenant's freshness window too.
+  const maxAge = effectiveMaxAge(
+    outcome.maxAge ?? resolved.config?.defaultMaxAge ?? null,
+    tenant.sessionFreshnessSeconds,
+    requestedAction !== null,
+  );
 
   // OIDC Core §3.1.2.1: a preference, never an error, so nothing about it
   // can refuse the request; it is parked for the pages' language.
@@ -494,14 +532,17 @@ export async function handleAuthorizationRequest(
 
   // What every branch below parks: the request as validated, with what the
   // pages shown after a detour need from it.
+  const flowId = resolved.config?.flowId ?? null;
   const parked = {
     ...request,
     prompt: [...outcome.prompts],
+    ...(flowId !== null ? { flowId } : {}),
     ...(uiLocales.length > 0 ? { uiLocales } : {}),
     ...(hintSubject !== null ? { idTokenHintSubject: hintSubject } : {}),
     ...(claimsSubject !== null ? { claimsSubject } : {}),
     resource: [...audience],
     claims,
+    ...(requestedAction !== null ? { action: requestedAction } : {}),
   };
 
   // Initiating User Registration §4.1: the person wants an account, not a
@@ -576,7 +617,12 @@ export async function handleAuthorizationRequest(
   const reuseIsStale =
     decision.kind === 'reuse' &&
     reusedSession !== undefined &&
-    !(await deps.sessionMeetsFlow(tenant.id, decision.subjectId, reusedSession.authenticators));
+    !(await deps.sessionMeetsFlow(
+      tenant.id,
+      decision.subjectId,
+      reusedSession.authenticators,
+      flowId,
+    ));
   if (reuseIsStale && outcome.prompts.has('none')) return reject('login_required');
 
   if (decision.kind === 'reuse' && reusedSession !== undefined && !reuseIsStale) {
@@ -634,7 +680,9 @@ export async function handleAuthorizationRequest(
     // cookie must not buy a subject out of an action a password login
     // would still owe (an admin-forced reset, unacknowledged recovery
     // codes, pending enrolment).
-    const action = nextRequiredAction(await deps.pendingActions(tenant.id, decision.subjectId));
+    const action = nextRequiredAction(
+      owedWithRequested(await deps.pendingActions(tenant.id, decision.subjectId), parked),
+    );
     if (action !== null) {
       // §3.1.2.1: `prompt=none` MUST NOT display any UI, required-action
       // page included — refused before a session is parked, the same as
@@ -725,7 +773,7 @@ export async function handleAuthorizationRequest(
   // "reauthentication cannot be performed" under `prompt=login`. Checked
   // before a session is started: nothing is parked and nothing rendered
   // for a login that could never succeed.
-  const initial = await deps.initialChallenge(tenant.id);
+  const initial = await deps.initialChallenge(tenant.id, flowId);
   if (initial.kind !== 'challenge') {
     if (initial.kind === 'success') {
       throw new Error('unreachable: initialChallenge succeeded with no input submitted');
@@ -802,7 +850,7 @@ export async function handleSelectAccountSubmission(
   // ever bound to it, so the ordinary login form resumes it exactly as if
   // it had rendered that form to begin with.
   const startedLogin = async (): Promise<SelectAccountOutcome> => {
-    const initial = await deps.initialChallenge(tenant.id);
+    const initial = await deps.initialChallenge(tenant.id, pending.flowId ?? null);
     if (initial.kind !== 'challenge') {
       if (initial.kind === 'success') {
         throw new Error('unreachable: initialChallenge succeeded with no input submitted');
@@ -880,11 +928,20 @@ export async function handleSelectAccountSubmission(
   if (!(await deps.enabledSubjects(tenant.id, [chosen.subjectId])).has(chosen.subjectId)) {
     return startedLogin();
   }
-  if (!(await deps.sessionMeetsFlow(tenant.id, chosen.subjectId, chosen.authenticators))) {
+  if (
+    !(await deps.sessionMeetsFlow(
+      tenant.id,
+      chosen.subjectId,
+      chosen.authenticators,
+      pending.flowId ?? null,
+    ))
+  ) {
     return startedLogin();
   }
 
-  const action = nextRequiredAction(await deps.pendingActions(tenant.id, chosen.subjectId));
+  const action = nextRequiredAction(
+    owedWithRequested(await deps.pendingActions(tenant.id, chosen.subjectId), pending),
+  );
   if (action !== null) {
     await deps.markAuthenticated(tenant.id, authSessionId, chosen.subjectId, chosen.authenticators);
     return { kind: 'required_action', authSessionId, subjectId: chosen.subjectId, action };

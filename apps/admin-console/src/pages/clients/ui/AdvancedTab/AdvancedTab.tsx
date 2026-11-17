@@ -8,6 +8,8 @@ import { Installation } from '#/pages/clients/ui/Installation';
 import type { ClientTabProps } from '#/pages/clients/ui/ClientTabProps';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { Button } from '#/shared/ui/Button';
+import { ButtonLink } from '#/shared/ui/ButtonLink';
+import { ChecklistField } from '#/shared/ui/ChecklistField';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import {
   NumberWithUnitField,
@@ -19,6 +21,7 @@ import {
   ToggleField,
   UrlField,
 } from '#/shared/ui/Field';
+import { InlineFailed } from '#/shared/ui/InlineFailed';
 import { Problem } from '#/shared/ui/Message';
 import { Panel } from '#/shared/ui/Panel';
 import { SecretDialog } from '#/shared/ui/SecretDialog';
@@ -93,7 +96,7 @@ function Fixed({ title, items }: { title: string; items: ClientAdvanced['fixedBy
 export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabProps) {
   const page = useClientAdvanced({ tenant, client, etag, gone });
   const secret = useClientSecret(tenant, client);
-  const { auth, keys, userinfo, audiences, exchange } = page;
+  const { auth, keys, userinfo, audiences, exchange, actions, flow } = page;
   const method = auth.values.token_endpoint_auth_method;
   const source = keys.values.key_source;
   return (
@@ -258,6 +261,45 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
               exchange.edit('token_exchange_actor_from_other_client', value);
             }}
           />
+        </SaveSection>
+        <SaveSection
+          title={page.sections.actions}
+          description={page.actionsRule}
+          save={actions}
+          blocked={page.actionsBlocked}
+        >
+          <ChecklistField
+            label={page.actionsLabel}
+            options={page.actionOptions}
+            value={actions.values.allowed_actions}
+            error={actions.fieldErrors.allowed_actions}
+            changed={actions.changed.includes('allowed_actions')}
+            onChange={(value) => {
+              actions.edit('allowed_actions', value);
+            }}
+          />
+        </SaveSection>
+        <SaveSection title={page.sections.flow} description={page.flowRule} save={flow}>
+          <SelectField
+            label={page.flowLabel}
+            options={page.flowOptions}
+            value={flow.values.flow_id}
+            error={flow.fieldErrors.flow_id}
+            changed={flow.changed.includes('flow_id')}
+            onChange={(value) => {
+              flow.edit('flow_id', value);
+            }}
+          />
+          {page.flowsProblem === null ? null : (
+            <InlineFailed message={page.flowsProblem} retry={page.retryFlows} />
+          )}
+          {page.flowEditorHref === null ? null : (
+            <div>
+              <ButtonLink href={page.flowEditorHref} size="small" variant="quiet">
+                {page.flowEditorLabel}
+              </ButtonLink>
+            </div>
+          )}
         </SaveSection>
       </ReadOnlyFields>
       {secret.fixed !== null ? (

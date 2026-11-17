@@ -1,6 +1,7 @@
 import { cliOptions, type CliCommand } from '#/cli/command-types';
 import { INIT_OPTIONS } from '#/cli/init-options';
 import { MCP_OPTIONS } from '#/cli/mcp-options';
+import { RECONCILE_OPTIONS } from '#/cli/reconcile-options';
 import {
   ASSERTION_OPTIONS,
   SEED_BOOTSTRAP_HELP,
@@ -94,6 +95,16 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
     example: 'odudu reap',
   },
   {
+    name: 'reconcile-accounts',
+    summary:
+      'Fold accounts that hold one address apart from its case into one, in every tenant, ' +
+      'and print what was merged, refused and failed as JSON. Run it before the release ' +
+      'that makes an address unique. Safe to run again.',
+    options: cliOptions(RECONCILE_OPTIONS),
+    subcommands: NONE,
+    example: 'odudu reconcile-accounts --dry-run',
+  },
+  {
     name: 'domains',
     summary: 'Operate on custom domains.',
     options: [],
@@ -109,6 +120,34 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
       },
     ],
     example: 'odudu domains recheck',
+  },
+  {
+    name: 'breached-passwords',
+    summary:
+      'Load a file of SHA-1 password hashes, one per line with an optional :count, into the ' +
+      "dataset a tenant's breached-password check reads, and print the counts as JSON.",
+    options: [],
+    subcommands: [
+      {
+        name: 'load',
+        summary:
+          'Read the file in chunks and add the hashes the dataset lacks. Safe to run again ' +
+          'with the same file. The one argument is the file path.',
+        options: [],
+        subcommands: NONE,
+        example: 'odudu breached-passwords load pwned-passwords-sha1-ordered-by-hash.txt',
+      },
+      {
+        name: 'status',
+        summary:
+          'Print whether the dataset holds any hash and how many, counted up to a million, as JSON. ' +
+          'An empty dataset refuses no password, and the audit trail records it as dataset_empty.',
+        options: [],
+        subcommands: NONE,
+        example: 'odudu breached-passwords status',
+      },
+    ],
+    example: 'odudu breached-passwords load pwned-passwords-sha1-ordered-by-hash.txt',
   },
   {
     name: 'send-mail',

@@ -1,13 +1,18 @@
 import {
+  PROFILE_CLAIM_NAMES,
   REGISTRATION_POLICY_SETTINGS,
   tenantSettingsDocumentSchema,
+  TENANT_SETTING_CHOICES,
   TENANT_SETTING_ORDERINGS,
   TENANT_SETTING_RANGES,
 } from '@odudu/contracts/admin';
+import { ACCESS_SECTIONS } from '#/pages/settings/services/accessSections';
+import { PLATFORM_SECTIONS } from '#/pages/settings/services/platformSections';
 import { SETTINGS_WORDS } from '#/pages/settings/services/settingsPageWords';
 import { describe, expect, it } from 'vitest';
 import {
   PLACED_ELSEWHERE,
+  SECTION_GROUPS,
   sectionHeadingId,
   SETTINGS_SECTIONS,
 } from '#/pages/settings/services/sections';
@@ -64,6 +69,131 @@ describe('SETTINGS_SECTIONS', () => {
       )?.control;
       expect(['seconds', 'count']).toContain(control);
     }
+  });
+});
+
+describe('the authenticator policy', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'authenticators');
+  const named = (name: string) => home?.fields.find((field) => field.name === name);
+
+  it('sits in one section with the recovery warning its count bounds', () => {
+    expect(home?.fields.map((field) => field.name)).toEqual([
+      'totp_algorithm',
+      'totp_digits',
+      'totp_period',
+      'webauthn_user_verification',
+      'webauthn_resident_key',
+      'recovery_code_count',
+      'recovery_code_warn_below',
+    ]);
+  });
+
+  it('lays the fields out in three groups, one per kind of authenticator', () => {
+    expect([...new Set(home?.fields.map((field) => field.group))]).toEqual([
+      'Authenticator app',
+      'Passkeys',
+      'Recovery codes',
+    ]);
+  });
+
+  it('keeps the sign-in policy in a section of its own and names its prerequisite', () => {
+    const policy = SETTINGS_SECTIONS.find((section) => section.id === 'passkey-requirement');
+    expect(policy?.fields.map((field) => field.name)).toEqual(['require_passkey']);
+    expect(policy?.fields[0]?.more).toContain('no public base URL');
+  });
+
+  it('offers exactly the values the server accepts, digits and period as numbers', () => {
+    for (const [name, choices] of Object.entries(TENANT_SETTING_CHOICES)) {
+      // These two live in the password policy, which has its own test below.
+      if (name.startsWith('breached_')) continue;
+      const field = named(name);
+      expect(field?.control).toBe('choice');
+      expect(field?.options?.map((option) => option.id)).toEqual(choices.map(String));
+      expect(field?.numeric === true).toBe(typeof choices[0] === 'number');
+    }
+  });
+});
+
+describe('the breached-password check', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'password');
+  const named = (name: string) => home?.fields.find((field) => field.name === name);
+
+  it('sits in the password policy, after the rules it follows', () => {
+    const names = home?.fields.map((field) => field.name) ?? [];
+    expect(names.slice(-2)).toEqual(['breached_check', 'breached_on_error']);
+  });
+
+  it('offers exactly the values the server accepts', () => {
+    for (const name of ['breached_check', 'breached_on_error']) {
+      expect(named(name)?.control).toBe('choice');
+      expect(named(name)?.options?.map((option) => option.id)).toEqual(
+        TENANT_SETTING_CHOICES[name]?.map(String),
+      );
+    }
+  });
+
+  it('says that off means no check, and what a failed remote lookup does', () => {
+    expect(named('breached_check')?.options?.find((option) => option.id === 'off')?.label).toBe(
+      'Off',
+    );
+    expect(named('breached_on_error')?.dependsOn).toEqual({
+      on: 'breached_check',
+      value: 'remote',
+      otherwise: 'Applies to the remote lookup only.',
+    });
+  });
+});
+
+describe('the terms', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'terms');
+
+  it('are an address and a version in a section of their own, address first', () => {
+    expect(home?.fields.map((field) => [field.name, field.control])).toEqual([
+      ['terms_uri', 'url'],
+      ['terms_version', 'text'],
+    ]);
+  });
+
+  it('say that setting them asks nobody', () => {
+    expect(home?.description).toContain('asks nobody');
+  });
+});
+
+describe('the required profile fields', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'profile');
+
+  it('are a set in a section of their own, offering exactly the claims a person writes', () => {
+    expect(home?.fields.map((field) => [field.name, field.control])).toEqual([
+      ['required_profile_fields', 'set'],
+    ]);
+    expect(home?.fields[0]?.options?.map((option) => option.id)).toEqual([...PROFILE_CLAIM_NAMES]);
+  });
+
+  it('fix none of them, since an empty list is allowed', () => {
+    expect(home?.fields[0]?.options?.some((option) => option.fixed !== undefined)).toBe(false);
+  });
+});
+
+describe('SECTION_GROUPS', () => {
+  it('lists every section once, in the order the page draws them', () => {
+    const listed = SECTION_GROUPS.flatMap((group) => group.ids);
+    expect(listed).toEqual(SETTINGS_SECTIONS.map((section) => section.id));
+    expect(new Set(listed).size).toBe(listed.length);
+    const defined = [...ACCESS_SECTIONS, ...PLATFORM_SECTIONS].map((section) => section.id);
+    expect([...listed].sort()).toEqual([...defined].sort());
+  });
+
+  it('keeps the password rules beside the lockout that guards them', () => {
+    const signIn = SECTION_GROUPS.find((group) => group.title === 'Sign-in')?.ids ?? [];
+    expect(signIn).toEqual(expect.arrayContaining(['password', 'brute-force']));
+  });
+});
+
+describe('the password policy groups', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'password');
+
+  it('puts every field in a group', () => {
+    expect(home?.fields.every((field) => field.group !== undefined)).toBe(true);
   });
 });
 

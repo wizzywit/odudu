@@ -364,6 +364,7 @@ describe('the removal of the last TOTP against a set being issued', () => {
       const outcome = await beginRecoveryCodes(tx, {
         tenantId: s.tenant.id,
         subjectId: s.subjectId,
+        now: new Date(),
       });
       issuedSet();
       await hold;

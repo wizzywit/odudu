@@ -8,6 +8,7 @@ import {
   tenantSettingsRepository,
   registerActionTokenRoute,
   registerRegistrationRoute,
+  registerResendVerificationRoute,
   registerResetPasswordRoute,
   type CreateAccountResult,
   type NewAccountInput,
@@ -39,11 +40,14 @@ import { requiredActionRepository } from '@odudu/authn-flows';
 import { consoleGateway } from '@odudu/console-gateway';
 import { instrumentRoutes } from '@odudu/instrument';
 import {
+  createBreachedPasswordCheck,
+  type RangeFetch,
   credentialRepository,
   evaluatePassword,
   hashUserPassword,
   isEmailAddress,
   lockEmailForCreation,
+  pendingEmailRepository,
   REUSED_PASSWORD,
   subjectRepository,
   userRepository,
@@ -66,6 +70,7 @@ import {
   registerResourceMetadataRoute,
   type ToolLimiterOptions,
 } from '@odudu/mcp';
+import { isMeRoute, meRefusalHeaders, registerMeRoutes } from '@odudu/me';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -99,7 +104,9 @@ import Fastify, {
 import { randomBytes } from 'node:crypto';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
+import { BREACHED_LOOKUPS_IN_PROCESS, createBreachedRangeFetch } from '#/breached-range-transport';
 import { findHeldSignInIn } from '#/held-sign-in';
+import { findReturnClient } from '#/return-client';
 import {
   createCimdRequest,
   createClientKeyRequest,
@@ -111,9 +118,11 @@ import { registerDomainCheck } from '#/domain-check';
 import { configureHostResolution } from '#/host-resolution';
 import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
+import { queueOwnVerification } from '#/own-verification';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
 import { mcpRouteDepsFor } from '#/mcp-deps';
+import { meRouteDepsFor } from '#/me-deps';
 import { mcpRegistrationBudget } from '#/mcp-registration-budget';
 import { throttleOrigin } from '#/throttle-origin';
 
@@ -261,6 +270,19 @@ export interface AppDeps {
    * anything is read for them. Defaults to `DEFAULT_MCP_ORIGIN_THROTTLE`.
    */
   readonly mcpOriginThrottle?: ThrottleSettings;
+  /**
+   * The budget per origin on the "me" routes, a preflight included, spent before
+   * the token is looked at. Defaults to `DEFAULT_ME_ORIGIN_THROTTLE`.
+   */
+  readonly meOriginThrottle?: ThrottleSettings;
+  /**
+   * How many refused "me" requests an origin may have answered with the
+   * origin's own allowance, which costs two reads. Defaults to
+   * `DEFAULT_ME_REFUSAL_THROTTLE`.
+   */
+  readonly meRefusalThrottle?: ThrottleSettings;
+  /** The clock of the two "me" limiters, so a test can fix it. */
+  readonly meThrottleNow?: () => Date;
   /** The proxy's domain question; its own budget, per origin. */
   readonly domainCheckThrottle?: ThrottleSettings;
   /**
@@ -281,6 +303,12 @@ export interface AppDeps {
     readonly lookup: (hostname: string) => Promise<readonly string[]>;
     readonly request: CimdRequest;
   };
+  /**
+   * How a remote breached-password lookup is made. The default is the pinned
+   * request to the one fixed host, behind the address guard; a test of the
+   * whole path swaps the request, never the host or the guard.
+   */
+  readonly breachedRangeFetch?: RangeFetch;
   /**
    * The same escape hatch for the relay a tenant configures through
    * `PUT /smtp`. Separate from `allowPrivateClientUrls` because an
@@ -323,6 +351,26 @@ export const DEFAULT_DOMAIN_CHECK_THROTTLE: ThrottleSettings = { limit: 300, win
 // bounds what garbage tokens can cost in tenant and key reads before the
 // per-principal budget, which needs a verified token, applies.
 export const DEFAULT_MCP_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, windowSeconds: 60 };
+
+// An application's backend calls the "me" routes for many people from one
+// address, so the budget is that of the MCP endpoint: generous, and a bound on
+// what one origin can make the server verify, not a limit on a person.
+export const DEFAULT_ME_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, windowSeconds: 60 };
+
+// A refused request is answered before anything about it is read; the origin's
+// allowance, which lets a script see the refusal, costs two reads, so only this
+// many an origin a minute get it.
+export const DEFAULT_ME_REFUSAL_THROTTLE: ThrottleSettings = { limit: 60, windowSeconds: 60 };
+
+function tenantParam(request: { readonly params: unknown }): string | undefined {
+  const params = request.params;
+  return typeof params === 'object' &&
+    params !== null &&
+    'tenant' in params &&
+    typeof params.tenant === 'string'
+    ? params.tenant
+    : undefined;
+}
 
 export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
 
@@ -391,6 +439,7 @@ const PAGE_POSTS: ReadonlySet<string> = new Set([
   SIGN_IN_POST,
   '/tenants/:tenant/login-actions/registration',
   '/tenants/:tenant/login-actions/reset-password',
+  '/tenants/:tenant/login-actions/resend-verification',
 ]);
 
 const THROTTLED_POSTS: ReadonlySet<string> = new Set([
@@ -544,6 +593,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     now: () => new Date(),
   });
 
+  // One check for every password write; its per-tenant concurrency limit is
+  // held in this instance, so it is built once per process.
+  const breachedPasswordCheck = createBreachedPasswordCheck({
+    concurrencyInProcess: BREACHED_LOOKUPS_IN_PROCESS,
+    fetchRange:
+      deps.breachedRangeFetch ??
+      createBreachedRangeFetch({ allowPrivate: deps.allowPrivateClientUrls ?? false }),
+  });
+
   // private_key_jwt's own address-guarded fetcher (RFC 7523 §2.2, ADR
   // 0028) — the real `node:https`/`node:dns` pair `#/client-key-transport`
   // wraps, shared by every tenant's clients the way the cache in
@@ -599,6 +657,35 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const decision = mcpOriginLimiter.check(throttleOrigin(request.ip));
     if (!decision.allowed) return refuse(reply, MCP_PATH_FORM, decision.retryAfterSeconds);
     neutraliseRequestInput(request);
+  });
+
+  // The "me" routes verify a token before they know whose request it is, so an
+  // origin spends its own budget first, whichever method it uses.
+  const meNow = deps.meThrottleNow ?? (() => new Date());
+  const meOriginLimiter: RateLimiter = slidingWindow({
+    ...(deps.meOriginThrottle ?? DEFAULT_ME_ORIGIN_THROTTLE),
+    now: meNow,
+  });
+  const meRefusalLimiter: RateLimiter = slidingWindow({
+    ...(deps.meRefusalThrottle ?? DEFAULT_ME_REFUSAL_THROTTLE),
+    now: meNow,
+  });
+  app.addHook('onRequest', async (request, reply) => {
+    const route = request.routeOptions.url;
+    if (!isMeRoute(route)) return;
+    const decision = meOriginLimiter.check(throttleOrigin(request.ip));
+    if (decision.allowed) return;
+    // Without the origin's allowance a script sees a network error, not the
+    // wait; with it, only for as many refusals as the second budget allows.
+    const tenant = tenantParam(request);
+    if (
+      tenant !== undefined &&
+      request.headers.origin !== undefined &&
+      meRefusalLimiter.check(throttleOrigin(request.ip)).allowed
+    ) {
+      reply.headers(await meRefusalHeaders(meDeps, tenant, request.headers.origin));
+    }
+    return refuse(reply, route ?? '', decision.retryAfterSeconds);
   });
 
   // After the throttle, so a throttled request costs no statement about its
@@ -745,9 +832,25 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     oidcRoutes({
       resolveBranding: branding.resolveBranding,
       resolveOverrides: messageOverrides.resolveOverrides,
+      resolveMailLook: mailLook,
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
+      breachedPasswordCheck,
+      queueVerificationLink: (tenantId, subjectId, request) =>
+        queueOwnVerification(
+          {
+            database: deps.database,
+            publicBaseUrl: deps.publicBaseUrl,
+            deploymentSmtp: deps.deploymentSmtp ?? false,
+            mailGate,
+            resolveMailLook: mailLook,
+            now: () => systemClock.now(),
+          },
+          tenantId,
+          subjectId,
+          request,
+        ),
       clientSecretLimiter,
       mcpRegistrationLimiter: mcpRegistrations,
       auditRefusalBudget: auditRefusalBudget(() => new Date()),
@@ -788,6 +891,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       createToolLimiter({ ...DEFAULT_TOOL_LIMITS, ...deps.mcpToolLimits }),
     ),
   );
+  const mailGate = deps.mailGate ?? createMailGate(() => systemClock.now());
+  const meDeps = meRouteDepsFor({
+    database: deps.database,
+    ownerDatabase: deps.ownerDatabase,
+    kek: deps.kek,
+    logger: deps.logger,
+    publicBaseUrl: deps.publicBaseUrl,
+    mail: {
+      resolveMailLook: mailLook,
+      mailGate,
+      deploymentSmtp: deps.deploymentSmtp ?? false,
+    },
+  });
+  registerMeRoutes(app, meDeps);
 
   // getCurrentEmail, markVerified and setPassword are the only points where
   // @odudu/account reaches @odudu/domain-identity's users and credentials
@@ -795,7 +912,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // itself stays free of that dependency
   // (packages/account/src/usecase/verify-email.ts explains why).
   const findHeldSignIn = findHeldSignInIn(deps.database, tls);
-  const mailGate = deps.mailGate ?? createMailGate(() => systemClock.now());
 
   const themed = {
     resolveBranding: branding.resolveBranding,
@@ -808,6 +924,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     ...themed,
     database: deps.database,
     findHeldSignIn,
+    findReturnClient,
     now: () => systemClock.now(),
     findTaken,
     lockAddress: (tx, tenantId, email) => lockEmailForCreation(tx, tenantId, email),
@@ -831,8 +948,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
     getCurrentEmail: async (tx, subjectId) =>
       (await userRepository(tx).bySubjectId(subjectId))?.email ?? null,
+    // Proving the address ends the action that asked for it, whichever tab the
+    // link was opened in.
     markVerified: async (tx, subjectId) => {
       await userRepository(tx).markEmailVerified(subjectId);
+      await requiredActionRepository(tx).complete(subjectId, 'verify-email');
+    },
+    changeAddress: {
+      lockAddress: (tx, tenantId, email) => lockEmailForCreation(tx, tenantId, email),
+      takePending: (tx, subjectId, email) => pendingEmailRepository(tx).take(subjectId, email),
+      holderOf: (tx, email) => userRepository(tx).holderOfEmail(email),
+      replaceVerified: async (tx, subjectId, email) => {
+        await userRepository(tx).replaceVerifiedEmail(subjectId, email);
+        await requiredActionRepository(tx).complete(subjectId, 'verify-email');
+      },
     },
     // A subject an administrator created has no password until a link gives
     // it its first, the way `POST …/subjects/:id/password` creates one.
@@ -858,6 +987,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return user.username;
     },
     evaluatePassword,
+    breachedCheck: breachedPasswordCheck,
     // A subject with no password credential at all has nothing to leave
     // unchanged, so there is nothing to refuse.
     unchangedPasswordViolations: async (tx, subjectId, candidate) => {
@@ -888,6 +1018,24 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     isEmailAddress,
     mailGate,
     evaluatePassword,
+    breachedCheck: breachedPasswordCheck,
+  });
+
+  registerResendVerificationRoute(app, {
+    ...themed,
+    database: deps.database,
+    findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
+    publicBaseUrl: deps.publicBaseUrl,
+    now: () => systemClock.now(),
+    mailGate,
+    proofOwed: async (tx, subjectId, email) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      if (user === null) return null;
+      const owed =
+        (user.email === email && !user.emailVerified) ||
+        (await pendingEmailRepository(tx).forSubject(subjectId)) === email;
+      return owed ? { locale: user.locale } : null;
+    },
   });
 
   registerResetPasswordRoute(app, {

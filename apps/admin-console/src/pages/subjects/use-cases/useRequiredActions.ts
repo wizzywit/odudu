@@ -1,15 +1,13 @@
-import type { SetRequiredActionsResponse } from '#/entities/subject';
 import { useRefusal } from '#/entities/session';
 import type { RecordState } from '#/shared/lib/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
 import { accessRefusal } from '#/shared/lib/services/capabilities';
+import { signsInAsItself } from '#/pages/subjects/services/subjectAccount';
 import {
   describeActions,
   REQUIRED_ACTION_OPTIONS,
   requiredActionsInOrder,
-} from '#/pages/subjects/services/requiredActions';
-import { signsInAsItself } from '#/pages/subjects/services/subjectAccount';
-import {
+  type SetRequiredActionsResponse,
   type Subject,
   saveActions,
   useActionsRecord,

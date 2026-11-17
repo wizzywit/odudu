@@ -49,6 +49,7 @@ const CLIENT: ExportedClient = {
   id_token_signed_response_alg: null,
   default_max_age: null,
   require_auth_time: false,
+  allowed_actions: [],
   service_account_roles: [{ name: 'billing-reader', client: null }],
 };
 
@@ -88,6 +89,20 @@ const DOCUMENT: TenantDocument = {
     login_ttl_seconds: 1800,
     verify_email_ttl_seconds: 43_200,
     reset_password_ttl_seconds: 300,
+    session_freshness_seconds: 300,
+    recovery_code_warn_below: 3,
+    totp_algorithm: 'SHA1',
+    totp_digits: 6,
+    totp_period: 30,
+    webauthn_user_verification: 'required',
+    webauthn_resident_key: 'required',
+    recovery_code_count: 10,
+    require_passkey: false,
+    breached_check: 'dataset',
+    breached_on_error: 'open',
+    terms_uri: null,
+    terms_version: '1',
+    required_profile_fields: ['given_name', 'family_name'],
     login_with_email: false,
     cimd_enabled: false,
     audit_event_types: ['admin_mutation', 'admin_access'],
@@ -192,6 +207,22 @@ describe('tenantDocumentSchema', () => {
     });
   });
 
+  it('imports a client of a document from before allowed actions with none', () => {
+    const older: Record<string, unknown> = { ...CLIENT };
+    delete older.allowed_actions;
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, clients: [older] });
+    expect(result.success).toBe(true);
+    expect(result.data?.clients[0]?.allowed_actions).toEqual([]);
+  });
+
+  it('refuses an allowed action that is not a required action', () => {
+    const result = tenantDocumentSchema.safeParse({
+      ...DOCUMENT,
+      clients: [{ ...CLIENT, allowed_actions: ['delete-account'] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('imports a document from before languages and overrides: English only, no default, none', () => {
     const without = (record: object, ...names: string[]): Record<string, unknown> =>
       Object.fromEntries(Object.entries(record).filter(([name]) => !names.includes(name)));
@@ -203,6 +234,116 @@ describe('tenantDocumentSchema', () => {
     expect(result.data?.settings.supported_locales).toEqual(['en']);
     expect(result.data?.settings.default_locale).toBeNull();
     expect(result.data?.message_overrides).toEqual([]);
+  });
+
+  it('imports a document from before the authenticator policy with the values every enrolment used', () => {
+    const names = [
+      'totp_algorithm',
+      'totp_digits',
+      'totp_period',
+      'webauthn_user_verification',
+      'webauthn_resident_key',
+      'recovery_code_count',
+    ];
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => !names.includes(name)),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings).toMatchObject({
+      totp_algorithm: 'SHA1',
+      totp_digits: 6,
+      totp_period: 30,
+      webauthn_user_verification: 'required',
+      webauthn_resident_key: 'required',
+      recovery_code_count: 10,
+    });
+  });
+
+  it('imports a document from before the passkey switch with it off', () => {
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => name !== 'require_passkey'),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings.require_passkey).toBe(false);
+  });
+
+  it('imports a document from before the breached-password check with the defaults', () => {
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => !name.startsWith('breached_')),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings.breached_check).toBe('dataset');
+    expect(result.data?.settings.breached_on_error).toBe('open');
+  });
+
+  it('imports a document from before the terms with none, at version 1', () => {
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => !name.startsWith('terms_')),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings.terms_uri).toBeNull();
+    expect(result.data?.settings.terms_version).toBe('1');
+  });
+
+  it('imports a document from before the required profile fields with the default two', () => {
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => name !== 'required_profile_fields'),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings.required_profile_fields).toEqual(['given_name', 'family_name']);
+  });
+
+  it('refuses a required profile field that is no claim, and the address', () => {
+    for (const bad of ['email', 'username', 'nope']) {
+      const result = tenantDocumentSchema.safeParse({
+        ...DOCUMENT,
+        settings: { ...DOCUMENT.settings, required_profile_fields: [bad] },
+      });
+      expect(result.success, bad).toBe(false);
+    }
+  });
+
+  it('refuses a terms version that is empty or past 64 characters', () => {
+    for (const bad of ['', 'x'.repeat(65)]) {
+      const result = tenantDocumentSchema.safeParse({
+        ...DOCUMENT,
+        settings: { ...DOCUMENT.settings, terms_version: bad },
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it('refuses a breached-password source nobody offers', () => {
+    for (const bad of [{ breached_check: 'always' }, { breached_on_error: 'maybe' }]) {
+      const result = tenantDocumentSchema.safeParse({
+        ...DOCUMENT,
+        settings: { ...DOCUMENT.settings, ...bad },
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it('refuses an authenticator parameter nobody offers', () => {
+    for (const bad of [
+      { totp_algorithm: 'MD5' },
+      { totp_digits: 7 },
+      { totp_period: 45 },
+      { webauthn_user_verification: 'maybe' },
+      { webauthn_resident_key: 'maybe' },
+      { recovery_code_count: 7 },
+      { recovery_code_count: 17 },
+    ]) {
+      const result = tenantDocumentSchema.safeParse({
+        ...DOCUMENT,
+        settings: { ...DOCUMENT.settings, ...bad },
+      });
+      expect(result.success).toBe(false);
+    }
   });
 
   it('imports a client and a scope from before per-language text with every map empty', () => {

@@ -408,6 +408,11 @@ async function beforeJsonBody(
   return undefined;
 }
 
+function emptyBodyIfAbsent(request: AdminRequest, _reply: FastifyReply, done: () => void): void {
+  request.body ??= {};
+  done();
+}
+
 // Before any of the body is read: who is asking, which kind and how large.
 // A refusal answers without the body ever being consumed.
 async function beforeRawBody(
@@ -518,6 +523,11 @@ export function registerAdminRoutes(
         ...(route.querystringSchema !== undefined ? { querystring: route.querystringSchema } : {}),
         ...(route.bodySchema !== undefined ? { body: route.bodySchema } : {}),
       },
+      // A body the schema allows to be absent reaches validation as an empty
+      // object, which Fastify would otherwise refuse as no object at all.
+      ...(route.bodySchema?.safeParse(undefined).success === true
+        ? { preValidation: emptyBodyIfAbsent }
+        : {}),
       handler: (request: AdminRequest, reply: FastifyReply) =>
         handleRoute(route, handler, deps, request, reply, gate),
     };

@@ -98,6 +98,15 @@ describe('a create answers the ETag its record reads back with', () => {
       read: (id) => `/scopes/${id}`,
     },
     {
+      route: 'POST /admin/tenants/:tenant/flows',
+      tail: '/flows',
+      body: () => ({
+        name: `f-${newId()}`,
+        steps: [{ authenticator: 'password', requirement: 'required' }],
+      }),
+      read: (id) => `/flows/${id}`,
+    },
+    {
       route: 'POST /admin/tenants/:tenant/keys',
       tail: '/keys',
       body: () => ({ alg: 'ES256' }),

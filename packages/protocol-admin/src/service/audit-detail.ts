@@ -39,6 +39,8 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     id_token_signed_response_alg: 'value',
     default_max_age: 'value',
     require_auth_time: 'value',
+    allowed_actions: 'value',
+    flow_id: 'value',
     service_subject_id: 'value',
     // `jwks` reaches here through `clientWireShape` and can really change
     // on an amend. `secret_hash` and `password_encrypted` cannot: neither
@@ -51,17 +53,38 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     password_encrypted: 'sensitive',
     jwks: 'sensitive',
   },
+  flow: {
+    name: 'value',
+    steps: 'value',
+    is_default: 'value',
+  },
   tenant: {
     name: 'value',
     display_name: 'value',
     enabled: 'value',
   },
-  // The two settings that decide who may become a client of the tenant and the
-  // three that are wording people read: the display name and the languages.
-  // Every other setting stays out of the audit detail, as an unlisted field does.
+  // The settings that decide who may become a client of the tenant, how fresh
+  // a sign-in must be, what a new authenticator is made with, whether a
+  // passkey is required, where a new password is checked for breaches, the terms people are asked to accept, and the
+  // wording people read: the display name and the languages. Every other
+  // setting stays out of the audit detail, as an unlisted field does.
   tenant_settings: {
     client_registration_policy: 'value',
     cimd_enabled: 'value',
+    session_freshness_seconds: 'value',
+    recovery_code_warn_below: 'value',
+    totp_algorithm: 'value',
+    totp_digits: 'value',
+    totp_period: 'value',
+    webauthn_user_verification: 'value',
+    webauthn_resident_key: 'value',
+    recovery_code_count: 'value',
+    require_passkey: 'value',
+    breached_check: 'value',
+    breached_on_error: 'value',
+    terms_uri: 'value',
+    terms_version: 'value',
+    required_profile_fields: 'value',
     display_name: 'value',
     supported_locales: 'value',
     default_locale: 'value',
@@ -186,6 +209,7 @@ export function redactedDiff(
 const CREATED_DEFAULTS: Record<string, Record<string, unknown>> = {
   role: { description: null, client_id: null, default_for_new_subjects: false },
   group: { description: null, parent_id: null, default_for_new_subjects: false },
+  flow: { is_default: false },
   scope: {
     description: null,
     include_in_id_token: true,

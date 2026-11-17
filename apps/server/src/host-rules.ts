@@ -76,11 +76,11 @@ export function tenantOfPath(url: string): string | null {
 }
 
 // What a tenant's previous address still answers for the window after a
-// switch: discovery, the endpoints a token already issued is used at, and the
-// brand files the logout page draws. Anything else is somewhere the tenant no
+// switch: discovery, the endpoints a token already issued is used at (the
+// "me" API's routes among them), and the brand files the logout page draws. Anything else is somewhere the tenant no
 // longer offers, and gets the pointer to its canonical address.
 const WINDOW_SERVES =
-  /^\/tenants\/[^/?#]+(?:\/\.well-known\/(?:openid-configuration|oauth-authorization-server|oauth-protected-resource\/mcp)|\/protocol\/openid-connect\/(?:token|token\/introspect|revoke|userinfo|certs|logout)|\/brand\/[^?#]*)(?:\?.*)?$/u;
+  /^\/tenants\/[^/?#]+(?:\/\.well-known\/(?:openid-configuration|oauth-authorization-server|oauth-protected-resource\/mcp)|\/protocol\/openid-connect\/(?:token|token\/introspect|revoke|userinfo|certs|logout)|\/brand\/[^?#]*|\/me\/(?:profile|credentials|sessions|consents)(?:\/[^?#]*)?)(?:\?.*)?$/u;
 
 const WINDOW_SERVES_AS_METADATA =
   /^\/\.well-known\/oauth-authorization-server\/tenants\/[^/?#]+(?:\?.*)?$|^\/\.well-known\/oauth-protected-resource\/tenants\/[^/?#]+\/mcp(?:\?.*)?$/u;

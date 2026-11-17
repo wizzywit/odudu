@@ -2,7 +2,8 @@ import type { Step } from '#/pages/flow/services/steps';
 import { andList } from '#/shared/lib/services/format';
 import type { GatewayResult } from '#/shared/lib/services/result';
 
-const STEP_AT = /^\[(\d+)\]/u;
+// The default flow's list is the body, a named flow's is under `steps`.
+const STEP_AT = /^(?:steps)?\[(\d+)\]/u;
 
 // The authenticator of the step a refusal's `errors[0].path` points at, in
 // the list that was sent.
@@ -34,6 +35,8 @@ function refusalText(
       } It has ${andList(available)}.`;
     case 'about:blank#flow-duplicate-authenticator':
       return `${named === undefined ? 'An authenticator' : `“${named}”`} is a step twice. An authenticator is one step.`;
+    case 'about:blank#flow-step-settings':
+      return `${named === undefined ? 'A step' : `“${named}”`} carries settings it does not read. Set them back to the tenant’s value.`;
     default:
       return title;
   }
@@ -49,6 +52,8 @@ export function flowOutcome<R>(
 ): GatewayResult<R> {
   if (result.ok || result.kind !== 'problem' || result.problem.status !== 400) return result;
   const { problem } = result;
+  // A refused name is placed under the name by the section, as it came.
+  if (problem.errors?.[0]?.path === 'name') return result;
   const text = refusalText(problem.type, problem.title, problem.errors?.[0]?.path, sent, available);
   return {
     ...result,

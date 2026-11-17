@@ -406,6 +406,28 @@ This registration presented no credential, so `registration_origin` is
 (ADR 0027) — an anonymous registrant is not the operator vouching for a
 client the way `seed client` or a token-authorized registration is.
 
+Some settings are an administrator's alone, and a registration that names one is refused, not quietly dropped, so a registrant
+cannot believe it set one: `skip_logout_confirmation`, and `allowed_actions`, the credential changes a client may send a person
+to ([the run](./sending-a-person-to-change-a-credential.md)). Against the same tenant, with its policy open as above:
+
+```bash
+curl -sS -D - -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"allowed_actions":["update-password"]}'
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a1cc8b-e943-7622-890e-575dcdd499f5
+content-type: application/json; charset=utf-8
+content-length: 131
+Date: Wed, 11 Nov 2026 21:38:03 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"error":"invalid_client_metadata","error_description":"allowed_actions is not accepted at registration: an administrator sets it"}
+```
+
 The `token` policy is stricter: a request with no bearer credential is
 refused before anything is validated, with `WWW-Authenticate` naming the
 scheme and no `error` parameter (RFC 6750 §3.1's distinction between an

@@ -13,20 +13,30 @@ import {
   listLimitMessage,
   type Client,
   type ClientFields,
+  type ApplicationAction,
   type ListClientsQuery,
 } from '@odudu/contracts/admin';
+import { flowRepository } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roles } from '@odudu/domain-authz';
 import { subjects } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  ALLOWED_ACTION_NAMES,
+  ALLOWED_ACTIONS_NEED_ME_READ,
+  ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
   COUNTED_BY_MAX_CLIENTS,
   MCP_CLIENT_ID,
+  allowedActionsHaveMeRead,
   clientRepository,
   clients,
   clientScopeAssignments,
+  clientScopeRepository,
   clientScopes,
+  distinctAllowedActions,
+  isAllowedAction,
   provisionClientDefaults,
+  unknownAllowedActions,
   type ClientRecord,
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
@@ -61,6 +71,7 @@ import {
   BUILTIN_ADMIN_AMENDABLE_FIELDS,
   refusalFor,
 } from '#/service/client-patch';
+import { checkedFlowId, unknownFlowRefusal } from '#/service/client-flow';
 import { etagOf, hasPrecondition, matches } from '#/service/etag';
 import { publicJwks } from '#/service/public-jwks';
 import { tenantLanguages } from '#/usecase/tenant-languages';
@@ -128,6 +139,8 @@ const CLIENT_VIEW_COLUMNS = {
   idTokenSignedResponseAlg: clientOidcConfig.idTokenSignedResponseAlg,
   defaultMaxAge: clientOidcConfig.defaultMaxAge,
   requireAuthTime: clientOidcConfig.requireAuthTime,
+  allowedActions: clientOidcConfig.allowedActions,
+  flowId: clientOidcConfig.flowId,
   previousSecretExpiresAt: clients.previousSecretExpiresAt,
 };
 
@@ -179,6 +192,8 @@ export interface ClientView {
   readonly idTokenSignedResponseAlg: string | null;
   readonly defaultMaxAge: number | null;
   readonly requireAuthTime: boolean;
+  readonly allowedActions: ApplicationAction[];
+  readonly flowId: string | null;
   readonly previousSecretExpiresAt: Date | null;
   readonly scopes: readonly ClientScopeAssignmentView[];
   // Derived on every read and outside the ETag; empty without a service account.
@@ -512,7 +527,7 @@ export type CreateClientOutcome =
       field?: string;
     }
   | { kind: 'refused_field'; field: string; reason: string }
-  | { kind: 'invalid_value'; field: string; description: string }
+  | { kind: 'invalid_value'; field: string; description: string; code?: string }
   | { kind: 'at_capacity' }
   | { kind: 'ok'; client: ClientView; secret: string | null };
 
@@ -575,6 +590,8 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): StoredVie
     idTokenSignedResponseAlg: config.idTokenSignedResponseAlg,
     defaultMaxAge: config.defaultMaxAge,
     requireAuthTime: config.requireAuthTime,
+    allowedActions: config.allowedActions,
+    flowId: config.flowId,
     previousSecretExpiresAt: client.previousSecretExpiresAt,
   };
 }
@@ -667,6 +684,21 @@ export async function createClient(
   if (isFieldError(admin)) {
     await auditRefusal();
     return { kind: 'invalid_value', ...admin };
+  }
+
+  const unknownFlow = await refusedFlow(tx, input.tenantId, admin.config.flowId);
+  if (unknownFlow !== null) {
+    await auditRefusal();
+    return { kind: 'invalid_value', ...unknownFlow };
+  }
+
+  const requestedActions = admin.config.allowedActions ?? [];
+  if (
+    requestedActions.length > 0 &&
+    !allowedActionsHaveMeRead(requestedActions, await scopesOfNewClient(tx))
+  ) {
+    await auditRefusal();
+    return { kind: 'invalid_value', ...allowedActionsRefusal() };
   }
 
   // Locked and counted the same way `registerClient` gates dynamic
@@ -822,6 +854,8 @@ export function clientWireShape(view: ClientView): ClientFields {
     id_token_signed_response_alg: view.idTokenSignedResponseAlg,
     default_max_age: view.defaultMaxAge,
     require_auth_time: view.requireAuthTime,
+    allowed_actions: view.allowedActions,
+    flow_id: view.flowId,
     previous_secret_expires_at: view.previousSecretExpiresAt?.toISOString() ?? null,
     builtin_admin: view.builtinAdmin,
     service_subject_id: view.serviceSubjectId,
@@ -855,7 +889,7 @@ export interface AmendClientDeps {
 export type AmendClientOutcome =
   | { kind: 'not_found' }
   | { kind: 'refused_field'; field: string; reason: string }
-  | { kind: 'invalid_value'; field: string; description: string }
+  | { kind: 'invalid_value'; field: string; description: string; code?: string }
   | {
       kind: 'invalid_metadata';
       error: 'invalid_redirect_uri' | 'invalid_client_metadata';
@@ -870,7 +904,7 @@ export type AmendClientOutcome =
   | LastAdministratorRefusal
   | { kind: 'ok'; client: ClientView; etag: string };
 
-// The six list fields the schema stores whole (the same six
+// The list fields the schema stores whole (the same six
 // `clientOidcConfigRepository.update`'s own comment names) and the two
 // per-language maps, replaced whole the same way: last-write-wins
 // on one silently reinstates exactly what another admin just removed, so a
@@ -885,6 +919,7 @@ const WHOLESALE_LIST_FIELDS = [
   'audiences',
   'grant_types',
   'client_credentials_scopes',
+  'allowed_actions',
 ] as const;
 
 // RFC 7591 client metadata this amendment reruns through
@@ -915,10 +950,25 @@ const METADATA_FIELDS = new Set<string>([
 interface FieldError {
   readonly field: string;
   readonly description: string;
+  readonly code?: string;
 }
 
 function isFieldError(value: unknown): value is FieldError {
   return typeof value === 'object' && value !== null && 'field' in value && 'description' in value;
+}
+
+// Under the tenant's flow lock, the one every flow write takes, so the flow
+// cannot be deleted between this read and the client's write: a deletion
+// waits, then counts this client among those that name it.
+async function refusedFlow(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  flowId: string | null | undefined,
+): Promise<FieldError | null> {
+  if (flowId === undefined || flowId === null) return null;
+  const flows = flowRepository(tx);
+  await flows.lockForTenant(tenantId);
+  return (await flows.byId(tenantId, flowId)) === null ? unknownFlowRefusal() : null;
 }
 
 function checkedString(field: string, value: unknown): string | FieldError {
@@ -945,6 +995,32 @@ function checkedStringArray(field: string, value: unknown): string[] | FieldErro
         description: listLimitMessage(value.length),
       }
     : value;
+}
+
+function checkedAllowedActions(value: unknown): ApplicationAction[] | FieldError {
+  const listed = checkedStringArray('allowed_actions', value);
+  if (isFieldError(listed)) return listed;
+  const [unknown] = unknownAllowedActions(listed);
+  return unknown === undefined
+    ? distinctAllowedActions(listed.filter(isAllowedAction))
+    : {
+        field: 'allowed_actions',
+        description: `allowed_actions entry ${JSON.stringify(unknown)} is not an action a client may start: ${ALLOWED_ACTION_NAMES.join(', ')}`,
+      };
+}
+
+function allowedActionsRefusal(): FieldError {
+  return {
+    field: 'allowed_actions',
+    description: ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
+    code: ALLOWED_ACTIONS_NEED_ME_READ,
+  };
+}
+
+// The scopes a client created now would hold: those its tenant assigns to every new client.
+async function scopesOfNewClient(tx: TenantScopedDatabase): Promise<string[]> {
+  const all = await clientScopeRepository(tx).allForTenant();
+  return all.filter((scope) => scope.defaultClientAssignment !== null).map((scope) => scope.name);
 }
 
 function checkedDescription(value: unknown, current?: string | null): string | null | FieldError {
@@ -1021,6 +1097,8 @@ const ADMIN_FIELDS = new Set<string>([
   'web_origins',
   'post_logout_redirect_uris',
   'client_credentials_scopes',
+  'allowed_actions',
+  'flow_id',
   'access_token_ttl_seconds',
   'id_token_ttl_seconds',
   'refresh_token_ttl_seconds',
@@ -1045,6 +1123,8 @@ interface AdminFieldPatches {
     webOrigins?: string[];
     postLogoutRedirectUris?: string[];
     clientCredentialsScopes?: string[];
+    allowedActions?: ApplicationAction[];
+    flowId?: string | null;
     accessTokenTtlSeconds?: number | null;
     idTokenTtlSeconds?: number | null;
     refreshTokenTtlSeconds?: number | null;
@@ -1115,13 +1195,26 @@ function checkedAdminFields(
     client.skipLogoutConfirmation = checked;
   }
 
+  if ('flow_id' in values) {
+    const checked = checkedFlowId(values.flow_id);
+    if (isFieldError(checked)) return checked;
+    config.flowId = checked;
+  }
+
   for (const field of [
     'audiences',
     'web_origins',
     'post_logout_redirect_uris',
     'client_credentials_scopes',
+    'allowed_actions',
   ] as const) {
     if (!(field in values)) continue;
+    if (field === 'allowed_actions') {
+      const actions = checkedAllowedActions(values[field]);
+      if (isFieldError(actions)) return actions;
+      config.allowedActions = actions;
+      continue;
+    }
     const checked = checkedStringArray(field, values[field]);
     if (isFieldError(checked)) return checked;
     if (field === 'audiences') config.audiences = checked;
@@ -1299,6 +1392,17 @@ export async function amendClient(
     await languagesFor(tx, clientRow.tenantId, input.values),
   );
   if (isFieldError(admin)) return { kind: 'invalid_value', ...admin };
+  const unknownFlow = await refusedFlow(tx, clientRow.tenantId, admin.config.flowId);
+  if (unknownFlow !== null) return { kind: 'invalid_value', ...unknownFlow };
+  if (
+    'allowed_actions' in input.values &&
+    !allowedActionsHaveMeRead(
+      admin.config.allowedActions ?? [],
+      (await clientScopeRepository(tx).forClient(input.clientDbId)).map((scope) => scope.name),
+    )
+  ) {
+    return { kind: 'invalid_value', ...allowedActionsRefusal() };
+  }
   const clientPatch = admin.client;
   const configPatch: Partial<Omit<typeof clientOidcConfig.$inferInsert, 'clientId' | 'tenantId'>> =
     { ...admin.config };

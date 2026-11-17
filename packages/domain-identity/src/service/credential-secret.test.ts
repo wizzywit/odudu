@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCredentialSecret } from '#/service/credential-secret';
+import { parseCredentialSecret, serializeCredentialSecret } from '#/service/credential-secret';
 
 describe('parseCredentialSecret', () => {
   it('reads a password secret', () => {
@@ -17,6 +17,49 @@ describe('parseCredentialSecret', () => {
         lastStep: 57_000_000,
       }),
     ).toEqual({ kind: 'totp', secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 57_000_000 });
+  });
+
+  it('reads the parameters a totp secret was made under, and keeps them on the way out', () => {
+    const stored = {
+      secret: 'JBSWY3DPEHPK3PXP',
+      digits: 8,
+      lastStep: 0,
+      algorithm: 'SHA256',
+      period: 60,
+    };
+    const parsed = parseCredentialSecret('totp', stored);
+    expect(parsed).toEqual({ kind: 'totp', ...stored });
+    expect(serializeCredentialSecret(parsed)).toEqual(stored);
+  });
+
+  it('refuses a totp algorithm and period nobody offers', () => {
+    const base = { secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 0 };
+    expect(() => parseCredentialSecret('totp', { ...base, algorithm: 'MD5' })).toThrow();
+    expect(() => parseCredentialSecret('totp', { ...base, period: 0 })).toThrow();
+  });
+
+  it('reads the parameters a webauthn secret was made under, and keeps them on the way out', () => {
+    const stored = {
+      publicKey: 'pQECAyY',
+      counter: 7,
+      transports: ['internal'],
+      userVerification: 'preferred',
+      residentKey: 'discouraged',
+    };
+    const parsed = parseCredentialSecret('webauthn', stored);
+    expect(parsed).toEqual({ kind: 'webauthn', ...stored });
+    expect(serializeCredentialSecret(parsed)).toEqual(stored);
+  });
+
+  it('writes a secret without parameters exactly as before', () => {
+    expect(
+      serializeCredentialSecret({
+        kind: 'totp',
+        secret: 'JBSWY3DPEHPK3PXP',
+        digits: 6,
+        lastStep: 0,
+      }),
+    ).toEqual({ secret: 'JBSWY3DPEHPK3PXP', digits: 6, lastStep: 0 });
   });
 
   it('reads a webauthn secret with its counter', () => {

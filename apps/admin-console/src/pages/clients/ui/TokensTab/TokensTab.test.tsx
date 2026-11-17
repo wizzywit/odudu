@@ -34,8 +34,8 @@ it('shows each lifetime as the tenant default until the client is given one of i
   ).toHaveValue('600');
   expect(within(section).getByText('600 s · 10 minutes')).toBeVisible();
   expect(within(section).getAllByText(/Takes the tenant's/u)).toHaveLength(2);
-  expect(within(section).getAllByText('Between 1 s and 3600 s · 1 hour.')).toHaveLength(2);
-  expect(within(section).getByText('At least 1 s.')).toBeVisible();
+  expect(within(section).getAllByText('Allowed: 1 s to 3600 s · 1 hour.')).toHaveLength(2);
+  expect(within(section).getByText('Allowed: at least 1 s.')).toBeVisible();
 });
 
 it("changes a lifetime and saves all three on the ETag it read, null handing one back to the tenant's", async () => {

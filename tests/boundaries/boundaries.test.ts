@@ -145,6 +145,27 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(found.some((v) => v.from.includes('apps/server/src/composes-mcp'))).toBe(false);
   });
 
+  it('rejects the me package importing a package outside its allowlist', async () => {
+    const found = await violations('me-allowlist');
+    expect(
+      found.some((v) => v.from.includes('me/src/reaches-admin') && v.to.includes('protocol-admin')),
+    ).toBe(true);
+    expect(found.some((v) => v.from.includes('me/src/allowed'))).toBe(false);
+  });
+
+  it('rejects a protocol package importing the me package', async () => {
+    const found = await violations('me-imported-only-by-server');
+    expect(
+      found.some((v) => v.from.includes('protocol-oidc') && v.to.includes('packages/me/')),
+    ).toBe(true);
+  });
+
+  it('lets only apps/server import the me package', async () => {
+    const found = await violations('me-imported-only-by-server');
+    expect(found.some((v) => v.from.includes('domain-example/src/imports-me'))).toBe(true);
+    expect(found.some((v) => v.from.includes('apps/server/src/composes-me'))).toBe(false);
+  });
+
   it('rejects a circular import', async () => {
     expect((await violations('no-circular')).length).toBeGreaterThan(0);
   });

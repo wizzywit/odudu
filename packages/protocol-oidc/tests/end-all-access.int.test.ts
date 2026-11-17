@@ -19,7 +19,7 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 import { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';
 import { tokenGrants } from '#/schema/token-grants';
-import { endAllAccess } from '#/usecase/end-session';
+import { endAllAccess, endOtherSessions } from '#/usecase/end-session';
 
 // A recovered account loses every session and grant it held. The work is a
 // handful of statements however many sessions there are.
@@ -191,5 +191,80 @@ describe('endAllAccess', () => {
       .from(backchannelLogoutDeliveries)
       .where(eq(backchannelLogoutDeliveries.tenantId, tenantId));
     expect(deliveries).toHaveLength(450);
+  });
+});
+
+describe('endOtherSessions', () => {
+  const issuer = 'https://idp.test';
+
+  async function liveSessions(subjectId: string): Promise<string[]> {
+    const rows = await owner.db
+      .select({ id: sessions.id, expiresAt: sessions.expiresAt })
+      .from(sessions)
+      .where(eq(sessions.subjectId, subjectId));
+    return rows.filter((row) => row.expiresAt.getTime() > NOW.getTime()).map((row) => row.id);
+  }
+
+  it('ends every session but the one in use, with its grants and deliveries', async () => {
+    const { tenantId, subjectId } = await holder(4);
+    const [keep] = await liveSessions(subjectId);
+    if (keep === undefined) throw new Error('no session');
+    await withTenant(app.db, tenantId, (tx) =>
+      endOtherSessions(tx, { kek: KEK }, { tenantId, subjectId, now: NOW, issuer, except: keep }),
+    );
+    expect(await liveSessions(subjectId)).toEqual([keep]);
+    const live = await owner.db
+      .select({ sessionId: tokenGrants.sessionId, revokedAt: tokenGrants.revokedAt })
+      .from(tokenGrants)
+      .where(and(eq(tokenGrants.subjectId, subjectId), isNull(tokenGrants.revokedAt)));
+    expect(live.map((row) => row.sessionId).sort()).toEqual([keep, null].sort());
+    const deliveries = await owner.db
+      .select({ sessionId: backchannelLogoutDeliveries.sessionId })
+      .from(backchannelLogoutDeliveries)
+      .where(eq(backchannelLogoutDeliveries.tenantId, tenantId));
+    expect(deliveries).toHaveLength(3);
+    expect(deliveries.map((row) => row.sessionId)).not.toContain(keep);
+    const ended = await owner.db
+      .select({ detail: auditEvents.detail })
+      .from(auditEvents)
+      .where(and(eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, 'session.ended')));
+    expect(ended).toHaveLength(3);
+    expect(ended.every((row) => (row.detail as { via?: string }).via === 'self')).toBe(true);
+  });
+
+  it('ends them all when none is in use', async () => {
+    const { tenantId, subjectId } = await holder(2);
+    await withTenant(app.db, tenantId, (tx) =>
+      endOtherSessions(tx, { kek: KEK }, { tenantId, subjectId, now: NOW, issuer, except: null }),
+    );
+    expect(await liveSessions(subjectId)).toEqual([]);
+  });
+
+  it('reaches no session of another tenant', async () => {
+    const mine = await holder(2);
+    const theirs = await holder(2);
+    await withTenant(app.db, mine.tenantId, (tx) =>
+      endOtherSessions(
+        tx,
+        { kek: KEK },
+        { tenantId: mine.tenantId, subjectId: theirs.subjectId, now: NOW, issuer, except: null },
+      ),
+    );
+    expect(await liveSessions(theirs.subjectId)).toHaveLength(2);
+  });
+
+  it('takes a few statements a page when a subject holds more than a page', async () => {
+    const { tenantId, subjectId } = await holder(250);
+    const [keep] = await liveSessions(subjectId);
+    statements = 0;
+    await withTenant(counting.db, tenantId, (tx) =>
+      endOtherSessions(
+        tx,
+        { kek: KEK },
+        { tenantId, subjectId, now: NOW, issuer, except: keep ?? null },
+      ),
+    );
+    expect(statements).toBeLessThan(40);
+    expect(await liveSessions(subjectId)).toEqual([keep]);
   });
 });

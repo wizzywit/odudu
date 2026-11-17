@@ -1,4 +1,4 @@
-import { pathAddress, mcpAudienceOfIssuer, addressIssuer } from '@odudu/kernel';
+import { pathAddress, mcpAudienceOfIssuer, meAudienceOfIssuer, addressIssuer } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import {
   validateMcpToken,
@@ -164,6 +164,17 @@ describe('a token that does not verify', () => {
     expect(await validateMcpToken(deps({ claims: asString }), input())).toMatchObject({
       kind: 'unauthenticated',
     });
+  });
+
+  it('refuses a token whose audience is the "me" API, alone or beside the MCP URL', async () => {
+    const me = meAudienceOfIssuer(ISSUER);
+    for (const aud of [[me], [RESOURCE, me]]) {
+      const claims = { ...CLAIMS, aud };
+      expect(await validateMcpToken(deps({ claims }), input())).toEqual({
+        kind: 'unauthenticated',
+        reason: 'me_audience',
+      });
+    }
   });
 
   it.each([

@@ -1,9 +1,18 @@
-import { evaluatePassword, REUSED_PASSWORD } from '@odudu/domain-identity';
+import {
+  BREACH_CHECK_UNAVAILABLE,
+  BREACHED_PASSWORD,
+  evaluatePassword,
+  REUSED_PASSWORD,
+} from '@odudu/domain-identity';
 import { DEFAULT_PAGE_LOCALE, PASSWORD_TOO_LONG, pageHeaders, pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { type PasswordViolation } from '#/schema/password-violation';
 import { en } from '#/view/messages';
-import { renderUpdatePasswordPage } from '#/view/update-password-html';
+import {
+  renderRequestedUpdatePasswordPage,
+  renderUpdatePasswordPage,
+} from '#/view/update-password-html';
+import { ar } from '#/view/messages.ar';
 import { ARABIC, FRENCH } from '@odudu/testkit/i18n';
 
 vi.mock('#/view/messages', async (importOriginal) => {
@@ -94,8 +103,12 @@ describe('every rule the domain reports is worded by the catalogue', () => {
       ...evaluatePassword('baseball', policy, subject),
       REUSED_PASSWORD,
       PASSWORD_TOO_LONG,
+      BREACHED_PASSWORD,
+      BREACH_CHECK_UNAVAILABLE,
     ];
     expect([...new Set(reported.map((violation) => violation.rule))].sort()).toEqual([
+      'breach-check-unavailable',
+      'breached-password',
       'common-password',
       'max-length',
       'min-length',
@@ -179,8 +192,30 @@ describe('renderUpdatePasswordPage', () => {
     </ul>
   </div>
   <script nonce="N">…</script>
+  <label><input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions</label>
   <button type="submit">Update password</button>
 </form>`);
+  });
+
+  it('offers to end the other sessions, checked, on both variants', () => {
+    for (const render of [renderUpdatePasswordPage, renderRequestedUpdatePasswordPage]) {
+      const { body } = render(
+        'demo',
+        pathAddress('https://idp.example', 'demo'),
+        'sess-1',
+        undefined,
+        POLICY_RULES,
+        DEFAULT_PAGE_LOCALE,
+      );
+      expect(body).toContain(
+        '<input type="checkbox" name="end_other_sessions" id="end-other-sessions" value="true" checked> End my other sessions',
+      );
+    }
+  });
+
+  it('has an Arabic twin for the offer', () => {
+    expect(ar['updatePassword.endOtherSessions']).toBeTruthy();
+    expect(ar['updatePassword.endOtherSessions']).not.toBe(en['updatePassword.endOtherSessions']);
   });
 
   it('lists no violations when there are none', () => {

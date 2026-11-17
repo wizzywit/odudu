@@ -29,7 +29,12 @@ import {
   sessionRepository,
 } from '@odudu/authn-flows';
 import { roleRepository, subjectRoles } from '@odudu/domain-authz';
-import { hashPassword, subjectRepository, userRepository } from '@odudu/domain-identity';
+import {
+  createBreachedPasswordCheck,
+  hashPassword,
+  subjectRepository,
+  userRepository,
+} from '@odudu/domain-identity';
 import {
   ADMIN_API_AUDIENCE,
   ADMIN_CLIENT_ID,
@@ -336,6 +341,10 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: createBreachedPasswordCheck({
+        concurrencyInProcess: 8,
+        fetchRange: () => Promise.reject(new Error('no remote lookup expected')),
+      }),
       tls: false,
       ...(options.domainsBaseUrl === undefined ? {} : { publicBaseUrl: options.domainsBaseUrl }),
       database: app,

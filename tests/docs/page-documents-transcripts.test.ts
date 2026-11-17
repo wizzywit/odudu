@@ -8,6 +8,7 @@ import {
   renderAuthorizeErrorPage,
   type WayOn,
 } from '../../packages/protocol-oidc/src/view/authorize-html.js';
+import { type ClientSource } from '../../packages/protocol-oidc/src/service/client-source.js';
 import { renderConsentPage } from '../../packages/protocol-oidc/src/view/consent-html.js';
 import { page } from '../../packages/protocol-oidc/src/view/document.js';
 import {
@@ -42,6 +43,7 @@ import {
 import {
   renderVerificationFailedPage,
   renderEmailConfirmPage,
+  renderVerificationResentPage,
   renderVerificationSucceededPage,
 } from '../../packages/account/src/view/verification-html.js';
 import { renderSignInRefused } from '../../packages/console-gateway/src/view/refusal-html.js';
@@ -366,7 +368,7 @@ const actionsOf = (body: string): (typeof LINKED_ACTIONS)[number][] =>
     const found = LINKED_ACTIONS.find(
       (action) =>
         first(
-          renderRequiredActionsSucceededPage([action], null, LOCALE).body,
+          renderRequiredActionsSucceededPage([action], null, null, LOCALE).body,
           /<li>(.*)<\/li>/u,
         ) === text,
     );
@@ -380,6 +382,14 @@ const elidesOnlyTheQr = (block: Recorded): boolean =>
   documentOf(block)
     .filter((line) => line.includes('…'))
     .every((line) => line === QR_ELIDED);
+
+// The consent screen's note for a client that registered itself, read back
+// from the recorded body as the ClientSource the renderer made it from.
+function selfRegisteredSource(body: string): ClientSource | null {
+  if (!body.includes('This application registered itself.')) return null;
+  const sentTo = /sent back to:<\/p>\n<p class="context"><bdi>(.*?)<\/bdi><\/p>/u.exec(body);
+  return { kind: 'self-registered', sentTo: sentTo?.[1] ?? null, origins: [], more: 0 };
+}
 
 // What the recorded markup says its inputs were, put back through the real
 // renderer: a page whose text or markup the server no longer produces for the
@@ -442,8 +452,17 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
   "Can't create this account": (body) =>
     renderRegistrationFailedPage(pathAddress(ORIGIN, tenantOf(body)), null, LOCALE).body,
   'Account created': () => renderRegistrationSucceededPage(false, null, LOCALE).body,
-  'Email confirmed': (body) => renderVerificationSucceededPage(continueOf(body), LOCALE).body,
-  "Can't verify this link": (body) => renderVerificationFailedPage(backOf(body), LOCALE).body,
+  'Email confirmed': (body) => renderVerificationSucceededPage(continueOf(body), null, LOCALE).body,
+  "Can't verify this link": (body) =>
+    renderVerificationFailedPage(
+      backOf(body),
+      null,
+      body.includes('/login-actions/resend-verification')
+        ? { address: pathAddress(ORIGIN, tenantOf(body)), key: keyOf(body) }
+        : null,
+      LOCALE,
+    ).body,
+  'Verification link requested': () => renderVerificationResentPage(LOCALE).body,
   'Forgot your password?': (body) => {
     const email = valueOf(body, 'email');
     return renderResetRequestForm(
@@ -465,7 +484,15 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
     renderEmailConfirmPage(
       pathAddress(ORIGIN, tenantOf(body)),
       keyOf(body),
-      body.includes('Account name:') ? first(body, /Account name: <bdi>(.*)<\/bdi>/u) : null,
+      {
+        tenant: first(body, /Account at <bdi>(.*)<\/bdi>/u),
+        email: body.includes('Email address:')
+          ? first(body, /Email address: <bdi>(.*)<\/bdi>/u)
+          : null,
+        username: body.includes('Account name:')
+          ? first(body, /Account name: <bdi>(.*)<\/bdi>/u)
+          : null,
+      },
       LOCALE,
     ).body,
   'Your account is ready': (body) => renderRegistrationReadyPage(continueOf(body), LOCALE).body,
@@ -480,13 +507,14 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
       rulesOf(body),
       LOCALE,
     ).body,
-  'Password reset': (body) => renderResetPasswordSucceededPage(backOf(body), LOCALE).body,
+  'Password reset': (body) => renderResetPasswordSucceededPage(backOf(body), null, LOCALE).body,
   "Can't use this link": (body) =>
     renderResetLinkFailedPage(
       body.includes('>Request a new link</a>')
         ? first(body, /<a href="([^"]*)">Request a new link<\/a>/u)
         : null,
       backOf(body),
+      null,
       LOCALE,
     ).body,
   'Update your account': (body) =>
@@ -501,7 +529,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
       LOCALE,
     ).body,
   'Account updated': (body) =>
-    renderRequiredActionsSucceededPage(actionsOf(body), backOf(body), LOCALE).body,
+    renderRequiredActionsSucceededPage(actionsOf(body), backOf(body), null, LOCALE).body,
   'Sign-in failed': () => renderSignInRefused(LOCALE).body,
   'Allow access?': (body) => {
     const link = (label: RegExp): string | null => {
@@ -524,6 +552,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
           clientUri: link(/About <bdi>.*?<\/bdi>/u),
           policyUri: link(/Privacy policy/u),
           tosUri: link(/Terms of service/u),
+          source: selfRegisteredSource(body),
         },
         defaultScopes: all(body.slice(body.indexOf('<ul>')), /^ {2}<li><bdi>(.*)<\/bdi><\/li>$/gmu),
         optionalScopes: optional.map((m) => unescaped(m[1] ?? '')),

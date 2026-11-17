@@ -164,14 +164,9 @@ describe('POST /subjects/:id/actions-email', () => {
     ['no action', () => ({ actions: [] }), 'actions'],
     ['an action the server does not support', () => ({ actions: ['verify-email'] }), 'actions'],
     [
-      'a redirect_uri, which nothing reads',
-      () => ({ actions: ['configure-totp'], redirect_uri: 'https://app.example/callback' }),
-      'redirect_uri',
-    ],
-    [
-      'a client_id, which nothing reads',
-      () => ({ actions: ['configure-totp'], client_id: 'app' }),
-      'client_id',
+      'a field nothing reads',
+      () => ({ actions: ['configure-totp'], return_to: 'https://app.example/callback' }),
+      'return_to',
     ],
   ])('refuses %s with 400 naming the field', async (_label, bodyFor, field) => {
     const t = await fixture.createTenant(`act-${newId()}`);

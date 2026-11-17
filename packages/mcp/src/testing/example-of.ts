@@ -16,7 +16,7 @@ const STRINGS = [
   '#1a2b3c',
   'en',
 ];
-const NUMBERS = [1, 0, 5, 100];
+const NUMBERS = [1, 0, 5, 100, 12];
 
 function defOf(schema: z.ZodType): Def {
   return schema.def as unknown as Def;

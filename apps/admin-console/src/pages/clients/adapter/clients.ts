@@ -98,6 +98,8 @@ export interface ClientChanges {
   id_token_signed_response_alg?: string | null;
   default_max_age?: number | null;
   require_auth_time?: boolean;
+  allowed_actions?: readonly string[];
+  flow_id?: string | null;
   frontchannel_logout_uri?: string;
   backchannel_logout_uri?: string;
   frontchannel_logout_session_required?: boolean;
@@ -134,6 +136,7 @@ const LISTS = [
   'audiences',
   'client_credentials_scopes',
   'grant_types',
+  'allowed_actions',
 ] as const;
 
 function wireChanges(changes: ClientChanges): Record<string, unknown> {

@@ -1,13 +1,8 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { provisionTenantDefaults } from '@odudu/domain-tenant';
-import { executionRepository } from '#/repository/executions';
-import { type Requirement } from '#/schema/execution';
+import { flowRepository } from '#/repository/flows';
+import { type FlowStep } from '#/schema/flow';
 import { isRegisteredAuthenticator } from '#/usecase/executor';
-
-interface DefaultExecution {
-  authenticator: string;
-  requirement: Requirement;
-}
 
 // A passkey or a password gets a subject through the first group; the OTP
 // step's own applicability — enrolled, or the tenant demands it, and never
@@ -15,8 +10,9 @@ interface DefaultExecution {
 // evaluator, not by this list. The recovery-code step is last and is
 // applicable only to a submission that actually carries a code, which is
 // what lets it substitute for the OTP step without ever competing with it;
-// migration 0040 appends it to tenants provisioned before it existed.
-export const BROWSER_FLOW_DEFAULT: readonly DefaultExecution[] = [
+// migration 0137 backfills a tenant's default flow from this list when it has no
+// steps of its own.
+export const BROWSER_FLOW_DEFAULT: readonly FlowStep[] = [
   { authenticator: 'passkey', requirement: 'alternative' },
   { authenticator: 'password', requirement: 'alternative' },
   { authenticator: 'otp', requirement: 'conditional' },
@@ -31,15 +27,14 @@ export async function provisionBrowserFlow(
   tx: TenantScopedDatabase,
   tenantId: string,
 ): Promise<void> {
-  const repository = executionRepository(tx);
-  for (const [index, execution] of BROWSER_FLOW_DEFAULT.entries()) {
-    // An unresolvable authenticator name has to fail here, not the first
-    // time somebody tries to log in against the row it produces.
-    if (!isRegisteredAuthenticator(execution.authenticator)) {
-      throw new Error(`unregistered authenticator '${execution.authenticator}' in browser flow`);
+  // An unresolvable authenticator name has to fail here, not the first
+  // time somebody tries to log in against the step it produces.
+  for (const step of BROWSER_FLOW_DEFAULT) {
+    if (!isRegisteredAuthenticator(step.authenticator)) {
+      throw new Error(`unregistered authenticator '${step.authenticator}' in browser flow`);
     }
-    await repository.create({ tenantId, index, ...execution });
   }
+  await flowRepository(tx).replaceDefaultSteps(tenantId, BROWSER_FLOW_DEFAULT);
 }
 
 // A tenant is not usable until it has both a scope vocabulary and a flow to

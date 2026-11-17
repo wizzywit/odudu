@@ -12,6 +12,7 @@ import {
   type PolicyViolation,
   type RegisterDeps,
   type TakenIdentifiers,
+  type BreachedCheck,
 } from '#/usecase/register';
 import { type MailGate } from '#/service/mail-gate';
 import { signInPath } from '#/service/sign-in-path';
@@ -82,6 +83,7 @@ export interface RegistrationRouteDeps extends BrandedLocaleDeps {
     policy: PasswordPolicy,
     subject: { username: string; email: string | null },
   ) => PolicyViolation[];
+  readonly breachedCheck: BreachedCheck;
 }
 
 // @fastify/formbody parses a repeated field into an array; every field this
@@ -133,14 +135,14 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
 
   app.post<{
     Params: { tenant: string };
-    Body: Record<string, string | string[] | undefined>;
+    Body: Record<string, string | string[] | undefined> | null | undefined;
   }>('/tenants/:tenant/login-actions/registration', async (request, reply) => {
     const tenant = await deps.findTenant(request.params.tenant);
     if (!tenantIsOpenForRegistration(tenant)) {
       return reply.code(404).send();
     }
 
-    const body = request.body;
+    const body = request.body ?? {};
     const username = firstNonEmptyString(body.username);
     const email = firstNonEmptyString(body.email);
     const candidate = readPasswordField(body.password);
@@ -223,6 +225,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
         verifyEmailTtlSeconds: tenant.verifyEmailTtlSeconds,
         passwordPolicy: tenant.passwordPolicy,
         evaluatePassword: deps.evaluatePassword,
+        breachedCheck: deps.breachedCheck,
       },
       { username, email, password },
     );

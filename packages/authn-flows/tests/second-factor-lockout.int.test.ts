@@ -318,7 +318,7 @@ describe('wrong recovery codes count too', () => {
   async function withCodes(clock: FakeClock): Promise<{ account: Account; codes: string[] }> {
     const account = await seedAccount(clock);
     const outcome = await withTenant(app.db, account.tenantId, (tx) =>
-      beginRecoveryCodes(tx, { tenantId: account.tenantId, subjectId: account.subjectId }),
+      beginRecoveryCodes(tx, { ...account, now: clock.now() }),
     );
     if (outcome.kind !== 'issued') throw new Error('expected a set to be issued');
     return { account, codes: [...outcome.offer.codes] };

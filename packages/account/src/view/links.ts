@@ -6,6 +6,12 @@ export interface WayOn {
   readonly text: string;
 }
 
+// The way back to the application an administrator's link was issued for, or
+// nothing when it names none or the client no longer registers the address.
+export function applicationWay(href: string | null, text: string): WayOn | null {
+  return href === null ? null : { href, text };
+}
+
 // The links that close a page, or nothing when there are none.
 export function links(ways: readonly (WayOn | null)[]): string {
   const present = ways.filter((way): way is WayOn => way !== null);

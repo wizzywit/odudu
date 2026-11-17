@@ -30,6 +30,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -279,6 +280,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: ownerHandle,
@@ -598,7 +600,7 @@ describe('second factors', () => {
     await enrolTotp(otpTenant, 'rita');
     const rita = subjectOf(otpTenant, 'rita');
     const outcome = await withTenant(app.db, otpTenant.id, (tx) =>
-      beginRecoveryCodes(tx, { tenantId: otpTenant.id, subjectId: rita }),
+      beginRecoveryCodes(tx, { tenantId: otpTenant.id, subjectId: rita, now: new Date() }),
     );
     if (outcome.kind !== 'issued') throw new Error('expected a set to be issued');
     const recoveryCode = outcome.offer.codes[0] ?? '';
@@ -647,11 +649,18 @@ describe('what the browser holds', () => {
     });
     expect(signedIn.res.statusCode).toBe(302);
 
-    const cookieValues = [signedIn.res.headers['set-cookie'] ?? []]
-      .flat()
-      .map((header) => /^[^=]+=([^;]*)/.exec(header)?.[1] ?? '')
+    const setCookies = [signedIn.res.headers['set-cookie'] ?? []].flat();
+    const valueOf = (header: string) => /^[^=]+=([^;]*)/.exec(header)?.[1] ?? '';
+    const cookieValues = setCookies
+      .filter((header) => header.includes('-session='))
+      .map(valueOf)
+      .filter((value) => value.length > 0);
+    const deviceValues = setCookies
+      .filter((header) => header.includes('-device='))
+      .map(valueOf)
       .filter((value) => value.length > 0);
     expect(cookieValues).toHaveLength(1);
+    expect(deviceValues).toHaveLength(1);
     const secrets = cookieValues.flatMap((value) =>
       value.split('.').map((entry) => entry.split(':')[1] ?? ''),
     );
@@ -664,7 +673,7 @@ describe('what the browser holds', () => {
       rows.some((row) => row.action === 'session.created' && row.requestId === signedIn.requestId),
     ).toBe(true);
     const serialised = JSON.stringify(rows);
-    for (const held of [authSessionId, ...cookieValues, ...secrets]) {
+    for (const held of [authSessionId, ...cookieValues, ...secrets, ...deviceValues]) {
       expect(serialised).not.toContain(held);
     }
     const digest = createHash('sha256').update(authSessionId).digest('hex');

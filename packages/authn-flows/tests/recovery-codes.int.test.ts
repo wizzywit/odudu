@@ -18,12 +18,11 @@ import {
 } from '@odudu/domain-identity';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type RecoveryCodesOffer } from '#/view/recovery-codes-html';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
-import { authenticationExecutions } from '#/schema/execution';
+import { flowRepository } from '#/repository/flows';
 import { RECOVERY_CODE_COUNT } from '#/service/authenticators/recovery';
 import {
   advance,
@@ -116,12 +115,17 @@ async function enrolTotp(
   expect(outcome).toEqual({ kind: 'enrolled' });
 }
 
+// Each issue is two hours after the last, so the hourly bound never refuses
+// the sets these tests replace one another with.
+let issueClock = Date.UTC(2032, 0, 1);
+
 // The offer of a set the subject was entitled to, or a failure naming why not.
 async function issued(
   tx: TenantScopedDatabase,
   input: { tenantId: string; subjectId: string },
 ): Promise<RecoveryCodesOffer> {
-  const outcome = await beginRecoveryCodes(tx, input);
+  issueClock += 2 * 3_600_000;
+  const outcome = await beginRecoveryCodes(tx, { ...input, now: new Date(issueClock) });
   if (outcome.kind !== 'issued') throw new Error('expected a set to be issued');
   return outcome.offer;
 }
@@ -525,11 +529,14 @@ describe('the OTP step stands down only for a recovery step that actually runs',
   it('challenges for a code when the tenant has no recovery step, even for a code it would accept', async () => {
     const clock = clockAt();
     const account = await seedAccountWithCodes(clock);
-    await withTenant(app.db, account.tenantId, (tx) =>
-      tx
-        .delete(authenticationExecutions)
-        .where(eq(authenticationExecutions.authenticator, 'recovery-code')),
-    );
+    await withTenant(app.db, account.tenantId, async (tx) => {
+      const repository = flowRepository(tx);
+      const current = await repository.defaultForTenant(account.tenantId);
+      await repository.replaceDefaultSteps(
+        account.tenantId,
+        (current?.steps ?? []).filter((step) => step.authenticator !== 'recovery-code'),
+      );
+    });
 
     const authSessionId = await signInWithPassword(account.tenantId, clock);
     const outcome = await present(account.tenantId, authSessionId, account.codes[0] ?? '', clock);

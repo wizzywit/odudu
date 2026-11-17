@@ -1,4 +1,4 @@
-import { MCP_SCOPES, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
+import { isMeScope, MCP_SCOPES, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
 
 // The names live in @odudu/domain-tenant, which the admin API reads them from too.
 export {
@@ -10,32 +10,38 @@ export {
 } from '@odudu/domain-tenant';
 
 // An MCP scope means something only at the MCP endpoint and the admin API it
-// calls for the person; at any other audience it would be a scope no resource
-// there defines (RFC 9068 §2.2.3). Every other scope is judged elsewhere.
+// calls for the person, and a "me" scope only at the "me" API; at any other
+// audience it would be a scope no resource there defines (RFC 9068 §2.2.3).
+// Every other scope is judged elsewhere.
 export function scopeAllowedAt(
   scope: string,
   audience: string,
   mcpAudience: string,
   adminAudience: string,
+  meAudience: string,
 ): boolean {
+  if (isMeScope(scope)) return audience === meAudience;
   if (!MCP_SCOPES.includes(scope)) return true;
   return audience === mcpAudience || audience === adminAudience;
 }
 
 // A token carries every audience it names, so a scope has to be allowed at
-// each of them; an MCP scope with no audience would reach no resource that
+// each of them; an MCP or "me" scope with no audience would reach no resource that
 // defines it.
 export function scopesCoherentWithAudience(
   scopes: readonly string[],
   audiences: readonly string[],
   mcpAudience: string,
   adminAudience: string,
+  meAudience: string,
 ): boolean {
   return scopes.every((scope) =>
-    !MCP_SCOPES.includes(scope)
+    !MCP_SCOPES.includes(scope) && !isMeScope(scope)
       ? true
       : audiences.length > 0 &&
-        audiences.every((audience) => scopeAllowedAt(scope, audience, mcpAudience, adminAudience)),
+        audiences.every((audience) =>
+          scopeAllowedAt(scope, audience, mcpAudience, adminAudience, meAudience),
+        ),
   );
 }
 

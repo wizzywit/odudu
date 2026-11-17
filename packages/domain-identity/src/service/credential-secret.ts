@@ -10,15 +10,26 @@ export type CredentialType =
   'password' | 'totp' | 'webauthn' | 'recovery-code' | 'password-history';
 
 const passwordShape = z.strictObject({ hash: z.string() });
+// The parameters a secret was made under are stored with it so a tenant's
+// later policy cannot change how it verifies. Absent only on a row nobody
+// has rewritten since they were introduced, which reads as the values every
+// such row was made with: SHA1 and a 30-second step; user verification and a
+// resident key both required.
+export const TOTP_ALGORITHMS = ['SHA1', 'SHA256', 'SHA512'] as const;
+export const WEBAUTHN_REQUIREMENTS = ['required', 'preferred', 'discouraged'] as const;
 const totpShape = z.strictObject({
   secret: z.string(),
   digits: z.number().int(),
   lastStep: z.number().int(),
+  algorithm: z.enum(TOTP_ALGORITHMS).optional(),
+  period: z.number().int().positive().optional(),
 });
 const webauthnShape = z.strictObject({
   publicKey: z.string(),
   counter: z.number().int(),
   transports: z.array(z.string()),
+  userVerification: z.enum(WEBAUTHN_REQUIREMENTS).optional(),
+  residentKey: z.enum(WEBAUTHN_REQUIREMENTS).optional(),
 });
 // usedAt is an ISO 8601 instant, absent until the code is spent. A recovery
 // code is single-use and the row outlives the use (ADR 0021), so "already
@@ -103,12 +114,22 @@ export function serializeCredentialSecret(secret: CredentialSecret): unknown {
         ? { hash: secret.hash }
         : { hash: secret.hash, usedAt: secret.usedAt };
     case 'totp':
-      return { secret: secret.secret, digits: secret.digits, lastStep: secret.lastStep };
+      return {
+        secret: secret.secret,
+        digits: secret.digits,
+        lastStep: secret.lastStep,
+        ...(secret.algorithm === undefined ? {} : { algorithm: secret.algorithm }),
+        ...(secret.period === undefined ? {} : { period: secret.period }),
+      };
     case 'webauthn':
       return {
         publicKey: secret.publicKey,
         counter: secret.counter,
         transports: secret.transports,
+        ...(secret.userVerification === undefined
+          ? {}
+          : { userVerification: secret.userVerification }),
+        ...(secret.residentKey === undefined ? {} : { residentKey: secret.residentKey }),
       };
   }
 }

@@ -207,8 +207,8 @@ HTTP/1.1 200 OK
 A revoke that asks for a new set, followed by the removal of the last TOTP,
 leaves nothing owed, and the next sign-in is not refused for a page that cannot
 be shown. On a fresh volume (the same names as above, so the ids are that run's:
-`olga` is `01a155ef-96aa-7aff-86c2-84b67d1c3a3d`, her TOTP row
-`d3c306d7-002d-487c-8d4b-acdd5817707d`), seeded with a TOTP and ten code rows as
+`olga` is `01a1d0a2-d04b-7af0-944b-3b68a6affcb2`, her TOTP row
+`3cbc28c3-a17c-4256-839e-51aa5f871729`), seeded with a TOTP and ten code rows as
 the database owner. `AUTHORIZE` is the helper's own URL for this tenant and
 client:
 
@@ -226,29 +226,30 @@ curl -sS -D - -o body.html --data-urlencode "auth_session_id=$sid" --data-urlenc
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a17af7-ee89-704a-92ca-cd753a64220d
+x-request-id: 01a1d0a2-d1c8-780f-95f7-ff58126d6bb4
 cache-control: no-store
-Date: Tue, 27 Oct 2026 01:27:11 GMT
+Date: Thu, 12 Nov 2026 16:41:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"actions":["generate-recovery-codes"]}
 HTTP/1.1 204 No Content
-x-request-id: 01a17af7-eebc-7305-9b17-41a84a5c5169
+x-request-id: 01a1d0a2-d20b-7636-9629-76541286a207
 cache-control: no-store
-Date: Tue, 27 Oct 2026 01:27:11 GMT
+Date: Thu, 12 Nov 2026 16:41:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"actions":[]}
 HTTP/1.1 302 Found
-x-request-id: 01a17af7-ef03-7a65-bd2d-1e5e9cbe4d0e
-set-cookie: recovery-life-session=01a17af7-ef36-7ca0-ac65-f9eeea0cf11e:XzGU66lkGUYr7IK4UZn6a3ZF8_AnXyAWrWJWojxPWFE; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a1d0a2-d256-7348-baea-0273af16c7a1
+set-cookie: recovery-life-session=01a1d0a2-d289-7709-869f-dd14a2a97687:gcJ4WPtaDSI2L1zw1mKJNAPLalH-uLoT5UtqPbET998; HttpOnly; SameSite=Lax; Path=/
 set-cookie: recovery-life-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: recovery-life-device=n65kuhgwQ-okikcGKni8Xw; HttpOnly; SameSite=Lax; Path=/; Max-Age=34560000
 set-cookie: odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/recovery-life/; Max-Age=0
-location: https://app.example/callback?code=6ZCnFFbW27Ex8es1NprEVmt2ImDtLH_E5QuvGPzCfD0&state=xyz&iss=http%3A%2F%2Flocalhost%3A3080%2Ftenants%2Frecovery-life
+location: https://app.example/callback?code=jEmauqKfC0kC9Nv28lbnVCxQX9MleteCwLonn24mEOs&state=xyz&iss=http%3A%2F%2Flocalhost%3A3187%2Ftenants%2Frecovery-life
 content-length: 0
-Date: Tue, 27 Oct 2026 01:27:11 GMT
+Date: Thu, 12 Nov 2026 16:41:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```

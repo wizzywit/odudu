@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { subjectIsEnabled, type SubjectRecord } from '@odudu/domain-identity';
 import { type ClientRecord } from '@odudu/domain-tenant';
 import { holdsMcpScope, refreshAllowedForScope } from '#/service/mcp-scopes';
+import { holdsMeScope, meWriteNeedsRead } from '#/service/me-scopes';
 import { type TokenGrantRecord } from '#/schema/token-grants';
 
 // 32 random bytes, base64url-encoded: same shape and entropy budget as
@@ -36,13 +37,20 @@ export type RefreshGrantDecision =
         | 'subject_disabled'
         | 'write_not_refreshable'
         | 'scope_widened'
-        | 'mcp_scope_dropped';
+        | 'mcp_scope_dropped'
+        | 'me_write_without_read'
+        | 'me_scope_dropped';
     };
 
 export function refusalIsAboutScope(
   reason: Extract<RefreshGrantDecision, { ok: false }>['reason'],
 ): boolean {
-  return reason === 'scope_widened' || reason === 'mcp_scope_dropped';
+  return (
+    reason === 'scope_widened' ||
+    reason === 'mcp_scope_dropped' ||
+    reason === 'me_write_without_read' ||
+    reason === 'me_scope_dropped'
+  );
 }
 
 // Stage 3's grant-specific rules for `refresh_token`, pure: no queries, no
@@ -78,6 +86,11 @@ export function evaluateRefreshGrant(
   // narrowing may not turn an agent's grant into one.
   if (holdsMcpScope(grantedTokens) && !holdsMcpScope(requestedTokens)) {
     return { ok: false, reason: 'mcp_scope_dropped' };
+  }
+
+  if (!meWriteNeedsRead(requestedTokens)) return { ok: false, reason: 'me_write_without_read' };
+  if (holdsMeScope(grantedTokens) && !holdsMeScope(requestedTokens)) {
+    return { ok: false, reason: 'me_scope_dropped' };
   }
 
   return { ok: true, scope: requestedTokens };

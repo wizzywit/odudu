@@ -57,6 +57,9 @@ function webpSize(file: string): { width: number; height: number } {
   return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
 }
 
+// 8080 is the demo client's own callback address, listed on its Advanced tab.
+const STRAY_PORT = /localhost:(?!3000\b|8080\/callback(?!\w))\d+/u;
+
 describe('the console captures', () => {
   it('has a light and a dark WebP of the size the manifest gives, for every screen', () => {
     expect(Object.keys(manifest).sort()).toEqual(SCREENS.map((screen) => screen.name).sort());
@@ -101,6 +104,13 @@ describe('the console captures', () => {
     expect(SECRET_REQUEST.test(at('subjects'))).toBe(false);
   });
 
+  it('lets a record name the stack port and the demo callback and no other local port', () => {
+    expect(STRAY_PORT.test('http://localhost:3000/tenants/demo')).toBe(false);
+    expect(STRAY_PORT.test('http://localhost:8080/callback')).toBe(false);
+    expect(STRAY_PORT.test('http://localhost:8080/callbackX')).toBe(true);
+    expect(STRAY_PORT.test('http://localhost:3086/tenants/demo')).toBe(true);
+  });
+
   it('keeps beside each image the text its page held, free of secrets', () => {
     for (const screen of SCREENS) {
       for (const theme of ['light', 'dark']) {
@@ -110,7 +120,7 @@ describe('the console captures', () => {
         expect(text.length, file).toBeGreaterThan(100);
         const seen = { text, attributes: [], fieldValues: [], passwordFieldsFilled: 0 };
         expect(findSecrets(seen, []), file).toEqual([]);
-        expect(/localhost:(?!3000\b)\d+/u.test(text), file).toBe(false);
+        expect(STRAY_PORT.test(text), file).toBe(false);
         // The administrator is the published default, or whoever the capture is given.
         const emails = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/gu) ?? [];
         expect(

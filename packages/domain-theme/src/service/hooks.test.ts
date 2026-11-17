@@ -88,6 +88,9 @@ describe('CSS hooks', () => {
       'page-passkey-enrolment',
       'page-recovery-codes',
       'page-update-password',
+      'page-verify-email',
+      'page-update-profile',
+      'page-accept-terms',
       'page-required-action',
       'page-registration',
       'page-reset',
@@ -111,7 +114,7 @@ describe('CSS hooks', () => {
 
   it('lists every other hook as one mainClass emits for a themed page', () => {
     const rest = CSS_HOOKS.filter((name) => !RENDERED_HOOKS.includes(name));
-    expect(rest).toHaveLength(17);
+    expect(rest).toHaveLength(20);
     const branding = {
       origin: 'https://idp.example',
       templates: {},
@@ -133,9 +136,9 @@ describe('CSS hooks', () => {
     for (const name of rendered) expect(CSS_HOOKS, name).toContain(name);
   });
 
-  it('carries a page- hook for each of the 17 page kinds', () => {
+  it('carries a page- hook for each of the 20 page kinds', () => {
     const kinds = Object.keys(PAGE_KINDS);
-    expect(kinds).toHaveLength(17);
+    expect(kinds).toHaveLength(20);
     for (const kind of kinds) expect(CSS_HOOKS).toContain(`page-${kind}`);
   });
 

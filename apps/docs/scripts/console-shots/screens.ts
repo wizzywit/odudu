@@ -9,13 +9,33 @@ const PERSON = 'ada';
 
 async function exists(page: Page, cell: string): Promise<boolean> {
   await page.getByRole('heading', { level: 1 }).waitFor();
-  await page.getByText(/^\d+ (client|clients|subject|subjects|tenant|tenants)$/u).waitFor();
+  const total = page.getByText(/^\d+ (client|clients|subject|subjects|tenant|tenants)$/u);
+  await total.waitFor();
+  const held = Number.parseInt((await total.innerText()).split(' ')[0] ?? '0', 10);
+  // The count is drawn before the rows: a row not yet there is not a row absent.
+  if (held > 0) await page.getByRole('row').nth(1).waitFor();
   return (await page.getByRole('row', { name: new RegExp(cell, 'u') }).count()) > 0;
 }
 
 async function openArea(page: Page, context: Context, area: string): Promise<void> {
   await page.goto(`${context.base}/console/${area}`);
   await page.getByRole('heading', { level: 1 }).waitFor();
+}
+
+// The windows the sections are photographed in, each as tall as the sections it shows.
+const TERMS_VIEW = { width: 1100, height: 1070 } as const;
+const AUTHENTICATORS_VIEW = { width: 1100, height: 1040 } as const;
+const PASSWORD_VIEW = { width: 1100, height: 890 } as const;
+
+// Scrolled so the section's heading sits just under the strip of section links.
+async function openSection(page: Page, context: Context, heading: string): Promise<void> {
+  await openArea(page, context, `${DEMO}/settings`);
+  const title = page.getByRole('heading', { level: 2, name: heading, exact: true });
+  await title.waitFor();
+  await title.evaluate((element) => {
+    const top = element.closest('section')?.getBoundingClientRect().top ?? 0;
+    window.scrollTo(0, window.scrollY + top - 72);
+  });
 }
 
 async function openList(page: Page, context: Context, area: string): Promise<void> {
@@ -265,9 +285,31 @@ export const SCREENS: readonly Screen[] = [
     },
   },
   {
+    name: 'client-actions',
+    alt: "my-app's record on its Advanced tab, scrolled to Application actions: a checklist of the four credential changes the client may start for a signed-in person, none chosen, with the section's save control.",
+    caption:
+      'The credential changes a client may send a signed-in person to. None is chosen until an administrator chooses.',
+    signedIn: true,
+    expect: [
+      { heading: CLIENT },
+      { role: 'tab', name: 'Advanced' },
+      { label: 'Register a passkey' },
+    ],
+    open: async (page, context) => {
+      await openList(page, context, 'clients');
+      await page.getByRole('row', { name: new RegExp(CLIENT, 'u') }).click();
+      await page.getByRole('tab', { name: 'Advanced' }).click();
+      const label = page.getByText('Actions an application may start', { exact: true });
+      await label.waitFor();
+      await label.evaluate((element) => {
+        element.scrollIntoView({ block: 'center' });
+      });
+    },
+  },
+  {
     name: 'scopes',
-    alt: "The demo tenant's Scopes list: openid, profile, email, address, phone, roles, groups, offline_access, mcp:read and mcp:write, with Restore built-in scopes and Create a scope buttons.",
-    caption: 'The ten scopes every tenant starts with.',
+    alt: "The demo tenant's Scopes list: openid, profile, email, address, phone, roles, groups, offline_access, mcp:read, mcp:write, me:read and me:write, with Restore built-in scopes and Create a scope buttons.",
+    caption: 'The twelve scopes every tenant starts with.',
     signedIn: true,
     expect: [
       { heading: 'Scopes' },
@@ -275,7 +317,7 @@ export const SCREENS: readonly Screen[] = [
       {
         rows: [
           'openid',
-          'profile',
+          'profile —',
           'email',
           'address',
           'phone',
@@ -284,12 +326,14 @@ export const SCREENS: readonly Screen[] = [
           'offline_access',
           'mcp:read',
           'mcp:write',
+          'me:read',
+          'me:write',
         ],
       },
     ],
     open: async (page, context) => {
       await openArea(page, context, `${DEMO}/scopes`);
-      await page.getByText('10 scopes').waitFor();
+      await page.getByText('12 scopes').waitFor();
     },
   },
   {
@@ -310,13 +354,14 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'flow',
-    alt: 'The Sign-in flow page: four steps in order, passkey, password, otp and recovery-code, each with a requirement menu and Up and Down buttons.',
+    alt: 'The Sign-in flow page: four steps in order, passkey, password, otp and recovery-code, each with a requirement menu and a pair of chevron buttons that move it up or down, and the passkey, otp and recovery-code steps with a Settings group of their own, each starting at the tenant setting.',
     caption: 'The steps a person is asked, in order, each with its requirement.',
     signedIn: true,
     expect: [
       { heading: 'Sign-in flow' },
       { heading: 'Steps' },
       { label: 'Requirement for password' },
+      { heading: 'Flows' },
     ],
     open: (page, context) => openArea(page, context, `${DEMO}/flow`),
   },
@@ -334,7 +379,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'tenant-sessions',
-    alt: "The demo tenant's Sessions page with an End every session button and a message that nobody is signed in.",
+    alt: "The demo tenant's Sessions page with a dimmed End every session button, a line saying there is no session to end, and a message that nobody is signed in.",
     caption: 'Nobody is signed in to the demo tenant.',
     signedIn: true,
     expect: [{ heading: 'Sessions' }, { role: 'button', name: 'End every session' }],
@@ -345,15 +390,57 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'settings',
-    alt: 'The Settings page: a row of section names from General to Audit retention, then the General and Sessions sections with their fields.',
+    alt: 'The Settings page: a strip of section links from General to Audit retention, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min.',
     caption: 'Every section of the settings saves on its own.',
     signedIn: true,
     expect: [
       { heading: 'Settings' },
-      { role: 'button', name: 'Password policy' },
-      { role: 'button', name: 'Brute force' },
+      { role: 'link', name: 'Password policy' },
+      { role: 'link', name: 'Brute force' },
     ],
     open: (page, context) => openArea(page, context, `${DEMO}/settings`),
+  },
+  {
+    name: 'settings-rail',
+    alt: 'The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications and Records, with the section in view marked.',
+    caption:
+      'On a wide screen the list stays beside the sections, grouped, with the section in view marked.',
+    signedIn: true,
+    viewport: { width: 1500, height: 1000 },
+    expect: [{ heading: 'Settings' }, { role: 'link', name: 'Passkey requirement' }],
+    open: (page, context) => openArea(page, context, `${DEMO}/settings`),
+  },
+  {
+    name: 'settings-profile',
+    alt: 'The Terms and Profile sections of the Settings page. Terms has an address field and a short version field. Profile lists the twenty fields a person can edit under Name, On the web, About the person, Contact and Address, in columns.',
+    caption: 'The Terms section, and the Profile section with its fields grouped.',
+    signedIn: true,
+    viewport: TERMS_VIEW,
+    expect: [{ heading: 'Terms' }, { heading: 'Profile' }, { label: 'Terms address' }],
+    open: (page, context) => openSection(page, context, 'Terms'),
+  },
+  {
+    name: 'settings-authenticators',
+    alt: 'The Authenticators and Passkey requirement sections of the Settings page. Authenticators has three groups: Authenticator app with algorithm, code length and code period, Passkeys, and Recovery codes. Passkey requirement is a single switch.',
+    caption: 'Authenticators in three groups, and the passkey requirement in a section of its own.',
+    signedIn: true,
+    viewport: AUTHENTICATORS_VIEW,
+    expect: [
+      { heading: 'Authenticators' },
+      { heading: 'Passkey requirement' },
+      { label: 'Code length' },
+    ],
+    open: (page, context) => openSection(page, context, 'Authenticators'),
+  },
+  {
+    name: 'settings-password',
+    alt: 'The Password policy section of the Settings page, in four groups: Length and complexity, Must not contain, Reuse and age, and Breached passwords, where the setting for a failed remote lookup is dimmed because the check is not set to the remote lookup.',
+    caption:
+      'The password policy in groups; the remote lookup setting waits for the remote lookup.',
+    signedIn: true,
+    viewport: PASSWORD_VIEW,
+    expect: [{ heading: 'Password policy' }, { label: 'Check against known breaches' }],
+    open: (page, context) => openSection(page, context, 'Password policy'),
   },
   {
     name: 'email',

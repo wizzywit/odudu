@@ -29,6 +29,8 @@ export interface ClientKeyTransportOptions {
   readonly maxBodyBytes?: number;
   /** The `Accept` header sent; a JWK Set by default. */
   readonly accept?: string;
+  /** Further request headers, after `Host` and `Accept`; no cookie or credential is ever added. */
+  readonly headers?: Readonly<Record<string, string>>;
   /**
    * Replaces the default trusted root store with this CA — Node's `ca`
    * does not add to the well-known set, it overrides it — so this is for
@@ -90,7 +92,7 @@ export function createClientKeyRequest(
         path: `${url.pathname}${url.search}`,
         method: 'GET',
         servername: url.hostname,
-        headers: { Host: url.host, Accept: accept },
+        headers: { Host: url.host, Accept: accept, ...options.headers },
         // No connection pooling across pinned addresses — each call gets
         // its own socket, so a reused keep-alive connection can never
         // carry an earlier call's pin into a later one's hostname.

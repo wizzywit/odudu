@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "turbo run typecheck && tsc -p tests/tsconfig.json --noEmit && tsc -p brand/tsconfig.json --noEmit && tsc -p quickstart/tsconfig.json --noEmit",
-    "lint": "node --max-old-space-size=6144 node_modules/eslint/bin/eslint.js .",
+    "lint": "node --max-old-space-size=12288 node_modules/eslint/bin/eslint.js .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "ODUDU_COMMIT=${ODUDU_COMMIT:-$(git rev-parse --short HEAD)} turbo run test --concurrency=4",

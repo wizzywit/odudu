@@ -3,6 +3,7 @@ import { MAIL_PALETTE } from '#/service/palette.generated';
 import { renderShell } from '#/service/shell';
 import {
   renderFinishRegistration,
+  renderOwnChange,
   renderRecoveryCodesRevoked,
   renderRegistrationDuplicate,
   renderRequiredActions,
@@ -63,6 +64,16 @@ const kinds: Record<string, Kind> = {
   'recovery codes revoked': {
     render: (tenantDisplayName, now = NOW) =>
       renderRecoveryCodesRevoked({ ...base, tenantDisplayName, now, newSet: true }),
+    button: null,
+  },
+  'own change': {
+    render: (tenantDisplayName, now = NOW) =>
+      renderOwnChange({
+        to: base.to,
+        tenantDisplayName,
+        now,
+        change: { kind: 'totp_added' },
+      }),
     button: null,
   },
   'smtp test': {

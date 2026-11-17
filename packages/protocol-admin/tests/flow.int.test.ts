@@ -40,7 +40,7 @@ function getFlow(token: string, tenantName: string) {
 async function putFlow(
   token: string,
   tenantName: string,
-  steps: { authenticator: string; requirement: string }[],
+  steps: { authenticator: string; requirement: string; settings?: Record<string, unknown> }[],
 ) {
   return fixture.http.inject({
     method: 'PUT',
@@ -242,6 +242,35 @@ describe('PUT /admin/tenants/{t}/flow/executions', () => {
     expect(body.detail).toMatch(/^unknown authenticator "bogus"; expected one of /u);
   });
 
+  it('round-trips a step’s settings through GET and PUT, and refuses ones it does not read', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const steps = [
+      { authenticator: 'password', requirement: 'required' },
+      { authenticator: 'otp', requirement: 'required', settings: { digits: 8, period: 60 } },
+    ];
+    const written = await putFlow(token, t.name, steps);
+    expect(written.statusCode, written.body).toBe(200);
+    expect(written.json<{ items: { settings?: unknown }[] }>().items[1]?.settings).toEqual({
+      digits: 8,
+      period: 60,
+    });
+    const read = await getFlow(token, t.name);
+    expect(read.json<{ items: { settings?: unknown }[] }>().items[1]?.settings).toEqual({
+      digits: 8,
+      period: 60,
+    });
+
+    const refused = await putFlow(token, t.name, [
+      { authenticator: 'password', requirement: 'required', settings: { digits: 8 } },
+    ]);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<{ type: string; errors: { path: string }[] }>()).toMatchObject({
+      type: 'about:blank#flow-step-settings',
+      errors: [{ path: '[0].settings' }],
+    });
+  });
+
   // The console tells the five refusals apart by type, and reads the step at
   // fault from `errors[]` for the two that name one.
   it('gives each refusal its own type, with the detail and errors as before', async () => {
@@ -339,6 +368,99 @@ describe('PUT /admin/tenants/{t}/flow/executions', () => {
   });
 });
 
+describe('making another flow the default', () => {
+  async function makeDefault(token: string, tenantName: string, name: string, steps: unknown) {
+    const base = `/admin/tenants/${tenantName}/flows`;
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: base,
+      headers,
+      payload: JSON.stringify({ name, steps }),
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = created.json<{ id: string }>().id;
+    const promoted = await fixture.http.inject({
+      method: 'POST',
+      url: `${base}/${id}/make-default`,
+      headers: {
+        authorization: headers.authorization,
+        'if-match': await etagAt(fixture.http, `${base}/${id}`, token),
+      },
+    });
+    expect(promoted.statusCode, promoted.body).toBe(200);
+  }
+
+  const passwordFirst = [
+    { authenticator: 'password', requirement: 'alternative' },
+    { authenticator: 'passkey', requirement: 'alternative' },
+  ];
+  const passkeyFirst = [
+    { authenticator: 'passkey', requirement: 'alternative' },
+    { authenticator: 'password', requirement: 'alternative' },
+  ];
+
+  it('is followed by the next sign-in, which runs the promoted flow', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const authenticator = softwareAuthenticator();
+    const subjectId = await withTenant(fixture.app.db, t.id, (tx) =>
+      enrolPasskey(tx, t.id, authenticator),
+    );
+    await makeDefault(token, t.name, 'password-first', passwordFirst);
+    expect(await loginWithAssertionOnly(t.id, authenticator, 1)).toEqual({
+      kind: 'challenge',
+      form: 'password',
+    });
+
+    await makeDefault(token, t.name, 'passkey-first', passkeyFirst);
+    expect(await loginWithAssertionOnly(t.id, authenticator, 2)).toEqual({
+      kind: 'success',
+      subjectId,
+      authenticators: ['passkey'],
+    });
+  });
+
+  // An authentication records what it satisfied by authenticator name and not
+  // which flow it started on, so one in flight takes its next step from the
+  // flow that is the default when that step is asked.
+  it('moves an authentication already in flight to the promoted flow at its next step', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const authenticator = softwareAuthenticator();
+    const subjectId = await withTenant(fixture.app.db, t.id, (tx) =>
+      enrolPasskey(tx, t.id, authenticator),
+    );
+    await makeDefault(token, t.name, 'password-first', passwordFirst);
+    const authSessionId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const { authSessionId: id } = await startAuthentication(tx, t.id, loginRequest);
+      return id;
+    });
+
+    await makeDefault(token, t.name, 'passkey-first', passkeyFirst);
+    const offer = await withTenant(fixture.app.db, t.id, (tx) =>
+      beginPasskeyAuthentication(tx, {
+        tenantId: t.id,
+        publicBaseUrl: PUBLIC_BASE_URL,
+        authSessionId,
+      }),
+    );
+    const assertion = authenticator.assertion({
+      challenge: offer.challenge,
+      rpId: RP_ID,
+      origin: PUBLIC_BASE_URL,
+      signCount: 1,
+    });
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      advance(tx, authSessionId, { assertion }, undefined, {
+        logger: { error: (): void => undefined },
+        publicBaseUrl: PUBLIC_BASE_URL,
+      }),
+    );
+    expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['passkey'] });
+  });
+});
+
 describe('audit', () => {
   function collector(): {
     events: FlowAuditEvent[];
@@ -376,6 +498,9 @@ describe('audit', () => {
     expect(replaced.kind).toBe('ok');
     expect(ok.events).toHaveLength(1);
     expect(ok.events[0]?.action).toBe('flow.replace');
+    expect(ok.events[0]?.detail).toMatchObject({
+      steps: { after: [{ authenticator: 'password', requirement: 'required' }] },
+    });
 
     const refused = collector();
     const current = (await withTenant(fixture.app.db, t.id, (tx) => listFlow(tx, t.id))).etag;

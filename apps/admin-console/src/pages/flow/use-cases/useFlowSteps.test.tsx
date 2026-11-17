@@ -31,6 +31,7 @@ function steps(extra: Parameters<typeof flowRoutes>[1] = {}) {
         etag: read.etag ?? '',
         gone: read.gone,
         reading: null,
+        tenantSettings: { totp_digits: 6 },
       });
       return { ready: read.status === 'ready', flow };
     },
@@ -152,5 +153,35 @@ it('puts a refusal of the order under the steps in the console’s words', async
     expect(result.current.flow.save.fieldErrors.steps).toBe(
       'The flow has no step. Add one: nobody could sign in to a tenant with no flow.',
     );
+  });
+});
+
+it('sets a step’s setting, drops it again, and saves what stands without an index', async () => {
+  const { result, sent } = steps({
+    [`PUT ${FL}`]: flowAnswer([step(0, 'otp', 'conditional')], '"f2"'),
+  });
+  await ready(result);
+  const otp = () => result.current.flow.rows.find((each) => each.authenticator === 'otp');
+  expect(otp()?.settings[1]?.options[0]?.label).toBe('Tenant setting (6 digits)');
+  act(() => {
+    result.current.flow.setSetting('otp', 'digits', '8');
+  });
+  expect(otp()?.settings[1]?.value).toBe('8');
+  act(() => {
+    result.current.flow.setSetting('otp', 'digits', '');
+  });
+  expect(otp()?.settings[1]?.value).toBe('');
+  act(() => {
+    result.current.flow.setSetting('otp', 'period', '60');
+  });
+  act(() => {
+    result.current.flow.save.submit();
+  });
+  await waitFor(() => {
+    expect(sent.find((call) => call.method === 'PUT')?.body).toContainEqual({
+      authenticator: 'otp',
+      requirement: 'conditional',
+      settings: { period: 60 },
+    });
   });
 });

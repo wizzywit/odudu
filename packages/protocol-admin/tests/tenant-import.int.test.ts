@@ -1,4 +1,4 @@
-import { executionRepository, requiredActionRepository } from '@odudu/authn-flows';
+import { flowRepository, requiredActionRepository } from '@odudu/authn-flows';
 import {
   ASSIGNMENT_LIMIT,
   CLIENT_SCOPE_LIMIT,
@@ -189,9 +189,9 @@ async function seededSource(): Promise<{ id: string; name: string; confidentialI
     const profile = await scopes.byName('profile');
     if (profile !== null) await scopes.amend(profile.id, { description: 'Who you are' });
 
-    await executionRepository(tx).replaceForTenant(t.id, [
+    await flowRepository(tx).replaceDefaultSteps(t.id, [
       { authenticator: 'password', requirement: 'required' },
-      { authenticator: 'otp', requirement: 'conditional' },
+      { authenticator: 'otp', requirement: 'conditional', settings: { digits: 8 } },
     ]);
     await tenantSettingsRepository(tx).amend(t.id, {
       passwordMinLength: 12,
@@ -295,6 +295,31 @@ describe('POST /admin/tenant-imports', () => {
     const taken = await postImport(token, { name, document: withName('x'.repeat(256)) });
     expect(taken.statusCode, taken.payload).toBe(201);
     expect((await exportOf(token, name)).settings.display_name).toBe('x'.repeat(256));
+  });
+
+  it('refuses a client that holds me:write without me:read, as the admin API does, naming the entry', async () => {
+    const source = await fixture.createTenant(`mewrite-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const index = original.scopes.findIndex((scope) => scope.name === 'me:write');
+    expect(index).toBeGreaterThanOrEqual(0);
+    const scopes = original.scopes.map((scope, at) =>
+      at === index
+        ? {
+            ...scope,
+            clients: [...scope.clients, { client_id: 'odudu-mcp', assignment: 'optional' }],
+          }
+        : scope,
+    );
+    const name = `mewrite-${newId()}`;
+    const refused = await postImport(token, { name, document: { ...original, scopes } });
+    expect(refused.statusCode).toBe(400);
+    const errors = refused.json<ImportRefusal>().errors ?? [];
+    expect(errors.map((error) => error.path)).toEqual([
+      `document.scopes[${String(index)}].clients[${String((scopes[index]?.clients.length ?? 1) - 1)}]`,
+    ]);
+    expect(errors[0]?.message).toMatch(/me:write is held only together with me:read/u);
+    expect(await tenantIdOf(name)).toBeNull();
   });
 
   it('refuses a request display name of 257 characters, and makes no tenant', async () => {
@@ -1518,6 +1543,30 @@ describe('POST /admin/tenant-imports', () => {
         `document.clients[${String(spaIndex)}].refresh_token_ttl_seconds`,
       ].sort(),
     );
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
+  it('refuses a flow step that carries settings its authenticator does not read', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const name = `import-${newId()}`;
+
+    const res = await postImport(token, {
+      name,
+      document: {
+        ...document,
+        flow: [
+          { authenticator: 'password', requirement: 'required', settings: { digits: 8 } },
+          { authenticator: 'otp', requirement: 'conditional' },
+        ],
+      },
+    });
+
+    expect(res.statusCode, res.payload).toBe(400);
+    expect((res.json<ImportRefusal>().errors ?? []).map((error) => error.path)).toEqual([
+      'document.flow',
+    ]);
     expect(await tenantIdOf(name)).toBeNull();
   });
 

@@ -39,8 +39,8 @@ sessions at the address left resume if the tenant switches back.
 **For a fixed window after a switch both addresses serve, and the window is the
 ceiling the token endpoint enforces on an access token's lifetime,** 3600
 seconds, so what was already issued is never refused while it is still valid. The
-address left serves token, userinfo, introspection, revocation, keys, logout and
-discovery, each stating the issuer of the address it is read at. It refuses
+address left serves token, userinfo, introspection, revocation, keys, logout, the
+"me" API's four reads and its writes, and discovery, each stating the issuer of the address it is read at. It refuses
 authorization, registration and reset pages with a `410` page that points to the
 canonical address. The tenant accepts the retired issuer on `/userinfo`,
 introspection, `id_token_hint` and a client assertion's `aud`, each with its own

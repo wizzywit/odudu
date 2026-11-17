@@ -23,6 +23,23 @@ export interface NewCredential {
   rpId?: string;
 }
 
+// A credential as its owner may be shown it: no column that holds or derives
+// from the secret, `secret_data` and `lookup_key` included.
+export interface CredentialSummary {
+  readonly id: string;
+  readonly type: CredentialType;
+  readonly label: string | null;
+  readonly createdAt: Date;
+  readonly lastUsedAt: Date | null;
+}
+
+// The ways to sign in. A recovery code is counted, never listed, and a retired
+// password answers nothing.
+const SIGN_IN_TYPES: readonly CredentialType[] = ['password', 'totp', 'webauthn'];
+
+// The credentials a person tells apart by a label of their choosing.
+const LABELLED_TYPES: readonly CredentialType[] = ['totp', 'webauthn'];
+
 export interface RecoveryStanding {
   readonly unspent: number;
   readonly held: number;
@@ -141,6 +158,84 @@ export function credentialRepository(tx: TenantScopedDatabase) {
       return rows.map(toRecord);
     },
 
+    // A page of the ways a subject can sign in, in id order after `after`, at
+    // most `limit`. Served by user_credentials_by_subject, which the type
+    // filter narrows to the few rows a subject holds.
+    async summariesFor(
+      subjectId: string,
+      page: { readonly after: string | undefined; readonly limit: number },
+    ): Promise<CredentialSummary[]> {
+      return tx
+        .select({
+          id: userCredentials.id,
+          type: userCredentials.type,
+          label: userCredentials.label,
+          createdAt: userCredentials.createdAt,
+          lastUsedAt: userCredentials.lastUsedAt,
+        })
+        .from(userCredentials)
+        .where(
+          and(
+            eq(userCredentials.subjectId, subjectId),
+            inArray(userCredentials.type, [...SIGN_IN_TYPES]),
+            page.after === undefined ? undefined : gt(userCredentials.id, page.after),
+          ),
+        )
+        .orderBy(userCredentials.id)
+        .limit(page.limit);
+    },
+
+    // The summary of one sign-in credential of the subject, or null where the
+    // subject holds none by that id. A recovery code and a retired password
+    // answer nothing, as in the list.
+    async summaryOf(subjectId: string, id: string): Promise<CredentialSummary | null> {
+      const rows = await tx
+        .select({
+          id: userCredentials.id,
+          type: userCredentials.type,
+          label: userCredentials.label,
+          createdAt: userCredentials.createdAt,
+          lastUsedAt: userCredentials.lastUsedAt,
+        })
+        .from(userCredentials)
+        .where(
+          and(
+            eq(userCredentials.id, id),
+            eq(userCredentials.subjectId, subjectId),
+            inArray(userCredentials.type, [...SIGN_IN_TYPES]),
+          ),
+        );
+      return rows[0] ?? null;
+    },
+
+    // Gives an authenticator of the subject a new label and answers its
+    // summary, or null where the subject holds no authenticator by that id. A
+    // password and a recovery code carry no label a person reads.
+    async renameLabel(
+      subjectId: string,
+      id: string,
+      label: string,
+    ): Promise<CredentialSummary | null> {
+      const rows = await tx
+        .update(userCredentials)
+        .set({ label })
+        .where(
+          and(
+            eq(userCredentials.id, id),
+            eq(userCredentials.subjectId, subjectId),
+            inArray(userCredentials.type, [...LABELLED_TYPES]),
+          ),
+        )
+        .returning({
+          id: userCredentials.id,
+          type: userCredentials.type,
+          label: userCredentials.label,
+          createdAt: userCredentials.createdAt,
+          lastUsedAt: userCredentials.lastUsedAt,
+        });
+      return rows[0] ?? null;
+    },
+
     // How many subjects hold a passkey registered under another relying
     // party ID than `rpId`, reading at most `cap + 1` credentials. A passkey
     // with no recorded ID is not counted. Each side of `rpId` is its own range
@@ -166,6 +261,25 @@ export function credentialRepository(tx: TenantScopedDatabase) {
       );
       const held = new Set(read.map((row) => row.subjectId));
       return { subjects: Math.min(held.size, cap), capped: read.length > cap };
+    },
+
+    // Whether the subject holds a passkey registered under `rpId`, the only
+    // kind a sign-in at that address offers. One row is enough to answer:
+    // served by user_credentials_by_subject, which the type filter narrows
+    // to the few rows a subject holds.
+    async holdsPasskey(subjectId: string, rpId: string): Promise<boolean> {
+      const rows = await tx
+        .select({ id: userCredentials.id })
+        .from(userCredentials)
+        .where(
+          and(
+            eq(userCredentials.subjectId, subjectId),
+            eq(userCredentials.type, 'webauthn'),
+            eq(userCredentials.rpId, rpId),
+          ),
+        )
+        .limit(1);
+      return rows.length > 0;
     },
 
     async byLookupKey(lookupKey: string): Promise<CredentialRecord | null> {

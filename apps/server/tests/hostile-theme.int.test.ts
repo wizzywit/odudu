@@ -14,6 +14,7 @@ import {
   hashPassword,
   subjectRepository,
   userRepository,
+  users,
 } from '@odudu/domain-identity';
 import { clients } from '@odudu/domain-tenant';
 import { assetRepository, themeRepository, type ThemeBody } from '@odudu/domain-theme';
@@ -486,6 +487,35 @@ const FLOWS: Partial<Record<PageKind, Flow>> = {
     const browser = new Browser();
     const page = themed(await signInAs(w, user, browser));
     return browser.submit(page, { password: NEW_PASSWORD });
+  },
+
+  'verify-email': async (w, { themed }) => {
+    const user = await addUser(w, ['verify-email']);
+    const browser = new Browser();
+    const page = themed(await signInAs(w, user, browser));
+    await owner.db
+      .update(users)
+      .set({ emailVerified: true })
+      .where(eq(users.subjectId, user.subjectId));
+    return browser.submit(page);
+  },
+
+  'update-profile': async (w, { themed }) => {
+    const user = await addUser(w, ['update-profile']);
+    const browser = new Browser();
+    const page = themed(await signInAs(w, user, browser));
+    return browser.submit(page, { given_name: 'Ada', family_name: 'Lovelace' });
+  },
+
+  'accept-terms': async (w, { themed }) => {
+    await owner.db
+      .update(tenants)
+      .set({ termsUri: 'https://example.test/terms', termsVersion: '1' })
+      .where(eq(tenants.id, w.tenantId));
+    const user = await addUser(w, ['accept-terms']);
+    const browser = new Browser();
+    const page = themed(await signInAs(w, user, browser));
+    return browser.submit(page, { accept: 'true' });
   },
 
   registration: async (w, { themed }) => {

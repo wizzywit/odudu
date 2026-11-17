@@ -30,3 +30,4 @@ Each of these follows one journey and shows trimmed pieces of a real run, with a
 2. [Refresh and end a session](./refresh-and-end-a-session.md): keep a person signed in, catch a stolen refresh token and sign them out.
 3. [An admin signs in and changes a user](./admin-signs-in-and-changes-a-user.md): sign in to the console and make a safe change.
 4. [Read a refusal](./read-a-refusal.md): what an error looks like and why it happened.
+5. [Send a person to change a credential](./send-a-person-to-change-a-credential.md): send a signed-in person to change a password, authenticator or recovery codes, and check the result.

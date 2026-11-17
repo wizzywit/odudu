@@ -261,6 +261,9 @@ Authenticator app set-up
 Passkey set-up
 Recovery codes
 Change password
+Email address check
+Profile
+Terms
 Required action
 Registration
 Password reset

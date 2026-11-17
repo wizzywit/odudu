@@ -1,6 +1,6 @@
 import { PASSWORD } from '#/service/authenticators/names';
 import { nextStep, type Step } from '#/service/requirements';
-import { type Requirement } from '#/schema/execution';
+import { type Requirement } from '#/schema/flow';
 
 export interface OrderedStep {
   readonly authenticator: string;

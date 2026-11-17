@@ -1,5 +1,6 @@
 import {
   clearedSignInHandleCookie,
+  deviceCookie,
   sessionCookies,
   type AuthenticatorResult,
 } from '@odudu/authn-flows';
@@ -168,6 +169,7 @@ export async function sendLoginOutcome(
 
   const reply302 = reply.code(302);
   for (const cookie of written) reply302.header('set-cookie', cookie);
+  reply302.header('set-cookie', deviceCookie(tenantName, deps.tls, outcome.device));
   // The sign-in is finished: its handle has nothing left to name.
   reply302.header(
     'set-cookie',

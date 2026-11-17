@@ -26,6 +26,8 @@ function session(id: string, subject: string, username: string | null) {
     last_active_at: '2026-09-28T09:41:53.858Z',
     remembered: id === 's-2',
     client_ids: ['billing'],
+    device:
+      id === 's-2' ? null : '5a4b3c2d1e0f5a4b3c2d1e0f5a4b3c2d1e0f5a4b3c2d1e0f5a4b3c2d1e0f5a4b',
   };
 }
 

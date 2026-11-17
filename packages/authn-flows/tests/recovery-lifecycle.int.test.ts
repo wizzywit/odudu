@@ -135,7 +135,7 @@ function holdCodes(account: Account, count = 10): Promise<void> {
 
 function issueCodes(account: Account): Promise<readonly string[]> {
   return withTenant(app.db, account.tenantId, async (tx) => {
-    const outcome = await beginRecoveryCodes(tx, account);
+    const outcome = await beginRecoveryCodes(tx, { ...account, now: clockAt().now() });
     if (outcome.kind !== 'issued') throw new Error('expected a set to be issued');
     await requiredActionRepository(tx).complete(account.subjectId, 'generate-recovery-codes');
     return outcome.offer.codes;
@@ -313,7 +313,9 @@ describe('the sign-in that completes with a second factor and no unspent code', 
     await signIn(account, clockAt(90_000), true);
     expect(await pending(account)).toEqual(['generate-recovery-codes']);
 
-    await withTenant(app.db, account.tenantId, (tx) => beginRecoveryCodes(tx, account));
+    await withTenant(app.db, account.tenantId, (tx) =>
+      beginRecoveryCodes(tx, { ...account, now: clockAt().now() }),
+    );
     await withTenant(app.db, account.tenantId, (tx) => completeRecoveryCodes(tx, account));
     await signIn(account, clockAt(180_000), true);
     expect(await pending(account)).toEqual([]);
@@ -405,7 +407,7 @@ describe('issuing a set', () => {
     );
 
     const outcome = await withTenant(app.db, account.tenantId, (tx) =>
-      beginRecoveryCodes(tx, account),
+      beginRecoveryCodes(tx, { ...account, now: clockAt().now() }),
     );
 
     expect(outcome).toEqual({ kind: 'no_second_factor' });
@@ -416,7 +418,7 @@ describe('issuing a set', () => {
   it('is refused for a subject that does not exist in the tenant', async () => {
     const account = await seedAccount({ totp: true, passkey: false });
     const outcome = await withTenant(app.db, newId(), (tx) =>
-      beginRecoveryCodes(tx, { tenantId: account.tenantId, subjectId: account.subjectId }),
+      beginRecoveryCodes(tx, { ...account, now: clockAt().now() }),
     );
     expect(outcome).toEqual({ kind: 'no_second_factor' });
   });
@@ -438,7 +440,7 @@ describe('issuing a set', () => {
       });
 
       const issue = withTenant(app.db, account.tenantId, async (tx) => {
-        const outcome = await beginRecoveryCodes(tx, account);
+        const outcome = await beginRecoveryCodes(tx, { ...account, now: clockAt().now() });
         issuedSet();
         await hold;
         return outcome.kind;
@@ -467,7 +469,7 @@ describe('issuing a set', () => {
     await issueCodes(account);
     await removeAndNotify(account, 'totp');
     const outcome = await withTenant(app.db, account.tenantId, (tx) =>
-      beginRecoveryCodes(tx, account),
+      beginRecoveryCodes(tx, { ...account, now: clockAt().now() }),
     );
     expect(outcome).toEqual({ kind: 'no_second_factor' });
     expect(await standing(account)).toMatchObject({ held: 0 });

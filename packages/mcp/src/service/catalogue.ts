@@ -4,6 +4,7 @@ import { auditTools } from '#/service/tools/audit';
 import { clientMetadataTool } from '#/service/tools/client-metadata';
 import { clientTools } from '#/service/tools/clients';
 import { consentTools } from '#/service/tools/consents';
+import { termsAcceptanceTools } from '#/service/tools/terms-acceptances';
 import { domainTools } from '#/service/tools/domains';
 import { flowTools } from '#/service/tools/flow';
 import { grantTools } from '#/service/tools/grants';
@@ -35,6 +36,7 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...clientBrandingTools,
   ...clientTools,
   ...consentTools,
+  ...termsAcceptanceTools,
   ...domainTools,
   ...flowTools,
   ...grantTools,
@@ -151,6 +153,9 @@ const WITHHELD: readonly Entry[] = [
     [
       R('PATCH', ''),
       R('PUT', '/flow/executions'),
+      R('POST', '/flows'),
+      R('PUT', '/flows/:id'),
+      R('POST', '/flows/:id/make-default'),
       R('POST', '/domains'),
       R('POST', '/domains/:id/verify'),
       R('POST', '/domains/:id/activate'),
@@ -221,6 +226,7 @@ const WITHHELD: readonly Entry[] = [
       R('DELETE', '/groups/:id'),
       R('DELETE', '/scopes/:id'),
       R('DELETE', '/smtp'),
+      R('DELETE', '/flows/:id'),
     ],
     'destructive',
   ],

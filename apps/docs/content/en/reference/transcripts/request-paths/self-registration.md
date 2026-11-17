@@ -330,15 +330,15 @@ only when the button posts the key back. Opened twice, as a scanner might, the p
 same and no account exists; the headers on it are `no-store` and `no-referrer`:
 
 ```bash
-KEY=reg_7tTl9TBz9EYIAfzls6RkB6E8FwJq_L9KXqGovQD6v9I
+KEY=reg_8e6lAdUBvcrjjw_H_DY4QiLy4s8mRh7Es59TmqAWJZY
 for i in 1 2; do
-  curl -sS "http://localhost:3199/tenants/register-demo/login-actions/action-token?key=$KEY" \
+  curl -sS "http://localhost:3141/tenants/register-demo/login-actions/action-token?key=$KEY" \
     | grep -E '<h1>|<p>Press|<button|name="key"' | sed 's/value="[^"]*"/value="…"/'
   echo ---
 done
 docker compose exec -T postgres psql -U odudu -d odudu -At -c \
   "select count(*) from users u join tenants t on t.id = u.tenant_id where t.name = 'register-demo' and u.username = 'ada';"
-curl -sS -i "http://localhost:3199/tenants/register-demo/login-actions/action-token?key=$KEY" \
+curl -sS -i "http://localhost:3141/tenants/register-demo/login-actions/action-token?key=$KEY" \
   | grep -iE '^(HTTP|cache-control|referrer-policy)'
 ```
 
@@ -359,13 +359,36 @@ referrer-policy: no-referrer
 cache-control: no-store
 ```
 
+The page also says what the press would make: the address, the account name and the tenant, so a link nobody asked for can be
+recognised and left alone. The block below read a link from a mail relay instead of the log, on a stack that had the tenant made as
+this page makes it (`register-demo`, with `registration_allowed`, `verify_email` and `reset_password_allowed` on) and `ada`
+registered as above, and shows the page from its heading to the form, the key cut to its prefix:
+
+```bash
+ID=$(curl -sS localhost:8092/api/v1/messages | jq -r '.messages[0].ID')
+LINK=$(curl -sS localhost:8092/api/v1/message/$ID | jq -r .Text | grep -o 'http://[^ ]*action-token?key=[^ ]*' | tr -d '\r')
+curl -sS "$LINK" | sed -n '/<h1>/,/<\/form>/p' | sed 's/value="reg_[^"]*"/value="reg_…"/'
+```
+
+```
+<h1>Confirm your email address</h1>
+<p>Email address: <bdi>ada@example.com</bdi></p>
+<p>Account name: <bdi>ada</bdi></p>
+<p>Account at <bdi>register-demo</bdi></p>
+<p>Press the button to confirm this address.</p>
+<form method="post" action="/tenants/register-demo/login-actions/action-token">
+  <input type="hidden" name="key" value="reg_…">
+  <button type="submit">Confirm my email</button>
+</form>
+```
+
 Pressing the button posts the key, and that creates the account. A second press, like any
 link nothing holds, is refused, and the tenant holds the one account:
 
 ```bash
 for i in 1 2; do
   curl -sS -o /dev/null -w '%{http_code}\n' \
-    -X POST http://localhost:3199/tenants/register-demo/login-actions/action-token \
+    -X POST http://localhost:3141/tenants/register-demo/login-actions/action-token \
     --data-urlencode "key=$KEY"
 done
 docker compose exec -T postgres psql -U odudu -d odudu -At -c \

@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, expect, it } from 'vitest';
+import { act } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { inTurn, json, problem } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
@@ -32,6 +33,7 @@ it('has a section for each concern, each with its own save', async () => {
     'Remember me',
     'Registration and recovery',
     'Usernames',
+    'Authenticators',
     'Password policy',
     'Brute force',
     'Token lifetimes',
@@ -42,27 +44,125 @@ it('has a section for each concern, each with its own save', async () => {
   }
 });
 
-it('lists the sections, each a button that sends the focus to its heading', async () => {
+it('lists the sections as links, each sending the focus to its heading', async () => {
   const user = userEvent.setup();
   renderConsoleAt(AT, settingsRoutes());
   await section('General');
   const nav = screen.getByRole('navigation', { name: 'On this page' });
-  expect(within(nav).getAllByRole('button')).toHaveLength(10);
-  await user.click(within(nav).getByRole('button', { name: 'Password policy' }));
+  expect(within(nav).getAllByRole('link')).toHaveLength(14);
+  expect(within(nav).getByRole('link', { name: 'Password policy' })).toHaveAttribute(
+    'href',
+    '#settings-password',
+  );
+  await user.click(within(nav).getByRole('link', { name: 'Password policy' }));
   expect(screen.getByRole('heading', { level: 2, name: 'Password policy' })).toHaveFocus();
+  expect(globalThis.location.hash).toBe('#settings-password');
   await user.tab();
   await user.keyboard('{Shift>}{Tab}{/Shift}');
-  await user.click(within(nav).getByRole('button', { name: 'Audit retention' }));
+  await user.click(within(nav).getByRole('link', { name: 'Audit retention' }));
   expect(screen.getByRole('heading', { level: 2, name: 'Audit retention' })).toHaveFocus();
 });
 
-it('shows a duration with its reading, and a count in its unit', async () => {
+it('marks the section in view in the list once the settings have loaded', async () => {
+  const observed: Element[] = [];
+  let notify: (entries: { target: Element; isIntersecting: boolean }[]) => void = () => undefined;
+  class Observer {
+    constructor(callback: typeof notify) {
+      notify = callback;
+    }
+    observe = (element: Element): void => {
+      observed.push(element);
+    };
+    disconnect = vi.fn();
+  }
+  vi.stubGlobal('IntersectionObserver', Observer);
+  try {
+    renderConsoleAt(AT, settingsRoutes());
+    await section('General');
+    await waitFor(() => {
+      expect(observed.length).toBe(14);
+    });
+    const terms = observed.find(
+      (element) => element.getAttribute('aria-labelledby') === 'settings-terms',
+    );
+    if (terms === undefined) throw new Error('the Terms section was not observed');
+    act(() => {
+      notify([{ target: terms, isIntersecting: true }]);
+    });
+    const nav = screen.getByRole('navigation', { name: 'On this page' });
+    expect(within(nav).getByRole('link', { name: 'Terms' })).toHaveAttribute(
+      'aria-current',
+      'location',
+    );
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it('marks a section with unsaved edits in the list', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, settingsRoutes());
+  const clients = await section('Client registration');
+  const nav = screen.getByRole('navigation', { name: 'On this page' });
+  expect(within(nav).queryByText('(unsaved changes)')).toBeNull();
+  await user.click(within(clients).getByRole('switch', { name: SETTINGS_WORDS.cimdLabel }));
+  expect(
+    within(within(nav).getByRole('link', { name: /Client registration/u })).getByText(
+      '(unsaved changes)',
+    ),
+  ).toBeInTheDocument();
+});
+
+it('shows a duration in the unit that fits it, and says the range once', async () => {
   renderConsoleAt(AT, settingsRoutes());
   const sessions = await section('Sessions');
-  expect(within(sessions).getByRole('textbox', { name: 'Idle timeout' })).toHaveValue('1800');
-  expect(within(sessions).getAllByText('1800 s · 30 minutes').length).toBeGreaterThan(0);
+  expect(within(sessions).getByRole('textbox', { name: 'Idle timeout' })).toHaveValue('30');
+  expect(within(sessions).getByRole('combobox', { name: 'Idle timeout, unit' })).toHaveValue('min');
+  expect(within(sessions).queryByText('1800 s · 30 minutes')).toBeNull();
+  expect(within(sessions).getAllByText(/Allowed: 1 minute to/u).length).toBeGreaterThan(0);
   const password = await section('Password policy');
-  expect(within(password).getByText('Between 8 and 256 characters.')).toBeVisible();
+  expect(within(password).getByText('Allowed: 8 to 256 characters.')).toBeVisible();
+  expect(within(password).queryByText('15 characters')).toBeNull();
+});
+
+it('sends seconds whichever unit a duration is typed in', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, {
+      [`PATCH ${ST}`]: settingsAnswer({ sso_session_idle_seconds: 7200 }, '"s2"'),
+    }),
+  );
+  const sessions = await section('Sessions');
+  expect(
+    within(within(sessions).getByRole('combobox', { name: 'Idle timeout, unit' })).getByRole(
+      'option',
+      {
+        name: 'h',
+      },
+    ),
+  ).toBeDisabled();
+  const field = within(sessions).getByRole('textbox', { name: 'Idle timeout' });
+  await user.clear(field);
+  await user.type(field, '120');
+  await user.tab();
+  await user.click(within(sessions).getByRole('button', { name: 'Save Sessions' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      sso_session_idle_seconds: 7200,
+    });
+  });
+});
+
+it('flags a duration outside the range before the server is asked', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, settingsRoutes());
+  const sessions = await section('Sessions');
+  const field = within(sessions).getByRole('textbox', { name: 'Idle timeout' });
+  await user.clear(field);
+  await user.type(field, '0');
+  await user.tab();
+  expect(field).toHaveAttribute('aria-invalid', 'true');
 });
 
 it('saves one section on the ETag it was read with, sending only what changed', async () => {
@@ -76,7 +176,7 @@ it('saves one section on the ETag it was read with, sending only what changed', 
   const sessions = await section('Sessions');
   const field = within(sessions).getByRole('textbox', { name: 'Idle timeout' });
   await user.clear(field);
-  await user.type(field, '3600');
+  await user.type(field, '60');
   await user.tab();
   await user.click(within(sessions).getByRole('button', { name: 'Save Sessions' }));
   await waitFor(() => {
@@ -85,9 +185,7 @@ it('saves one section on the ETag it was read with, sending only what changed', 
       body: { sso_session_idle_seconds: 3600 },
     });
   });
-  expect(await within(sessions).findByRole('textbox', { name: 'Idle timeout' })).toHaveValue(
-    '3600',
-  );
+  expect(await within(sessions).findByRole('textbox', { name: 'Idle timeout' })).toHaveValue('60');
 });
 
 it('keeps a cleared number as it was rather than sending nothing for it', async () => {
@@ -97,7 +195,7 @@ it('keeps a cleared number as it was rather than sending nothing for it', async 
   const field = within(sessions).getByRole('textbox', { name: 'Idle timeout' });
   await user.clear(field);
   await user.tab();
-  expect(field).toHaveValue('1800');
+  expect(field).toHaveValue('30');
   expect(within(sessions).queryByRole('button', { name: 'Save Sessions' })).toBeNull();
 });
 
@@ -123,6 +221,21 @@ it('sets a switch and a choice', async () => {
     expect(sent.filter((s) => s.method === 'PATCH').at(-1)?.body).toEqual({
       client_registration_policy: 'token',
     });
+  });
+});
+
+it('sets the number an authenticator app shows as a choice, and sends it as text the server reads', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, { [`PATCH ${ST}`]: settingsAnswer({}, '"s2"') }),
+  );
+  const authenticators = await section('Authenticators');
+  await user.click(within(authenticators).getByRole('button', { name: /Code length/u }));
+  await user.click(await screen.findByRole('option', { name: '8 digits' }));
+  await user.click(within(authenticators).getByRole('button', { name: 'Save Authenticators' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ totp_digits: '8' });
   });
 });
 
@@ -218,6 +331,39 @@ it('sends the events chosen as a list, and cannot leave out the two that are alw
         'credential',
       ],
     });
+  });
+});
+
+it('sends the profile fields chosen as a list, and may send none', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, { [`PATCH ${ST}`]: settingsAnswer({}, '"s2"') }),
+  );
+  const profile = await section('Profile');
+  expect(within(profile).getByRole('checkbox', { name: 'Given name' })).toBeChecked();
+  expect(within(profile).getByRole('checkbox', { name: 'Birthdate' })).not.toBeChecked();
+  await user.click(within(profile).getByRole('checkbox', { name: 'Birthdate' }));
+  await user.click(within(profile).getByRole('button', { name: 'Save Profile' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      required_profile_fields: ['given_name', 'family_name', 'birthdate'],
+    });
+  });
+});
+
+it('may send an empty list of profile fields, which makes the page one that is only reviewed', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, { [`PATCH ${ST}`]: settingsAnswer({}, '"s2"') }),
+  );
+  const profile = await section('Profile');
+  await user.click(within(profile).getByRole('checkbox', { name: 'Given name' }));
+  await user.click(within(profile).getByRole('checkbox', { name: 'Family name' }));
+  await user.click(within(profile).getByRole('button', { name: 'Save Profile' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ required_profile_fields: [] });
   });
 });
 
@@ -344,6 +490,36 @@ it('saves a display name without asking', async () => {
     expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ display_name: 'Acme Inc' });
   });
   expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+
+it('saves the terms address and version, and clears the address with an empty one', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, {
+      [`PATCH ${ST}`]: settingsAnswer(
+        { terms_uri: 'https://example.com/terms', terms_version: '2026-01' },
+        '"s2"',
+      ),
+    }),
+  );
+  const terms = await section('Terms');
+  expect(within(terms).getByRole('textbox', { name: 'Terms address' })).toHaveValue('');
+  expect(within(terms).getByRole('textbox', { name: 'Terms version' })).toHaveValue('1');
+  await user.type(
+    within(terms).getByRole('textbox', { name: 'Terms address' }),
+    'https://example.com/terms',
+  );
+  const version = within(terms).getByRole('textbox', { name: 'Terms version' });
+  await user.clear(version);
+  await user.type(version, '2026-01');
+  await user.click(within(terms).getByRole('button', { name: 'Save Terms' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      terms_uri: 'https://example.com/terms',
+      terms_version: '2026-01',
+    });
+  });
 });
 
 it('names the manage-tenant capability for a caller without it, and reads nothing', async () => {

@@ -422,19 +422,48 @@ const registrationTokens = createRoute({
   },
 });
 
-const Flow = lazyFeatureRoute(
-  () => import('#/pages/flow').then((feature) => feature.FlowPage),
-  'Loading the sign-in flow',
+function flowPage(name: 'FlowPage' | 'NewFlowPage') {
+  return lazyFeatureRoute(
+    () => import('#/pages/flow').then((feature) => feature[name]),
+    'Loading the sign-in flow',
+  );
+}
+
+const Flow = flowPage('FlowPage');
+const NewFlow = flowPage('NewFlowPage');
+const FlowRecord = lazyFeatureRoute(
+  () => import('#/pages/flow').then((feature) => feature.FlowRecordPage),
+  'Loading the flow',
 );
 
-const flow = createRoute({
-  getParentRoute: () => tenant,
-  path: 'flow',
-  component: function SignInFlow() {
-    const { tenant: name } = tenant.useParams();
-    return <Flow key={name} tenant={name} />;
-  },
-});
+const flowPages = [
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'flow',
+    component: function SignInFlow() {
+      const { tenant: name } = tenant.useParams();
+      return <Flow key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'flow/new',
+    component: function FlowCreation() {
+      const { tenant: name } = tenant.useParams();
+      return <NewFlow key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'flow/$id',
+    component: function FlowAtId() {
+      const { tenant: name } = tenant.useParams();
+      const { id } = flowRecord.useParams();
+      return <FlowRecord key={`${name}/${id}`} tenant={name} id={id} />;
+    },
+  }),
+] as const;
+const flowRecord = flowPages[2];
 
 const SigningKeys = lazyFeatureRoute(
   () => import('#/pages/signing-keys').then((feature) => feature.SigningKeysPage),
@@ -563,6 +592,8 @@ export function preloadFeatures(): Promise<void> {
     ScopeRecord,
     RegistrationTokens,
     Flow,
+    NewFlow,
+    FlowRecord,
     SigningKeys,
     TenantSessions,
     Settings,
@@ -587,7 +618,7 @@ const routeTree = root.addChildren([
     ...clientPages,
     ...scopePages,
     registrationTokens,
-    flow,
+    ...flowPages,
     signingKeys,
     tenantSessions,
     settings,

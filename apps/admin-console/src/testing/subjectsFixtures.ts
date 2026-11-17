@@ -110,6 +110,7 @@ export function subjectRoutes(
       [`GET ${S}/${ADA_ID}/required-actions`]: json({ actions: [] }, 200, { etag: '"a0"' }),
       [`GET ${S}/${ADA_ID}/sessions`]: json({ items: [] }),
       [`GET ${S}/${ADA_ID}/consents`]: json({ items: [] }),
+      [`GET ${S}/${ADA_ID}/terms-acceptances`]: json({ items: [] }),
       [`GET ${S}/${ADA_ID}/grants`]: json({ items: [] }),
       [`GET ${ACME_ADMIN}/audit`]: json({ items: [] }),
       [`GET ${ACME_ADMIN}/groups`]: json({ items: [] }),

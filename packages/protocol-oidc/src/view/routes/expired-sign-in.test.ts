@@ -2,7 +2,7 @@ import { type PendingRequest } from '@odudu/authn-flows';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
-import { sendSignInExpired } from '#/view/routes/expired-sign-in';
+import { sendActionUnavailable, sendSignInExpired } from '#/view/routes/expired-sign-in';
 import { sendLoginOutcome, type LoginResponseDeps } from '#/view/routes/login-response';
 import { type ContinuationDeps } from '#/view/routes/continuation';
 
@@ -85,6 +85,55 @@ describe('sendSignInExpired', () => {
     expect((await answer(deps(PENDING), undefined)).body).not.toContain('<a ');
     const noTenant = deps(PENDING, { findTenant: vi.fn().mockResolvedValue(null) });
     expect((await answer(noTenant)).body).not.toContain('<a ');
+  });
+});
+
+const backHref = (body: string): URL => {
+  const href = /<a href="([^"]*)">Return to the application<\/a>/u.exec(body)?.[1] ?? '';
+  return new URL(href.replaceAll('&amp;', '&'));
+};
+
+describe('a sign-in that expired under an action an application asked for', () => {
+  const ASKED = { ...PENDING, idTokenHintSubject: 'sub-1', action: 'configure-totp' as const };
+
+  it('tells the client the action did not complete', async () => {
+    const res = await answer(deps(ASKED));
+    expect(backHref(res.body).searchParams.get('action_status')).toBe('error');
+  });
+
+  it('says nothing of an action that already ended, or that was never asked', async () => {
+    const ended = await answer(deps({ ...ASKED, actionStatus: 'success' }));
+    expect(backHref(ended.body).searchParams.has('action_status')).toBe(false);
+    const none = await answer(deps({ ...PENDING, idTokenHintSubject: 'sub-1' }));
+    expect(backHref(none.body).searchParams.has('action_status')).toBe(false);
+  });
+});
+
+describe('sendActionUnavailable', () => {
+  async function unavailable(pending: PendingRequest | null) {
+    const d = deps(null, { loadPendingRequest: vi.fn().mockResolvedValue(pending) });
+    const app = withAddress(Fastify());
+    app.get('/p', (_request, reply) => sendActionUnavailable(reply, d, 'acme', 'x'));
+    return app.inject({ url: '/p', headers: { host: 'op.example' } });
+  }
+
+  it('says so and sends the person back with error, even for an action already ended', async () => {
+    for (const status of [undefined, 'error'] as const) {
+      const res = await unavailable({
+        ...PENDING,
+        action: 'generate-recovery-codes',
+        ...(status === undefined ? {} : { actionStatus: status }),
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toContain('This change is not available for your account.');
+      const back = backHref(res.body);
+      expect(back.searchParams.get('action_status')).toBe('error');
+      expect(back.searchParams.get('error')).toBe('access_denied');
+    }
+  });
+
+  it('offers no way back where the request is gone', async () => {
+    expect((await unavailable(null)).body).not.toContain('<a ');
   });
 });
 

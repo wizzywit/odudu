@@ -23,6 +23,7 @@ import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttl
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { confirmationFields, confirmLogoutPage } from '#/testing/logout-confirmation';
+import { noBreachedLookup } from '#/testing/breached-check';
 
 // Which client's theme a logout page wears. The `client_id` of a logout
 // request is a parameter anyone can write, so only a client the
@@ -206,6 +207,7 @@ beforeAll(async () => {
   await http.register(formbody);
   await http.register(
     oidcRoutes({
+      breachedPasswordCheck: noBreachedLookup,
       tls: false,
       database: app,
       ownerDatabase: owner,

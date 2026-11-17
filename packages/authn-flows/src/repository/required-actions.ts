@@ -20,7 +20,7 @@ export function requiredActionRepository(tx: TenantScopedDatabase) {
     // duplicated — the primary key (tenant_id, subject_id, action) is what
     // makes a plain insert conflict rather than a second, harmless row.
     // `tenantId` is explicit, the same way every other repository's insert
-    // in this codebase takes one (executionRepository.create,
+    // in this codebase takes one (flowRepository.replaceDefaultSteps,
     // authenticationSessionRepository.create): nothing in a TenantScopedDatabase
     // hands a caller the tenant id back out, so a fresh row's tenant_id has to
     // come from the caller, not be inferred.

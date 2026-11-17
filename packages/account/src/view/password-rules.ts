@@ -22,6 +22,8 @@ const RULE_MESSAGE: Readonly<Record<string, MessageId>> = {
   'not-email': 'password.rule.notEmail',
   'common-password': 'password.rule.common',
   'not-reused': 'password.rule.notReused',
+  'breached-password': 'password.rule.breached',
+  'breach-check-unavailable': 'password.rule.breachCheckUnavailable',
 };
 
 // The domain's sentences are developer-facing English, so a rule this build

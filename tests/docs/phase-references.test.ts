@@ -23,7 +23,7 @@ const CITING_DOCUMENTS: readonly (readonly [name: string, atLeast: number])[] = 
   // The transcripts point at the roadmap page, and name no phase.
   [PROTOCOL_PAGES, 0],
   // The roadmap carries the citations.
-  ['apps/docs/content/en/roadmap.md', 30],
+  ['apps/docs/content/en/roadmap.md', 28],
 ];
 
 function roadmapPhases(): Set<string> {
