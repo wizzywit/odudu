@@ -844,7 +844,10 @@ export function validateTenantImport(
   scopeProblems(document, graph, environment, problems);
   meScopeProblems(document, problems);
   subjectProblems(document, graph, problems);
-  for (const problem of tenantSettingProblems(document.settings)) {
+  for (const problem of tenantSettingProblems({
+    ...document.settings,
+    ...document.registration_policy,
+  })) {
     problems.add(`document.settings.${problem.name}`, problem.message);
   }
   const auditTypes = coerceTenantSetting('audit_event_types', document.settings.audit_event_types);

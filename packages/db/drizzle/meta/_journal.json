@@ -981,6 +981,13 @@
       "when": 1791580983737,
       "tag": "0139_users_email_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1791667383737,
+      "tag": "0140_registration_username",
+      "breakpoints": true
     }
   ]
 }

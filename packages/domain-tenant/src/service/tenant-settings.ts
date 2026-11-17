@@ -101,6 +101,11 @@ const SETTINGS = {
     values: PROFILE_CLAIM_NAMES,
   },
   login_with_email: { column: 'loginWithEmail', type: 'boolean' },
+  registration_username: {
+    column: 'registrationUsername',
+    type: 'text',
+    values: TENANT_SETTING_CHOICES.registration_username as readonly string[],
+  },
   cimd_enabled: { column: 'cimdEnabled', type: 'boolean' },
   // The audit trail's admin pair can never be left out: a security trail an
   // attacker holding an administrator's token could switch off is no trail.
@@ -337,6 +342,27 @@ function termsProblems(values: Readonly<Partial<Record<string, unknown>>>): Tena
   return problems;
 }
 
+// Without a username the person signs in by email, and an address nobody has
+// verified is no way to reach them. Judged only over the keys a set holds.
+function registrationUsernameProblems(
+  values: Readonly<Partial<Record<string, unknown>>>,
+): TenantSettingProblem[] {
+  if (values.registration_username !== 'optional' && values.registration_username !== 'generated') {
+    return [];
+  }
+  const off = (['login_with_email', 'verify_email'] as const).filter(
+    (name) => values[name] === false,
+  );
+  if (off.length === 0) return [];
+  return [
+    { name: 'registration_username', message: 'needs login_with_email and verify_email on' },
+    ...off.map((name) => ({
+      name,
+      message: 'must stay on while registration_username is optional or generated',
+    })),
+  ];
+}
+
 /**
  * What a full set of setting values breaks of the tenants CHECKs, by
  * setting: judged over the whole record, since an ordering spans two.
@@ -376,7 +402,11 @@ export function tenantSettingProblems(
       });
     }
   }
-  problems.push(...localeProblems(values), ...termsProblems(values));
+  problems.push(
+    ...localeProblems(values),
+    ...termsProblems(values),
+    ...registrationUsernameProblems(values),
+  );
   for (const [lower, upper] of TENANT_SETTING_ORDERINGS) {
     if (!isSettingName(lower)) continue;
     const low = values[lower];

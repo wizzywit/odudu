@@ -61,6 +61,8 @@ export const TOTP_DIGITS_CHOICES = [6, 8] as const;
 export const TOTP_PERIOD_CHOICES = [30, 60] as const;
 export const WEBAUTHN_REQUIREMENT_CHOICES = ['required', 'preferred', 'discouraged'] as const;
 
+export const REGISTRATION_USERNAME_CHOICES = ['required', 'optional', 'generated'] as const;
+
 export const TENANT_SETTING_CHOICES: Readonly<Record<string, readonly (string | number)[]>> = {
   totp_algorithm: TOTP_ALGORITHM_CHOICES,
   totp_digits: TOTP_DIGITS_CHOICES,
@@ -69,6 +71,7 @@ export const TENANT_SETTING_CHOICES: Readonly<Record<string, readonly (string | 
   webauthn_resident_key: WEBAUTHN_REQUIREMENT_CHOICES,
   breached_check: ['off', 'dataset', 'remote'],
   breached_on_error: ['open', 'closed'],
+  registration_username: REGISTRATION_USERNAME_CHOICES,
 };
 
 /** Pairs `[lower, upper]` a CHECK holds `lower <= upper`. */

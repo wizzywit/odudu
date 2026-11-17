@@ -125,6 +125,9 @@ export const tenantSettingsDocumentSchema = z.strictObject({
     .default([...DEFAULT_REQUIRED_PROFILE_FIELDS]),
   login_with_email: z.boolean(),
   // Absent from a document exported before the setting existed, which
+  // imports with a username required.
+  registration_username: z.enum(['required', 'optional', 'generated']).default('required'),
+  // Absent from a document exported before the setting existed, which
   // imports with it off.
   cimd_enabled: z.boolean().default(false),
   audit_event_types: z.array(z.string()),

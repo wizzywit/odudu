@@ -443,3 +443,79 @@ describe('the terms limits beyond the shared ones', () => {
     expect(tenantSettingProblems({ terms_uri: 'https://example.com/terms' })).toEqual([]);
   });
 });
+
+describe('the registration_username setting', () => {
+  const names = (values: Parameters<typeof tenantSettingProblems>[0]): string[] =>
+    tenantSettingProblems(values).map(({ name }) => name);
+
+  it('is coerced to one of three choices', () => {
+    expect(coerceTenantSetting('registration_username', 'generated')).toEqual({
+      kind: 'coerced',
+      column: 'registrationUsername',
+      value: 'generated',
+    });
+    expect(coerceTenantSetting('registration_username', 'sometimes').kind).toBe('invalid_value');
+  });
+
+  it('names the choices when a value is none of them', () => {
+    expect(tenantSettingProblems({ registration_username: 'sometimes' })).toEqual([
+      { name: 'registration_username', message: 'must be one of required, optional, generated' },
+    ]);
+  });
+
+  it.each(['optional', 'generated'])(
+    'needs login_with_email and verify_email on while it is %s',
+    (mode) => {
+      expect(
+        tenantSettingProblems({
+          registration_username: mode,
+          login_with_email: false,
+          verify_email: true,
+        }),
+      ).toContainEqual({
+        name: 'registration_username',
+        message: 'needs login_with_email and verify_email on',
+      });
+      expect(
+        names({ registration_username: mode, login_with_email: true, verify_email: false }),
+      ).toContain('registration_username');
+      expect(
+        names({ registration_username: mode, login_with_email: true, verify_email: true }),
+      ).toEqual([]);
+    },
+  );
+
+  it('asks nothing of the two settings while a username is required', () => {
+    expect(
+      names({ registration_username: 'required', login_with_email: false, verify_email: false }),
+    ).toEqual([]);
+  });
+
+  it('names the setting that was turned off while a username is not required', () => {
+    expect(
+      tenantSettingProblems({
+        registration_username: 'optional',
+        login_with_email: false,
+        verify_email: true,
+      }),
+    ).toContainEqual({
+      name: 'login_with_email',
+      message: 'must stay on while registration_username is optional or generated',
+    });
+    expect(
+      tenantSettingProblems({
+        registration_username: 'generated',
+        login_with_email: true,
+        verify_email: false,
+      }),
+    ).toContainEqual({
+      name: 'verify_email',
+      message: 'must stay on while registration_username is optional or generated',
+    });
+  });
+
+  it('judges only the settings a partial value set holds', () => {
+    expect(names({ registration_username: 'generated' })).toEqual([]);
+    expect(names({ login_with_email: false, verify_email: false })).toEqual([]);
+  });
+});

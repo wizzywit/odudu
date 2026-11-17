@@ -79,6 +79,7 @@ describe('migrations', () => {
       'recovery_code_warn_below',
       'refresh_token_ttl_seconds',
       'registration_allowed',
+      'registration_username',
       'remember_me_allowed',
       'remember_me_idle_seconds',
       'remember_me_max_seconds',

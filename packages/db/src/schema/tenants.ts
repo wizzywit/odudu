@@ -127,6 +127,9 @@ export const tenants = pgTable('tenants', {
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),
+  // Whether the registration form asks for a username, makes it optional or
+  // has the server generate one (packages/db/drizzle/0140_registration_username.sql).
+  registrationUsername: text('registration_username').notNull().default('required'),
   // Whether a client_id that is an https URL is resolved to the Client ID
   // Metadata Document served there (packages/db/drizzle/0116_cimd_clients.sql).
   cimdEnabled: boolean('cimd_enabled').notNull().default(false),

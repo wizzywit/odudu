@@ -104,6 +104,7 @@ const DOCUMENT: TenantDocument = {
     terms_version: '1',
     required_profile_fields: ['given_name', 'family_name'],
     login_with_email: false,
+    registration_username: 'required',
     cimd_enabled: false,
     audit_event_types: ['admin_mutation', 'admin_access'],
     supported_locales: ['en'],
@@ -277,6 +278,23 @@ describe('tenantDocumentSchema', () => {
     expect(result.success).toBe(true);
     expect(result.data?.settings.breached_check).toBe('dataset');
     expect(result.data?.settings.breached_on_error).toBe('open');
+  });
+
+  it('imports a document from before the registration form setting asking for a username', () => {
+    const older = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => name !== 'registration_username'),
+    );
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings: older });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings.registration_username).toBe('required');
+  });
+
+  it('refuses a registration_username that is none of the three', () => {
+    const refused = tenantDocumentSchema.safeParse({
+      ...DOCUMENT,
+      settings: { ...DOCUMENT.settings, registration_username: 'never' },
+    });
+    expect(refused.success).toBe(false);
   });
 
   it('imports a document from before the terms with none, at version 1', () => {

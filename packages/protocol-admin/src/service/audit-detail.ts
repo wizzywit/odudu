@@ -82,6 +82,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     require_passkey: 'value',
     breached_check: 'value',
     breached_on_error: 'value',
+    registration_username: 'value',
     terms_uri: 'value',
     terms_version: 'value',
     required_profile_fields: 'value',
