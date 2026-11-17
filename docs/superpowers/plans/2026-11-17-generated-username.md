@@ -102,6 +102,23 @@
 - [ ] **Step 6: Run** the account unit project, the snapshot update (`-u` only after reading the diff: it must show markers and nothing else), the integration test (heavy-slot -p int), `pnpm boundaries`, `tests/lint`. All pass.
 - [ ] **Step 7: Commit** `feat(account): the registration form follows registration_username`.
 
+## Task 4b: Themable markers
+
+**Files:**
+
+- Modify: `packages/account/src/view/registration-html.ts`, `packages/authn-flows/src/view/update-profile-html.ts` (the marker markup), `packages/domain-theme/src/service/hooks.ts` (`RENDERED_HOOKS`), `apps/docs/content/en/concepts/branding.mdx` and the generated branding reference, `CHANGELOG.md`
+- Test: `packages/account/src/view/registration-html.test.ts`, `packages/authn-flows/src/view/update-profile-html.test.ts`, the hooks and stylesheet-checker tests in `packages/domain-theme`, `packages/account/src/view/__snapshots__/default-template-output.test.ts.snap`, and the page-shots drift manifest
+
+**Interfaces:**
+
+- Produces: each marker is `<span class="marker marker-required">(required)</span>` or `<span class="marker marker-optional">(optional)</span>`, the text still from the message entries; `RENDERED_HOOKS` gains `marker`, `marker-required`, `marker-optional` (adding a hook does not bump `CSS_HOOKS_VERSION`); the default look is unchanged.
+
+- [ ] **Step 1: Verify.** `git grep -n "RENDERED_HOOKS" -- packages apps tests` lists everything that reads the list; `sed -n 175,190p packages/domain-theme/src/service/stylesheet-values.ts` shows which `content` values the checker accepts (decides whether a theme can swap the word for an asterisk with `::after`; the branding page states the answer).
+- [ ] **Step 2: Write the failing tests.** Renderer: `required` mode has four `marker marker-required` spans and no `marker-optional`; `optional` has one `marker-optional` span on Username; `generated` has none for Username. Update-profile: required fields use `marker marker-required`. Hooks: the three names are in `CSS_HOOKS`. Checker: a stylesheet with `.marker-required { color: var(--signal-danger-ink) }` and `.marker-optional { font-size: 12px }` passes; one naming `.marker-unknown` is refused. If `content` values allow it, a rule `.marker-required::after { content: '*' }` passes or is refused as the checker decides, and a test pins whichever.
+- [ ] **Step 3: Run, see them fail. Step 4: Implement.** One helper that builds the marker span from the message entry (reuse it from both pages if the package layering allows, else one small helper per package with the same markup; say which in the report), add the hooks, update the branding page ("CSS hooks": the three names and what they are for), regenerate the generated reference, update the snapshot only after reading the diff (spans only), regenerate the create-account pictures with `pnpm --filter @odudu/docs page-shots`, add a CHANGELOG line under Added.
+- [ ] **Step 5: Run** the touched unit projects, the integration test for the registration form, `tests/docs` and `tests/lint`, boundaries, eslint, prettier.
+- [ ] **Step 6: Commit** `feat(theme): required and optional markers are themable`.
+
 ## Task 5: The console control and its note
 
 **Files:**

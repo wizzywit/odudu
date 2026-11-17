@@ -60,6 +60,16 @@ already uses on the update-profile page (`Label (required)`, messages key
   from the markup and that a `username` posted anyway is ignored: the account
   gets a handle, never the posted name.
 
+The markers are themable. Each is its own element,
+`<span class="marker marker-required">(required)</span>` or
+`<span class="marker marker-optional">(optional)</span>`, and the three class
+names join the theme's allowed hooks (`RENDERED_HOOKS`; adding a hook is not a
+version break). A tenant stylesheet can then colour or resize each marker
+separately, and where the checker accepts a `content` value, swap the word for
+an asterisk with `::after`. The text stays in the label, so a screen reader
+still reads it, and the default look is unchanged. The update-profile page
+uses the same markup.
+
 A tenant's custom template keeps working: the markers and the `required`
 attributes are part of the `fields` value the renderer returns. The screenshots
 of the server pages on the landing page are regenerated with `page-shots`.
