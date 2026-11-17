@@ -19,16 +19,16 @@ wc -c < openapi.json | tr -d ' '
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1e9de-2fd6-7086-ba93-9938c23c9afd
+x-request-id: 01a1e9fb-dc7d-7349-be2d-a1b720a2e82e
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 878881
-Date: Tue, 17 Nov 2026 14:16:54 GMT
+content-length: 878967
+Date: Tue, 17 Nov 2026 14:49:19 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 113
-878881
+878967
 ```
 
 858 KB and 113 paths, which is the whole route table. It is the one admin
