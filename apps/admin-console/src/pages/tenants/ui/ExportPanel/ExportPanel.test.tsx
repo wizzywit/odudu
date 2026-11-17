@@ -128,3 +128,12 @@ it('passes axe in both themes, before and after an export', async () => {
     ),
   ).toEqual({ light: [], dark: [] });
 });
+
+it('says an export carries every sign-in flow and each client’s flow, and an import restores them', async () => {
+  renderConsoleAt(AT, routes(DOCUMENT_ANSWER));
+  const lead = await screen.findByText(/A file of acme's configuration/u);
+  expect(lead).toHaveTextContent(
+    'every sign-in flow, each by name, with the flow each client runs',
+  );
+  expect(lead).toHaveTextContent('Importing it creates a new tenant with the same flows');
+});

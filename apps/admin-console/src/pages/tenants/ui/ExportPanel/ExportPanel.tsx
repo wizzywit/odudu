@@ -16,9 +16,7 @@ export function ExportPanel({ tenant, authority }: { tenant: string; authority: 
       <h2 id={heading} className={styles.heading}>
         {`Export ${tenant}`}
       </h2>
-      <p className={styles.lead}>
-        {`A file of ${tenant}'s configuration: settings, the sign-in flow, clients, roles, groups, scopes, the registration policy and the mail relay. No secret is in it; the file lists each one it left out. Importing it creates a new tenant.`}
-      </p>
+      <p className={styles.lead}>{state.lead}</p>
       {state.needs.map((capability) => (
         <CapabilityNote key={capability} capability={capability}>
           An export
