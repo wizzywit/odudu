@@ -270,6 +270,8 @@ const INTEGER_CEILING = 2_147_483_647;
 export interface TenantSettingProblem {
   readonly name: TenantSettingName;
   readonly message: string;
+  /** A rule across settings, not a bound on one value. */
+  readonly rule?: true;
 }
 
 function localeProblems(
@@ -355,10 +357,15 @@ function registrationUsernameProblems(
   );
   if (off.length === 0) return [];
   return [
-    { name: 'registration_username', message: 'needs login_with_email and verify_email on' },
+    {
+      name: 'registration_username',
+      message: 'needs login_with_email and verify_email on',
+      rule: true,
+    },
     ...off.map((name) => ({
       name,
       message: 'must stay on while registration_username is optional or generated',
+      rule: true as const,
     })),
   ];
 }

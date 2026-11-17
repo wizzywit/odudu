@@ -475,6 +475,7 @@ describe('the registration_username setting', () => {
       ).toContainEqual({
         name: 'registration_username',
         message: 'needs login_with_email and verify_email on',
+        rule: true,
       });
       expect(
         names({ registration_username: mode, login_with_email: true, verify_email: false }),
@@ -501,6 +502,7 @@ describe('the registration_username setting', () => {
     ).toContainEqual({
       name: 'login_with_email',
       message: 'must stay on while registration_username is optional or generated',
+      rule: true,
     });
     expect(
       tenantSettingProblems({
@@ -511,7 +513,29 @@ describe('the registration_username setting', () => {
     ).toContainEqual({
       name: 'verify_email',
       message: 'must stay on while registration_username is optional or generated',
+      rule: true,
     });
+  });
+
+  it('names the whole set for a patch that only sets optional over login_with_email off', () => {
+    expect(
+      tenantSettingProblems({
+        registration_username: 'optional',
+        login_with_email: false,
+        verify_email: true,
+      }),
+    ).toEqual([
+      {
+        name: 'registration_username',
+        message: 'needs login_with_email and verify_email on',
+        rule: true,
+      },
+      {
+        name: 'login_with_email',
+        message: 'must stay on while registration_username is optional or generated',
+        rule: true,
+      },
+    ]);
   });
 
   it('judges only the settings a partial value set holds', () => {

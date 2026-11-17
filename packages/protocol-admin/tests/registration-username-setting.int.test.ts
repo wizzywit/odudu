@@ -41,6 +41,9 @@ describe('the registration_username setting', () => {
     const refused = await patch({ registration_username: 'optional' });
     expect(refused.statusCode, refused.body).toBe(400);
     expect(refused.body).toContain('needs login_with_email and verify_email on');
+    expect(refused.json<{ detail: string }>().detail).toBe(
+      '3 tenant setting(s) refused, listed under errors',
+    );
 
     const accepted = await patch({
       registration_username: 'optional',
@@ -111,5 +114,13 @@ describe('the registration_username setting', () => {
     });
     expect(refused.statusCode, refused.body).toBe(400);
     expect(refused.body).toContain('document.settings.registration_username');
+    const { errors } = refused.json<{ errors: { path: string; message: string }[] }>();
+    expect(errors.map((error) => error.path)).toEqual([
+      'document.settings.registration_username',
+      'document.registration_policy.verify_email',
+    ]);
+    expect(errors[1]?.message).toBe(
+      'is off, which registration_username optional or generated needs',
+    );
   });
 });
