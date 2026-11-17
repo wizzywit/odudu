@@ -457,6 +457,48 @@ describe('GET /admin/tenants/{tenant}/export', () => {
       expect(document.clients.find((c) => c.client_id === client.clientId)?.flow).toBe('staff');
     });
 
+    it('waits for the flow lock another administrator holds, then exports what it left', async () => {
+      const t = await fixture.createTenant(`export-${newId()}`);
+      const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let locked: () => void = () => undefined;
+      const lockTaken = new Promise<void>((resolve) => {
+        locked = resolve;
+      });
+      const holder = withTenant(fixture.app.db, t.id, async (tx) => {
+        const repository = flowRepository(tx);
+        await repository.lockForTenant(t.id);
+        await repository.create(t.id, 'late', PASSWORD_ONLY);
+        locked();
+        await held;
+      });
+      await lockTaken;
+
+      let settled = false;
+      const exporting = exportTenant(token, t.name).then((res) => {
+        settled = true;
+        return res;
+      });
+      let waiting = false;
+      for (let attempt = 0; attempt < 50 && !waiting; attempt += 1) {
+        const rows = await fixture.owner
+          .sql`select 1 from pg_locks where locktype = 'advisory' and not granted`;
+        waiting = rows.length > 0;
+        if (!waiting) await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      expect(waiting).toBe(true);
+      expect(settled).toBe(false);
+
+      release();
+      await holder;
+      const res = await exporting;
+      expect(res.statusCode, res.payload).toBe(200);
+      expect(parsed(res.payload).flows.map((flow) => flow.name)).toEqual(['late']);
+    });
+
     it('exports no named flow for a tenant that has only the default', async () => {
       const t = await fixture.createTenant(`export-${newId()}`);
       await fixture.createConfidentialClient(t.name, {});

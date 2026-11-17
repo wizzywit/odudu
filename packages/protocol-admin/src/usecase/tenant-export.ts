@@ -713,10 +713,11 @@ export async function exportTenant(
 
   const roleRows = await readRoles(tx, tenantId);
   const roleById = new Map(roleRows.map((role) => [role.id, role]));
+  // Flow writes and client flow assignments take this lock, so holding it to
+  // the end of the transaction keeps the client rows and the flows read next
+  // from changing between the two reads: every flow a client names is listed.
+  await flowRepository(tx).lockForTenant(tenantId);
   const clientRows = await readClients(tx, tenantId);
-  // Read after the clients: a flow a client names cannot be deleted while it
-  // is named, so every name a client row holds is in this list even when
-  // another administrator creates a flow and assigns it during the export.
   const flowRows = await flowRepository(tx).forTenant(tenantId);
   const defaultFlow = flowRows.find((flow) => flow.isDefault);
   const steps = defaultFlow?.steps ?? [];
