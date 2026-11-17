@@ -98,3 +98,11 @@ export { DEFAULT_TEMPLATES } from '#/view/templates/index';
 export { hasMessage as isAccountMessageKey } from '#/view/template';
 export { en as ACCOUNT_PAGE_MESSAGES } from '#/view/messages';
 export { PREVIEW_PAGES as ACCOUNT_PREVIEW_PAGES } from '#/view/preview-pages';
+export {
+  chooseUsername,
+  generateHandle,
+  HANDLE_ATTEMPTS,
+  REGISTRATION_USERNAME_MODES,
+  type RegistrationUsernameMode,
+  type UsernameChoice,
+} from '#/service/username-choice';

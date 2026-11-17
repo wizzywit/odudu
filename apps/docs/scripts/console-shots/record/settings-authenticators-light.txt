@@ -133,6 +133,13 @@ min
 h
 d
 A verification link stops working after this long. Allowed: 1 minute to 7 days.
+Username at registration
+Required
+▾
+Whether the registration form asks for a username. Optional and Generated need both “Sign in with a verified email address” and “Verify email addresses” on, and keep them on; Generated asks for no username at all and assigns one. The server refuses the change otherwise.
+Required
+Optional
+Generated
 Password reset by mail
 Off
 A person who forgot their password may ask for a reset link.

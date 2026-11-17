@@ -34,6 +34,8 @@ export {
   brandingHead,
   brandingProblems,
   isSameOriginPath,
+  fieldMarker,
+  markedLabel,
   mainClass,
   pageHeaders,
   reloadOnRestore,

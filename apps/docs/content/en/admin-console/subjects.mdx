@@ -57,7 +57,7 @@ A subject's record has a tab for each part of an account.
   caption="A person opens on a Profile tab. The Activity tab is just beyond the right edge."
 />
 
-- **Profile** holds the account, the name, the details, the address and whether the email and phone number are verified. A section saves on its own with its own **Save** button.
+- **Profile** holds the account, the name, the details, the address and whether the email and phone number are verified. A section saves on its own with its own **Save** button. Changing the **Email** makes the new address unverified, and the person cannot sign in with it until it is verified, so they sign in with their **Username** meanwhile, which for a person who chose none is the handle Odudu generated at registration. **Send a verification email** on the Credentials tab mails the link to the new address.
   The name fields are **Full name**, **Given name**, **Family name**, **Middle name**, **Nickname** and **Preferred username**, which is what the person likes to be called and is not the sign-in username. The details are **Gender**, **Birthdate**, **Time zone**, **Locale**, **Profile page**, **Website**, **Picture** and **Phone number**, with **Phone number verified** beside it. The address is **Formatted address**, **Street**, **Locality**, **Region**, **Postal code** and **Country**. An application receives the ones its scopes carry: `profile`, `email`, `phone` and `address`.
 - **Credentials** holds the password, the second factors the person enrolled, their recovery codes and any lockout. When you revoke recovery codes, tick **Ask for a new set at next sign-in** to have the person given new ones.
 - **Groups** lists the groups the person belongs to; the groups' roles come with them.

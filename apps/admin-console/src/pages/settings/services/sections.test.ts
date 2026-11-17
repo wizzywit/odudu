@@ -22,7 +22,8 @@ const EVERY_SETTING = [
   ...REGISTRATION_POLICY_SETTINGS,
 ];
 
-const PLACED = SETTINGS_SECTIONS.flatMap((section) => section.fields.map((field) => field.name));
+const PLACED_FIELDS = SETTINGS_SECTIONS.flatMap((section) => section.fields);
+const PLACED = PLACED_FIELDS.map((field) => field.name);
 
 describe('SETTINGS_SECTIONS', () => {
   it('places every tenant setting in a section, or names where else it lives', () => {
@@ -74,7 +75,6 @@ describe('SETTINGS_SECTIONS', () => {
 
 describe('the authenticator policy', () => {
   const home = SETTINGS_SECTIONS.find((section) => section.id === 'authenticators');
-  const named = (name: string) => home?.fields.find((field) => field.name === name);
 
   it('sits in one section with the recovery warning its count bounds', () => {
     expect(home?.fields.map((field) => field.name)).toEqual([
@@ -104,13 +104,38 @@ describe('the authenticator policy', () => {
 
   it('offers exactly the values the server accepts, digits and period as numbers', () => {
     for (const [name, choices] of Object.entries(TENANT_SETTING_CHOICES)) {
-      // These two live in the password policy, which has its own test below.
-      if (name.startsWith('breached_')) continue;
-      const field = named(name);
+      // A choice may sit in any section: the authenticators, the password
+      // policy or the registration section.
+      const field = PLACED_FIELDS.find((each) => each.name === name);
       expect(field?.control).toBe('choice');
       expect(field?.options?.map((option) => option.id)).toEqual(choices.map(String));
       expect(field?.numeric === true).toBe(typeof choices[0] === 'number');
     }
+  });
+});
+
+describe('the registration username setting', () => {
+  const home = SETTINGS_SECTIONS.find((section) => section.id === 'registration');
+  const field = home?.fields.find((each) => each.name === 'registration_username');
+
+  it('follows the verification link lifetime, as a choice of the three modes', () => {
+    const names = home?.fields.map((each) => each.name) ?? [];
+    expect(names.indexOf('registration_username')).toBe(
+      names.indexOf('verify_email_ttl_seconds') + 1,
+    );
+    expect(field?.label).toBe('Username at registration');
+    expect(field?.control).toBe('choice');
+    expect(field?.options).toEqual([
+      { id: 'required', label: 'Required' },
+      { id: 'optional', label: 'Optional' },
+      { id: 'generated', label: 'Generated' },
+    ]);
+  });
+
+  it('says which two settings it needs and what generated does', () => {
+    expect(field?.description).toContain('Sign in with a verified email address');
+    expect(field?.description).toContain('Verify email addresses');
+    expect(field?.description).toContain('Generated');
   });
 });
 

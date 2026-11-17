@@ -17,6 +17,12 @@ import {
 import { type MailGate } from '#/service/mail-gate';
 import { signInPath } from '#/service/sign-in-path';
 import {
+  chooseUsername,
+  generateHandle,
+  HANDLE_ATTEMPTS,
+  type RegistrationUsernameMode,
+} from '#/service/username-choice';
+import {
   clientOfHeldSignIn,
   referenceToResume,
   type FindHeldSignIn,
@@ -41,6 +47,7 @@ export interface RegistrationTenantLookup {
   readonly registrationAllowed: boolean;
   readonly verifyEmail: boolean;
   readonly resetPasswordAllowed: boolean;
+  readonly registrationUsername: RegistrationUsernameMode;
   readonly verifyEmailTtlSeconds: number;
   readonly passwordPolicy: PasswordPolicy;
 }
@@ -84,6 +91,8 @@ export interface RegistrationRouteDeps extends BrandedLocaleDeps {
     subject: { username: string; email: string | null },
   ) => PolicyViolation[];
   readonly breachedCheck: BreachedCheck;
+  // The source a generated username is drawn from.
+  readonly randomBytes: (length: number) => Uint8Array;
 }
 
 // @fastify/formbody parses a repeated field into an array; every field this
@@ -127,7 +136,11 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
       renderRegistrationForm(
         request.params.tenant,
         tenantAddressOf(request),
-        { rules: tenant.passwordPolicy, signInPath: returnTo },
+        {
+          rules: tenant.passwordPolicy,
+          signInPath: returnTo,
+          usernameMode: tenant.registrationUsername,
+        },
         locale,
       ),
     );
@@ -143,7 +156,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     }
 
     const body = request.body ?? {};
-    const username = firstNonEmptyString(body.username);
+    const choice = chooseUsername(tenant.registrationUsername, firstNonEmptyString(body.username));
     const email = firstNonEmptyString(body.email);
     const candidate = readPasswordField(body.password);
     const again = readPasswordField(body.password_confirm);
@@ -162,7 +175,8 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
             rules: tenant.passwordPolicy,
             signInPath: returnTo,
             failure,
-            ...(username === undefined ? {} : { username }),
+            usernameMode: tenant.registrationUsername,
+            ...(choice.kind === 'use' ? { username: choice.username } : {}),
             ...(email === undefined ? {} : { email }),
           },
           locale,
@@ -178,13 +192,13 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     const confirmation =
       again.kind === 'present' && again.password.length > 0 ? again.password : undefined;
     if (
-      username === undefined ||
+      choice.kind === 'missing' ||
       email === undefined ||
       password === undefined ||
       confirmation === undefined
     ) {
       const missing: RegistrationField[] = [
-        ...(username === undefined ? (['username'] as const) : []),
+        ...(choice.kind === 'missing' ? (['username'] as const) : []),
         ...(email === undefined ? (['email'] as const) : []),
         ...(password === undefined ? (['password'] as const) : []),
         ...(confirmation === undefined && password !== undefined
@@ -202,33 +216,58 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
       tenant.verifyEmail && returnTo !== null
         ? await deps.findHeldSignIn(tenant, request.headers.cookie, tenantAddressOf(request))
         : null;
-    const outcome = await register(
-      {
-        database: deps.database,
-        tenantId: tenant.id,
-        tenantName: tenant.name,
-        tenantDisplayName: tenant.displayName ?? tenant.name,
-        request: requestContextFrom(request),
-        issuerBase: deps.publicBaseUrl,
-        verifyEmailEnabled: tenant.verifyEmail,
-        resetPasswordAllowed: tenant.resetPasswordAllowed,
-        authenticationSessionId: referenceToResume(held, returnTo),
-        clientId: clientOfHeldSignIn(held, returnTo),
-        now: deps.now,
-        resolveMailLook: deps.resolveMailLook,
-        createAccount: deps.createAccount,
-        lockAddress: deps.lockAddress,
-        findTaken: deps.findTaken,
-        hashPassword: deps.hashPassword,
-        isEmailAddress: deps.isEmailAddress,
-        mailGate: deps.mailGate,
-        verifyEmailTtlSeconds: tenant.verifyEmailTtlSeconds,
-        passwordPolicy: tenant.passwordPolicy,
-        evaluatePassword: deps.evaluatePassword,
-        breachedCheck: deps.breachedCheck,
-      },
-      { username, email, password },
-    );
+    const registerDeps: RegisterDeps = {
+      database: deps.database,
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      tenantDisplayName: tenant.displayName ?? tenant.name,
+      request: requestContextFrom(request),
+      issuerBase: deps.publicBaseUrl,
+      verifyEmailEnabled: tenant.verifyEmail,
+      resetPasswordAllowed: tenant.resetPasswordAllowed,
+      authenticationSessionId: referenceToResume(held, returnTo),
+      clientId: clientOfHeldSignIn(held, returnTo),
+      now: deps.now,
+      resolveMailLook: deps.resolveMailLook,
+      createAccount: deps.createAccount,
+      lockAddress: deps.lockAddress,
+      findTaken: deps.findTaken,
+      hashPassword: deps.hashPassword,
+      isEmailAddress: deps.isEmailAddress,
+      mailGate: deps.mailGate,
+      verifyEmailTtlSeconds: tenant.verifyEmailTtlSeconds,
+      passwordPolicy: tenant.passwordPolicy,
+      evaluatePassword: deps.evaluatePassword,
+      breachedCheck: deps.breachedCheck,
+    };
+    // A generated handle that collides is drawn again; a chosen name is asked once.
+    let outcome = await register(registerDeps, {
+      username: choice.kind === 'use' ? choice.username : generateHandle(deps.randomBytes(10)),
+      email,
+      password,
+    });
+    for (
+      let draw = 1;
+      choice.kind === 'generate' && outcome.kind === 'username_taken' && draw < HANDLE_ATTEMPTS;
+      draw += 1
+    ) {
+      outcome = await register(registerDeps, {
+        username: generateHandle(deps.randomBytes(10)),
+        email,
+        password,
+      });
+    }
+    if (choice.kind === 'generate' && outcome.kind === 'username_taken') {
+      request.log.error(
+        { tenant: tenant.name },
+        'registration failed: every generated username was already taken',
+      );
+      return sendVerificationHtml(
+        reply,
+        500,
+        renderRegistrationFailedPage(tenantAddressOf(request), returnTo, locale),
+      );
+    }
 
     if (outcome.kind === 'invalid_password') {
       return refuse(400, { violations: outcome.violations });

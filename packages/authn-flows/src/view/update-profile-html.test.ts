@@ -49,9 +49,13 @@ describe('the update-profile page', () => {
   it('marks the required fields and no others', () => {
     const html = page();
     expect(html).toContain(
-      `${en['updateProfile.field.name']} (${en['updateProfile.required']}) <input`,
+      `<label><span>${en['updateProfile.field.name']} <span class="marker marker-required">(${en['updateProfile.required']})</span></span> <input`,
     );
-    expect(html).not.toContain(`${en['updateProfile.field.birthdate']} (`);
+    const birthdate = html
+      .slice(html.indexOf(`<label>${en['updateProfile.field.birthdate']}`))
+      .split('</label>')[0];
+    expect(birthdate).toContain('name="birthdate"');
+    expect(birthdate).not.toContain('<span class="marker');
   });
 
   it('types a web address as a url and a phone number as tel', () => {

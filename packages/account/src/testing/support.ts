@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import {
@@ -98,6 +99,7 @@ export const accountTestDeps = {
   findReturnClient: () => Promise.resolve(null),
   resolveMailLook: () => Promise.resolve({ branding: null, overrides: {} }),
   now: () => new Date(),
+  randomBytes: (length: number): Uint8Array => randomBytes(length),
 };
 
 // The rest of what the action-token route is handed. A registration link

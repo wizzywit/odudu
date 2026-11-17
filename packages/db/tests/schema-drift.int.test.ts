@@ -182,6 +182,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((prefix ~ '^[0-9A-F]{5}$'::text))",
   'breached_password_hashes.breached_password_hashes_suffix_shape':
     "CHECK ((suffix ~ '^[0-9A-F]{35}$'::text))",
+  'tenants.tenants_registration_username_check':
+    "CHECK ((registration_username = ANY (ARRAY['required'::text, 'optional'::text, 'generated'::text])))",
   'tenants.tenants_totp_algorithm_check':
     "CHECK ((totp_algorithm = ANY (ARRAY['SHA1'::text, 'SHA256'::text, 'SHA512'::text])))",
   'tenants.tenants_totp_digits_check': 'CHECK ((totp_digits = ANY (ARRAY[6, 8])))',

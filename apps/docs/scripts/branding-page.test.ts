@@ -86,4 +86,13 @@ describe('the branding reference', () => {
   it('links the concept page, which exists at that path', () => {
     expect(text).toContain('(../../concepts/branding.mdx)');
   });
+
+  it('names the marker classes and says the word cannot be swapped for a character', () => {
+    const classes = section('Classes the pages render');
+    for (const name of ['marker', 'marker-required', 'marker-optional']) {
+      expect(classes).toContain(`\`.${name}\``);
+    }
+    expect(classes).toContain('`.marker-required` and `.marker-optional`');
+    expect(classes).toContain('`content` accepts only `none` or an empty string');
+  });
 });

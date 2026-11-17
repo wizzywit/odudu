@@ -228,7 +228,9 @@ export async function amendSettings(
     ...Object.fromEntries(coerced.settings.map((setting) => [setting.name, setting.value])),
   });
   if (problems.length > 0) {
-    const ranged = problems.some(({ name }) => listSettingValues(name) === null);
+    const ranged =
+      !problems.some(({ rule }) => rule === true) &&
+      problems.some(({ name }) => listSettingValues(name) === null);
     return { kind: 'out_of_range', problems, ranged };
   }
 

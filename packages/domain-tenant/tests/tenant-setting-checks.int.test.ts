@@ -66,7 +66,7 @@ function columnOf(name: TenantSettingName): string {
 // Whether the database accepts `change` over a fresh tenant's defaults, and
 // whether the predicate does, judged over the same merged record.
 async function verdicts(
-  change: Partial<Record<TenantSettingName, number | string>>,
+  change: Partial<Record<TenantSettingName, number | string | boolean>>,
 ): Promise<{ database: boolean; predicate: boolean }> {
   const id = newId();
   let predicate = false;
@@ -180,14 +180,23 @@ describe('tenantSettingProblems agrees with the CHECK constraints on tenants', (
   });
 });
 
-const choiceCases = Object.entries(TENANT_SETTING_CHOICES).flatMap(([name, choices]) => [
-  ...choices.map((value) => ({ name, value })),
-  { name, value: typeof choices[0] === 'number' ? 7 : 'nonesuch' },
-]);
+// registration_username's rule about the two sign-in settings is no CHECK, so
+// its cases hold both on and the verdicts differ only by the value's own CHECK.
+const CHOICE_PARTNERS: Partial<Record<string, Partial<Record<TenantSettingName, boolean>>>> = {
+  registration_username: { login_with_email: true, verify_email: true },
+};
+
+const choiceCases = Object.entries(TENANT_SETTING_CHOICES).flatMap(([name, choices]) =>
+  [...choices, typeof choices[0] === 'number' ? 7 : 'nonesuch'].map((value) => ({
+    name,
+    value,
+    change: { ...CHOICE_PARTNERS[name], [name]: value },
+  })),
+);
 
 describe('the offered values agree with the CHECK constraints on tenants', () => {
-  it.each(choiceCases)('$name = $value', async ({ name, value }) => {
-    const { database, predicate } = await verdicts({ [name]: value });
+  it.each(choiceCases)('$name = $value', async ({ change }) => {
+    const { database, predicate } = await verdicts(change);
     expect(predicate).toBe(database);
   });
 });

@@ -350,6 +350,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
     '> Send a password reset email <',
   ),
+  'Send a verification email': page(
+    'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
+    '> Send a verification email <',
+  ),
   'Revoke recovery codes': page(
     'subjects/services/credentialAsk.ts',
     "confirmLabel: 'Revoke recovery codes'",
@@ -1008,6 +1012,12 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'settings/services/accessSections.ts',
     "label: 'Sign in with a verified email address'",
   ),
+  'Username at registration': page(
+    'settings/services/accessSections.ts',
+    "label: 'Username at registration'",
+  ),
+  Optional: page('settings/services/accessSections.ts', "optional: 'Optional'"),
+  Generated: page('settings/services/accessSections.ts', "generated: 'Generated'"),
   'Require a digit': page(PASSWORD, "label: 'Require a digit'"),
   'Require an uppercase letter': page(PASSWORD, "label: 'Require an uppercase letter'"),
   'Require a lowercase letter': page(PASSWORD, "label: 'Require a lowercase letter'"),

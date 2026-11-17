@@ -1019,6 +1019,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     mailGate,
     evaluatePassword,
     breachedCheck: breachedPasswordCheck,
+    randomBytes: (length) => randomBytes(length),
   });
 
   registerResendVerificationRoute(app, {

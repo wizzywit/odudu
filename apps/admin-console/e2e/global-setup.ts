@@ -556,6 +556,7 @@ export default function globalSetup(): void {
       general: { tenant: `${run}-s5`, username: 'ohm', password: password() },
       disable: { tenant: `${run}-s6`, username: 'volta', password: password() },
       fixed: { tenant: `${run}-s7`, username: 'ampere', password: password() },
+      username: { tenant: `${run}-s8`, username: 'henry', password: password() },
       fixedClientsOnly: { tenant: `${run}-s7`, username: 'tesla', password: password() },
     },
     email: {

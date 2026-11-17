@@ -1,5 +1,6 @@
 import {
   addressPath,
+  markedLabel,
   PASSWORD_CONFIRM_FIELD_ID,
   passwordConfirmToggle,
   type PageLocale,
@@ -19,6 +20,7 @@ import {
 import { returnToField } from '#/view/return-to';
 import { t, tHtml, type MessageId } from '#/view/messages';
 import { passwordField } from '#/view/password-field';
+import { type RegistrationUsernameMode } from '#/service/username-choice';
 import { fillNotice, fillPage } from '#/view/template';
 import { ruleHtml, type PasswordViolation } from '#/view/password-rules';
 
@@ -104,6 +106,8 @@ export interface RegistrationForm {
   readonly failure?: RegistrationFailure;
   readonly username?: string;
   readonly email?: string;
+  // Whether the form asks for a username; a required one when not given.
+  readonly usernameMode?: RegistrationUsernameMode;
 }
 
 function backToSignIn(signInPath: string | null | undefined, locale: PageLocale): WayOn | null {
@@ -129,11 +133,24 @@ export function renderRegistrationForm(
     problems,
     focus === 'password',
     locale,
+    true,
   );
   const value = (text: string | undefined): string => {
     const echoed = text === undefined ? undefined : echoedValue(text);
     return echoed === undefined ? '' : ` value="${escapeHtml(echoed)}"`;
   };
+  const mode = form.usernameMode ?? 'required';
+  const marker = (label: MessageId, required: boolean): string =>
+    markedLabel(
+      tHtml(locale, label),
+      required,
+      tHtml(locale, required ? 'registration.required' : 'registration.optional'),
+    );
+  const usernameField =
+    mode === 'generated'
+      ? ''
+      : `<label>${marker('registration.username', mode === 'required')} <input type="text" name="username" autocomplete="username"${mode === 'required' ? ' required' : ''}${value(form.username)}${attributes('username')}></label>
+  `;
   return page(
     t(locale, 'registration.title'),
     fillPage(
@@ -142,10 +159,9 @@ export function renderRegistrationForm(
         intro: intro(tHtml(locale, 'registration.title'), tenant),
         error: problemSummary(problems),
         'form.open': `<form method="post" action="${action}">${returnToField(form.signInPath)}`,
-        fields: `<label>${tHtml(locale, 'registration.username')} <input type="text" name="username" autocomplete="username"${value(form.username)}${attributes('username')}></label>
-  <label>${tHtml(locale, 'registration.email')} <input type="email" name="email" autocomplete="email"${value(form.email)}${attributes('email')}></label>
+        fields: `${usernameField}<label>${marker('registration.email', true)} <input type="email" name="email" autocomplete="email" required${value(form.email)}${attributes('email')}></label>
   ${password.html}
-  <label>${tHtml(locale, 'registration.passwordConfirm')} <input type="password" name="password_confirm" id="${PASSWORD_CONFIRM_FIELD_ID}" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"${attributes('passwordConfirm')}></label>\n  ${passwordConfirmToggle(password.script)}`,
+  <label>${marker('registration.passwordConfirm', true)} <input type="password" name="password_confirm" id="${PASSWORD_CONFIRM_FIELD_ID}" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"${attributes('passwordConfirm')}></label>\n  ${passwordConfirmToggle(password.script)}`,
         submit: `<button type="submit">${tHtml(locale, 'registration.submit')}</button>`,
         'form.close': '</form>',
         links: links([backToSignIn(form.signInPath, locale)]),

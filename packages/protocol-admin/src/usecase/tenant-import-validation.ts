@@ -13,6 +13,7 @@ import {
   EXPORT_SUBJECT_CAP,
   GROUP_LIMIT,
   groupLimitMessage,
+  REGISTRATION_POLICY_SETTINGS,
   ROLE_LIMIT,
   roleLimitMessage,
   SCOPE_LIMIT,
@@ -844,8 +845,18 @@ export function validateTenantImport(
   scopeProblems(document, graph, environment, problems);
   meScopeProblems(document, problems);
   subjectProblems(document, graph, problems);
-  for (const problem of tenantSettingProblems(document.settings)) {
-    problems.add(`document.settings.${problem.name}`, problem.message);
+  for (const problem of tenantSettingProblems({
+    ...document.settings,
+    ...document.registration_policy,
+  })) {
+    const member = REGISTRATION_POLICY_SETTINGS.includes(problem.name);
+    const offByRule = problem.rule === true && problem.name !== 'registration_username';
+    problems.add(
+      `document.${member ? 'registration_policy' : 'settings'}.${problem.name}`,
+      offByRule
+        ? 'is off, which registration_username optional or generated needs'
+        : problem.message,
+    );
   }
   const auditTypes = coerceTenantSetting('audit_event_types', document.settings.audit_event_types);
   if (auditTypes.kind === 'invalid_value') {

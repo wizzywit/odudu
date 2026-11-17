@@ -1100,6 +1100,8 @@ describeFields(tenantSettingsDocumentSchema, {
   required_profile_fields:
     'The profile claims the `update-profile` required action needs a person to have before it ends, by wire name: any of the claims `PATCH …/profile` writes (`given_name` and `family_name` by default). The page lists every claim a person can edit and marks these; the others are optional. An empty list makes it a page that is reviewed and submitted.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
+  registration_username:
+    'Whether the registration form asks for a username: required, optional or generated (the server makes one). Optional and generated need login_with_email and verify_email on, and keep them on.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',
   audit_event_types: 'The audit event types the tenant stores.',

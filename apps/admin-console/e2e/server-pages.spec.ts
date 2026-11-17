@@ -280,7 +280,7 @@ test('the password hints are a plain list, and a script ticks them and shows the
     'At least 15 characters',
     'Not a common password',
   ]);
-  const field = page.getByLabel('Password', { exact: true });
+  const field = page.getByLabel(/^Password/u);
   const again = page.getByLabel('Confirm password');
   await expect(again).toHaveAttribute('autocomplete', 'new-password');
   await expect(field).toHaveAttribute('autocomplete', 'new-password');
@@ -349,6 +349,11 @@ test('registration, the unverified account, password reset and their links', asy
   await inspect(page, 'registration');
 
   // Nothing filled in: each empty field says so, in place, and the first has focus.
+  // The inputs carry `required`, so a browser would stop the submit itself;
+  // this step is about the server's refusal.
+  await page.locator('main form').evaluate((form) => {
+    form.setAttribute('novalidate', '');
+  });
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Create account' })).toBeVisible();
   await expect(page.getByRole('alert')).toContainText('Enter a username.');
@@ -358,24 +363,24 @@ test('registration, the unverified account, password reset and their links', asy
 
   await page.getByLabel('Username').fill('newcomer');
   await page.getByLabel('Email').fill(`newcomer-${run}@example.test`);
-  await page.getByLabel('Password', { exact: true }).fill(COMMON_PASSWORD);
+  await page.getByLabel(/^Password/u).fill(COMMON_PASSWORD);
   await page.getByLabel('Confirm password').fill(COMMON_PASSWORD);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('alert')).toContainText('That password is too easy to guess.');
   await expect(page.getByLabel('Username')).toHaveValue('newcomer');
-  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel(/^Password/u)).toHaveValue('');
   await expect(page.getByLabel('Confirm password')).toHaveValue('');
-  await expect(page.getByLabel('Password', { exact: true })).toBeFocused();
+  await expect(page.getByLabel(/^Password/u)).toBeFocused();
   await expect(page.getByRole('link', { name: 'Back to sign in' })).toBeVisible();
   await inspect(page, 'registration-weak');
 
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByLabel(/^Password/u).fill(PASSWORD);
   await page.getByLabel('Confirm password').fill('another one');
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('alert')).toContainText("The passwords don't match.");
   await expect(page.getByLabel('Confirm password')).toBeFocused();
   await inspect(page, 'registration-mismatch');
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByLabel(/^Password/u).fill(PASSWORD);
   await page.getByLabel('Confirm password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Check your email' })).toBeVisible();
@@ -406,7 +411,7 @@ test('registration, the unverified account, password reset and their links', asy
   await page.goto(`/tenants/${open}/login-actions/registration`);
   await page.getByLabel('Username').fill('newcomer');
   await page.getByLabel('Email').fill(`other-${run}@example.test`);
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByLabel(/^Password/u).fill(PASSWORD);
   await page.getByLabel('Confirm password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('alert')).toContainText('That username is already taken.');
@@ -468,7 +473,7 @@ test('registration, the unverified account, password reset and their links', asy
   await page.goto(`/tenants/${open}/login-actions/registration`);
   await page.getByLabel('Username').fill('direct');
   await page.getByLabel('Email').fill(`direct-${run}@example.test`);
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByLabel(/^Password/u).fill(PASSWORD);
   await page.getByLabel('Confirm password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Create account' }).click();
   const direct = mailKey(open, `direct-${run}@example.test`);

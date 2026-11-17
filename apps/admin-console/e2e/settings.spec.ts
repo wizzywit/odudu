@@ -162,6 +162,31 @@ test('a switch is set and saved by keyboard alone', async ({ page }) => {
   await expectAccessible(page);
 });
 
+test('the username at registration is chosen, saved and kept after a reload', async ({ page }) => {
+  const { username } = settings;
+  await signIn(page, username);
+  psql(
+    `update tenants set login_with_email = true, verify_email = true where name = '${username.tenant}'`,
+  );
+  await openSettings(page, username.tenant);
+  const registration = region(page, 'Registration and recovery');
+  await registration.getByRole('button', { name: /Username at registration/u }).click();
+  await page.getByRole('option', { name: 'Optional' }).click();
+  await registration.getByRole('button', { name: 'Save Registration and recovery' }).click();
+  await expect(
+    registration.getByRole('button', { name: 'Save Registration and recovery' }),
+  ).toBeHidden();
+  await expect.poll(() => column(username.tenant, 'registration_username')).toBe('optional');
+
+  await openSettings(page, username.tenant);
+  await expect(
+    region(page, 'Registration and recovery').getByRole('button', {
+      name: /Username at registration/u,
+    }),
+  ).toContainText('Optional');
+  await expectAccessible(page);
+});
+
 test('a display name is set, and cleared to use the tenant name', async ({ page }) => {
   const { general } = settings;
   await signIn(page, general);

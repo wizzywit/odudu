@@ -221,6 +221,13 @@ describe('the field table of the mixed routes', () => {
     }
   });
 
+  it('places the setting that decides the registration form’s username on the W2 side', () => {
+    const row = fields.rows.find((cells) => (cells[0] ?? '').includes('PATCH ~/settings'));
+    expect(row).toBeDefined();
+    expect(backticked(row?.[3] ?? '')).toContain('registration_username');
+    expect(backticked(row?.[2] ?? '')).not.toContain('registration_username');
+  });
+
   it('states what the door admits now, exactly: the allowlist’s fields, or none yet', () => {
     for (const cells of fields.rows) {
       const key = keyOf(cells[0] ?? '');

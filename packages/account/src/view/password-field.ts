@@ -1,4 +1,5 @@
 import {
+  markedLabel,
   PASSWORD_RULES_LIST_ID,
   passwordHints,
   type PageLocale,
@@ -18,6 +19,7 @@ export function passwordField(
   problems: readonly Problem[],
   autofocus: boolean,
   locale: PageLocale,
+  marked = false,
 ): { html: string; script: PageScript } {
   const hints = passwordHints(rules, {
     heading: tHtml(locale, 'password.hint.heading'),
@@ -32,7 +34,7 @@ export function passwordField(
   });
   const attributes = `${invalidAttributes(problems, 'password', [PASSWORD_RULES_LIST_ID])}${autofocus ? ' autofocus' : ''}`;
   return {
-    html: `<label>${tHtml(locale, label)} <input type="password" name="password" autocomplete="new-password"${hints.field}${attributes}></label>\n${hints.markup}`,
+    html: `<label>${marked ? markedLabel(tHtml(locale, label), true, tHtml(locale, 'registration.required')) : tHtml(locale, label)} <input type="password" name="password" autocomplete="new-password"${marked ? ' required' : ''}${hints.field}${attributes}></label>\n${hints.markup}`,
     script: hints.script,
   };
 }
