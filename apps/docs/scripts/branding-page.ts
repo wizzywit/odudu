@@ -120,7 +120,7 @@ function hooksSection(): string {
     `A theme’s stylesheet may name only what is listed here, and these are version ${String(hooks.version)} of the list. A hook is renamed or removed only with a new version; adding one does not make a new version. The console’s Selectors you can use and Design values you can use show this same list. A stylesheet cannot define a custom property of its own.`,
     names(
       'Classes the pages render',
-      'A rule names a class as a selector, for example `.logo { display: none; }`. `.logo-light` and `.logo-dark` hide one variant of the logo.',
+      'A rule names a class as a selector, for example `.logo { display: none; }`. `.logo-light` and `.logo-dark` hide one variant of the logo. `.marker-required` and `.marker-optional` style the “(required)” and “(optional)” after a label, and `.marker` both; `content` accepts only `none` or an empty string, so a stylesheet cannot swap the word for an asterisk.',
       hooks.classes,
       '.',
     ),

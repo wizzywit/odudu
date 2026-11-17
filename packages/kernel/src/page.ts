@@ -531,3 +531,18 @@ export function reloadOnRestore(page: RenderedPage): RenderedPage {
     script: page.script ?? { nonce, fetchesSameOrigin: false },
   };
 }
+
+// The "(required)" or "(optional)" after a form label, in an element of its own
+// so a tenant stylesheet can colour or resize each kind. `textHtml` is already
+// escaped; the word stays in the label for a screen reader.
+export function fieldMarker(required: boolean, textHtml: string): string {
+  return required
+    ? `<span class="marker marker-required">(${textHtml})</span>`
+    : `<span class="marker marker-optional">(${textHtml})</span>`;
+}
+
+// A label's text and its marker as one element: the label is a grid, so
+// loose text beside a marker would become two rows instead of one line.
+export function markedLabel(labelHtml: string, required: boolean, markerHtml: string): string {
+  return `<span>${labelHtml} ${fieldMarker(required, markerHtml)}</span>`;
+}

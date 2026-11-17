@@ -73,9 +73,9 @@ describe('renderRegistrationForm', () => {
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -84,7 +84,7 @@ describe('renderRegistrationForm', () => {
     </ul>
   </div>
   <script nonce="N">…</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="N">…</script>
   <button type="submit">Create account</button>
 </form>`);
@@ -195,8 +195,12 @@ describe('renderRegistrationForm', () => {
     );
     expect(page.html).toContain('<html lang="fr" dir="ltr">');
     expect(page.title).toBe('Créer un compte');
-    expect(page.body).toContain(`<label>Nom d&#39;utilisateur (required) <input`);
-    expect(page.body).toContain(`<label>${en['registration.email']} (required) <input`);
+    expect(page.body).toContain(
+      `<label><span>Nom d&#39;utilisateur <span class="marker marker-required">(required)</span></span> <input`,
+    );
+    expect(page.body).toContain(
+      `<label><span>${en['registration.email']} <span class="marker marker-required">(required)</span></span> <input`,
+    );
     expect(page.body).toContain(`>${en['registration.submit']}</button>`);
     expect(
       renderRegistrationForm(
@@ -376,7 +380,9 @@ describe('the required and optional markers', () => {
   it('marks all four fields required, and holds the attribute on each input', () => {
     const body = render('required');
     for (const label of ['Username', 'Email', 'Password', 'Confirm password']) {
-      expect(body).toContain(`<label>${label} (required) <input`);
+      expect(body).toContain(
+        `<label><span>${label} <span class="marker marker-required">(required)</span></span> <input`,
+      );
     }
     for (const name of ['username', 'email', 'password', 'password_confirm']) {
       expect(inputOf(body, name)).toMatch(/ required[ >]/u);
@@ -398,10 +404,14 @@ describe('the required and optional markers', () => {
 
   it('marks the username optional, with no required attribute, and the rest required', () => {
     const body = render('optional');
-    expect(body).toContain('<label>Username (optional) <input');
+    expect(body).toContain(
+      '<label><span>Username <span class="marker marker-optional">(optional)</span></span> <input',
+    );
     expect(inputOf(body, 'username')).not.toContain('required');
     for (const label of ['Email', 'Password', 'Confirm password']) {
-      expect(body).toContain(`<label>${label} (required) <input`);
+      expect(body).toContain(
+        `<label><span>${label} <span class="marker marker-required">(required)</span></span> <input`,
+      );
     }
     expect(inputOf(body, 'email')).toMatch(/ required[ >]/u);
   });
@@ -411,7 +421,9 @@ describe('the required and optional markers', () => {
     expect(body).not.toContain('name="username"');
     expect(body).not.toContain('Username');
     for (const label of ['Email', 'Password', 'Confirm password']) {
-      expect(body).toContain(`<label>${label} (required) <input`);
+      expect(body).toContain(
+        `<label><span>${label} <span class="marker marker-required">(required)</span></span> <input`,
+      );
     }
   });
 
@@ -428,5 +440,20 @@ describe('the required and optional markers', () => {
   it('has an Arabic word for each marker', () => {
     expect(ar['registration.required']).toBe('مطلوب');
     expect(ar['registration.optional']).toBe('اختياري');
+  });
+
+  it('wraps each marker in an element a theme can style, from the message', () => {
+    const required = render('required');
+    expect(
+      required.match(/<span class="marker marker-required">\(required\)<\/span>/gu),
+    ).toHaveLength(4);
+    expect(required).not.toContain('marker-optional');
+    const optional = render('optional');
+    expect(optional).toContain(
+      '<label><span>Username <span class="marker marker-optional">(optional)</span></span> <input',
+    );
+    expect(optional.match(/marker-required/gu)).toHaveLength(3);
+    expect(render('generated').match(/marker-required/gu)).toHaveLength(3);
+    expect(render('generated')).not.toContain('marker-optional');
   });
 });

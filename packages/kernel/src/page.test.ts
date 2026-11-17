@@ -6,6 +6,7 @@ import {
   brandingHead,
   brandingProblems,
   mainClass,
+  markedLabel,
   pageHeaders,
   reloadOnRestore,
   withBranding,
@@ -886,5 +887,16 @@ describe('the class of the main element', () => {
     for (const hostile of ['"><script>', '__proto__', 'toString', 'constructor']) {
       expect(mainClass(themed(branding()).locale, hostile as PageKind)).toBe('page');
     }
+  });
+});
+
+describe('markedLabel', () => {
+  it('puts the label and its marker in one element, the marker in its own', () => {
+    expect(markedLabel('Username', true, 'required')).toBe(
+      '<span>Username <span class="marker marker-required">(required)</span></span>',
+    );
+    expect(markedLabel('Username', false, 'optional')).toBe(
+      '<span>Username <span class="marker marker-optional">(optional)</span></span>',
+    );
   });
 });

@@ -161,6 +161,20 @@ describe('checkStylesheet: selectors', () => {
     expect(codes(css)).toContain('selector-not-allowed');
   });
 
+  it('accepts a colour and a size on each marker, and refuses a marker class it does not publish', () => {
+    expect(
+      codes(
+        '.marker-required { color: var(--signal-danger-ink); } .marker-optional { font-size: 12px; } .marker { opacity: 1; }',
+      ),
+    ).toEqual([]);
+    expect(codes('.marker-unknown { color: red; }')).toEqual(['unknown-class']);
+  });
+
+  it('refuses a marker that swaps its word for a character, since content takes only none or an empty string', () => {
+    expect(codes(".marker-required::after { content: '*'; }")).toEqual(['value-not-allowed']);
+    expect(codes('.marker-required::after { content: ""; }')).toEqual([]);
+  });
+
   it('refuses a class that is not a published hook', () => {
     expect(first('.nope { color: red; }')).toEqual({
       code: 'unknown-class',

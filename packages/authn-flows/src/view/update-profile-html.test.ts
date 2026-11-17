@@ -49,7 +49,7 @@ describe('the update-profile page', () => {
   it('marks the required fields and no others', () => {
     const html = page();
     expect(html).toContain(
-      `${en['updateProfile.field.name']} (${en['updateProfile.required']}) <input`,
+      `<label><span>${en['updateProfile.field.name']} <span class="marker marker-required">(${en['updateProfile.required']})</span></span> <input`,
     );
     expect(html).not.toContain(`${en['updateProfile.field.birthdate']} (`);
   });

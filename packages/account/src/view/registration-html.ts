@@ -1,5 +1,6 @@
 import {
   addressPath,
+  markedLabel,
   PASSWORD_CONFIRM_FIELD_ID,
   passwordConfirmToggle,
   type PageLocale,
@@ -140,7 +141,11 @@ export function renderRegistrationForm(
   };
   const mode = form.usernameMode ?? 'required';
   const marker = (label: MessageId, required: boolean): string =>
-    `${tHtml(locale, label)} (${tHtml(locale, required ? 'registration.required' : 'registration.optional')})`;
+    markedLabel(
+      tHtml(locale, label),
+      required,
+      tHtml(locale, required ? 'registration.required' : 'registration.optional'),
+    );
   const usernameField =
     mode === 'generated'
       ? ''

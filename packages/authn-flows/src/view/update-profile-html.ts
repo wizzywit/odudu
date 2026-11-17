@@ -1,4 +1,10 @@
-import { addressPath, type PageLocale, type RenderedPage, type TenantAddress } from '@odudu/kernel';
+import {
+  addressPath,
+  markedLabel,
+  type PageLocale,
+  type RenderedPage,
+  type TenantAddress,
+} from '@odudu/kernel';
 import { type ProfileOffer, type ProfileProblem } from '#/usecase/update-profile-action';
 import { cancelButton, type ActionPageVariant } from '#/view/action-cancel';
 import { escapeHtml, intro, page } from '#/view/document';
@@ -82,8 +88,9 @@ function fieldHtml(
   locale: PageLocale,
 ): string {
   const kind = FIELD_KINDS[field] ?? PLAIN;
-  const mark = required ? ` (${tHtml(locale, 'updateProfile.required')})` : '';
-  return `<label>${tHtml(locale, labelId(field))}${mark} <input type="${kind.type}" name="${field}" value="${escapeHtml(value)}" autocomplete="${kind.autocomplete}"${invalidAttributes(problems, field)}></label>`;
+  const text = tHtml(locale, labelId(field));
+  const label = required ? markedLabel(text, true, tHtml(locale, 'updateProfile.required')) : text;
+  return `<label>${label} <input type="${kind.type}" name="${field}" value="${escapeHtml(value)}" autocomplete="${kind.autocomplete}"${invalidAttributes(problems, field)}></label>`;
 }
 
 function updateProfilePage(

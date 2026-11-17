@@ -20,9 +20,9 @@ exports[`the registration pages under the default template > renders the form by
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>اسم المستخدم (مطلوب) <input type="text" name="username" autocomplete="username" required></label>
-  <label>البريد الإلكتروني (مطلوب) <input type="email" name="email" autocomplete="email" required></label>
-  <label>كلمة المرور (مطلوب) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>اسم المستخدم <span class="marker marker-required">(مطلوب)</span></span> <input type="text" name="username" autocomplete="username" required></label>
+  <label><span>البريد الإلكتروني <span class="marker marker-required">(مطلوب)</span></span> <input type="email" name="email" autocomplete="email" required></label>
+  <label><span>كلمة المرور <span class="marker marker-required">(مطلوب)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="12" data-summary="استُوفي {met} من أصل {total} من القواعد">
     <p class="rules-head"><span>تتطلب كلمة المرور:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">إظهار كلمة المرور</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -68,7 +68,7 @@ exports[`the registration pages under the default template > renders the form by
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>تأكيد كلمة المرور (مطلوب) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>تأكيد كلمة المرور <span class="marker marker-required">(مطلوب)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -103,9 +103,9 @@ exports[`the registration pages under the default template > renders the form by
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="12" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -151,7 +151,7 @@ exports[`the registration pages under the default template > renders the form by
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -186,9 +186,9 @@ exports[`the registration pages under the default template > renders the form by
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="12" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -234,7 +234,7 @@ exports[`the registration pages under the default template > renders the form by
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -274,9 +274,9 @@ exports[`the registration pages under the default template > renders the form re
 </ul>
 </div>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required value="ann"></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required value="ann@example.com"></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ann"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ann@example.com"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -326,7 +326,7 @@ exports[`the registration pages under the default template > renders the form re
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -366,9 +366,9 @@ exports[`the registration pages under the default template > renders the form re
 </ul>
 </div>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required value="ann"></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required value="ann@example.com" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ann"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ann@example.com" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -418,7 +418,7 @@ exports[`the registration pages under the default template > renders the form re
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -461,9 +461,9 @@ exports[`the registration pages under the default template > renders the form re
 </ul>
 </div>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required value="ann" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required value="ann@example.com" aria-invalid="true" aria-describedby="form-error-1"></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-2 password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ann" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ann@example.com" aria-invalid="true" aria-describedby="form-error-1"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-2 password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -513,7 +513,7 @@ exports[`the registration pages under the default template > renders the form re
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-3"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-3"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -553,9 +553,9 @@ exports[`the registration pages under the default template > renders the form re
 </ul>
 </div>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required value="ann"></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required value="ann@example.com" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ann"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ann@example.com" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -605,7 +605,7 @@ exports[`the registration pages under the default template > renders the form re
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -645,9 +645,9 @@ exports[`the registration pages under the default template > renders the form re
 </ul>
 </div>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required value="ann" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required value="ann@example.com"></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ann" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ann@example.com"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -697,7 +697,7 @@ exports[`the registration pages under the default template > renders the form re
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -737,9 +737,9 @@ exports[`the registration pages under the default template > renders the form re
 </ul>
 </div>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required value="ann"></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required value="ann@example.com" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ann"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ann@example.com" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -789,7 +789,7 @@ exports[`the registration pages under the default template > renders the form re
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -831,9 +831,9 @@ exports[`the registration pages under the default template > renders the form re
 </ul>
 </div>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required value="ann"></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required value="ann@example.com"></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 form-error-2 password-rules-list" autofocus></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ann"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ann@example.com"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 form-error-2 password-rules-list" autofocus></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -883,7 +883,7 @@ exports[`the registration pages under the default template > renders the form re
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -923,9 +923,9 @@ exports[`the registration pages under the default template > renders the form re
 </ul>
 </div>
 <form method="post" action="/tenants/acme/login-actions/registration">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required value="ann" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required value="ann@example.com"></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ann" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ann@example.com"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -975,7 +975,7 @@ exports[`the registration pages under the default template > renders the form re
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
@@ -1011,9 +1011,9 @@ exports[`the registration pages under the default template > renders the form wi
 </header>
 <form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/registration">
   <input type="hidden" name="return_to" value="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">
-  <label>Username (required) <input type="text" name="username" autocomplete="username" required value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co"></label>
-  <label>Email (required) <input type="email" name="email" autocomplete="email" required value="&quot;&gt;&lt;x@y.z"></label>
-  <label>Password (required) <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="&quot;&gt;&lt;x@y.z"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -1063,7 +1063,7 @@ exports[`the registration pages under the default template > renders the form wi
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password (required) <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
   <script nonce="NONCE">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');

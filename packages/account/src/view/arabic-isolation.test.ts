@@ -16,12 +16,12 @@ describe('a page in Arabic isolates what somebody else wrote', () => {
   });
 
   it.each([
-    ['required', ['اسم المستخدم (مطلوب)', 'البريد الإلكتروني (مطلوب)'], 4, 0],
-    ['optional', ['اسم المستخدم (اختياري)', 'البريد الإلكتروني (مطلوب)'], 3, 1],
-    ['generated', ['البريد الإلكتروني (مطلوب)'], 3, 0],
+    ['required', 'اسم المستخدم', 4, 0],
+    ['optional', 'اسم المستخدم', 3, 1],
+    ['generated', 'البريد الإلكتروني', 3, 0],
   ] as const)(
     'the registration form says its %s markers in Arabic',
-    (usernameMode, labels, required, optional) => {
+    (usernameMode, label, required, optional) => {
       const { body } = renderRegistrationForm(
         'acme',
         pathAddress('https://idp.example', 'acme'),
@@ -37,9 +37,9 @@ describe('a page in Arabic isolates what somebody else wrote', () => {
         },
         ARABIC,
       );
-      for (const label of labels) expect(body).toContain(label);
-      expect(body.split('(مطلوب)')).toHaveLength(required + 1);
-      expect(body.split('(اختياري)')).toHaveLength(optional + 1);
+      expect(body).toContain(label);
+      expect(body.split('marker-required">(مطلوب)</span>')).toHaveLength(required + 1);
+      expect(body.split('marker-optional">(اختياري)</span>')).toHaveLength(optional + 1);
     },
   );
 });

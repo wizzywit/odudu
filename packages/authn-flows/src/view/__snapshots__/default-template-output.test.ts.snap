@@ -1793,8 +1793,8 @@ exports[`the update-profile page under the default template > renders byte-ident
 <form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
   <input type="hidden" name="auth_session_id" value="sess-1">
   <label>اسم المستخدم <input type="text" name="username" value="ada" autocomplete="username"></label>
-  <label>الاسم الكامل (مطلوب) <input type="text" name="name" value="Ada" autocomplete="name"></label>
-  <label>تاريخ الميلاد (مطلوب) <input type="text" name="birthdate" value="" autocomplete="bday"></label>
+  <label><span>الاسم الكامل <span class="marker marker-required">(مطلوب)</span></span> <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label><span>تاريخ الميلاد <span class="marker marker-required">(مطلوب)</span></span> <input type="text" name="birthdate" value="" autocomplete="bday"></label>
   <label>الموقع الإلكتروني <input type="url" name="website" value="" autocomplete="url"></label>
   <label>رقم الهاتف <input type="tel" name="phone_number" value="" autocomplete="tel"></label>
   <button type="submit">حفظ ومتابعة</button>
@@ -1827,8 +1827,8 @@ exports[`the update-profile page under the default template > renders byte-ident
 <form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
   <input type="hidden" name="auth_session_id" value="sess-1">
   <label>Username <input type="text" name="username" value="ada" autocomplete="username"></label>
-  <label>Full name (required) <input type="text" name="name" value="Ada" autocomplete="name"></label>
-  <label>Birthdate (required) <input type="text" name="birthdate" value="" autocomplete="bday"></label>
+  <label><span>Full name <span class="marker marker-required">(required)</span></span> <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label><span>Birthdate <span class="marker marker-required">(required)</span></span> <input type="text" name="birthdate" value="" autocomplete="bday"></label>
   <label>Website <input type="url" name="website" value="" autocomplete="url"></label>
   <label>Phone number <input type="tel" name="phone_number" value="" autocomplete="tel"></label>
   <button type="submit">Save and continue</button>
@@ -1861,8 +1861,8 @@ exports[`the update-profile page under the default template > renders byte-ident
 <form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
   <input type="hidden" name="auth_session_id" value="sess-1">
   <label>Username <input type="text" name="username" value="ada" autocomplete="username"></label>
-  <label>Full name (required) <input type="text" name="name" value="Ada" autocomplete="name"></label>
-  <label>Birthdate (required) <input type="text" name="birthdate" value="" autocomplete="bday"></label>
+  <label><span>Full name <span class="marker marker-required">(required)</span></span> <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label><span>Birthdate <span class="marker marker-required">(required)</span></span> <input type="text" name="birthdate" value="" autocomplete="bday"></label>
   <label>Website <input type="url" name="website" value="" autocomplete="url"></label>
   <label>Phone number <input type="tel" name="phone_number" value="" autocomplete="tel"></label>
   <button type="submit">Save and continue</button>
@@ -1899,7 +1899,7 @@ exports[`the update-profile page under the default template > renders hostile te
 </div>
 <form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/required-action?action=update-profile">
   <input type="hidden" name="auth_session_id" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
-  <label>الاسم الكامل (مطلوب) <input type="text" name="name" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co" autocomplete="name" aria-invalid="true" aria-describedby="form-error-0"></label>
+  <label><span>الاسم الكامل <span class="marker marker-required">(مطلوب)</span></span> <input type="text" name="name" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co" autocomplete="name" aria-invalid="true" aria-describedby="form-error-0"></label>
   <button type="submit">حفظ ومتابعة</button>
 </form>
 </main>
@@ -1937,8 +1937,8 @@ exports[`the update-profile page under the default template > renders refused fi
 <form method="post" action="/tenants/acme/login-actions/required-action?action=update-profile">
   <input type="hidden" name="auth_session_id" value="sess-1">
   <label>Username <input type="text" name="username" value="ada" autocomplete="username" aria-invalid="true" aria-describedby="form-error-2"></label>
-  <label>Full name (required) <input type="text" name="name" value="Ada" autocomplete="name"></label>
-  <label>Birthdate (required) <input type="text" name="birthdate" value="" autocomplete="bday" aria-invalid="true" aria-describedby="form-error-0"></label>
+  <label><span>Full name <span class="marker marker-required">(required)</span></span> <input type="text" name="name" value="Ada" autocomplete="name"></label>
+  <label><span>Birthdate <span class="marker marker-required">(required)</span></span> <input type="text" name="birthdate" value="" autocomplete="bday" aria-invalid="true" aria-describedby="form-error-0"></label>
   <label>Website <input type="url" name="website" value="" autocomplete="url" aria-invalid="true" aria-describedby="form-error-0"></label>
   <label>Phone number <input type="tel" name="phone_number" value="" autocomplete="tel" aria-invalid="true" aria-describedby="form-error-1"></label>
   <button type="submit">Save and continue</button>

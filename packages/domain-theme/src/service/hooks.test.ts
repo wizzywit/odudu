@@ -56,6 +56,14 @@ const renderedClasses = (): Set<string> => {
   return found;
 };
 
+describe('the marker hooks', () => {
+  it('are published for the required and optional markers', () => {
+    for (const name of ['marker', 'marker-required', 'marker-optional']) {
+      expect(CSS_HOOKS).toContain(name);
+    }
+  });
+});
+
 describe('CSS hooks', () => {
   // Renaming or removing a hook, or a page kind, breaks tenant stylesheets:
   // change this list and CSS_HOOKS_VERSION together, on purpose.
@@ -73,6 +81,9 @@ describe('CSS hooks', () => {
       'logo-dark',
       'logo-light',
       'mark',
+      'marker',
+      'marker-optional',
+      'marker-required',
       'page',
       'quiet',
       'rules',
