@@ -46,6 +46,7 @@ import { z } from 'zod';
 import { countAtMost } from '#/usecase/capped-count';
 
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
+import { exportedFlowName } from '#/service/exported-flow-name';
 import { publicJwks } from '#/service/public-jwks';
 import { profileWireShape } from '#/usecase/profile';
 
@@ -735,7 +736,7 @@ export async function exportTenant(
       : (serviceRoles.get(row.serviceSubjectId) ?? []);
   const exportedClients: ExportedClient[] = clientRows.map((row) => ({
     ...row.exported,
-    flow: row.flowId === null ? null : (flowNameById.get(row.flowId) ?? null),
+    flow: exportedFlowName(flowNameById, row.flowId, row.exported.client_id),
     service_account_roles: exportedRoles(row),
   }));
   const exportedGroups = await exportGroups(tx, tenantId, roleById);

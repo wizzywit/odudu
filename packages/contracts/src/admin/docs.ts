@@ -133,8 +133,8 @@ import {
 import {
   exportedClientSchema,
   exportedFlowStepSchema,
-  exportedNamedFlowSchema,
   exportedGroupSchema,
+  exportedNamedFlowSchema,
   exportedRoleSchema,
   exportedScopeSchema,
   exportedSmtpSchema,
