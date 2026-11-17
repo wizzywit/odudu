@@ -116,16 +116,16 @@ curl -sS -D - -X POST http://localhost:3199/tenants/register-demo/login-actions/
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a1689c-36bd-735f-9bb5-141b7de323b6
+x-request-id: 01a1e8fb-4d70-7454-baa4-0c6521df7013
 content-type: text/html
-content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; script-src 'nonce-3mMB5AkENsBkpnEpO7sOAg=='
+content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; script-src 'nonce-aWQCpm0/Jb9oAVL+7k+1/Q=='
 x-frame-options: DENY
 referrer-policy: no-referrer
 cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
-content-length: 4163
-Date: Fri, 23 Oct 2026 11:53:50 GMT
+content-length: 4471
+Date: Tue, 17 Nov 2026 10:09:05 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -153,9 +153,9 @@ Keep-Alive: timeout=72
 </ul>
 </div>
 <form method="post" action="/tenants/register-demo/login-actions/registration">
-  <label>Username <input type="text" name="username" autocomplete="username" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
-  <label>Email <input type="email" name="email" autocomplete="email" value="grace@example.com"></label>
-  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="grace@example.com"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -163,7 +163,7 @@ Keep-Alive: timeout=72
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="3mMB5AkENsBkpnEpO7sOAg==">(function () {
+  <script nonce="aWQCpm0/Jb9oAVL+7k+1/Q==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -201,8 +201,8 @@ Keep-Alive: timeout=72
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
-  <script nonce="3mMB5AkENsBkpnEpO7sOAg==">(function () {
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="aWQCpm0/Jb9oAVL+7k+1/Q==">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
   var toggle = document.querySelector('#password-rules button');
@@ -660,9 +660,9 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
 </ul>
 </div>
 <form method="post" action="/tenants/register-demo/login-actions/registration">
-  <label>Username <input type="text" name="username" autocomplete="username" value="ada"></label>
-  <label>Email <input type="email" name="email" autocomplete="email" value="ada@example.com"></label>
-  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 password-rules-list" autofocus></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ada"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ada@example.com"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 password-rules-list" autofocus></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -670,7 +670,7 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="yVMBBA17RK7Yct82vDbBog==">(function () {
+  <script nonce="7mcZfME6fEyJrOBzCC8NSQ==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -708,8 +708,8 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
-  <script nonce="yVMBBA17RK7Yct82vDbBog==">(function () {
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="7mcZfME6fEyJrOBzCC8NSQ==">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
   var toggle = document.querySelector('#password-rules button');
@@ -755,9 +755,9 @@ same short password now lists all three:
 </ul>
 </div>
 <form method="post" action="/tenants/register-demo/login-actions/registration">
-  <label>Username <input type="text" name="username" autocomplete="username" value="ada"></label>
-  <label>Email <input type="email" name="email" autocomplete="email" value="ada@example.com"></label>
-  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 form-error-2 password-rules-list" autofocus></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ada"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ada@example.com"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 form-error-2 password-rules-list" autofocus></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -767,7 +767,7 @@ same short password now lists all three:
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="A0uANVDhJVdTXsvEgfmw3Q==">(function () {
+  <script nonce="/ruix/jFZOrgfZHBAoEqQQ==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -805,8 +805,8 @@ same short password now lists all three:
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
-  <script nonce="A0uANVDhJVdTXsvEgfmw3Q==">(function () {
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="/ruix/jFZOrgfZHBAoEqQQ==">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
   var toggle = document.querySelector('#password-rules button');
@@ -863,9 +863,9 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
 </ul>
 </div>
 <form method="post" action="/tenants/register-demo/login-actions/registration">
-  <label>Username <input type="text" name="username" autocomplete="username" value="ada"></label>
-  <label>Email <input type="email" name="email" autocomplete="email" value="ada@example.com"></label>
-  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 password-rules-list" autofocus></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="ada"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ada@example.com"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 password-rules-list" autofocus></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -873,7 +873,7 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="QBjE8FZBZLIGB687yD1i5w==">(function () {
+  <script nonce="gtIOWpAmmDvxRwiSCGJ3+Q==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -911,8 +911,8 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
-  <script nonce="QBjE8FZBZLIGB687yD1i5w==">(function () {
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="gtIOWpAmmDvxRwiSCGJ3+Q==">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
   var toggle = document.querySelector('#password-rules button');
@@ -962,9 +962,9 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
 </ul>
 </div>
 <form method="post" action="/tenants/register-demo/login-actions/registration">
-  <label>Username <input type="text" name="username" autocomplete="username" value="carol"></label>
-  <label>Email <input type="email" name="email" autocomplete="email" value="ada@example.com"></label>
-  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 password-rules-list" autofocus></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="carol"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="ada@example.com"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 password-rules-list" autofocus></label>
   <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
     <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
     <ul id="password-rules-list">
@@ -972,7 +972,7 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
       <li>Not a common password</li>
     </ul>
   </div>
-  <script nonce="ggMQVdelEZquKdScQc3ZFQ==">(function () {
+  <script nonce="3Qpy0wOjz742AEfR/yf7pA==">(function () {
   var box = document.getElementById('password-rules');
   var field = document.getElementById('password');
   if (!box || !field) return;
@@ -1010,8 +1010,8 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
     toggle.setAttribute('aria-pressed', String(show));
   });
 })();</script>
-  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
-  <script nonce="ggMQVdelEZquKdScQc3ZFQ==">(function () {
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="3Qpy0wOjz742AEfR/yf7pA==">(function () {
   var first = document.getElementById('password');
   var again = document.getElementById('password-confirm');
   var toggle = document.querySelector('#password-rules button');
@@ -1030,6 +1030,19 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
 A tenant with `verify_email` off skips the mail and the gate above entirely:
 the account created is usable at the next login, the same way a
 seeded user always has been.
+
+## What the form asks for
+
+The form asks for a username only while the tenant's `registration_username` is
+`required`, the default, and every field says in its label whether it is
+`(required)` or `(optional)`. With `optional` the username field is marked
+optional and a blank one is given a generated handle; with `generated` the form
+has no username field, a `username` posted anyway is ignored, and every new
+account gets a handle of `u-` and ten lowercase letters and digits. Both need
+`login_with_email` and `verify_email` on, since a person with no chosen username
+signs in by email; the admin API refuses the change otherwise, and
+[`GET /settings` and `PATCH /settings`](../admin-paths/get-settings-and-patch-settings.md)
+lists the setting. The blocks on this page ran with the default.
 
 ## The way there and back
 
@@ -1096,11 +1109,11 @@ curl -sS -X POST http://localhost:3199/tenants/register-demo/login-actions/regis
 <div class="alert" role="alert" id="form-error">
 <li id="form-error-0">Password must be at least 15 characters long.</li>
   <input type="hidden" name="return_to" value="/tenants/register-demo/protocol/openid-connect/auth?response_type=code&amp;client_id=register-spa&amp;state=xyz123">
-  <label>Username <input type="text" name="username" autocomplete="username" value="newcomer"></label>
-  <label>Email <input type="email" name="email" autocomplete="email" value="newcomer@example.com"></label>
-  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 password-rules-list" autofocus></label>
+  <label><span>Username <span class="marker marker-required">(required)</span></span> <input type="text" name="username" autocomplete="username" required value="newcomer"></label>
+  <label><span>Email <span class="marker marker-required">(required)</span></span> <input type="email" name="email" autocomplete="email" required value="newcomer@example.com"></label>
+  <label><span>Password <span class="marker marker-required">(required)</span></span> <input type="password" name="password" autocomplete="new-password" required id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 password-rules-list" autofocus></label>
       <li data-rule="length">At least 15 characters</li>
-  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <label><span>Confirm password <span class="marker marker-required">(required)</span></span> <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" required spellcheck="false" autocapitalize="off" autocorrect="off"></label>
 <a href="/tenants/register-demo/protocol/openid-connect/auth?response_type=code&amp;client_id=register-spa&amp;state=xyz123">Back to sign in</a>
 ```
 
