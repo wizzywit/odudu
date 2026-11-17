@@ -220,4 +220,24 @@ describe('registering under registration_username', () => {
     expect((await openAndPress(http, t.name, key)).statusCode).toBe(200);
     expect(await usernames(t.id)).toEqual([handle]);
   });
+
+  it('uses a whitespace-only username as typed while required, as the form always has', async () => {
+    const t = await seed('required');
+    const res = await submit(t.name, { username: '  ' });
+    const stored = await usernames(t.id);
+    expect(res.statusCode).toBe(201);
+    expect(stored).toEqual(['  ']);
+  });
+
+  it.each([
+    ['a password mismatch', { password_confirm: 'another passphrase entirely' }],
+    ['fields left empty', { email: '', password: '', password_confirm: '' }],
+  ])('gives back no username in a generated form refused for %s', async (_label, extra) => {
+    const t = await seed('generated');
+    const res = await submit(t.name, { username: 'mallory-posted', ...extra });
+    expect(res.statusCode).toBe(400);
+    expect(res.body).not.toContain('name="username"');
+    expect(res.body).not.toContain('mallory-posted');
+    expect(await usernames(t.id)).toEqual([]);
+  });
 });
