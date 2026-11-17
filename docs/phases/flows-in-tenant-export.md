@@ -24,3 +24,11 @@ What it found:
   An import renames the default before it creates the others.
 
 Still on P7: the published theme, the clients' themes and the images they use.
+
+- The export reads its tables in separate statements at the default isolation
+  level. A flow created and assigned by another administrator during an export
+  could be missing from the list of flows, so the export reads the clients
+  first and the flows after: a flow a client names cannot be deleted while it
+  is named. The rest of the document (roles, groups, scopes) has the same
+  exposure and is not fixed here; one repeatable-read snapshot of the whole
+  export is placed on P7 with the document's move between installations.
