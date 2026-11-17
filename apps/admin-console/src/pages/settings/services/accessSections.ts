@@ -1,3 +1,4 @@
+import { REGISTRATION_USERNAME_CHOICES } from '@odudu/contracts/admin';
 import { PASSWORD } from '#/pages/settings/services/passwordSection';
 import { PROFILE } from '#/pages/settings/services/profileSection';
 import {
@@ -7,6 +8,13 @@ import {
 import type { SettingsSection } from '#/pages/settings/services/sectionTypes';
 
 export { PASSWORD_SECTION } from '#/pages/settings/services/passwordSection';
+
+const USERNAME_MODE_WORDS: Readonly<
+  Record<(typeof REGISTRATION_USERNAME_CHOICES)[number], string>
+> = { required: 'Required', optional: 'Optional', generated: 'Generated' };
+
+const USERNAME_MODE_DESCRIPTION =
+  'Whether the registration form asks for a username. Optional and Generated need both “Sign in with a verified email address” and “Verify email addresses” on, and keep them on; Generated asks for no username at all and assigns one. The server refuses the change otherwise.';
 
 export const GENERAL_SECTION = 'general';
 export const LOCKOUT_SECTION = 'brute-force';
@@ -119,6 +127,16 @@ export const ACCESS_SECTIONS: readonly SettingsSection[] = [
         label: 'Verification link lifetime',
         control: 'seconds',
         description: 'A verification link stops working after this long.',
+      },
+      {
+        name: 'registration_username',
+        label: 'Username at registration',
+        control: 'choice',
+        description: USERNAME_MODE_DESCRIPTION,
+        options: REGISTRATION_USERNAME_CHOICES.map((id) => ({
+          id,
+          label: USERNAME_MODE_WORDS[id],
+        })),
       },
       {
         name: 'reset_password_allowed',

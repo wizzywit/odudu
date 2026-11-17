@@ -391,6 +391,35 @@ it('puts the server’s refusal of an ordering under the field it names', async 
   ).toBeVisible();
 });
 
+it('shows the server’s refusal of the username mode under its field, not as a range', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, {
+      [`PATCH ${ST}`]: problem(400, 'about:blank', 'Bad Request', {
+        detail: '3 tenant setting(s) refused, listed under errors',
+        errors: [
+          { path: 'registration_username', message: 'needs login_with_email and verify_email on' },
+          {
+            path: 'login_with_email',
+            message: 'must stay on while registration_username is optional or generated',
+          },
+        ],
+      }),
+    }),
+  );
+  const registration = await section('Registration and recovery');
+  await user.click(within(registration).getByRole('button', { name: /Username at registration/u }));
+  await user.click(await screen.findByRole('option', { name: 'Optional' }));
+  await user.click(
+    within(registration).getByRole('button', { name: 'Save Registration and recovery' }),
+  );
+  expect(
+    await within(registration).findByText('needs login_with_email and verify_email on'),
+  ).toBeVisible();
+  expect(within(registration).queryByText(/permitted range/u)).toBeNull();
+});
+
 it('rebases another section on the ETag a save answered, keeping its edit', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(

@@ -222,6 +222,7 @@ const seededSchema = z.object({
       keyed: account,
       general: account,
       disable: account,
+      username: account,
       // Read only: a phone's pages, and an operator holding manage-clients alone.
       fixed: account,
       fixedClientsOnly: account,
