@@ -3,6 +3,7 @@ import {
   ASSIGNMENT_LIMIT,
   CLIENT_SCOPE_LIMIT,
   EXPORT_SUBJECT_CAP,
+  FLOW_LIMIT,
   GROUP_LIMIT,
   groupLimitMessage,
   ROLE_LIMIT,
@@ -1738,16 +1739,61 @@ describe('POST /admin/tenant-imports', () => {
       expect(again.clients.every((client) => client.flow === null)).toBe(true);
     });
 
+    it('renames the default before it creates a named flow that takes the name default', async () => {
+      const { token, base } = await flowDocument();
+      const name = `import-${newId()}`;
+
+      const res = await postImport(token, {
+        name,
+        document: {
+          ...base,
+          flow_name: 'core',
+          flows: [{ name: 'default', steps: [PASSWORD] }],
+        },
+      });
+
+      expect(res.statusCode, res.payload).toBe(201);
+      const created = res.json<ImportAnswer>().tenant;
+      const rows = await withTenant(fixture.app.db, created.id, (tx) =>
+        flowRepository(tx).forTenant(created.id),
+      );
+      expect(rows.map((flow) => [flow.name, flow.isDefault]).sort()).toEqual([
+        ['core', true],
+        ['default', false],
+      ]);
+    });
+
+    it('refuses more named flows than a tenant may hold with a 400 at flows, and creates no tenant', async () => {
+      const { token, base } = await flowDocument();
+      const name = `import-${newId()}`;
+      const flows = Array.from({ length: FLOW_LIMIT }, (_, index) => ({
+        name: `flow-${String(index)}`,
+        steps: [PASSWORD],
+      }));
+
+      const res = await postImport(token, { name, document: { ...base, flows } });
+
+      expect(res.statusCode, res.payload).toBe(400);
+      expect((res.json<ImportRefusal>().errors ?? []).map((error) => error.path)).toEqual([
+        'document.flows',
+      ]);
+      expect(await tenantIdOf(name)).toBeNull();
+    });
+
     it('leaves no flow behind when a later write fails', async () => {
       const { token, base } = await flowDocument();
       const flowName = `late-${newId()}`;
       const first = base.clients[0];
       if (first === undefined) throw new Error('fixture: no client');
       const failing = first.client_id;
+      await fixture.owner.sql.unsafe('create sequence fail_late_client_fired');
       await fixture.owner.sql.unsafe(`
-        create or replace function fail_late_client() returns trigger language plpgsql as $$
+        create or replace function fail_late_client() returns trigger language plpgsql security definer as $$
         begin
-          if new.client_id = '${failing}' then raise exception 'late failure'; end if;
+          if new.client_id = '${failing}' then
+            perform nextval('fail_late_client_fired');
+            raise exception 'late failure';
+          end if;
           return new;
         end $$`);
       await fixture.owner.sql.unsafe(
@@ -1765,12 +1811,18 @@ describe('POST /admin/tenant-imports', () => {
         });
 
         expect(res.statusCode).toBeGreaterThanOrEqual(500);
+        // A sequence is not rolled back, so it shows the trigger is what failed.
+        const [fired] = await fixture.owner.sql<
+          { called: boolean }[]
+        >`select is_called as called from fail_late_client_fired`;
+        expect(fired?.called).toBe(true);
         expect(await tenantIdOf(name)).toBeNull();
         const left = await fixture.owner.sql`select id from flows where name = ${flowName}`;
         expect(left).toHaveLength(0);
       } finally {
         await fixture.owner.sql.unsafe('drop trigger fail_late_client on clients');
         await fixture.owner.sql.unsafe('drop function fail_late_client()');
+        await fixture.owner.sql.unsafe('drop sequence fail_late_client_fired');
       }
     });
   });
