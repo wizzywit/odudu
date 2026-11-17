@@ -54,6 +54,15 @@ describe('the registration_username setting', () => {
     expect(accepted.json()).toMatchObject({ registration_username: 'optional' });
   });
 
+  it('does not call a mix of a range and a rule problem a range', async () => {
+    const patch = await patcher();
+    const res = await patch({ registration_username: 'optional', password_min_length: 100000 });
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toBe(
+      '4 tenant setting(s) refused, listed under errors',
+    );
+  });
+
   it('holds verify_email and login_with_email on while a username is not required', async () => {
     const patch = await patcher();
     const on = await patch({
@@ -117,6 +126,17 @@ describe('the registration_username setting', () => {
     const { errors } = refused.json<{ errors: { path: string; message: string }[] }>();
     expect(errors.map((error) => error.path)).toEqual([
       'document.settings.registration_username',
+      'document.registration_policy.verify_email',
+    ]);
+    const both = await importWith({
+      ...document,
+      settings: { ...document.settings, login_with_email: false },
+      registration_policy: { ...document.registration_policy, verify_email: false },
+    });
+    expect(both.statusCode, both.body).toBe(400);
+    expect(both.json<{ errors: { path: string }[] }>().errors.map((error) => error.path)).toEqual([
+      'document.settings.registration_username',
+      'document.settings.login_with_email',
       'document.registration_policy.verify_email',
     ]);
     expect(errors[1]?.message).toBe(
