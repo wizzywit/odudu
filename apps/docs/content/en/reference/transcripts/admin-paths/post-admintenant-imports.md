@@ -62,9 +62,9 @@ The built-in client `odudu-mcp` is matched the same way: the new tenant is provi
 
 Then one transaction creates the tenant the way `POST /admin/tenants` does
 — its row, flow, built-in admin client and a signing key of its own, never
-the source's — and writes the document into it: settings, flow, clients,
+the source's — and writes the document into it: settings, flows (the default, renamed to `flow_name`, then each of `flows`), clients,
 roles and their composites, groups, scopes, service-account roles, SMTP,
-message overrides and subjects, in that order. A document exported before
+message overrides and subjects, in that order. Each named flow is checked as the default flow is, against the authenticators this server knows, with a problem at `document.flows[1]` for the second; a named flow that takes the default's name `flow_name`, and a client whose `flow` names neither a flow of the document nor `flow_name`, are refused at `document.flows[0].name` and `document.clients[0].flow`, and a flow name used twice or more than 19 named flows at `document.flows`. A client keeps the flow it ran: one pinned to the default's name is pinned to the new tenant's default, and one that names none follows it. A document exported before flows travelled with it has no `flow_name`, `flows` or `flow`, and imports with the default named `default` and every client on it. A document exported before
 tenants had languages or overrides still imports: a missing
 `supported_locales` is English only, a missing `default_locale` is none, and
 missing `message_overrides` is none. Each override is checked as `PUT
@@ -77,7 +77,7 @@ travels; `PUT /smtp` sets one. A subject arrives with no credential and an
 `update-password` required action, beside any it already owed. The import
 writes one `tenant.import` row into the new tenant's trail, whose `detail`
 carries the document's `version` and how many clients, roles, groups,
-scopes and subjects it held.
+scopes, subjects and named flows it held.
 
 So a document exported from the imported tenant equals the one imported, apart
 from `settings.display_name` when the request names another, the `omitted` list
@@ -96,14 +96,14 @@ that many.
 The import itself, through its trail row below, is run as `ada`. `import-source`
 is built for it through the endpoints in these pages: a confidential
 `client_credentials` client `billing-app`, a tenant role `billing-reader`, a
-group `finance` holding it, and a subject `grace` who belongs to it and owes
-`update-password`. The import names the tenant `import-demo2`. Both tenants and
+group `finance` holding it, a subject `grace` who belongs to it and owes
+`update-password`, and two named sign-in flows, `staff` and `kiosk`, with `billing-app` pinned to `staff`. The import names the tenant `import-demo2`. Both tenants and
 the secret below are throwaway.
 
 Everything below ran in one session on a freshly built stack with `odudu seed admin
 --username ada` run against it and `$ADMIN_TOKEN` got as in [Getting the
 token](./getting-the-token.md). `import-source` is made first, with an override of
-the sign-in title in the default language:
+the sign-in title in the default language and the two named flows:
 
 ```bash
 A="Authorization: Bearer $ADMIN_TOKEN"; J='Content-Type: application/json'
@@ -117,6 +117,14 @@ curl -sS -X PUT -H "$A" -H "$J" -d "{\"role_ids\":[\"$ROLE\"]}" $T/groups/$GROUP
 GRACE=$(curl -sS -X POST -H "$A" -H "$J" -d '{"username":"grace","email":"grace@navy.example"}' $T/subjects | jq -r .id)
 curl -sS -X PUT -H "$A" -H "$J" -d "{\"group_ids\":[\"$GROUP\"]}" $T/subjects/$GRACE/groups -o /dev/null
 curl -sS -X PUT -H "$A" -H "$J" -H 'If-None-Match: *' -d '{"message":"Welcome back"}' $T/message-overrides/en/login.title -o /dev/null
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"name":"staff","steps":[{"authenticator":"password","requirement":"required"},{"authenticator":"otp","requirement":"required"}]}' $T/flows -o /dev/null
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"name":"kiosk","steps":[{"authenticator":"password","requirement":"required"}]}' $T/flows -o /dev/null
+FLOW=$(curl -sS -H "$A" $T/flows | jq -r '.items[] | select(.name=="staff") | .id')
+CID=$(curl -sS -H "$A" "$T/clients?client_id_exact=billing-app" | jq -r '.items[0].id')
+CETAG=$(curl -sS -D - -o /dev/null -H "$A" $T/clients/$CID | tr -d '\r' | sed -n 's/^etag: //p')
+curl -sS -X PATCH -H "$A" -H "$J" -H "If-Match: $CETAG" -d "{\"flow_id\":\"$FLOW\"}" $T/clients/$CID -o /dev/null
 ```
 
 The export, saved, then imported under a new name:
@@ -136,16 +144,16 @@ cat import.json
 
 ```
 HTTP/1.1 201 Created
-x-request-id: 01a18b59-f173-7ddb-89a9-1adadce1ca48
+x-request-id: 01a1e9bd-9b5f-795a-8cea-7d485c677595
 cache-control: no-store
-etag: "7c9c5a3e14185cd52bc89b354c84d6495c35bd154f8f9dfe3f2559f2f716fbbe"
+etag: "798d2ac2c8b4c532013f2a02708f90b5e0064bbb69a9f7a5b92727708188cb43"
 content-type: application/json; charset=utf-8
 content-length: 264
-Date: Fri, 30 Oct 2026 05:48:10 GMT
+Date: Tue, 17 Nov 2026 13:41:20 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"tenant":{"id":"01a18b59-f194-7a57-81d6-48055e174ac1","name":"import-demo2","display_name":"Import demo","enabled":true,"created_at":"2026-10-30T05:48:10.004Z"},"client_secrets":[{"client_id":"billing-app","secret":"RJo6qks28wWjVF8IQNXpPE4Xt23vwllHvad1B8u0XE8"}]}
+{"tenant":{"id":"01a1e9bd-9b84-773a-b00c-d9635f2005a0","name":"import-demo2","display_name":"Import demo","enabled":true,"created_at":"2026-11-17T13:41:19.876Z"},"client_secrets":[{"client_id":"billing-app","secret":"Hqi7K7083VeGGkr9hQ-roNPXxBUzQamYvMu1jfniZPo"}]}
 ```
 
 The secret it answered authenticates at the new tenant's `/token`:
@@ -181,6 +189,65 @@ identical
 {"display_name":"Import demo","omitted":["clients[0].secret"]}
 ```
 
+Its flows came across with it. The member that carries them, from the source's document and then the imported tenant's (`billing-app` still names `staff`, and the default is still `default`):
+
+```bash
+jq -c '{flow_name, flows: [.flows[] | {name, steps: [.steps[].authenticator]}], clients: [.clients[] | {client_id, flow}]}' source.json imported.json
+```
+
+```
+{"flow_name":"default","flows":[{"name":"kiosk","steps":["password"]},{"name":"staff","steps":["password","otp"]}],"clients":[{"client_id":"billing-app","flow":"staff"},{"client_id":"odudu-mcp","flow":null}]}
+{"flow_name":"default","flows":[{"name":"kiosk","steps":["password"]},{"name":"staff","steps":["password","otp"]}],"clients":[{"client_id":"billing-app","flow":"staff"},{"client_id":"odudu-mcp","flow":null}]}
+```
+
+A document from before flows travelled with it, which is the same document without `flow_name`, `flows` and the `flow` of each client, imports with `201`, the default named `default`, no other flow and every client on the default:
+
+```bash
+jq -c '{name: "import-older", document: (del(.flow_name, .flows) | .clients |= map(del(.flow)))}' source.json \
+  | curl -sS -o older.json -w '%{http_code}\n' -X POST \
+      -H "Authorization: Bearer $ADMIN_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary @- \
+      http://localhost:3000/admin/tenant-imports
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/import-older/export \
+  | jq -c '{flow_name, flows: [.flows[].name], clients: [.clients[] | {client_id, flow}]}'
+```
+
+```
+201
+{"flow_name":"default","flows":[],"clients":[{"client_id":"billing-app","flow":null},{"client_id":"odudu-mcp","flow":null}]}
+```
+
+A client that names a flow the document does not hold is refused at the client's own path, and no tenant is created:
+
+```bash
+jq -c '.clients[0].flow = "no-such-flow" | {name: "import-dangling", document: .}' source.json \
+  | curl -sS -D - -X POST \
+      -H "Authorization: Bearer $ADMIN_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary @- \
+      http://localhost:3000/admin/tenant-imports
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3000/admin/tenants/count?name=import-dangling'
+echo
+```
+
+```
+HTTP/1.1 400 Bad Reques
+x-request-id: 01a1e9bd-9d78-789f-8d4c-86b35a8709dc
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 265
+Date: Tue, 17 Nov 2026 13:41:20 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.clients[0].flow","message":"names no flow no-such-flow"}],"instance":"01a1e9bd-9d78-789f-8d4c-86b35a8709dc"}
+{"count":0,"capped":false}
+```
+
 Each tenant's signing key, then the import's row in the new tenant's
 trail, scoped to the tenant `resource_id` this import created — the only
 row it could ever hold, since an import always creates a fresh tenant
@@ -199,9 +266,9 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-["01a18b59-ecb4-7be6-901e-39fa81a7b735"]
-["01a18b59-f2c1-732a-a5c3-5853fd1fa438"]
-{"items":[{"id":"01a18b59-f3d0-7e38-a3dd-28a9c9d10c6c","occurred_at":"2026-10-30T05:48:10.004Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18b52-bb6d-74f3-bbb4-24841db96596","actor_client_id":"01a18b52-ba78-7c10-a9e4-05dcd20baf9b","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a18b59-f194-7a57-81d6-48055e174ac1","request_id":"01a18b59-f173-7ddb-89a9-1adadce1ca48","ip":"172.20.0.1","detail":{"counts":{"roles":9,"groups":1,"scopes":8,"clients":1,"subjects":1,"message_overrides":1},"source_version":1}}]}
+["01a1e9bd-9837-758f-85d8-7724c7357ac4"]
+["01a1e9bd-9bd4-71ea-9dab-a66912b51d58"]
+{"items":[{"id":"01a1e9bd-9c7b-7b79-bf62-2e7fde664287","occurred_at":"2026-11-17T13:41:19.876Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a1e9bd-875b-72eb-8c68-983161bed4cb","actor_client_id":"01a1e9bd-86d8-77c2-b1fd-ae324cae229d","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a1e9bd-9b84-773a-b00c-d9635f2005a0","request_id":"01a1e9bd-9b5f-795a-8cea-7d485c677595","ip":"172.20.0.1","detail":{"counts":{"flows":2,"roles":11,"groups":1,"scopes":12,"clients":2,"subjects":1,"message_overrides":1},"source_version":1}}]}
 ```
 
 A document broken in two places at once — a scope mapping naming a role
