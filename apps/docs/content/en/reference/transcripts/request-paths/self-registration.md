@@ -1042,7 +1042,9 @@ account gets a handle of `u-` and ten lowercase letters and digits. Both need
 `login_with_email` and `verify_email` on, since a person with no chosen username
 signs in by email; the admin API refuses the change otherwise, and
 [`GET /settings` and `PATCH /settings`](../admin-paths/get-settings-and-patch-settings.md)
-lists the setting. The blocks on this page ran with the default.
+lists the setting. A person who chose no username has the handle as their username, which an
+application receives as `preferred_username` and must not treat as an identifier
+(ADR 0039): `sub` is. The blocks on this page ran with the default.
 
 ## The way there and back
 

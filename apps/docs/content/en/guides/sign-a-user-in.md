@@ -154,7 +154,7 @@ Full transcript: [Path A, /userinfo](../reference/transcripts/request-paths/path
 
 ## A sign-up button
 
-A "Sign up" button in your app is the same request as "Sign in", with `prompt=create` added. Odudu shows the person its registration page instead of the sign-in page. Your app keeps its own `state`, `nonce` and PKCE pair. Once the person has an account and signs in, the code comes back the same way. The tenant must allow self-registration; see [Settings](../admin-console/settings.mdx). The registration page asks for a username, an email address and a password, each marked (required); a tenant can make the username optional or have Odudu assign one, and the page then changes with it. Do not send an `id_token_hint` or a `claims` `sub` with it: those name an existing person, and the request is refused.
+A "Sign up" button in your app is the same request as "Sign in", with `prompt=create` added. Odudu shows the person its registration page instead of the sign-in page. Your app keeps its own `state`, `nonce` and PKCE pair. Once the person has an account and signs in, the code comes back the same way. The tenant must allow self-registration; see [Settings](../admin-console/settings.mdx). The registration page asks for a username, an email address, a password and the password again, each marked (required); a tenant can make the username optional or have Odudu assign one, and the page then changes with it. Do not send an `id_token_hint` or a `claims` `sub` with it: those name an existing person, and the request is refused.
 
 ```bash
 curl -sS -D - -o /dev/null --get \

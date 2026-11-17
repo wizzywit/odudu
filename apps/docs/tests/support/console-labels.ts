@@ -350,6 +350,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
     '> Send a password reset email <',
   ),
+  'Send a verification email': page(
+    'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
+    '> Send a verification email <',
+  ),
   'Revoke recovery codes': page(
     'subjects/services/credentialAsk.ts',
     "confirmLabel: 'Revoke recovery codes'",
