@@ -167,6 +167,7 @@ async function writeClient(
   tenantId: string,
   client: ExportedClient,
   metadata: ClientMetadata,
+  flowId: string | null,
 ): Promise<{ id: string; serviceSubjectId: string | null; secret: string | null }> {
   const confidential = client.type === 'confidential';
   const secret = confidential ? generateClientSecret() : null;
@@ -220,6 +221,7 @@ async function writeClient(
     defaultMaxAge: metadata.defaultMaxAge,
     requireAuthTime: metadata.requireAuthTime,
     allowedActions: client.allowed_actions,
+    flowId,
   });
   const account = needsServiceAccount(created.type, metadata.grantTypes)
     ? await ensureServiceAccount(tx, created)
@@ -389,6 +391,29 @@ async function writeSubjects(
   }
 }
 
+// The default is found by its flag and renamed to the document's name, then
+// the others are created; a client row needs the id of the flow it names.
+async function writeFlows(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  document: TenantDocument,
+): Promise<Map<string, string>> {
+  const repository = flowRepository(tx);
+  const defaultFlow = await repository.replaceDefaultSteps(tenantId, document.flow);
+  const renamed = await repository.replace(
+    tenantId,
+    defaultFlow.id,
+    document.flow_name,
+    document.flow,
+  );
+  if (renamed === null) throw new Error('tenant import: the default flow vanished');
+  const ids = new Map<string, string>([[document.flow_name, defaultFlow.id]]);
+  for (const named of document.flows) {
+    ids.set(named.name, (await repository.create(tenantId, named.name, named.steps)).id);
+  }
+  return ids;
+}
+
 async function writeDocument(
   tx: TenantScopedDatabase,
   deps: ImportTenantDeps,
@@ -397,7 +422,7 @@ async function writeDocument(
   metadata: ReadonlyMap<string, ClientMetadata>,
 ): Promise<ImportedClientSecret[]> {
   await writeSettings(tx, tenantId, document);
-  await flowRepository(tx).replaceDefaultSteps(tenantId, document.flow);
+  const flowIds = await writeFlows(tx, tenantId, document);
 
   const admin = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
   if (admin === null) throw new Error('tenant import: the admin client was not provisioned');
@@ -419,6 +444,7 @@ async function writeDocument(
       tenantId,
       client,
       required(metadata, client.client_id, 'client metadata'),
+      client.flow === null ? null : required(flowIds, client.flow, 'flow'),
     );
     clientIds.set(client.client_id, written.id);
     if (written.serviceSubjectId !== null) {
@@ -521,6 +547,7 @@ export async function importTenant(
               scopes: document.scopes.length,
               subjects: document.subjects?.length ?? 0,
               message_overrides: document.message_overrides.length,
+              flows: document.flows.length,
             },
           },
         });
