@@ -54,7 +54,11 @@ already uses on the update-profile page (`Label (required)`, messages key
   refuses an empty one before the request, and the server still validates;
 - in the default `required` mode that means Username, Email, Password and
   Confirm password each read `(required)`. Nothing is optional, so the page
-  changes by the marker only.
+  changes by the marker only;
+- in `generated` mode the form is Email, Password and Confirm password, each
+  `(required)`, with no Username field. A test pins that the field is absent
+  from the markup and that a `username` posted anyway is ignored: the account
+  gets a handle, never the posted name.
 
 A tenant's custom template keeps working: the markers and the `required`
 attributes are part of the `fields` value the renderer returns. The screenshots
