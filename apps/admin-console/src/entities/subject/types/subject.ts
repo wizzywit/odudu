@@ -10,6 +10,8 @@ export interface Subject {
   email: string | null;
   enabled: boolean;
   createdAt: string;
+  // The address a change to the email is waiting on the person to confirm.
+  pendingEmail?: string | null | undefined;
 }
 
 // Carried only by a listing filtered by `capability`.

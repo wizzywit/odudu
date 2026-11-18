@@ -106,6 +106,43 @@ it('clears an emptied email rather than sending an empty one', async () => {
   });
 });
 
+it('shows a pending email change and cancels it by sending the current address back', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      [`GET ${S}/${ADA_ID}`]: json({ ...ADA, pending_email: 'new@example.test' }, 200, {
+        etag: '"s1"',
+      }),
+      [`PATCH ${S}/${ADA_ID}`]: json(ADA, 200, { etag: '"s2"' }),
+    }),
+  );
+  expect(
+    await screen.findByText(
+      'Change pending: new@example.test. The current address stays until they confirm it.',
+    ),
+  ).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Cancel the change' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')).toMatchObject({
+      ifMatch: '"s1"',
+      body: { email: 'ada@example.test' },
+    });
+  });
+  await waitFor(() => {
+    expect(screen.queryByText(/Change pending/u)).toBeNull();
+  });
+  expect(screen.queryByRole('button', { name: 'Cancel the change' })).toBeNull();
+});
+
+it('shows neither the pending change nor its cancel when none is pending', async () => {
+  renderConsoleAt(ADA_AT, subjectRoutes());
+  await screen.findByRole('textbox', { name: 'Email' });
+  expect(screen.queryByText(/Change pending/u)).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Cancel the change' })).toBeNull();
+  expect(screen.queryByText(/is unverified until/u)).toBeNull();
+});
+
 it('saves claims on the profile’s own ETag, an emptied claim as none', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(

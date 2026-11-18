@@ -5,7 +5,7 @@ import { useGo } from '#/shared/lib/repository/useGo';
 import {
   saveAccount,
   useSubjectDeletion,
-  useSubjectEnabled,
+  useSubjectChange,
   useUsernamePolicy,
   type AccountValues,
 } from '#/pages/subjects/repository/useSubjectRecord';
@@ -15,9 +15,14 @@ import { deletedText, enabledText } from '#/shared/lib/services/failure';
 import { orBlank } from '#/shared/lib/services/format';
 import { DESCRIPTION_RULE } from '#/shared/lib/services/labels';
 import {
+  ACCOUNT_DESCRIPTION,
+  CANCEL_PENDING_LABEL,
+  cancelPendingChange,
   confirmationOf,
   deletionRefusal,
   enabledVerb,
+  pendingCancelFailure,
+  pendingChangeText,
   signsInAsItself,
   subjectWriteFailure,
 } from '#/pages/subjects/services/subjectAccount';
@@ -42,6 +47,16 @@ export interface SubjectAccount {
   itself: boolean;
   // What is said under the email field.
   descriptionRule: string;
+  // What is said under the section's title.
+  description: string;
+  // The change to the email waiting on the person, as said beside the field.
+  pendingText: string | null;
+  cancelPendingLabel: string;
+  // Withdraws the pending change; the record then shows none.
+  cancelPending: () => void;
+  cancellingPending: boolean;
+  // Why the last cancel did not happen, said beside the button.
+  cancelMessage: string | null;
   // Why the subject cannot be deleted here, when it cannot.
   deletionRefusal: string | null;
   section: SectionSave<AccountValues>;
@@ -83,12 +98,13 @@ export function useSubjectAccount(
     save: saveAccount(tenant, subject.id),
   });
   const username = usernameMode(useUsernamePolicy(tenant), areaHref(tenant, areaAt('settings')));
-  const enabledChange = useSubjectEnabled(tenant, subject.id, etag);
+  const enabledChange = useSubjectChange(tenant, subject.id, etag);
   const deletion = useSubjectDeletion(tenant, subject.id);
   const endOwnSession = useEndOwnSession();
   const [confirming, setConfirming] = useState<'disable' | 'delete' | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [enabledMessage, setEnabledMessage] = useState<string | null>(null);
+  const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
   const setEnabled = (next: boolean): void => {
     if (enabledChange.busy) return;
@@ -96,7 +112,7 @@ export function useSubjectAccount(
     setEnabledMessage(null);
     const verb = enabledVerb(next);
     enabledChange
-      .run(next)
+      .run({ enabled: next })
       .then((result) => {
         if (result.ok) {
           setConfirming(null);
@@ -109,6 +125,21 @@ export function useSubjectAccount(
       })
       .catch(() => {
         setProblem(subjectWriteFailure({ ok: false, kind: 'defect' }, name, verb));
+      });
+  };
+
+  const cancelPending = (): void => {
+    if (enabledChange.busy) return;
+    setCancelMessage(null);
+    enabledChange
+      .run(cancelPendingChange(subject))
+      .then((result) => {
+        if (result.ok) return;
+        refusal.report(result, 'manage-users');
+        setCancelMessage(pendingCancelFailure(result, name));
+      })
+      .catch(() => {
+        setCancelMessage(pendingCancelFailure({ ok: false, kind: 'defect' }, name));
       });
   };
 
@@ -150,6 +181,12 @@ export function useSubjectAccount(
     name,
     itself: signsInAsItself(subject),
     descriptionRule: DESCRIPTION_RULE,
+    description: ACCOUNT_DESCRIPTION,
+    pendingText: pendingChangeText(subject.pendingEmail),
+    cancelPendingLabel: CANCEL_PENDING_LABEL,
+    cancelPending,
+    cancellingPending: enabledChange.busy,
+    cancelMessage,
     deletionRefusal: deletionRefusal(subject),
     section,
     username,

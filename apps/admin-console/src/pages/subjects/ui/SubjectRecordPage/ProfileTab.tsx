@@ -81,11 +81,7 @@ function Username({ account }: { account: SubjectAccount }) {
 function Account({ account }: { account: SubjectAccount }) {
   const s = account.section;
   return (
-    <SaveSection
-      title="Account"
-      description="How the subject signs in and is written to. A changed email is unverified until it is proved or marked verified below."
-      save={s}
-    >
+    <SaveSection title="Account" description={account.description} save={s}>
       <Username account={account} />
       <TextField
         label="Email"
@@ -99,7 +95,27 @@ function Account({ account }: { account: SubjectAccount }) {
           s.edit('email', value);
         }}
       />
+      <Pending account={account} />
     </SaveSection>
+  );
+}
+
+function Pending({ account }: { account: SubjectAccount }) {
+  if (account.pendingText === null) return null;
+  return (
+    <>
+      <p className={recordTab.text}>{account.pendingText}</p>
+      <div className={recordTab.actions}>
+        <Button
+          variant="secondary"
+          isDisabled={account.cancellingPending}
+          onPress={account.cancelPending}
+        >
+          {account.cancelPendingLabel}
+        </Button>
+      </div>
+      <LiveMessage>{account.cancelMessage}</LiveMessage>
+    </>
   );
 }
 
