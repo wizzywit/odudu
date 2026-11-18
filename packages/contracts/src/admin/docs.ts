@@ -750,7 +750,8 @@ describeFields(adminCapabilitiesResponseSchema, {
 });
 describeFields(amendSubjectRequestSchema, {
   username: 'A new sign-in name, when the tenant allows renaming.',
-  email: 'A new email address, or null to remove it.',
+  email:
+    'A new email address is held as a pending change and mailed a link; the person confirms it, and until then the current address stays and keeps working. The person’s current address cancels a pending change. Null removes the address at once.',
   enabled: 'Whether the subject may sign in.',
 });
 describeFields(bulkSubjectResultSchema, {
