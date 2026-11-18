@@ -8,6 +8,7 @@ import {
   exportsSubjects,
   savedText,
   exportFileName,
+  exportLead,
 } from '#/pages/tenants/services/export';
 
 describe('the export file', () => {
@@ -77,5 +78,20 @@ describe('the export', () => {
       'The export could not be read. Nothing was saved; try again.',
     );
     expect(savedText('a.json')).toBe('Saved a.json.');
+  });
+});
+
+describe('exportLead', () => {
+  it('says the file carries every sign-in flow by name and each client’s flow, and that an import restores them', () => {
+    const lead = exportLead('acme');
+    expect(lead).toContain("acme's configuration");
+    expect(lead).toContain(
+      'every sign-in flow, each by name, with the flow each client is pinned to',
+    );
+    expect(lead).toContain('Importing it creates a new tenant with the same flows');
+    expect(lead).toContain('a client that followed the default flow still following it');
+    expect(lead).toContain(
+      "does not carry the published theme, the clients' themes or the images they use",
+    );
   });
 });

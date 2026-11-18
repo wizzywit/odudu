@@ -1100,6 +1100,7 @@ null`, which the query-plan check's foreign-key rule accepts as a probe of the k
 
 - A tenant export carries the default flow only, so a client's `flow_id`, and every other flow, are not exported and an import restores
   neither. P7 takes it with the document's move between installations (roadmap, section 11 and `docs/NEXT.md` name it).
+  Done afterwards, outside P7: see [flows-in-tenant-export.md](flows-in-tenant-export.md).
 - The per-step authenticator settings of 7c are on the steps now (increment 7c).
 
 ## Increment 14: the closing pass

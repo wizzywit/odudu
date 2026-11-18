@@ -50,7 +50,7 @@ Back to system
 demo
 Export
 Export demo
-A file of demo's configuration: settings, the sign-in flow, clients, roles, groups, scopes, the registration policy and the mail relay. No secret is in it; the file lists each one it left out. Importing it creates a new tenant.
+A file of demo's configuration: settings, clients, roles, groups, scopes, the registration policy, the mail relay and every sign-in flow, each by name, with the flow each client is pinned to. It does not carry the published theme, the clients' themes or the images they use. No secret is in it; the file lists each one it left out. Importing it creates a new tenant with the same flows, each client pinned to the flow it was, and a client that followed the default flow still following it.
 Include subjects
 Off
 Their profiles, roles, groups and required actions, up to 10,000; never a credential.

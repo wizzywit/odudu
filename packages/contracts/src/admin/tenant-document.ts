@@ -2,7 +2,13 @@ import { z } from 'zod';
 import { exportedMessageOverrideSchema, MESSAGE_OVERRIDE_LIMIT } from '#/admin/message-overrides';
 import { noBidiControls } from '#/bidi';
 import { clientTypeSchema } from '#/admin/clients';
-import { executionRequirementSchema, flowStepSettingsSchema } from '#/admin/flow';
+import {
+  executionRequirementSchema,
+  FLOW_LIMIT,
+  FLOW_STEP_MAX,
+  flowNameSchema,
+  flowStepSettingsSchema,
+} from '#/admin/flow';
 import { nameClaims, profileSchema } from '#/admin/profile';
 import { clientScopeAssignmentSchema } from '#/admin/scopes';
 import {
@@ -160,6 +166,13 @@ export const exportedFlowStepSchema = z.strictObject({
   settings: flowStepSettingsSchema.optional(),
 });
 
+// A flow other than the default, keyed by its name: ids never travel.
+export const exportedNamedFlowSchema = z.strictObject({
+  name: flowNameSchema,
+  steps: z.array(exportedFlowStepSchema).max(FLOW_STEP_MAX),
+});
+export type ExportedNamedFlow = z.infer<typeof exportedNamedFlowSchema>;
+
 // A set the admin API replaces whole, held to ASSIGNMENT_LIMIT: the refusal says
 // how many the document holds as well as how many it may.
 function boundedSet<T extends z.ZodType>(item: T, limit: number) {
@@ -228,6 +241,10 @@ export const exportedClientSchema = z.strictObject({
   require_auth_time: z.boolean(),
   // Absent from a document exported before the setting existed: none.
   allowed_actions: z.array(applicationActionSchema).default([]),
+  // The name of the flow the client signs in through, the default's name
+  // included when the client is pinned to it; null follows whichever flow is
+  // the default. Absent from a document exported before named flows existed.
+  flow: flowNameSchema.nullable().default(null),
   // The roles a confidential client's own service account holds, which
   // its client_credentials tokens carry; empty for a client without that grant.
   service_account_roles: assignmentSet(roleReferenceSchema),
@@ -301,6 +318,21 @@ export const tenantDocumentSchema = z.strictObject({
   version: z.literal(1),
   settings: tenantSettingsDocumentSchema,
   flow: z.array(exportedFlowStepSchema),
+  // The default flow's name, which the tenant may have changed. Absent from a
+  // document exported before named flows existed.
+  flow_name: flowNameSchema.default('default'),
+  // Every flow but the default, by name. Absent from a document exported
+  // before named flows existed: none.
+  flows: z
+    .array(exportedNamedFlowSchema)
+    .max(FLOW_LIMIT - 1, {
+      error: (issue) =>
+        `${Array.isArray(issue.input) ? String(issue.input.length) : 'too many'} flows, at most ${String(FLOW_LIMIT - 1)} besides the default`,
+    })
+    .refine((list) => new Set(list.map((flow) => flow.name)).size === list.length, {
+      error: 'flow names must be unique',
+    })
+    .default([]),
   clients: z.array(exportedClientSchema),
   roles: z.array(exportedRoleSchema),
   groups: z.array(exportedGroupSchema),

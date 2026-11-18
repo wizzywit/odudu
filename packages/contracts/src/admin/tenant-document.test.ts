@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FLOW_LIMIT } from '#/admin/flow';
 import { CLIENT_LIST_LIMIT, listLimitMessage } from '#/admin/shared';
 import {
   REGISTRATION_POLICY_SETTINGS,
@@ -18,6 +19,7 @@ const CLIENT: ExportedClient = {
   enabled: true,
   full_scope_allowed: false,
   skip_logout_confirmation: false,
+  flow: null,
   registration_origin: 'operator',
   redirect_uris: ['https://billing.example/callback'],
   grant_types: ['authorization_code'],
@@ -154,6 +156,8 @@ const DOCUMENT: TenantDocument = {
   },
   smtp: null,
   message_overrides: [],
+  flow_name: 'default',
+  flows: [],
   omitted: ['clients[0].secret'],
 };
 
@@ -433,6 +437,70 @@ describe('tenantDocumentSchema', () => {
       'registration_allowed',
       'verify_email',
     ]);
+  });
+});
+
+describe('the flows of a document', () => {
+  const STEP = { authenticator: 'password', requirement: 'required' } as const;
+  const named = (name: string) => ({ name, steps: [STEP] });
+  const without = (record: object, ...names: string[]): Record<string, unknown> =>
+    Object.fromEntries(Object.entries(record).filter(([key]) => !names.includes(key)));
+  const parse = (flows: unknown[]) => tenantDocumentSchema.safeParse({ ...DOCUMENT, flows });
+
+  it('imports a document from before named flows: the default is called default, none else, every client follows it', () => {
+    const result = tenantDocumentSchema.safeParse({
+      ...without(DOCUMENT, 'flow_name', 'flows'),
+      clients: [without(CLIENT, 'flow')],
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.flow_name).toBe('default');
+    expect(result.data?.flows).toEqual([]);
+    expect(result.data?.clients[0]?.flow).toBeNull();
+  });
+
+  it('keeps a named flow with its steps and a client naming it', () => {
+    const result = tenantDocumentSchema.safeParse({
+      ...DOCUMENT,
+      flow_name: 'core',
+      flows: [named('staff')],
+      clients: [{ ...CLIENT, flow: 'staff' }],
+    });
+    expect(result.data?.flows).toEqual([named('staff')]);
+    expect(result.data?.clients[0]?.flow).toBe('staff');
+  });
+
+  it('holds at most one flow fewer than a tenant may have, the default being the last', () => {
+    const names = (count: number) =>
+      Array.from({ length: count }, (_, index) => named(`flow-${String(index)}`));
+    expect(parse(names(FLOW_LIMIT - 1)).success).toBe(true);
+    expect(parse(names(FLOW_LIMIT)).success).toBe(false);
+  });
+
+  it('compares names exactly, apart from the trimming a name always gets', () => {
+    expect(parse([named('Staff'), named('staff')]).success).toBe(true);
+    expect(parse([named('staff'), named(' staff ')]).success).toBe(false);
+  });
+
+  it('refuses a duplicate name', () => {
+    expect(parse([named('staff'), named('staff')]).success).toBe(false);
+  });
+
+  it.each(['', '   ', 'a\u0000b', 'x'.repeat(65)])('refuses the flow name %j', (name) => {
+    expect(parse([named(name)]).success).toBe(false);
+    expect(tenantDocumentSchema.safeParse({ ...DOCUMENT, flow_name: name }).success).toBe(false);
+  });
+
+  it('refuses an empty name for a client flow, and an unknown member of a flow', () => {
+    expect(
+      tenantDocumentSchema.safeParse({ ...DOCUMENT, clients: [{ ...CLIENT, flow: '' }] }).success,
+    ).toBe(false);
+    expect(parse([{ ...named('staff'), id: 'x' }]).success).toBe(false);
+  });
+
+  it('holds a step to the fields of the default flow, settings included', () => {
+    const settings = { authenticator: 'otp', requirement: 'required', settings: { digits: 8 } };
+    expect(parse([{ name: 'staff', steps: [settings] }]).success).toBe(true);
+    expect(parse([{ name: 'staff', steps: [{ ...STEP, extra: 1 }] }]).success).toBe(false);
   });
 });
 

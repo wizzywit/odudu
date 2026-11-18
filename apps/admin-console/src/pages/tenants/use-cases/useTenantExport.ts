@@ -4,6 +4,7 @@ import { useExport } from '#/pages/tenants/repository/useExport';
 import {
   exportBlame,
   exportFailureText,
+  exportLead,
   exportNeeds,
   exportsSubjects,
   savedText,
@@ -14,6 +15,7 @@ import { useToast } from '#/shared/lib/repository/useToasts';
 import type { AdminCapability } from '#/shared/lib/services/principal';
 
 export interface TenantExportState {
+  lead: string;
   // The capabilities whoami says are missing, each named rather than refused.
   needs: readonly AdminCapability[];
   subjectsNeed: AdminCapability | null;
@@ -56,6 +58,7 @@ export function useTenantExport(target: string, authority: string): TenantExport
       });
   };
   return {
+    lead: exportLead(target),
     needs,
     subjectsNeed,
     includeSubjects: withSubjects,

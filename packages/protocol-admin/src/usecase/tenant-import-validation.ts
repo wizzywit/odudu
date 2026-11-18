@@ -466,26 +466,47 @@ function messageOverrideProblems(
   });
 }
 
+function flowStepProblems(
+  steps: TenantDocument['flow'],
+  at: string,
+  environment: ImportEnvironment,
+  problems: Problems,
+): void {
+  const flow = validateFlowSteps(steps, environment.knownAuthenticators);
+  if (flow.kind === 'empty') problems.add(at, 'a flow has at least one step');
+  if (flow.kind === 'unresolvable_authenticator') {
+    problems.add(at, `names no authenticator ${flow.name}`);
+  }
+  if (flow.kind === 'duplicate_authenticator')
+    problems.add(at, `names ${flow.name} more than once`);
+  if (flow.kind === 'unread_settings') {
+    problems.add(at, `${flow.name} does not read the settings it carries`);
+  }
+  if (flow.kind === 'no_enabled_step') problems.add(at, 'every step is disabled');
+  if (flow.kind === 'ok' && !startsALogin(steps)) {
+    problems.add(at, 'no step can render the first challenge of a login');
+  }
+}
+
 function flowAndSmtpProblems(
   document: TenantDocument,
   environment: ImportEnvironment,
   problems: Problems,
 ): void {
-  const flow = validateFlowSteps(document.flow, environment.knownAuthenticators);
-  if (flow.kind === 'empty') problems.add('document.flow', 'a flow has at least one step');
-  if (flow.kind === 'unresolvable_authenticator') {
-    problems.add('document.flow', `names no authenticator ${flow.name}`);
-  }
-  if (flow.kind === 'duplicate_authenticator') {
-    problems.add('document.flow', `names ${flow.name} more than once`);
-  }
-  if (flow.kind === 'unread_settings') {
-    problems.add('document.flow', `${flow.name} does not read the settings it carries`);
-  }
-  if (flow.kind === 'no_enabled_step') problems.add('document.flow', 'every step is disabled');
-  if (flow.kind === 'ok' && !startsALogin(document.flow)) {
-    problems.add('document.flow', 'no step can render the first challenge of a login');
-  }
+  flowStepProblems(document.flow, 'document.flow', environment, problems);
+  document.flows.forEach((named, index) => {
+    const at = `document.flows[${String(index)}]`;
+    flowStepProblems(named.steps, at, environment, problems);
+    if (named.name === document.flow_name) {
+      problems.add(`${at}.name`, 'is the name of the default flow, `flow_name`');
+    }
+  });
+  const flowNames = new Set([document.flow_name, ...document.flows.map((named) => named.name)]);
+  document.clients.forEach((client, index) => {
+    if (client.flow !== null && !flowNames.has(client.flow)) {
+      problems.add(`document.clients[${String(index)}].flow`, `names no flow ${client.flow}`);
+    }
+  });
 
   const smtp = document.smtp;
   if (smtp === null) return;

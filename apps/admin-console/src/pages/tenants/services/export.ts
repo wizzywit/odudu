@@ -12,6 +12,10 @@ export function exportFileName(tenant: string, now: Date): string {
   return `${tenant}-${utcDay(now)}.odudu-tenant.json`;
 }
 
+export function exportLead(tenant: string): string {
+  return `A file of ${tenant}'s configuration: settings, clients, roles, groups, scopes, the registration policy, the mail relay and every sign-in flow, each by name, with the flow each client is pinned to. It does not carry the published theme, the clients' themes or the images they use. No secret is in it; the file lists each one it left out. Importing it creates a new tenant with the same flows, each client pinned to the flow it was, and a client that followed the default flow still following it.`;
+}
+
 export interface Exported {
   fileName: string;
   bytes: number;

@@ -78,7 +78,7 @@ docker compose exec odudu odudu seed join-group --tenant demo --username ada --g
 
 ## 5. Move a tenant between Odudu installations
 
-Once a tenant is rebuilt, its configuration exports as one document, and the document creates a new tenant elsewhere. It carries settings, clients, roles, groups, scopes and the authentication flow, and it names the secrets it leaves out. The two pages show both halves.
+Once a tenant is rebuilt, its configuration exports as one document, and the document creates a new tenant elsewhere. It carries settings, clients, roles, groups, scopes and every sign-in flow, each by name, with the flow each client uses, and it names the secrets it leaves out. The two pages show both halves.
 
 - [`GET /export`](../reference/transcripts/admin-paths/get-export.md)
 - [`POST /admin/tenant-imports`](../reference/transcripts/admin-paths/post-admintenant-imports.md)

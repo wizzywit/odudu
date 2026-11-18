@@ -3,6 +3,7 @@ import {
   ASSIGNMENT_LIMIT,
   CLIENT_SCOPE_LIMIT,
   EXPORT_SUBJECT_CAP,
+  FLOW_LIMIT,
   GROUP_LIMIT,
   groupLimitMessage,
   ROLE_LIMIT,
@@ -26,6 +27,7 @@ import {
 import {
   ADMIN_CLIENT_ID,
   clientRepository,
+  clients,
   clientScopeMapperRepository,
   clientScopeRepository,
   tenantSettingsRepository,
@@ -34,6 +36,7 @@ import {
 import { newId } from '@odudu/kernel';
 import {
   ADMIN_CLIENT_REDIRECT_URI,
+  clientOidcConfig,
   clientOidcConfigRepository,
   tenantLookupRepository,
 } from '@odudu/protocol-oidc';
@@ -1041,6 +1044,7 @@ describe('POST /admin/tenant-imports', () => {
         scopes: document.scopes.length,
         subjects: document.subjects?.length ?? 0,
         message_overrides: document.message_overrides.length,
+        flows: document.flows.length,
       },
     });
     for (const { secret } of answer.client_secrets) {
@@ -1568,6 +1572,279 @@ describe('POST /admin/tenant-imports', () => {
       'document.flow',
     ]);
     expect(await tenantIdOf(name)).toBeNull();
+  });
+
+  describe('the flows of a document', () => {
+    const PASSWORD = { authenticator: 'password', requirement: 'required' } as const;
+    const WITH_OTP = [
+      PASSWORD,
+      { authenticator: 'otp', requirement: 'required', settings: { digits: 8 } },
+    ] as const;
+
+    async function flowDocument(): Promise<{ token: string; base: TenantDocument }> {
+      const source = await fixture.createTenant(`import-src-${newId()}`);
+      await fixture.createConfidentialClient(source.name, {});
+      const token = await operatorToken();
+      return { token, base: await exportOf(token, source.name) };
+    }
+
+    async function refusedAt(
+      token: string,
+      document: unknown,
+    ): Promise<{ path: string; message: string }[]> {
+      const name = `import-${newId()}`;
+      const res = await postImport(token, { name, document });
+      expect(res.statusCode, res.payload).toBe(400);
+      expect(await tenantIdOf(name)).toBeNull();
+      return [...(res.json<ImportRefusal>().errors ?? [])];
+    }
+
+    it.each([
+      [
+        'an authenticator the server does not know',
+        [{ authenticator: 'nope', requirement: 'required' }],
+      ],
+      ['an authenticator twice', [PASSWORD, PASSWORD]],
+      ['settings its authenticator does not read', [{ ...PASSWORD, settings: { digits: 8 } }]],
+      ['no step', []],
+      ['every step disabled', [{ authenticator: 'password', requirement: 'disabled' }]],
+      ['no step that starts a login', [{ authenticator: 'otp', requirement: 'required' }]],
+    ])(
+      'refuses a named flow with %s at its own index, as the default flow is',
+      async (_, steps) => {
+        const { token, base } = await flowDocument();
+
+        const errors = await refusedAt(token, {
+          ...base,
+          flows: [
+            { name: 'fine', steps: [PASSWORD] },
+            { name: 'broken', steps },
+          ],
+        });
+
+        expect(errors.map((error) => error.path)).toEqual(['document.flows[1]']);
+      },
+    );
+
+    it('refuses a named flow that takes the name of the default', async () => {
+      const { token, base } = await flowDocument();
+
+      const errors = await refusedAt(token, {
+        ...base,
+        flow_name: 'core',
+        flows: [{ name: 'core', steps: [PASSWORD] }],
+      });
+
+      expect(errors.map((error) => error.path)).toEqual(['document.flows[0].name']);
+    });
+
+    it('refuses a duplicate name by the member, and a client naming no flow of the document', async () => {
+      const { token, base } = await flowDocument();
+      const first = base.clients[0];
+      if (first === undefined) throw new Error('fixture: no client');
+
+      const duplicate = await refusedAt(token, {
+        ...base,
+        flows: [
+          { name: 'staff', steps: [PASSWORD] },
+          { name: 'staff', steps: [PASSWORD] },
+        ],
+      });
+      const dangling = await refusedAt(token, {
+        ...base,
+        flows: [{ name: 'staff', steps: [PASSWORD] }],
+        clients: [{ ...first, flow: 'missing' }, ...base.clients.slice(1)],
+      });
+
+      expect(duplicate.map((error) => error.path)).toEqual(['document.flows']);
+      expect(dangling.map((error) => error.path)).toEqual(['document.clients[0].flow']);
+    });
+
+    it('restores every flow, the default under its name, and each client on the flow it ran', async () => {
+      const source = await fixture.createTenant(`import-src-${newId()}`);
+      const onStaff = await fixture.createConfidentialClient(source.name, {});
+      const onDefault = await fixture.createConfidentialClient(source.name, {});
+      const onNothing = await fixture.createConfidentialClient(source.name, {});
+      await withTenant(fixture.app.db, source.id, async (tx) => {
+        const repository = flowRepository(tx);
+        const original = await repository.defaultForTenant(source.id);
+        if (original === null) throw new Error('expected a default flow');
+        await repository.replace(source.id, original.id, 'core', WITH_OTP);
+        const staff = await repository.create(source.id, 'staff', WITH_OTP);
+        await repository.create(source.id, 'admins', [PASSWORD]);
+        await tx
+          .update(clientOidcConfig)
+          .set({ flowId: staff.id })
+          .where(eq(clientOidcConfig.clientId, onStaff.id));
+        await tx
+          .update(clientOidcConfig)
+          .set({ flowId: original.id })
+          .where(eq(clientOidcConfig.clientId, onDefault.id));
+      });
+      const token = await operatorToken();
+      const document = await exportOf(token, source.name);
+      const name = `import-${newId()}`;
+
+      const res = await postImport(token, { name, document });
+
+      expect(res.statusCode, res.payload).toBe(201);
+      const created = res.json<ImportAnswer>().tenant;
+      const again = await exportOf(token, name);
+      expect(again.flow_name).toBe('core');
+      expect(again.flow).toEqual(document.flow);
+      expect(again.flows).toEqual(document.flows);
+      expect(again.flows.map((flow) => flow.name)).toEqual(['admins', 'staff']);
+      const flowOf = (doc: TenantDocument, clientId: string) =>
+        doc.clients.find((client) => client.client_id === clientId)?.flow;
+      expect(flowOf(again, onStaff.clientId)).toBe('staff');
+      expect(flowOf(again, onDefault.clientId)).toBe('core');
+      expect(flowOf(again, onNothing.clientId)).toBeNull();
+      const stored = await withTenant(fixture.app.db, created.id, async (tx) => {
+        const rows = await flowRepository(tx).forTenant(created.id);
+        const pinned = await tx
+          .select({ flowId: clientOidcConfig.flowId })
+          .from(clientOidcConfig)
+          .innerJoin(clients, eq(clients.id, clientOidcConfig.clientId))
+          .where(eq(clients.clientId, onDefault.clientId));
+        return { rows, pinned: pinned[0]?.flowId };
+      });
+      expect(stored.rows.filter((flow) => flow.isDefault).map((flow) => flow.name)).toEqual([
+        'core',
+      ]);
+      expect(stored.pinned).toBe(stored.rows.find((flow) => flow.isDefault)?.id);
+      const audit = await withTenant(fixture.app.db, created.id, (tx) =>
+        tx.select().from(auditEvents).where(eq(auditEvents.action, 'tenant.import')),
+      );
+      expect(audit[0]?.detail).toMatchObject({ counts: { flows: 2 } });
+    });
+
+    it('imports a document from before named flows with every client on the default', async () => {
+      const { token, base } = await flowDocument();
+      const omit = (record: object, ...keys: string[]) =>
+        Object.fromEntries(Object.entries(record).filter(([key]) => !keys.includes(key)));
+      const name = `import-${newId()}`;
+
+      const res = await postImport(token, {
+        name,
+        document: {
+          ...omit(base, 'flow_name', 'flows'),
+          clients: base.clients.map((client) => omit(client, 'flow')),
+        },
+      });
+
+      expect(res.statusCode, res.payload).toBe(201);
+      const again = await exportOf(token, name);
+      expect(again.flow_name).toBe('default');
+      expect(again.flows).toEqual([]);
+      expect(again.clients.every((client) => client.flow === null)).toBe(true);
+    });
+
+    it('renames the default before it creates a named flow that takes the name default', async () => {
+      const { token, base } = await flowDocument();
+      const name = `import-${newId()}`;
+
+      const res = await postImport(token, {
+        name,
+        document: {
+          ...base,
+          flow_name: 'core',
+          flows: [{ name: 'default', steps: [PASSWORD] }],
+        },
+      });
+
+      expect(res.statusCode, res.payload).toBe(201);
+      const created = res.json<ImportAnswer>().tenant;
+      const rows = await withTenant(fixture.app.db, created.id, (tx) =>
+        flowRepository(tx).forTenant(created.id),
+      );
+      expect(rows.map((flow) => [flow.name, flow.isDefault]).sort()).toEqual([
+        ['core', true],
+        ['default', false],
+      ]);
+    });
+
+    it('refuses more named flows than a tenant may hold with a 400 at flows, and creates no tenant', async () => {
+      const { token, base } = await flowDocument();
+      const name = `import-${newId()}`;
+      const flows = Array.from({ length: FLOW_LIMIT }, (_, index) => ({
+        name: `flow-${String(index)}`,
+        steps: [PASSWORD],
+      }));
+
+      const res = await postImport(token, { name, document: { ...base, flows } });
+
+      expect(res.statusCode, res.payload).toBe(400);
+      expect((res.json<ImportRefusal>().errors ?? []).map((error) => error.path)).toEqual([
+        'document.flows',
+      ]);
+      expect(await tenantIdOf(name)).toBeNull();
+    });
+
+    it('keeps flows whose names differ only by case apart, as the tenant’s own unique name does', async () => {
+      const { token, base } = await flowDocument();
+      const name = `import-${newId()}`;
+
+      const res = await postImport(token, {
+        name,
+        document: {
+          ...base,
+          flows: [
+            { name: 'staff', steps: [PASSWORD] },
+            { name: 'Staff', steps: WITH_OTP },
+          ],
+        },
+      });
+
+      expect(res.statusCode, res.payload).toBe(201);
+      const again = await exportOf(token, name);
+      expect(again.flows.map((flow) => flow.name)).toEqual(['Staff', 'staff']);
+    });
+
+    it('leaves no flow behind when a later write fails', async () => {
+      const { token, base } = await flowDocument();
+      const flowName = `late-${newId()}`;
+      const first = base.clients[0];
+      if (first === undefined) throw new Error('fixture: no client');
+      const failing = first.client_id;
+      await fixture.owner.sql.unsafe('create sequence fail_late_client_fired');
+      await fixture.owner.sql.unsafe(`
+        create or replace function fail_late_client() returns trigger language plpgsql security definer as $$
+        begin
+          if new.client_id = '${failing}' then
+            perform nextval('fail_late_client_fired');
+            raise exception 'late failure';
+          end if;
+          return new;
+        end $$`);
+      await fixture.owner.sql.unsafe(
+        'create trigger fail_late_client before insert on clients for each row execute function fail_late_client()',
+      );
+      try {
+        const name = `import-${newId()}`;
+        const res = await postImport(token, {
+          name,
+          document: {
+            ...base,
+            flows: [{ name: flowName, steps: [PASSWORD] }],
+            clients: [{ ...first, flow: flowName }, ...base.clients.slice(1)],
+          },
+        });
+
+        expect(res.statusCode).toBeGreaterThanOrEqual(500);
+        // A sequence is not rolled back, so it shows the trigger is what failed.
+        const [fired] = await fixture.owner.sql<
+          { called: boolean }[]
+        >`select is_called as called from fail_late_client_fired`;
+        expect(fired?.called).toBe(true);
+        expect(await tenantIdOf(name)).toBeNull();
+        const left = await fixture.owner.sql`select id from flows where name = ${flowName}`;
+        expect(left).toHaveLength(0);
+      } finally {
+        await fixture.owner.sql.unsafe('drop trigger fail_late_client on clients');
+        await fixture.owner.sql.unsafe('drop function fail_late_client()');
+        await fixture.owner.sql.unsafe('drop sequence fail_late_client_fired');
+      }
+    });
   });
 
   it('refuses an smtp port above 65535 alongside another problem, both by path', async () => {

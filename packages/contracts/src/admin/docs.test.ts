@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { listAuditQuerySchema } from '#/admin/audit';
 import { clientSchema, listClientsQuerySchema } from '#/admin/clients';
 import { documentedJsonSchema, fieldsMissingFrom } from '#/admin/docs';
+import { saveFlowRequestSchema } from '#/admin/flow';
+import { exportedNamedFlowSchema, tenantDocumentSchema } from '#/admin/tenant-document';
 import {
   groupRecordSchema,
   listGroupsQuerySchema,
@@ -33,6 +35,16 @@ function property(schema: z.ZodType, name: string): { description?: string } {
 }
 
 describe('documentedJsonSchema', () => {
+  it('keeps the save-flow request words for a shape that shares its field names', () => {
+    for (const schema of [saveFlowRequestSchema, exportedNamedFlowSchema]) {
+      expect(property(schema, 'name').description).toMatch(/unique within the tenant/u);
+      expect(property(schema, 'name').description).not.toMatch(/flow_name/u);
+    }
+    expect(property(tenantDocumentSchema, 'flows').description).toMatch(
+      /different from `flow_name`/u,
+    );
+  });
+
   it('describes a field of an extended shape with the words of the shape it extends', () => {
     expect(property(clientSchema, 'enabled').description).toMatch(/disabled client/u);
     expect(property(clientSchema, 'service_account_admin_reach')).toBeDefined();

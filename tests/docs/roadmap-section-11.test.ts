@@ -165,6 +165,7 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ['P8', 'Odudu as a SAML identity provider', 'saml 2.0 idp'],
   ['P7', 'Usernames that look alike', 'confusable-character policy'],
   ['P7', 'A tenant moved by export and import', 'uploaded images they use'],
+  ['P7', 'An export is read as one consistent snapshot', 'consistent snapshot'],
   ['P9', 'Policy evaluation and UMA 2.0', 'uma 2.0', 'resource server as a first-class thing'],
   ['P10', 'Third-party providers loaded', 'third-party provider loads without a rebuild'],
   [
@@ -359,11 +360,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ],
     ['Localization has its catalogue', ['P4h'], ['catalogue']],
     ['Tenant export and import carry no theme', ['P7'], ['published theme']],
-    [
-      'Tenant export and import carry the default flow only',
-      ['P7'],
-      ['sign-in flows beyond the default'],
-    ],
+    ['The tenant export reads its tables', ['P7'], ['consistent snapshot']],
     ["The console's failure ID", ['P4h'], ['failure screen']],
     ['A passage in another language', ['P4h'], ['language of their own']],
     ['No scope means anything', ['P9'], ['resource server as a first-class thing']],

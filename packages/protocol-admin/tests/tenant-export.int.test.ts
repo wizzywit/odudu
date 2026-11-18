@@ -6,6 +6,7 @@ import {
   tenantDocumentSchema,
   type TenantDocument,
 } from '@odudu/contracts/admin';
+import { flowRepository } from '@odudu/authn-flows';
 import { PRIVATE_JWK_MEMBERS, signingKeyRepository, unwrapPrivateJwk } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import { auditEvents } from '@odudu/domain-audit';
@@ -380,6 +381,138 @@ describe('GET /admin/tenants/{tenant}/export', () => {
     expect(document.clients[0]?.jwks).toEqual({ keys: [publicKey, { ...publicKey, kid: 'two' }] });
     expect(document.omitted).toContain('clients[0].jwks.keys[1]');
     expect(document.omitted).not.toContain('clients[0].jwks.keys[0]');
+  });
+
+  describe('the flows of the tenant', () => {
+    const PASSWORD_ONLY = [{ authenticator: 'password', requirement: 'required' }] as const;
+    const WITH_OTP = [
+      { authenticator: 'password', requirement: 'required' },
+      { authenticator: 'otp', requirement: 'required', settings: { digits: 8 } },
+    ] as const;
+
+    it('names every flow, the default under its own name, and each client by the flow it is pinned to', async () => {
+      const t = await fixture.createTenant(`export-${newId()}`);
+      const onStaff = await fixture.createConfidentialClient(t.name, {});
+      const onDefault = await fixture.createConfidentialClient(t.name, {});
+      const onNothing = await fixture.createConfidentialClient(t.name, {});
+      const other = await fixture.createTenant(`export-${newId()}`);
+      const foreignName = `foreign-flow-${newId()}`;
+      await withTenant(fixture.app.db, other.id, (tx) =>
+        flowRepository(tx).create(other.id, foreignName, PASSWORD_ONLY),
+      );
+      await withTenant(fixture.app.db, t.id, async (tx) => {
+        const repository = flowRepository(tx);
+        const original = await repository.defaultForTenant(t.id);
+        if (original === null) throw new Error('expected a default flow');
+        await repository.replace(t.id, original.id, 'core', WITH_OTP);
+        const staff = await repository.create(t.id, 'staff', WITH_OTP);
+        await repository.create(t.id, 'admins', PASSWORD_ONLY);
+        await tx
+          .update(clientOidcConfig)
+          .set({ flowId: staff.id })
+          .where(eq(clientOidcConfig.clientId, onStaff.id));
+        await tx
+          .update(clientOidcConfig)
+          .set({ flowId: original.id })
+          .where(eq(clientOidcConfig.clientId, onDefault.id));
+      });
+      const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+
+      const res = await exportTenant(token, t.name);
+      const document = parsed(res.payload);
+
+      expect(document.flow_name).toBe('core');
+      expect(document.flow).toEqual(WITH_OTP);
+      expect(document.flows).toEqual([
+        { name: 'admins', steps: PASSWORD_ONLY },
+        { name: 'staff', steps: WITH_OTP },
+      ]);
+      const flowOf = (clientId: string) =>
+        document.clients.find((client) => client.client_id === clientId)?.flow;
+      expect(flowOf(onStaff.clientId)).toBe('staff');
+      expect(flowOf(onDefault.clientId)).toBe('core');
+      expect(flowOf(onNothing.clientId)).toBeNull();
+      expect(res.payload).not.toContain(foreignName);
+    });
+
+    it('follows the flag, not the name, when another flow is made the default', async () => {
+      const t = await fixture.createTenant(`export-${newId()}`);
+      const client = await fixture.createConfidentialClient(t.name, {});
+      await withTenant(fixture.app.db, t.id, async (tx) => {
+        const repository = flowRepository(tx);
+        const staff = await repository.create(t.id, 'staff', WITH_OTP);
+        await repository.makeDefault(t.id, staff.id);
+        await tx
+          .update(clientOidcConfig)
+          .set({ flowId: staff.id })
+          .where(eq(clientOidcConfig.clientId, client.id));
+      });
+      const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+
+      const document = parsed((await exportTenant(token, t.name)).payload);
+
+      expect(document.flow_name).toBe('staff');
+      expect(document.flow).toEqual(WITH_OTP);
+      expect(document.flows.map((flow) => flow.name)).toEqual(['default']);
+      expect(document.clients.find((c) => c.client_id === client.clientId)?.flow).toBe('staff');
+    });
+
+    it('waits for the flow lock another administrator holds, then exports what it left', async () => {
+      const t = await fixture.createTenant(`export-${newId()}`);
+      const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let locked: () => void = () => undefined;
+      const lockTaken = new Promise<void>((resolve) => {
+        locked = resolve;
+      });
+      const holder = withTenant(fixture.app.db, t.id, async (tx) => {
+        const repository = flowRepository(tx);
+        await repository.lockForTenant(t.id);
+        await repository.create(t.id, 'late', PASSWORD_ONLY);
+        locked();
+        await held;
+      });
+      await lockTaken;
+
+      let settled = false;
+      const exporting = exportTenant(token, t.name).then((res) => {
+        settled = true;
+        return res;
+      });
+      let waiting = false;
+      try {
+        for (let attempt = 0; attempt < 50 && !waiting; attempt += 1) {
+          const rows = await fixture.owner
+            .sql`select 1 from pg_locks where locktype = 'advisory' and not granted`;
+          waiting = rows.length > 0;
+          if (!waiting) await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        expect(waiting).toBe(true);
+        expect(settled).toBe(false);
+      } finally {
+        release();
+        await holder;
+        await exporting.catch(() => undefined);
+      }
+      const res = await exporting;
+      expect(res.statusCode, res.payload).toBe(200);
+      expect(parsed(res.payload).flows.map((flow) => flow.name)).toEqual(['late']);
+    });
+
+    it('exports no named flow for a tenant that has only the default', async () => {
+      const t = await fixture.createTenant(`export-${newId()}`);
+      await fixture.createConfidentialClient(t.name, {});
+      const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+
+      const document = parsed((await exportTenant(token, t.name)).payload);
+
+      expect(document.flow_name).toBe('default');
+      expect(document.flows).toEqual([]);
+      expect(document.clients.every((client) => client.flow === null)).toBe(true);
+    });
   });
 
   it('refuses an unknown include with 400', async () => {
