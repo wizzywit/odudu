@@ -63,8 +63,8 @@ export interface RequestPasswordResetDeps {
     locale?: string | null | undefined;
   } | null>;
   // Whether the tenant sends reset links only to a verified address
-  // (its verify_email setting); injected because @odudu/account does not
-  // import @odudu/domain-tenant.
+  // (its verify_email setting); injected so this usecase reads no settings
+  // repository itself.
   readonly requiresVerifiedAddress: (
     tx: TenantScopedDatabase,
     tenantId: string,
