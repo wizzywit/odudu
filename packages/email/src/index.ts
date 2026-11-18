@@ -10,6 +10,8 @@ export {
   renderSecondFactorRemoved,
   renderRecoveryCodesRevoked,
   renderOwnChange,
+  renderResetCompleted,
+  type ResetCompletedInput,
   type OwnChange,
   type OwnChangeInput,
   type SecondFactorRemovedInput,
@@ -44,6 +46,10 @@ export {
   type NoticeOutcome,
   type OwnChangeNotice,
 } from '#/usecase/own-change-notice';
+export {
+  queueResetCompletedNotice,
+  type ResetCompletedNotice,
+} from '#/usecase/reset-completed-notice';
 export {
   mailContext,
   tenantMailContext,

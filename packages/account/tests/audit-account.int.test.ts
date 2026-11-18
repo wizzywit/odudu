@@ -223,6 +223,10 @@ beforeAll(async () => {
       return (await verifyPassword(current, candidate)) ? [REUSED_PASSWORD] : [];
     },
     clearPasswordUpdateAction: () => Promise.resolve(),
+    noticeAddress: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      return user === null ? null : { email: user.email, locale: user.locale };
+    },
     addRequiredActions: () => Promise.resolve(),
   });
   await http.ready();
@@ -373,6 +377,7 @@ describe('redeeming a reset link writes one password.reset row', () => {
     const rows = await rowsFor(tenant.id, requestId);
     expectSubjectRow(rows, 'password.reset', subjectId, requestId, {
       breached_check: 'dataset_empty',
+      notice: 'sent',
     });
     const everything = JSON.stringify(await credentialRows(tenant.id));
     expect(everything).not.toContain(newPassword);

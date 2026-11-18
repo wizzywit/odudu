@@ -179,6 +179,10 @@ beforeEach(async () => {
       return (await verifyPassword(current, candidate)) ? [REUSED_PASSWORD] : [];
     },
     clearPasswordUpdateAction: () => Promise.resolve(),
+    noticeAddress: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      return user === null ? null : { email: user.email, locale: user.locale };
+    },
     addRequiredActions: () => Promise.resolve(),
   });
   await http.ready();

@@ -258,6 +258,10 @@ function buildHttpApp(): FastifyInstance {
     // belongs to @odudu/authn-flows, which @odudu/account does not depend on.
     // apps/server/tests/reset-password.int.test.ts holds the real wiring.
     clearPasswordUpdateAction: () => Promise.resolve(),
+    noticeAddress: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      return user === null ? null : { email: user.email, locale: user.locale };
+    },
     addRequiredActions: () => Promise.resolve(),
   });
   return instance;

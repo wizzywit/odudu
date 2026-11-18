@@ -82,6 +82,10 @@ beforeAll(async () => {
     evaluatePassword,
     unchangedPasswordViolations: () => Promise.resolve([]),
     clearPasswordUpdateAction: () => Promise.resolve(),
+    noticeAddress: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      return user === null ? null : { email: user.email, locale: user.locale };
+    },
     addRequiredActions: (_tx, _tenantId, subjectId, actions) => {
       owed.push({ subjectId, actions });
       return Promise.resolve();

@@ -119,6 +119,12 @@ export const ar: Readonly<Record<string, string>> = {
     'طلب أحدهم تغيير عنوان البريد الإلكتروني لحسابك في {tenant}. يبقى هذا العنوان على الحساب إلى أن يُؤكَّد العنوان الجديد.',
   'own.addressChange.reason':
     'وصلتك هذه الرسالة لأن عنوان البريد الإلكتروني لحسابك لدى {tenant} طُلب تغييره.',
+  'resetCompleted.subject': 'أُعيد تعيين كلمة المرور لحسابك في {tenant}',
+  'resetCompleted.preheader': 'أُنهيت جميع جلسات تسجيل الدخول على الحساب.',
+  'resetCompleted.heading': 'أُعيد تعيين كلمة المرور',
+  'resetCompleted.text':
+    'أُعيد تعيين كلمة المرور لحسابك في {tenant} عبر رابط أُرسل إلى هذا العنوان.',
+  'resetCompleted.reason': 'وصلتك هذه الرسالة لأن كلمة المرور لحسابك لدى {tenant} أُعيد تعيينها.',
   'smtpTest.subject': 'اختبار SMTP من Odudu',
   'smtpTest.preheader': 'أُرسلت هذه الرسالة للتحقق من إعدادات البريد.',
   'smtpTest.heading': 'اختبار SMTP',

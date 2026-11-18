@@ -987,6 +987,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       if (user === null) throw new Error(`no user found for subject ${subjectId}`);
       return user.username;
     },
+    noticeAddress: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      return user === null ? null : { email: user.email, locale: user.locale };
+    },
     evaluatePassword,
     breachedCheck: breachedPasswordCheck,
     // A subject with no password credential at all has nothing to leave

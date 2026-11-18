@@ -75,7 +75,7 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'email.changed':
     'A user changed their email address by proving the new one through the mailed link.',
   'password.reset':
-    'A password was set through a reset link. `detail.breached_check` says what the breached-password check decided.',
+    'A password was set through a reset link. `detail.breached_check` says what the breached-password check decided, and `detail.notice` whether the owner was told by mail.',
   'password.changed':
     'A user changed their password. `detail.ended_other_sessions` says whether they ended their other sessions with it, and `detail.breached_check` what the breached-password check decided. `detail.first_password` is true for the first password of a person who held only a passkey, and `detail.notice` then says whether the owner was told by mail.',
   'otp.enrolled':

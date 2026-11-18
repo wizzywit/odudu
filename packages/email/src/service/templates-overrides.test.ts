@@ -6,6 +6,7 @@ import {
   renderRecoveryCodesRevoked,
   renderRegistrationDuplicate,
   renderRequiredActions,
+  renderResetCompleted,
   renderResetPassword,
   renderSecondFactorRemoved,
   renderSmtpTest,
@@ -61,6 +62,7 @@ describe('the mail message keys', () => {
       renderSecondFactorRemoved({ ...base, overrides, factor: 'webauthn', codes: false }),
       renderRecoveryCodesRevoked({ ...base, overrides, newSet: true }),
       renderSmtpTest({ ...base, overrides }),
+      renderResetCompleted({ ...base, overrides }),
       ...OWN_CHANGES.map((change) => renderOwnChange({ ...base, overrides, change })),
     ]
       .map((mail) => mail.subject + mail.text + mail.html)

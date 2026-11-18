@@ -241,8 +241,17 @@ type CredentialInput =
   // `detail.breached_check` says what the breached-password check decided.
   | (EventCommon & {
       readonly eventType: 'credential';
-      readonly action: 'account.registered' | 'password.reset';
+      readonly action: 'account.registered';
       readonly detail?: WithReason<{ breached_check?: BreachedCheckOutcome }>;
+    })
+  // `detail.notice` says whether the owner was told of the reset by mail.
+  | (EventCommon & {
+      readonly eventType: 'credential';
+      readonly action: 'password.reset';
+      readonly detail?: WithReason<{
+        breached_check?: BreachedCheckOutcome;
+        notice?: 'sent' | 'skipped_none';
+      }>;
     })
   // `detail.ended_other_sessions` says whether the change ended the person's other sessions.
   | (EventCommon & {
@@ -301,7 +310,7 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'client.authenticate': ['method'],
   'session.ended': ['via'],
   'password.changed': ['ended_other_sessions', 'breached_check', 'first_password', 'notice'],
-  'password.reset': ['breached_check'],
+  'password.reset': ['breached_check', 'notice'],
   'account.registered': ['breached_check'],
   'token.issue': ['grant_type', 'scope'],
   'token.refresh': ['scope'],

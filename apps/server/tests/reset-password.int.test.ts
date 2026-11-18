@@ -648,6 +648,88 @@ describe('a required-actions link, through the real composition root', () => {
   });
 });
 
+describe('the notice a completed reset sends', () => {
+  // The link's own mail is drained and the queue emptied, so what is left
+  // afterwards is only what the reset itself queued.
+  async function mailedLink(app: FastifyInstance, tenantName: string): Promise<string> {
+    const sender = capturingSender();
+    await requestReset(app, tenantName, EMAIL);
+    await drainOutbox(sender);
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no reset mail sent');
+    await owner.db.delete(emailOutbox);
+    return extractLink(message);
+  }
+
+  async function resetNotice(tenantId: string): Promise<unknown> {
+    const rows = await owner.sql<{ detail: Record<string, unknown> }[]>`
+      select detail from audit_events
+      where tenant_id = ${tenantId} and action = 'password.reset'`;
+    return rows[0]?.detail.notice;
+  }
+
+  it('goes to the address on file, verified or not, and records that it was sent', async () => {
+    for (const verified of [true, false]) {
+      const { tenantName, tenantId } = await resetTenant();
+      await owner.db
+        .update(users)
+        .set({ emailVerified: verified })
+        .where(eq(users.tenantId, tenantId));
+      await setVerifyEmail(tenantId, false);
+      const app = buildTestApp();
+      await app.ready();
+      try {
+        const link = await mailedLink(app, tenantName);
+        expect((await submitNewPassword(app, link, 'a brand new password')).statusCode).toBe(200);
+
+        const sender = capturingSender();
+        await drainOutbox(sender);
+        expect(sender.sent).toHaveLength(1);
+        const [notice] = sender.sent;
+        expect(notice?.to).toBe(EMAIL);
+        expect(notice?.subject).toContain('Your password was reset');
+        expect(notice?.text).not.toMatch(/https?:/u);
+        expect(await resetNotice(tenantId)).toBe('sent');
+      } finally {
+        await app.close();
+      }
+    }
+  });
+
+  it('is skipped without a trace for a subject with no address', async () => {
+    const { tenantName, tenantId } = await resetTenant();
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const link = await mailedLink(app, tenantName);
+      await owner.db.update(users).set({ email: null }).where(eq(users.tenantId, tenantId));
+      expect((await submitNewPassword(app, link, 'a brand new password')).statusCode).toBe(200);
+      expect(await queuedMail()).toBe(0);
+      expect(await resetNotice(tenantId)).toBe('skipped_none');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('is not sent when the reset is refused', async () => {
+    const { tenantName, tenantId } = await resetTenant();
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const link = await mailedLink(app, tenantName);
+      expect((await submitNewPassword(app, link, 'short')).statusCode).toBe(400);
+      expect(await queuedMail()).toBe(0);
+
+      const spent = link.replace(/key=[^&]+/u, 'key=not-a-real-key');
+      expect((await submitNewPassword(app, spent, 'a brand new password')).statusCode).toBe(400);
+      expect(await queuedMail()).toBe(0);
+      expect(await resetNotice(tenantId)).toBeUndefined();
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 function fail(): never {
   throw new Error('no actions mail sent');
 }

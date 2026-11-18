@@ -4,6 +4,7 @@ import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
   mailContext,
   outboxRepository,
+  queueResetCompletedNotice,
   renderResetPassword,
   type MailLookResolver,
   type MailContext,
@@ -250,6 +251,15 @@ export interface CompletePasswordResetDeps extends AccountRecoveryDeps {
     tx: TenantScopedDatabase,
     subjectId: string,
   ) => Promise<void>;
+  // The address on file and the language to write to it, for the notice that
+  // follows a reset; injected because the users table belongs to
+  // @odudu/domain-identity. Null for a subject that no longer exists.
+  readonly noticeAddress: (
+    tx: TenantScopedDatabase,
+    subjectId: string,
+  ) => Promise<{ email: string | null; locale: string | null } | null>;
+  readonly now: () => Date;
+  readonly resolveMailLook?: MailLookResolver | undefined;
 }
 
 export type CompletePasswordResetResult =
@@ -343,6 +353,18 @@ async function writeReset(
       const factorsRemoved = await recoverAccount(tx, deps, record.subjectId, record.email);
       await deps.clearPasswordUpdateAction(tx, record.subjectId);
       await actionTokenRepository(tx).invalidateOutstandingPasswordLinks(record.subjectId);
+      const notice = await queueResetCompletedNotice(
+        tx,
+        {
+          tenantId: deps.tenantId,
+          address: (await deps.noticeAddress(tx, record.subjectId)) ?? {
+            email: null,
+            locale: null,
+          },
+          now: deps.now(),
+        },
+        deps.resolveMailLook,
+      );
       await auditRepository(tx).record({
         eventType: 'credential',
         action: 'password.reset',
@@ -350,7 +372,7 @@ async function writeReset(
         actorSubjectId: record.subjectId,
         resourceType: 'subject',
         resourceId: record.subjectId,
-        detail: { breached_check: breached.audit },
+        detail: { breached_check: breached.audit, notice },
       });
       return { kind: 'reset', factorsRemoved };
     },

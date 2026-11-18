@@ -120,6 +120,10 @@ export function linkRouteDeps() {
       if (user === null) throw new Error(`no user found for subject ${subjectId}`);
       return user.username;
     },
+    noticeAddress: async (tx: TenantScopedDatabase, subjectId: string) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      return user === null ? null : { email: user.email, locale: user.locale };
+    },
     evaluatePassword,
     breachedCheck,
     unchangedPasswordViolations: () => Promise.resolve([]),
