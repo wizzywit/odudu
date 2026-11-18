@@ -105,9 +105,11 @@ function keyFromLink(link: string): string {
 async function findByEmail(
   tx: TenantScopedDatabase,
   email: string,
-): Promise<{ subjectId: string; email: string } | null> {
+): Promise<{ subjectId: string; email: string; emailVerified: boolean } | null> {
   const user = await userRepository(tx).byEmail(email);
-  return user?.email == null ? null : { subjectId: user.subjectId, email: user.email };
+  return user?.email == null
+    ? null
+    : { subjectId: user.subjectId, email: user.email, emailVerified: user.emailVerified };
 }
 
 // The real domain-identity wiring, exercised here the way
@@ -471,6 +473,7 @@ describe('password reset', () => {
         },
         now: () => new Date(),
         findByEmail,
+        requiresVerifiedAddress: () => Promise.resolve(false),
         mailGate: () => true,
       },
       'ada@example.test',

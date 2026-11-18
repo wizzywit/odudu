@@ -8,7 +8,7 @@ import {
   runMigrations,
   type DatabaseHandle,
 } from '@odudu/db';
-import { userCredentials } from '@odudu/domain-identity';
+import { userCredentials, users } from '@odudu/domain-identity';
 import {
   capturingSender,
   emailOutbox,
@@ -117,6 +117,32 @@ async function setResetPasswordAllowed(tenantId: string, allowed: boolean): Prom
     .update(tenants)
     .set({ resetPasswordAllowed: allowed })
     .where(eq(tenants.id, tenantId));
+}
+
+async function setVerifyEmail(tenantId: string, on: boolean): Promise<void> {
+  await owner.db.update(tenants).set({ verifyEmail: on }).where(eq(tenants.id, tenantId));
+}
+
+async function markVerified(tenantId: string): Promise<void> {
+  await owner.db.update(users).set({ emailVerified: true }).where(eq(users.tenantId, tenantId));
+}
+
+async function queuedMail(): Promise<number> {
+  return (await owner.db.select().from(emailOutbox)).length;
+}
+
+async function resetTenant(): Promise<{ tenantName: string; tenantId: string }> {
+  const tenantName = `reset-${newId()}`;
+  const seeded = await seed({
+    tenant: tenantName,
+    clientId: 'reset-spa',
+    redirectUris: [REDIRECT_URI],
+    username: 'ada',
+    password: PASSWORD,
+    email: EMAIL,
+  });
+  await setResetPasswordAllowed(seeded.tenantId, true);
+  return { tenantName, tenantId: seeded.tenantId };
 }
 
 async function setPasswordMaxAgeDays(tenantId: string, days: number): Promise<void> {
@@ -439,6 +465,50 @@ describe('password reset, through the real composition root', () => {
       const withNewPassword = await attemptLogin(app, tenantName, 'a brand new password');
       expect(withNewPassword.body).not.toContain('Change your password');
       expect(withNewPassword.headers.location).toContain('code=');
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('a reset where the tenant asks for a verified address', () => {
+  it('queues nothing for an unverified address, answers as for an unknown one, and spends no mail budget', async () => {
+    const { tenantName, tenantId } = await resetTenant();
+    await setVerifyEmail(tenantId, true);
+    const app = buildTestApp();
+    await app.ready();
+
+    try {
+      const unknown = await requestReset(app, tenantName, 'nobody@example.test');
+      // More requests than the address's hourly mail budget allows.
+      const unverified = await Promise.all(
+        [1, 2, 3, 4].map(() => requestReset(app, tenantName, EMAIL)),
+      );
+      for (const res of unverified) {
+        expect(res.statusCode).toBe(unknown.statusCode);
+        expect(res.body).toBe(unknown.body);
+      }
+      expect(await queuedMail()).toBe(0);
+
+      await markVerified(tenantId);
+      const verified = await requestReset(app, tenantName, EMAIL);
+      expect(verified.statusCode).toBe(unknown.statusCode);
+      expect(verified.body).toBe(unknown.body);
+      expect(await queuedMail()).toBe(1);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('still mails an unverified address when verify_email is off', async () => {
+    const { tenantName } = await resetTenant();
+    const app = buildTestApp();
+    await app.ready();
+
+    try {
+      const res = await requestReset(app, tenantName, EMAIL);
+      expect(res.statusCode).toBe(200);
+      expect(await queuedMail()).toBe(1);
     } finally {
       await app.close();
     }

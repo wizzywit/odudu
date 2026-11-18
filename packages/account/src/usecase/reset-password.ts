@@ -16,6 +16,7 @@ import { type TenantAddress } from '@odudu/kernel';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { type MailGate } from '#/service/mail-gate';
 import { type BreachedCheck, type BreachedPrepared } from '#/service/breached-check';
+import { resetTarget } from '#/service/reset-target';
 import { withMinimum } from '#/service/password-violations';
 
 // Re-exported so the view layer can reach these without importing the
@@ -55,7 +56,19 @@ export interface RequestPasswordResetDeps {
   readonly findByEmail: (
     tx: TenantScopedDatabase,
     email: string,
-  ) => Promise<{ subjectId: string; email: string; locale?: string | null | undefined } | null>;
+  ) => Promise<{
+    subjectId: string;
+    email: string;
+    emailVerified: boolean;
+    locale?: string | null | undefined;
+  } | null>;
+  // Whether the tenant sends reset links only to a verified address
+  // (its verify_email setting); injected because @odudu/account does not
+  // import @odudu/domain-tenant.
+  readonly requiresVerifiedAddress: (
+    tx: TenantScopedDatabase,
+    tenantId: string,
+  ) => Promise<boolean>;
   // Whether a mail may go to this address now. It decides only whether the
   // mail is queued, never the answer.
   readonly mailGate: MailGate;
@@ -84,8 +97,11 @@ export async function requestPasswordReset(
     // whether or not it names an account.
     const address = await mailAddressOf(tx, { ...deps, issuerBase });
     const mail = await mailContext(tx, deps.resolveMailLook, { ...deps, address });
+    const requireVerified = await deps.requiresVerifiedAddress(tx, deps.tenantId);
     const user = await deps.findByEmail(tx, email);
-    if (user === null || !deps.mailGate('reset', deps.tenantId, user.email)) return;
+    if (user === null) return;
+    if (resetTarget({ verified: user.emailVerified, requireVerified }) === 'skip') return;
+    if (!deps.mailGate('reset', deps.tenantId, user.email)) return;
     await enqueueResetLink(tx, { ...deps, issuerBase }, user, { address, mail });
   });
 

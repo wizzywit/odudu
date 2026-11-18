@@ -247,9 +247,10 @@ async function account(emailVerified: boolean, selfRegistered = false): Promise<
     password: PASSWORD,
     email: 'ada@example.test',
   });
+  // verify_email off: a reset link reaches an unverified address only then.
   await owner.db
     .update(tenants)
-    .set({ resetPasswordAllowed: true })
+    .set({ resetPasswordAllowed: true, verifyEmail: false })
     .where(eq(tenants.id, seeded.tenantId));
   const subjectId = await withTenant(appDb.db, seeded.tenantId, async (tx) => {
     const user = await userRepository(tx).byUsername('ada');

@@ -96,6 +96,7 @@ export const accountTestDeps = {
   breachedCheck,
   isEmailAddress,
   mailGate: openMailGate,
+  requiresVerifiedAddress: () => Promise.resolve(false),
   findReturnClient: () => Promise.resolve(null),
   resolveMailLook: () => Promise.resolve({ branding: null, overrides: {} }),
   now: () => new Date(),
