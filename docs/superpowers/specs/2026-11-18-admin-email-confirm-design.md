@@ -128,9 +128,22 @@ hazard).
   the concept page and the changelog rather than in a `docs/NEXT.md` row, since
   it is the tenant's setting doing what it says.
 
-NIST and OWASP also want a notice to the person after a reset. The plan
-checks whether a completed reset already sends one and, if not, places it by
-grepping `docs/NEXT.md` and the roadmap first.
+NIST SP 800-63B-4 ("account recovery SHALL cause a notification") and OWASP
+both want a notice to the person after a reset, and a completed reset sends
+none today (callers of `enqueueCredentialNotice` are second-factor and
+recovery-code removal only). The owner decided on 2026-11-18 that this
+increment builds it rather than placing it on a phase.
+
+**Reset-completed notice.** When a reset link sets a new password, a mail goes
+to the address on file, in the person's language: it names that the password was
+reset and when, carries no link, code or secret, and tells whoever reads it what
+to do if it was not them. It goes to the address on file whether or not that
+address is verified, as the credential notices do (the notice carries nothing a
+stranger could use). It is queued in the transaction that sets the password, so
+a rollback sends nothing; a person with no address is skipped without a trace.
+It is a new message in the email catalogue with its Arabic counterpart, built on
+the existing notice shell, not new markup. The audit row for the reset records
+the notice outcome.
 
 Tests the plan owns: the lookup used by reset takes the tenant's `verify_email`
 (one settings read, already made by the registration path; no new query per

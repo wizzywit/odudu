@@ -101,3 +101,28 @@
 - [ ] **Step 4: Write `CHANGELOG.md`** under `Unreleased` in the installer's words: Changed (an administrator's email change is confirmed by the person and the old address keeps signing in until then; a reset link goes only to a verified address when Verify email addresses is on), Security (no unproved address is stored by an administrator's change).
 - [ ] **Step 5: Closing greps** over the public surface: `git grep -n -i -E 'unverified until|new address is unverified|marked verified' -- apps/docs README.md` and confirm each hit is true; then write the phase note and archive the spec and plan.
 - [ ] **Step 6: Commit** `docs: describe confirmed email changes and verified-only reset`.
+
+### Task 5: A completed reset tells the person
+
+**Files:**
+- Modify: `packages/email/src/service/templates.ts`, `packages/email/src/service/messages.ts`, `packages/email/src/service/messages.ar.ts` (a reset-completed notice: subject, preheader, heading, text, reason; the shared `own.when` and `own.notYou` lines are reused), `packages/email/src/index.ts`
+- Create: a queueing function beside `queueOwnChangeNotice` in `packages/email/src/usecase/` that sends to the address on file whether or not it is verified, returning `'sent' | 'skipped_none'`
+- Modify: `packages/account/src/usecase/reset-password.ts` (`completePasswordReset`/`recoverAccount`: queue the notice in the transaction that sets the password and put its outcome in the reset's audit detail), `apps/server/tests/reset-password.int.test.ts`
+- Test: `packages/email/src/service/templates-*.test.ts` (new test file for the new message), the Arabic catalogue tests (`tests/lint/arabic-catalogues.test.ts`), `tests/lint/server-page-literals.test.ts` rules for mail templates
+
+**Interfaces:**
+- Consumes: `renderNotice` and the notice shell in `templates.ts`; `outboxRepository(tx).enqueue`; `tenantMailContext` (see `own-change-notice.ts` for the shape).
+- Produces: `renderResetCompleted(input: NoticeInput): EmailMessage`; `queueResetCompletedNotice(tx, input: { tenantId; subjectId; now }, resolveMailLook): Promise<'sent' | 'skipped_none'>` (names may follow the file's conventions).
+
+- [ ] **Step 1: Write failing tests:** the template renders subject, heading, text, `own.when` and `own.notYou` in English and in Arabic with no link, code or secret in the body (see `templates-own-change.test.ts`); an integration test that a completed reset queues exactly one notice to the address on file, to an unverified address too, none for a subject with no address, and none when the reset is refused (bad token, weak password) or rolled back.
+- [ ] **Step 2: Implement** the message entries (English and Arabic), the render function and the queueing function; call it from the reset-completion path in the same transaction as `setPassword`.
+- [ ] **Step 3: Run** the email and account unit suites, `tests/lint/arabic-catalogues.test.ts`, `tests/lint/server-page-literals.test.ts` and the reset integration tests through the heavy-slot lock. Expected: PASS.
+- [ ] **Step 4: Commit** `feat(account): tell the person when a reset sets their password`.
+
+### Task 6: Re-run what the whole-branch review and Task 5 changed
+
+**Files:** `apps/docs/content/en/reference/transcripts/admin-paths/get-adminopenapijson.md`, `admin-paths/patch-subjectsid.md` (audit detail now carries `email_change: cancelled` and `cleared`), `request-paths/password-reset.md` (the notice mail after a completed reset), any other transcript a test reports as stale, `apps/docs/content/en/concepts/` text on reset, `CHANGELOG.md`, `docs/NEXT.md` (remove the "owner's call" row for the reset notice), `apps/docs/content/en/roadmap.md` (remove its "no phase placed" sentence), `docs/phases/admin-email-confirm.md`, `tests/docs/roadmap-section-11.test.ts` if a mapping referenced it
+
+- [ ] **Step 1:** Re-run the three transcripts live on a freshly built stack, following `contributing/transcripts.md` and the transcript rules (no hand edits).
+- [ ] **Step 2:** Update prose, changelog (Added: the reset-completed mail), the phase note, and remove the ownerless NEXT row and roadmap sentence.
+- [ ] **Step 3:** Run `pnpm --filter @odudu/docs test`, `tests/docs/**`; commit `docs: re-run the email transcripts and describe the reset notice`.
