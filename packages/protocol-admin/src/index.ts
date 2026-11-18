@@ -237,7 +237,7 @@ import {
   sendVerificationHandler,
   type AccountEmailRouteDeps,
 } from '#/view/routes/account-email';
-import { type SendAccountLink } from '#/usecase/account-email';
+import { type SendAccountLink } from '#/usecase/account-link';
 import {
   bulkSubjectsHandler,
   clearLockoutsHandler,
@@ -570,6 +570,8 @@ function buildAdminRoutes(
       audit: subjectAudit,
       now: () => clock.now(),
       resolveMailLook: deps.resolveMailLook,
+      sendLink: deps.sendAccountLink,
+      deploymentSmtp: deps.deploymentSmtp ?? false,
       callerCapabilities,
     };
     const rolesDeps: RolesRouteDeps = {
@@ -730,6 +732,9 @@ function buildAdminRoutes(
       sessionAudit,
       lockoutsAudit: recordAudit,
       kek: deps.kek,
+      resolveMailLook: deps.resolveMailLook,
+      sendLink: deps.sendAccountLink,
+      deploymentSmtp: deps.deploymentSmtp ?? false,
       callerCapabilities,
       now: () => clock.now(),
       findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),

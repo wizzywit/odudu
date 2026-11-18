@@ -129,6 +129,7 @@ import {
   signingKeySchema,
   profileSchema,
   subjectSchema,
+  subjectDetailSchema,
   usernamePolicySchema,
   tenantSchema,
   whoamiResponseSchema,
@@ -482,13 +483,13 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     method: 'GET',
     pattern: '/admin/tenants/:tenant/subjects/:id',
     capability: 'view-users',
-    responseSchema: subjectSchema,
+    responseSchema: subjectDetailSchema,
   },
   {
     method: 'PATCH',
     pattern: '/admin/tenants/:tenant/subjects/:id',
     capability: 'manage-users',
-    responseSchema: subjectSchema,
+    responseSchema: subjectDetailSchema,
     bodySchema: amendSubjectRequestSchema,
     description:
       TARGET_CEILING.trimStart() +

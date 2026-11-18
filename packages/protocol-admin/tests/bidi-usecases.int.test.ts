@@ -2,6 +2,7 @@ import { BIDI_REFUSED_MESSAGE } from '@odudu/contracts';
 import { type TenantScopedDatabase, withTenant } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { NO_AMEND_MAIL } from '#/testing/amend-mail';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { amendClient } from '#/usecase/clients';
 import { amendGroup } from '#/usecase/groups';
@@ -176,7 +177,7 @@ describe('each amendment usecase answers a bidirectional control as a field refu
       await run((tx) =>
         amendSubject(
           tx,
-          { audit },
+          { audit, ...NO_AMEND_MAIL },
           { tenantId: t.id, subjectId, values: { username: `a${RLO}` }, ifMatch: etag, ...caller },
         ),
       ),

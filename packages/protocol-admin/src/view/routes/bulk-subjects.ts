@@ -15,6 +15,8 @@ import {
   type Problem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
+import { type MailLookResolver } from '@odudu/email';
+import { type SendAccountLink } from '#/usecase/account-link';
 import { recordRefusal, type AdminRouteHandler } from '#/view/routes/router';
 import { targetCeilingDetail } from '#/view/routes/subjects';
 
@@ -27,6 +29,9 @@ export interface BulkSubjectsRouteDeps {
     event: LockoutsAuditEvent,
   ) => Promise<void>;
   readonly kek: Uint8Array;
+  readonly resolveMailLook: MailLookResolver;
+  readonly sendLink: SendAccountLink;
+  readonly deploymentSmtp: boolean;
   readonly callerCapabilities: (
     issuerTenantId: string,
     subjectId: string,
@@ -95,6 +100,12 @@ export function bulkSubjectsHandler(deps: BulkSubjectsRouteDeps): AdminRouteHand
         subjectAudit: deps.subjectAudit,
         sessionAudit: deps.sessionAudit,
         kek: deps.kek,
+        mail: {
+          sendLink: deps.sendLink,
+          deploymentSmtp: deps.deploymentSmtp,
+          resolveMailLook: deps.resolveMailLook,
+          now: deps.now,
+        },
       },
       {
         tenantId: targetTenantId,

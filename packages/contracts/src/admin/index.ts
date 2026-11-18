@@ -193,6 +193,8 @@ export {
 export {
   subjectTypeSchema,
   subjectSchema,
+  subjectDetailSchema,
+  type SubjectDetail,
   type Subject,
   heldAdminCapabilitySchema,
   type HeldAdminCapability,

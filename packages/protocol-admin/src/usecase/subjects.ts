@@ -1,4 +1,4 @@
-import { type MailLookResolver } from '@odudu/email';
+import { noticeAddressOf, queueOwnChangeNotice, type MailLookResolver } from '@odudu/email';
 import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
 import {
   editableProfileFields,
@@ -16,7 +16,7 @@ import {
   type HeldAdminCapability,
   type ListedSubject,
 } from '@odudu/contracts/admin';
-import { type TenantScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import {
   grantNewSubjectDefaults,
   groupRepository,
@@ -43,6 +43,8 @@ import {
 import { clients, tenantSettingsRepository } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
 import { enqueueCredentialNotice } from '#/usecase/credential-notice';
+import { canSendMail, type SendAccountLink } from '#/usecase/account-link';
+import { planAdminEmailChange, type AdminEmailPlan } from '#/service/admin-email-plan';
 import {
   and,
   asc,
@@ -407,6 +409,23 @@ export async function readSubject(
   return row === undefined ? { kind: 'not_found' } : { kind: 'ok', subject: narrowRow(row) };
 }
 
+export type ReadSubjectDetailOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; subject: SubjectView; pendingEmail: string | null };
+
+/** `readSubject`, with the address a change is waiting on the person to confirm. */
+export async function readSubjectDetail(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+): Promise<ReadSubjectDetailOutcome> {
+  const outcome = await readSubject(tx, subjectId);
+  if (outcome.kind !== 'ok') return outcome;
+  return {
+    kind: 'ok',
+    subject: outcome.subject,
+    pendingEmail: await pendingEmailRepository(tx).forSubject(subjectId),
+  };
+}
+
 export interface ComposeUserSubjectInput {
   readonly tenantId: string;
   readonly username: string;
@@ -451,6 +470,14 @@ export class EmailTakenError extends Error {
   constructor() {
     super('an account already holds this address');
     this.name = 'EmailTakenError';
+  }
+}
+
+/** The deployment has no public base URL to put in the link; thrown to roll the amendment back. */
+export class MailUnavailableError extends Error {
+  constructor() {
+    super('the deployment has no public base URL to put in a link');
+    this.name = 'MailUnavailableError';
   }
 }
 
@@ -542,7 +569,16 @@ export interface AmendSubjectInput {
   readonly actorClientId: string;
 }
 
-export interface AmendSubjectDeps {
+/** What an email change needs to mail the person: the link, the notice and whether either can leave. */
+export interface AmendSubjectMail {
+  readonly sendLink: SendAccountLink;
+  /** Whether the deployment has a sender of its own for a tenant without one. */
+  readonly deploymentSmtp: boolean;
+  readonly resolveMailLook: MailLookResolver;
+  readonly now: () => Date;
+}
+
+export interface AmendSubjectDeps extends AmendSubjectMail {
   readonly audit: Audit;
 }
 
@@ -553,7 +589,8 @@ export type AmendSubjectOutcome =
   | { kind: 'precondition_required'; field: string }
   | { kind: 'precondition_failed' }
   | TargetCeilingRefusal
-  | { kind: 'ok'; subject: SubjectView; etag: string }
+  | { kind: 'no_mail_relay' }
+  | { kind: 'ok'; subject: SubjectView; etag: string; pendingEmail: string | null }
   | LastAdministratorRefusal;
 
 // Wrapped in `{ value }` rather than the bare type, so a present-but-null
@@ -563,7 +600,7 @@ export type AmendSubjectOutcome =
 interface SubjectPatch {
   username?: { value: string };
   enabled?: { value: boolean };
-  email?: { value: string | null };
+  email?: { plan: AdminEmailPlan };
 }
 
 // Locks `subjects` and, when it exists, `users` for the rest of the
@@ -641,6 +678,68 @@ export async function readUsernamePolicy(
 ): Promise<{ usernameEditable: boolean }> {
   const settings = await tenantSettingsRepository(tx).byId(tenantId);
   return { usernameEditable: settings?.username_editable === true };
+}
+
+// Decided before anything is written: the address lock is the one a completed
+// change takes, so the two take turns, and a refusal here leaves every column
+// as it was, `enabled` included.
+async function planEmailPatch(
+  tx: TenantScopedDatabase,
+  deps: AmendSubjectMail,
+  tenantId: string,
+  subjectId: string,
+  asked: string | null,
+): Promise<AdminEmailPlan | { kind: 'no_mail_relay' }> {
+  let holder: string | null = null;
+  if (asked !== null) {
+    await lockEmailForCreation(tx, tenantId, asked);
+    holder = await userRepository(tx).holderOfEmail(asked);
+    if (holder !== null && holder !== subjectId) throw new EmailTakenError();
+  }
+  const plan = planAdminEmailChange({ asked, holder, subjectId });
+  if (plan.kind === 'confirm' && !(await canSendMail(tx, tenantId, deps.deploymentSmtp))) {
+    return { kind: 'no_mail_relay' };
+  }
+  return plan;
+}
+
+// What the audit row adds for a change that waits on the person, which its
+// before and after diff cannot show because the stored address stays.
+async function applyEmailPlan(
+  tx: TenantScopedDatabase,
+  deps: AmendSubjectMail,
+  user: typeof users.$inferSelect,
+  plan: AdminEmailPlan,
+): Promise<Record<string, unknown> | null> {
+  const pending = pendingEmailRepository(tx);
+  if (plan.kind !== 'confirm') {
+    await pending.clear(user.subjectId);
+    if (plan.kind === 'clear') await userRepository(tx).updateEmail(user.subjectId, null);
+    return null;
+  }
+  await pending.set(user.tenantId, user.subjectId, plan.address);
+  const [tenant] = await tx
+    .select({ name: tenants.name, displayName: tenants.displayName })
+    .from(tenants)
+    .where(eq(tenants.id, user.tenantId));
+  const name = tenant?.name ?? '';
+  const sent = await deps.sendLink(tx, {
+    kind: 'verify_email',
+    tenantId: user.tenantId,
+    tenantName: name,
+    tenantDisplayName: tenant?.displayName ?? name,
+    subjectId: user.subjectId,
+    email: plan.address,
+    locale: user.locale,
+  });
+  if (sent === 'unavailable') throw new MailUnavailableError();
+  const notice = await queueOwnChangeNotice(
+    tx,
+    { tenantId: user.tenantId, address: noticeAddressOf(user), now: deps.now() },
+    { kind: 'address_change_requested' },
+    deps.resolveMailLook,
+  );
+  return { email_change: 'requested', pending_email: plan.address, notice };
 }
 
 async function amendSubjectUnguarded(
@@ -734,30 +833,29 @@ async function amendSubjectUnguarded(
         description: `${JSON.stringify(value)} is not an address the email claim may carry`,
       };
     }
-    patch.email = { value };
+    const plan = await planEmailPatch(tx, deps, locked.subject.tenantId, input.subjectId, value);
+    if (plan.kind === 'no_mail_relay') return plan;
+    patch.email = { plan };
   }
 
   // A rename to the name the subject already has, with nothing else asked
   // of it, changes nothing and so records nothing.
   if ('username' in input.values && Object.keys(patch).length === 0) {
-    return { kind: 'ok', subject: viewOfLocked(locked), etag: currentEtag };
+    return {
+      kind: 'ok',
+      subject: viewOfLocked(locked),
+      etag: currentEtag,
+      pendingEmail: await pendingEmailRepository(tx).forSubject(input.subjectId),
+    };
   }
 
   if (patch.enabled !== undefined) {
     await subjectRepository(tx).setEnabled(input.subjectId, patch.enabled.value);
   }
-  if (patch.email !== undefined) {
-    // An administrator's address replaces whatever the person asked for: a link
-    // mailed for the earlier request must not swap an old target back in. The
-    // address lock is the one a completed change takes, so the two take turns.
-    if (patch.email.value !== null) {
-      await lockEmailForCreation(tx, locked.subject.tenantId, patch.email.value);
-      const holder = await userRepository(tx).holderOfEmail(patch.email.value);
-      if (holder !== null && holder !== input.subjectId) throw new EmailTakenError();
-    }
-    await pendingEmailRepository(tx).clear(input.subjectId);
-    await userRepository(tx).updateEmail(input.subjectId, patch.email.value);
-  }
+  const emailChange =
+    patch.email === undefined || locked.user === null
+      ? null
+      : await applyEmailPlan(tx, deps, locked.user, patch.email.plan);
   if (patch.username !== undefined) {
     await userRepository(tx).updateUsername(input.subjectId, patch.username.value);
   }
@@ -775,9 +873,14 @@ async function amendSubjectUnguarded(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
-    detail: redactedDiff('subject', current, afterWire),
+    detail: { ...redactedDiff('subject', current, afterWire), ...emailChange },
   });
-  return { kind: 'ok', subject: after.subject, etag: etagOf(afterWire) };
+  return {
+    kind: 'ok',
+    subject: after.subject,
+    etag: etagOf(afterWire),
+    pendingEmail: await pendingEmailRepository(tx).forSubject(input.subjectId),
+  };
 }
 
 export interface DeleteSubjectInput {

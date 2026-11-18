@@ -26,6 +26,7 @@ import { OduduError } from '@odudu/kernel';
 import { tenantIssuerFor, type TenantLookup } from '@odudu/protocol-oidc';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
+import { type SendAccountLink } from '#/usecase/account-link';
 import { etagOf } from '#/service/etag';
 import { type RequiredActionRefusal } from '#/service/required-action-refusal';
 import { lifespansOf } from '#/usecase/authenticate-admin';
@@ -45,8 +46,9 @@ import {
   EmailTakenError,
   listCredentials,
   listSubjects,
+  MailUnavailableError,
   readRequiredActions,
-  readSubject,
+  readSubjectDetail,
   readSubjectGroups,
   readSubjectRoles,
   setRequiredActions,
@@ -67,6 +69,8 @@ import {
   queryProblem,
   sendProblem,
   lastAdministratorProblem,
+  noMailRelayProblem,
+  noPublicBaseUrlProblem,
   serviceAccountProblem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
@@ -79,6 +83,9 @@ export interface SubjectsRouteDeps {
   readonly now: () => Date;
   /** Themes the mail a credential notice queues; see `AdminRouteDeps.resolveMailLook`. */
   readonly resolveMailLook: MailLookResolver;
+  /** Mails the link a changed address waits on; see `AccountEmailDeps.sendLink`. */
+  readonly sendLink: SendAccountLink;
+  readonly deploymentSmtp: boolean;
   /**
    * The caller's own admin-client capability names, resolved against its
    * own issuer tenant and expanded through `role_composites` — what
@@ -176,7 +183,7 @@ export function readSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
     }
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      readSubject(tx, id),
+      readSubjectDetail(tx, id),
     );
     if (outcome.kind === 'not_found') {
       return sendProblem(
@@ -186,9 +193,10 @@ export function readSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
       );
     }
 
+    // The pending address is read beside the subject, not part of what the ETag covers.
     const wire = subjectWireShape(outcome.subject);
     reply.header('etag', etagOf(wire));
-    return reply.code(200).send(wire);
+    return reply.code(200).send({ ...wire, pending_email: outcome.pendingEmail });
   };
 }
 
@@ -314,6 +322,8 @@ function amendmentProblem(
       );
     case 'target_ceiling':
       return targetCeilingProblem(reply, request, outcome.requested);
+    case 'no_mail_relay':
+      return sendProblem(reply, request, noMailRelayProblem());
   }
 }
 
@@ -351,7 +361,13 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
       outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
         amendSubject(
           tx,
-          { audit: deps.audit },
+          {
+            audit: deps.audit,
+            sendLink: deps.sendLink,
+            deploymentSmtp: deps.deploymentSmtp,
+            resolveMailLook: deps.resolveMailLook,
+            now: deps.now,
+          },
           {
             tenantId: targetTenantId,
             subjectId: id,
@@ -367,6 +383,10 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
     } catch (error) {
       // Caught outside `adminTx`, so the transaction has rolled back and
       // nothing else the body asked for was applied.
+      if (error instanceof MailUnavailableError) {
+        request.log.error({ tenant: targetTenantId }, 'email change refused: no public base URL');
+        return sendProblem(reply, request, noPublicBaseUrlProblem());
+      }
       const conflict = uniqueConflictDetail(error, values);
       if (conflict === null) throw error;
       return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', conflict));
@@ -376,7 +396,9 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
       return amendmentProblem(reply, request, outcome);
     }
     reply.header('etag', outcome.etag);
-    return reply.code(200).send(subjectWireShape(outcome.subject));
+    return reply
+      .code(200)
+      .send({ ...subjectWireShape(outcome.subject), pending_email: outcome.pendingEmail });
   };
 }
 

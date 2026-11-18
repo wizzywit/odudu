@@ -118,6 +118,26 @@ export function lastAdministratorProblem(reason: string): Problem {
   return problem(409, 'about:blank#last-administrator', 'Conflict', reason);
 }
 
+/** Mail that would only be written to the log, because no relay and no deployment sender exist. */
+export function noMailRelayProblem(): Problem {
+  return problem(
+    409,
+    'about:blank#no-mail-relay',
+    'Conflict',
+    'the tenant has no relay and the deployment no sender, so the mail would only be logged',
+  );
+}
+
+/** A link that cannot be built, because the deployment has no public base URL. */
+export function noPublicBaseUrlProblem(): Problem {
+  return problem(
+    503,
+    'about:blank',
+    'Service Unavailable',
+    'the deployment has no public base URL to put in a link',
+  );
+}
+
 /** A delete of a subject that a client names as its service account. */
 export function serviceAccountProblem(clientId: string): Problem {
   return problem(
