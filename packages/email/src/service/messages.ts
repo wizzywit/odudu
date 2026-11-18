@@ -133,8 +133,7 @@ export const en = {
   'resetCompleted.subject': 'Your password was reset for your {tenant} account',
   'resetCompleted.preheader': 'Every sign-in on the account was ended.',
   'resetCompleted.heading': 'Your password was reset',
-  'resetCompleted.text':
-    'The password on your {tenant} account was reset using a link mailed to this address.',
+  'resetCompleted.text': 'The password on your {tenant} account was reset using a mailed link.',
   'resetCompleted.reason':
     'You received this because the password on your account at {tenant} was reset.',
   'smtpTest.subject': 'Odudu SMTP test',

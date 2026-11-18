@@ -10,7 +10,7 @@ describe('renderResetCompleted', () => {
     const msg = renderResetCompleted(input);
     expect(msg.to).toBe('ada@example.test');
     expect(msg.subject).toBe('Your password was reset for your Demo account');
-    expect(msg.text).toContain('was reset using a link mailed to this address.');
+    expect(msg.text).toContain('was reset using a mailed link.');
     expect(msg.text).toContain('2026-11-12 09:05 UTC');
     expect(msg.text).toContain(en['own.notYou']);
     expect(msg.html).toContain('Your password was reset');

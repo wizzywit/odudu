@@ -122,8 +122,7 @@ export const ar: Readonly<Record<string, string>> = {
   'resetCompleted.subject': 'أُعيد تعيين كلمة المرور لحسابك في {tenant}',
   'resetCompleted.preheader': 'أُنهيت جميع جلسات تسجيل الدخول على الحساب.',
   'resetCompleted.heading': 'أُعيد تعيين كلمة المرور',
-  'resetCompleted.text':
-    'أُعيد تعيين كلمة المرور لحسابك في {tenant} عبر رابط أُرسل إلى هذا العنوان.',
+  'resetCompleted.text': 'أُعيد تعيين كلمة المرور لحسابك في {tenant} عبر رابط أُرسل بالبريد.',
   'resetCompleted.reason': 'وصلتك هذه الرسالة لأن كلمة المرور لحسابك لدى {tenant} أُعيد تعيينها.',
   'smtpTest.subject': 'اختبار SMTP من Odudu',
   'smtpTest.preheader': 'أُرسلت هذه الرسالة للتحقق من إعدادات البريد.',
