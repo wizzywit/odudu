@@ -21,7 +21,8 @@ What it does:
   the deployment can send mail, before anything is written, and with `503` when
   the deployment has no public base URL, after rolling the request back.
 - `GET` and `PATCH` of a subject carry `pending_email`; the list does not and
-  the `ETag` does not cover it.
+  the `ETag` covers it only while one is pending, so a subject with none keeps
+  its earlier tag.
 - The console's Profile tab says **Change pending** with **Cancel the change**,
   which is a `PATCH` back to the current address.
 - A completed reset queues a "Your password was reset" notice to the address on
@@ -39,8 +40,8 @@ What it found:
   member of 21 bytes. Re-run: `get-subjectsid`, `patch-subjectsid`,
   `the-shape-of-it` (the disable of `vera`), the console `PATCH` page, the
   `admin-signs-in-and-changes-a-user` guide and the two console refresh pages.
-- An email-only `PATCH` leaves the `ETag` as it was, since a pending address is
-  not part of it. The console `PATCH` page and the guide showed a stale
+- An email-only `PATCH` that starts, replaces or cancels a pending change moves
+  the `ETag`, since the pending address is part of it while one exists. The console `PATCH` page and the guide showed a stale
   `If-Match` refused after an email change; they now change `enabled`, which
   moves the `ETag`, and point at `patch-subjectsid` for the email case.
 - The relay check runs before any write, so a body that names a taken username

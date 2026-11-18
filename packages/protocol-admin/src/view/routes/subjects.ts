@@ -54,6 +54,7 @@ import {
   setRequiredActions,
   setRoles,
   setSubjectGroups,
+  subjectEtag,
   subjectWireShape,
   type AmendSubjectOutcome,
   type Audit,
@@ -193,9 +194,8 @@ export function readSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
       );
     }
 
-    // The pending address is read beside the subject, not part of what the ETag covers.
     const wire = subjectWireShape(outcome.subject);
-    reply.header('etag', etagOf(wire));
+    reply.header('etag', subjectEtag(wire, outcome.pendingEmail));
     return reply.code(200).send({ ...wire, pending_email: outcome.pendingEmail });
   };
 }

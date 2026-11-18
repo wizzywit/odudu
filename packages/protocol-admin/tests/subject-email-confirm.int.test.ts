@@ -14,6 +14,7 @@ import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { readSubjectDetail } from '#/usecase/subjects';
 
@@ -121,6 +122,12 @@ const changesOf = (rows: readonly { detail?: unknown }[]): string[] =>
     .map((row) => (row.detail as { email_change?: string } | null)?.email_change)
     .filter((change): change is string => change !== undefined)
     .sort();
+
+function tagOf(res: LightMyRequestResponse): string {
+  const tag = res.headers.etag;
+  if (typeof tag !== 'string') throw new Error('the read carried no ETag');
+  return tag;
+}
 
 function keyOf(message: { bodyText: string }): string {
   const found = /action-token\?key=([^\s&"]+)/u.exec(message.bodyText);
@@ -315,13 +322,61 @@ describe('PATCH /subjects/:id with an email', () => {
     },
   );
 
-  it('needs no If-Match for an email, and answers an ETag the pending address does not move', async () => {
+  it('needs no If-Match for an email, and answers the ETag of the body it sends', async () => {
     const who = await person(relayed);
     const before = await read(relayed, who);
     const res = await patch(relayed, who, { email: NEW });
     expect(res.statusCode).toBe(200);
-    expect(res.headers.etag).toBe(before.headers.etag);
-    expect((await read(relayed, who)).headers.etag).toBe(before.headers.etag);
+    const { pending_email: pending, ...covered } = res.json<Record<string, unknown>>();
+    expect(pending).toBe(NEW);
+    expect(res.headers.etag).toBe(etagOf({ ...covered, pending_email: NEW }));
+    expect(res.headers.etag).not.toBe(before.headers.etag);
+    expect((await read(relayed, who)).headers.etag).toBe(res.headers.etag);
+  });
+
+  it('keeps the tag of a subject with no pending change what the plain wire shape gives', async () => {
+    const who = await person(relayed);
+    const res = await read(relayed, who);
+    const { pending_email: pending, ...plain } = res.json<Record<string, unknown>>();
+    expect(pending).toBeNull();
+    expect(res.headers.etag).toBe(etagOf(plain));
+  });
+
+  it('refuses a cancellation made with a tag read before the pending address was replaced', async () => {
+    const who = await person(relayed, { verified: true });
+    expect((await patch(relayed, who, { email: NEW })).statusCode).toBe(200);
+    const stale = tagOf(await read(relayed, who));
+    expect((await patch(relayed, who, { email: 'other@example.com' })).statusCode).toBe(200);
+
+    const refused = await patch(relayed, who, { email: OLD }, stale);
+    expect(refused.statusCode).toBe(412);
+    expect(await pendingOf(relayed, who)).toBe('other@example.com');
+
+    const fresh = tagOf(await read(relayed, who));
+    const cancelled = await patch(relayed, who, { email: OLD }, fresh);
+    expect(cancelled.statusCode).toBe(200);
+    expect(await pendingOf(relayed, who)).toBeNull();
+  });
+
+  it('refuses a rename under a tag read before a pending change began, and takes the reread one', async () => {
+    const who = await person(relayed);
+    const settings = await relayed.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${who.tenantName}/settings`,
+      headers: {
+        authorization: `Bearer ${await relayed.adminToken(who.tenantName, ['manage-tenant'])}`,
+        'content-type': 'application/json',
+      },
+      payload: { username_editable: true },
+    });
+    expect(settings.statusCode).toBe(200);
+    const stale = tagOf(await read(relayed, who));
+    expect((await patch(relayed, who, { email: NEW })).statusCode).toBe(200);
+
+    const name = `renamed-${newId()}`;
+    expect((await patch(relayed, who, { username: name }, stale)).statusCode).toBe(412);
+    const fresh = tagOf(await read(relayed, who));
+    expect((await patch(relayed, who, { username: name }, fresh)).statusCode).toBe(200);
   });
 
   it('carries no pending_email in a list', async () => {

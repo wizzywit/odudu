@@ -341,8 +341,9 @@ the old address that a change was asked for. The stored `email` and
 old address keeps signing in meanwhile.
 
 - The response, and `GET /subjects/:id`, carry `pending_email`: the pending
-  address, or `null`. The list does not. It is no part of the `ETag`, so an
-  email-only change needs no `If-Match` and leaves the `ETag` as it was.
+  address, or `null`. The list does not. While one is pending it is part of the
+  `ETag`, so a change to it moves the tag; an email-only change still needs no
+  `If-Match`, but one that is sent must match.
 - A new request replaces an earlier pending one.
 - The subject's own current address withdraws a pending change. `null` removes
   the address at once, since removing one needs no proof.
@@ -436,8 +437,8 @@ services:
       - '127.0.0.1:8092:8025'
 ```
 
-The same request now stores the change. The subject keeps its address and its
-`ETag`, and `pending_email` carries the new one:
+The same request now stores the change. The subject keeps its address, and
+`pending_email` carries the new one, which also moves the `ETag`:
 
 ```bash
 curl -sS -D - -X PATCH \

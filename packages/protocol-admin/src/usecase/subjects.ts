@@ -531,6 +531,13 @@ export async function createSubject(
 // The wire shape a caller reads back — the same mapping on a list, a `GET`
 // and a `POST`'s response, so a subject read one way is never shaped
 // differently from the same subject read another.
+// The ETag of the representation a caller reads: the wire shape, and the
+// pending address when there is one. A subject with none keeps the tag of the
+// plain wire shape.
+export function subjectEtag(wire: ListedSubject, pendingEmail: string | null): string {
+  return etagOf(pendingEmail === null ? wire : { ...wire, pending_email: pendingEmail });
+}
+
 export function subjectWireShape(view: SubjectView): ListedSubject {
   return {
     id: view.id,
@@ -773,7 +780,8 @@ async function amendSubjectUnguarded(
   // A rename must name the version it read: one administrator's rename
   // silently undoing another's is what the precondition exists to stop.
   const current = subjectWireShape(viewOfLocked(locked));
-  const currentEtag = etagOf(current);
+  const pendingBefore = await pendingEmailRepository(tx).forSubject(input.subjectId);
+  const currentEtag = subjectEtag(current, pendingBefore);
   const precondition = requiredPrecondition(input.ifMatch, currentEtag);
   if (precondition === 'failed') return { kind: 'precondition_failed' };
   if (precondition === 'required' && 'username' in input.values) {
@@ -851,7 +859,7 @@ async function amendSubjectUnguarded(
       kind: 'ok',
       subject: viewOfLocked(locked),
       etag: currentEtag,
-      pendingEmail: await pendingEmailRepository(tx).forSubject(input.subjectId),
+      pendingEmail: pendingBefore,
     };
   }
 
@@ -881,11 +889,12 @@ async function amendSubjectUnguarded(
     outcome: 'allowed',
     detail: { ...redactedDiff('subject', current, afterWire), ...emailChange },
   });
+  const pendingEmail = await pendingEmailRepository(tx).forSubject(input.subjectId);
   return {
     kind: 'ok',
     subject: after.subject,
-    etag: etagOf(afterWire),
-    pendingEmail: await pendingEmailRepository(tx).forSubject(input.subjectId),
+    etag: subjectEtag(afterWire, pendingEmail),
+    pendingEmail,
   };
 }
 

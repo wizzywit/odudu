@@ -60,8 +60,10 @@ refused before the pending row is written, so nothing is left behind.
 **Response.** 200, as now. The subject carries a new optional `pending_email`
 (string or null). It is returned by `GET /subjects/:id` and by the PATCH
 response, and not by the list: a list stays a constant number of queries. The
-ETag still covers `{id, type, username, email, enabled, created_at}`; a pending
-address is not part of it, and an email-only PATCH still needs no `If-Match`.
+ETag covers the representation sent: `{id, type, username, email, enabled,
+created_at}` as before, plus `pending_email` while one is pending, so a subject
+with none keeps its earlier tag and a change of the pending address moves it.
+An email-only PATCH still needs no `If-Match`, but one that is sent must match.
 
 **Notice to the old address.** The existing own-change mail,
 `address_change_requested` (`packages/email`), sent through
