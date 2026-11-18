@@ -358,6 +358,9 @@ old address keeps signing in meanwhile.
   `pending_email` and the state of the notice in its `detail`. The link's use
   is the `email.changed` row the person's own change writes.
 
+The removal by `null` and the `503` above are read from the code and were not
+run on this stack; every other behaviour in this list is shown by a block below.
+
 On the stack the section above began on, which had no relay: a tenant
 `confirm-demo` made with `odudu seed tenant --name confirm-demo --set
 login_with_email=true`, a client `confirm-demo-app` (`odudu seed --tenant
@@ -639,7 +642,8 @@ The trail for `grace` since the first of those requests, reduced to the fields
 that matter: each request, the cancel (`{}`, since no stored value changed) and
 the `email.changed` the link wrote. The `notice` is `sent` because the old
 address was verified; for an address nobody verified it is `skipped_unverified`,
-and for a subject with no address `skipped_none`:
+and for a subject with no address `skipped_none`. Those two values were read
+from the code, not run here:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
