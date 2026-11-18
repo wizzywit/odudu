@@ -33,6 +33,7 @@
 ### Task 1: Reset goes only to a verified address where the tenant asks for proof
 
 **Files:**
+
 - Modify: `packages/account/src/usecase/reset-password.ts` (`requestPasswordReset`, `RequestPasswordResetDeps`)
 - Create: `packages/account/src/service/reset-target.ts`, `packages/account/src/service/reset-target.test.ts`
 - Modify: `packages/account/src/view/routes/reset-password.ts` (pass the two new deps through), `apps/server/src/app.ts` (the `findByEmail` wiring near `registerResetPasswordRoute`)
@@ -40,6 +41,7 @@
 - Test: `apps/server/tests/reset-password.int.test.ts`, `apps/server/tests/reset-ends-access.int.test.ts`
 
 **Interfaces:**
+
 - Consumes: `deps.findByEmail`, `deps.mailGate`, `enqueueResetLink` (all existing in `reset-password.ts`).
 - Produces: `resetTarget(input: { readonly verified: boolean; readonly requireVerified: boolean }): 'send' | 'skip'` in `reset-target.ts`; `findByEmail` now also returns `emailVerified: boolean`; new dep `requiresVerifiedAddress: (tx: TenantScopedDatabase, tenantId: string) => Promise<boolean>`.
 
@@ -55,12 +57,14 @@
 ### Task 2: An administrator's email change is confirmed by the person
 
 **Files:**
+
 - Create: `packages/protocol-admin/src/service/admin-email-plan.ts`, `packages/protocol-admin/src/service/admin-email-plan.test.ts`
 - Modify: `packages/protocol-admin/src/usecase/subjects.ts` (`AmendSubjectDeps`, `AmendSubjectOutcome`, `amendSubjectUnguarded`, `readSubject` consumers), `packages/protocol-admin/src/view/routes/subjects.ts` (`amendSubjectHandler`, `readSubjectHandler`, `amendmentProblem`, `SubjectsRouteDeps`), `packages/protocol-admin/src/index.ts` (pass `sendLink`, `deploymentSmtp` to the subjects deps; the account-email deps at ~line 737 already carry both)
 - Modify: `packages/contracts/src/admin/subjects.ts` (add `subjectDetailSchema`), `packages/contracts/src/admin/docs.ts`, the admin route table entries for `GET`/`PATCH /subjects/:id` so their 200 response is the detail schema
 - Test: `packages/protocol-admin/tests/subjects.int.test.ts` (or a new `subject-email-confirm.int.test.ts` beside it), `packages/contracts/src/admin/docs.test.ts` if descriptions are pinned
 
 **Interfaces:**
+
 - Consumes: `pendingEmailRepository(tx).set/forSubject/clear` (`@odudu/domain-identity`), `lockEmailForCreation`, `userRepository(tx).holderOfEmail`, `SendAccountLink` and the relay check from `account-email.ts` (`tenantSmtpRepository(tx).byTenantId`), `queueOwnChangeNotice` and `noticeAddressOf` from `@odudu/email`.
 - Produces: `planAdminEmailChange(input: { readonly asked: string | null; readonly holder: string | null; readonly subjectId: string }): { kind: 'clear' } | { kind: 'cancel' } | { kind: 'confirm'; address: string }`; `AmendSubjectDeps` gains `sendLink: SendAccountLink`, `deploymentSmtp: boolean`, `resolveMailLook: MailLookResolver`, `now: () => Date`; `AmendSubjectOutcome` gains `{ kind: 'no_mail_relay' }`; a thrown `MailUnavailableError` (like `EmailTakenError`, so the transaction rolls back) mapped to 503 by the handler; `subjectDetailSchema = subjectSchema.extend({ pending_email: z.string().nullable().optional() })`.
 
@@ -75,10 +79,12 @@
 ### Task 3: The console shows and cancels a pending change
 
 **Files:**
+
 - Modify: `apps/admin-console/src/pages/subjects/adapter/subjects.ts` (the subject DTO and its fixtures), `repository/useSubjectRecord.ts`, `ui/SubjectRecordPage/ProfileTab.tsx` and its test, the slice's `services` wording file, `use-cases` for the Account section
 - Test: `ProfileTab.test.tsx`, the adapter test, a service test for the wording and the cancel decision
 
 **Interfaces:**
+
 - Consumes: `pending_email` on the subject response (Task 2); the email field's existing save.
 - Produces: `SubjectAccount` gains `pendingEmail: string | null` and `cancelPending: () => void`; wording constants in the slice's services (a pure `pendingChangeText(address)` and `PENDING_ACCOUNT_DESCRIPTION`).
 
@@ -90,6 +96,7 @@
 ### Task 4: Documentation, transcripts and placement
 
 **Files:**
+
 - Modify: `apps/docs/content/en/admin-console/subjects.mdx` (line 60), `apps/docs/content/en/admin-console/settings.mdx` (the `registration_username` paragraph), the reset text in `apps/docs/content/en/concepts/sessions.mdx` and any other concept page `git grep -n -i 'reset' -- apps/docs/content/en/concepts guides` shows stating the old rule, `CHANGELOG.md` under `## [Unreleased]`
 - Re-run on a live stack and replace: `reference/transcripts/admin-paths/patch-subjectsid.md` (pending, old address still signs in, completion by link, cancel), `reference/transcripts/request-paths/password-reset.md` (a verified address, an unverified one with `verify_email` on and off, scoped as `contributing/transcripts.md` requires)
 - Modify: `docs/NEXT.md`, `docs/phases/admin-email-confirm.md` (the increment's note), `tests/docs/roadmap-section-11.test.ts` if a placement is added
@@ -105,12 +112,14 @@
 ### Task 5: A completed reset tells the person
 
 **Files:**
+
 - Modify: `packages/email/src/service/templates.ts`, `packages/email/src/service/messages.ts`, `packages/email/src/service/messages.ar.ts` (a reset-completed notice: subject, preheader, heading, text, reason; the shared `own.when` and `own.notYou` lines are reused), `packages/email/src/index.ts`
 - Create: a queueing function beside `queueOwnChangeNotice` in `packages/email/src/usecase/` that sends to the address on file whether or not it is verified, returning `'sent' | 'skipped_none'`
 - Modify: `packages/account/src/usecase/reset-password.ts` (`completePasswordReset`/`recoverAccount`: queue the notice in the transaction that sets the password and put its outcome in the reset's audit detail), `apps/server/tests/reset-password.int.test.ts`
 - Test: `packages/email/src/service/templates-*.test.ts` (new test file for the new message), the Arabic catalogue tests (`tests/lint/arabic-catalogues.test.ts`), `tests/lint/server-page-literals.test.ts` rules for mail templates
 
 **Interfaces:**
+
 - Consumes: `renderNotice` and the notice shell in `templates.ts`; `outboxRepository(tx).enqueue`; `tenantMailContext` (see `own-change-notice.ts` for the shape).
 - Produces: `renderResetCompleted(input: NoticeInput): EmailMessage`; `queueResetCompletedNotice(tx, input: { tenantId; subjectId; now }, resolveMailLook): Promise<'sent' | 'skipped_none'>` (names may follow the file's conventions).
 

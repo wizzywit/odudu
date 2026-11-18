@@ -34,12 +34,12 @@ increment gives the administrator's change that sequence.
 
 ## Behaviour of `PATCH /subjects/:id` when `email` is present
 
-| Asked address | Result |
-| --- | --- |
-| `null` | Cleared at once, as today; any pending change is dropped. Removing an address needs no proof. |
-| The address the person already has | No change to the address; a pending change is dropped. This is how an administrator cancels one. |
-| Held by another subject in the tenant | 409, as today (`EmailTakenError`). |
-| Any other valid address | If the tenant can send mail, the address is stored as the pending change (replacing an earlier one), a verification link is mailed to it, and the old address is told. The stored `email` and `email_verified` do not change. If mail cannot be sent the request is refused before anything is written. |
+| Asked address                         | Result                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `null`                                | Cleared at once, as today; any pending change is dropped. Removing an address needs no proof.                                                                                                                                                                                                           |
+| The address the person already has    | No change to the address; a pending change is dropped. This is how an administrator cancels one.                                                                                                                                                                                                        |
+| Held by another subject in the tenant | 409, as today (`EmailTakenError`).                                                                                                                                                                                                                                                                      |
+| Any other valid address               | If the tenant can send mail, the address is stored as the pending change (replacing an earlier one), a verification link is mailed to it, and the old address is told. The stored `email` and `email_verified` do not change. If mail cannot be sent the request is refused before anything is written. |
 
 Other fields in the same request (`username`, `enabled`) apply as today and
 are not held back by the pending address.
