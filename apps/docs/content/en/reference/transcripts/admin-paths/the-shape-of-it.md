@@ -52,28 +52,29 @@ with `vera` still enabled: `vera`'s token read, then `vera` disabled with
 all:
 
 ```bash
-P=http://localhost:3080/admin/tenants/policy-demo
+P=http://localhost:3000/admin/tenants/policy-demo
 curl -sS -H "Authorization: Bearer $VERA_TOKEN" "$P/whoami"
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"enabled":false}' "$P/subjects/01a0ed2f-31a5-7d73-87ba-7eab105cb48e"
+  -d '{"enabled":false}' "$P/subjects/01a1edef-f7a3-7e53-9b23-5dc9daf949cb"
 curl -sS -D - -H "Authorization: Bearer $VERA_TOKEN" "$P/whoami"
 curl -sS -H "Authorization: Bearer not-a-token" "$P/whoami"
 ```
 
 ```
-{"subjectId":"01a1b0fc-0bf7-7470-bf37-110cd92149d7","issuerTenantId":"01a1b0fc-0983-7944-843a-05247c077410","issuerTenantName":"policy-demo","capabilities":["view-users"],"crossTenant":false}
-{"id":"01a1b0fc-0bf7-7470-bf37-110cd92149d7","type":"user","username":"vera","email":null,"enabled":false,"created_at":"2026-11-06T13:11:10.577Z"}
+{"subjectId":"01a1edef-f7a3-7e53-9b23-5dc9daf949cb","issuerTenantId":"01a1edef-f501-7dff-ac5d-8f4832b69f68","issuerTenantName":"policy-demo","capabilities":["view-users"],"crossTenant":false}
+{"id":"01a1edef-f7a3-7e53-9b23-5dc9daf949cb","type":"user","username":"vera","email":null,"enabled":false,"created_at":"2026-11-18T09:14:49.113Z","pending_email":null}
 HTTP/1.1 401 Unauthorized
-x-request-id: 01a1b0fc-109e-7935-9a65-570a9a908492
+x-request-id: 01a1edf0-4f50-73b5-9aaf-de8f2fae7a28
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 108
-Date: Fri, 06 Nov 2026 13:11:11 GMT
+Date: Wed, 18 Nov 2026 09:15:11 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a1b0fc-109e-7935-9a65-570a9a908492"}
-{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a1b0fc-10b0-793f-91ca-f03858da4f34"}
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a1edf0-4f50-73b5-9aaf-de8f2fae7a28"}
+
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a1edf0-4f9b-7dd9-a7cb-09542b7930a5"}
 ```
 
 The console gateway reads such a `401` as the end of its session once the

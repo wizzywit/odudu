@@ -864,3 +864,108 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
  password.reset | {"breached_check": "passed"}
 (1 row)
 ```
+
+## Only a verified address, where the tenant verifies addresses
+
+A tenant with `verify_email` on has said that an address nobody proved is not
+to be trusted, and sign-in by address already takes only a verified one. A reset
+link follows the same rule: it is mailed only to an address the account has
+verified. With `verify_email` off the tenant accepts unproved addresses, and a
+link goes to any address an account holds, as the sections above show.
+
+This ran on a freshly built stack driven only as far as `seed admin` and a
+token, in a tenant of its own, `reset-proof`, with reset and `verify_email` on,
+and two people: `ada`, whose address is recorded as verified, and `grace`,
+whose address is not:
+
+```bash
+odudu seed tenant --name reset-proof --set reset_password_allowed=true --set verify_email=true
+odudu seed user --tenant reset-proof --username ada --password correct-horse-battery \
+  --email ada@example.com --email-verified
+odudu seed user --tenant reset-proof --username grace --password correct-horse-battery \
+  --email grace@example.com
+```
+
+```
+{"command":"tenant","created":true,"tenant":"reset-proof","tenantId":"01a1ede7-783f-7f7b-8078-e73b21d41fcf","settings":["reset_password_allowed","verify_email"]}
+{"command":"user","tenant":"reset-proof","tenantId":"01a1ede7-783f-7f7b-8078-e73b21d41fcf","username":"ada","userSubjectId":"01a1ede7-7a86-7c4c-9b22-5cbd29b14b57"}
+{"command":"user","tenant":"reset-proof","tenantId":"01a1ede7-783f-7f7b-8078-e73b21d41fcf","username":"grace","userSubjectId":"01a1ede7-7c67-705e-b9eb-131eb07454d2"}
+```
+
+A reset is requested for each address, and for one nobody holds. The three
+answers are compared byte for byte, so a caller learns neither whether an address
+has an account nor whether it is verified:
+
+```bash
+for email in ada@example.com grace@example.com nobody@example.com; do
+  curl -sS -o "$email.html" -w "$email %{http_code}\n" \
+    -X POST http://localhost:3000/tenants/reset-proof/login-actions/reset-password \
+    --data-urlencode "email=$email"
+done
+cmp ada@example.com.html grace@example.com.html && cmp ada@example.com.html nobody@example.com.html && echo identical
+grep '<p>If' ada@example.com.html
+```
+
+```
+ada@example.com 200
+grace@example.com 200
+nobody@example.com 200
+identical
+<p>If that address has an account, we&#39;ve sent a link to reset its password.</p>
+```
+
+Only `ada`'s request queued a message. The tenant's outbox, which holds nothing
+else, shows it:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select o.to_address, o.subject
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'reset-proof'
+    order by o.created_at;"
+```
+
+```
+   to_address    |             subject
+-----------------+---------------------------------
+ ada@example.com | Reset your reset-proof password
+(1 row)
+```
+
+`grace` recovers by asking for a new verification link
+([Asking for a new verification link](./asking-for-a-new-verification-link.md)),
+or an administrator sends her one or a reset
+([`POST /subjects/:id/password-reset`](../admin-paths/post-subjectsidpassword-reset-and-post-subjectsidverification.md)),
+which is not held to the rule because the administrator chose the address on
+file. With `verify_email` turned off for the tenant, the same request for `grace`
+gets the same answer and now queues a message:
+
+```bash
+odudu seed tenant --name reset-proof --set verify_email=false
+curl -sS -o grace.html -w "%{http_code}\n" \
+  -X POST http://localhost:3000/tenants/reset-proof/login-actions/reset-password \
+  --data-urlencode 'email=grace@example.com'
+cmp grace.html ada@example.com.html && echo identical
+```
+
+```
+{"command":"tenant","created":false,"tenant":"reset-proof","tenantId":"01a1ede7-783f-7f7b-8078-e73b21d41fcf","settings":["verify_email"]}
+200
+identical
+```
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select o.to_address, o.subject
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'reset-proof'
+    order by o.created_at;"
+```
+
+```
+    to_address     |             subject
+-------------------+---------------------------------
+ ada@example.com   | Reset your reset-proof password
+ grace@example.com | Reset your reset-proof password
+(2 rows)
+```

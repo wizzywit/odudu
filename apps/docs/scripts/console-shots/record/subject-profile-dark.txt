@@ -67,7 +67,7 @@ Consents
 Grants
 Activity
 Account
-How the subject signs in and is written to. A changed email is unverified until it is proved or marked verified below.
+How the subject signs in and is written to. A new email is mailed a link, and replaces the current one once the person follows it.
 Username
 ada
 Usernames in this tenant are fixed: its username_editable setting is off, so a rename would be refused. Turn it on under the tenant's

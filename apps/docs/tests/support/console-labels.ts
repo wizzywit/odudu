@@ -354,6 +354,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
     '> Send a verification email <',
   ),
+  'Change pending': page('subjects/services/subjectAccount.ts', 'Change pending:'),
+  'Cancel the change': page(
+    'subjects/services/subjectAccount.ts',
+    "CANCEL_PENDING_LABEL = 'Cancel the change'",
+  ),
   'Revoke recovery codes': page(
     'subjects/services/credentialAsk.ts',
     "confirmLabel: 'Revoke recovery codes'",

@@ -86,42 +86,42 @@ Full transcript: [GET /console/api/session](../reference/transcripts/console-pat
 
 This step is from a later run, so the administrator's id here is not the one step 4 showed.
 
-Fetch `hopper`. Every admin call names the administrator it acts for in `X-Odudu-Console-Subject`. The answer carries an `ETag`, which stands for this version of the user.
+Fetch `hopper`. Every admin call names the administrator it acts for in `X-Odudu-Console-Subject`. The answer carries an `ETag`, which stands for this version of the user, and `pending_email`, which is `null` unless an email change is waiting for the person to confirm it.
 
 ```bash
-curl -sS -D - -c jar -b jar -H 'X-Odudu-Console-Subject: 01a13ff2-eff9-746c-b8cb-e56af2072daa' \
-  http://localhost:3185/console/api/admin/tenants/console-paths/subjects/01a13ff2-f33a-79ce-a952-0aeec04a80d4
+curl -sS -D - -c jar -b jar -H 'X-Odudu-Console-Subject: 01a1edf1-4be2-7d84-b717-8bbb96a53677' \
+  http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a1edf1-4c5e-7369-8846-d7678379b7f1
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a13ff3-38ca-7de2-b786-a50a8a02eaaa
+x-request-id: 01a1edf1-b161-75fc-89b2-50f85a72b7c0
 content-type: application/json; charset=utf-8
-etag: "476c7432885859a0124f9b8bd8ec8e643c33a66caccf17b6d0cf940c01a49e51"
+etag: "2b18cf8cd3e4689c50e9ba079b816e5185705a12554c3f3c9018dbebfa28d745"
 ```
 
 ```
-{"id":"01a13ff2-f33a-79ce-a952-0aeec04a80d4","type":"user","username":"hopper","email":"hopper@example.com","enabled":true,"created_at":"2026-10-15T14:24:09.013Z"}
+{"id":"01a1edf1-4c5e-7369-8846-d7678379b7f1","type":"user","username":"hopper","email":"hopper@example.com","enabled":true,"created_at":"2026-11-18T09:16:16.347Z","pending_email":null}
 ```
 
 Full transcript: [PATCH …/subjects/{id}](../reference/transcripts/console-paths/patch-consoleapiadmintenantstenantsubjectsid.md).
 
 ## 6. Change the user
 
-Send the change with that `ETag` in `If-Match`, so the update only applies if nobody else changed the user first. A write also carries `Origin` and `X-Odudu-Console: 1`.
+Send the change with that `ETag` in `If-Match`, so the update only applies if nobody else changed the user first. A write also carries `Origin` and `X-Odudu-Console: 1`. This one disables `hopper`. Changing the email address is a different kind of change: it is mailed to the new address and takes effect only when the person confirms it, so it leaves the `ETag` as it was ([`PATCH /subjects/:id`](../reference/transcripts/admin-paths/patch-subjectsid.md#changing-an-email-the-person-confirms) shows it).
 
 ```bash
 curl -sS -D - -c jar -b jar -X PATCH \
-  -H 'Origin: http://localhost:3185' -H 'X-Odudu-Console: 1' \
-  -H 'X-Odudu-Console-Subject: 01a13ff2-eff9-746c-b8cb-e56af2072daa' \
+  -H 'Origin: http://localhost:3000' -H 'X-Odudu-Console: 1' \
+  -H 'X-Odudu-Console-Subject: 01a1edf1-4be2-7d84-b717-8bbb96a53677' \
   -H 'Content-Type: application/json' \
-  -H 'If-Match: "476c7432885859a0124f9b8bd8ec8e643c33a66caccf17b6d0cf940c01a49e51"' \
-  -d '{"email":"grace.hopper@example.com"}' \
-  http://localhost:3185/console/api/admin/tenants/console-paths/subjects/01a13ff2-f33a-79ce-a952-0aeec04a80d4
+  -H 'If-Match: "2b18cf8cd3e4689c50e9ba079b816e5185705a12554c3f3c9018dbebfa28d745"' \
+  -d '{"enabled":false}' \
+  http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a1edf1-4c5e-7369-8846-d7678379b7f1
 ```
 
 ```
-{"id":"01a13ff2-f33a-79ce-a952-0aeec04a80d4","type":"user","username":"hopper","email":"grace.hopper@example.com","enabled":true,"created_at":"2026-10-15T14:24:09.013Z"}
+{"id":"01a1edf1-4c5e-7369-8846-d7678379b7f1","type":"user","username":"hopper","email":"hopper@example.com","enabled":false,"created_at":"2026-11-18T09:16:16.347Z","pending_email":null}
 ```
 
 The answer carries a new `ETag`. Using the old one again is refused, which [Read a refusal](./read-a-refusal.md) shows.
@@ -133,15 +133,15 @@ Full transcript: [PATCH …/subjects/{id}](../reference/transcripts/console-path
 Every change is recorded with who made it. Read the audit trail for the second the change ran.
 
 ```bash
-curl -sS -D - -b jar -H 'X-Odudu-Console-Subject: 01a13ff2-eff9-746c-b8cb-e56af2072daa' \
-  'http://localhost:3185/console/api/admin/tenants/console-paths/audit?from=2026-10-15T14:24:26Z&to=2026-10-15T14:24:27Z'
+curl -sS -D - -b jar -H 'X-Odudu-Console-Subject: 01a1edf1-4be2-7d84-b717-8bbb96a53677' \
+  'http://localhost:3000/console/api/admin/tenants/console-paths/audit?from=2026-11-18T09:16:42Z&to=2026-11-18T09:16:43Z'
 ```
 
 ```
-{"items":[{"id":"01a13ff3-396e-72bc-b234-0c7b9ae6a6c6","occurred_at":"2026-10-15T14:24:26.970Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"01a13ff2-eddb-7d89-8555-c32d1cd8acf9","actor_subject_id":"01a13ff2-eff9-746c-b8cb-e56af2072daa","actor_client_id":"01a13ff2-ee18-7fab-b610-0fb99df8e511","actor_name":"grace","actor_origin":"tenant","resource_type":"subject","resource_id":"01a13ff2-f33a-79ce-a952-0aeec04a80d4","request_id":"01a13ff3-38fc-7a89-9c47-3fc41614c27a","ip":"172.20.0.1","detail":{"email":{"after":"grace.hopper@example.com","before":"hopper@example.com"}}}]}
+{"items":[{"id":"01a1edf1-b1b8-77e7-aa03-66f121548d56","occurred_at":"2026-11-18T09:16:42.286Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"01a1edf1-48f8-7169-a65d-edcba624324f","actor_subject_id":"01a1edf1-4be2-7d84-b717-8bbb96a53677","actor_client_id":"01a1edf1-4914-76e6-ad4d-003eed92415f","actor_name":"grace","actor_origin":"tenant","resource_type":"subject","resource_id":"01a1edf1-4c5e-7369-8846-d7678379b7f1","request_id":"01a1edf1-b193-752e-8398-68d2f9f4eda3","ip":"172.20.0.1","detail":{"enabled":{"after":false,"before":true}}}]}
 ```
 
-The row says `subject.amend`, names `grace` as the actor and holds the email before and after.
+The row says `subject.amend`, names `grace` as the actor and holds the value of `enabled` before and after.
 
 Full transcript: [PATCH …/subjects/{id}](../reference/transcripts/console-paths/patch-consoleapiadmintenantstenantsubjectsid.md).
 
@@ -162,7 +162,7 @@ cache-control: no-store
 set-cookie: odudu-console=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0
 ```
 
-The earlier commands of this guide ran on a stack on port `3185`; this one was run again on a throwaway stack on port
+The earlier commands of this guide ran on a stack on port `3000`; this one was run again on a throwaway stack on port
 `3194`, which is why its command names that port. On your own stack all of them use the port you started it on.
 
 Full transcript: [POST /console/auth/logout](../reference/transcripts/console-paths/post-consoleauthlogout.md).

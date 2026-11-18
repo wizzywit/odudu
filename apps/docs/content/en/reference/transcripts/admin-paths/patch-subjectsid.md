@@ -9,7 +9,10 @@ Requires `manage-users`. Amends `email` and `enabled` — and `username`,
 where the tenant allows it (below) — the only general fields a subject
 exposes; everything else about a subject (credentials, required actions,
 roles) has its own door below. An `email` another subject in the tenant
-already holds is refused with `409`, as on `POST /subjects`. Honours
+already holds is refused with `409`, as on `POST /subjects`. Any other new
+address is not stored: it is kept as the subject's pending change, mailed a
+verification link, and replaces the stored address only when the person follows
+the link ([below](#changing-an-email-the-person-confirms)). Honours
 `If-Match`, answering `412` on a mismatch, the same convention every other
 amendment in this API follows — locked with `SELECT … FOR NO KEY UPDATE`
 before the `ETag` is computed, so two concurrent amendments cannot both
@@ -26,21 +29,21 @@ curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"enabled": false}' \
-  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-9453-7bf0-9823-a5fc6ea34836
+  http://localhost:3000/admin/tenants/demo/subjects/01a1ede9-94a6-7f42-8017-3db17df2ee91
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a17af0-6b18-7a88-bb13-b6ceff00a682
+x-request-id: 01a1edea-0955-75a1-8a14-4eeba7b926b3
 cache-control: no-store
-etag: "e0aa2da695d68cf78750779f56f4003957282bd6a88ddab5b3aa117e2efa7a19"
+etag: "abbdda039aaf7450422e893f633778d99ada1aaf207b950189db5f83df65f0a8"
 content-type: application/json; charset=utf-8
-content-length: 158
-Date: Tue, 27 Oct 2026 01:18:58 GMT
+content-length: 179
+Date: Wed, 18 Nov 2026 09:08:20 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a17aed-7bb8-7f5e-9b9c-d205689a4e89","type":"user","username":"ada","email":"ada@example.com","enabled":false,"created_at":"2026-10-27T01:15:46.485Z"}
+{"id":"01a1ede9-94a6-7f42-8017-3db17df2ee91","type":"user","username":"ada","email":"ada@example.com","enabled":false,"created_at":"2026-11-18T09:07:50.563Z","pending_email":null}
 ```
 
 The `ETag` is the one `GET /subjects/:id` above returned, recomputed — a
@@ -77,13 +80,14 @@ once. A password equal to the new username is not re-checked against
 `password_not_username` until it is next changed, which is when every
 password policy applies.
 
-As a new system admin `ada-rename` (`seed admin`), in a tenant `rename-demo`
-created for it through `POST /admin/tenants`, on a subject `grace` seeded with a
-real password (`odudu seed user`), a second subject `ada` created through `POST
+As a system admin (`seed admin`), on a stack with a mail relay (the one the
+section on changing an email below adds), in a tenant `rename-demo` created for
+it through `POST /admin/tenants`, on a subject `grace` seeded with a real
+password (`odudu seed user`), a second subject `ada` created through `POST
 /subjects`, and a confidential client `rename-demo-app` created through `POST
 /clients` with `https://app.example/callback` registered and the
 `authorization_code` and `refresh_token` grants; `$CLIENT_SECRET` is the secret
-that create returned. `$GRACE` is `01a0e37c-9f28-77e3-8579-d0907e90b1c3`, and
+that create returned. `$GRACE` is `01a1edeb-e4dc-7cd7-94f4-2285df25a87c`, and
 `signin` is the helper [`DELETE
 /subjects/:id/lockout`](./delete-subjectsidlockout.md) defines, pointed at this
 client with `profile` in the scope and taking the username as its argument:
@@ -101,10 +105,7 @@ signin() {
 }
 ```
 
-With the setting still at its default, the rename is refused. This one refusal
-is from a separate run, in a tenant also named `rename-demo` created for it, on
-its own `grace` (`01a0ea54-d24b-7445-9226-9123b58e9e4e`); the rest of this
-section is from the first:
+With the setting still at its default, the rename is refused:
 
 ```bash
 curl -sS -D - -X PATCH \
@@ -112,20 +113,20 @@ curl -sS -D - -X PATCH \
   -H "Content-Type: application/json" \
   -H 'If-Match: *' \
   -d '{"username": "grace-hopper"}' \
-  http://localhost:3080/admin/tenants/rename-demo/subjects/$GRACE
+  http://localhost:3000/admin/tenants/rename-demo/subjects/$GRACE
 ```
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a0ea54-d25b-70fa-baab-fa89b03dea50
+x-request-id: 01a1edeb-fb50-7c34-8baa-2f9a5f26a4a0
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 301
-Date: Mon, 28 Sep 2026 23:23:42 GMT
+Date: Wed, 18 Nov 2026 09:10:27 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"username: this tenant has not enabled username editing (username_editable)","errors":[{"path":"username","message":"this tenant has not enabled username editing (username_editable)"}],"instance":"01a0ea54-d25b-70fa-baab-fa89b03dea50"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"username: this tenant has not enabled username editing (username_editable)","errors":[{"path":"username","message":"this tenant has not enabled username editing (username_editable)"}],"instance":"01a1edeb-fb50-7c34-8baa-2f9a5f26a4a0"}
 ```
 
 Turning it on — `PATCH /settings` reaches it too — then signing `grace`
@@ -145,9 +146,9 @@ echo "refresh token length ${#REFRESH_TOKEN}"
 ```
 
 ```
-{"command":"tenant","created":false,"tenant":"rename-demo","tenantId":"01a0e37c-9ce6-79d3-a088-ba646b0b9917","settings":["username_editable"]}
+{"command":"tenant","created":false,"tenant":"rename-demo","tenantId":"01a1edeb-e1c1-7a22-9762-c63fc2ed86f9","settings":["username_editable"]}
 HTTP/1.1 302 Found
-location: https://app.example/callback?code=u7NfghfY65Cv_CMaF2GmK_AibKzovcN84Y0Lz1Nvb7k&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frename-demo
+location: https://app.example/callback?code=SjEo9xVp-QYKM8WQGrxEoNvg_am6w9ipReNviZB2J28&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frename-demo
 refresh token length 43
 ```
 
@@ -163,15 +164,15 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 428 Precondition Required
-x-request-id: 01a0e37d-0d3d-71b8-b54b-58bf801044f4
+x-request-id: 01a1edec-024e-7488-a7e6-3163445404c3
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 181
-Date: Sun, 27 Sep 2026 15:30:18 GMT
+Date: Wed, 18 Nov 2026 09:10:29 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject's username","instance":"01a0e37d-0d3d-71b8-b54b-58bf801044f4"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject's username","instance":"01a1edec-024e-7488-a7e6-3163445404c3"}
 ```
 
 Reading the subject for its `ETag`, then renaming under it:
@@ -183,35 +184,35 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" \
 curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -H 'If-Match: "07c46668d99ac4e0d32d58908d78d5d04ea89d0eaf03470bdd5662d830f63c08"' \
+  -H 'If-Match: "371da721b0e28dc40740169c5f10cc912bcaf82d62d16f621a67e8e0bbeefc20"' \
   -d '{"username": "grace-hopper"}' \
   http://localhost:3000/admin/tenants/rename-demo/subjects/$GRACE
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e37d-0d59-7a31-813e-162ee1bb2c3d
+x-request-id: 01a1edec-13a3-78c2-acc1-974f9be45762
 cache-control: no-store
-etag: "07c46668d99ac4e0d32d58908d78d5d04ea89d0eaf03470bdd5662d830f63c08"
+etag: "371da721b0e28dc40740169c5f10cc912bcaf82d62d16f621a67e8e0bbeefc20"
 content-type: application/json; charset=utf-8
-content-length: 146
-Date: Sun, 27 Sep 2026 15:30:18 GMT
+content-length: 167
+Date: Wed, 18 Nov 2026 09:10:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0e37c-9f28-77e3-8579-d0907e90b1c3","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-09-27T15:29:50.369Z"}
+{"id":"01a1edeb-e4dc-7cd7-94f4-2285df25a87c","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-11-18T09:10:22.166Z","pending_email":null}
 
 HTTP/1.1 200 OK
-x-request-id: 01a0e37d-0d71-7b2c-8918-ddf9dca2a612
+x-request-id: 01a1edec-13b7-7fe7-b7ed-e9009150aa49
 cache-control: no-store
-etag: "dc0ac68013546a9ca613220ddfc34b73e5d99e8b681c651bcecb0a6d22c07d81"
+etag: "70fd1c1d6112285b20ea18ed4dcdc86621d7c1c82d8c79952d286e3b15c06aaf"
 content-type: application/json; charset=utf-8
-content-length: 153
-Date: Sun, 27 Sep 2026 15:30:18 GMT
+content-length: 174
+Date: Wed, 18 Nov 2026 09:10:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0e37c-9f28-77e3-8579-d0907e90b1c3","type":"user","username":"grace-hopper","email":null,"enabled":true,"created_at":"2026-09-27T15:29:50.369Z"}
+{"id":"01a1edeb-e4dc-7cd7-94f4-2285df25a87c","type":"user","username":"grace-hopper","email":null,"enabled":true,"created_at":"2026-11-18T09:10:22.166Z","pending_email":null}
 ```
 
 The refresh token `grace` held before the rename still redeems, and the
@@ -229,7 +230,7 @@ curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
 
 ```
 access token length 691
-{"sub":"01a0e37c-9f28-77e3-8579-d0907e90b1c3","name":"grace-hopper","preferred_username":"grace-hopper"}
+{"sub":"01a1edeb-e4dc-7cd7-94f4-2285df25a87c","name":"grace-hopper","preferred_username":"grace-hopper"}
 ```
 
 The old name no longer signs in with the right password; the new one does:
@@ -243,48 +244,52 @@ signin grace-hopper
 HTTP/1.1 200 OK
 <title>Sign in</title>
 HTTP/1.1 302 Found
-location: https://app.example/callback?code=tVn0xzcPENRQ4yAfzhtOoiiJ85cWXohi4NgdgtE2eAQ&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frename-demo
+location: https://app.example/callback?code=BXwWxqFQIjaueciZkKb4NPhenhSLLGXNJzrJEztUp8M&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frename-demo
 ```
 
 Renaming to `ada`, which the other subject holds, with an email change in
 the same body — refused, and a read afterwards shows neither applied and
-the `ETag` unchanged:
+the `ETag` unchanged. The address was not stored as a pending change either,
+and nothing was mailed for it: the relay's catcher, read after, holds no message.
 
 ```bash
 curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -H 'If-Match: "dc0ac68013546a9ca613220ddfc34b73e5d99e8b681c651bcecb0a6d22c07d81"' \
+  -H 'If-Match: "70fd1c1d6112285b20ea18ed4dcdc86621d7c1c82d8c79952d286e3b15c06aaf"' \
   -d '{"username": "ada", "email": "grace@rename.example"}' \
   http://localhost:3000/admin/tenants/rename-demo/subjects/$GRACE
 
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3000/admin/tenants/rename-demo/subjects/$GRACE
+
+curl -sS http://localhost:8092/api/v1/messages | jq -c '{total}'
 ```
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a0e37d-0e85-76d4-a49e-833f42b3e389
+x-request-id: 01a1edec-3391-7db3-a2e4-8053aedb6904
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 154
-Date: Sun, 27 Sep 2026 15:30:18 GMT
+Date: Wed, 18 Nov 2026 09:10:42 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"the username \"ada\" is already in use","instance":"01a0e37d-0e85-76d4-a49e-833f42b3e389"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the username \"ada\" is already in use","instance":"01a1edec-3391-7db3-a2e4-8053aedb6904"}
 
 HTTP/1.1 200 OK
-x-request-id: 01a0e37d-0eb3-7a56-bfc2-68761f0d90ba
+x-request-id: 01a1edec-33f5-793b-b890-5a402bdfd0e3
 cache-control: no-store
-etag: "dc0ac68013546a9ca613220ddfc34b73e5d99e8b681c651bcecb0a6d22c07d81"
+etag: "70fd1c1d6112285b20ea18ed4dcdc86621d7c1c82d8c79952d286e3b15c06aaf"
 content-type: application/json; charset=utf-8
-content-length: 153
-Date: Sun, 27 Sep 2026 15:30:18 GMT
+content-length: 174
+Date: Wed, 18 Nov 2026 09:10:42 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0e37c-9f28-77e3-8579-d0907e90b1c3","type":"user","username":"grace-hopper","email":null,"enabled":true,"created_at":"2026-09-27T15:29:50.369Z"}
+{"id":"01a1edeb-e4dc-7cd7-94f4-2285df25a87c","type":"user","username":"grace-hopper","email":null,"enabled":true,"created_at":"2026-11-18T09:10:22.166Z","pending_email":null}
+{"total":0}
 ```
 
 `Ada`, a case-variant of that same name, is a different name to
@@ -294,37 +299,357 @@ Keep-Alive: timeout=72
 curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -H 'If-Match: "dc0ac68013546a9ca613220ddfc34b73e5d99e8b681c651bcecb0a6d22c07d81"' \
+  -H 'If-Match: "70fd1c1d6112285b20ea18ed4dcdc86621d7c1c82d8c79952d286e3b15c06aaf"' \
   -d '{"username": "Ada"}' \
   http://localhost:3000/admin/tenants/rename-demo/subjects/$GRACE
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e37d-0ecc-7554-bf0c-c15ec0474da2
+x-request-id: 01a1edec-3a7d-7c50-a8f6-f2042e7a19dc
 cache-control: no-store
-etag: "59790dd68519f35537ae76289a644b4caf1ebbcd47c933830b8f719b7b1c4501"
+etag: "3083d35fddbfa7fb3694641da186157b49d6dcbff8dc46ae2253eaf85e728efd"
 content-type: application/json; charset=utf-8
-content-length: 144
-Date: Sun, 27 Sep 2026 15:30:18 GMT
+content-length: 165
+Date: Wed, 18 Nov 2026 09:10:44 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0e37c-9f28-77e3-8579-d0907e90b1c3","type":"user","username":"Ada","email":null,"enabled":true,"created_at":"2026-09-27T15:29:50.369Z"}
+{"id":"01a1edeb-e4dc-7cd7-94f4-2285df25a87c","type":"user","username":"Ada","email":null,"enabled":true,"created_at":"2026-11-18T09:10:22.166Z","pending_email":null}
 ```
 
 The audit trail for `grace` holds the two renames and nothing for the
 refused ones — the `409` rolled back with its transaction, and the `400`
 and `428` were refused before anything was written:
 
-The same again, now that each row answers `actor_name` and `actor_origin`; the
-ids are a fresh run's, not those above:
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/rename-demo/audit?resource_type=subject&resource_id=$GRACE"; echo
+```
+
+```
+{"items":[{"id":"01a1edec-3a8d-7bea-a2a3-746144b3d387","occurred_at":"2026-11-18T09:10:44.103Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a1ede6-ec0c-7392-9e7b-44c008443b65","actor_client_id":"01a1ede6-ebb3-7706-9a28-51f4cce0dcca","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a1edeb-e4dc-7cd7-94f4-2285df25a87c","request_id":"01a1edec-3a7d-7c50-a8f6-f2042e7a19dc","ip":"172.20.0.1","detail":{"username":{"after":"Ada","before":"grace-hopper"}}},{"id":"01a1edec-13c6-78de-bafd-922db46c0a9a","occurred_at":"2026-11-18T09:10:34.176Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a1ede6-ec0c-7392-9e7b-44c008443b65","actor_client_id":"01a1ede6-ebb3-7706-9a28-51f4cce0dcca","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a1edeb-e4dc-7cd7-94f4-2285df25a87c","request_id":"01a1edec-13b7-7fe7-b7ed-e9009150aa49","ip":"172.20.0.1","detail":{"username":{"after":"grace-hopper","before":"grace"}}}]}
+```
+
+## Changing an email: the person confirms
+
+An administrator does not set an existing address; the person confirms the new
+one. A `PATCH` with a new `email` stores it as the subject's pending change,
+mails a verification link to it and, when the old address is verified, tells
+the old address that a change was asked for. The stored `email` and
+`email_verified` stay as they were until the person follows the link, so the
+old address keeps signing in meanwhile.
+
+- The response, and `GET /subjects/:id`, carry `pending_email`: the pending
+  address, or `null`. The list does not. It is no part of the `ETag`, so an
+  email-only change needs no `If-Match` and leaves the `ETag` as it was.
+- A new request replaces an earlier pending one.
+- The subject's own current address withdraws a pending change. `null` removes
+  the address at once, since removing one needs no proof.
+- An address another subject holds is refused with `409`, as above.
+- Anything else needs a way to send the mail: a relay on the tenant, or the
+  deployment's own sender. Without one the request is refused with `409`
+  `about:blank#no-mail-relay`, before anything is written. A deployment with no
+  public base URL to put in the link refuses with `503`, and rolls the request
+  back.
+- A `username` or `enabled` in the same body applies as it does without an
+  email, and is rolled back with it when the request is refused.
+- One `subject.amend` row records the request, with `email_change`,
+  `pending_email` and the state of the notice in its `detail`. The link's use
+  is the `email.changed` row the person's own change writes.
+
+On the stack the section above began on, which had no relay: a tenant
+`confirm-demo` made with `odudu seed tenant --name confirm-demo --set
+login_with_email=true`, a client `confirm-demo-app` (`odudu seed --tenant
+confirm-demo --client confirm-demo-app --redirect-uri
+https://app.example/callback`), and two subjects seeded with `odudu seed user`,
+`grace` (`grace@example.com`) and `heidi` (`heidi@example.com`), each with
+`--email-verified` and the password `correct horse battery staple`. `P` is
+`http://localhost:3000/admin/tenants/confirm-demo`, `$GRACE` and `$HEIDI` are
+their subject ids, and `signin` is the helper above pointed at this tenant and
+client, so a person can sign in with the address. The request is refused, and a
+read after it shows nothing stored:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "grace.hopper@example.com"}' \
+  $P/subjects/$GRACE
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a1ede8-fab6-70fb-8e9a-3797233aa3f0
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 216
+Date: Wed, 18 Nov 2026 09:07:11 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank#no-mail-relay","title":"Conflict","status":409,"detail":"the tenant has no relay and the deployment no sender, so the mail would only be logged","instance":"01a1ede8-fab6-70fb-8e9a-3797233aa3f0"}
+```
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $P/subjects/$GRACE
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1ede8-fe8c-701d-b129-92140b1871fa
+cache-control: no-store
+etag: "67277af553b784bbec01b1b656af87edb7021c35167eda6265d7cd0537134959"
+content-type: application/json; charset=utf-8
+content-length: 182
+Date: Wed, 18 Nov 2026 09:07:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a1ede8-7f0f-7f37-9eb9-1bc64ec043d9","type":"user","username":"grace","email":"grace@example.com","enabled":true,"created_at":"2026-11-18T09:06:39.496Z","pending_email":null}
+```
+
+Then the same stack was brought up again with a relay, a Mailpit container the
+server sends to, through a file added to the compose command, with the volume
+kept so that every tenant above is still there. The server sends its own mail,
+so the messages arrive a few seconds after the request, and Mailpit's own API
+on port `8092` reads them (emptied before this block):
+
+```yaml
+services:
+  odudu:
+    environment:
+      ODUDU_ALLOW_PRIVATE_SMTP_HOSTS: 'true'
+      ODUDU_SMTP_HOST: mailpit
+      ODUDU_SMTP_PORT: '1025'
+      ODUDU_SMTP_FROM: odudu@docs.local
+      ODUDU_SMTP_STARTTLS: 'false'
+  mailpit:
+    image: axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+    ports:
+      - '127.0.0.1:8092:8025'
+```
+
+The same request now stores the change. The subject keeps its address and its
+`ETag`, and `pending_email` carries the new one:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "grace.hopper@example.com"}' \
+  $P/subjects/$GRACE
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1edee-7af2-7d9e-96a3-998287d7a50a
+cache-control: no-store
+etag: "67277af553b784bbec01b1b656af87edb7021c35167eda6265d7cd0537134959"
+content-type: application/json; charset=utf-8
+content-length: 204
+Date: Wed, 18 Nov 2026 09:13:11 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a1ede8-7f0f-7f37-9eb9-1bc64ec043d9","type":"user","username":"grace","email":"grace@example.com","enabled":true,"created_at":"2026-11-18T09:06:39.496Z","pending_email":"grace.hopper@example.com"}
+```
+
+A read shows the same, and the old address still signs in while the new one does
+not, since it is not `grace`'s address yet:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $P/subjects/$GRACE
+
+signin grace@example.com
+signin grace.hopper@example.com
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1edee-7d8e-71d7-ab37-0b1e7306c79b
+cache-control: no-store
+etag: "67277af553b784bbec01b1b656af87edb7021c35167eda6265d7cd0537134959"
+content-type: application/json; charset=utf-8
+content-length: 204
+Date: Wed, 18 Nov 2026 09:13:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a1ede8-7f0f-7f37-9eb9-1bc64ec043d9","type":"user","username":"grace","email":"grace@example.com","enabled":true,"created_at":"2026-11-18T09:06:39.496Z","pending_email":"grace.hopper@example.com"}
+
+HTTP/1.1 302 Found
+location: https://app.example/callback?code=cLLTGvUSLFFeF0lZBNwTzzhE4oykPMK5X-UDd71cDvE&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconfirm-demo
+HTTP/1.1 200 OK
+<title>Sign in</title>
+```
+
+Two messages went out: the verification link to the new address and, to the
+address `grace` has, the notice that a change was asked for. The notice says
+nothing about what the new address is, so it is true whoever asked:
+
+```bash
+curl -sS http://localhost:8092/api/v1/messages | jq -c '.messages[] | {to: .To[0].Address, subject: .Subject}'
+```
+
+```
+{"to":"grace@example.com","subject":"A new email address was requested for your confirm-demo account"}
+{"to":"grace.hopper@example.com","subject":"Verify your confirm-demo account"}
+```
+
+```bash
+mailed grace@example.com
+LINK=$(mailed grace.hopper@example.com | grep -o 'http://[^ ]*action-token?key=[^ ]*')
+echo "$LINK"
+```
+
+```
+Someone asked to change the email address on your ⁨confirm-demo⁩ account. This address stays on the account until the new one is confirmed.
+
+This happened on 2026-11-18 09:13 UTC.
+
+If this was not you, sign in and review your sign-in methods, change your password if you use one, or contact your administrator right away.
+
+--
+You received this because the email address on your account at ⁨confirm-demo⁩ was asked to change.
+© 2026 Odudu · Powered by odudu
+http://localhost:3000/tenants/confirm-demo/login-actions/action-token?key=yu6lzlrF48wgXHI0c7q8q05D3SreaHnZ3YAtx_0EF-w
+```
+
+An administrator who made a mistake cancels by asking for the address the
+subject already has, which drops the pending change. The link already mailed is
+then refused, with the page every spent or replaced link gets:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "grace@example.com"}' \
+  $P/subjects/$GRACE
+
+curl -sS -X POST --data-urlencode "key=${LINK##*key=}" \
+  http://localhost:3000/tenants/confirm-demo/login-actions/action-token | sed -n '/<h1>/,/<\/main>/p'
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1edee-dd1e-79f5-a8ad-9fbd34e61d1c
+cache-control: no-store
+etag: "67277af553b784bbec01b1b656af87edb7021c35167eda6265d7cd0537134959"
+content-type: application/json; charset=utf-8
+content-length: 182
+Date: Wed, 18 Nov 2026 09:13:36 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a1ede8-7f0f-7f37-9eb9-1bc64ec043d9","type":"user","username":"grace","email":"grace@example.com","enabled":true,"created_at":"2026-11-18T09:06:39.496Z","pending_email":null}
+
+<h1>This link can&#39;t be used</h1>
+<p>It may have already been used, expired, or no longer matches your email address. Request a new verification email and try again.</p>
+<form method="post" action="/tenants/confirm-demo/login-actions/resend-verification">
+  <input type="hidden" name="key" value="yu6lzlrF48wgXHI0c7q8q05D3SreaHnZ3YAtx_0EF-w">
+  <button type="submit">Send a new link</button>
+</form>
+</main>
+```
+
+A new request mails a new link. Following it completes the change: the stored
+address becomes the new one, verified, and `pending_email` is `null` again. The
+`ETag` moves because `email` is part of it. The old address no longer signs in,
+and the new one does:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "grace.hopper@example.com"}' \
+  $P/subjects/$GRACE
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1edee-eea7-7ac6-b4a1-e3adb983ec29
+cache-control: no-store
+etag: "67277af553b784bbec01b1b656af87edb7021c35167eda6265d7cd0537134959"
+content-type: application/json; charset=utf-8
+content-length: 204
+Date: Wed, 18 Nov 2026 09:13:41 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a1ede8-7f0f-7f37-9eb9-1bc64ec043d9","type":"user","username":"grace","email":"grace@example.com","enabled":true,"created_at":"2026-11-18T09:06:39.496Z","pending_email":"grace.hopper@example.com"}
+```
+
+```bash
+LINK=$(mailed grace.hopper@example.com | grep -o 'http://[^ ]*action-token?key=[^ ]*')
+curl -sS -X POST --data-urlencode "key=${LINK##*key=}" \
+  http://localhost:3000/tenants/confirm-demo/login-actions/action-token | sed -n '/<h1>/,/<\/main>/p'
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $P/subjects/$GRACE
+
+signin grace@example.com
+signin grace.hopper@example.com
+```
+
+```
+<h1>Your email address is confirmed</h1>
+<p>Return to the application you were signing in to and sign in again.</p>
+</main>
+HTTP/1.1 200 OK
+x-request-id: 01a1edef-492e-7815-824c-87e1e9eadb62
+cache-control: no-store
+etag: "b49e12e71e23343a95a016ba7c7600f68aff5a68c046b844f60eb5f0b1f65998"
+content-type: application/json; charset=utf-8
+content-length: 189
+Date: Wed, 18 Nov 2026 09:14:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a1ede8-7f0f-7f37-9eb9-1bc64ec043d9","type":"user","username":"grace","email":"grace.hopper@example.com","enabled":true,"created_at":"2026-11-18T09:06:39.496Z","pending_email":null}
+
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 302 Found
+location: https://app.example/callback?code=14nSopzS7u7RNVZu91kFjjt_2M2AXJEqBl_kt29Y75k&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconfirm-demo
+```
+
+An address another subject holds is refused as before, and nothing is mailed:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "grace.hopper@example.com"}' \
+  $P/subjects/$HEIDI
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a1edef-6256-70b5-8436-45eded6b55c7
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 172
+Date: Wed, 18 Nov 2026 09:14:10 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the email \"grace.hopper@example.com\" is already in use","instance":"01a1edef-6256-70b5-8436-45eded6b55c7"}
+```
+
+The trail for `grace` since the first of those requests, reduced to the fields
+that matter: each request, the cancel (`{}`, since no stored value changed) and
+the `email.changed` the link wrote. The `notice` is `sent` because the old
+address was verified; for an address nobody verified it is `skipped_unverified`,
+and for a subject with no address `skipped_none`:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3082/admin/tenants/rename-demo/audit?resource_type=subject&resource_id=$GRACE"; echo
+  "$P/audit?resource_type=subject&resource_id=$GRACE&from=2026-11-18T09:13:11.500Z" \
+  | jq -c '.items | reverse | .[] | {action, outcome, detail}'
 ```
 
 ```
-{"items":[{"id":"01a0ee8f-5fb5-792d-b8a6-34c2673e2c04","occurred_at":"2026-09-29T19:06:08.688Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee8f-5d26-7a80-b7c9-3c64c4f582cf","request_id":"01a0ee8f-5fa4-7964-85ce-e82236b46ff3","ip":"172.22.0.1","detail":{"username":{"after":"Ada","before":"grace-hopper"}}},{"id":"01a0ee8f-5f83-702a-858a-e775655db38b","occurred_at":"2026-09-29T19:06:08.639Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee8f-5d26-7a80-b7c9-3c64c4f582cf","request_id":"01a0ee8f-5f73-7961-bb79-d4978fb330e7","ip":"172.22.0.1","detail":{"username":{"after":"grace-hopper","before":"grace"}}}]}
+{"action":"subject.amend","outcome":"allowed","detail":{"notice":"sent","email_change":"requested","pending_email":"grace.hopper@example.com"}}
+{"action":"subject.amend","outcome":"allowed","detail":{}}
+{"action":"subject.amend","outcome":"allowed","detail":{"notice":"sent","email_change":"requested","pending_email":"grace.hopper@example.com"}}
+{"action":"email.changed","outcome":"allowed","detail":{}}
 ```

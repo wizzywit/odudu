@@ -109,12 +109,12 @@ Admin updates carry the `ETag` of the version they were based on. If somebody ch
 
 ```
 HTTP/1.1 412 Precondition Failed
-x-request-id: 01a13ff3-3986-786b-8fac-4370a66c669f
+x-request-id: 01a1edf1-b1c9-7f43-8f8a-3f18b0b0ba22
 content-type: application/problem+json; charset=utf-8
 ```
 
 ```
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a13ff3-3986-786b-8fac-4370a66c669f"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1edf1-b1c9-7f43-8f8a-3f18b0b0ba22"}
 ```
 
 What to do: read the user again and apply your change to the new version.
