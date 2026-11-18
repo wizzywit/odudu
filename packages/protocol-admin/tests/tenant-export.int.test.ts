@@ -483,17 +483,19 @@ describe('GET /admin/tenants/{tenant}/export', () => {
         return res;
       });
       let waiting = false;
-      for (let attempt = 0; attempt < 50 && !waiting; attempt += 1) {
-        const rows = await fixture.owner
-          .sql`select 1 from pg_locks where locktype = 'advisory' and not granted`;
-        waiting = rows.length > 0;
-        if (!waiting) await new Promise((resolve) => setTimeout(resolve, 100));
+      try {
+        for (let attempt = 0; attempt < 50 && !waiting; attempt += 1) {
+          const rows = await fixture.owner
+            .sql`select 1 from pg_locks where locktype = 'advisory' and not granted`;
+          waiting = rows.length > 0;
+          if (!waiting) await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        expect(waiting).toBe(true);
+        expect(settled).toBe(false);
+      } finally {
+        release();
+        await holder;
       }
-      expect(waiting).toBe(true);
-      expect(settled).toBe(false);
-
-      release();
-      await holder;
       const res = await exporting;
       expect(res.statusCode, res.payload).toBe(200);
       expect(parsed(res.payload).flows.map((flow) => flow.name)).toEqual(['late']);
