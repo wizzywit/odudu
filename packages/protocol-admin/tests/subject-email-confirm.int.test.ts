@@ -11,6 +11,7 @@ import {
 } from '@odudu/domain-identity';
 import { emailOutbox } from '@odudu/email';
 import { newId } from '@odudu/kernel';
+import { sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -114,6 +115,12 @@ const amendRows = (on: AdminFixture, who: Person) =>
       (row) => row.resourceId === who.subjectId,
     ),
   );
+
+const changesOf = (rows: readonly { detail?: unknown }[]): string[] =>
+  rows
+    .map((row) => (row.detail as { email_change?: string } | null)?.email_change)
+    .filter((change): change is string => change !== undefined)
+    .sort();
 
 function keyOf(message: { bodyText: string }): string {
   const found = /action-token\?key=([^\s&"]+)/u.exec(message.bodyText);
@@ -223,9 +230,7 @@ describe('PATCH /subjects/:id with an email', () => {
     expect(await mailOf(relayed, who)).toHaveLength(before);
     const rows = await amendRows(relayed, who);
     expect(rows).toHaveLength(2);
-    expect(rows.filter((row) => JSON.stringify(row.detail).includes('email_change'))).toHaveLength(
-      1,
-    );
+    expect(changesOf(rows)).toEqual(['cancelled', 'requested']);
   });
 
   it('clears the address and any pending change at once for null', async () => {
@@ -239,6 +244,22 @@ describe('PATCH /subjects/:id with an email', () => {
     expect(await userOf(relayed, who)).toMatchObject({ email: null });
     expect(await pendingOf(relayed, who)).toBeNull();
     expect(await mailOf(relayed, who)).toHaveLength(before);
+    expect(changesOf(await amendRows(relayed, who))).toEqual(['cleared', 'requested']);
+  });
+
+  it('claims no change for a cancel or a clear that had nothing to drop', async () => {
+    const held = await person(relayed, { verified: true });
+    expect((await patch(relayed, held, { email: OLD })).statusCode).toBe(200);
+    const none = await person(relayed, { email: null });
+    expect((await patch(relayed, none, { email: null })).statusCode).toBe(200);
+    expect(changesOf(await amendRows(relayed, held))).toEqual([]);
+    expect(changesOf(await amendRows(relayed, none))).toEqual([]);
+  });
+
+  it('records a clear of a stored address with no pending change', async () => {
+    const who = await person(relayed, { verified: true });
+    expect((await patch(relayed, who, { email: null })).statusCode).toBe(200);
+    expect(changesOf(await amendRows(relayed, who))).toEqual(['cleared']);
   });
 
   it('answers 409 for an address another subject holds, in any case, and writes nothing', async () => {
@@ -344,5 +365,51 @@ describe('readSubjectDetail, probed with a foreign tenant_id', () => {
         expect(result).toEqual({ detail: { kind: 'not_found' }, pending: null });
       },
     });
+  });
+});
+
+// A completion takes the address lock and then writes the user row; the
+// administrator's request must take them in that order too, or the two wait
+// on each other and the database aborts one.
+describe('PATCH /subjects/:id racing the completion of the address it names', () => {
+  async function awaitBlockedTransaction(): Promise<void> {
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      const rows = await relayed.owner.db.execute(
+        sql`select count(*)::int as waiting from pg_locks where not granted`,
+      );
+      if (((rows as unknown as { waiting: number }[])[0]?.waiting ?? 0) > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error('the request never blocked; the two transactions did not overlap');
+  }
+
+  it('lets both finish, and the request finds the address already the person’s', async () => {
+    const who = await person(relayed, { verified: true });
+    await withTenant(relayed.app.db, who.tenantId, (tx) =>
+      pendingEmailRepository(tx).set(who.tenantId, who.subjectId, NEW),
+    );
+    let reached = (): void => undefined;
+    let release = (): void => undefined;
+    const holding = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const proceed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const completion = withTenant(relayed.app.db, who.tenantId, async (tx) => {
+      await lockEmailForCreation(tx, who.tenantId, NEW);
+      expect(await pendingEmailRepository(tx).take(who.subjectId, NEW)).toBe(true);
+      reached();
+      await proceed;
+      await userRepository(tx).replaceVerifiedEmail(who.subjectId, NEW);
+    });
+    await holding;
+    const request = patch(relayed, who, { email: NEW });
+    await awaitBlockedTransaction();
+    release();
+
+    const [, res] = await Promise.all([completion, request]);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ email: NEW, pending_email: null });
   });
 });

@@ -680,9 +680,8 @@ export async function readUsernamePolicy(
   return { usernameEditable: settings?.username_editable === true };
 }
 
-// Decided before anything is written: the address lock is the one a completed
-// change takes, so the two take turns, and a refusal here leaves every column
-// as it was, `enabled` included.
+// Decided before anything is written, under the address lock taken above, so a
+// refusal here leaves every column as it was, `enabled` included.
 async function planEmailPatch(
   tx: TenantScopedDatabase,
   deps: AmendSubjectMail,
@@ -692,7 +691,6 @@ async function planEmailPatch(
 ): Promise<AdminEmailPlan | { kind: 'no_mail_relay' }> {
   let holder: string | null = null;
   if (asked !== null) {
-    await lockEmailForCreation(tx, tenantId, asked);
     holder = await userRepository(tx).holderOfEmail(asked);
     if (holder !== null && holder !== subjectId) throw new EmailTakenError();
   }
@@ -703,8 +701,9 @@ async function planEmailPatch(
   return plan;
 }
 
-// What the audit row adds for a change that waits on the person, which its
-// before and after diff cannot show because the stored address stays.
+// What the audit row adds for a change its before and after diff cannot show:
+// one waiting on the person, where the stored address stays, or a withdrawal
+// of it. Null when nothing was requested, withdrawn or removed.
 async function applyEmailPlan(
   tx: TenantScopedDatabase,
   deps: AmendSubjectMail,
@@ -713,9 +712,11 @@ async function applyEmailPlan(
 ): Promise<Record<string, unknown> | null> {
   const pending = pendingEmailRepository(tx);
   if (plan.kind !== 'confirm') {
+    const dropped = (await pending.forSubject(user.subjectId)) !== null;
     await pending.clear(user.subjectId);
-    if (plan.kind === 'clear') await userRepository(tx).updateEmail(user.subjectId, null);
-    return null;
+    if (plan.kind === 'cancel') return dropped ? { email_change: 'cancelled' } : null;
+    if (user.email !== null) await userRepository(tx).updateEmail(user.subjectId, null);
+    return dropped || user.email !== null ? { email_change: 'cleared' } : null;
   }
   await pending.set(user.tenantId, user.subjectId, plan.address);
   const [tenant] = await tx
@@ -759,6 +760,11 @@ async function amendSubjectUnguarded(
     }
   }
 
+  // Before the row locks: a completed change takes this lock and then writes
+  // the user row, so taking them the other way round could deadlock the two.
+  if (typeof input.values.email === 'string') {
+    await lockEmailForCreation(tx, input.tenantId, input.values.email);
+  }
   const locked = await lockSubjectForAmend(tx, input.subjectId);
   if (locked === null) return { kind: 'not_found' };
   const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.amend', input);
