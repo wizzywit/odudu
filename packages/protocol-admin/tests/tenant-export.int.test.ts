@@ -495,6 +495,7 @@ describe('GET /admin/tenants/{tenant}/export', () => {
       } finally {
         release();
         await holder;
+        await exporting.catch(() => undefined);
       }
       const res = await exporting;
       expect(res.statusCode, res.payload).toBe(200);
