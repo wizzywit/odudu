@@ -272,6 +272,11 @@ describe('a mail queued under a published theme', () => {
         .update(tenants)
         .set({ verifyEmail: true, registrationAllowed: true })
         .where(eq(tenants.id, w.tenantId));
+      // A reset link goes only to a verified address on a tenant that asks for proof.
+      await owner.db
+        .update(users)
+        .set({ emailVerified: true })
+        .where(eq(users.tenantId, w.tenantId));
       const form = { 'content-type': 'application/x-www-form-urlencoded' };
       const reset = await broken.inject({
         method: 'POST',

@@ -136,6 +136,7 @@ test.beforeAll(() => {
     `--password=${PASSWORD}`,
     '--email',
     `resetter-${run}@example.test`,
+    '--email-verified',
   ]);
 });
 

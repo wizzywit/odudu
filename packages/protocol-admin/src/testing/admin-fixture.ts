@@ -166,7 +166,7 @@ export interface AdminFixture {
   ): Promise<string>;
 
   // Subjects and clients.
-  createSubject(tenantName: string, username: string): Promise<{ id: string }>;
+  createSubject(tenantName: string, username: string, email?: string): Promise<{ id: string }>;
   createConfidentialClient(
     tenantName: string,
     overrides: Partial<{ grantTypes: string[]; redirectUris: string[] }>,
@@ -810,11 +810,20 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     return mintAdminLikeToken(ctx, TENANT_CAPABILITIES, [options.audience]);
   }
 
-  async function createSubject(tenantName: string, username: string): Promise<{ id: string }> {
+  async function createSubject(
+    tenantName: string,
+    username: string,
+    email?: string,
+  ): Promise<{ id: string }> {
     const ctx = requireTenant(tenantName);
     return withTenant(app.db, ctx.id, async (tx) => {
       const subject = await subjectRepository(tx).create({ tenantId: ctx.id, type: 'user' });
-      await userRepository(tx).create({ subjectId: subject.id, tenantId: ctx.id, username });
+      await userRepository(tx).create({
+        subjectId: subject.id,
+        tenantId: ctx.id,
+        username,
+        ...(email === undefined ? {} : { email }),
+      });
       return { id: subject.id };
     });
   }
