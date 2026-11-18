@@ -24,6 +24,10 @@ What it does:
   the `ETag` does not cover it.
 - The console's Profile tab says **Change pending** with **Cancel the change**,
   which is a `PATCH` back to the current address.
+- A completed reset queues a "Your password was reset" notice to the address on
+  the account, verified or not, in the transaction that sets the password. It has
+  no link or secret, is in English and Arabic (`resetCompleted.*`, overridable),
+  and the `password.reset` audit row says `notice: sent` or `skipped_none`.
 - With `verify_email` on, a reset link is mailed only to a verified address. The
   answer and the cost are those of an address nobody holds, and the skipped
   request does not spend the address's mail budget.
@@ -52,13 +56,19 @@ What it found:
   figures disagreed (`content-length` against `wc -c`). It was fetched again on a
   live stack: 113 paths and 879,493 bytes in both.
 
+What the whole-branch review found, fixed:
+
+- The OpenAPI text of `PATCH /subjects/:id` said an email change replaces the
+  address; it now says the change is held pending.
+- The `subject.amend` audit row had no marker for a withdrawn or removed pending
+  change. It now says `email_change: cancelled` or `cleared`, and `cleared`
+  also when a stored address is removed.
+- The PATCH took the row locks before the address lock, which a completed change
+  takes the other way round; it now takes the address lock first, with a race
+  test for the pair.
+
 What it left open:
 
-- A completed reset sends the person no notice. NIST SP 800-63B-4 and the OWASP
-  Authentication Cheat Sheet ask for one; the credential notices cover an
-  authenticator, a passkey, recovery codes and an email change. It is a row in
-  `docs/NEXT.md` for the owner to place: it is P4f's topic and P4f has closed, and
-  no open phase covers account recovery.
 - On a tenant with `verify_email` off, a reset link still goes to an address
   nobody proved. That is the setting doing what it says, and the settings page
   and the changelog say so.

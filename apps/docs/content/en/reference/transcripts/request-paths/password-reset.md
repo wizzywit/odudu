@@ -681,8 +681,8 @@ odudu seed tenant --name reset-audit --set reset_password_allowed=true
 ```
 
 ```
-{"created":true,"tenant":"reset-audit","tenantId":"01a1d113-6bda-7e80-b49f-e9e8f18e45fb","clientId":"reset-audit-spa","userSubjectId":"01a1d113-6cfa-7493-8adf-78cda82424ea"}
-{"command":"tenant","created":false,"tenant":"reset-audit","tenantId":"01a1d113-6bda-7e80-b49f-e9e8f18e45fb","settings":["reset_password_allowed"]}
+{"created":true,"tenant":"reset-audit","tenantId":"01a1ee72-9529-79c1-820f-b85111b228a7","clientId":"reset-audit-spa","userSubjectId":"01a1ee72-95d2-75b8-8e08-f05ec3426199"}
+{"command":"tenant","created":false,"tenant":"reset-audit","tenantId":"01a1ee72-9529-79c1-820f-b85111b228a7","settings":["reset_password_allowed"]}
 ```
 
 The first link was left unredeemed past its five minutes. That it is
@@ -692,7 +692,7 @@ message's `email_outbox` row:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3092/tenants/reset-audit/login-actions/reset-password \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
   -H 'x-request-id: reset-audit-request-1' --data-urlencode 'email=ada@example.com'
 
 # … five minutes later
@@ -701,9 +701,9 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
      from action_tokens a join tenants t on t.id = a.tenant_id
     where t.name = 'reset-audit';"
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-expired' \
-  --data-urlencode 'key=xUIR1fCWgmk6eaefSUSo7S8DZrQFfNckJDY8INObRX4' \
+  --data-urlencode 'key=0Tth6Ed0qkGgDetmHKEyvVIKB81ld38otRFg45abqEM' \
   --data-urlencode 'password=a brand new password'
 ```
 
@@ -718,37 +718,37 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 ```
 
 A second request mints a fresh link, whose key is read from the message it
-queued — the newest of the two `reset-audit` has:
+queued — the newest reset link `reset-audit` has:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3092/tenants/reset-audit/login-actions/reset-password \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
   -H 'x-request-id: reset-audit-request-2' --data-urlencode 'email=ada@example.com'
 docker compose exec -T postgres psql -U odudu -d odudu -At -c \
   "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
      from email_outbox o join tenants t on t.id = o.tenant_id
-    where t.name = 'reset-audit' order by o.created_at desc limit 1;"
+    where t.name = 'reset-audit' and o.subject like 'Reset%' order by o.created_at desc limit 1;"
 ```
 
 ```
 200
-IBAVeKULTmDC5Y1_ntwUJU5g58nTSGyNy-MOozbik2E
+iIDDW43XM4uhu2HCiKQdUdzzU72SW4mVGATk5JamXNQ
 ```
 
 That link is then submitted with a password the policy refuses, with one it
 accepts, and once more after it is spent:
 
 ```bash
-KEY=IBAVeKULTmDC5Y1_ntwUJU5g58nTSGyNy-MOozbik2E
+KEY=iIDDW43XM4uhu2HCiKQdUdzzU72SW4mVGATk5JamXNQ
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-weak' --data-urlencode "key=$KEY" --data-urlencode 'password=weak'
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-ada' --data-urlencode "key=$KEY" \
   --data-urlencode 'password=a brand new password'
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3092/tenants/reset-audit/login-actions/action-token \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
   -H 'x-request-id: reset-audit-replay' --data-urlencode "key=$KEY" \
   --data-urlencode 'password=another password'
 
@@ -768,15 +768,15 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
 400
 200
 400
--[ RECORD 1 ]----+-------------------------------------
+-[ RECORD 1 ]----+-----------------------------------------------
 request_id       | reset-audit-ada
 event_type       | credential
 action           | password.reset
 outcome          | allowed
-actor_subject_id | 01a1d113-6cfa-7493-8adf-78cda82424ea
+actor_subject_id | 01a1ee72-95d2-75b8-8e08-f05ec3426199
 resource_type    | subject
-resource_id      | 01a1d113-6cfa-7493-8adf-78cda82424ea
-detail           | {"breached_check": "dataset_empty"}
+resource_id      | 01a1ee72-95d2-75b8-8e08-f05ec3426199
+detail           | {"notice": "sent", "breached_check": "passed"}
 
  rows_naming_either
 --------------------
@@ -784,7 +784,9 @@ detail           | {"breached_check": "dataset_empty"}
 (1 row)
 ```
 
-Six requests, one row. Its `detail` says what the breached-password check decided: `dataset_empty`, since no dataset had been loaded on this stack, so the check found nothing in a table that holds nothing. The last query reads every audit row this stack
+Six requests, one row. Its `detail` says what the breached-password check decided: `passed`, since the dataset
+the next section loads, already on this stack, holds two hashes and the password is in neither (a stack with none says `dataset_empty`), and whether the person was told by mail,
+`sent` here ([below](#the-person-is-told-the-password-was-reset)). The last query reads every audit row this stack
 holds, in every tenant, as text: none carries the password that was set or
 the key that set it.
 
@@ -803,7 +805,7 @@ odudu seed \
   --user ada --password correct-horse-battery --email ada@example.com
 odudu seed tenant --name reset-breach --set reset_password_allowed=true
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3092/tenants/reset-breach/login-actions/reset-password \
+  -X POST http://localhost:3000/tenants/reset-breach/login-actions/reset-password \
   --data-urlencode 'email=ada@example.com'
 docker compose exec -T postgres psql -U odudu -d odudu -At -c \
   "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
@@ -812,21 +814,21 @@ docker compose exec -T postgres psql -U odudu -d odudu -At -c \
 ```
 
 ```
-{"created":true,"tenant":"reset-breach","tenantId":"01a1d11e-a4cb-7d21-8a92-ff277d1a4310","clientId":"reset-breach-spa","userSubjectId":"01a1d11e-a5f6-7183-ac67-83b766e712dd"}
-{"command":"tenant","created":false,"tenant":"reset-breach","tenantId":"01a1d11e-a4cb-7d21-8a92-ff277d1a4310","settings":["reset_password_allowed"]}
+{"created":true,"tenant":"reset-breach","tenantId":"01a1ee72-c89a-7582-837d-99f25aedad9d","clientId":"reset-breach-spa","userSubjectId":"01a1ee72-c93b-7833-a82a-46a3a309492a"}
+{"command":"tenant","created":false,"tenant":"reset-breach","tenantId":"01a1ee72-c89a-7582-837d-99f25aedad9d","settings":["reset_password_allowed"]}
 200
-L73HGBvDeXlFe6FR9kDAYiaGVp7fB56DT-i0sqIn-ic
+QDQxzNEflBfXmZa0U1Ylh-nDpue0oV6-zDhC_ap4F7o
 ```
 
 The link is submitted with a password in the file, which is refused with `400` and the form's own message, and the table shows
 the link is still unspent:
 
 ```bash
-KEY=L73HGBvDeXlFe6FR9kDAYiaGVp7fB56DT-i0sqIn-ic
+KEY=QDQxzNEflBfXmZa0U1Ylh-nDpue0oV6-zDhC_ap4F7o
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3092/tenants/reset-breach/login-actions/action-token \
+  -X POST http://localhost:3000/tenants/reset-breach/login-actions/action-token \
   --data-urlencode "key=$KEY" --data-urlencode 'password=a leaked passphrase from a breach'
-curl -sS -X POST http://localhost:3092/tenants/reset-breach/login-actions/action-token \
+curl -sS -X POST http://localhost:3000/tenants/reset-breach/login-actions/action-token \
   --data-urlencode "key=$KEY" --data-urlencode 'password=a leaked passphrase from a breach' \
   | grep -E 'role="alert"|<li id="form-error'
 docker compose exec -T postgres psql -U odudu -d odudu -c \
@@ -849,7 +851,7 @@ The same link then takes a password that is in no list, and the `password.reset`
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3092/tenants/reset-breach/login-actions/action-token \
+  -X POST http://localhost:3000/tenants/reset-breach/login-actions/action-token \
   --data-urlencode "key=$KEY" --data-urlencode 'password=a brand new password'
 docker compose exec -T postgres psql -U odudu -d odudu -c \
   "SELECT action, detail FROM audit_events
@@ -859,9 +861,9 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
 
 ```
 200
-     action     |            detail
-----------------+------------------------------
- password.reset | {"breached_check": "passed"}
+     action     |                     detail
+----------------+------------------------------------------------
+ password.reset | {"notice": "sent", "breached_check": "passed"}
 (1 row)
 ```
 
@@ -968,4 +970,92 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
  ada@example.com   | Reset your reset-proof password
  grace@example.com | Reset your reset-proof password
 (2 rows)
+```
+
+## The person is told the password was reset
+
+A reset that sets a password queues one more message, in the transaction that
+set it: a notice to the address on the account, whether or not anybody verified
+it, since a person who never verified an address is the one an unnoticed reset
+would hurt most. It says that the password was reset by a mailed link, and
+when. It carries no link, no key and no password. An account with no address
+is told nothing, and the audit row says `skipped_none`. A tenant's mail look
+and message overrides (`resetCompleted.*`) apply as to every other mail.
+
+This ran in a tenant of its own, `reset-notice`, with reset on and `verify_email`
+off, on the stack the sections above ran on, and a person `grace` whose address
+is not verified:
+
+```bash
+odudu seed tenant --name reset-notice --set reset_password_allowed=true
+odudu seed user --tenant reset-notice --username grace --password correct-horse-battery \
+  --email grace@example.com
+```
+
+```
+{"command":"tenant","created":true,"tenant":"reset-notice","tenantId":"01a1ee72-ee76-78ba-b52a-e21baf6d2220","settings":["reset_password_allowed"]}
+{"command":"user","tenant":"reset-notice","tenantId":"01a1ee72-ee76-78ba-b52a-e21baf6d2220","username":"grace","userSubjectId":"01a1ee72-f0fb-7599-b64f-6f6924f32a7d"}
+```
+
+A reset is requested and its link read from the outbox:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-notice/login-actions/reset-password \
+  --data-urlencode 'email=grace@example.com'
+docker compose exec -T postgres psql -U odudu -d odudu -At -c \
+  "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'reset-notice' order by o.created_at desc limit 1;"
+```
+
+```
+200
+61L00dtCN976sHaWHa58_wWocxu-xZQIELpzkomnjGE
+```
+
+The link sets a password. The tenant's outbox then holds the reset link and the
+notice, the notice's text has no link in it, and the audit row names the notice:
+
+```bash
+KEY=61L00dtCN976sHaWHa58_wWocxu-xZQIELpzkomnjGE
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-notice/login-actions/action-token \
+  --data-urlencode "key=$KEY" --data-urlencode 'password=a brand new password'
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select o.to_address, o.subject
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'reset-notice'
+    order by o.created_at;"
+docker compose exec -T postgres psql -U odudu -d odudu -At -c \
+  "select o.body_text
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'reset-notice' and o.subject like 'Your password was reset%';"
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select action, detail from audit_events
+    where tenant_id = (select id from tenants where name = 'reset-notice')
+      and action = 'password.reset';"
+```
+
+```
+200
+    to_address     |                        subject
+-------------------+-------------------------------------------------------
+ grace@example.com | Reset your reset-notice password
+ grace@example.com | Your password was reset for your reset-notice account
+(2 rows)
+
+The password on your ⁨reset-notice⁩ account was reset using a mailed link.
+
+This happened on 2026-11-18 11:37 UTC.
+
+If this was not you, sign in and review your sign-in methods, change your password if you use one, or contact your administrator right away.
+
+--
+You received this because the password on your account at ⁨reset-notice⁩ was reset.
+© 2026 Odudu · Powered by odudu
+     action     |                     detail
+----------------+------------------------------------------------
+ password.reset | {"notice": "sent", "breached_check": "passed"}
+(1 row)
 ```
