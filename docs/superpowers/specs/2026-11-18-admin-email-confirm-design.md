@@ -104,8 +104,11 @@ add to this set, but the existing members remain.
 
 Rule: **when the tenant's `verify_email` setting is on, a password-reset request
 mails a link only to a verified address.** When it is off the tenant has chosen
-to accept unproved addresses, so reset behaves as today. This is my call; the
-alternatives were gating always (breaks recovery for every tenant that turns
+to accept unproved addresses, so reset behaves as today. The owner confirmed it on 2026-11-18 after research found no
+standard that conditions reset on a tenant setting: NIST SP 800-63B-4 and
+Amazon Cognito require a verified recovery address, Auth0's and Keycloak's
+default reset flows send to unverified ones, and OWASP is silent. The rule is
+Odudu's own compromise between them. The alternatives were gating always (breaks recovery for every tenant that turns
 `verify_email` off, whose addresses are never verified) and never (leaves the
 hazard).
 
@@ -124,6 +127,10 @@ hazard).
   reset to an unproved address works as it does today. The plan records that in
   the concept page and the changelog rather than in a `docs/NEXT.md` row, since
   it is the tenant's setting doing what it says.
+
+NIST and OWASP also want a notice to the person after a reset. The plan
+checks whether a completed reset already sends one and, if not, places it by
+grepping `docs/NEXT.md` and the roadmap first.
 
 Tests the plan owns: the lookup used by reset takes the tenant's `verify_email`
 (one settings read, already made by the registration path; no new query per
