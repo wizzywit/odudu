@@ -7,7 +7,7 @@ import {
   setRequiredActionsResponseSchema,
   setRolesResponseSchema,
   setSubjectGroupsResponseSchema,
-  subjectSchema,
+  subjectDetailSchema,
   usernamePolicySchema,
 } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
@@ -35,7 +35,7 @@ describe('subjects tools', () => {
   });
   describeReadTool({
     tool: named('get_subject'),
-    response: subjectSchema,
+    response: subjectDetailSchema,
     pattern: '/admin/tenants/:tenant/subjects/:id',
     input: { id: '0192a0a0-0000-7000-8000-000000000001' },
     params: { id: '0192a0a0-0000-7000-8000-000000000001' },
