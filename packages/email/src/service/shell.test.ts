@@ -8,6 +8,7 @@ import {
   renderRegistrationDuplicate,
   renderRequiredActions,
   renderSecondFactorRemoved,
+  renderResetCompleted,
   renderResetPassword,
   renderSmtpTest,
   renderVerifyEmail,
@@ -74,6 +75,11 @@ const kinds: Record<string, Kind> = {
         now,
         change: { kind: 'totp_added' },
       }),
+    button: null,
+  },
+  'reset completed': {
+    render: (tenantDisplayName, now = NOW) =>
+      renderResetCompleted({ to: base.to, tenantDisplayName, now }),
     button: null,
   },
   'smtp test': {

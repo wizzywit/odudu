@@ -1,7 +1,7 @@
 import { writeFailureText } from '#/shared/lib/services/failure';
 import type { GatewayFailure } from '#/shared/lib/services/result';
 import { subjectRefusal } from '#/shared/lib/services/capabilities';
-import { type Subject } from '#/entities/subject';
+import { type Subject, type SubjectChanges } from '#/entities/subject';
 
 // A service subject has no `users` row: no username, email,
 // profile, password or lockout, since it signs in as itself.
@@ -42,4 +42,24 @@ export function subjectWriteFailure(failure: GatewayFailure, name: string, verb:
         ? `${name} was not ${verb}: ${subjectRefusal(name, 'manage-users')}`
         : null,
   });
+}
+
+export const ACCOUNT_DESCRIPTION =
+  'How the subject signs in and is written to. A new email is mailed a link, and replaces the current one once the person follows it.';
+
+export const CANCEL_PENDING_LABEL = 'Cancel the change';
+
+export function pendingChangeText(address: string | null | undefined): string | null {
+  return address === null || address === undefined
+    ? null
+    : `Change pending: ${address}. The current address stays until they confirm it.`;
+}
+
+// The server reads a PATCH with the current address as withdrawing a pending change.
+export function cancelPendingChange(subject: Pick<Subject, 'email'>): SubjectChanges {
+  return { email: subject.email };
+}
+
+export function pendingCancelFailure(failure: GatewayFailure, name: string): string {
+  return subjectWriteFailure(failure, `The pending change for ${name}`, 'cancelled');
 }

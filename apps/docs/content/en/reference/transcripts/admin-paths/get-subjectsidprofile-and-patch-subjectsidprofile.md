@@ -21,9 +21,9 @@ row — answers `404`, the same as one that does not exist at all.
 
 **Submitting a different `phone_number` without also setting
 `phone_number_verified` in the same request resets it to `false`.** A
-different number is not a verified one — the same reasoning `updateEmail`
-resets `email_verified` to `false` whenever `PATCH /subjects/:id` changes
-the address. Resubmitting the same number — an echoed full-object
+different number is not a verified one — the same reasoning that keeps a new
+email address from being stored as verified: `PATCH /subjects/:id` holds it as
+a pending change until the person follows a mailed link. Resubmitting the same number — an echoed full-object
 `PATCH`, say — leaves a verified flag exactly as it was.
 
 After a further rebuild, in a tenant of its own, `profile-demo2`, on a fresh

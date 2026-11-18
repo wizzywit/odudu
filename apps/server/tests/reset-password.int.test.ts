@@ -8,7 +8,7 @@ import {
   runMigrations,
   type DatabaseHandle,
 } from '@odudu/db';
-import { userCredentials } from '@odudu/domain-identity';
+import { userCredentials, users } from '@odudu/domain-identity';
 import {
   capturingSender,
   emailOutbox,
@@ -117,6 +117,32 @@ async function setResetPasswordAllowed(tenantId: string, allowed: boolean): Prom
     .update(tenants)
     .set({ resetPasswordAllowed: allowed })
     .where(eq(tenants.id, tenantId));
+}
+
+async function setVerifyEmail(tenantId: string, on: boolean): Promise<void> {
+  await owner.db.update(tenants).set({ verifyEmail: on }).where(eq(tenants.id, tenantId));
+}
+
+async function markVerified(tenantId: string): Promise<void> {
+  await owner.db.update(users).set({ emailVerified: true }).where(eq(users.tenantId, tenantId));
+}
+
+async function queuedMail(): Promise<number> {
+  return (await owner.db.select().from(emailOutbox)).length;
+}
+
+async function resetTenant(): Promise<{ tenantName: string; tenantId: string }> {
+  const tenantName = `reset-${newId()}`;
+  const seeded = await seed({
+    tenant: tenantName,
+    clientId: 'reset-spa',
+    redirectUris: [REDIRECT_URI],
+    username: 'ada',
+    password: PASSWORD,
+    email: EMAIL,
+  });
+  await setResetPasswordAllowed(seeded.tenantId, true);
+  return { tenantName, tenantId: seeded.tenantId };
 }
 
 async function setPasswordMaxAgeDays(tenantId: string, days: number): Promise<void> {
@@ -445,6 +471,50 @@ describe('password reset, through the real composition root', () => {
   });
 });
 
+describe('a reset where the tenant asks for a verified address', () => {
+  it('queues nothing for an unverified address, answers as for an unknown one, and spends no mail budget', async () => {
+    const { tenantName, tenantId } = await resetTenant();
+    await setVerifyEmail(tenantId, true);
+    const app = buildTestApp();
+    await app.ready();
+
+    try {
+      const unknown = await requestReset(app, tenantName, 'nobody@example.test');
+      // More requests than the address's hourly mail budget allows.
+      const unverified = await Promise.all(
+        [1, 2, 3, 4].map(() => requestReset(app, tenantName, EMAIL)),
+      );
+      for (const res of unverified) {
+        expect(res.statusCode).toBe(unknown.statusCode);
+        expect(res.body).toBe(unknown.body);
+      }
+      expect(await queuedMail()).toBe(0);
+
+      await markVerified(tenantId);
+      const verified = await requestReset(app, tenantName, EMAIL);
+      expect(verified.statusCode).toBe(unknown.statusCode);
+      expect(verified.body).toBe(unknown.body);
+      expect(await queuedMail()).toBe(1);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('still mails an unverified address when verify_email is off', async () => {
+    const { tenantName } = await resetTenant();
+    const app = buildTestApp();
+    await app.ready();
+
+    try {
+      const res = await requestReset(app, tenantName, EMAIL);
+      expect(res.statusCode).toBe(200);
+      expect(await queuedMail()).toBe(1);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 describe('a required-actions link, through the real composition root', () => {
   it('sets the password and leaves the rest for the next sign-in to ask', async () => {
     const tenantName = `actions-${newId()}`;
@@ -572,6 +642,88 @@ describe('a required-actions link, through the real composition root', () => {
       expect(submitted.statusCode).toBe(200);
       const signIn = await attemptLogin(app, tenantName, 'a brand new password');
       expect(signIn.headers.location).toContain('code=');
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('the notice a completed reset sends', () => {
+  // The link's own mail is drained and the queue emptied, so what is left
+  // afterwards is only what the reset itself queued.
+  async function mailedLink(app: FastifyInstance, tenantName: string): Promise<string> {
+    const sender = capturingSender();
+    await requestReset(app, tenantName, EMAIL);
+    await drainOutbox(sender);
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no reset mail sent');
+    await owner.db.delete(emailOutbox);
+    return extractLink(message);
+  }
+
+  async function resetNotice(tenantId: string): Promise<unknown> {
+    const rows = await owner.sql<{ detail: Record<string, unknown> }[]>`
+      select detail from audit_events
+      where tenant_id = ${tenantId} and action = 'password.reset'`;
+    return rows[0]?.detail.notice;
+  }
+
+  it('goes to the address on file, verified or not, and records that it was sent', async () => {
+    for (const verified of [true, false]) {
+      const { tenantName, tenantId } = await resetTenant();
+      await owner.db
+        .update(users)
+        .set({ emailVerified: verified })
+        .where(eq(users.tenantId, tenantId));
+      await setVerifyEmail(tenantId, false);
+      const app = buildTestApp();
+      await app.ready();
+      try {
+        const link = await mailedLink(app, tenantName);
+        expect((await submitNewPassword(app, link, 'a brand new password')).statusCode).toBe(200);
+
+        const sender = capturingSender();
+        await drainOutbox(sender);
+        expect(sender.sent).toHaveLength(1);
+        const [notice] = sender.sent;
+        expect(notice?.to).toBe(EMAIL);
+        expect(notice?.subject).toContain('Your password was reset');
+        expect(notice?.text).not.toMatch(/https?:/u);
+        expect(await resetNotice(tenantId)).toBe('sent');
+      } finally {
+        await app.close();
+      }
+    }
+  });
+
+  it('is skipped without a trace for a subject with no address', async () => {
+    const { tenantName, tenantId } = await resetTenant();
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const link = await mailedLink(app, tenantName);
+      await owner.db.update(users).set({ email: null }).where(eq(users.tenantId, tenantId));
+      expect((await submitNewPassword(app, link, 'a brand new password')).statusCode).toBe(200);
+      expect(await queuedMail()).toBe(0);
+      expect(await resetNotice(tenantId)).toBe('skipped_none');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('is not sent when the reset is refused', async () => {
+    const { tenantName, tenantId } = await resetTenant();
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const link = await mailedLink(app, tenantName);
+      expect((await submitNewPassword(app, link, 'short')).statusCode).toBe(400);
+      expect(await queuedMail()).toBe(0);
+
+      const spent = link.replace(/key=[^&]+/u, 'key=not-a-real-key');
+      expect((await submitNewPassword(app, spent, 'a brand new password')).statusCode).toBe(400);
+      expect(await queuedMail()).toBe(0);
+      expect(await resetNotice(tenantId)).toBeUndefined();
     } finally {
       await app.close();
     }

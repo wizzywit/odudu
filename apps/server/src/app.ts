@@ -21,6 +21,7 @@ import {
   dnsChallengeResolver,
   hostState,
   tenantAddressing,
+  tenantSettingsRepository as tenantSettingsStore,
   type HostState,
   type ResolveTxt,
   type TenantAddressing,
@@ -986,6 +987,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       if (user === null) throw new Error(`no user found for subject ${subjectId}`);
       return user.username;
     },
+    noticeAddress: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      return user === null ? null : { email: user.email, locale: user.locale };
+    },
     evaluatePassword,
     breachedCheck: breachedPasswordCheck,
     // A subject with no password credential at all has nothing to leave
@@ -1053,8 +1058,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       const user = holder === null ? null : await users.bySubjectId(holder);
       return user?.email == null
         ? null
-        : { subjectId: user.subjectId, email: user.email, locale: user.locale };
+        : {
+            subjectId: user.subjectId,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            locale: user.locale,
+          };
     },
+    requiresVerifiedAddress: async (tx, tenantId) =>
+      (await tenantSettingsStore(tx).byId(tenantId))?.verify_email === true,
   });
 
   return app;

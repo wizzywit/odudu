@@ -417,6 +417,23 @@ export function renderOwnChange(input: OwnChangeInput): EmailMessage {
   });
 }
 
+export type ResetCompletedInput = NoticeInput;
+
+// Said to the address on file after a mailed link set a new password. It
+// carries no link, code or secret, so it goes whether or not the address is
+// verified.
+export function renderResetCompleted(input: ResetCompletedInput): EmailMessage {
+  return renderNotice({
+    input,
+    subject: 'resetCompleted.subject',
+    heading: 'resetCompleted.heading',
+    preheader: 'resetCompleted.preheader',
+    reason: 'resetCompleted.reason',
+    advice: 'own.notYou',
+    lines: ['resetCompleted.text', 'own.when'],
+  });
+}
+
 export interface SmtpTestInput extends MailContext {
   readonly to: string;
   readonly tenantDisplayName: string;

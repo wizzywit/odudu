@@ -148,8 +148,8 @@ export function userRepository(tx: TenantScopedDatabase) {
 
     // Password reset's lookup: users_email_unique (0023) is (tenant_id,
     // email), so this is at most one row per tenant. A user with no email
-    // on file simply never matches, the same way an unverified address
-    // does not gate this — reset and verification are independent actions.
+    // on file simply never matches. Verification does not gate this lookup;
+    // reset reads the tenant's verify_email through the composition root.
     async byEmail(email: string): Promise<UserRecord | null> {
       const rows = await tx.select().from(users).where(eq(users.email, email));
       const row = rows[0];

@@ -9,7 +9,7 @@ import {
   type AccountEmailPurpose,
 } from '#/usecase/account-email';
 import { type ReturnRequest, returnRequestOf } from '#/service/return-target';
-import { problem, sendProblem } from '#/view/problem';
+import { noMailRelayProblem, noPublicBaseUrlProblem, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 import { targetCeilingProblem } from '#/view/routes/subjects';
@@ -132,31 +132,13 @@ function accountEmailHandler(deps: AccountEmailRouteDeps, purposeOf: PurposeOf):
           ),
         );
       case 'no_mail_relay':
-        return sendProblem(
-          reply,
-          request,
-          problem(
-            409,
-            'about:blank#no-mail-relay',
-            'Conflict',
-            'the tenant has no relay and the deployment no sender, so the mail would only be logged',
-          ),
-        );
+        return sendProblem(reply, request, noMailRelayProblem());
       case 'unavailable':
         request.log.error(
           { tenant: tenantName },
           'account email refused: ODUDU_PUBLIC_BASE_URL is unset',
         );
-        return sendProblem(
-          reply,
-          request,
-          problem(
-            503,
-            'about:blank',
-            'Service Unavailable',
-            'the deployment has no public base URL to put in a link',
-          ),
-        );
+        return sendProblem(reply, request, noPublicBaseUrlProblem());
     }
   };
 }

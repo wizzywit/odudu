@@ -86,6 +86,13 @@ export const subjectSchema = z.object({
 });
 export type Subject = z.infer<typeof subjectSchema>;
 
+// One subject read alone, which also says what its address is waiting to become.
+// A list carries no such field.
+export const subjectDetailSchema = subjectSchema.extend({
+  pending_email: z.string().nullable().optional(),
+});
+export type SubjectDetail = z.infer<typeof subjectDetailSchema>;
+
 // What a listed subject holds of the admin vocabulary, carried only by a
 // listing filtered by `capability`: each name held effectively, and whether
 // it is assigned directly rather than only through a group or a composite.

@@ -19,6 +19,7 @@ import {
 import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { NO_AMEND_MAIL } from '#/testing/amend-mail';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { bulkSubjects } from '#/usecase/bulk-subjects';
 import { clearLockouts } from '#/usecase/lockouts';
@@ -372,6 +373,7 @@ describe('bulkSubjects, probed with a foreign tenant_id', () => {
               subjectAudit: () => Promise.resolve(),
               sessionAudit: () => Promise.resolve(),
               kek: Buffer.alloc(32, 7),
+              mail: NO_AMEND_MAIL,
             },
             {
               tenantId: foreign,

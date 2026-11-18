@@ -16,6 +16,7 @@ import { peekActionToken, type LinkedRequiredAction } from '#/usecase/action-tok
 import { type PasswordFailure } from '#/view/password-rules';
 import {
   completePasswordReset,
+  type CompletePasswordResetDeps,
   type AccountRecoveryDeps,
   type PasswordPolicy,
   type PolicyViolation,
@@ -54,6 +55,7 @@ import {
   renderRegistrationUsernameGonePage,
 } from '#/view/registration-html';
 import { brandedLocale, type BrandedLocaleDeps } from '#/view/request-locale';
+import { type MailLookResolver } from '@odudu/email';
 
 export interface ActionTokenTenantLookup {
   readonly id: string;
@@ -80,6 +82,7 @@ export type IssuerSource = Pick<FastifyRequest, 'protocol' | 'host'> & {
 };
 
 export interface ActionTokenRouteDeps extends BrandedLocaleDeps {
+  readonly resolveMailLook?: MailLookResolver | undefined;
   readonly database: DatabaseHandle;
   readonly findTenant: (name: string) => Promise<ActionTokenTenantLookup | null>;
   readonly getCurrentEmail: (tx: TenantScopedDatabase, subjectId: string) => Promise<string | null>;
@@ -95,6 +98,7 @@ export interface ActionTokenRouteDeps extends BrandedLocaleDeps {
     newPassword: string,
   ) => Promise<void>;
   readonly getUsername: (tx: TenantScopedDatabase, subjectId: string) => Promise<string>;
+  readonly noticeAddress: CompletePasswordResetDeps['noticeAddress'];
   readonly breachedCheck: BreachedCheck;
   readonly evaluatePassword: (
     candidate: string,
@@ -682,6 +686,9 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         breachedCheck: deps.breachedCheck,
         unchangedPasswordViolations: deps.unchangedPasswordViolations,
         clearPasswordUpdateAction: deps.clearPasswordUpdateAction,
+        noticeAddress: deps.noticeAddress,
+        now: deps.now,
+        resolveMailLook: deps.resolveMailLook,
       },
       key,
       password,

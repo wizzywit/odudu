@@ -7,6 +7,7 @@ import {
 } from '@odudu/db';
 import { authenticationSessions } from '@odudu/authn-flows';
 import { actionTokens } from '@odudu/account';
+import { users } from '@odudu/domain-identity';
 import { emailOutbox } from '@odudu/email';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -92,6 +93,8 @@ async function tenant(): Promise<Tenant> {
     .update(tenants)
     .set({ registrationAllowed: true, resetPasswordAllowed: true, verifyEmail: true })
     .where(eq(tenants.id, seeded.tenantId));
+  // A reset link goes only to a verified address on a tenant that asks for proof.
+  await owner.db.update(users).set({ emailVerified: true }).where(eq(users.email, email));
   return { name, id: seeded.tenantId, email, username };
 }
 

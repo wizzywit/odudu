@@ -16,6 +16,7 @@ import {
   deleteSubject,
   readSubject,
   type Subject,
+  type SubjectChanges,
   profileRecord,
   subjectRecord,
 } from '#/entities/subject';
@@ -63,18 +64,19 @@ export function saveVerification(tenant: string, id: string) {
     amendProfile(gateway, tenant, id, changes, ifMatch);
 }
 
-// Enabling and disabling are one PATCH on the ETag the subject was read
-// with; the answer replaces the record, so its sections rebase on it.
-export function useSubjectEnabled(
+// Enabling, disabling and cancelling a pending email change are each one
+// PATCH on the ETag the subject was read with; the answer replaces the
+// record, so its sections rebase on it.
+export function useSubjectChange(
   tenant: string,
   id: string,
   etag: string,
-): Write<boolean, GatewayResult<Subject>> {
+): Write<SubjectChanges, GatewayResult<Subject>> {
   const client = useQueryClient();
   const { invalidateExact } = useInvalidate();
   const key = recordKey(tenant, subjectRecord(id));
   return useWrite({
-    send: (gateway, enabled: boolean) => amendSubject(gateway, tenant, id, { enabled }, etag),
+    send: (gateway, changes: SubjectChanges) => amendSubject(gateway, tenant, id, changes, etag),
     onSuccess: (result) => {
       if (result.ok) {
         client.setQueryData<RecordEntry<Subject>>(key, { result, by: 'save' });

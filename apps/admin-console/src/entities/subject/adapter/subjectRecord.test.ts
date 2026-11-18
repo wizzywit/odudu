@@ -31,6 +31,20 @@ it('reads a subject with its ETag, and amends it on that', async () => {
   expect(fake.sent[1]).toMatchObject({ ifMatch: '"s1"', body: { username: 'ada2' } });
 });
 
+it('carries a pending email change on the read and on the amend', async () => {
+  const pending = { ...record, pending_email: 'new@example.test' };
+  const fake = fakeTransport({
+    [`GET ${T}`]: json(pending, 200, { etag: '"s1"' }),
+    [`PATCH ${T}`]: json(pending, 200, { etag: '"s2"' }),
+  });
+  const gateway = fake.transport.gateway;
+  const want = { ok: true, data: { ...ADA, pendingEmail: 'new@example.test' } };
+  expect(await readSubject(gateway, 'acme', record.id)).toMatchObject(want);
+  expect(
+    await amendSubject(gateway, 'acme', record.id, { email: 'new@example.test' }, '"s1"'),
+  ).toMatchObject(want);
+});
+
 it('clears an emptied email, as the server keeps no empty one', async () => {
   const fake = fakeTransport({ [`PATCH ${T}`]: json(record, 200, { etag: '"s2"' }) });
   await amendSubject(fake.transport.gateway, 'acme', record.id, { email: '' }, '"s1"');

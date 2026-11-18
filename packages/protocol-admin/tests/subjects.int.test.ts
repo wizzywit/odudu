@@ -24,6 +24,7 @@ import { sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
+import { NO_AMEND_MAIL } from '#/testing/amend-mail';
 import { startAdminFixture, type AdminFixture, etagAt } from '#/testing/admin-fixture';
 import {
   createPasswordSubject,
@@ -50,7 +51,7 @@ import {
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
 beforeAll(async () => {
-  fixtureHandle = await startAdminFixture();
+  fixtureHandle = await startAdminFixture({ deploymentSmtp: true });
   fixture = fixtureHandle;
 }, 180_000);
 afterAll(async () => {
@@ -652,7 +653,9 @@ describe('GET /admin/tenants/{t}/subjects/{id}', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.headers.etag).toBe(etagOf(res.json()));
+    const { pending_email: pending, ...covered } = res.json<{ pending_email: string | null }>();
+    expect(pending).toBeNull();
+    expect(res.headers.etag).toBe(etagOf(covered));
   });
 
   it('404s an id no subject holds', async () => {
@@ -815,7 +818,7 @@ describe('PUT /admin/tenants/{t}/subjects/{id}/roles', () => {
 });
 
 describe('PATCH /admin/tenants/{t}/subjects/{id}', () => {
-  it('amends email and enabled', async () => {
+  it('amends enabled, and holds the email as a change the person has yet to confirm', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const { id } = await fixture.createSubject(t.name, `pat-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);
@@ -827,12 +830,13 @@ describe('PATCH /admin/tenants/{t}/subjects/{id}', () => {
       payload: { email: 'ada@example.com', enabled: false },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ email: string | null; enabled: boolean }>();
-    expect(body.email).toBe('ada@example.com');
+    const body = res.json<{ email: string | null; enabled: boolean; pending_email: string }>();
+    expect(body.email).toBeNull();
+    expect(body.pending_email).toBe('ada@example.com');
     expect(body.enabled).toBe(false);
   });
 
-  it('forgets an address the person asked to change to, so its mailed link cannot complete', async () => {
+  it('replaces an address the person asked to change to, so its mailed link cannot complete', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const id = await seedUser(t.id, `pend-${newId()}`, 'ada@example.com');
     await withTenant(fixture.app.db, t.id, (tx) =>
@@ -848,7 +852,7 @@ describe('PATCH /admin/tenants/{t}/subjects/{id}', () => {
     expect(res.statusCode).toBe(200);
     expect(
       await withTenant(fixture.app.db, t.id, (tx) => pendingEmailRepository(tx).forSubject(id)),
-    ).toBeNull();
+    ).toBe('corrected@example.com');
   });
 
   // Regression for a partial write: `enabled` used to be written before
@@ -1238,8 +1242,7 @@ describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () =>
     const t = await fixture.createTenant(`amend-email-409-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);
     const email = `taken-${newId()}@example.com`;
-    const { id: holder } = await fixture.createSubject(t.name, `holder-${newId()}`);
-    expect((await patchSubject(t.name, holder, token, { email })).statusCode).toBe(200);
+    await seedUser(t.id, `holder-${newId()}`, email);
     const { id } = await fixture.createSubject(t.name, `other-${newId()}`);
     const before = await readSubjectBody(t.name, id);
 
@@ -1256,10 +1259,7 @@ describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () =>
     const t = await fixture.createTenant(`amend-email-case-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);
     const local = `case-${newId()}`;
-    const { id: holder } = await fixture.createSubject(t.name, `holder-${newId()}`);
-    expect(
-      (await patchSubject(t.name, holder, token, { email: `${local}@example.com` })).statusCode,
-    ).toBe(200);
+    await seedUser(t.id, `holder-${newId()}`, `${local}@example.com`);
     const { id } = await fixture.createSubject(t.name, `other-${newId()}`);
     const before = await readSubjectBody(t.name, id);
 
@@ -1276,12 +1276,7 @@ describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () =>
     const mine = await fixture.createTenant(`amend-email-mine-${newId()}`);
     const theirs = await fixture.createTenant(`amend-email-theirs-${newId()}`);
     const local = `abroad-${newId()}`;
-    const { id: foreign } = await fixture.createSubject(theirs.name, `holder-${newId()}`);
-    const theirToken = await fixture.adminToken(theirs.name, ['manage-users']);
-    expect(
-      (await patchSubject(theirs.name, foreign, theirToken, { email: `${local}@example.com` }))
-        .statusCode,
-    ).toBe(200);
+    await seedUser(theirs.id, `holder-${newId()}`, `${local}@example.com`);
     const { id } = await fixture.createSubject(mine.name, `mine-${newId()}`);
     const myToken = await fixture.adminToken(mine.name, ['manage-users']);
 
@@ -1291,18 +1286,15 @@ describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () =>
     expect(res.statusCode).toBe(200);
   });
 
-  it('lets a subject change the case of the address it holds itself', async () => {
+  it('treats the address a subject holds, in another case, as no change', async () => {
     const t = await fixture.createTenant(`amend-email-own-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);
     const local = `own-${newId()}`;
-    const { id } = await fixture.createSubject(t.name, `mine-${newId()}`);
-    expect(
-      (await patchSubject(t.name, id, token, { email: `${local}@example.com` })).statusCode,
-    ).toBe(200);
+    const id = await seedUser(t.id, `mine-${newId()}`, `${local}@example.com`);
 
     const res = await patchSubject(t.name, id, token, { email: `${local}@EXAMPLE.com` });
     expect(res.statusCode).toBe(200);
-    expect(res.json<{ email: string }>().email).toBe(`${local}@EXAMPLE.com`);
+    expect(res.json<{ email: string }>().email).toBe(`${local}@example.com`);
   });
 });
 
@@ -1717,7 +1709,7 @@ describe('audit', () => {
     const amended = await withTenant(fixture.app.db, t.id, (tx) =>
       amendSubject(
         tx,
-        { audit: ok.audit },
+        { audit: ok.audit, ...NO_AMEND_MAIL },
         {
           tenantId: t.id,
           callerCapabilities: new Set<string>(),
@@ -1737,7 +1729,7 @@ describe('audit', () => {
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
       amendSubject(
         tx,
-        { audit: refused.audit },
+        { audit: refused.audit, ...NO_AMEND_MAIL },
         {
           tenantId: t.id,
           callerCapabilities: new Set<string>(),

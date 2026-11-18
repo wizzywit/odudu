@@ -145,22 +145,16 @@ describe('PATCH /admin/tenants/{t}/subjects/{id}/profile', () => {
 
   it('setting email_verified makes the next token carry it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
-    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    // The profile route only ever sets `email_verified` against an address the
+    // subject already holds; an administrator's email change would be held
+    // pending, so the subject is created with it.
+    const { id } = await fixture.createSubject(
+      t.name,
+      `ada-${newId()}`,
+      `ada-${newId()}@example.com`,
+    );
     const token = await fixture.adminToken(t.name, ['manage-users', 'view-users']);
     const client = await fixture.createConfidentialClient(t.name, {});
-
-    // email itself is set through the subject route, which owns it; the
-    // profile route only ever sets `email_verified` against it.
-    const setEmail = await fixture.http.inject({
-      method: 'PATCH',
-      url: `/admin/tenants/${t.name}/subjects/${id}`,
-      headers: {
-        authorization: `Bearer ${token}`,
-        'content-type': 'application/json',
-      },
-      payload: { email: `ada-${newId()}@example.com` },
-    });
-    expect(setEmail.statusCode).toBe(200);
 
     const res = await patchProfile(t.name, id, token, { email_verified: true });
     expect(res.statusCode).toBe(200);

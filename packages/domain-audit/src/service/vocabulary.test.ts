@@ -142,6 +142,14 @@ describe('assertDetailAllowed', () => {
     }).toThrow(/ended_other_sessions/);
   });
 
+  it('accepts the notice a password reset records', () => {
+    for (const notice of ['sent', 'skipped_none']) {
+      expect(() => {
+        assertDetailAllowed('password.reset', { notice });
+      }).not.toThrow();
+    }
+  });
+
   it('accepts what the breached-password check decided on the writes that run it', () => {
     for (const action of ['password.changed', 'password.reset', 'account.registered']) {
       for (const decided of [

@@ -128,6 +128,7 @@ import {
   setRequiredActionsResponseSchema,
   setRolesRequestSchema,
   subjectSchema,
+  subjectDetailSchema,
   usernamePolicySchema,
 } from '#/admin/subjects';
 import {
@@ -749,7 +750,8 @@ describeFields(adminCapabilitiesResponseSchema, {
 });
 describeFields(amendSubjectRequestSchema, {
   username: 'A new sign-in name, when the tenant allows renaming.',
-  email: 'A new email address, or null to remove it.',
+  email:
+    'A new email address is held as a pending change and mailed a link; the person confirms it, and until then the current address stays and keeps working. The person’s current address cancels a pending change. Null removes the address at once.',
   enabled: 'Whether the subject may sign in.',
 });
 describeFields(bulkSubjectResultSchema, {
@@ -863,6 +865,10 @@ describeFields(subjectSchema, {
   email: 'The subject’s email address, or null.',
   enabled: 'A disabled subject cannot sign in or get tokens.',
   created_at: 'When the subject was created.',
+});
+describeFields(subjectDetailSchema, {
+  pending_email:
+    'An address an administrator asked for that the person has not yet confirmed, or null. It is mailed a link; until the person uses it, `email` stays as it was. Read with the subject alone, never in a list.',
 });
 describeFields(usernamePolicySchema, {
   username_editable: 'Whether the tenant lets a username be changed.',

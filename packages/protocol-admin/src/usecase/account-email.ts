@@ -4,8 +4,8 @@ import { users } from '@odudu/domain-identity';
 import { clientRepository, tenantSettingsRepository } from '@odudu/domain-tenant';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
-import { tenantSmtpRepository } from '#/repository/tenant-smtp';
 import { chooseReturnUri } from '#/service/return-target';
+import { canSendMail, type AccountLinkPurpose, type SendAccountLink } from '#/usecase/account-link';
 import {
   lockSubjectRow,
   refuseOverTargetCeiling,
@@ -14,39 +14,6 @@ import {
 } from '#/usecase/subjects';
 
 export type AccountEmailKind = 'reset_password' | 'verify_email' | 'execute_actions';
-
-/** What a link does: one of the two self-service links, or one taking its subject through actions. */
-export type AccountLinkPurpose =
-  | { readonly kind: 'reset_password' }
-  | { readonly kind: 'verify_email' }
-  | {
-      readonly kind: 'execute_actions';
-      readonly actions: readonly RequiredAction[];
-    };
-
-/** What a link is minted for and who it goes to; the minting is @odudu/account's. */
-export type AccountLinkRequest = AccountLinkPurpose & AccountLinkAddress;
-
-interface AccountLinkAddress {
-  readonly tenantId: string;
-  readonly tenantName: string;
-  readonly tenantDisplayName: string;
-  readonly subjectId: string;
-  readonly email: string;
-  readonly locale: string | null;
-  /** The client, by its internal id, and the registered address the link returns to. */
-  readonly returnTo?: { readonly clientId: string; readonly uri: string } | undefined;
-}
-
-/**
- * Mints the link and queues the mail carrying it, in the caller's
- * transaction, through the same write a self-service request makes.
- * `unavailable` when the deployment has no public base URL to put in it.
- */
-export type SendAccountLink = (
-  tx: TenantScopedDatabase,
-  request: AccountLinkRequest,
-) => Promise<'queued' | 'unavailable'>;
 
 export interface AccountEmailAuditEvent {
   readonly action:
@@ -172,8 +139,9 @@ export async function sendAccountEmail(
     const settings = await tenantSettingsRepository(tx).byId(input.tenantId);
     if (settings?.reset_password_allowed !== true) return { kind: 'reset_password_off' };
   }
-  const relay = await tenantSmtpRepository(tx).byTenantId(input.tenantId);
-  if (relay === null && !deps.deploymentSmtp) return { kind: 'no_mail_relay' };
+  if (!(await canSendMail(tx, input.tenantId, deps.deploymentSmtp))) {
+    return { kind: 'no_mail_relay' };
+  }
 
   const tenant = await tx
     .select({ displayName: tenants.displayName })

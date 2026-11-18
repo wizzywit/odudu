@@ -139,7 +139,9 @@ beforeEach(async () => {
     now: () => new Date(),
     findByEmail: async (tx, email) => {
       const user = await userRepository(tx).byEmail(email);
-      return user?.email == null ? null : { subjectId: user.subjectId, email: user.email };
+      return user?.email == null
+        ? null
+        : { subjectId: user.subjectId, email: user.email, emailVerified: user.emailVerified };
     },
   });
   registerRegistrationRoute(http, {
@@ -177,6 +179,10 @@ beforeEach(async () => {
       return (await verifyPassword(current, candidate)) ? [REUSED_PASSWORD] : [];
     },
     clearPasswordUpdateAction: () => Promise.resolve(),
+    noticeAddress: async (tx, subjectId) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      return user === null ? null : { email: user.email, locale: user.locale };
+    },
     addRequiredActions: () => Promise.resolve(),
   });
   await http.ready();

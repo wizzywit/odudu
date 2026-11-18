@@ -96,6 +96,7 @@ export const accountTestDeps = {
   breachedCheck,
   isEmailAddress,
   mailGate: openMailGate,
+  requiresVerifiedAddress: () => Promise.resolve(false),
   findReturnClient: () => Promise.resolve(null),
   resolveMailLook: () => Promise.resolve({ branding: null, overrides: {} }),
   now: () => new Date(),
@@ -118,6 +119,10 @@ export function linkRouteDeps() {
       const user = await userRepository(tx).bySubjectId(subjectId);
       if (user === null) throw new Error(`no user found for subject ${subjectId}`);
       return user.username;
+    },
+    noticeAddress: async (tx: TenantScopedDatabase, subjectId: string) => {
+      const user = await userRepository(tx).bySubjectId(subjectId);
+      return user === null ? null : { email: user.email, locale: user.locale };
     },
     evaluatePassword,
     breachedCheck,

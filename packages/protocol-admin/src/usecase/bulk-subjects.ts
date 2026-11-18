@@ -2,7 +2,12 @@ import { type SessionLifespans } from '@odudu/authn-flows';
 import { type BulkSubjectsRequest } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { endAllSessions, type Audit as SessionAudit } from '#/usecase/sessions';
-import { amendSubject, deleteSubject, type Audit as SubjectAudit } from '#/usecase/subjects';
+import {
+  amendSubject,
+  deleteSubject,
+  type AmendSubjectMail,
+  type Audit as SubjectAudit,
+} from '#/usecase/subjects';
 
 /** Runs `fn` in a transaction of its own, bound to the target tenant. */
 export type InTransaction = <T>(fn: (tx: TenantScopedDatabase) => Promise<T>) => Promise<T>;
@@ -12,6 +17,8 @@ export interface BulkSubjectsDeps {
   readonly subjectAudit: SubjectAudit;
   readonly sessionAudit: SessionAudit;
   readonly kek: Uint8Array;
+  /** A bulk enable or disable amends no address, but runs the door that could. */
+  readonly mail: AmendSubjectMail;
 }
 
 export interface BulkSubjectsInput {
@@ -66,7 +73,7 @@ async function applyOne(
   }
   const outcome = await amendSubject(
     tx,
-    { audit: deps.subjectAudit },
+    { audit: deps.subjectAudit, ...deps.mail },
     { ...actor, values: { enabled: input.action === 'enable' }, ifMatch: undefined },
   );
   switch (outcome.kind) {

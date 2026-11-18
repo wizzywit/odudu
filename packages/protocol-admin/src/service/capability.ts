@@ -129,6 +129,7 @@ import {
   signingKeySchema,
   profileSchema,
   subjectSchema,
+  subjectDetailSchema,
   usernamePolicySchema,
   tenantSchema,
   whoamiResponseSchema,
@@ -482,18 +483,19 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     method: 'GET',
     pattern: '/admin/tenants/:tenant/subjects/:id',
     capability: 'view-users',
-    responseSchema: subjectSchema,
+    responseSchema: subjectDetailSchema,
   },
   {
     method: 'PATCH',
     pattern: '/admin/tenants/:tenant/subjects/:id',
     capability: 'manage-users',
-    responseSchema: subjectSchema,
+    responseSchema: subjectDetailSchema,
     bodySchema: amendSubjectRequestSchema,
     description:
       TARGET_CEILING.trimStart() +
       LAST_ADMINISTRATOR +
-      ' `If-Match` is mandatory when the body renames the subject: an absent header, or `*`, is refused with `428`, and a stale one with `412`. Otherwise it is optional.',
+      ' `If-Match` is mandatory when the body renames the subject: an absent header, or `*`, is refused with `428`, and a stale one with `412`. Otherwise it is optional.' +
+      ' A new `email` is not stored at once: it is held as `pending_email`, a verification link is mailed to it, and the person confirms it; the current address keeps working until then, and a verified current address is told. The person’s current address cancels a pending change, and `null` removes the address at once. `409` for an address another subject holds, and `409` with `no-mail-relay` when the tenant has no relay and the deployment no sender; `503` when the deployment has no public base URL to put in the link.',
   },
   {
     method: 'DELETE',

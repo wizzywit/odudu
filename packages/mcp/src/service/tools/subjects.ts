@@ -8,7 +8,7 @@ import {
   setRequiredActionsResponseSchema,
   setRolesResponseSchema,
   setSubjectGroupsResponseSchema,
-  subjectSchema,
+  subjectDetailSchema,
   usernamePolicySchema,
 } from '@odudu/contracts/admin';
 import { idField, pageShape, pageTool, tenantGet, valueTool } from '#/service/read-tool';
@@ -48,12 +48,12 @@ export const subjectTools = [
   valueTool({
     name: 'get_subject',
     description:
-      'Reads one subject: its names, email, state and kind. The result holds personal data.',
+      'Reads one subject: its names, email, the address it is waiting to change to, state and kind. The result holds personal data.',
     routeKey: tenantGet('/subjects/:id'),
     capability: 'view-users',
     shape: { id: idField('subject') },
     pathParams: ['id'],
-    response: subjectSchema,
+    response: subjectDetailSchema,
   }),
   valueTool({
     name: 'get_subject_lockout',

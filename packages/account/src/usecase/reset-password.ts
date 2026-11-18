@@ -4,6 +4,7 @@ import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
   mailContext,
   outboxRepository,
+  queueResetCompletedNotice,
   renderResetPassword,
   type MailLookResolver,
   type MailContext,
@@ -16,6 +17,7 @@ import { type TenantAddress } from '@odudu/kernel';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { type MailGate } from '#/service/mail-gate';
 import { type BreachedCheck, type BreachedPrepared } from '#/service/breached-check';
+import { resetTarget } from '#/service/reset-target';
 import { withMinimum } from '#/service/password-violations';
 
 // Re-exported so the view layer can reach these without importing the
@@ -55,7 +57,19 @@ export interface RequestPasswordResetDeps {
   readonly findByEmail: (
     tx: TenantScopedDatabase,
     email: string,
-  ) => Promise<{ subjectId: string; email: string; locale?: string | null | undefined } | null>;
+  ) => Promise<{
+    subjectId: string;
+    email: string;
+    emailVerified: boolean;
+    locale?: string | null | undefined;
+  } | null>;
+  // Whether the tenant sends reset links only to a verified address
+  // (its verify_email setting); injected so this usecase reads no settings
+  // repository itself.
+  readonly requiresVerifiedAddress: (
+    tx: TenantScopedDatabase,
+    tenantId: string,
+  ) => Promise<boolean>;
   // Whether a mail may go to this address now. It decides only whether the
   // mail is queued, never the answer.
   readonly mailGate: MailGate;
@@ -84,8 +98,11 @@ export async function requestPasswordReset(
     // whether or not it names an account.
     const address = await mailAddressOf(tx, { ...deps, issuerBase });
     const mail = await mailContext(tx, deps.resolveMailLook, { ...deps, address });
+    const requireVerified = await deps.requiresVerifiedAddress(tx, deps.tenantId);
     const user = await deps.findByEmail(tx, email);
-    if (user === null || !deps.mailGate('reset', deps.tenantId, user.email)) return;
+    if (user === null) return;
+    if (resetTarget({ verified: user.emailVerified, requireVerified }) === 'skip') return;
+    if (!deps.mailGate('reset', deps.tenantId, user.email)) return;
     await enqueueResetLink(tx, { ...deps, issuerBase }, user, { address, mail });
   });
 
@@ -234,6 +251,15 @@ export interface CompletePasswordResetDeps extends AccountRecoveryDeps {
     tx: TenantScopedDatabase,
     subjectId: string,
   ) => Promise<void>;
+  // The address on file and the language to write to it, for the notice that
+  // follows a reset; injected because the users table belongs to
+  // @odudu/domain-identity. Null for a subject that no longer exists.
+  readonly noticeAddress: (
+    tx: TenantScopedDatabase,
+    subjectId: string,
+  ) => Promise<{ email: string | null; locale: string | null } | null>;
+  readonly now: () => Date;
+  readonly resolveMailLook?: MailLookResolver | undefined;
 }
 
 export type CompletePasswordResetResult =
@@ -327,6 +353,18 @@ async function writeReset(
       const factorsRemoved = await recoverAccount(tx, deps, record.subjectId, record.email);
       await deps.clearPasswordUpdateAction(tx, record.subjectId);
       await actionTokenRepository(tx).invalidateOutstandingPasswordLinks(record.subjectId);
+      const notice = await queueResetCompletedNotice(
+        tx,
+        {
+          tenantId: deps.tenantId,
+          address: (await deps.noticeAddress(tx, record.subjectId)) ?? {
+            email: null,
+            locale: null,
+          },
+          now: deps.now(),
+        },
+        deps.resolveMailLook,
+      );
       await auditRepository(tx).record({
         eventType: 'credential',
         action: 'password.reset',
@@ -334,7 +372,7 @@ async function writeReset(
         actorSubjectId: record.subjectId,
         resourceType: 'subject',
         resourceId: record.subjectId,
-        detail: { breached_check: breached.audit },
+        detail: { breached_check: breached.audit, notice },
       });
       return { kind: 'reset', factorsRemoved };
     },

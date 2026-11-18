@@ -1,7 +1,7 @@
-import { subjectSchema } from '@odudu/contracts/admin';
+import { subjectDetailSchema } from '@odudu/contracts/admin';
 import { adminCall, mapResult, nothing } from '#/shared/api/adapter/route';
 import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
-import { subjectOf } from '#/entities/subject/adapter/subjectWire';
+import { subjectDetailOf } from '#/entities/subject/adapter/subjectWire';
 import type { Subject, SubjectChanges } from '#/entities/subject/types/subject';
 
 export async function readSubject(
@@ -10,9 +10,9 @@ export async function readSubject(
   subjectId: string,
 ): Promise<GatewayResult<Subject>> {
   const result = await adminCall(gateway, 'GET', tenant, ['subjects', subjectId], {
-    schema: subjectSchema,
+    schema: subjectDetailSchema,
   });
-  return mapResult(result, subjectOf);
+  return mapResult(result, subjectDetailOf);
 }
 
 export async function amendSubject(
@@ -26,9 +26,9 @@ export async function amendSubject(
     // The server keeps no empty email, so an emptied one is cleared.
     body: changes.email === '' ? { ...changes, email: null } : changes,
     ifMatch,
-    schema: subjectSchema,
+    schema: subjectDetailSchema,
   });
-  return mapResult(result, subjectOf);
+  return mapResult(result, subjectDetailOf);
 }
 
 export function deleteSubject(

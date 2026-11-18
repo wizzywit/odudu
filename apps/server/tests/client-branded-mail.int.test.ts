@@ -1,6 +1,7 @@
 import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants, withTenant } from '@odudu/db';
 import { type DatabaseHandle } from '@odudu/db';
 import { emailOutbox } from '@odudu/email';
+import { users } from '@odudu/domain-identity';
 import { clients } from '@odudu/domain-tenant';
 import { assetRepository, themeRepository, type ThemeBody } from '@odudu/domain-theme';
 import { newId } from '@odudu/kernel';
@@ -107,6 +108,8 @@ async function world(): Promise<World> {
     .update(tenants)
     .set({ resetPasswordAllowed: true, registrationAllowed: true, verifyEmail: true })
     .where(eq(tenants.id, seeded.tenantId));
+  // A reset link goes only to a verified address on a tenant that asks for proof.
+  await owner.db.update(users).set({ emailVerified: true }).where(eq(users.email, email));
   const [portal] = await owner.db
     .select({ id: clients.id })
     .from(clients)

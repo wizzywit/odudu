@@ -48,7 +48,11 @@ export interface ResetPasswordRouteDeps extends BrandedLocaleDeps {
   readonly findByEmail: (
     tx: TenantScopedDatabase,
     email: string,
-  ) => Promise<{ subjectId: string; email: string } | null>;
+  ) => Promise<{ subjectId: string; email: string; emailVerified: boolean } | null>;
+  readonly requiresVerifiedAddress: (
+    tx: TenantScopedDatabase,
+    tenantId: string,
+  ) => Promise<boolean>;
   readonly mailGate: MailGate;
 }
 
@@ -145,6 +149,7 @@ export function registerResetPasswordRoute(
         authenticationSessionId: referenceToResume(held, returnTo),
         clientId: clientOfHeldSignIn(held, returnTo),
         findByEmail: deps.findByEmail,
+        requiresVerifiedAddress: deps.requiresVerifiedAddress,
         mailGate: deps.mailGate,
       },
       email,
