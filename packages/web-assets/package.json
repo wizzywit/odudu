@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@odudu/kernel": "workspace:*",
-    "fastify": "5.12.7"
+    "fastify": "5.12.8"
   },
   "devDependencies": {
     "vitest": "5.0.5"
