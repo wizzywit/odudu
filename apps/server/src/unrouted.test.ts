@@ -1,5 +1,5 @@
 import { type DatabaseHandle } from '@odudu/db';
-import { inertDatabase } from '@odudu/db/testing';
+import { watchedDatabase } from '@odudu/db/testing';
 import { loadConfig } from '@odudu/kernel';
 import { wantsHtmlPage } from '@odudu/protocol-oidc';
 import { describe, expect, it } from 'vitest';
@@ -14,20 +14,16 @@ const config = loadConfig({
 
 const BROWSER = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
 
-// A database handle that records every read of a way into it, and every call
-// made on `sql`, and throws on each, so a test can count touches rather than infer them
-// from a status code a failing hook would also produce.
+// A database handle that records every property read of `db`, and every read of
+// or call on `sql`, and throws on each, so a test can count touches rather
+// than infer them from a status code a failing hook would also produce.
 function counting(): { handle: DatabaseHandle; touches: string[] } {
   const touches: string[] = [];
   const record = (what: string): never => {
     touches.push(what);
     throw new Error(`the database was touched: ${what}`);
   };
-  // A read counts as a call would: the detector test only reads `db.select`.
-  const db = inertDatabase();
-  for (const name of ['select', 'insert', 'update', 'delete', 'execute', 'transaction']) {
-    Object.defineProperty(db, name, { get: () => record(`db.${name}`) });
-  }
+  const db = watchedDatabase((name) => record(`db.${name}`));
   const handle: DatabaseHandle = {
     db,
     sql: new Proxy(() => undefined, {

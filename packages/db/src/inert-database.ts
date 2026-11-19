@@ -11,21 +11,18 @@ export function inertDatabase<T extends object = object>(stubs?: T): Database & 
   return Object.assign(mock as Database, stubs);
 }
 
-// Every way into the database throws `message`, so a use of it at all fails
-// the test with a reason.
+// A Database whose every property read goes to `onRead` first, and which
+// reads nothing else: a use of it at all, even a `typeof db.select`, is seen.
+export function watchedDatabase(onRead: (name: string) => never): Database {
+  return new Proxy(inertDatabase(), {
+    get: (_target, name) => onRead(String(name)),
+  });
+}
+
+// Every property read throws `message`, so a use of it at all fails the test
+// with a reason.
 export function forbiddenDatabase(message: string): Database {
-  const refuse = (): never => {
+  return watchedDatabase(() => {
     throw new Error(message);
-  };
-  return inertDatabase({
-    select: refuse,
-    selectDistinct: refuse,
-    insert: refuse,
-    update: refuse,
-    delete: refuse,
-    execute: refuse,
-    transaction: refuse,
-    $count: refuse,
-    with: refuse,
   });
 }
