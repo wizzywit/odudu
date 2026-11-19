@@ -6,6 +6,7 @@ import { languagesRoutes } from '#/testing/brandingFixtures';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
 import { resetConsole } from '#/testing/resetConsole';
 import { settingsAnswer, ST } from '#/testing/settingsFixtures';
+import { tabName } from '#/testing/tabName';
 
 afterEach(() => {
   resetConsole();
@@ -112,7 +113,7 @@ it('marks the tab with an unsaved dot while a language is added and not saved', 
   await user.type(screen.getByRole('combobox', { name: /Add a language/u }), 'pt-BR');
   await user.click(screen.getByRole('button', { name: 'Add language' }));
   expect(
-    await screen.findByRole('tab', { name: 'Languages, unsaved changes' }),
+    await screen.findByRole('tab', { name: tabName('Languages', 'unsaved changes') }),
   ).toBeInTheDocument();
 });
 

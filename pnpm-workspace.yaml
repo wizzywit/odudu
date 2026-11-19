@@ -43,3 +43,6 @@ publicHoistPattern:
 # drive Chrome over CDP, and chromium-bidi is the WebDriver BiDi client.
 overrides:
   'chromium-bidi>zod': 4.6.7
+  # drizzle-orm's postgres peer resolves per package; without this every
+  # package but db and testkit kept postgres 3 and the two type copies clashed.
+  postgres: 4.1.1

@@ -21,6 +21,7 @@ import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { BrandingTab } from '#/pages/clients/ui/BrandingTab';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
 import { resetConsole } from '#/testing/resetConsole';
+import { tabName } from '#/testing/tabName';
 
 afterEach(() => {
   resetConsole();
@@ -182,8 +183,8 @@ describe('the publication bar and the revert', () => {
     renderConsoleAt(AT, clientBrandingRoutes(themeAnswer(pending(), '"cd1"')));
     const bar = await screen.findByRole('region', { name: 'Publish' });
     expect(within(bar).getByText('Changed: Stylesheet, Page templates')).toBeVisible();
-    expect(screen.getByRole('tab', { name: 'Theme, changes to publish' })).toBeVisible();
-    expect(screen.getByRole('tab', { name: 'Pages, changes to publish' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: tabName('Theme', 'changes to publish') })).toBeVisible();
+    expect(screen.getByRole('tab', { name: tabName('Pages', 'changes to publish') })).toBeVisible();
   });
 
   it('discards on the client’s own route and says what stays', async () => {

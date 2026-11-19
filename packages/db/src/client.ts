@@ -36,6 +36,10 @@ export function createDatabase(url: string, options: DatabaseOptions = {}): Data
     // A closure over roles or groups is costed above jit_above_cost whatever it
     // reads, and compiling ~400 functions for a seventeen-row lookup took 1.2 s.
     connection: { jit: 'off' },
+    // postgres 4 sends parameters untyped and lets the server decide; a
+    // polymorphic call such as to_jsonb($1) then cannot resolve its type.
+    // Typing them from the JavaScript value is what every query here was written for.
+    infer: true,
     onnotice: () => undefined,
     ...(onQuery === undefined
       ? {}
