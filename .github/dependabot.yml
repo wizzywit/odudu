@@ -139,6 +139,9 @@ updates:
       # The conformance suite's database: a major needs its own check.
       - dependency-name: mongo
         update-types: ['version-update:semver-major']
+      # quickstart/compose.yaml names 0.0.0 on purpose; the release workflow
+      # replaces it, and the lint tests hold the file to that placeholder.
+      - dependency-name: wizzywit/odudu
     groups:
       base-images:
         patterns: ['*']

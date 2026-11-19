@@ -135,6 +135,50 @@ it('shows a pending email change and cancels it by sending the current address b
   expect(screen.queryByRole('button', { name: 'Cancel the change' })).toBeNull();
 });
 
+it('cancels a pending change for a subject with no current address by sending none', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      [`GET ${S}/${ADA_ID}`]: json(
+        { ...ADA, email: null, pending_email: 'new@example.test' },
+        200,
+        {
+          etag: '"s1"',
+        },
+      ),
+      [`PATCH ${S}/${ADA_ID}`]: json({ ...ADA, email: null }, 200, { etag: '"s2"' }),
+    }),
+  );
+  await user.click(await screen.findByRole('button', { name: 'Cancel the change' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')).toMatchObject({
+      ifMatch: '"s1"',
+      body: { email: null },
+    });
+  });
+  await waitFor(() => {
+    expect(screen.queryByText(/Change pending/u)).toBeNull();
+  });
+});
+
+it('says why a cancel did not happen and keeps the pending change shown', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      [`GET ${S}/${ADA_ID}`]: json({ ...ADA, pending_email: 'new@example.test' }, 200, {
+        etag: '"s1"',
+      }),
+      [`PATCH ${S}/${ADA_ID}`]: problem(500, 'about:blank', 'Internal Server Error'),
+    }),
+  );
+  await user.click(await screen.findByRole('button', { name: 'Cancel the change' }));
+  expect(await screen.findByText(/The pending change for ada/u)).toBeVisible();
+  expect(screen.getByText(/Change pending: new@example.test/u)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Cancel the change' })).toBeEnabled();
+});
+
 it('shows neither the pending change nor its cancel when none is pending', async () => {
   renderConsoleAt(ADA_AT, subjectRoutes());
   await screen.findByRole('textbox', { name: 'Email' });

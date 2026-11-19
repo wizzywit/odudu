@@ -607,7 +607,7 @@ export type AmendSubjectOutcome =
 interface SubjectPatch {
   username?: { value: string };
   enabled?: { value: boolean };
-  email?: { plan: AdminEmailPlan };
+  email?: { plan: AdminEmailPlan; user: typeof users.$inferSelect };
 }
 
 // Locks `subjects` and, when it exists, `users` for the rest of the
@@ -849,7 +849,7 @@ async function amendSubjectUnguarded(
     }
     const plan = await planEmailPatch(tx, deps, locked.subject.tenantId, input.subjectId, value);
     if (plan.kind === 'no_mail_relay') return plan;
-    patch.email = { plan };
+    patch.email = { plan, user: locked.user };
   }
 
   // A rename to the name the subject already has, with nothing else asked
@@ -867,9 +867,9 @@ async function amendSubjectUnguarded(
     await subjectRepository(tx).setEnabled(input.subjectId, patch.enabled.value);
   }
   const emailChange =
-    patch.email === undefined || locked.user === null
+    patch.email === undefined
       ? null
-      : await applyEmailPlan(tx, deps, locked.user, patch.email.plan);
+      : await applyEmailPlan(tx, deps, patch.email.user, patch.email.plan);
   if (patch.username !== undefined) {
     await userRepository(tx).updateUsername(input.subjectId, patch.username.value);
   }

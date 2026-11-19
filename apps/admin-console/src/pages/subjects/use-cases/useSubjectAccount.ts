@@ -98,7 +98,7 @@ export function useSubjectAccount(
     save: saveAccount(tenant, subject.id),
   });
   const username = usernameMode(useUsernamePolicy(tenant), areaHref(tenant, areaAt('settings')));
-  const enabledChange = useSubjectChange(tenant, subject.id, etag);
+  const subjectChange = useSubjectChange(tenant, subject.id, etag);
   const deletion = useSubjectDeletion(tenant, subject.id);
   const endOwnSession = useEndOwnSession();
   const [confirming, setConfirming] = useState<'disable' | 'delete' | null>(null);
@@ -107,11 +107,11 @@ export function useSubjectAccount(
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
   const setEnabled = (next: boolean): void => {
-    if (enabledChange.busy) return;
+    if (subjectChange.busy) return;
     setProblem(null);
     setEnabledMessage(null);
     const verb = enabledVerb(next);
-    enabledChange
+    subjectChange
       .run({ enabled: next })
       .then((result) => {
         if (result.ok) {
@@ -129,9 +129,9 @@ export function useSubjectAccount(
   };
 
   const cancelPending = (): void => {
-    if (enabledChange.busy) return;
+    if (subjectChange.busy) return;
     setCancelMessage(null);
-    enabledChange
+    subjectChange
       .run(cancelPendingChange(subject))
       .then((result) => {
         if (result.ok) return;
@@ -185,7 +185,7 @@ export function useSubjectAccount(
     pendingText: pendingChangeText(subject.pendingEmail),
     cancelPendingLabel: CANCEL_PENDING_LABEL,
     cancelPending,
-    cancellingPending: enabledChange.busy,
+    cancellingPending: subjectChange.busy,
     cancelMessage,
     deletionRefusal: deletionRefusal(subject),
     section,
@@ -196,7 +196,7 @@ export function useSubjectAccount(
     },
     disable: {
       ...confirmationOf('disable', confirming, problem),
-      busy: enabledChange.busy,
+      busy: subjectChange.busy,
       ask: () => {
         ask('disable');
       },

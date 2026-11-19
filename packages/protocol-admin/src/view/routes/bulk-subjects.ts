@@ -1,7 +1,9 @@
 import { bulkSubjectsRequestSchema, type BulkSubjectResult } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
+import { type MailLookResolver } from '@odudu/email';
 import { tenantIssuerFor, type TenantLookup } from '@odudu/protocol-oidc';
 import { recordCapabilityRefused } from '#/usecase/access-audit';
+import { type SendAccountLink } from '#/usecase/account-link';
 import { lifespansOf } from '#/usecase/authenticate-admin';
 import { bulkSubjects, type BulkSubjectOutcome } from '#/usecase/bulk-subjects';
 import { clearLockouts, type LockoutsAuditEvent } from '#/usecase/lockouts';
@@ -15,8 +17,6 @@ import {
   type Problem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
-import { type MailLookResolver } from '@odudu/email';
-import { type SendAccountLink } from '#/usecase/account-link';
 import { recordRefusal, type AdminRouteHandler } from '#/view/routes/router';
 import { targetCeilingDetail } from '#/view/routes/subjects';
 

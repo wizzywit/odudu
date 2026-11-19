@@ -84,6 +84,10 @@ describe('a pending email change', () => {
     });
   });
 
+  it('is cancelled by sending none for a subject with no current address', () => {
+    expect(cancelPendingChange({ email: null })).toEqual({ email: null });
+  });
+
   it('names the pending change when its cancel failed', () => {
     expect(pendingCancelFailure(refusal(412), 'ada')).toBe(
       'The pending change for ada changed elsewhere since you opened it, so it was not cancelled. It has been read again; look at it before trying again.',
