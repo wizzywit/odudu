@@ -13,7 +13,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "openid-client": "6.8.9"
+    "openid-client": "6.9.0"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
