@@ -8,6 +8,7 @@ import { consoleAt, renderConsoleAt, whoami } from '#/testing/renderConsole';
 import { ADMIN_ROLES } from '#/testing/roleAnswers';
 import { ADA_AT, ADA_ID, assigned, S, subject, subjectRoutes } from '#/testing/subjectsFixtures';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
+import { tabName } from '#/testing/tabName';
 
 afterEach(() => {
   resetConsole();
@@ -74,7 +75,7 @@ it('marks the Profile tab while one of its sections holds an edit', async () => 
   const user = userEvent.setup();
   renderConsoleAt(ADA_AT, subjectRoutes());
   await user.type(await screen.findByRole('textbox', { name: 'Full name' }), 'Ada');
-  expect(screen.getByRole('tab', { name: 'Profile, unsaved changes' })).toBeVisible();
+  expect(screen.getByRole('tab', { name: tabName('Profile', 'unsaved changes') })).toBeVisible();
   expect(screen.getByRole('tab', { name: 'Credentials' })).toBeVisible();
 });
 
@@ -113,7 +114,7 @@ it('follows a whoami re-read after a 403, in the rail and on the page, without a
   expect(within(name).getByRole('status')).toHaveTextContent(
     'Your change here was not saved and cannot be saved now.',
   );
-  expect(screen.getByRole('tab', { name: 'Profile, unsaved changes' })).toBeVisible();
+  expect(screen.getByRole('tab', { name: tabName('Profile', 'unsaved changes') })).toBeVisible();
   await user.click(within(name).getByRole('button', { name: 'Discard your change to Name' }));
   expect(screen.queryByText(/not saved/u)).toBeNull();
   expect(screen.getByRole('tab', { name: 'Profile' })).toBeVisible();

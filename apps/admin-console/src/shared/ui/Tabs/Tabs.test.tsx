@@ -4,6 +4,7 @@ import { expect, it, vi } from 'vitest';
 import tabsCss from '#/shared/ui/Tabs/Tabs.module.css?raw';
 import { Tabs } from '#/shared/ui/Tabs/Tabs';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
+import { tabName } from '#/testing/tabName';
 
 const TABS = [
   { id: 'general', label: 'General', panel: <p>General settings</p> },
@@ -34,7 +35,9 @@ it('moves between tabs with the arrow, Home and End keys', async () => {
 
 it('says in words that a tab holds unsaved changes', () => {
   render(<Tabs label="Client sections" tabs={TABS} />);
-  expect(screen.getByRole('tab', { name: 'Tokens, unsaved changes' })).toBeInTheDocument();
+  expect(
+    screen.getByRole('tab', { name: tabName('Tokens', 'unsaved changes') }),
+  ).toBeInTheDocument();
 });
 
 it('says in words that a tab holds part of a change not yet published, beside any unsaved dot', () => {
@@ -47,9 +50,9 @@ it('says in words that a tab holds part of a change not yet published, beside an
       ]}
     />,
   );
-  expect(screen.getByRole('tab', { name: 'A, changes to publish' })).toBeInTheDocument();
+  expect(screen.getByRole('tab', { name: tabName('A', 'changes to publish') })).toBeInTheDocument();
   expect(
-    screen.getByRole('tab', { name: 'B, unsaved changes, changes to publish' }),
+    screen.getByRole('tab', { name: tabName('B', 'unsaved changes', 'changes to publish') }),
   ).toBeInTheDocument();
 });
 
