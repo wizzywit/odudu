@@ -45,8 +45,8 @@
     "@modelcontextprotocol/client": "2.4.0",
     "@odudu/testkit": "workspace:*",
     "drizzle-orm": "0.45.4",
-    "parse5": "8.0.1",
+    "parse5": "8.1.1",
     "tsup": "9.0.0",
-    "vitest": "5.0.5"
+    "vitest": "5.1.0"
   }
 }
