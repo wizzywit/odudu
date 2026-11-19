@@ -168,6 +168,9 @@ describe('[ODUDU-THEME-PARSE-01] the checker parses a template as the browser pa
       expect(accepted).toBeGreaterThan(200);
       expect(wrong.slice(0, 10)).toEqual([]);
     },
+    // 20,000 generated templates per seed: about 5 s on a loaded runner. The
+    // seeds fix the inputs, so a failure is a regression or the time limit.
+    30_000,
   );
 
   const ADVERSARIAL: [string, string][] = [
