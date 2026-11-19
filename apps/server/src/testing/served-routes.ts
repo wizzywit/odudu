@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { generateClientKey } from '@odudu/crypto';
 import { type DatabaseHandle } from '@odudu/db';
+import { inertDatabase } from '@odudu/db/testing';
 import { loadConfig } from '@odudu/kernel';
 import { type FastifyInstance, type RouteOptions } from 'fastify';
 import { buildApp } from '#/app';
@@ -13,7 +14,7 @@ import { createLogger } from '#/logger';
 // Nothing here reaches the database: the app is built only so Fastify's own
 // router can be asked what it serves.
 const database: DatabaseHandle = {
-  db: {} as DatabaseHandle['db'],
+  db: inertDatabase(),
   sql: Object.assign(() => Promise.resolve([]), {
     options: { max: 1 },
   }) as unknown as DatabaseHandle['sql'],

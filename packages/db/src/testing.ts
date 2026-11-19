@@ -8,3 +8,4 @@ export {
   type CrossTenantMethodProbe,
   type TenantProbe,
 } from '#/tenant-probe';
+export { forbiddenDatabase, inertDatabase, watchedDatabase } from '#/inert-database';

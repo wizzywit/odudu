@@ -1,4 +1,5 @@
 import { type DatabaseHandle } from '@odudu/db';
+import { inertDatabase } from '@odudu/db/testing';
 import { loadConfig } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { describe, expect, it } from 'vitest';
@@ -12,7 +13,7 @@ const config = loadConfig({
 });
 
 const database: DatabaseHandle = {
-  db: {} as DatabaseHandle['db'],
+  db: inertDatabase(),
   sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
   close: () => Promise.resolve(),
 };
