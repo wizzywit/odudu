@@ -40,6 +40,6 @@
     "@fastify/formbody": "9.0.2",
     "@odudu/account": "workspace:*",
     "@odudu/testkit": "workspace:*",
-    "vitest": "5.0.5"
+    "vitest": "5.1.0"
   }
 }
