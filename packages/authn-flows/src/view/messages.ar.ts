@@ -84,8 +84,7 @@ export const ar: Readonly<Record<string, string>> = {
   'verifyEmail.unavailable':
     'تعذّر على هذا الخادم إرسال البريد الآن. اطلب من أحد المسؤولين تأكيد العنوان.',
   'verifyEmail.alreadyVerified': 'هذا العنوان مؤكَّد بالفعل.',
-  'verifyEmail.notVerified':
-    'لم يُؤكَّد هذا العنوان بعد. افتح الرابط الذي أرسلناه ثم حاول مرة أخرى.',
+  'verifyEmail.notVerified': 'لم يُؤكَّد هذا العنوان بعد. افتح الرابط الذي أرسلناه ثم حاول مرة أخرى.',
   'updateProfile.title': 'أكمل ملفك الشخصي',
   'updateProfile.intro': 'راجع بياناتك واملأ الحقول المعلَّمة بأنها مطلوبة قبل المتابعة.',
   'updateProfile.required': 'مطلوب',
