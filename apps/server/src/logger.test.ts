@@ -1,4 +1,5 @@
 import { type DatabaseHandle } from '@odudu/db';
+import { inertDatabase } from '@odudu/db/testing';
 import { loadConfig, type Logger } from '@odudu/kernel';
 import { Writable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
@@ -273,7 +274,7 @@ describe('createLogger', () => {
     const { stream, lines } = capture();
     const logger = createLogger(config, stream);
     const database: DatabaseHandle = {
-      db: {} as DatabaseHandle['db'],
+      db: inertDatabase(),
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
@@ -299,7 +300,7 @@ describe('createLogger', () => {
     const { stream, lines } = capture();
     const logger = createLogger(config, stream);
     const database: DatabaseHandle = {
-      db: {} as DatabaseHandle['db'],
+      db: inertDatabase(),
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
@@ -326,7 +327,7 @@ describe('createLogger', () => {
     const { stream, lines } = capture();
     const logger = createLogger(config, stream);
     const database: DatabaseHandle = {
-      db: {} as DatabaseHandle['db'],
+      db: inertDatabase(),
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };
@@ -358,7 +359,7 @@ describe('createLogger', () => {
     const { stream, lines } = capture();
     const logger = createLogger(config, stream);
     const database: DatabaseHandle = {
-      db: {} as DatabaseHandle['db'],
+      db: inertDatabase(),
       sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
       close: () => Promise.resolve(),
     };

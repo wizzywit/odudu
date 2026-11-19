@@ -1,4 +1,5 @@
 import { type DatabaseHandle } from '@odudu/db';
+import { inertDatabase } from '@odudu/db/testing';
 import { describe, expect, it } from 'vitest';
 import { type Logger } from '@odudu/kernel';
 import { databaseModule, stampPasskeysAtStart } from '#/modules/database';
@@ -6,7 +7,7 @@ import { databaseModule, stampPasskeysAtStart } from '#/modules/database';
 function fakeHandle(): DatabaseHandle & { closes: number } {
   const state = { closes: 0 };
   return {
-    db: {} as DatabaseHandle['db'],
+    db: inertDatabase(),
     sql: (() => Promise.resolve([])) as unknown as DatabaseHandle['sql'],
     close: () => {
       state.closes += 1;

@@ -1,4 +1,5 @@
 import type { DatabaseHandle } from '@odudu/db';
+import { inertDatabase } from '@odudu/db/testing';
 import { describe, expect, it } from 'vitest';
 import { mcpDepsFor, type McpDepsParts } from '#/mcp-deps';
 
@@ -6,7 +7,7 @@ function parts(publicBaseUrl: string | undefined, warned: string[]): McpDepsPart
   return {
     app: { inject: () => Promise.reject(new Error('not used')) },
     database: {} as DatabaseHandle,
-    ownerDatabase: { db: {} } as DatabaseHandle,
+    ownerDatabase: { db: inertDatabase() } as DatabaseHandle,
     kek: new Uint8Array(32),
     claimMappers: [],
     logger: { warn: (message: string) => warned.push(message), debug: () => undefined },

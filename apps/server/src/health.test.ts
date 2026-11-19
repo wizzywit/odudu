@@ -1,4 +1,5 @@
 import { type DatabaseHandle } from '@odudu/db';
+import { inertDatabase } from '@odudu/db/testing';
 import { loadConfig } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
@@ -20,7 +21,7 @@ function fakeDatabase(behaviour: 'ok' | 'down'): DatabaseHandle & { calls: numbe
   }) as unknown as DatabaseHandle['sql'];
 
   return {
-    db: {} as DatabaseHandle['db'],
+    db: inertDatabase(),
     sql,
     close: () => Promise.resolve(),
     get calls() {

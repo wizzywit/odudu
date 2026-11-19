@@ -3,6 +3,7 @@ import { buildApp } from '../../apps/server/src/app.js';
 import { createLogger } from '../../apps/server/src/logger.js';
 import { CONSOLE_KEYS } from '../../apps/server/src/testing/console-key.js';
 import { type DatabaseHandle } from '../../packages/db/src/index.js';
+import { inertDatabase } from '../../packages/db/src/inert-database.js';
 import { loadConfig } from '../../packages/kernel/src/index.js';
 import { backticked, CONSOLE_PAGES, fencedBlocks, loadSource, sections } from './markdown.js';
 
@@ -13,7 +14,7 @@ const BASE = 'http://localhost:3000';
 // be asked what it serves. The gateway sizes its refresh semaphore from the
 // pool, so the stand-in carries a pool size.
 const database: DatabaseHandle = {
-  db: {} as DatabaseHandle['db'],
+  db: inertDatabase(),
   sql: Object.assign(() => Promise.resolve([]), {
     options: { max: 10 },
   }) as unknown as DatabaseHandle['sql'],

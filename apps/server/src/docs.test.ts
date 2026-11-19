@@ -1,4 +1,5 @@
 import { type DatabaseHandle } from '@odudu/db';
+import { forbiddenDatabase } from '@odudu/db/testing';
 import { loadConfig } from '@odudu/kernel';
 import { docsPolicy } from '@odudu/web-assets';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -29,14 +30,7 @@ const noTenants: DatabaseHandle = {
 // Any use of the database at all is a failure of the test: the documentation
 // is the same for everybody and has no business asking who is calling.
 const forbidden: DatabaseHandle = {
-  db: new Proxy(
-    {},
-    {
-      get() {
-        throw new Error('the documentation touched the database');
-      },
-    },
-  ) as DatabaseHandle['db'],
+  db: forbiddenDatabase('the documentation touched the database'),
   sql: new Proxy(() => undefined, {
     get() {
       throw new Error('the documentation touched the database');

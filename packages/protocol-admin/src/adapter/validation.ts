@@ -19,9 +19,9 @@ const addFormats = ajvFormatsModule.default as unknown as FormatsPlugin;
 // setting's value schema is a union (boolean, integer or text), which strict
 // mode otherwise refuses to compile at all.
 function instance(coerceTypes: boolean): Ajv2020 {
-  return addFormats(
-    new Ajv2020({ allErrors: false, strict: true, coerceTypes, allowUnionTypes: true }),
-  );
+  const ajv = new Ajv2020({ allErrors: false, strict: true, coerceTypes, allowUnionTypes: true });
+  addFormats(ajv);
+  return ajv;
 }
 
 // Fastify hands query and path parameters to ajv as strings regardless of
