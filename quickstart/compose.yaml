@@ -32,7 +32,7 @@ services:
   # generates one; `docker compose run --rm setup` from a terminal gives it
   # one, and it asks for the password instead.
   setup:
-    image: ${ODUDU_IMAGE:-ghcr.io/wizzywit/odudu:0.0.0}
+    image: ${ODUDU_IMAGE:-ghcr.io/wizzywit/odudu:0.1.0}
     command: ['odudu', 'init']
     restart: 'no'
     environment:
@@ -48,7 +48,7 @@ services:
         condition: service_healthy
 
   odudu:
-    image: ${ODUDU_IMAGE:-ghcr.io/wizzywit/odudu:0.0.0}
+    image: ${ODUDU_IMAGE:-ghcr.io/wizzywit/odudu:0.1.0}
     command: ['node', '--env-file=/var/lib/odudu/quickstart.env', 'dist/main.js']
     restart: unless-stopped
     environment:
@@ -89,7 +89,7 @@ services:
   mailpit:
     profiles: ['mail']
     # digest of the multi-arch index; Dependabot moves it
-    image: axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
     ports:
       - '127.0.0.1:${ODUDU_MAIL_PORT:-8025}:8025'
 
