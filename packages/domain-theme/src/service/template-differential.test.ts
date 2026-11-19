@@ -168,6 +168,9 @@ describe('[ODUDU-THEME-PARSE-01] the checker parses a template as the browser pa
       expect(accepted).toBeGreaterThan(200);
       expect(wrong.slice(0, 10)).toEqual([]);
     },
+    // 20,000 generated templates per seed: about 5 s on a loaded runner, and
+    // the run is deterministic, so a timeout is the only way it can fail.
+    30_000,
   );
 
   const ADVERSARIAL: [string, string][] = [
