@@ -3,7 +3,7 @@
 # version is never written down twice: package.json is the only place it
 # appears.
 # digest of the multi-arch index; Dependabot moves it
-FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS pnpm-version
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS pnpm-version
 WORKDIR /pin
 COPY package.json ./
 RUN node -p "require('./package.json').packageManager" > /pnpm-version
@@ -23,7 +23,7 @@ RUN node -p "require('./package.json').packageManager" > /pnpm-version
 # which is half the problem unfixed. COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 # answers the confirmation corepack would otherwise put to a tty that is not
 # there.
-FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS pnpm
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS pnpm
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 COPY --from=pnpm-version /pnpm-version /pnpm-version
@@ -79,7 +79,7 @@ COPY apps apps
 # Removing it first is what keeps the runtime image to what runs.
 RUN rm -rf node_modules && pnpm install --frozen-lockfile --offline --prod --ignore-scripts
 
-FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS runtime
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS runtime
 RUN addgroup -S odudu && adduser -S -G odudu odudu
 # A named volume mounted here takes this directory's owner and mode, so
 # odudu init, which runs as the odudu user, can write quickstart.env into it.

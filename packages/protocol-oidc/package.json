@@ -17,7 +17,7 @@
     "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
   },
   "dependencies": {
-    "@fastify/cors": "11.3.1",
+    "@fastify/cors": "11.4.3",
     "@odudu/authn-flows": "workspace:*",
     "@odudu/contracts": "workspace:*",
     "@odudu/crypto": "workspace:*",
@@ -29,11 +29,11 @@
     "@odudu/i18n": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.4",
-    "fastify": "5.12.7",
+    "fastify": "5.12.8",
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@fastify/formbody": "9.0.1",
+    "@fastify/formbody": "9.0.2",
     "@odudu/testkit": "workspace:*",
     "jose": "6.2.17",
     "pino": "10.4.0",
