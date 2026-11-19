@@ -6,6 +6,7 @@ import { Button } from '#/shared/ui/Button';
 import { TextField } from '#/shared/ui/Field';
 import { RecordPage } from '#/shared/ui/RecordPage/RecordPage';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
+import { tabName } from '#/testing/tabName';
 
 function view(overrides: Partial<RecordView> = {}): RecordView {
   return {
@@ -48,7 +49,7 @@ it('heads the record with its name and shows the tab the address names', () => {
   expect(screen.getByRole('heading', { level: 1, name: 'Billing portal' })).toBeVisible();
   expect(screen.getByRole('tab', { name: 'Activity' })).toHaveAttribute('aria-selected', 'true');
   expect(screen.getByText('Activity panel')).toBeVisible();
-  expect(screen.getByRole('tab', { name: 'General, unsaved changes' })).toBeVisible();
+  expect(screen.getByRole('tab', { name: tabName('General', 'unsaved changes') })).toBeVisible();
 });
 
 it('leads with its breadcrumb in every state, and its status once it has one', () => {

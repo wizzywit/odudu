@@ -13,6 +13,7 @@ import {
 import { inTurn, json, pending, problem } from '#/testing/fakeTransport';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
 import { resetConsole } from '#/testing/resetConsole';
+import { tabName } from '#/testing/tabName';
 
 afterEach(() => {
   resetConsole();
@@ -62,7 +63,7 @@ describe('the publication bar', () => {
   it('marks each tab that holds part of the change, and no other', async () => {
     renderConsoleAt(AT, brandingRoutes(themeAnswer(twoTabs({ changed: ['templates'] }), '"d1"')));
     await bar();
-    expect(screen.getByRole('tab', { name: 'Pages, changes to publish' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: tabName('Pages', 'changes to publish') })).toBeVisible();
     expect(screen.getByRole('tab', { name: 'Theme' })).toBeVisible();
     expect(screen.getByRole('tab', { name: 'Mail' })).toBeVisible();
   });
@@ -149,8 +150,8 @@ describe('discarding the draft', () => {
       }),
     );
     const region = await bar();
-    expect(screen.getByRole('tab', { name: 'Theme, changes to publish' })).toBeVisible();
-    expect(screen.getByRole('tab', { name: 'Pages, changes to publish' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: tabName('Theme', 'changes to publish') })).toBeVisible();
+    expect(screen.getByRole('tab', { name: tabName('Pages', 'changes to publish') })).toBeVisible();
     await user.click(within(region).getByRole('button', { name: 'Discard draft…' }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Discard draft' }));
@@ -205,7 +206,9 @@ describe('reverting a tab', () => {
     expect(put?.ifMatch).toBe('"d1"');
     expect(put?.body).toEqual({ ...DRAFT, templates: {} });
     expect(await within(await bar()).findByText('Changed: Colours and font')).toBeVisible();
-    expect(await screen.findByRole('tab', { name: 'Theme, changes to publish' })).toBeVisible();
+    expect(
+      await screen.findByRole('tab', { name: tabName('Theme', 'changes to publish') }),
+    ).toBeVisible();
     expect(screen.getByRole('tab', { name: 'Pages' })).toBeVisible();
     expect(within(panel).getByText('This tab already matches what is published.')).toBeVisible();
   });

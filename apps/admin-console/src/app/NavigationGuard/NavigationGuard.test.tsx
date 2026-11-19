@@ -19,6 +19,7 @@ import { useRecordTab } from '#/shared/lib/repository/useRecordTab';
 import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import { Tabs } from '#/shared/ui/Tabs';
 import { resetConsole } from '#/testing/resetConsole';
+import { tabName } from '#/testing/tabName';
 
 afterEach(() => {
   resetConsole();
@@ -135,10 +136,9 @@ describe('a tab change inside a record', () => {
         .findByRole('alertdialog', { name: 'Leave without saving?' })
         .then(() => screen.getByRole('button', { name: 'Stay' })),
     );
-    expect(screen.getByRole('tab', { name: 'General, unsaved changes' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
+    expect(
+      screen.getByRole('tab', { name: tabName('General', 'unsaved changes') }),
+    ).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('General panel')).toBeVisible();
 
     await user.click(screen.getByRole('tab', { name: 'Tokens' }));
