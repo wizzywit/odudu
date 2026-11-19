@@ -726,6 +726,10 @@ interface CountPlanCase {
   readonly table: string;
   readonly index: string;
   readonly column: string;
+  // A second index that serves the same range, which the planner may pick
+  // instead: a count needs no subject_id, so the narrower unique index on the
+  // address serves it as well as the one the listing orders by.
+  readonly equivalentIndex?: string;
   readonly throughOwner: boolean;
   // Set where a count may Seq Scan nothing, under any ceiling.
   readonly noSeqScan?: boolean;
@@ -749,6 +753,7 @@ const COUNT_CASES: readonly CountPlanCase[] = [
     label: 'subjects/count ?email=a',
     table: 'users',
     index: 'users_email_search',
+    equivalentIndex: 'users_email_search_unique',
     column: 'email_search',
     throughOwner: false,
     count: scopedCount((tx, options) => countSubjects(tx, { email: 'a' }, new Date(), options)),
@@ -889,7 +894,11 @@ describe('the plan each searched count is given', () => {
       async ({ regime, cap, bounded, scans }) => {
         const nodes = await countPlan(countCase, cap, regime);
         const types = nodes.map((node) => node.nodeType);
-        const scan = nodes.find((node) => node.indexName === countCase.index);
+        const scan = nodes.find(
+          (node) =>
+            node.indexName !== undefined &&
+            (node.indexName === countCase.index || node.indexName === countCase.equivalentIndex),
+        );
 
         expect(scans).toContain(scan?.nodeType);
         expect(scan?.indexCond).toContain(`${countCase.column} >=`);
