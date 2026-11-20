@@ -111,6 +111,8 @@ export interface Hoisted {
 export function hoistRepeatedSchemas(paths: Json, schemas: Record<string, unknown>): Hoisted {
   let currentPaths = paths;
   const currentSchemas = { ...schemas };
+  // Each pass turns a shape of three or more occurrences into one definition, so
+  // the loop ends after at most as many passes as the document has distinct shapes.
   for (;;) {
     const found = [...candidatesOfPaths(currentPaths)];
     for (const [key, body] of Object.entries(currentSchemas)) candidatesIn(body, key, found);
