@@ -48,6 +48,7 @@ def _arguments(
     if "client" in keywords or "tenant" in keywords:
         raise TypeError("a call cannot name its own client or tenant: the client owns both")
     refuse_dot_segments(arguments)
+    refuse_dot_segments(tuple(keywords.values()))
     return (tenant, *arguments) if _takes_tenant(operation) else arguments
 
 
@@ -97,7 +98,9 @@ class SyncClient:
     def http(self) -> httpx.Client:
         """The configured `httpx.Client`, for an endpoint no generated operation covers.
 
-        It signs, retries and raises like a generated call, and refuses another origin.
+        It signs, retries and raises like a generated call, and refuses another origin. A
+        request body given as a stream cannot be sent twice, so give a body as bytes or text
+        when the call may be retried.
         """
         return self._http
 

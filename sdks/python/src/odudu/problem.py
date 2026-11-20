@@ -31,3 +31,7 @@ class ProblemError(Exception):
         self.instance = init.instance
         self.errors = init.errors
         self.response = response
+        self._init = init
+
+    def __reduce__(self) -> tuple[type[ProblemError], tuple[ProblemInit, httpx.Response]]:
+        return (type(self), (self._init, self.response))

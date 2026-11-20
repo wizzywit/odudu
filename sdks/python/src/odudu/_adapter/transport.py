@@ -33,6 +33,7 @@ REDIRECT_MESSAGE = (
     "the server answered with a redirect; redirects are not followed so the token is never "
     "sent elsewhere"
 )
+_CREDENTIAL_HEADERS = ("authorization", "idempotency-key")
 _BODY_HEADERS = ("content-encoding", "content-length", "transfer-encoding")
 
 
@@ -61,10 +62,19 @@ class Policy:
         return is_idempotent(request.method, path.removeprefix(prefix), self.idempotent)
 
 
+def _without_credentials(request: httpx.Request) -> list[tuple[str, str]]:
+    return [
+        (key, value)
+        for key, value in request.headers.multi_items()
+        if key.lower() not in _CREDENTIAL_HEADERS
+    ]
+
+
 def _problem(request: httpx.Request, response: httpx.Response, init: ProblemInit) -> ProblemError:
     headers = [(k, v) for k, v in response.headers.multi_items() if k.lower() not in _BODY_HEADERS]
-    bare = httpx.Response(response.status_code, headers=headers, request=request)
-    return ProblemError(init, bare)
+    # The request the error carries is a copy without the credentials it was sent with.
+    sent = httpx.Request(request.method, request.url, headers=_without_credentials(request))
+    return ProblemError(init, httpx.Response(response.status_code, headers=headers, request=sent))
 
 
 def _may_retry(request: httpx.Request) -> bool:

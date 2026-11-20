@@ -5,7 +5,7 @@ Typed Python clients for the Odudu admin API and the account
 
 ```python
 from odudu.admin import AdminClient, iterate_pages
-from odudu._generated.admin.api.default import get_admin_tenants_tenant_clients
+from odudu.admin.operations import get_admin_tenants_tenant_clients
 
 with AdminClient("https://id.example.com", "acme", token=lambda: fetch_token()) as admin:
     for client in iterate_pages(
