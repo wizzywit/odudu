@@ -100,6 +100,8 @@ type Call<P, Method extends 'get' | 'put' | 'post' | 'patch' | 'delete'> = <
  * The generated paths as calls. A call resolves with the success response and
  * throws a `ProblemError` for any other. That includes every 3xx, a 304 among
  * them: redirects are never followed, so the token cannot be sent elsewhere.
+ * A call that is refused before it is sent, such as a path id of `.` or `..`,
+ * rejects the returned promise rather than throwing.
  */
 export interface TenantClient<P> {
   GET: Call<P, 'get'>;

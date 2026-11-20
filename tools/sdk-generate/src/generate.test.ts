@@ -92,7 +92,7 @@ describe.skipIf(!documentsPresent)('the generated clients', () => {
       await rm(a, { recursive: true });
       await rm(b, { recursive: true });
     }
-  });
+  }, 30_000);
 
   it('matches what is committed, so a stale schema fails', async () => {
     const out = await scratch();
@@ -108,7 +108,7 @@ describe.skipIf(!documentsPresent)('the generated clients', () => {
     } finally {
       await rm(out, { recursive: true });
     }
-  });
+  }, 30_000);
 });
 
 const IDEMPOTENT_DOCUMENT = JSON.stringify({

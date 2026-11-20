@@ -8,6 +8,12 @@ export const profile = client.GET('/tenants/{tenant}/me/profile');
 // @ts-expect-error a path the document does not have
 export const unknownPath = client.GET('/tenants/{tenant}/me/nothing');
 
+// A call cannot name its own origin or redirect policy.
+// @ts-expect-error baseUrl is the client's
+export const ownOrigin = client.GET('/tenants/{tenant}/me/profile', { baseUrl: 'http://evil' });
+// @ts-expect-error redirect policy is the client's
+export const ownRedirect = client.GET('/tenants/{tenant}/me/profile', { redirect: 'follow' });
+
 export async function profileName(): Promise<string | null> {
   const { data } = await client.GET('/tenants/{tenant}/me/profile');
   return data.name;
