@@ -90,12 +90,26 @@ describe('buildAdminOpenApiDocument', () => {
     for (const route of ADMIN_ROUTES) {
       const path = route.pattern.replace(/:(\w+)/gu, '{$1}');
       const status = String(route.successStatus ?? 200);
+      if (status === '204') continue;
       const response = document.paths[path]?.[route.method.toLowerCase()]?.responses[status] as
         { content?: object } | undefined;
       expect(response?.content, `${route.method} ${path} ${status}`).toHaveProperty([
         route.successMediaType ?? 'application/json',
       ]);
     }
+  });
+
+  it('documents a 204 as No Content, with no body', () => {
+    const document = buildAdminOpenApiDocument();
+    let seen = 0;
+    for (const route of ADMIN_ROUTES) {
+      if (route.successStatus !== 204) continue;
+      const path = route.pattern.replace(/:(\w+)/gu, '{$1}');
+      const response = document.paths[path]?.[route.method.toLowerCase()]?.responses['204'];
+      expect(response, `${route.method} ${path}`).toEqual({ description: 'No Content' });
+      seen += 1;
+    }
+    expect(seen).toBeGreaterThan(0);
   });
 
   it('documents the tenant export as its own media type', () => {

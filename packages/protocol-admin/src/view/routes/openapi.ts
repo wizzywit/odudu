@@ -174,15 +174,19 @@ function standalone(schema: z.ZodType): JsonSchema {
 
 function operationFor(route: AdminRoute): OpenApiOperation {
   const status = String(route.successStatus ?? 200);
+  const success: OpenApiResponse =
+    status === '204'
+      ? { description: 'No Content' }
+      : {
+          description: status === '201' ? 'Created' : 'OK',
+          content: {
+            [route.successMediaType ?? 'application/json']: {
+              schema: jsonSchemaFor(route.responseSchema),
+            },
+          },
+        };
   const responses: Record<string, OpenApiResponseOrRef> = {
-    [status]: {
-      description: status === '201' ? 'Created' : 'OK',
-      content: {
-        [route.successMediaType ?? 'application/json']: {
-          schema: jsonSchemaFor(route.responseSchema),
-        },
-      },
-    },
+    [status]: success,
     '401': responseRef('401'),
   };
   if (route.capability !== null) {
