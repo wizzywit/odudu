@@ -742,6 +742,15 @@ jobs:
         with:
           turbo-cache-key: sdks
 
+      # The OpenAPI documents are generated, not committed; regenerating the
+      # clients from fresh ones and finding no diff proves the committed
+      # generated types are what the server's routes describe.
+      - name: Regenerate the API clients and fail on any diff
+        run: |
+          pnpm --filter @odudu/docs generate
+          pnpm sdks:generate
+          git diff --exit-code -- sdks
+
       - name: Build every SDK that has a build script
         run: pnpm --filter "./sdks/*" --if-present run build
 
