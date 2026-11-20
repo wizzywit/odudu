@@ -577,6 +577,32 @@ describe('the CI workflow', () => {
         expect(block).not.toMatch(/NODE_AUTH_TOKEN|NPM_TOKEN|secrets\./u);
       });
 
+      it('installs an exact npm and fails the job when it is older than 11.5.1', async () => {
+        const block = jobBlock(await release(), 'publish-npm', 'publish-pypi');
+        expect(block).not.toMatch(/npm@11(?!\.\d)/u);
+        expect(block).toMatch(/npm install --global npm@11\.\d+\.\d+\b/u);
+        expect(block).toContain('11.5.1');
+        expect(block).toMatch(/npm --version/u);
+        expect(block).toMatch(/exit 1/u);
+        expect(block).not.toMatch(/provenance statement follows/u);
+      });
+
+      it('counts only a gate check run made by GitHub Actions', async () => {
+        const block = jobBlock(await release(), 'prepare', 'build');
+        expect(block).toContain('.app.slug == "github-actions"');
+        expect(block).toContain('.name == "gate"');
+      });
+
+      it('has RELEASING.md limit the environment to SDK tags and check the tagged commit', async () => {
+        const text = await read('RELEASING.md');
+        const section = text.slice(text.indexOf('## Releasing an SDK'));
+        expect(section).toContain('deployment rule');
+        expect(section).toContain('`*-v*`');
+        expect(section).toMatch(/tagged commit/u);
+        expect(section).toContain('unverified: `npm publish <tarball>`');
+        expect(section).toContain('unverified: the npm in the workflow');
+      });
+
       it('refuses a tag that is not a package, a mismatched version, a private package and a missing changelog section', async () => {
         const workflow = await release();
         const block = jobBlock(workflow, 'prepare', 'build');

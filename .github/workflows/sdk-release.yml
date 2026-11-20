@@ -140,7 +140,8 @@ jobs:
             exit 1
           fi
 
-      # The check `verify` ends in. A tag pushed before CI finished fails here:
+      # The check `verify` ends in, made by GitHub Actions and not by another app
+      # that names a check `gate`. A tag pushed before CI finished fails here:
       # run the workflow again once `gate` is green.
       - name: Require that CI passed on this commit
         if: github.event_name == 'push'
@@ -148,7 +149,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           passed="$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100" \
-            --jq '.check_runs[] | select(.name == "gate" and .conclusion == "success") | .id' | wc -l)"
+            --jq '.check_runs[] | select(.name == "gate" and .conclusion == "success" and .app.slug == "github-actions") | .id' | wc -l)"
           if [ "$passed" -lt 1 ]; then
             echo "::error::The gate check has not passed on $GITHUB_SHA. Tag a commit CI has passed on, or run this workflow again when it has."
             exit 1
@@ -219,8 +220,9 @@ jobs:
 
   # Only a pushed tag publishes, and only after the owner approves the
   # `sdk-release` environment. npm trusted publishing is configured per
-  # package on npmjs.com against this workflow file and that environment, and
-  # the provenance statement follows from it, so no token and no flag is used.
+  # package on npmjs.com against this workflow file and that environment, so
+  # no token is used. npm is expected to attach a provenance statement for a
+  # public package from a public repository; that has not been observed.
   publish-npm:
     needs: [prepare, build]
     if: github.event_name == 'push' && needs.prepare.outputs.registry == 'npm'
@@ -236,11 +238,17 @@ jobs:
           node-version: '24'
 
       # Trusted publishing needs npm 11.5.1 or later. The npm that ships with
-      # Node 24 may be older, so move to the 11 line and say which one ran.
+      # Node 24 may be older, so install an exact version (11.21.1, published
+      # 2026-10-15) and fail the job if the one that runs is below the minimum.
       - name: Use an npm that can publish by trusted publishing
         run: |
-          npm install --global npm@11
-          npm --version
+          npm install --global npm@11.21.1
+          version="$(npm --version)"
+          echo "npm $version"
+          if [ "$(printf '%s\n' 11.5.1 "$version" | sort -V | head -n 1)" != "11.5.1" ]; then
+            echo "::error::npm $version is older than 11.5.1, which trusted publishing needs."
+            exit 1
+          fi
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:

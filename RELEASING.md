@@ -164,8 +164,9 @@ What the workflow does:
   `sdk-release` environment. Neither registry is given a token: each trusts
   this workflow's own identity (trusted publishing). npm gets the dist-tag
   `latest`, or `rc` for a candidate, so a candidate never becomes what
-  `npm install` gives. npm generates the provenance statement for a public
-  package from a public repository, so there is no flag for it.
+  `npm install` gives. npm is expected to generate the provenance statement
+  for a public package from a public repository, so the workflow passes no
+  flag for it (unverified: not observed outside GitHub Actions).
 
 To run everything except the publishing, start the `sdk-release` workflow by
 hand from the Actions tab and give it a tag. It checks the tag, builds, tests
@@ -211,7 +212,17 @@ until a release has used it, and the two that the pages leave open are marked.
    create `sdk-release` and add yourself as a required reviewer, so a tag
    publishes only after you approve it. Without the environment, GitHub creates
    one with no reviewers when the workflow first names it, and nothing waits
-   for you.
+   for you. The workflow file at the tagged commit is the one that runs, and a
+   candidate tag may point at any commit, not only one on `main`. Limit the
+   environment's deployment rule to the SDK tag pattern `*-v*`, optionally add a
+   repository ruleset for `*-v*` tags as there is for `v*`, and as reviewer
+   open the tagged commit and read its workflow before you approve.
+6. **Two assumptions the workflow makes** (each marked unverified until a
+   release has run them): unverified: `npm publish <tarball>`, run after
+   `pnpm pack`, is accepted by trusted publishing and gets provenance; and
+   unverified: the npm in the workflow, `11.21.1`, is the version that ships
+   trusted publishing (the job fails if `npm --version` is below `11.5.1`).
+   `npm view npm time --json` showed 11.21.1 as published on 2026-10-15.
 
 ## Owner settings
 
