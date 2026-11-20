@@ -1,6 +1,6 @@
 # Machine-to-machine example
 
-A service that is not a person: a nightly job, or a backend calling another backend. It signs in as itself with a secret, gets an access token, and calls the [API example](../api) with it. This example is one file, `client.ts`, and has no dependencies, because `fetch` is enough.
+A service that is not a person: a nightly job, or a backend calling another backend. It signs in as itself with a secret, gets an access token, and calls the [API example](../api) with it. This example is one file, `client.ts`, and has one dependency, the `@odudu-io/oidc` SDK, whose token source keeps the token and renews it.
 
 ## What happens
 
@@ -13,8 +13,11 @@ A service that is not a person: a nightly job, or a backend calling another back
 You need Node 24 or later, the quick start stack and the API example running. Run `../_shared/provision.sh` once, start the API in `../api` (see its README), then here:
 
 ```text
+../_shared/install.sh . oidc
 npm start
 ```
+
+The SDKs are not on npm yet, so `../_shared/install.sh` builds them from this repository and installs the packed result (it needs `pnpm install` run once at the repository root); `npm test` also needs the API installed, with `../_shared/install.sh ../api node`. Once the SDKs are published, `npm install` is all a copy of this folder needs.
 
 `npm test` starts the API itself, runs the client and checks that it is answered, checks that a wrong secret is refused, and checks that the token is asked for once and asked for again only when it is nearly expired.
 
