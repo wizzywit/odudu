@@ -104,7 +104,9 @@ export interface MeRoute {
 
 const idParams = z.object({ id: z.uuid() });
 
-const REFUSED = { 401: 'error', 403: 'error', 429: 'error' } as const;
+// What any route may answer before it reads its own input: a tenant that is
+// unknown or disabled is a 404, and a token that is missing or short a 401 or 403.
+const REFUSED = { 401: 'error', 403: 'error', 404: 'error', 429: 'error' } as const;
 
 // One source for what a route accepts and answers: the handlers validate with
 // these members and the OpenAPI document is generated from them.
@@ -114,7 +116,7 @@ const PROFILE_GET = {
   summary: 'The signed-in person’s own profile.',
   scope: 'me:read',
   query: meNoQuerySchema,
-  responses: { 200: meProfileSchema, 400: 'error', ...REFUSED, 404: 'error' },
+  responses: { 200: meProfileSchema, 400: 'error', ...REFUSED },
 } as const satisfies MeRoute;
 
 const CREDENTIALS_GET = {
@@ -155,7 +157,6 @@ const PROFILE_PATCH = {
     202: meEmailVerificationSentSchema,
     400: 'error',
     ...REFUSED,
-    404: 'error',
     409: 'error',
     503: 'error',
   },
@@ -175,7 +176,7 @@ const SESSION_DELETE = {
   summary: 'Ends one of the person’s own sessions.',
   scope: 'me:write',
   params: idParams,
-  responses: { 200: meSessionEndedSchema, ...REFUSED, 404: 'error' },
+  responses: { 200: meSessionEndedSchema, ...REFUSED },
 } as const satisfies MeRoute;
 
 const CONSENT_DELETE = {
@@ -184,7 +185,7 @@ const CONSENT_DELETE = {
   summary: 'Withdraws the person’s consent to one client.',
   scope: 'me:write',
   params: z.object({ client_id: z.string() }),
-  responses: { 204: 'empty', ...REFUSED, 404: 'error' },
+  responses: { 204: 'empty', ...REFUSED },
 } as const satisfies MeRoute;
 
 const CREDENTIAL_PATCH = {
@@ -194,7 +195,7 @@ const CREDENTIAL_PATCH = {
   scope: 'me:write',
   params: idParams,
   body: meRenameCredentialRequestSchema,
-  responses: { 200: meCredentialSchema, 400: 'error', ...REFUSED, 404: 'error' },
+  responses: { 200: meCredentialSchema, 400: 'error', ...REFUSED },
 } as const satisfies MeRoute;
 
 const CREDENTIAL_DELETE = {
@@ -203,7 +204,7 @@ const CREDENTIAL_DELETE = {
   summary: 'Removes one of the person’s own ways to sign in.',
   scope: 'me:write',
   params: idParams,
-  responses: { 204: 'empty', ...REFUSED, 404: 'error', 409: 'error' },
+  responses: { 204: 'empty', ...REFUSED, 409: 'error' },
 } as const satisfies MeRoute;
 
 // No route names a subject: the token's own is the only one any of them acts for.

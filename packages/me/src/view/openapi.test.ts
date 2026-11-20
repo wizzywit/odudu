@@ -75,6 +75,23 @@ describe('buildMeOpenApiDocument', () => {
     }
   });
 
+  it('answers 404 on every route, since an unknown or disabled tenant is refused with it', () => {
+    for (const route of ME_ROUTES) {
+      expect(Object.keys(operationOf(route.method, route.url).responses), route.url).toContain(
+        '404',
+      );
+    }
+  });
+
+  it('says the bodiless refusals have no body, where the shared response also names a body', () => {
+    const description = (name: string) => document.components.responses[name]?.description ?? '';
+    expect(description('NotFound')).toMatch(/no body/iu);
+    expect(description('Forbidden')).toMatch(/insufficient_scope/u);
+    expect(description('Forbidden')).toMatch(/agent_not_permitted/u);
+    expect(description('Forbidden')).toMatch(/no body/iu);
+    expect(description('Forbidden')).toMatch(/no challenge/iu);
+  });
+
   it('writes the error body once, as a component', () => {
     expect(JSON.stringify(document.paths)).not.toContain('error_description');
     expect(document.components.schemas.MeError).toMatchObject({

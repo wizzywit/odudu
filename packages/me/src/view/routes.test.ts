@@ -257,6 +257,18 @@ describe('the routes', () => {
     expect(served.sort()).toEqual(ME_ROUTES.map((r) => `${r.method} ${r.url}`).sort());
   });
 
+  it('answer an error only at an error status, and nothing only at a success', () => {
+    for (const route of ME_ROUTES) {
+      for (const [status, answer] of Object.entries(route.responses)) {
+        if (answer === 'error') expect(Number(status), route.url).toBeGreaterThanOrEqual(400);
+        if (answer === 'empty') expect(Number(status), route.url).toBe(204);
+        if (typeof answer === 'object') {
+          expect(Number(status), route.url).toBeLessThan(300);
+        }
+      }
+    }
+  });
+
   it('do not take the document for a me route', () => {
     expect(isMeRoute('/me/openapi.json')).toBe(false);
     expect(isMeRoute('/tenants/:tenant/me/profile')).toBe(true);

@@ -69,7 +69,7 @@ const ERROR_RESPONSES: Readonly<Record<number, readonly [string, OpenApiResponse
     'Forbidden',
     {
       ...errorResponse(
-        'The token lacks the scope (`insufficient_scope`, no body, with a challenge) or was issued to an agent (`agent_not_permitted`).',
+        'Either the token lacks the scope (`insufficient_scope`: no body, with a `WWW-Authenticate` challenge) or it was issued to an agent for a change (`agent_not_permitted`: an error body, no challenge).',
         'MeError',
         'application/json',
       ),
@@ -78,7 +78,11 @@ const ERROR_RESPONSES: Readonly<Record<number, readonly [string, OpenApiResponse
   ],
   404: [
     'NotFound',
-    errorResponse('The addressed record does not exist.', 'MeError', 'application/json'),
+    errorResponse(
+      'The tenant is unknown or disabled (no body), or the addressed record does not exist (an error body).',
+      'MeError',
+      'application/json',
+    ),
   ],
   409: [
     'Conflict',
