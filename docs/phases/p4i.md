@@ -888,37 +888,40 @@ parameters, so its numbers stand.
 Each example's `test.ts` was run against the old code on a live stack first
 (`api` 18 of 18 with `verifier.test.ts`, `web-app` 8 of 8,
 `single-page-app` 13 of 13 with `expiry.test.ts`, `machine-to-machine` 4 of 4),
-then against the SDK version. `api` (6 of 6 without `verifier.test.ts`) and
-`web-app` (8 of 8) moved. Two examples did not, because an assertion would have
-had to change.
+then against the SDK version from packed tarballs: `api` 6 of 6 (its verifier
+test is gone), `web-app` 8 of 8, `single-page-app` 10 of 10 (the three expiry
+unit tests went with `expiry.ts`), `machine-to-machine` 4 of 4, `next` 3 of 3.
 
-| Example              | Assertion                                                     | Old library                                                   | SDK                                                                                                               |
-| -------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `machine-to-machine` | `is refused with the wrong secret` expects `invalid_client`   | `invalid_client` from Odudu's 401 body reaches the client     | `request_failed: the token request did not complete`; the server's code is lost (below)                           |
-| `single-page-app`    | `refuses an answer that names another issuer` matches the log | `unexpected "iss" (issuer) response parameter` (oauth4webapi) | `invalid_issuer: the response iss is not the issuer this sign-in used`; the refusal is the same, the words differ |
-
-`machine-to-machine`. Odudu answers a wrong secret with `401` and
-`WWW-Authenticate: Basic realm="token"` (verified:
-`curl -si -u example-m2m:bad -d grant_type=client_credentials
-$ODUDU_BASE/tenants/demo/protocol/openid-connect/token`). `oauth4webapi` raises
-`WWWAuthenticateChallengeError` for a challenge before it reads the body, and
-`sdks/oidc/src/adapter/client-credentials.ts` maps everything that is not a
-`ResponseBodyError` to `request_failed`, so `OduduError.code` is never
-`invalid_client` for a wrong secret. `OduduError` documents `invalid_client` as a
-code. `sdks/oidc/src/adapter/token-failure.ts` (code exchange and refresh) has the same
-fallback. This reads as an SDK defect, not a choice.
-
-`single-page-app`. Everything else passed on the SDK (9 of 9 other tests, with
-`expiry.ts` and its test gone, the expiry read from `TokenSet.byAudience`).
-
-`web-app` did not use `@odudu-io/bff`. The BFF's cookie is `__Host-odudu`, its
-logout needs the `x-odudu-bff` header (a form POST cannot send it), its session
-route answers JSON and its failures are bare statuses. The test asserts a `sid=`
-cookie, a form sign-out, `No sign-in is under way` and the reason in the log, so
-the BFF could not carry it without changing five assertions. The example uses the
-core's `beginSignIn`, `completeSignIn` and `signOutUrl` with its own session map.
-
-`machine-to-machine`'s test also counted every request the injected `fetch`
-made; the SDK reads the tenant metadata through it too, so a count of one became
-two. Only that call site changes (count requests ending in `/token`), plus the
-`createTokenSource` import and option shape.
+- **`single-page-app`, one assertion changed.** `refuses an answer that names
+another issuer` matched oauth4webapi's wording, `/unexpected "iss" \(issuer\)
+response parameter/u`. The SDK refuses the same answer with `invalid_issuer:
+the response iss is not the issuer this sign-in used`, so the pattern is now
+  `/invalid_issuer/u`. The refusal is the same; only the words differ.
+- **`machine-to-machine`, an SDK defect found and fixed.** Odudu answers a wrong
+  secret with `401`, `WWW-Authenticate: Basic realm="token"` and an OAuth body
+  (verified: `curl -si -u example-m2m:bad -d grant_type=client_credentials
+$ODUDU_BASE/tenants/demo/protocol/openid-connect/token`). oauth4webapi raises
+  the challenge before it reads the body, and the core answered `request_failed`,
+  so `invalid_client` never surfaced. `tokenFailure` in `sdks/oidc` now reads the
+  body of a challenge-carrying answer and maps its `error` for the code
+  exchange, refresh, `clientCredentials` and `createTokenSource`; a challenge
+  with no OAuth body stays `request_failed`. A BFF callback refused for its own
+  secret now answers 502 (it was 502 against the real server before and 400
+  against a body-only fake); a refresh refused for it still keeps the session.
+  The example's test asserts the same `invalid_client`.
+- **`machine-to-machine`, the test's call site changed.** The test imported
+  `createTokenSource` from `client.ts` with the old option shape. It now imports
+  it from `@odudu-io/oidc` with `auth: { secret }` and the SDK's `deps`, and its
+  counting `fetch` counts only requests ending in `/token`, because the SDK reads
+  the tenant's metadata through the same function. No assertion changed.
+- **`web-app` does not use `@odudu-io/bff`.** The BFF is for apps whose browser
+  code reads a JSON session; `examples/next` and the React example feature it.
+  Its use here would change five assertions: the cookie (`__Host-odudu`, not
+  `sid=`), sign-out (it needs the `x-odudu-bff` header, which a form POST cannot
+  send), the page text (`Signed in as ...` has no source, the session route
+  answers JSON), the callback with no sign-in under way (a bare 400, not
+  `No sign-in is under way`), and the reason in the log. The example uses
+  `beginSignIn`, `completeSignIn` and `signOutUrl` with its own session map.
+- **Lockfiles.** Committed lockfiles hold third-party packages only and `npm ci`
+  fails on a copy until the SDKs are on npm; `RELEASING.md` item 7 and the plan
+  regenerate them after the first publish.

@@ -349,6 +349,52 @@ describe('the CI workflow', () => {
       expect(install).toContain('npm ci --ignore-scripts');
     });
 
+    // The SDKs each leg installs, by evaluating the workflow's own expression,
+    // against the SDKs each example's manifest names and what those depend on.
+    it('lists for each example exactly the SDKs it needs, and their dependencies', async () => {
+      const block = await job();
+      const expression = /SDKS: \$\{\{ (.+) \}\}/u.exec(block)?.[1] ?? '';
+      expect(expression).not.toBe('');
+      // The expression is a flat chain: `matrix.example == 'name' && 'sdks' || ... || ''`.
+      const terms = [...expression.matchAll(/matrix\.example == '([\w-]+)' && '([\w ]+)'/gu)];
+      expect(expression.split(' || ')).toHaveLength(terms.length + 1);
+      const listed = (example: string): string[] =>
+        (terms.find((term) => term[1] === example)?.[2] ?? '')
+          .split(' ')
+          .filter((name) => name !== '')
+          .sort();
+      const dependenciesOf = async (name: string): Promise<string[]> => {
+        const manifest = JSON.parse(await read(`sdks/${name}/package.json`)) as {
+          dependencies?: Record<string, string>;
+        };
+        return Object.keys(manifest.dependencies ?? {})
+          .filter((dependency) => dependency.startsWith('@odudu-io/'))
+          .map((dependency) => dependency.slice('@odudu-io/'.length));
+      };
+      const closure = async (names: string[]): Promise<string[]> => {
+        const seen = new Set<string>();
+        const queue = [...names];
+        for (let name = queue.pop(); name !== undefined; name = queue.pop()) {
+          if (seen.has(name)) continue;
+          seen.add(name);
+          queue.push(...(await dependenciesOf(name)));
+        }
+        return [...seen].sort();
+      };
+      const examples = (await readdir(path.join(REPO_ROOT, 'examples'), { withFileTypes: true }))
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
+        .map((entry) => entry.name);
+      for (const example of examples) {
+        const manifest = JSON.parse(await read(`examples/${example}/package.json`)) as {
+          dependencies?: Record<string, string>;
+        };
+        const used = Object.keys(manifest.dependencies ?? {})
+          .filter((dependency) => dependency.startsWith('@odudu-io/'))
+          .map((dependency) => dependency.slice('@odudu-io/'.length));
+        expect(listed(example), example).toEqual(await closure(used));
+      }
+    });
+
     it('has one matrix leg per example directory with a lockfile and a test', async () => {
       const block = await job();
       const legs = /example: \[([^\]]+)\]/u.exec(block)?.[1]?.split(', ').sort() ?? [];

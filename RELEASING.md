@@ -230,6 +230,13 @@ until a release has used it, and the two that the pages leave open are marked.
    unverified: the npm in the workflow, `11.21.1`, is the version that ships
    trusted publishing (the job fails if `npm --version` is below `11.5.1`).
    `npm view npm time --json` showed 11.21.1 as published on 2026-10-15.
+7. **After the first publish of all SDKs: the examples' lockfiles.** Each
+   example's `package-lock.json` holds third-party packages only, because no
+   registry had the SDKs when it was written, so `npm ci` fails in a copy of an
+   example until then. Run `npm install` in each `examples/<name>` that names an
+   SDK, with the published `^0.1.0` ranges, commit the lockfiles, and re-check
+   Dependabot: its pull requests for those folders fail to resolve `@odudu-io/*`
+   until the packages exist.
 
 ## Owner settings
 

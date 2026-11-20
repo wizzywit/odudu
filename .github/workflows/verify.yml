@@ -517,7 +517,7 @@ jobs:
       # example that uses no SDK is installed from its lockfile.
       - name: Install the example
         env:
-          SDKS: ${{ matrix.example == 'web-app' && 'oidc' || matrix.example == 'api' && 'node' || matrix.example == 'next' && 'oidc bff next' || '' }}
+          SDKS: ${{ matrix.example == 'web-app' && 'oidc' || matrix.example == 'single-page-app' && 'oidc' || matrix.example == 'machine-to-machine' && 'oidc' || matrix.example == 'api' && 'node' || matrix.example == 'next' && 'oidc bff next' || '' }}
         run: examples/_shared/install.sh "examples/${{ matrix.example }}" $SDKS
 
       - name: Type-check the example
