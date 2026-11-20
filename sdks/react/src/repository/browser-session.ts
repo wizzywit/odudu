@@ -1,9 +1,9 @@
 import { beginSignIn, completeSignIn, refresh, signOutUrl, type TokenSet } from '@odudu-io/oidc';
 import { currentUrl, replaceUrl } from '#/adapter/location';
-import { hasPending, savePending, takePending } from '#/adapter/pending-storage';
+import { savePending, takePending } from '#/adapter/pending-storage';
 import { isCallback, withoutCallbackParams } from '#/services/callback';
 import { audienceNotGranted, noPendingSignIn } from '#/services/errors';
-import { isPending } from '#/services/pending';
+import { parsePending } from '#/services/pending';
 import { depsOf, signInOptions } from '#/services/sign-in';
 import { audienceKey, isFresh } from '#/services/tokens';
 import type { BrowserMode, SignInChoices } from '#/types';
@@ -20,10 +20,11 @@ export async function startSignIn(mode: BrowserMode, choices: SignInChoices): Pr
 // one. The address is cleaned and the record spent whatever the outcome.
 export async function finishSignIn(mode: BrowserMode): Promise<TokenSet | undefined> {
   const href = currentUrl();
-  if (!isCallback(new URL(href).search, hasPending())) return undefined;
-  const pending = takePending();
+  if (!isCallback(new URL(href).search)) return undefined;
+  const stored = takePending();
   replaceUrl(withoutCallbackParams(href));
-  if (!isPending(pending)) throw noPendingSignIn();
+  const pending = parsePending(stored);
+  if (pending === undefined) throw noPendingSignIn();
   return completeSignIn(href, pending, depsOf(mode));
 }
 

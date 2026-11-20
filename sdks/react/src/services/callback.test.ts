@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { isCallback, withoutCallbackParams } from '#/services/callback';
 
 describe('isCallback', () => {
-  it('needs a sign-in under way and a code or an error', () => {
-    expect(isCallback('?code=a&state=b', true)).toBe(true);
-    expect(isCallback('?error=access_denied&state=b', true)).toBe(true);
-    expect(isCallback('?code=a&state=b', false)).toBe(false);
-    expect(isCallback('?page=2', true)).toBe(false);
+  it('needs a state and a code or an error', () => {
+    expect(isCallback('?code=a&state=b')).toBe(true);
+    expect(isCallback('?error=access_denied&state=b')).toBe(true);
+    expect(isCallback('?code=a')).toBe(false);
+    expect(isCallback('?page=2')).toBe(false);
   });
 });
 

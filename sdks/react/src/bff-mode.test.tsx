@@ -143,4 +143,38 @@ describe('bff mode', () => {
     expect(caught).toMatchObject({ code: 'invalid_options' });
     expect((caught as OduduError).message).toContain('useBffFetch');
   });
+
+  it('refuses a logout address that is not http(s) and says so without echoing it', async () => {
+    bff.logoutRedirect = 'javascript:alert(1)';
+    const { result } = renderHook(() => useAuth(), { wrapper: providerFor(mode) });
+    await waitFor(() => {
+      expect(result.current.status).toBe('signedIn');
+    });
+    result.current.signOut();
+    await waitFor(() => {
+      expect(result.current.error).toBeInstanceOf(OduduError);
+    });
+    expect(navigate).not.toHaveBeenCalled();
+    expect(result.current.error?.message).not.toContain('javascript');
+  });
+
+  it('a 503 from /session is signedOut with an error that names the status only', async () => {
+    bff.sessionStatus = 503;
+    const { result } = renderHook(() => useAuth(), { wrapper: providerFor(mode) });
+    await waitFor(() => {
+      expect(result.current.status).toBe('signedOut');
+    });
+    expect(result.current.error).toMatchObject({ code: 'request_failed' });
+    expect(result.current.error?.message).toContain('503');
+    expect(result.current.error?.message).not.toContain('upstream detail');
+  });
+
+  it('a network failure on /session is signedOut with an error', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('offline')));
+    const { result } = renderHook(() => useAuth(), { wrapper: providerFor(mode) });
+    await waitFor(() => {
+      expect(result.current.status).toBe('signedOut');
+    });
+    expect(result.current.error).toMatchObject({ code: 'request_failed' });
+  });
 });

@@ -8,6 +8,8 @@ export interface FakeBffCall {
 export interface FakeBff {
   // What `/session` answers: signed in as this subject, or 401.
   authenticated: boolean;
+  // Answers `/session` with this status instead of the usual one.
+  sessionStatus: number | undefined;
   logoutRedirect: string | undefined;
   calls: FakeBffCall[];
   fetch: typeof fetch;
@@ -25,6 +27,7 @@ function json(status: number, body: unknown): Response {
 export function fakeBff(baseUrl: string): FakeBff {
   const fake: FakeBff = {
     authenticated: true,
+    sessionStatus: undefined,
     logoutRedirect: 'https://issuer.example/logout?client_id=app',
     calls: [],
     fetch: (input, init) => {
@@ -43,6 +46,9 @@ export function fakeBff(baseUrl: string): FakeBff {
       const base = new URL(baseUrl, 'http://app.test').pathname;
       if (header === null || header === '')
         return Promise.resolve(new Response(null, { status: 403 }));
+      if (path === `${base}/session` && fake.sessionStatus !== undefined) {
+        return Promise.resolve(new Response('upstream detail', { status: fake.sessionStatus }));
+      }
       if (!fake.authenticated && path !== `${base}/logout`) {
         return Promise.resolve(json(401, { authenticated: false }));
       }

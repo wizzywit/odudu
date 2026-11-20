@@ -21,6 +21,7 @@ export interface BrowserMode {
   allowInsecureRequests?: boolean;
 }
 
+// Read once, when the <OduduProvider> mounts; changing it later has no effect.
 export type Mode = BffMode | BrowserMode;
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
@@ -35,7 +36,10 @@ export type SignInChoices = {
 export interface AuthState {
   status: AuthStatus;
   claims: Claims | undefined;
-  // Why the last sign-in, refresh or sign-out did not work.
+  // Why the last session check, sign-in, refresh or sign-out did not work, for
+  // the app to show. While it is set, <SignedOut> renders nothing, so a failed
+  // check is never read as a person to sign in again. Only a 401 from the BFF
+  // is a clean signed-out.
   error: OduduError | undefined;
 }
 

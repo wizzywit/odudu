@@ -4,6 +4,7 @@ import { fakeBff } from '#/testing/fake-bff';
 import { OduduProvider } from '#/ui/OduduProvider';
 import { SignedIn } from '#/ui/SignedIn';
 import { SignedOut } from '#/ui/SignedOut';
+import { useAuth } from '#/use-cases/use-auth';
 
 const mode = { kind: 'bff', baseUrl: '/bff' } as const;
 
@@ -41,6 +42,25 @@ describe('SignedIn and SignedOut', () => {
     await waitFor(() => {
       expect(screen.queryByText('out')).not.toBeNull();
     });
+    expect(screen.queryByText('in')).toBeNull();
+  });
+
+  it('render nothing when the session check failed, so an outage cannot loop a sign-in', async () => {
+    const bff = fakeBff('/bff');
+    bff.sessionStatus = 503;
+    vi.stubGlobal('fetch', bff.fetch);
+    function Probe() {
+      return <span>{useAuth().status}</span>;
+    }
+    render(
+      <OduduProvider mode={mode}>
+        <SignedIn>in</SignedIn>
+        <SignedOut>out</SignedOut>
+        <Probe />
+      </OduduProvider>,
+    );
+    await screen.findByText('signedOut');
+    expect(screen.queryByText('out')).toBeNull();
     expect(screen.queryByText('in')).toBeNull();
   });
 });

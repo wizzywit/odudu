@@ -1,6 +1,6 @@
 import type { Pending } from '@odudu-io/oidc';
 
-export function isPending(value: unknown): value is Pending {
+function isPending(value: unknown): value is Pending {
   if (typeof value !== 'object' || value === null) return false;
   return (
     'issuer' in value &&
@@ -19,4 +19,16 @@ export function isPending(value: unknown): value is Pending {
     Array.isArray(value.resources) &&
     'idTokenAlg' in value
   );
+}
+
+// The record the sign-in left, or undefined when there is none or it is not
+// the record this package writes.
+export function parsePending(stored: string | undefined): Pending | undefined {
+  if (stored === undefined) return undefined;
+  try {
+    const value: unknown = JSON.parse(stored);
+    return isPending(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }

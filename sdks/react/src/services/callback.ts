@@ -1,12 +1,11 @@
 // Parameters an authorization response carries (RFC 6749 section 4.1.2, RFC 9207).
 const CALLBACK_PARAMS = ['code', 'state', 'iss', 'error', 'error_description', 'error_uri'];
 
-// A redirect from the issuer answers a sign-in this tab began, which is
-// recorded; a `code` or `error` in an address with no sign-in under way
-// belongs to the app.
-export function isCallback(search: string, signInUnderWay: boolean): boolean {
+// What the issuer sends the person back with: a `state` and a `code` or an
+// `error`. A page of the app that uses those names itself is taken for one.
+export function isCallback(search: string): boolean {
   const params = new URLSearchParams(search);
-  return signInUnderWay && (params.has('code') || params.has('error'));
+  return params.has('state') && (params.has('code') || params.has('error'));
 }
 
 // The address to show once the redirect has been read: the same page, without

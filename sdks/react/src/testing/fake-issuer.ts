@@ -6,6 +6,8 @@ export interface FakeIssuer {
   // Claims merged over the defaults of every ID token the token endpoint mints.
   claims: Record<string, unknown>;
   expiresIn: number;
+  // A refresh grant waits for this before it is answered.
+  holdRefresh: Promise<void> | undefined;
   tokenRequests: URLSearchParams[];
   close: () => Promise<void>;
 }
@@ -31,6 +33,7 @@ export async function startFakeIssuer(): Promise<FakeIssuer> {
     issuer: '',
     claims: {},
     expiresIn: 900,
+    holdRefresh: undefined,
     tokenRequests: [],
     close: () => Promise.resolve(),
   };
@@ -53,34 +56,39 @@ export async function startFakeIssuer(): Promise<FakeIssuer> {
       return;
     }
     if (path.endsWith('/token') && request.method === 'POST') {
-      readBody(request).then(
-        (raw) => {
+      readBody(request)
+        .then(async (raw) => {
           const form = new URLSearchParams(raw);
           fake.tokenRequests.push(form);
-          const now = Math.floor(Date.now() / 1000);
-          const refreshing = form.get('grant_type') === 'refresh_token';
-          send(200, {
-            access_token: refreshing ? 'access-token-2' : 'access-token-1',
-            token_type: 'Bearer',
-            expires_in: fake.expiresIn,
-            scope: 'openid',
-            refresh_token: refreshing
-              ? `${form.get('refresh_token') ?? ''}-rotated`
-              : 'refresh-token-1',
-            id_token: idToken({
-              iss: fake.issuer,
-              sub: 'subject-1',
-              aud: form.get('client_id'),
-              iat: now,
-              exp: now + 300,
-              ...fake.claims,
-            }),
-          });
-        },
-        () => {
-          send(500, { error: 'server_error' });
-        },
-      );
+          if (form.get('grant_type') === 'refresh_token') await fake.holdRefresh;
+          return form;
+        })
+        .then(
+          (form) => {
+            const now = Math.floor(Date.now() / 1000);
+            const refreshing = form.get('grant_type') === 'refresh_token';
+            send(200, {
+              access_token: refreshing ? 'access-token-2' : 'access-token-1',
+              token_type: 'Bearer',
+              expires_in: fake.expiresIn,
+              scope: 'openid',
+              refresh_token: refreshing
+                ? `${form.get('refresh_token') ?? ''}-rotated`
+                : 'refresh-token-1',
+              id_token: idToken({
+                iss: fake.issuer,
+                sub: 'subject-1',
+                aud: form.get('client_id'),
+                iat: now,
+                exp: now + 300,
+                ...fake.claims,
+              }),
+            });
+          },
+          () => {
+            send(500, { error: 'server_error' });
+          },
+        );
       return;
     }
     send(404, { error: 'not_found' });

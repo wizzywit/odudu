@@ -53,3 +53,18 @@ export function logoutRefused(status: number): OduduError {
     `the BFF refused the sign-out with status ${String(status)}`,
   );
 }
+
+export function navigationRefused(): OduduError {
+  return new OduduError(
+    'invalid_request',
+    'the address to navigate to is not an http or https address, so it was not followed',
+  );
+}
+
+export function sessionCheckFailed(status: number): OduduError {
+  return new OduduError(
+    'request_failed',
+    `the BFF answered the session check with status ${String(status)}`,
+    { errorDescription: String(status) },
+  );
+}

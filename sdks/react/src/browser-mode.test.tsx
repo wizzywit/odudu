@@ -224,4 +224,60 @@ describe('browser mode', () => {
     });
     await expect(result.current.token()).rejects.toMatchObject({ code: 'login_required' });
   });
+
+  it('a callback with no sign-in on record ends signedOut with an error and a clean URL', async () => {
+    history.replaceState(
+      null,
+      '',
+      `/callback?code=x&state=y&iss=${encodeURIComponent(fake.issuer)}`,
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper: providerFor(mode) });
+    await waitFor(() => {
+      expect(result.current.status).toBe('signedOut');
+    });
+    expect(result.current.error).toMatchObject({ code: 'invalid_state' });
+    expect(location.search).toBe('');
+    expect(fake.tokenRequests).toHaveLength(0);
+  });
+
+  it('a pending record that is not JSON still cleans the URL and ends in an error', async () => {
+    sessionStorage.setItem(PENDING_KEY, '{not json');
+    history.replaceState(null, '', '/callback?code=x&state=y');
+    const { result } = renderHook(() => useAuth(), { wrapper: providerFor(mode) });
+    await waitFor(() => {
+      expect(result.current.status).toBe('signedOut');
+    });
+    expect(result.current.error).toMatchObject({ code: 'invalid_state' });
+    expect(location.search).toBe('');
+    expect(sessionStorage.getItem(PENDING_KEY)).toBeNull();
+  });
+
+  it('a signOut during a refresh does not bring the tokens back', async () => {
+    fake.expiresIn = 5;
+    await comeBackSignedIn();
+    const { result } = renderHook(() => ({ auth: useAuth(), token: useAccessToken() }), {
+      wrapper: providerFor(mode),
+    });
+    await waitFor(() => {
+      expect(result.current.auth.status).toBe('signedIn');
+    });
+    let release: () => void = () => undefined;
+    fake.holdRefresh = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const pending = result.current.token().catch((error: unknown) => error);
+    await waitFor(() => {
+      expect(fake.tokenRequests.some((form) => form.get('grant_type') === 'refresh_token')).toBe(
+        true,
+      );
+    });
+    result.current.auth.signOut();
+    await waitFor(() => {
+      expect(result.current.auth.status).toBe('signedOut');
+    });
+    release();
+    fake.holdRefresh = undefined;
+    expect(await pending).toMatchObject({ code: 'login_required' });
+    await expect(result.current.token()).rejects.toMatchObject({ code: 'login_required' });
+  });
 });

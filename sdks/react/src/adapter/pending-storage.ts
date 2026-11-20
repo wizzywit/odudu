@@ -10,13 +10,9 @@ export function savePending(pending: Pending): void {
   window.sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
 }
 
-export function hasPending(): boolean {
-  return window.sessionStorage.getItem(PENDING_KEY) !== null;
-}
-
 // Removes the record as it reads it: a callback can be used once.
-export function takePending(): unknown {
+export function takePending(): string | undefined {
   const stored = window.sessionStorage.getItem(PENDING_KEY);
   window.sessionStorage.removeItem(PENDING_KEY);
-  return stored === null ? undefined : (JSON.parse(stored) as unknown);
+  return stored ?? undefined;
 }
