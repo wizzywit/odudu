@@ -84,6 +84,15 @@ describe('the CI workflow', () => {
     expect(excluded.sort()).toEqual([...sliced, '@odudu/docs'].sort());
   });
 
+  it('collects the report of every SDK in test-rest, the job that runs them', async () => {
+    const workflow = await read('.github/workflows/verify.yml');
+    const block = jobBlock(workflow, 'test-rest', 'trace');
+    expect(block).toContain('sdks/*/trace-report.json');
+    expect(block).toContain('tests/trace-report.json');
+    const sliced = [...workflow.matchAll(/package: '([^']+)', shard:/gu)].map((m) => m[1] ?? '');
+    expect(sliced.filter((name) => name.startsWith('@odudu-io/'))).toEqual([]);
+  });
+
   it('fails an upload of a test report that finds no file', async () => {
     const workflow = await read('.github/workflows/verify.yml');
     const uploads = [...workflow.matchAll(/name: trace-[^\n]*\n(?: {10}[^\n]*\n)+/gu)];

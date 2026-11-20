@@ -197,7 +197,7 @@ jobs:
         if: success()
         run: |
           mkdir -p reports/rest
-          for f in packages/*/trace-report.json apps/*/trace-report.json tools/*/trace-report.json tests/trace-report.json; do
+          for f in packages/*/trace-report.json apps/*/trace-report.json sdks/*/trace-report.json tools/*/trace-report.json tests/trace-report.json; do
             [ -f "$f" ] || continue
             mkdir -p "reports/rest/$(dirname "$f")"
             cp "$f" "reports/rest/$f"
