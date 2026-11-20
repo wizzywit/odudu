@@ -62,6 +62,18 @@ The operations of the admin API, grouped by area, with one page for each operati
 - [Theme](./generated/admin-api/theme/index.md)
 - [Whoami](./generated/admin-api/whoami/index.md)
 
+## Me API
+
+The operations a signed-in person uses on their own profile, credentials, sessions and consents. The same description is published as an
+[OpenAPI document](pathname:///openapi/me.json) that a client generator can read.
+
+- [Me API overview](./generated/me-api/index.md): authentication, the tenant in the path and
+  the shape of an error.
+- [Profile](./generated/me-api/profile/index.md)
+- [Credentials](./generated/me-api/credentials/index.md)
+- [Sessions](./generated/me-api/sessions/index.md)
+- [Consents](./generated/me-api/consents/index.md)
+
 ## Transcripts
 
 The full, recorded runs behind the guides, with every request and the response that came back.

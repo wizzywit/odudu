@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ME_ROUTES } from '../../packages/me/src/index.js';
 import {
   ENDPOINT_DOCS,
   NOT_LISTED,
@@ -65,5 +66,24 @@ describe('the endpoints the protocol pages and the admin API pages list are the 
       undocumented,
       `these endpoints are served but absent from ${DOCUMENTS.join(', ')} and ENDPOINT_DOCS`,
     ).toEqual([]);
+  }, 60_000);
+});
+
+describe('the routes of the me API', () => {
+  const documented = (route: (typeof ME_ROUTES)[number]): string => `${route.method} ${route.url}`;
+
+  it('are each documented in ENDPOINT_DOCS, and each ENDPOINT_DOCS row for the me API is served', async () => {
+    const { endpoints } = await servingApp();
+    const served = new Set(endpoints.map(format));
+    for (const route of ME_ROUTES) {
+      expect(Object.keys(ENDPOINT_DOCS), documented(route)).toContain(documented(route));
+      expect(served.has(documented(route)), documented(route)).toBe(true);
+    }
+    const meRows = Object.keys(ENDPOINT_DOCS).filter((key) => key.includes('/me/'));
+    const known = new Set(ME_ROUTES.map(documented));
+    const stray = meRows.filter(
+      (key) => !known.has(key) && key !== 'GET /me/openapi.json' && !key.startsWith('OPTIONS '),
+    );
+    expect(stray).toEqual([]);
   }, 60_000);
 });

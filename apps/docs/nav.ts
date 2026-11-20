@@ -136,4 +136,9 @@ export const MACHINE_READABLE_REFERENCES: readonly MachineReadableReference[] = 
     description: 'The OpenAPI 3.1 description of the admin API, as JSON.',
     file: 'openapi/admin.json',
   },
+  {
+    title: 'Me API OpenAPI document',
+    description: 'The OpenAPI 3.1 description of the me API, as JSON.',
+    file: 'openapi/me.json',
+  },
 ];
