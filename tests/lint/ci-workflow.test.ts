@@ -523,6 +523,15 @@ describe('the CI workflow', () => {
       expect(await read('sdks/python/requirements-dev.txt')).toMatch(/--hash=sha256:/u);
     });
 
+    it('installs the release tooling for PyPI from the same hashed file', async () => {
+      const workflow = await read('.github/workflows/sdk-release.yml');
+      expect(workflow).toContain('--require-hashes -r "$DIRECTORY/requirements-dev.txt"');
+      expect(workflow).not.toMatch(/pip install build twine/u);
+      const pins = await read('sdks/python/requirements-dev.txt');
+      expect(pins).toMatch(/^build==/mu);
+      expect(pins).toMatch(/^twine==/mu);
+    });
+
     it('runs the sdks job for a change under sdks/, and not for prose alone', async () => {
       const { classifyChanges } = await import('../../tools/ci/src/changes.ts');
       expect(classifyChanges(['sdks/oidc/src/index.ts']).server).toBe(true);

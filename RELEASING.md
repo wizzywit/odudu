@@ -134,7 +134,9 @@ first eight go to npm as `@odudu-io/<name>`, and `python` goes to PyPI as
    changes under `Unreleased` a heading `## [X.Y.Z] - YYYY-MM-DD`, as in "Cut a
    release". Set the version in `package.json`, or in `pyproject.toml`, to the
    same number. PyPI spells a candidate `0.1.0rc1` where the tag says
-   `0.1.0-rc.1`, and the workflow expects that spelling.
+   `0.1.0-rc.1`, and the workflow expects that spelling. The `version` committed
+   in `sdks/python/pyproject.toml` must equal the tag's, so every Python release,
+   a candidate included, needs a commit that bumps it before the tag.
 2. Take the package out of private: remove `"private": true`. The workflow
    refuses a private package.
 3. Merge to `main` and wait for `gate`. A stable tag must point at a commit on

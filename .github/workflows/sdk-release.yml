@@ -199,10 +199,7 @@ jobs:
           DIRECTORY: ${{ needs.prepare.outputs.directory }}
         run: |
           python3 -m venv "$RUNNER_TEMP/venv"
-          "$RUNNER_TEMP/venv/bin/python" -m pip install build twine
-          if [ -f "$DIRECTORY/requirements-dev.txt" ]; then
-            "$RUNNER_TEMP/venv/bin/python" -m pip install -r "$DIRECTORY/requirements-dev.txt"
-          fi
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --require-hashes -r "$DIRECTORY/requirements-dev.txt"
           if [ -d "$DIRECTORY/tests" ]; then
             "$RUNNER_TEMP/venv/bin/python" -m pip install "./$DIRECTORY"
             "$RUNNER_TEMP/venv/bin/python" -m pytest "$DIRECTORY/tests"
