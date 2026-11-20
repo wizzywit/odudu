@@ -20,3 +20,22 @@ with AdminClient("https://id.example.com", "acme", token=lambda: fetch_token()) 
 
 Every response that is not a success raises `odudu.ProblemError`. Redirects are never followed, so
 a token is never sent to another origin. `python>=3.10`, `httpx`.
+
+## Verifying access tokens
+
+`pip install 'odudu[verify]'` adds `odudu.verify`, which checks the access tokens (RFC 9068) an
+API receives, with the rules of `@odudu-io/node`: signature by the issuer's keys (RS256 and
+ES256), `iss`, `aud`, `typ`, expiry with 5 s of leeway, an optional required scope. A refusal is a
+`VerificationError` holding the status and the `WWW-Authenticate` challenge; keys that cannot be
+read raise `KeyFetchError`, which an API answers with a 503.
+
+```python
+from odudu.verify import Verifier
+
+verifier = Verifier(["https://id.example.com/tenants/acme"], "https://api.example.com")
+token = verifier.verify(bearer_token)  # VerifiedToken: sub, client_id, scope, audience, claims
+```
+
+`AsyncVerifier` is the same for an event loop (`await verifier.verify(...)`).
+`pip install 'odudu[fastapi]'` adds `odudu.verify.fastapi.require_token(verifier, scope=...)`, a
+dependency, and `pip install 'odudu[flask]'` adds the decorator `odudu.verify.flask.require_token`.

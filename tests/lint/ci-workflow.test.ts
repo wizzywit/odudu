@@ -523,6 +523,18 @@ describe('the CI workflow', () => {
       expect(await read('sdks/python/requirements-dev.txt')).toMatch(/--hash=sha256:/u);
     });
 
+    it('runs the verifier extras tests rather than skipping them', async () => {
+      const verify = await read('.github/workflows/verify.yml');
+      expect(jobBlock(verify, 'sdks', 'commit-messages')).toContain("ODUDU_REQUIRE_EXTRAS: '1'");
+      expect(await read('.github/workflows/sdk-release.yml')).toContain(
+        "ODUDU_REQUIRE_EXTRAS: '1'",
+      );
+      const pins = await read('sdks/python/requirements-dev.txt');
+      for (const extra of ['fastapi', 'flask', 'pyjwt']) {
+        expect(pins, extra).toMatch(new RegExp(`^${extra}==`, 'mu'));
+      }
+    });
+
     it('installs the release tooling for PyPI from the same hashed file', async () => {
       const workflow = await read('.github/workflows/sdk-release.yml');
       expect(workflow).toContain('--require-hashes -r "$DIRECTORY/requirements-dev.txt"');

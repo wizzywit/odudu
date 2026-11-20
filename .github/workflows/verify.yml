@@ -789,8 +789,12 @@ jobs:
 
       # Both interpreters stay on the PATH as python3.10 and python3.13: the
       # package supports 3.10 and the newest stable is the one people install on.
-      # sdks/python/requirements-dev.txt pins every tool with hashes.
+      # sdks/python/requirements-dev.txt pins every tool with hashes, the FastAPI
+      # and Flask extras of the verifier among them, so their tests must run here
+      # and not skip.
       - name: Test, lint and type-check the Python package
+        env:
+          ODUDU_REQUIRE_EXTRAS: '1'
         run: |
           for version in 3.10 3.13; do
             venv="$RUNNER_TEMP/venv-$version"

@@ -197,6 +197,7 @@ jobs:
         if: needs.prepare.outputs.registry == 'pypi'
         env:
           DIRECTORY: ${{ needs.prepare.outputs.directory }}
+          ODUDU_REQUIRE_EXTRAS: '1'
         run: |
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/python" -m pip install --require-hashes -r "$DIRECTORY/requirements-dev.txt"

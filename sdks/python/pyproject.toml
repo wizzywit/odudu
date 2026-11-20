@@ -25,6 +25,13 @@ classifiers = [
   "Typing :: Typed",
 ]
 
+# `odudu.verify` needs PyJWT and cryptography; the admin and me clients do not, so they are an
+# extra and importing `odudu` or `odudu.admin` never loads them.
+[project.optional-dependencies]
+verify = ["PyJWT[crypto]>=2.8,<3"]
+fastapi = ["PyJWT[crypto]>=2.8,<3", "fastapi>=0.110"]
+flask = ["PyJWT[crypto]>=2.8,<3", "flask>=2.3"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/odudu"]
 
