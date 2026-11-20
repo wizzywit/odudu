@@ -704,6 +704,57 @@ per request has no shared store at all), `output: 'standalone'`, the proxy
 streaming a large body through a route handler, and the example in CI, which
 needs a tarball install and `example-next` in `examples/_shared/provision.sh`.
 
+### S7: the Python JWT library
+
+Checked on 2026-11-20 for `odudu.verify`, which has to run on Python 3.10 to 3.13
+(`requires-python = ">=3.10"`). Candidates: `PyJWT[crypto]` and `joserfc`.
+
+verified: `curl -s https://pypi.org/pypi/<name>/json` for each. `pyjwt` 2.15.1
+(uploaded 2026-09-28, `requires_python >=3.9`, `cryptography` only through the
+`crypto` extra), `joserfc` 1.8.0 (uploaded 2026-11-03, `requires_python >=3.11`,
+`cryptography>=45.0.1`), `cryptography` 50.0.2 (uploaded 2026-09-30). Every
+version is more than a day older than the pin date `--exclude-newer
+2026-11-19T00:00:00Z` that `requirements-dev.txt` already uses.
+
+verified: `uv pip install --python <venv-3.10> joserfc==1.8.0 --dry-run` fails with
+"joserfc==1.8.0 depends on Python>=3.11". The last `joserfc` line that installs
+on 3.10 is 1.7.x (`requires_python >=3.10`, uploaded 2026-06-02), so choosing
+it would pin the package to a line its maintainer has already moved on from.
+
+verified: the same signature check over the signed tokens of
+`sdks/node/test/fixtures/cases.json` (a script that imports each case's key from
+`jwks.json` and verifies the compact JWS with `alg` fixed to the header's, on
+Python 3.10 with `PyJWT 2.15.1` and with `joserfc 1.7.0`). Both accept the same
+23 tokens whose signature is good and both refuse the two tampered ones
+(`InvalidSignatureError` and `BadSignatureError`); neither reads `typ`.
+
+verified: `inspect.getsource(jwt.api_jwt)` shows `datetime.now(tz=timezone.utc)`
+in claim validation, so PyJWT takes no injectable clock. The verifier therefore
+asks PyJWT only for the signature (`jwt.api_jws.decode_complete(token, key,
+algorithms=[alg])`, one algorithm, the key's own) and checks `exp`, `nbf`, `iss`,
+`aud` and the 5 s leeway itself, with the clock it was given. That is also what
+keeps `typ` exact and gives the verdicts the shared fixtures ask for.
+
+| Criterion                | `PyJWT[crypto]`                                       | `joserfc`                |
+| ------------------------ | ----------------------------------------------------- | ------------------------ |
+| Python 3.10              | latest line supports it (>=3.9)                       | latest line needs >=3.11 |
+| Strict `alg` allowlist   | `algorithms=[alg]`, one algorithm per call            | `algorithms=[alg]`       |
+| `typ` exact              | not checked by the library; done in the verifier      | same                     |
+| RSA and EC JWK import    | `RSAAlgorithm.from_jwk`, `ECAlgorithm.from_jwk`       | `import_key`             |
+| Injectable clock, leeway | none in either; leeway and clock done in the verifier | none                     |
+| Size (pure Python)       | 136 KB                                                | 320 KB                   |
+
+Chosen: `PyJWT[crypto]`, in an extra (`odudu[verify]`, and the FastAPI and Flask
+extras include it) because the admin and me clients need neither it nor the
+compiled `cryptography`, and `import odudu.admin` must not load them. Rejected:
+`joserfc`, because its current release does not install on the interpreter the
+package supports.
+
+verified: the declared floor works. With `PyJWT==2.8.0`, `httpx==0.27.0`,
+`fastapi==0.110.0` and `flask==2.3.3` in a Python 3.10 venv, the verifier's
+test files (`tests/test_verify_*.py`) pass, so the extras declare `PyJWT>=2.8,<3`,
+`fastapi>=0.110` and `flask>=2.3`.
+
 ## Documentation coverage baseline
 
 `apps/docs/scripts/coverage-ratchet.test.ts` holds each area of the me API to
