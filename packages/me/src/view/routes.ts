@@ -102,7 +102,9 @@ export interface MeRoute {
   readonly responses: Readonly<Record<number, z.ZodType | 'error' | 'empty'>>;
 }
 
-const idParams = z.object({ id: z.uuid() });
+const idParams = z.object({
+  id: z.uuid().describe('The identifier of the session or credential, as listed in its `id`.'),
+});
 
 // What any route may answer before it reads its own input: a tenant that is
 // unknown or disabled is a 404, and a token that is missing or short a 401 or 403.
@@ -184,7 +186,11 @@ const CONSENT_DELETE = {
   url: `${BASE}/consents/:client_id`,
   summary: 'Withdraws the person’s consent to one client.',
   scope: 'me:write',
-  params: z.object({ client_id: z.string() }),
+  params: z.object({
+    client_id: z
+      .string()
+      .describe('The `client_id` of the application whose consent to withdraw, as listed.'),
+  }),
   responses: { 204: 'empty', ...REFUSED },
 } as const satisfies MeRoute;
 

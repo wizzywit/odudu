@@ -39,6 +39,9 @@ export interface ReferenceProfile {
   readonly areaOf: (path: string) => string;
   // What a page says an operation needs when its document gives no summary.
   readonly capabilityFallback: string;
+  // Whether the coverage count includes path parameters, as well as the
+  // query parameters and bodies every profile counts.
+  readonly countsPathParameters: boolean;
   readonly tailOf: (path: string) => readonly string[];
 }
 const MAX_DEPTH = 5;
@@ -586,11 +589,15 @@ export interface Coverage {
 
 // The fields a reader of an operation meets: its query parameters, its request
 // body and the body of its success response, and how many carry a description.
-function coverageOf(operation: Json, root: ReferenceDocument): Coverage {
+function coverageOf(
+  operation: Json,
+  root: ReferenceDocument,
+  withPathParameters: boolean,
+): Coverage {
   const rows: boolean[] = [];
   const sink: string[] = [];
   for (const parameter of parametersOf(operation, root)) {
-    if (parameter.in !== 'query') continue;
+    if (parameter.in !== 'query' && !(withPathParameters && parameter.in === 'path')) continue;
     rows.push((parameter.description ?? str(parameter.schema.description) ?? '').trim() !== '');
   }
   const schemas: Json[] = [];
@@ -616,10 +623,11 @@ function coverageOf(operation: Json, root: ReferenceDocument): Coverage {
 export function coverageOfArea(
   operations: readonly { readonly operation: Json }[],
   root: ReferenceDocument,
+  withPathParameters = false,
 ): Coverage {
   return operations.reduce<Coverage>(
     (sum, { operation }) => {
-      const found = coverageOf(operation, root);
+      const found = coverageOf(operation, root, withPathParameters);
       return { described: sum.described + found.described, total: sum.total + found.total };
     },
     { described: 0, total: 0 },
@@ -871,7 +879,7 @@ function areaPages(
   const subject = AREA_SUBJECTS[area] ?? area.replaceAll('-', ' ');
   const sections = operations.map((operation) => sectionOf(operation, doc, profile));
   const groups = pack(sections);
-  const footer = `${coverageLine(coverageOfArea(operations, doc))}\n`;
+  const footer = `${coverageLine(coverageOfArea(operations, doc, profile.countsPathParameters))}\n`;
   const pages = new Map<string, string>();
   if (groups.length === 1) {
     pages.set(
@@ -1002,6 +1010,7 @@ export const ADMIN_PROFILE: ReferenceProfile = {
   errorIntro: 'A refusal is an `application/problem+json` document (RFC 9457) with these fields.',
   areaOf: adminAreaOf,
   capabilityFallback: 'Requires an authenticated admin caller.',
+  countsPathParameters: false,
   tailOf: adminTailOf,
 };
 
@@ -1034,6 +1043,7 @@ export const ME_PROFILE: ReferenceProfile = {
     'An error body, where there is one, is an `application/json` document with these fields.',
   areaOf: meAreaOf,
   capabilityFallback: 'Requires a signed-in caller.',
+  countsPathParameters: true,
   tailOf: meTailOf,
 };
 

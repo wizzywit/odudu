@@ -11,7 +11,7 @@ export const meCredentialTypeSchema = z
   );
 
 export const meCredentialSchema = z.object({
-  id: z.string().describe('The way to sign in’s identifier, for renaming or removing it.'),
+  id: z.string().describe('The credential’s identifier, for renaming or removing it.'),
   type: meCredentialTypeSchema,
   label: z
     .string()

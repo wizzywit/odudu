@@ -589,14 +589,15 @@ page, the admin API in a separate sign-in) rather than rely on a later
 `apps/docs/scripts/coverage-ratchet.test.ts` holds each area of the me API to
 the table below, as it holds the admin API to the table in `docs/phases/p4g.md`.
 A count may rise and never fall; an area new to the API must be added. The
-fields counted are the query parameters, the request body and the body of the
-success response of every operation.
+fields counted are the path and query parameters, the request body and the body
+of the success response of every operation. The admin table counts no path
+parameters, so its numbers stand.
 
 ### Me API documentation coverage
 
 | Area          | Described | Fields |
 | ------------- | --------- | ------ |
-| `consents`    | 7         | 7      |
-| `credentials` | 17        | 17     |
-| `profile`     | 75        | 75     |
-| `sessions`    | 14        | 14     |
+| `consents`    | 10        | 10     |
+| `credentials` | 22        | 22     |
+| `profile`     | 77        | 77     |
+| `sessions`    | 18        | 18     |

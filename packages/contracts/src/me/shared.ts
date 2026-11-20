@@ -39,7 +39,7 @@ export const meErrorSchema = z.object({
   error: z
     .string()
     .describe(
-      'A short code for the refusal, such as `invalid_request`, `not_found`, `conflict`, `agent_not_permitted` or `mail_unavailable`; a refused removal of a sign-in method names which rule it broke.',
+      'A short code for the refusal, such as `invalid_request`, `not_found`, `conflict`, `agent_not_permitted` or `mail_unavailable`; a refused removal of a credential uses `last_sign_in_method` or `last_second_factor`.',
     ),
   error_description: z
     .string()

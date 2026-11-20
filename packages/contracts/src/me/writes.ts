@@ -135,7 +135,7 @@ export const meEmailVerificationSentSchema = z.object({
   email_verification_sent: z
     .literal(true)
     .describe(
-      'Always true: a mail was accepted for the new address, or the request is answered as if it was. Whether it is sent does not depend on the address asked for.',
+      'Always true. The response is the same whether or not the address is registered or can be mailed, so it does not reveal which addresses exist.',
     ),
 });
 export type MeEmailVerificationSent = z.infer<typeof meEmailVerificationSentSchema>;

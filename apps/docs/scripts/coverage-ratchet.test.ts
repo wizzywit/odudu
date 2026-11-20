@@ -68,7 +68,11 @@ describe.each(RATCHETS)('the descriptions in the $name API reference', (ratchet)
   it('cover at least the share of each area that was recorded', () => {
     const fell: string[] = [];
     for (const [area, recorded] of baseline(ratchet)) {
-      const now = coverageOfArea(areas.get(area) ?? [], ratchet.doc);
+      const now = coverageOfArea(
+        areas.get(area) ?? [],
+        ratchet.doc,
+        ratchet.profile.countsPathParameters,
+      );
       // described/total compared as a product, so fields added without a description show up
       if (now.described * recorded.total < recorded.described * now.total) {
         fell.push(
