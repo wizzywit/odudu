@@ -494,8 +494,8 @@ describe('the CI workflow', () => {
       expect(block).toContain('pnpm --filter "./sdks/*" --if-present run test');
       expect(block).toContain('npm pack --dry-run');
       expect(block).toContain('npm publish --dry-run');
-      expect(block).toContain('python -m build');
-      expect(block).toContain('twine check');
+      expect(block).toMatch(/python"? -m build/u);
+      expect(block).toMatch(/python"? -m twine check/u);
     });
 
     it('runs the sdks job for a change under sdks/, and not for prose alone', async () => {
