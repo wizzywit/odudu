@@ -433,9 +433,22 @@ module.exports = {
       severity: 'error',
       comment:
         'Only apps/server composes the me package (ADR 0052); no other package or app reaches ' +
-        'into it, a protocol package included.',
-      from: { path: '(^|/)(?:packages|apps)/', pathNot: '(^|/)(?:packages/me|apps/server)/' },
+        'into it, a protocol package included. The docs app is the one other reader, and ' +
+        'me-docs-entry-only holds it to the docs entry.',
+      from: {
+        path: '(^|/)(?:packages|apps)/',
+        pathNot: '(^|/)(?:packages/me|apps/server|apps/docs)/',
+      },
       to: { path: '(^|/)packages/me/' },
+    },
+    {
+      name: 'me-docs-entry-only',
+      severity: 'error',
+      comment:
+        'The docs app renders the me OpenAPI document and so reads the package, but only its ' +
+        'docs entry, which carries no server wiring (the same shape as protocol-admin/docs).',
+      from: { path: '(^|/)apps/docs/' },
+      to: { path: '(^|/)packages/me/', pathNot: '(^|/)packages/me/src/docs\\.ts$' },
     },
     // `/src/(.+/)?view/` fails dependency-cruiser's safe-regex check (star
     // height > 1: the optional group wraps a quantifier). The alternation

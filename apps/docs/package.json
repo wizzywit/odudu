@@ -48,6 +48,7 @@
     "@mdx-js/react": "3.1.1",
     "@odudu/domain-audit": "workspace:*",
     "@odudu/kernel": "workspace:*",
+    "@odudu/me": "workspace:*",
     "@odudu/protocol-admin": "workspace:*",
     "@odudu/protocol-oidc": "workspace:*",
     "@odudu/server": "workspace:*",
