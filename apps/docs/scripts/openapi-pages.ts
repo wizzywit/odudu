@@ -37,6 +37,8 @@ export interface ReferenceProfile {
   readonly intro: string;
   readonly authentication: string;
   readonly areaOf: (path: string) => string;
+  // What a page says an operation needs when its document gives no summary.
+  readonly capabilityFallback: string;
   readonly tailOf: (path: string) => readonly string[];
 }
 const MAX_DEPTH = 5;
@@ -149,19 +151,21 @@ function constraints(schema: Json, unknown: string[]): string[] {
   return found;
 }
 
-const OPENAPI_LINK = '[OpenAPI document](pathname:///openapi/admin.json)';
+function openApiLinkOf(profile: ReferenceProfile): string {
+  return `[OpenAPI document](pathname:///${profile.openApiFile})`;
+}
 
 function sentence(text: string): string {
   return /[.!?:)`]$/u.test(text) ? text : `${text}.`;
 }
 
-function detailsOf(schema: Json, unknown: string[], truncated = false): string {
+function detailsOf(schema: Json, unknown: string[], link: string, truncated = false): string {
   const description = str(schema.description);
   const limits = constraints(schema, unknown);
   const parts = [
     ...(description === undefined ? [] : [sentence(escapeProse(description.trim()))]),
     ...(limits.length === 0 ? [] : [`Constraints: ${limits.join(', ')}.`]),
-    ...(truncated ? [`The fields inside are not listed here; the ${OPENAPI_LINK} has them.`] : []),
+    ...(truncated ? [`The fields inside are not listed here; the ${link} has them.`] : []),
   ];
   return parts
     .join(' ')
@@ -207,6 +211,7 @@ function collect(
   root: ReferenceDocument,
   unknown: string[],
   seen: Map<string, string>,
+  link: string,
 ): void {
   const ref = refOf(schema);
   const unwrapped = unwrapNullable(resolveRef(schema, root));
@@ -225,7 +230,7 @@ function collect(
       path: path === '' ? '(body)' : path,
       type: describeType(inner, nullable),
       required,
-      details: detailsOf(inner, own, truncated),
+      details: detailsOf(inner, own, link, truncated),
       described: (str(inner.description) ?? '').trim() !== '',
       patterns: own,
     });
@@ -258,10 +263,21 @@ function collect(
         root,
         unknown,
         seen,
+        link,
       );
     }
   } else if (items !== undefined && record(resolveRef(items, root).properties) !== undefined) {
-    collect(items, `${path === '' ? '' : path}[]`, true, depth + 1, rows, root, unknown, seen);
+    collect(
+      items,
+      `${path === '' ? '' : path}[]`,
+      true,
+      depth + 1,
+      rows,
+      root,
+      unknown,
+      seen,
+      link,
+    );
   }
 }
 
@@ -284,9 +300,14 @@ function refOf(schema: Json): string | undefined {
   return named.find((name) => name !== undefined);
 }
 
-export function fieldRows(schema: Json, root: ReferenceDocument, unknown: string[]): Row[] {
+export function fieldRows(
+  schema: Json,
+  root: ReferenceDocument,
+  unknown: string[],
+  link: string,
+): Row[] {
   const rows: Row[] = [];
-  collect(schema, '', true, 0, rows, root, unknown, new Map());
+  collect(schema, '', true, 0, rows, root, unknown, new Map(), link);
   return rows;
 }
 
@@ -302,8 +323,13 @@ function rowsTable(rows: readonly Row[]): string {
   );
 }
 
-function schemaTable(schema: Json, root: ReferenceDocument, unknown: string[]): string {
-  return rowsTable(fieldRows(schema, root, unknown));
+function schemaTable(
+  schema: Json,
+  root: ReferenceDocument,
+  unknown: string[],
+  link: string,
+): string {
+  return rowsTable(fieldRows(schema, root, unknown, link));
 }
 
 interface Parameter {
@@ -338,7 +364,7 @@ export function parametersOf(operation: Json, root: ReferenceDocument): Paramete
   });
 }
 
-function parameterTable(parameters: readonly Parameter[], unknown: string[]): string {
+function parameterTable(parameters: readonly Parameter[], unknown: string[], link: string): string {
   return table(
     ['Name', 'Type', 'Required', 'Details'],
     parameters.map((parameter) => {
@@ -349,6 +375,7 @@ function parameterTable(parameters: readonly Parameter[], unknown: string[]): st
           ...(parameter.description === undefined ? {} : { description: parameter.description }),
         },
         unknown,
+        link,
       );
       return [
         codeCell(parameter.name),
@@ -388,6 +415,7 @@ interface Part {
 interface Context {
   readonly root: ReferenceDocument;
   readonly problemLink: string;
+  readonly openApiLink: string;
   readonly unknown: string[];
   readonly slug: string;
   readonly parts: Part[];
@@ -464,7 +492,7 @@ function mediaBlock(
     ];
   }
   const schema = record(media.schema);
-  const rows = schema === undefined ? [] : fieldRows(schema, ctx.root, []);
+  const rows = schema === undefined ? [] : fieldRows(schema, ctx.root, [], ctx.openApiLink);
   const split = ctx.inline.rows + rows.length > MAX_TABLE_ROWS;
   if (!split) ctx.inline.rows += rows.length;
   const listing = split ? partLines(ctx, section, heading, mediaType, rows) : [rowsTable(rows)];
@@ -529,7 +557,12 @@ function operationBody(operation: Json, ctx: Context): string {
   ] as const) {
     const ofPlace = parameters.filter((parameter) => parameter.in === place);
     if (ofPlace.length > 0) {
-      lines.push(`${heading} ${label}`, '', parameterTable(ofPlace, ctx.unknown), '');
+      lines.push(
+        `${heading} ${label}`,
+        '',
+        parameterTable(ofPlace, ctx.unknown, ctx.openApiLink),
+        '',
+      );
     }
   }
 
@@ -573,7 +606,7 @@ function coverageOf(operation: Json, root: ReferenceDocument): Coverage {
     }
   }
   for (const schema of schemas) {
-    for (const row of fieldRows(schema, root, sink)) {
+    for (const row of fieldRows(schema, root, sink, '')) {
       if (row.path !== '(body)' && !row.path.endsWith('[]')) rows.push(row.described);
     }
   }
@@ -646,8 +679,8 @@ function adminAreaOf(path: string): string {
   return first ?? 'other';
 }
 
-export function areaOf(path: string): string {
-  return adminAreaOf(path);
+export function areaOf(path: string, profile: ReferenceProfile = ADMIN_PROFILE): string {
+  return profile.areaOf(path);
 }
 
 interface Operation {
@@ -719,8 +752,8 @@ function operationShort(method: string, path: string, profile: ReferenceProfile)
   return `${method.toUpperCase()} /${profile.tailOf(path).join('/')}`;
 }
 
-function capabilityOf(operation: Json): string {
-  return str(operation.summary) ?? 'Requires an authenticated admin caller.';
+function capabilityOf(operation: Json, profile: ReferenceProfile): string {
+  return str(operation.summary) ?? profile.capabilityFallback;
 }
 
 // A page holds operations up to this many table rows; an operation larger
@@ -743,6 +776,7 @@ function sectionOf(
   const ctx: Context = {
     root: doc,
     problemLink: '../index.md#problem-details',
+    openApiLink: openApiLinkOf(profile),
     unknown: [],
     slug: operationSlug(method, path, profile),
     parts: [],
@@ -866,7 +900,7 @@ function areaPages(
     for (const { operation } of group) {
       const { method, path } = operation;
       items.push(
-        `- [${code(`${method.toUpperCase()} ${path}`)}](./${name}.md#${anchorOf(operation)}): ${escapeProse(capabilityOf(operation.operation))}`,
+        `- [${code(`${method.toUpperCase()} ${path}`)}](./${name}.md#${anchorOf(operation)}): ${escapeProse(capabilityOf(operation.operation, profile))}`,
       );
     }
     pages.set(
@@ -943,7 +977,12 @@ function indexPage(
     '',
     profile.errorIntro,
     '',
-    schemaTable(record(doc.components.schemas[profile.errorSchema]) ?? {}, doc, []),
+    schemaTable(
+      record(doc.components.schemas[profile.errorSchema]) ?? {},
+      doc,
+      [],
+      openApiLinkOf(profile),
+    ),
     '',
   ];
   return lines.join('\n');
@@ -962,6 +1001,7 @@ export const ADMIN_PROFILE: ReferenceProfile = {
     'Each operation names the capability it needs. A caller without it is refused with `403`; a missing or wrong token with `401`.\n\nText values in a request may not contain the NUL character.',
   errorIntro: 'A refusal is an `application/problem+json` document (RFC 9457) with these fields.',
   areaOf: adminAreaOf,
+  capabilityFallback: 'Requires an authenticated admin caller.',
   tailOf: adminTailOf,
 };
 
@@ -993,6 +1033,7 @@ export const ME_PROFILE: ReferenceProfile = {
   errorIntro:
     'An error body, where there is one, is an `application/json` document with these fields.',
   areaOf: meAreaOf,
+  capabilityFallback: 'Requires a signed-in caller.',
   tailOf: meTailOf,
 };
 
@@ -1021,10 +1062,5 @@ export function renderOpenApiPages(
       pages.set(`${profile.pageDir}/${area}/${name}.md`, page);
     }
   }
-  const link = `[OpenAPI document](pathname:///${profile.openApiFile})`;
-  return new Map(
-    [...pages]
-      .map(([name, page]): [string, string] => [name, page.replaceAll(OPENAPI_LINK, link)])
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-  );
+  return new Map([...pages].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }

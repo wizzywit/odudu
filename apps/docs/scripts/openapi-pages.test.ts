@@ -447,4 +447,45 @@ describe('the me API reference', () => {
   it('is deterministic', () => {
     expect(renderOpenApiPages(buildMeOpenApiDocument(), ME_PROFILE)).toEqual(mePages);
   });
+
+  it('links its own document where it stops expanding a nested schema', () => {
+    let nested: Record<string, unknown> = { type: 'string', description: 'The bottom.' };
+    for (let level = 0; level < 8; level += 1) {
+      nested = { type: 'object', properties: { inner: nested }, required: ['inner'] };
+    }
+    const path = '/tenants/{tenant}/me/profile';
+    const operation = me.paths[path]?.get;
+    if (operation === undefined) throw new Error('the profile read is gone');
+    const deep = {
+      ...me,
+      paths: {
+        [path]: {
+          get: {
+            ...operation,
+            responses: {
+              '200': { description: 'OK', content: { 'application/json': { schema: nested } } },
+            },
+          },
+        },
+      },
+    };
+    const deepText = [...renderOpenApiPages(deep, ME_PROFILE).values()].join('\n');
+    expect(deepText).toContain('[OpenAPI document](pathname:///openapi/me.json)');
+    expect(deepText).not.toContain('openapi/admin.json');
+  });
+
+  it('words an operation with no summary for the me API, never as an admin caller', () => {
+    const path = '/tenants/{tenant}/me/profile';
+    const operation = me.paths[path]?.get;
+    if (operation === undefined) throw new Error('the profile read is gone');
+    const bare = Object.fromEntries(Object.entries(operation).filter(([key]) => key !== 'summary'));
+    const plain = { ...me, paths: { [path]: { get: bare } } };
+    const bareText = [...renderOpenApiPages(plain, ME_PROFILE).values()].join('\n');
+    expect(bareText).not.toMatch(/admin/iu);
+    expect(ME_PROFILE.capabilityFallback).toBe('Requires a signed-in caller.');
+  });
+
+  it('places a path in an area by the profile it is read under', () => {
+    expect(areaOf('/tenants/{tenant}/me/sessions/{id}', ME_PROFILE)).toBe('sessions');
+  });
 });
