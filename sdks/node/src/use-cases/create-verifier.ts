@@ -1,6 +1,6 @@
 import { createKeyStore } from '#/repository/keys';
 import { checkHeader, claimedIssuer, readClaims, verifySigned } from '#/services/access-token';
-import { checkIssuers } from '#/services/configuration';
+import { checkIssuers, checkScope } from '#/services/configuration';
 import { VerificationError } from '#/services/verification-error';
 import type { VerifiedToken, VerifierOptions } from '#/types';
 
@@ -14,6 +14,7 @@ export function createVerifier(
 ): (token: string) => Promise<VerifiedToken> {
   checkIssuers(options.issuers, options.allowInsecureIssuers === true);
   if (options.audience === '') throw new TypeError('createVerifier needs the API audience');
+  if (options.requiredScope !== undefined) checkScope(options.requiredScope, 'requiredScope');
   const issuers = [...options.issuers];
   const now = options.clock ?? Date.now;
   const store = createKeyStore({

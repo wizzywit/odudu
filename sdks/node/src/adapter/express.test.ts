@@ -1,5 +1,7 @@
 import express, { type NextFunction } from 'express';
 import type { AddressInfo } from 'node:net';
+import { describe, expect, it } from 'vitest';
+import { KeyFetchError } from '#/services/verification-error';
 import { authOf, requireToken } from '#/adapter/express';
 import { type RunningApp, describeAdapterContract } from '#/testing/adapter-contract';
 
@@ -43,4 +45,37 @@ describeAdapterContract('express', async (verifier) => {
       }),
   };
   return running;
+});
+
+describe('express failure routing', () => {
+  it('sends a failure while answering to next(err), with no unhandled rejection', async () => {
+    const unhandled: unknown[] = [];
+    const listener = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', listener);
+    try {
+      const failure = new Error('socket gone');
+      const middleware = requireToken(() => Promise.reject(new KeyFetchError('down')));
+      const next = await new Promise<unknown>((resolve) => {
+        middleware(
+          { headers: { authorization: 'Bearer abc' } },
+          {
+            statusCode: 200,
+            headersSent: false,
+            setHeader: () => {
+              throw failure;
+            },
+            end: () => undefined,
+          },
+          resolve,
+        );
+      });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(next).toBe(failure);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', listener);
+    }
+  });
 });

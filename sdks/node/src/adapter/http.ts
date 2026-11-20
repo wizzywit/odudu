@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { type NodeResponse, sendRefusal } from '#/adapter/node-response';
+import { checkScope } from '#/services/configuration';
 import { serverError } from '#/services/refusal';
 import { authenticate, type RequestHeaders } from '#/use-cases/authenticate';
 import type { VerifiedToken, Verifier } from '#/types';
@@ -22,6 +23,7 @@ export function withToken<
   handler: (req: Req, res: Res, auth: VerifiedToken) => void | Promise<void>,
   options: WithTokenOptions = {},
 ): (req: Req, res: Res) => void {
+  if (options.scope !== undefined) checkScope(options.scope, 'scope');
   const run = async (req: Req, res: Res): Promise<void> => {
     try {
       const outcome = await authenticate(verifier, req, options.scope);

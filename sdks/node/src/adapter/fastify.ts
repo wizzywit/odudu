@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { checkScope } from '#/services/configuration';
 import { authenticate } from '#/use-cases/authenticate';
 import type { VerifiedToken, Verifier } from '#/types';
 
@@ -30,6 +31,7 @@ declare module 'fastify' {
 const plugin: FastifyPluginAsync<OduduAuthOptions> = (app, { verifier }) => {
   app.decorateRequest('auth', null);
   app.decorate('requireToken', (options: RequireTokenOptions = {}): TokenHook => {
+    if (options.scope !== undefined) checkScope(options.scope, 'scope');
     return async (request, reply) => {
       const outcome = await authenticate(
         verifier,

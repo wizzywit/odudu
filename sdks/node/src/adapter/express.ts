@@ -1,4 +1,5 @@
 import { type NodeResponse, sendRefusal } from '#/adapter/node-response';
+import { checkScope } from '#/services/configuration';
 import { authenticate, type RequestHeaders } from '#/use-cases/authenticate';
 import type { VerifiedToken, Verifier } from '#/types';
 
@@ -19,15 +20,18 @@ export function requireToken(
   res: NodeResponse,
   next: (error?: unknown) => void,
 ) => void {
+  if (options.scope !== undefined) checkScope(options.scope, 'scope');
   return (req, res, next) => {
-    authenticate(verifier, req, options.scope).then((outcome) => {
-      if ('refusal' in outcome) {
-        sendRefusal(res, outcome.refusal);
-        return;
-      }
-      req.auth = outcome.auth;
-      next();
-    }, next);
+    authenticate(verifier, req, options.scope)
+      .then((outcome) => {
+        if ('refusal' in outcome) {
+          sendRefusal(res, outcome.refusal);
+          return;
+        }
+        req.auth = outcome.auth;
+        next();
+      })
+      .catch(next);
   };
 }
 
