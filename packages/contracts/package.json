@@ -11,7 +11,8 @@
     ".": "./src/index.ts",
     "./admin": "./src/admin/index.ts",
     "./admin/docs": "./src/admin/docs.ts",
-    "./me": "./src/me/index.ts"
+    "./me": "./src/me/index.ts",
+    "./openapi": "./src/openapi/index.ts"
   },
   "main": "./src/index.ts",
   "scripts": {

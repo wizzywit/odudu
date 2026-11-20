@@ -23,12 +23,10 @@ function pascal(text: string): string {
     .join('');
 }
 
-function operationHint(path: string, method: string): string {
+function operationHint(path: string, method: string, ignored: ReadonlySet<string>): string {
   const segments = path
     .split('/')
-    .filter(
-      (part) => part !== '' && !part.startsWith('{') && part !== 'admin' && part !== 'tenants',
-    );
+    .filter((part) => part !== '' && !part.startsWith('{') && !ignored.has(part));
   return `${pascal(segments.join('-'))}${pascal(method)}`;
 }
 
@@ -57,13 +55,13 @@ function candidatesIn(node: unknown, hint: string, out: Candidate[]): void {
   }
 }
 
-function candidatesOfPaths(paths: Json): Candidate[] {
+function candidatesOfPaths(paths: Json, ignored: ReadonlySet<string>): Candidate[] {
   const out: Candidate[] = [];
   for (const [path, methods] of Object.entries(paths)) {
     if (!isJson(methods)) continue;
     for (const [method, operation] of Object.entries(methods)) {
       if (!isJson(operation)) continue;
-      const base = operationHint(path, method);
+      const base = operationHint(path, method, ignored);
       candidatesIn(operation.parameters, `${base}Parameter`, out);
       candidatesIn(operation.requestBody, `${base}Request`, out);
       candidatesIn(operation.responses, `${base}Response`, out);
@@ -107,14 +105,20 @@ export interface Hoisted {
  * Moves every object schema that occurs three or more times into
  * `components.schemas`, largest first so a repeated parent takes its repeated
  * children with it. A reference keeps the description the occurrence carried.
+ * A component is named after the operation's path, less `ignoredSegments`.
  */
-export function hoistRepeatedSchemas(paths: Json, schemas: Record<string, unknown>): Hoisted {
+export function hoistRepeatedSchemas(
+  paths: Json,
+  schemas: Record<string, unknown>,
+  ignoredSegments: readonly string[],
+): Hoisted {
+  const ignored = new Set(ignoredSegments);
   let currentPaths = paths;
   const currentSchemas = { ...schemas };
   // Each pass turns a shape of three or more occurrences into one definition, so
   // the loop ends after at most as many passes as the document has distinct shapes.
   for (;;) {
-    const found = [...candidatesOfPaths(currentPaths)];
+    const found = [...candidatesOfPaths(currentPaths, ignored)];
     for (const [key, body] of Object.entries(currentSchemas)) candidatesIn(body, key, found);
     const counts = new Map<string, { count: number; hint: string }>();
     for (const { shape, hint } of found) {
