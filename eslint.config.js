@@ -72,7 +72,11 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
-    files: ['apps/admin-console/**/*.{ts,tsx}', 'apps/docs/src/**/*.{ts,tsx}'],
+    files: [
+      'apps/admin-console/**/*.{ts,tsx}',
+      'apps/docs/src/**/*.{ts,tsx}',
+      'sdks/react/src/**/*.{ts,tsx}',
+    ],
     extends: [reactHooks.configs.flat.recommended],
     // `eslint .` passes on a warning, so a finding at warning severity would ship.
     rules: {
@@ -101,6 +105,25 @@ export default tseslint.config(
       '@typescript-eslint/no-deprecated': [
         'error',
         { allow: [{ from: 'package', package: 'oauth4webapi', name: 'allowInsecureRequests' }] },
+      ],
+    },
+  },
+  {
+    // The React Compiler memoises what a hook returns; a hand-written cache is
+    // either redundant or hides what the compiler could not prove (ADR 0041).
+    files: ['sdks/react/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react',
+              importNames: ['useMemo', 'useCallback', 'memo'],
+              message: 'The React Compiler memoises; write no cache by hand.',
+            },
+          ],
+        },
       ],
     },
   },
