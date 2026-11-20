@@ -1179,6 +1179,15 @@ importers:
 
   tools/docs-run: {}
 
+  tools/mcp-catalogue:
+    dependencies:
+      '@odudu/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+
   tools/release: {}
 
   tools/sdk-generate:

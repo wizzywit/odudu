@@ -49,6 +49,26 @@ export interface ToolAnnotations {
   readonly idempotentHint: boolean;
 }
 
+// How a tool is built from its route, for the catalogue a client with no
+// copy of this package reads: the three shapes the tools a direct caller may
+// serve take, and the fields of each that are not in the schemas.
+export type ToolWire =
+  | { readonly kind: 'page'; readonly pathParams: readonly string[] }
+  | {
+      readonly kind: 'value';
+      readonly pathParams: readonly string[];
+      readonly etag: boolean;
+      readonly longText: readonly string[];
+    }
+  | {
+      readonly kind: 'write';
+      readonly mode: 'amend' | 'create' | 'put' | 'delete';
+      readonly pathParams: readonly string[];
+      readonly refusal: string;
+      readonly stale: string;
+      readonly bodyCap?: number;
+    };
+
 export interface McpTool<I, O> {
   readonly name: string;
   readonly description: string;
@@ -67,6 +87,8 @@ export interface McpTool<I, O> {
   // agent allowlist admits for its route.
   readonly bodyFields?: readonly string[];
   readonly annotations: ToolAnnotations;
+  // Left out by a tool with logic of its own, which no catalogue file can carry.
+  readonly wire?: ToolWire;
   // The schema the admin route answers with, which `output` is built from.
   readonly response: z.ZodType;
   readonly input: z.ZodType<I>;

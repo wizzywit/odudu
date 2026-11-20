@@ -185,6 +185,7 @@ export function pageTool<S extends Shape, Item extends z.ZodType>(
     capability: cfg.capability,
     access: 'read',
     annotations: READ_ANNOTATIONS,
+    wire: { kind: 'page', pathParams: cfg.pathParams ?? [] },
     input: inputOf(cfg.shape),
     response: cfg.response,
     output,
@@ -224,6 +225,12 @@ export function valueTool<S extends Shape>(
     capability: cfg.capability,
     access: 'read',
     annotations: READ_ANNOTATIONS,
+    wire: {
+      kind: 'value',
+      pathParams: cfg.pathParams ?? [],
+      etag: cfg.etag === true,
+      longText: long,
+    },
     input: inputOf(cfg.shape),
     response: cfg.response,
     output: z.object({
