@@ -202,8 +202,11 @@ Pure functions and one small client, over `oauth4webapi`.
   asks for the extra audience at sign-in when `meAccess` is set, and
   `refresh(tokens, { resource })` renews one audience. `assumption:` a refresh
   with a changed `resource` is accepted or refused by the server as ADR 0050 and
-  RFC 8707 say; spike S6 runs it against a built stack and records which, and the
-  core falls back to a second authorization if it is refused.
+  RFC 8707 say. Spike S6 settled it: a refresh may only name an audience the
+  grant already carries (`400 invalid_target` otherwise), so a new audience needs
+  a new authorization, which `requestAudience` drives and signals with a distinct
+  error; whether `prompt=none` avoids a second interaction is untested, and the
+  `me:*` scope is passed unchanged on refresh.
 - Errors are a closed set of typed values with Odudu's own codes carried
   through (`prompt=create is not supported: registration is off`, the
   `invalid_request` forms); no thrown string is shown to a person.
@@ -297,11 +300,14 @@ runs the same code.
   package; a CI check fails when it differs from the generated one. The server
   still enforces every call (the token's `mcp:read`/`mcp:write` scope narrows
   it), so a stale client file can refuse a tool but never widen one.
-- `assumption:` the code listed has no import of `protocol-admin` or
-  `protocol-oidc` once the catalogue is data; spike S2 checks this with
-  `dependency-cruiser` before the increment starts. If it fails, the
-  fallback is a build step that vendors the minimal pieces into the SDK's
-  generated directory, and the spike records why.
+- Spike S2 settled it: the moved code reaches only a few kernel address
+  helpers, the scope and client constants, and `@odudu/contracts/admin`'s
+  response schemas, limits and bidi helpers. Those are copied or generated into
+  the package (and covered by the same CI drift check as the catalogue), and the
+  catalogue carries a JSON Schema per tool response, validated with a small
+  validator the task chooses and verifies. `service/deps.ts` is split. Service
+  account assertions use `@odudu-io/oidc`'s `private_key_jwt` support, so the
+  package copies nothing from `@odudu/crypto`. The vendoring fallback is not needed.
 - The injection suite and `mcp-endpoint.int.test.ts` keep running against the
   server's command, so the moved code is covered by the tests that cover it today.
 
