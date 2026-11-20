@@ -13,6 +13,11 @@ function jobNames(workflow: string): string[] {
   return [...jobs.matchAll(/^ {2}([a-z][\w-]*):\s*$/gmu)].map((m) => m[1] ?? '');
 }
 
+function jobBlock(workflow: string, name: string, next?: string): string {
+  const from = workflow.slice(workflow.indexOf(`\n  ${name}:\n`));
+  return next === undefined ? from : from.slice(0, from.indexOf(`\n  ${next}:\n`));
+}
+
 function gateNeeds(workflow: string): string[] {
   const gate = workflow.slice(workflow.indexOf('\n  gate:\n'));
   const block = /needs:\n((?: {6}- [\w-]+\n)+)/u.exec(gate)?.[1] ?? '';
@@ -474,6 +479,117 @@ describe('the CI workflow', () => {
       for (const file of files) {
         expect(await read(file), file).not.toMatch(/apt-get|playwright install/u);
       }
+    });
+  });
+
+  describe('the SDK jobs', () => {
+    it('has an sdks job that needs changes, runs the publish dry run, and that the gate waits for', async () => {
+      const workflow = await read('.github/workflows/verify.yml');
+      expect(jobNames(workflow)).toContain('sdks');
+      expect(gateNeeds(workflow)).toContain('sdks');
+      const block = jobBlock(workflow, 'sdks', 'commit-messages');
+      expect(block).toContain('needs: changes');
+      expect(block).toMatch(/^ {4}if: needs\.changes\.outputs\.server == 'true'$/mu);
+      expect(block).toContain('pnpm --filter "./sdks/*" --if-present run build');
+      expect(block).toContain('pnpm --filter "./sdks/*" --if-present run test');
+      expect(block).toContain('npm pack --dry-run');
+      expect(block).toContain('npm publish --dry-run');
+      expect(block).toContain('python -m build');
+      expect(block).toContain('twine check');
+    });
+
+    it('runs the sdks job for a change under sdks/, and not for prose alone', async () => {
+      const { classifyChanges } = await import('../../tools/ci/src/changes.ts');
+      expect(classifyChanges(['sdks/oidc/src/index.ts']).server).toBe(true);
+      expect(classifyChanges(['sdks/python/pyproject.toml']).server).toBe(true);
+      expect(classifyChanges(['docs/NEXT.md', 'README.md']).server).toBe(false);
+    });
+
+    describe('sdk-release.yml', () => {
+      async function release(): Promise<string> {
+        return read('.github/workflows/sdk-release.yml');
+      }
+
+      it('starts on an SDK tag or by hand, and never on a version tag of the server', async () => {
+        const workflow = await release();
+        expect(workflow).toMatch(
+          /^on:\n {2}push:\n {4}tags: \['\*-v\[0-9\]\*'\]\n {2}workflow_dispatch:/mu,
+        );
+        expect(workflow).toContain('permissions: {}');
+      });
+
+      it('publishes only from a push of a tag, never on a manual run', async () => {
+        const workflow = await release();
+        const publishes = workflow
+          .split('\n')
+          .filter((line) => /\b(npm publish|pypi-publish)\b|gh-action-pypi-publish/u.test(line));
+        expect(publishes.length).toBeGreaterThan(1);
+        for (const name of ['publish-npm', 'publish-pypi']) {
+          const block = jobBlock(workflow, name);
+          expect(block, name).toMatch(/^ {4}if: github\.event_name == 'push' && /mu);
+          expect(block, name).toContain('environment: sdk-release');
+          expect(block, name).toContain('id-token: write');
+          expect(block, name).toContain('contents: read');
+        }
+        // The jobs that run on a manual run hold no registry credential.
+        for (const name of ['prepare', 'build']) {
+          const block = jobBlock(workflow, name, name === 'prepare' ? 'build' : 'publish-npm');
+          expect(block, name).not.toContain('id-token');
+          expect(block, name).not.toContain('environment:');
+          expect(block, name).not.toMatch(/npm publish|pypi-publish/u);
+        }
+      });
+
+      it('has the publish jobs wait for the build, and the build for prepare', async () => {
+        const workflow = await release();
+        expect(jobBlock(workflow, 'build', 'publish-npm')).toContain('needs: prepare');
+        for (const name of ['publish-npm', 'publish-pypi']) {
+          expect(jobBlock(workflow, name)).toMatch(/needs: \[prepare, build\]/u);
+        }
+      });
+
+      it('lets npm publish by trusted publishing, which needs npm 11.5.1 or later', async () => {
+        const workflow = await release();
+        const block = jobBlock(workflow, 'publish-npm', 'publish-pypi');
+        expect(block).toContain("node-version: '24'");
+        expect(block).toContain('npm install --global npm@11');
+        expect(block).toContain('npm publish');
+        expect(block).toContain('--access public');
+        expect(block).not.toMatch(/NODE_AUTH_TOKEN|NPM_TOKEN|secrets\./u);
+      });
+
+      it('refuses a tag that is not a package, a mismatched version, a private package and a missing changelog section', async () => {
+        const workflow = await release();
+        const block = jobBlock(workflow, 'prepare', 'build');
+        for (const name of [
+          'oidc',
+          'react',
+          'bff',
+          'next',
+          'node',
+          'admin-client',
+          'me-client',
+          'mcp-stdio',
+          'python',
+        ]) {
+          expect(block, name).toContain(name);
+        }
+        expect(block).toContain('.private');
+        expect(block).toContain('CHANGELOG.md');
+        expect(block).toContain('tools/release/src/index.ts notes');
+        expect(block).toContain('git merge-base --is-ancestor');
+        expect(block).toContain('The gate check has not passed');
+      });
+
+      it('holds the stable-tag and gate checks to a push, as release.yml does', async () => {
+        const block = jobBlock(await release(), 'prepare', 'build');
+        expect(block).toMatch(
+          /Require a stable tag[^\n]*\n {8}if: github\.event_name == 'push' && /u,
+        );
+        expect(block).toMatch(
+          /Require that CI passed[^\n]*\n {8}if: github\.event_name == 'push'/u,
+        );
+      });
     });
   });
 
