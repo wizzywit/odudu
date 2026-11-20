@@ -1,5 +1,13 @@
 import { fromServerError, OduduError } from '#/services/odudu-error';
 
+function parsedUrl(value: string, message: string): URL {
+  try {
+    return new URL(value);
+  } catch (cause) {
+    throw new OduduError('invalid_callback', message, { cause });
+  }
+}
+
 // Reads an authorization response. The state and the issuer are compared
 // before anything else in it is believed: a response that names the wrong
 // issuer is the mix-up attack of RFC 9207, and that holds for an error
@@ -8,8 +16,8 @@ export function readCallback(
   callbackUrl: string,
   expected: { state: string; issuer: string; redirectUri: string },
 ): URLSearchParams {
-  const url = new URL(callbackUrl);
-  const redirect = new URL(expected.redirectUri);
+  const url = parsedUrl(callbackUrl, 'the callback address is not a URL');
+  const redirect = parsedUrl(expected.redirectUri, 'the redirect URI of this sign-in is not a URL');
   if (url.origin !== redirect.origin || url.pathname !== redirect.pathname) {
     throw new OduduError('invalid_callback', 'the response did not arrive at the redirect URI');
   }

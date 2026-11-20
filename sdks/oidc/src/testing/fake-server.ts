@@ -10,9 +10,13 @@ export interface FakeServer {
   claims: Record<string, unknown>;
   // A refusal the token endpoint answers with instead of tokens.
   tokenError: { error: string; error_description?: string } | undefined;
-  scope: string;
+  // Omitted from the token response when undefined.
+  scope: string | undefined;
   expiresIn: number;
   tokenRequests: URLSearchParams[];
+  // The `authorization` header of each token request, in the same order.
+  tokenAuthorizations: (string | undefined)[];
+  clientCredentialsGrants: number;
   // Refresh tokens already presented; a second use is refused as Odudu does.
   spentRefreshTokens: Set<string>;
   discoveryRequests: number;
@@ -44,6 +48,8 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
     scope: 'openid',
     expiresIn: 900,
     tokenRequests: [],
+    tokenAuthorizations: [],
+    clientCredentialsGrants: 0,
     spentRefreshTokens: new Set(),
     discoveryRequests: 0,
     close: () => Promise.resolve(),
@@ -72,8 +78,19 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
         (raw) => {
           const form = new URLSearchParams(raw);
           fake.tokenRequests.push(form);
+          fake.tokenAuthorizations.push(request.headers.authorization);
           if (fake.tokenError !== undefined) {
             send(400, fake.tokenError);
+            return;
+          }
+          if (form.get('grant_type') === 'client_credentials') {
+            fake.clientCredentialsGrants += 1;
+            send(200, {
+              access_token: `client-token-${String(fake.clientCredentialsGrants)}`,
+              token_type: 'Bearer',
+              expires_in: fake.expiresIn,
+              ...(fake.scope === undefined ? {} : { scope: fake.scope }),
+            });
             return;
           }
           const presented = form.get('refresh_token');
@@ -89,7 +106,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
             access_token: 'access-token-1',
             token_type: 'Bearer',
             expires_in: fake.expiresIn,
-            scope: fake.scope,
+            ...(fake.scope === undefined ? {} : { scope: fake.scope }),
             refresh_token:
               form.get('grant_type') === 'refresh_token'
                 ? `${form.get('refresh_token') ?? ''}-rotated`

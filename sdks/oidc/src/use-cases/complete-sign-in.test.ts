@@ -204,4 +204,12 @@ describe('completeSignIn', () => {
     const other = new URL(wrong.href.replace('localhost:5173/elsewhere', 'evil.example/callback'));
     expect((await refusal(other.href, pending)).code).toBe('invalid_callback');
   });
+
+  it('refuses a malformed redirect URI or callback address with invalid_callback', async () => {
+    const pending = await begin();
+    expect(
+      (await refusal(callback(good(pending)), { ...pending, redirectUri: 'not a url' })).code,
+    ).toBe('invalid_callback');
+    expect((await refusal('not a url', pending)).code).toBe('invalid_callback');
+  });
 });

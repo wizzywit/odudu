@@ -24,17 +24,24 @@ export function refreshedTokenSet(
   resource: string | undefined,
   now: number,
 ): TokenSet {
-  const entry = {
-    accessToken: response.access_token,
-    expiresAt: now + (response.expires_in ?? 0) * 1000,
-    scope: response.scope ?? '',
-  };
+  const accessToken = response.access_token;
+  const expiresAt = now + (response.expires_in ?? 0) * 1000;
   const audiences = resource === undefined ? Object.keys(previous.byAudience) : [resource];
   const refreshToken = response.refresh_token ?? previous.refreshToken;
   return {
     byAudience: {
       ...previous.byAudience,
-      ...Object.fromEntries(audiences.map((audience) => [audience, { ...entry }])),
+      ...Object.fromEntries(
+        audiences.map((audience) => [
+          audience,
+          // A response without `scope` leaves the scope unchanged (RFC 6749 section 5.1).
+          {
+            accessToken,
+            expiresAt,
+            scope: response.scope ?? previous.byAudience[audience]?.scope ?? '',
+          },
+        ]),
+      ),
     },
     idToken: response.id_token ?? previous.idToken,
     ...(refreshToken === undefined ? {} : { refreshToken }),

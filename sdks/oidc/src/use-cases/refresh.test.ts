@@ -156,6 +156,32 @@ describe('refresh', () => {
     expect((error as OduduError).message).toContain('requestAudience');
   });
 
+  it('a response without scope leaves the stored scope unchanged', async () => {
+    const tokens = await signedIn({ resource: ['https://a.example/api'] });
+    fake.scope = undefined;
+    const renewed = await refresh(tokens, {}, deps);
+    expect(renewed.byAudience['https://a.example/api']?.scope).toBe('openid');
+  });
+
+  it('a third call with the first resource arriving while the second flight runs queues behind it and uses the rotated token', async () => {
+    const a = 'https://a.example/api';
+    const b = 'https://b.example/api';
+    const tokens = await signedIn({ resource: [a, b] });
+    const calls = [
+      refresh(tokens, { resource: a }, deps),
+      refresh(tokens, { resource: b }, deps),
+      refresh(tokens, { resource: a }, deps),
+    ];
+    const [, , third] = await Promise.all(calls);
+    expect(refreshRequests().map((form) => form.get('refresh_token'))).toEqual([
+      'refresh-token-1',
+      'refresh-token-1-rotated',
+      'refresh-token-1-rotated-rotated',
+    ]);
+    expect(refreshRequests().map((form) => form.get('resource'))).toEqual([a, b, a]);
+    expect(third?.refreshToken).toBe('refresh-token-1-rotated-rotated-rotated');
+  });
+
   it('refuses tokens that carry no refresh token', async () => {
     const tokens = await signedIn();
     const without: TokenSet = { ...tokens };
