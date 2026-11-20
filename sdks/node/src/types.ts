@@ -23,3 +23,6 @@ export interface VerifiedToken {
   audience: string[];
   claims: Record<string, unknown>;
 }
+
+// What `createVerifier` returns, and what the middleware takes.
+export type Verifier = (token: string) => Promise<VerifiedToken>;
