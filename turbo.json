@@ -39,6 +39,15 @@
       "outputs": ["trace-report.json"],
       "env": ["ODUDU_TEST_SHARD"]
     },
+    "@odudu-io/next#typecheck": {
+      "dependsOn": ["^typecheck", "^build"]
+    },
+    "@odudu-io/next#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "test/**", "package.json", "tsconfig.json"],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
     "@odudu/db#test": {
       "dependsOn": ["^typecheck"],
       "inputs": [
