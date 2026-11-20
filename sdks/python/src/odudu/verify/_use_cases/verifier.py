@@ -30,6 +30,9 @@ from odudu.verify._services.token import VerifiedToken
 from odudu.verify._use_cases.key_store import AsyncKeyStore, KeyStore
 
 DEFAULT_JWKS_TTL_SECONDS = 300.0
+# A refresh is rare, so each one opens its own connection: a pooled one would be reused without
+# being reported to `Interrupt`, and could not be shut down when the read runs out of time.
+_NO_KEEP_ALIVE = httpx.Limits(max_keepalive_connections=0)
 
 
 class _Rules:
@@ -98,7 +101,7 @@ class Verifier:
         self._now = now
         self._owned = http_client is None
         self._client = (
-            httpx.Client(timeout=TIMEOUT_SECONDS, follow_redirects=False)
+            httpx.Client(timeout=TIMEOUT_SECONDS, follow_redirects=False, limits=_NO_KEEP_ALIVE)
             if http_client is None
             else http_client
         )
@@ -152,7 +155,9 @@ class AsyncVerifier:
         self._now = now
         self._owned = http_client is None
         self._client = (
-            httpx.AsyncClient(timeout=TIMEOUT_SECONDS, follow_redirects=False)
+            httpx.AsyncClient(
+                timeout=TIMEOUT_SECONDS, follow_redirects=False, limits=_NO_KEEP_ALIVE
+            )
             if http_client is None
             else http_client
         )

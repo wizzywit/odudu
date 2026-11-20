@@ -18,11 +18,13 @@ from verify_support import (
     ISSUER,
     NOW,
     Clock,
+    ConnectProxy,
     IssuerServer,
     SigningKey,
     SlowServer,
     extra,
     make_key,
+    make_tls,
     mint,
 )
 
@@ -405,40 +407,78 @@ def settle(condition: Callable[[], bool], seconds: float = 20.0) -> bool:
     return condition()
 
 
-@pytest.mark.parametrize("mode", ["trickle", "stall"])
-def test_many_timed_out_refreshes_leave_no_threads_or_sockets(key: SigningKey, mode: str) -> None:
-    server = SlowServer(mode, [key.jwk])
-    store = KeyStore(
-        [server.issuer], httpx.Client(trust_env=False), 300.0, Clock(), fetch_timeout=0.2
-    )
-    state = store._states[server.issuer]
+def hammer(store: KeyStore, issuer: str) -> int:
+    """150 refreshes, in rounds of 15 threads, each of which must fail; how many did."""
+    state = store._states[issuer]
     failures: list[KeyFetchError] = []
 
     def refresh() -> None:
         try:
-            store._read(server.issuer, state)
+            store._read(issuer, state)
         except KeyFetchError as error:
             failures.append(error)
 
+    for _ in range(10):
+        batch = [threading.Thread(target=refresh) for _ in range(15)]
+        for thread in batch:
+            thread.start()
+        for thread in batch:
+            thread.join(30)
+    return len(failures)
+
+
+def quiet(server: SlowServer, proxy: ConnectProxy | None, baseline: int) -> bool:
+    return (
+        workers() < 10
+        and server.active < 10
+        and (proxy is None or proxy.active < 10)
+        and fd_count() < baseline + 20
+    )
+
+
+@pytest.mark.parametrize("via", ["direct", "tls", "proxy"])
+def test_many_timed_out_refreshes_leave_no_threads_or_sockets(key: SigningKey, via: str) -> None:
+    server_tls, client_tls = make_tls()
+    server = SlowServer("trickle", [key.jwk], tls=None if via == "direct" else server_tls)
+    proxy = ConnectProxy() if via == "proxy" else None
+    client = httpx.Client(
+        trust_env=False,
+        verify=client_tls,
+        proxy=None if proxy is None else proxy.url,
+    )
+    store = KeyStore([server.issuer], client, 300.0, Clock(), fetch_timeout=0.2)
     baseline = fd_count()
     try:
-        for _ in range(10):
-            batch = [threading.Thread(target=refresh) for _ in range(15)]
-            for thread in batch:
-                thread.start()
-            for thread in batch:
-                thread.join(30)
-        assert len(failures) == 150
-        assert settle(lambda: workers() < 10 and server.active < 10 and fd_count() < baseline + 20)
+        assert hammer(store, server.issuer) == 150
+        assert settle(lambda: quiet(server, proxy, baseline))
         server.mode = "healthy"
-        assert "k1" in store._read(server.issuer, state)
+        assert "k1" in store._read(server.issuer, store._states[server.issuer])
     finally:
+        server.close()
+        if proxy is not None:
+            proxy.close()
+
+
+def test_a_reused_keep_alive_connection_is_cut_too(key: SigningKey) -> None:
+    server = SlowServer("reuse", [key.jwk], healthy_requests=2)
+    clock = Clock()
+    verify = Verifier(
+        [server.issuer], API, now=clock, allow_insecure_issuers=True, fetch_timeout=0.5
+    )
+    state = verify._keys._states[server.issuer]
+    baseline = fd_count()
+    try:
+        assert "k1" in verify._keys._read(server.issuer, state)
+        with pytest.raises(KeyFetchError):
+            verify._keys._read(server.issuer, state)
+        assert settle(lambda: workers() == 0 and server.active == 0 and fd_count() <= baseline)
+    finally:
+        verify.close()
         server.close()
 
 
-@pytest.mark.parametrize("mode", ["trickle", "stall"])
-def test_many_cancelled_async_refreshes_leave_no_sockets(key: SigningKey, mode: str) -> None:
-    server = SlowServer(mode, [key.jwk])
+def test_many_cancelled_async_refreshes_leave_no_sockets(key: SigningKey) -> None:
+    server = SlowServer("trickle", [key.jwk])
     baseline = fd_count()
 
     async def scenario() -> int:

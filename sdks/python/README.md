@@ -56,8 +56,13 @@ Notes on the verifier:
   it as Infinity and accepts it.
 - Reading an issuer's keys, discovery and key set together, has one budget (`fetch_timeout`, 5 s).
   A server that stalls or sends its headers a byte at a time is cut at it with a `KeyFetchError`.
-- When a read runs out of time the verifier shuts down the sockets of that read, so the worker
-  thread ends and its connection leaves the pool. This works with httpx's own transports, a
-  client you pass included; a custom transport that does not report its connections to httpcore
-  is left to httpx's phase timeouts. A failed read is not repeated within 10 s, even when
-  `jwks_ttl` is shorter (Node repeats it after the TTL then).
+- When a read runs out of time the verifier shuts down the sockets that read opened, so the
+  worker thread ends and its connection leaves the pool. Covered: connections opened during the
+  refresh over http, https and an HTTP proxy tunnel, and over a SOCKS proxy by the event names
+  httpcore gives it (not exercised in the tests). The client the verifier makes
+  keeps no connection alive between refreshes, so every refresh opens its own. Not covered: a
+  connection a client you pass as `http_client` already holds in its pool, a custom transport
+  that does not report its connections to httpcore, and a blocking DNS lookup; for those the
+  caller is released at the deadline and the worker waits for httpx's connect and read timeouts.
+  A failed read is not repeated within 10 s, even when `jwks_ttl` is shorter (Node repeats it
+  after the TTL then).

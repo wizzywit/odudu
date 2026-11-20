@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
+import datetime
 import importlib
+import ipaddress
 import json
 import os
 import socket
+import ssl
+import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
@@ -17,7 +22,10 @@ from types import ModuleType
 import httpx
 import jwt
 import pytest
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 
 ISSUER = "https://id.example.test/tenants/demo"
 API = "https://api.example.test"
@@ -181,8 +189,18 @@ class SlowServer:
     still open on its side.
     """
 
-    def __init__(self, mode: str, keys: list[Jwk] | None = None, delay: float = 1.5) -> None:
+    def __init__(
+        self,
+        mode: str,
+        keys: list[Jwk] | None = None,
+        delay: float = 1.5,
+        tls: ssl.SSLContext | None = None,
+        healthy_requests: int = 0,
+    ) -> None:
         self.mode = mode
+        self.tls = tls
+        self.healthy_requests = healthy_requests
+        self.served = 0
         self.keys = keys or []
         self.delay = delay
         self.active = 0
@@ -195,7 +213,8 @@ class SlowServer:
 
     @property
     def issuer(self) -> str:
-        return f"http://127.0.0.1:{self._listener.getsockname()[1]}"
+        scheme = "http" if self.tls is None else "https"
+        return f"{scheme}://127.0.0.1:{self._listener.getsockname()[1]}"
 
     def _accept(self) -> None:
         while not self._stop.is_set():
@@ -209,13 +228,13 @@ class SlowServer:
 
     def _serve(self, connection: socket.socket) -> None:
         try:
+            if self.tls is not None:
+                connection = self.tls.wrap_socket(connection, server_side=True)
             request = connection.recv(65536)
-            if self.mode == "trickle":
-                for byte in b"HTTP/1.1 200 OK\r\nx-padding: " + b"a" * 4000:
-                    if self._stop.is_set():
-                        return
-                    connection.sendall(bytes([byte]))
-                    time.sleep(0.05)
+            if self.mode == "reuse":
+                self._reuse(connection, request)
+            elif self.mode == "trickle":
+                self._trickle(connection)
             elif self.mode == "stall":
                 while connection.recv(1024):
                     pass
@@ -228,7 +247,26 @@ class SlowServer:
             with self._guard:
                 self.active -= 1
 
-    def _answer(self, connection: socket.socket, request: bytes) -> None:
+    def _trickle(self, connection: socket.socket) -> None:
+        for byte in b"HTTP/1.1 200 OK\r\nx-padding: " + b"a" * 4000:
+            if self._stop.is_set():
+                return
+            connection.sendall(bytes([byte]))
+            time.sleep(0.05)
+
+    def _reuse(self, connection: socket.socket, request: bytes) -> None:
+        """Keeps connections alive and answers `healthy_requests` requests in all, then trickles."""
+        while request:
+            with self._guard:
+                self.served += 1
+                healthy = self.served <= self.healthy_requests
+            if not healthy:
+                self._trickle(connection)
+                return
+            self._answer(connection, request, keep_alive=True)
+            request = connection.recv(65536)
+
+    def _answer(self, connection: socket.socket, request: bytes, keep_alive: bool = False) -> None:
         if b"openid-configuration" in request:
             document: dict[str, object] = {"issuer": self.issuer, "jwks_uri": f"{self.issuer}/jwks"}
         else:
@@ -236,9 +274,110 @@ class SlowServer:
                 time.sleep(self.delay)
             document = {"keys": self.keys}
         body = json.dumps(document).encode()
-        head = f"HTTP/1.1 200 OK\r\ncontent-length: {len(body)}\r\nconnection: close\r\n\r\n"
+        mode = "keep-alive" if keep_alive else "close"
+        head = f"HTTP/1.1 200 OK\r\ncontent-length: {len(body)}\r\nconnection: {mode}\r\n\r\n"
         connection.sendall(head.encode() + body)
 
     def close(self) -> None:
         self._stop.set()
+        self._listener.close()
+
+
+def make_tls() -> tuple[ssl.SSLContext, ssl.SSLContext]:
+    """A server context with a throwaway certificate for 127.0.0.1, and a client that trusts it."""
+    private = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(private.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=1))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]),
+            critical=False,
+        )
+        .sign(private, hashes.SHA256())
+    )
+    pem = certificate.public_bytes(serialization.Encoding.PEM)
+    key_pem = private.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    with tempfile.TemporaryDirectory() as folder:
+        chain = Path(folder) / "chain.pem"
+        chain.write_bytes(pem + key_pem)
+        server = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        server.load_cert_chain(str(chain))
+    client = ssl.create_default_context(cadata=pem.decode())
+    return server, client
+
+
+class ConnectProxy:
+    """A loopback HTTP proxy that tunnels every CONNECT to its target."""
+
+    def __init__(self) -> None:
+        self.active = 0
+        self._guard = threading.Lock()
+        self._listener = socket.socket()
+        self._listener.bind(("127.0.0.1", 0))
+        self._listener.listen(64)
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    @property
+    def url(self) -> str:
+        return f"http://127.0.0.1:{self._listener.getsockname()[1]}"
+
+    def _accept(self) -> None:
+        while True:
+            try:
+                connection, _ = self._listener.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._tunnel, args=(connection,), daemon=True).start()
+
+    def _tunnel(self, client: socket.socket) -> None:
+        with self._guard:
+            self.active += 1
+        upstream: socket.socket | None = None
+        try:
+            head = b""
+            while b"\r\n\r\n" not in head:
+                chunk = client.recv(4096)
+                if not chunk:
+                    return
+                head += chunk
+            host, _, port = head.split(b" ")[1].decode().partition(":")
+            upstream = socket.create_connection((host, int(port)))
+            client.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+            pump = threading.Thread(target=self._pipe, args=(upstream, client), daemon=True)
+            pump.start()
+            self._pipe(client, upstream)
+            pump.join(5)
+        except OSError:
+            return
+        finally:
+            client.close()
+            if upstream is not None:
+                upstream.close()
+            with self._guard:
+                self.active -= 1
+
+    @staticmethod
+    def _pipe(source: socket.socket, target: socket.socket) -> None:
+        try:
+            while data := source.recv(65536):
+                target.sendall(data)
+        except OSError:
+            pass
+        finally:
+            for end in (source, target):
+                with contextlib.suppress(OSError):
+                    end.shutdown(socket.SHUT_RDWR)
+
+    def close(self) -> None:
         self._listener.close()

@@ -41,9 +41,10 @@ class Interrupt:
 
     Closing an httpx client from another thread does not wake a thread blocked in `recv`;
     `shutdown` does. The sockets are found through httpcore's `trace` request extension, which
-    reports each connection as it is made. Only the sockets of a read made with `trace` are
-    known: a custom transport that does not report them is cut off from the caller but its
-    worker is left to httpx's own timeouts.
+    reports each connection as it is made, so only a connection opened during this read is
+    known. A connection a client already pooled, a transport that does not report its
+    connections, and a blocking DNS lookup are not interrupted: the caller is released, and the
+    worker is left to httpx's connect and read timeouts.
     """
 
     def __init__(self) -> None:
@@ -52,9 +53,10 @@ class Interrupt:
         self._sockets: list[socket.socket] = []
 
     def trace(self, event: str, info: Mapping[str, object]) -> None:
-        if not event.endswith(".complete"):
-            return
-        if not event.startswith(("connection.connect_tcp", "connection.start_tls")):
+        # httpcore names an event after the module that makes it: `connection.` for a direct
+        # connection, `proxy.` for the TLS upgrade of a tunnel through an HTTP proxy and
+        # `socks.` for a SOCKS proxy, so only the end of the name is matched.
+        if not event.endswith((".connect_tcp.complete", ".start_tls.complete")):
             return
         getter = getattr(info.get("return_value"), "get_extra_info", None)
         connection = getter("socket") if callable(getter) else None
