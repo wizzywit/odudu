@@ -10,11 +10,11 @@
   "scripts": {
     "start": "vite --port 8084 --strictPort",
     "build": "vite build",
-    "test": "node --test expiry.test.ts test.ts",
+    "test": "node --test test.ts",
     "typecheck": "tsc"
   },
   "dependencies": {
-    "oauth4webapi": "3.8.8"
+    "@odudu-io/oidc": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
