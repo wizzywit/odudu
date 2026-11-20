@@ -270,8 +270,8 @@ Decision: `openapi-python-client`. It is the only one of the two that emits
 typed models and sync and async `httpx` clients from one run, and it needed no
 hand-patching of the document. `datamodel-code-generator` emits Pydantic models
 only, so the transport would be hand-written around them, and the numbered
-collision names (`Item1`...) come from inline schemas, which stay inline
-until shared components exist.
+collision names (`Item1`...) are, inferred: a result of inline schemas, which
+stay inline until shared components exist.
 
 Rejected: `datamodel-code-generator`, for those reasons. It stays the fallback
 if the hand-written transport has to wrap its own models.
@@ -286,3 +286,12 @@ Consequences for later tasks:
   compare with 1,563 models and 192,320 lines.
 - unknown: whether the attrs models of `openapi-python-client` suit the
   hand-written layer; not tried.
+- unknown: both generators against the `me` document. It does not exist yet
+  (a later task builds it), so only `admin.json` was run.
+- unknown: the shared-components shape the spec lists as an assumption this
+  spike settles. The admin document still inlines its problem schemas, so no
+  generator has seen the shared shape. The client-generation task re-runs both
+  generators on the rebuilt `admin.json` and on `me.json` and records the
+  result.
+- unknown: Python 3.10 compatibility of the generated code. It was run on
+  3.14.7 only.
