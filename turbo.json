@@ -44,6 +44,18 @@
     "@odudu/server#typecheck": {
       "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"]
     },
+    "@odudu/mcp#test": {
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"],
+      "inputs": ["src/**", "tests/**", "drizzle/**", "package.json", "tsconfig.json"],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
+    "@odudu-io/mcp-stdio#test": {
+      "dependsOn": ["^build", "build"],
+      "inputs": ["src/**", "package.json", "tsconfig.json", "tsup.config.ts"],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
     "@odudu/mcp-catalogue#test": {
       "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"],
       "inputs": [
@@ -128,14 +140,15 @@
       "env": ["ODUDU_TEST_SHARD"]
     },
     "@odudu/server#test": {
-      "dependsOn": ["^typecheck"],
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"],
       "inputs": [
         "src/**",
         "tests/**",
         "drizzle/**",
         "package.json",
         "tsconfig.json",
-        "$TURBO_ROOT$/packages/console-gateway/tests/fixtures/**"
+        "$TURBO_ROOT$/packages/console-gateway/tests/fixtures/**",
+        "$TURBO_ROOT$/packages/protocol-oidc/src/service/client-assertion.ts"
       ],
       "outputs": ["trace-report.json"],
       "env": ["ODUDU_TEST_SHARD"]

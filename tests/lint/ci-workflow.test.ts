@@ -512,6 +512,30 @@ describe('the CI workflow', () => {
       expect(block).toMatch(/python"? -m twine check/u);
     });
 
+    it('proves the packed odudu-mcp in the sdks job, and fails rather than skips without the registry', async () => {
+      const workflow = await read('.github/workflows/verify.yml');
+      const block = jobBlock(workflow, 'sdks', 'commit-messages');
+      const step = block.slice(block.indexOf('- name: Install the packed odudu-mcp and run it'));
+      expect(step).toContain("ODUDU_REQUIRE_REGISTRY: '1'");
+      expect(step).toContain('src/bin.test.ts');
+      const tests = block.slice(block.indexOf('- name: Test every SDK that has a test script'));
+      expect(tests).toContain("ODUDU_REQUIRE_REGISTRY: '1'");
+      expect(block.indexOf('run build')).toBeLessThan(block.indexOf('src/bin.test.ts'));
+    });
+
+    it('builds the stdio package before the server tests that spawn odudu mcp', async () => {
+      const turbo = JSON.parse(await read('turbo.json')) as {
+        tasks: Record<string, { dependsOn?: string[] }>;
+      };
+      for (const task of ['@odudu/server#test', '@odudu/server#typecheck', '@odudu/mcp#test']) {
+        expect(turbo.tasks[task]?.dependsOn, task).toContain('@odudu-io/mcp-stdio#build');
+      }
+      expect(turbo.tasks['@odudu-io/mcp-stdio#test']?.dependsOn).toContain('^build');
+      const dockerfile = await read('infra/docker/Dockerfile');
+      expect(dockerfile).toContain("pnpm --filter '@odudu-io/mcp-stdio...' build");
+      expect(dockerfile.match(/COPY sdks\/oidc sdks\/oidc/gu)).toHaveLength(2);
+    });
+
     it('tests the Python package on 3.10 and 3.13 from a hashed requirements file', async () => {
       const workflow = await read('.github/workflows/verify.yml');
       const block = jobBlock(workflow, 'sdks', 'commit-messages');

@@ -1,12 +1,7 @@
 import { execFile } from 'node:child_process';
+import type { RunTool, ToolRun } from '#/service/ports';
 
-export type ToolRun =
-  | { readonly kind: 'missing' }
-  | { readonly kind: 'exit'; readonly code: number; readonly stdout: string };
-
-// Runs an OS tool with its arguments as an argument vector, never a shell
-// string, and `input` on its standard input.
-export type RunTool = (file: string, args: readonly string[], input?: string) => Promise<ToolRun>;
+export type { RunTool, ToolRun };
 
 export const runTool: RunTool = (file, args, input) =>
   new Promise((resolve) => {

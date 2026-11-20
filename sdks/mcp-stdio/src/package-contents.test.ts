@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 const read = (path: string): string => readFileSync(new URL(path, import.meta.url), 'utf8');
 const manifest = JSON.parse(read('../package.json')) as {
   files: string[];
+  bin: Record<string, string>;
+  engines: Record<string, string>;
   exports: Record<string, string | { types: string; default: string }>;
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
@@ -12,12 +14,12 @@ const manifest = JSON.parse(read('../package.json')) as {
 
 describe('what the package publishes', () => {
   it('ships dist only, built from entries that never reach the test helpers', () => {
-    expect(manifest.files).toEqual(['dist', 'LICENSE', 'CHANGELOG.md']);
+    expect(manifest.files).toEqual(['dist', 'LICENSE', 'CHANGELOG.md', 'README.md']);
     const config = read('../tsup.config.ts');
-    for (const [name, source] of Object.entries({ index: 'index' })) {
+    for (const [name, source] of Object.entries({ index: 'index', bin: 'bin' })) {
       expect(config).toContain(`${name}: 'src/${source}.ts'`);
     }
-    for (const entry of ['index']) {
+    for (const entry of ['index', 'bin']) {
       expect(read(`./${entry}.ts`)).not.toContain('testing');
     }
   });
@@ -33,6 +35,12 @@ describe('what the package publishes', () => {
     expect(read('../tsup.config.ts')).not.toContain('internal');
   });
 
+  it('installs the odudu-mcp command from the built entry, for Node 24 and later', () => {
+    expect(manifest.bin).toEqual({ 'odudu-mcp': './dist/bin.js' });
+    expect(manifest.engines.node).toBe('>=24');
+    expect(read('./bin.ts').startsWith('#!/usr/bin/env node\n')).toBe(true);
+  });
+
   it('marks every export of the internal module, and says who it is for', () => {
     const source = read('./internal.ts');
     expect(source).toContain('For @odudu/mcp only');
@@ -42,12 +50,14 @@ describe('what the package publishes', () => {
     expect(marks).toHaveLength(exports.length);
   });
 
-  it('is Apache-2.0 and depends on the MCP SDK and Zod alone', () => {
+  it('is Apache-2.0 and depends on the MCP SDK, the OIDC core and Zod alone', () => {
     expect(manifest.license).toBe('Apache-2.0');
     expect(Object.keys(manifest.dependencies).sort()).toEqual([
       '@modelcontextprotocol/server',
+      '@odudu-io/oidc',
       'zod',
     ]);
+    expect(manifest.dependencies['@odudu-io/oidc']).toBe('workspace:*');
   });
 
   it('pins the same versions as the server package it was split from', () => {
@@ -55,6 +65,7 @@ describe('what the package publishes', () => {
       dependencies: Record<string, string>;
     };
     for (const name of Object.keys(manifest.dependencies)) {
+      if (name === '@odudu-io/oidc') continue;
       expect(manifest.dependencies[name]).toBe(server.dependencies[name]);
     }
   });

@@ -151,6 +151,11 @@ first eight go to npm as `@odudu-io/<name>`, and `python` goes to PyPI as
 5. Watch the `sdk-release` workflow, and approve the `sdk-release` environment
    when it asks.
 
+A package that depends on another SDK is released after it: `pnpm pack` writes
+the dependency's exact version into the tarball, so `mcp-stdio`'s `odudu-mcp`
+command installs only once `@odudu-io/oidc` at that version is on npm. Tag `oidc`
+first.
+
 What the workflow does:
 
 - **prepare** checks the tag has the right shape and names a package, that the

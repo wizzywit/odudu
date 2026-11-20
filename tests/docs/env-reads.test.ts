@@ -5,8 +5,9 @@ import { CONFIG_DOCS, OUTSIDE_LOADER_ENV } from '../../packages/kernel/src/docs.
 import { REPO_ROOT } from './markdown.js';
 
 // Every `ODUDU_*` a production source reads from the environment is either a
-// key of the configuration loader or on the page's second table.
-const SOURCES = globSync('{packages/*/src,apps/server/src}/**/*.ts', {
+// key of the configuration loader or on the page's second table. The stdio
+// client reads the two it documents from its own package.
+const SOURCES = globSync('{packages/*/src,apps/server/src,sdks/mcp-stdio/src}/**/*.ts', {
   cwd: REPO_ROOT,
   exclude: (entry) => entry.endsWith('.test.ts') || entry.includes('/testing/'),
 });

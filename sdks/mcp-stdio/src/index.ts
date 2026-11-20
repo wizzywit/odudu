@@ -30,3 +30,7 @@ export {
   MCP_WRITE_SCOPE,
   SYSTEM_TENANT_NAME,
 } from '#/service/scopes';
+export { runMcp } from '#/run-mcp';
+export { processMcpIo } from '#/process-io';
+export type { McpIo } from '#/service/mcp-io';
+export { MCP_OPTIONS } from '#/service/mcp-options';
