@@ -71,7 +71,7 @@ import {
   registerResourceMetadataRoute,
   type ToolLimiterOptions,
 } from '@odudu/mcp';
-import { isMeRoute, meRefusalHeaders, registerMeRoutes } from '@odudu/me';
+import { isMeRoute, meRefusalHeaders, registerMeOpenApiRoute, registerMeRoutes } from '@odudu/me';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -906,6 +906,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     },
   });
   registerMeRoutes(app, meDeps);
+  registerMeOpenApiRoute(app);
 
   // getCurrentEmail, markVerified and setPassword are the only points where
   // @odudu/account reaches @odudu/domain-identity's users and credentials

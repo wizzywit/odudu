@@ -457,3 +457,19 @@ describe('the reads, asked in another tenant, find nothing', () => {
     expect(await reads.consents(stranger.tenantId, w.subjectId, page)).toEqual([]);
   });
 });
+
+describe('GET /me/openapi.json', () => {
+  it('is served by the app to any origin, and is not itself a path of the document', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/me/openapi.json',
+      headers: { host: HOST, origin: 'http://localhost:3001' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['access-control-allow-origin']).toBe('*');
+    expect(res.headers['access-control-allow-credentials']).toBeUndefined();
+    const paths = Object.keys(res.json<{ paths: Record<string, unknown> }>().paths);
+    expect(paths).toContain('/tenants/{tenant}/me/profile');
+    expect(paths.some((path) => path.includes('openapi'))).toBe(false);
+  });
+});

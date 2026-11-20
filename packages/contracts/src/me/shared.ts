@@ -15,3 +15,7 @@ export const meNoQuerySchema = z.object({}).strict();
 export function mePage<Item extends z.ZodType>(item: Item) {
   return z.object({ items: z.array(item), next_cursor: z.string().nullable() });
 }
+
+// The body of a refused request, in the shape OAuth 2.0 errors have.
+export const meErrorSchema = z.object({ error: z.string(), error_description: z.string() });
+export type MeError = z.infer<typeof meErrorSchema>;

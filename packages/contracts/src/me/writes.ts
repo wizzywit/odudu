@@ -47,3 +47,8 @@ export const meSessionsEndedSchema = z.object({
   more: z.boolean(),
 });
 export type MeSessionsEnded = z.infer<typeof meSessionsEndedSchema>;
+
+// A change of address is answered 202 and a mail to the new one; the address
+// stays what it was until its holder follows the link.
+export const meEmailVerificationSentSchema = z.object({ email_verification_sent: z.literal(true) });
+export type MeEmailVerificationSent = z.infer<typeof meEmailVerificationSentSchema>;

@@ -21,17 +21,21 @@ export {
 export {
   DEFAULT_LIMIT,
   MAX_LIMIT,
+  meErrorSchema,
   meListQuerySchema,
   meNoQuerySchema,
+  type MeError,
   type MeListQuery,
 } from '#/me/shared';
 export {
   MAX_LABEL_LENGTH,
   meAmendProfileRequestSchema,
+  meEmailVerificationSentSchema,
   meRenameCredentialRequestSchema,
   meSessionEndedSchema,
   meSessionsEndedSchema,
   type MeAmendProfileRequest,
+  type MeEmailVerificationSent,
   type MeRenameCredentialRequest,
   type MeSessionEnded,
   type MeSessionsEnded,
