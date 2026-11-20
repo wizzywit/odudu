@@ -369,9 +369,10 @@ code it did not write.
   store rules of ADR 0054) and **a guide on using the core without React**.
 - **The existing guides**: `web-app`, `single-page-app`, `api` and
   `machine-to-machine` are rewritten around the SDK versions of their examples
-  and keep a short "without an SDK" section naming the underlying protocol
-  steps and the library route, so a reader on another stack still has the way.
-  Runnable blocks stay run by `tools/docs-run`; a command nobody ran is not shown.
+  and teach the SDK only: no "without an SDK" section. A reader on another
+  stack is served by pages that stay as they are: the curl walkthrough
+  `sign-a-user-in`, the concepts and the protocol reference. Runnable blocks
+  stay run by `tools/docs-run`; a command nobody ran is not shown.
 - **Elsewhere:** the introduction's "Odudu has no SDK of its own" sentence,
   `README.md`, the landing page and its "Planned" bands, the quick start's
   next steps, the roadmap (P4i out of "Next", the P14 text kept), the
