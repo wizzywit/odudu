@@ -39,8 +39,8 @@ The root export (`runMcp` and the pieces it is built from) is the package's API.
 The `./internal` subpath is not: it is exported as source for the server's own
 MCP endpoint, is not built or published, and is outside the semver contract.
 
-The tools it serves are listed in `src/mcp-tools.json`, a file generated from
-the server's own tool definitions. The server enforces every call, so a stale
+The tools it serves come from a catalogue generated from the server's own tool
+definitions and built into the package. The server enforces every call, so a stale
 file can hide a tool but never widen what a token may do.
 
 Licence: Apache-2.0.

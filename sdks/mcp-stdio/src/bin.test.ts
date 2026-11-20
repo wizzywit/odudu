@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -13,6 +13,20 @@ const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PACKAGE = join(HERE, '..');
 const OIDC = join(HERE, '../../oidc');
+
+function tarballName(directory: string): string {
+  const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as {
+    name: string;
+    version: string;
+  };
+  return `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`;
+}
+const OIDC_TARBALL = tarballName(OIDC);
+const PACKAGE_TARBALL = tarballName(PACKAGE);
+
+// Installing from the registry takes seconds and a network, so the explicit
+// CI step sets this and every other run of the package's tests leaves it out.
+const ENABLED = process.env.ODUDU_RUN_BIN_TEST === '1';
 
 // The registry serves the dependencies the tarball names; the unpublished
 // workspace package it also needs is packed and installed beside it.
@@ -33,6 +47,12 @@ let app: string;
 let reachable = false;
 
 beforeAll(async () => {
+  if (!ENABLED) {
+    process.stderr.write(
+      '\nSKIPPED bin.test.ts: ODUDU_RUN_BIN_TEST=1 is not set; the sdks job runs it in its own step.\n',
+    );
+    return;
+  }
   for (const directory of [PACKAGE, OIDC]) {
     if (!existsSync(join(directory, 'dist/index.js'))) {
       throw new Error(`${directory} has no dist: build it before this test (pnpm build)`);
@@ -66,8 +86,8 @@ beforeAll(async () => {
       '--ignore-scripts',
       '--no-audit',
       '--no-fund',
-      join(tarballs, 'odudu-io-oidc-0.1.0.tgz'),
-      join(tarballs, 'odudu-io-mcp-stdio-0.1.0.tgz'),
+      join(tarballs, OIDC_TARBALL),
+      join(tarballs, PACKAGE_TARBALL),
     ],
     { cwd: app, timeout: 150_000 },
   );
@@ -115,8 +135,8 @@ function converse(
 
 describe('the packed odudu-mcp command', () => {
   it('lists only what a consumer needs, and no source or internal module', async (ctx) => {
-    if (!reachable) ctx.skip();
-    const { stdout } = await run('tar', ['-tzf', join(tarballs, 'odudu-io-mcp-stdio-0.1.0.tgz')]);
+    if (!ENABLED || !reachable) ctx.skip();
+    const { stdout } = await run('tar', ['-tzf', join(tarballs, PACKAGE_TARBALL)]);
     const entries = stdout.split('\n').filter(Boolean);
     expect(entries).toEqual(
       expect.arrayContaining([
@@ -131,14 +151,14 @@ describe('the packed odudu-mcp command', () => {
     expect(entries.filter((entry) => !entry.startsWith('package/dist/'))).toHaveLength(4);
     const { stdout: manifest } = await run('tar', [
       '-xzOf',
-      join(tarballs, 'odudu-io-mcp-stdio-0.1.0.tgz'),
+      join(tarballs, PACKAGE_TARBALL),
       'package/package.json',
     ]);
     expect(manifest).not.toContain('workspace:');
   });
 
   it('the packed tarball, run with a PATH that has no odudu, answers initialize and tools/list', async (ctx) => {
-    if (!reachable) ctx.skip();
+    if (!ENABLED || !reachable) ctx.skip();
     const tree = await run('find', ['node_modules', '-path', '*/@odudu/*'], { cwd: app });
     expect(tree.stdout).toBe('');
     const nodeDirectory = dirname(process.execPath);
@@ -177,8 +197,22 @@ describe('the packed odudu-mcp command', () => {
     expect(names).toEqual(expected);
   }, 60_000);
 
+  it('does not take an option value of --help for a request for help', async (ctx) => {
+    if (!ENABLED || !reachable) ctx.skip();
+    const r = await converse(
+      join(app, 'node_modules/.bin/odudu-mcp'),
+      ['--base-url', 'https://id.example.com', '--tenant', '--help'],
+      { PATH: dirname(process.execPath), HOME: work ?? '' },
+      [],
+      1,
+    );
+    expect(r.code).toBe(1);
+    expect(r.stdout).toBe('');
+    expect(r.stderr.trimEnd().split('\n')).toHaveLength(1);
+  });
+
   it('prints its options for --help and exits 0', async (ctx) => {
-    if (!reachable) ctx.skip();
+    if (!ENABLED || !reachable) ctx.skip();
     const { stdout } = await run(join(app, 'node_modules/.bin/odudu-mcp'), ['--help'], {
       cwd: app,
       env: { PATH: dirname(process.execPath) },

@@ -4,7 +4,7 @@ import { runMcp } from '#/run-mcp';
 import { processMcpIo } from '#/process-io';
 
 const argv = process.argv.slice(2);
-if (argv.includes('--help') || argv.includes('-h')) {
+if (argv[0] === '--help' || argv[0] === '-h') {
   process.stdout.write(`${usageText()}\n`);
   process.exit(0);
 }

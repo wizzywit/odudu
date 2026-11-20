@@ -310,8 +310,8 @@ async function signsInAtSystemTenant(
   }
 }
 
-// The `odudu-mcp` command, which `odudu mcp` runs too: the admin tools over stdio for a local MCP client. It reads no
-// server configuration and opens no database: it is a client of an instance,
+// The `odudu-mcp` command, which `odudu mcp` runs too: the admin tools over
+// stdio for a local MCP client. It reads no server configuration and opens no database: it is a client of an instance,
 // authenticated as a service account (a key from the environment) or as a
 // person (a sign-in in their browser, kept in the operating system's store).
 // Every failure is one line on standard error and exit status 1.

@@ -770,12 +770,11 @@ jobs:
       # registry for the dependencies, and fails rather than skips without it.
       - name: Install the packed odudu-mcp and run it
         env:
+          ODUDU_RUN_BIN_TEST: '1'
           ODUDU_REQUIRE_REGISTRY: '1'
         run: pnpm --filter @odudu-io/mcp-stdio exec vitest run --config ../../vitest.config.ts src/bin.test.ts
 
       - name: Test every SDK that has a test script
-        env:
-          ODUDU_REQUIRE_REGISTRY: '1'
         run: pnpm --filter "./sdks/*" --if-present run test
 
       # `pnpm pack` writes the tarball a release would publish, with `workspace:`

@@ -50,6 +50,9 @@
       "outputs": ["trace-report.json"],
       "env": ["ODUDU_TEST_SHARD"]
     },
+    "@odudu-io/mcp-stdio#typecheck": {
+      "dependsOn": ["^typecheck", "^build"]
+    },
     "@odudu-io/mcp-stdio#test": {
       "dependsOn": ["^build", "build"],
       "inputs": ["src/**", "package.json", "tsconfig.json", "tsup.config.ts"],
