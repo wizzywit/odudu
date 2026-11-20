@@ -295,3 +295,291 @@ Consequences for later tasks:
   result.
 - unknown: Python 3.10 compatibility of the generated code. It was run on
   3.14.7 only.
+
+### S2: the `odudu mcp` cut
+
+Checked on 2026-11-20 at commit `5420b15e3`. The question: what the files
+`apps/server/src/cli/mcp.ts` uses from `@odudu/mcp` import in turn, and whether
+the stdio side can be cut into a package that imports no `@odudu/*` package.
+
+Method. verified: `pnpm exec depcruise --config .dependency-cruiser.cjs
+--include-only '^packages/mcp/src' --output-type json packages/mcp/src` exits 0
+and lists 172 modules. It is no use for this question: `--include-only` drops
+every edge that leaves `packages/mcp/src`, and a workspace package resolves to
+a path outside it, so the edges to `@odudu/*` do not appear. The closure below
+was computed instead by following every `#/` import (and every re-export) from
+the files that define the stdio-side exports, with a small script kept in the
+scratchpad: each `import` and `export ... from` statement of each file, test
+files excluded. verified: it reports 20 entry files and a closure of 76 files.
+The entry files are the definitions of the exports `mcp.ts` takes from the
+package (`createHttpCaller`, `createOauthClient`, `listenOnLoopback`,
+`createBrowserOpener`, `createCredentialStore`, `runTool`, `toolServer`,
+`loopbackLogin`, `createTokenSource`, `serveMcpStdio`, `stdioTarget`,
+`StdioError`, `renewableWriteBudget`, `callMcpTool`, `TOOLS`, `visibleTools`,
+`directCallerTools`, and the helpers `mcp.ts` also takes: `createFileLock`,
+`fileModeProblem`, `configDirectory`, `failureLine`).
+
+#### What leaves the package
+
+Of the 76 files, 14 import something that is not a sibling, a Node built-in or
+an npm package. Every edge below is a value import unless marked type.
+
+| File (under `packages/mcp/src/`)       | Imports                                                                      | What it uses                                                              |
+| -------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `service/stdio-target.ts`              | `@odudu/kernel`                                                              | `addressIssuer`, `domainAddress`, `pathAddress`: three one-line functions |
+| `service/admin-access.ts`              | `@odudu/protocol-oidc`                                                       | `MCP_READ_SCOPE`, `MCP_WRITE_SCOPE`                                       |
+| `service/visible-tools.ts`             | `@odudu/protocol-admin`, `@odudu/protocol-oidc`                              | `ADMIN_ROUTES` (the whole route table), the two scope names               |
+| `service/tool.ts`                      | `@odudu/protocol-admin` (type)                                               | `AdminCapability`                                                         |
+| `service/read-tool.ts`                 | `@odudu/contracts/admin`, `@odudu/protocol-admin` (type)                     | `MAX_LIMIT`, `AdminCapability`                                            |
+| `service/write-tool.ts`                | `@odudu/contracts`, `@odudu/contracts/admin`, `@odudu/protocol-admin` (type) | `noBidiControls`, `LOCALISED_TEXT_ENTRIES_MAX`, two length limits         |
+| `service/sanitize.ts`                  | `@odudu/contracts`                                                           | `stripBidiControls`                                                       |
+| `service/deps.ts`                      | `@odudu/protocol-oidc` (type), `fastify` (type)                              | `MintAgentTokenInput` and a Fastify type, for the in-process endpoint     |
+| `service/theme-draft.ts`               | `@odudu/contracts` (type), `@odudu/contracts/admin`                          | `ThemeBodyWire`, `themeViewSchema`                                        |
+| `service/tools/theme-write.ts`         | `@odudu/contracts`, `@odudu/contracts/admin`, `@odudu/protocol-admin` (type) | theme limits, three response schemas                                      |
+| `service/tools/settings-write.ts`      | `@odudu/contracts`, `@odudu/contracts/admin`                                 | `LOCALISED_TEXT_ENTRIES_MAX`, `DISPLAY_NAME_MAX`, `settingsSchema`        |
+| `service/tools/*.ts` (the other files) | `@odudu/contracts/admin`                                                     | the Zod response schema of each admin route the tool reads or writes      |
+
+No file of the closure imports `@odudu/protocol-oidc` or
+`@odudu/protocol-admin` for anything beyond the three uses in the table: two
+scope-name constants, the route table, and the `AdminCapability` and
+`MintAgentTokenInput` types. verified: `grep -n "@odudu/"` over the files
+above. All other files of the closure import only siblings, `node:*`, `zod`,
+`@modelcontextprotocol/server` and `@modelcontextprotocol/server/stdio` (the
+last two in `adapter/tool-server.ts` and `view/stdio.ts`).
+
+Beyond the package, `apps/server/src/cli/mcp.ts` itself imports
+`loadClientKey`, `generateClientKey`, `signClientAssertion` from
+`@odudu/crypto` and `ADMIN_API_AUDIENCE`, `MCP_CLIENT_ID`,
+`SYSTEM_TENANT_NAME` from `@odudu/domain-tenant`. verified: reading
+`mcp.ts` lines 1 to 10. `packages/crypto/src/service/client-key.ts` imports
+`OduduError` from `@odudu/kernel`, `jose`, `node:crypto` and a sibling
+(`#/service/jwks`). unknown: what `jwks.ts` imports; it was not followed. The
+three `domain-tenant` constants are the strings `urn:odudu:params:admin-api`,
+`odudu-mcp` and `system` (verified: `grep` in
+`packages/domain-tenant/src/service/`), and `MCP_READ_SCOPE` and
+`MCP_WRITE_SCOPE` are `mcp:read` and `mcp:write`.
+
+Consequences. A package that is a copy of this closure can import nothing from
+`@odudu/*` once these are replaced:
+
+- `@odudu/kernel`: copy the three address functions, 11 lines in
+  `packages/kernel/src/address.ts`.
+- The five string constants above: copy.
+- `@odudu/protocol-admin` and `@odudu/protocol-oidc` in `visible-tools.ts` and
+  `admin-access.ts`: nothing to copy but the constants. inferred: the route
+  table is not needed on the stdio path. `mcp.ts` calls
+  `visibleTools(directCallerTools(TOOLS), [scope], null, inSystemTenant)`, with
+  `capabilities` null, and `toolVisible` returns before it reads `ALSO_ADMITS`
+  when `capabilities === null`. So `ADMIN_ROUTES` is loaded (it imports the
+  whole `@odudu/protocol-admin` package, with its database and Fastify
+  dependencies) only to build a map that is never read in this command.
+- Type-only imports (`AdminCapability`, `MintAgentTokenInput`, the Fastify
+  type) disappear with a local string-union type for the capability and by
+  splitting `service/deps.ts`: `usecase/call-mcp-tool.ts` takes
+  `McpCallDeps` from it, and `mcp.ts` uses its logger shape, so the logger type
+  moves and the in-process endpoint's types stay on the server. unknown: not
+  tried.
+- `@odudu/contracts` and `@odudu/contracts/admin`: this is the only real
+  dependency. It supplies the Zod schemas of the responses (see below), the
+  length limits, and `stripBidiControls` and `noBidiControls`. The two bidi
+  helpers and the five limits (`MAX_LIMIT`, `CLIENT_NAME_MAX`,
+  `DESCRIPTION_MAX`, `DISPLAY_NAME_MAX`, `LOCALISED_TEXT_ENTRIES_MAX`) are
+  plain values to copy or generate. The response schemas are not.
+
+#### What the catalogue depends on
+
+verified: a throwaway Vitest file importing `TOOLS` and `directCallerTools`
+from `@odudu/mcp` (run with `pnpm exec vitest run --config vitest.config.ts`,
+then deleted) printed: `TOOLS 76` (`GET` 64, `PATCH` 5, `POST` 3, `PUT` 3,
+`DELETE` 1) and `direct 69` (`GET` 64, `PATCH` 5). `directCallerTools` is what
+`odudu mcp` serves, so 69 tools matter: the five writes are
+`update_client_metadata`, `update_group_description`, `update_role_description`,
+`update_scope_metadata` and `update_tenant_text_settings`, each a `PATCH` with
+`spends: 'mutating'`. The 7 tools left out (create, put, delete, theme draft
+`PUT`) are served by the tenant's MCP endpoint only.
+
+Each tool of the 69 is built by one of three factories in
+`service/read-tool.ts` and `service/write-tool.ts` (`pageTool`, `valueTool`,
+`contentWriteTool`/`metadataTool`), plus `defineTool`, which validates the
+input and the output. The only tool with logic of its own is
+`service/tools/theme-write.ts` (a read of the draft, an etag comparison, a merge
+and a `PUT`), and neither of its tools is in the 69. verified: `grep -n "run:"
+service/tools/*.ts` finds one hit outside tests, in `theme-write.ts`.
+
+What the stdio client needs per tool to build and answer the admin request:
+
+- `name`, `description` (the text already includes the data notice), `access`
+  (`read` or `write`), `annotations` (three booleans), `routeKey`
+  (`METHOD /admin/tenants/:tenant/...`) and, for a write, `spends`.
+- The input as JSON Schema. verified: `tool.input['~standard'].jsonSchema` is how
+  `adapter/tool-server.ts` already lists the input; the first of the 69 gives a
+  draft 2020-12 document with `type`, `enum`, `format`, `pattern`.
+- Which input fields are path parameters (`pathParams`, `:id`, `:assetId`) and
+  that every other one of a read is a query parameter; for a write, `mode`
+  (`amend` for all five) and `bodyFields`, the field names sent as the body.
+- How the answer is cut to a result: the kind (`page`: rows under `items` and
+  the cursor under `next`; `value`; write), `etag` (whether the entity tag is
+  passed back), `longText` (dot paths whose strings may run to 128 KiB), and
+  `tooLargeDetail` (only `get_theme` and `get_client_theme` have one).
+- The output schema, for `defineTool`'s check of the answer. This is the part
+  that depends on `@odudu/contracts/admin`.
+
+What is not data: the cross-field checks in the schemas' `superRefine`, which
+the JSON Schema may not carry. verified by reading: `inputOf` in `read-tool.ts`
+refuses any string over 1,024 characters; `contentWriteTool`'s `checked` refuses
+an amend naming no field and a body over 60,000 bytes (or `bodyCap`);
+`localisedField` refuses more than `LOCALISED_TEXT_ENTRIES_MAX` languages.
+unknown: how much of this `z.toJSONSchema` carries (the first two are
+`maxLength` and `minProperties` in spirit but are written as refinements, so
+probably not). All three are driven by data the catalogue holds (`bodyFields`,
+`bodyCap`) or are constants, so the stdio client can run them as generic code
+instead of as per-tool Zod code. `sanitize.ts` (`cleanData`, `cleanText`) and
+`call-tool.ts` (`problemOf`, `errorResult`, the 256,000-byte result cap) are
+generic and move as they are.
+
+#### Conclusion
+
+Feasible as planned, with one condition. The catalogue can be a generated JSON
+file, because no tool among the 69 that `odudu mcp` serves needs server-side
+logic: a `GET` read, or a `PATCH` of named fields under `If-Match`. Each entry
+holds `name`, `description`, `routeKey`, `access`, `annotations`, `spends`,
+`pathParams`, `bodyFields`, `etag`, `longText`, `tooLargeDetail`, `bodyCap`,
+the input JSON Schema, and the response as JSON Schema. The path-segment,
+sanitizing, result-cap and cursor code is generic and moves as hand-written
+code. The three admin-request builders in `service/admin-request.ts` and
+`service/admin-path.ts` import nothing outside the package.
+
+The condition is the response schemas. The tools validate what the admin API
+answers with the Zod schemas of `@odudu/contracts/admin`. A package with no
+`@odudu/*` import cannot hold them, so the check of the answer is either
+replaced by a JSON Schema validator over the generated `response` (adds a
+dependency; unknown which, not tried) or dropped for a shape check of the
+fields the tool reads (`items`, `next`, `etag`). Dropping it changes what
+`defineTool` guarantees (`mcp:unexpected_response` for an answer that is not
+the documented one), which the plan should decide. No fallback of vendoring
+the Zod schemas is needed to make the cut work. If the JSON Schema route is
+refused, the fallback is a generated `.ts` file of Zod schemas shipped in the
+SDK package (a generator for it does not exist; not tried).
+
+Not decided here: the three things `mcp.ts` takes from `@odudu/crypto`
+(`signClientAssertion` and two key helpers, on `jose`); they cannot be cut
+without the plan saying what the SDK's `jose` dependency is.
+
+### S6: refresh with a changed resource
+
+Checked on 2026-11-20 against an image built from the worktree at `5420b15e3`
+(`docker build -f infra/docker/Dockerfile`, as `.github/actions/image/action.yml`
+does), started with `quickstart/stack.sh up <image> 3217` under the project
+`odudu-p4i-s6` and removed with `stack.sh down` and `docker rmi` after the
+runs. A tenant `s6demo` with the person `ada` and three public clients was
+seeded with `odudu seed` inside the container, as `examples/_shared/provision.sh`
+does. Sign-in was a PKCE code flow driven by a Node script (the HTML sign-in
+form, then the code at the redirect URI, then `POST /token`), kept in the
+scratchpad and not committed. Tokens are truncated below to 12 characters and
+their length; `aud` and `scope` are read from the access token's payload.
+
+Clients. verified: `docker compose exec -T odudu odudu seed client --tenant
+s6demo --client-id <id> --public --grant-type authorization_code --grant-type
+refresh_token --redirect-uri http://127.0.0.1:8080/callback ...`:
+
+- `s6-me`: `--audience <issuer>/me --audience https://other.example.test/api
+--allow-action verify-email`. The last flag is how a client gets the
+  `me:read` scope (`odudu seed client --help`: it "assigns me:read to the
+  client"). Without it, the first client I made (`s6-app`, no `--allow-action`)
+  was refused `openid me:read offline_access` with `invalid_scope` at
+  `/authorize`.
+- `s6-multi`: `--audience https://a.example.test/api --audience
+https://b.example.test/api`, no `me` scope.
+
+`ME` below is `http://localhost:3217/tenants/s6demo/me`, the issuer being
+`http://localhost:3217/tenants/s6demo`.
+
+#### Run A: a grant authorized with `resource=ME`
+
+verified: `/authorize` with `scope=openid me:read offline_access` and
+`resource=ME`, then `POST /token grant_type=authorization_code` answered `200`
+with `scope` `openid me:read offline_access`, a refresh token and an access
+token whose `aud` is `[ME, <issuer>]`. Then, each on the refresh token the
+previous successful call returned (a refused call leaves the token usable):
+
+| Case | `POST /token` (`client_id` and `refresh_token` omitted) | Status and body                                                                                              |
+| ---- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| a    | `grant_type=refresh_token&resource=ME`                  | `200`, `aud` `[ME, issuer]`, same scope, a rotated refresh token                                             |
+| b1   | `resource=https://other.example.test/api`               | `400 {"error":"invalid_target","error_description":"A requested resource is not available to this client."}` |
+| b2   | no `resource`                                           | `200`, `aud` `[ME, issuer]`, same scope                                                                      |
+| b3   | `resource=<issuer>`                                     | `400 {"error":"invalid_scope","error_description":"A requested scope is not available to this client."}`     |
+| c    | `resource=https://not-allowed.example.test/api`         | `400 {"error":"invalid_target","error_description":"A requested resource is not available to this client."}` |
+| e    | two `resource` parameters (`ME` and the other)          | `400 invalid_target`, the same body                                                                          |
+
+Case b1 is the important one: `https://other.example.test/api` is in the
+client's own audience list, and the refresh still refuses it, because the
+grant was authorized for `ME` alone. The refusal is `invalid_target` and is the
+same one case c gets, so a caller cannot tell "not allowed for this client" from
+"allowed, but not part of this grant". Case b3 is refused for the scope, not the
+resource: a `me:read` token cannot have an audience of the issuer alone, as
+`scopesCoherentWithAudience` in
+`packages/protocol-oidc/src/service/mcp-scopes.ts` requires (verified by
+reading).
+
+Scope on a refresh, same client and a fresh sign-in (run C), verified:
+
+| Case | Request                                              | Result                                                     |
+| ---- | ---------------------------------------------------- | ---------------------------------------------------------- |
+| h    | `scope=openid`, no `resource`                        | `400 invalid_scope`                                        |
+| i    | `scope=openid me:read`, `resource=ME`                | `200`, `scope` `openid me:read` (`offline_access` dropped) |
+| j    | `scope=openid me:read offline_access`, `resource=ME` | `200`, full scope                                          |
+
+inferred: case h fails because the grant's audience contains `ME` and the
+scope no longer holds a `me` scope; a fresh `/authorize` with `scope=openid`
+only, for the same client and for `s6-app`, which has no `me:read`, also gives
+`invalid_scope` (verified), and so does `openid offline_access` with
+`resource=ME`. That is the converse of the rule the code comment states, and
+fits all five observations. unknown: the code line that applies it was not
+found.
+
+#### Run B: a grant with no `resource` (`s6-multi`)
+
+verified: `/authorize` with `scope=openid offline_access` and no `resource`
+gave an access token with `aud` `[a, b, issuer]`, where `a` and `b` are the
+client's two audiences. Then:
+
+| Case | `POST /token` refresh       | Result                        |
+| ---- | --------------------------- | ----------------------------- |
+| f    | `resource=a`                | `200`, `aud` `[a, issuer]`    |
+| g    | `resource=b` (on f's token) | `200`, `aud` `[b, issuer]`    |
+| h2   | no `resource`               | `200`, `aud` `[a, b, issuer]` |
+
+So a narrowing at a refresh applies to that access token only. The grant keeps
+the audience it was authorized with, and the next refresh may name any member of
+it.
+
+#### What the core's `refresh` should be
+
+`refresh(tokens, { resource })` maps to `grant_type=refresh_token` with that
+`resource` parameter, and its contract is:
+
+- `resource` may be any audience the original authorization carried: with
+  `resource` at `/authorize`, that one; with none, every audience the client is
+  registered for. It selects one of them for this access token.
+- A `resource` outside that set, whether or not the client may ask for it at
+  `/authorize`, is `400 invalid_target`. The core does not retry. It reports the
+  error with a code the caller can act on (a distinct `invalid_target` error)
+  and says that reaching that resource needs a new authorization (a new
+  `/authorize` with that `resource`).
+- No `resource` keeps what the grant has. The core passes none by default and
+  sends `resource` only when the caller asks for one.
+- The core passes `scope` unchanged (or none) and does not narrow it to
+  something with no `me` scope while the audience is `me`: that is
+  `invalid_scope`.
+- A refresh rotates the refresh token on success (cases a, b2 each returned a
+  new one), and the core stores the new one. verified: every `200` above carried
+  a `refresh_token` different from the one sent.
+
+A second authorization (`prompt=none`) is therefore required to get a token for
+an audience the first authorization did not name, and is not needed to switch
+among the audiences it did. unknown: whether `prompt=none` returns a code
+without interaction when the session is live and the new `resource` is allowed;
+not run, because the spike's question was the refresh. The SDK plan should keep
+one authorization per audience it needs (for example `me` for the account
+page, the admin API in a separate sign-in) rather than rely on a later
+`resource` at a refresh.
