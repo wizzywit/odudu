@@ -30,9 +30,9 @@ run in CI by the time the branch is finished.
    verifier, Python 3.10+).
 4. **`@odudu/mcp-stdio`**, `odudu mcp` installable without the image or a
    checkout, and the server's own `odudu mcp` command built on the same code.
-5. **Per SDK**: a page in a new SDKs docs section, a runnable example run in CI,
-   and the four existing examples rewritten on the SDKs, its own version and
-   changelog, and a dry-run of its publish in CI.
+5. **Per SDK**: a page in a new SDKs docs section, a runnable example run in CI, its
+   own version and changelog, and a dry run of its publish in CI. The four
+   existing examples are rewritten on the SDKs.
 6. **Every document and check the closing pass of CLAUDE.md names**: roadmap,
    section 11, `docs/NEXT.md`, the introduction, `README.md`, the landing page,
    `CHANGELOG.md`, the phase note, ADRs.
