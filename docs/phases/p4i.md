@@ -882,3 +882,43 @@ parameters, so its numbers stand.
 | `credentials` | 22        | 22     |
 | `profile`     | 77        | 77     |
 | `sessions`    | 18        | 18     |
+
+## Example migration divergences
+
+Each example's `test.ts` was run against the old code on a live stack first
+(`api` 18 of 18 with `verifier.test.ts`, `web-app` 8 of 8,
+`single-page-app` 13 of 13 with `expiry.test.ts`, `machine-to-machine` 4 of 4),
+then against the SDK version. `api` (6 of 6 without `verifier.test.ts`) and
+`web-app` (8 of 8) moved. Two examples did not, because an assertion would have
+had to change.
+
+| Example              | Assertion                                                     | Old library                                                   | SDK                                                                                                               |
+| -------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `machine-to-machine` | `is refused with the wrong secret` expects `invalid_client`   | `invalid_client` from Odudu's 401 body reaches the client     | `request_failed: the token request did not complete`; the server's code is lost (below)                           |
+| `single-page-app`    | `refuses an answer that names another issuer` matches the log | `unexpected "iss" (issuer) response parameter` (oauth4webapi) | `invalid_issuer: the response iss is not the issuer this sign-in used`; the refusal is the same, the words differ |
+
+`machine-to-machine`. Odudu answers a wrong secret with `401` and
+`WWW-Authenticate: Basic realm="token"` (verified:
+`curl -si -u example-m2m:bad -d grant_type=client_credentials
+$ODUDU_BASE/tenants/demo/protocol/openid-connect/token`). `oauth4webapi` raises
+`WWWAuthenticateChallengeError` for a challenge before it reads the body, and
+`sdks/oidc/src/adapter/client-credentials.ts` maps everything that is not a
+`ResponseBodyError` to `request_failed`, so `OduduError.code` is never
+`invalid_client` for a wrong secret. `OduduError` documents `invalid_client` as a
+code. `sdks/oidc/src/adapter/token-failure.ts` (code exchange and refresh) has the same
+fallback. This reads as an SDK defect, not a choice.
+
+`single-page-app`. Everything else passed on the SDK (9 of 9 other tests, with
+`expiry.ts` and its test gone, the expiry read from `TokenSet.byAudience`).
+
+`web-app` did not use `@odudu-io/bff`. The BFF's cookie is `__Host-odudu`, its
+logout needs the `x-odudu-bff` header (a form POST cannot send it), its session
+route answers JSON and its failures are bare statuses. The test asserts a `sid=`
+cookie, a form sign-out, `No sign-in is under way` and the reason in the log, so
+the BFF could not carry it without changing five assertions. The example uses the
+core's `beginSignIn`, `completeSignIn` and `signOutUrl` with its own session map.
+
+`machine-to-machine`'s test also counted every request the injected `fetch`
+made; the SDK reads the tenant metadata through it too, so a count of one became
+two. Only that call site changes (count requests ending in `/token`), plus the
+`createTokenSource` import and option shape.

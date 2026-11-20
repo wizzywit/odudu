@@ -324,7 +324,6 @@ describe('the CI workflow', () => {
       expect(block).toContain('uses: ./.github/actions/image');
       expect(block).toContain('quickstart/stack.sh up odudu-smoke-odudu 3205');
       expect(block).toContain('examples/_shared/provision.sh');
-      expect(block).toContain('npm ci --ignore-scripts');
       expect(block).toContain('npm test');
       expect(block).toContain('npm run typecheck');
       expect(block).toMatch(
@@ -335,6 +334,19 @@ describe('the CI workflow', () => {
       expect(block).toMatch(/if: always\(\)\n\s+run: quickstart\/stack\.sh down/u);
       const workflow = await read('.github/workflows/verify.yml');
       expect(gateNeeds(workflow)).toContain('examples');
+    });
+
+    it('installs each example with the SDKs it uses packed from this commit', async () => {
+      const block = await job();
+      expect(block).toContain(
+        'run: examples/_shared/install.sh "examples/${{ matrix.example }}" $SDKS',
+      );
+      expect(block).toContain('run: examples/_shared/install.sh examples/api node');
+      expect(block).not.toContain('npm ci');
+      const install = await read('examples/_shared/install.sh');
+      expect(install).toContain('pnpm --dir "$root" --filter "@odudu-io/$sdk" pack');
+      expect(install).toContain('npm install --no-save --ignore-scripts');
+      expect(install).toContain('npm ci --ignore-scripts');
     });
 
     it('has one matrix leg per example directory with a lockfile and a test', async () => {

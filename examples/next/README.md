@@ -13,10 +13,9 @@ A Next.js App Router app that signs a person in with Odudu through `@odudu-io/ne
 
 You need Node 24 or later and the quick start stack. Run `../_shared/provision.sh` once: it makes the client `example-next` (confidential, redirect address `http://localhost:8085/api/auth/callback`) and the person `ada`.
 
-The example installs the two SDKs from `../../sdks`, so build them first with `pnpm --filter @odudu-io/next build` from the repository root. Then:
+The SDKs are not on npm yet, so install them from this repository: `../_shared/install.sh . oidc bff next` builds and packs them and installs the result, and needs `pnpm install` run once at the repository root. Once they are published, `npm install` is all a copy of this folder needs. Then:
 
 ```text
-npm install
 npm run build
 npm start
 ```

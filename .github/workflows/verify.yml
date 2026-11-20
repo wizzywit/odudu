@@ -464,8 +464,8 @@ jobs:
 
   # Runs each example app against the quickstart stack built from this commit:
   # provisions the tenant, client and person the examples share, installs the
-  # example from its own lockfile and runs its test, which signs a person in or
-  # calls a protected API and asserts the result.
+  # example with the SDKs it uses packed from this commit and runs its test,
+  # which signs a person in or calls a protected API and asserts the result.
   examples:
     needs: changes
     if: needs.changes.outputs.buildImage == 'true'
@@ -511,24 +511,23 @@ jobs:
       - name: Make the tenant, the clients and the person
         run: examples/_shared/provision.sh
 
-      # The Next.js example links the SDKs from this repository, built.
-      - name: Build the SDKs the example links
-        if: matrix.example == 'next'
-        run: pnpm --filter "@odudu-io/next..." run build
-
+      # The SDKs are not on npm yet, so each example gets the ones it uses from
+      # this commit: built, packed and installed beside its other dependencies,
+      # with its package.json and lockfile left as a reader copies them. An
+      # example that uses no SDK is installed from its lockfile.
       - name: Install the example
-        working-directory: examples/${{ matrix.example }}
-        run: npm ci --ignore-scripts
+        env:
+          SDKS: ${{ matrix.example == 'web-app' && 'oidc' || matrix.example == 'api' && 'node' || matrix.example == 'next' && 'oidc bff next' || '' }}
+        run: examples/_shared/install.sh "examples/${{ matrix.example }}" $SDKS
 
       - name: Type-check the example
         working-directory: examples/${{ matrix.example }}
         run: npm run typecheck
 
-      # The client's test starts the API example, which has its own lockfile.
+      # The client's test starts the API example, which has its own install.
       - name: Install the API the client calls
         if: matrix.example == 'machine-to-machine'
-        working-directory: examples/api
-        run: npm ci --ignore-scripts
+        run: examples/_shared/install.sh examples/api node
 
       - name: Run the example's test
         working-directory: examples/${{ matrix.example }}

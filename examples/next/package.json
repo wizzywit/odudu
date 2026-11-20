@@ -15,8 +15,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@odudu-io/bff": "file:../../sdks/bff",
-    "@odudu-io/next": "file:../../sdks/next",
+    "@odudu-io/bff": "^0.1.0",
+    "@odudu-io/next": "^0.1.0",
     "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1"
