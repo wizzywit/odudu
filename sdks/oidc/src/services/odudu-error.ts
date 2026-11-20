@@ -21,6 +21,7 @@ const OAUTH_CODES = [
 // Codes the core raises on its own account.
 type LocalCode =
   | 'invalid_options'
+  | 'audience_not_granted'
   | 'discovery_failed'
   | 'invalid_state'
   | 'invalid_issuer'

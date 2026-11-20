@@ -1,27 +1,12 @@
 import * as oauth from 'oauth4webapi';
 import { requestOptions } from '#/adapter/discovery';
-import { fromServerError, OduduError } from '#/services/odudu-error';
+import { tokenFailure } from '#/adapter/token-failure';
+import { OduduError } from '#/services/odudu-error';
 import type { Deps, IdTokenClaims, Pending, ServerMetadata } from '#/types';
 
 interface Exchanged {
   response: oauth.TokenEndpointResponse;
   claims: IdTokenClaims;
-}
-
-function failure(cause: unknown): OduduError {
-  if (cause instanceof oauth.ResponseBodyError) {
-    return fromServerError(
-      cause.error,
-      cause.error_description,
-      'the token endpoint refused the code',
-    );
-  }
-  if (cause instanceof oauth.OperationProcessingError) {
-    return new OduduError('invalid_id_token', `the response was refused: ${cause.message}`, {
-      cause,
-    });
-  }
-  return new OduduError('request_failed', 'the token request did not complete', { cause });
 }
 
 // Exchanges the code and checks the ID token the server returns: issuer,
@@ -61,6 +46,8 @@ export async function exchangeCode(
       throw new OduduError('invalid_id_token', 'the response has no ID token');
     return { response, claims };
   } catch (cause) {
-    throw cause instanceof OduduError ? cause : failure(cause);
+    throw cause instanceof OduduError
+      ? cause
+      : tokenFailure(cause, 'the token endpoint refused the code');
   }
 }

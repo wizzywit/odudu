@@ -1,5 +1,5 @@
 import { OduduError } from '#/services/odudu-error';
-import type { SignInOptions } from '#/types';
+import type { AudienceRequest, SignInOptions } from '#/types';
 
 const ME_READ = 'me:read';
 const ME_WRITE = 'me:write';
@@ -31,4 +31,23 @@ export function resourcesOf(options: SignInOptions): string[] {
   const resources = new Set(options.resource ?? []);
   if (options.meAccess !== undefined) resources.add(meResource(options.issuer));
   return [...resources];
+}
+
+export function idTokenAlgOf(options: { idTokenAlg?: 'RS256' | 'ES256' }): 'RS256' | 'ES256' {
+  return options.idTokenAlg ?? 'RS256';
+}
+
+// A request for one more audience is a sign-in for that audience alone. The
+// me audience needs its own scope, which meAccess adds.
+export function audienceSignIn(request: AudienceRequest): SignInOptions {
+  const { issuer, clientId, redirectUri, scope, resource, idTokenAlg } = request;
+  return {
+    issuer,
+    clientId,
+    redirectUri,
+    scope,
+    ...(idTokenAlg === undefined ? {} : { idTokenAlg }),
+    resource: [resource],
+    ...(resource === meResource(request.issuer) ? { meAccess: 'read' as const } : {}),
+  };
 }

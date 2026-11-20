@@ -6,7 +6,9 @@ export type ServerMetadata = AuthorizationServer;
 // works in a browser, in Node and on an edge runtime.
 export interface Deps {
   fetch?: typeof fetch;
-  // Milliseconds since the epoch.
+  // Milliseconds since the epoch. It stamps `expiresAt` and times the discovery
+  // cache. It does not drive the ID token's `exp` check: oauth4webapi reads
+  // its own clock for that.
   now?: () => number;
   // Lets an http issuer through; for a development server on localhost only.
   allowInsecureRequests?: boolean;
@@ -48,6 +50,34 @@ export interface Pending {
   // The audiences the sign-in asked for; empty for the issuer's own.
   resources: string[];
   idTokenAlg: 'RS256' | 'ES256';
+}
+
+export interface RefreshOptions {
+  // An audience the original sign-in already carries. Any other value is
+  // refused with `audience_not_granted`; use requestAudience for a new one.
+  resource?: string;
+  // The algorithm the client is registered for ID tokens; RS256 when omitted.
+  idTokenAlg?: 'RS256' | 'ES256';
+}
+
+export interface AudienceRequest {
+  issuer: string;
+  clientId: string;
+  redirectUri: string;
+  scope: string;
+  // The new audience (RFC 8707). The me audience adds the `me:read` scope.
+  resource: string;
+  // Sends `prompt=none`. Off by default: whether the server then skips every
+  // interactive step for a new audience has not been tested.
+  silent?: boolean;
+  idTokenAlg?: 'RS256' | 'ES256';
+}
+
+export interface SignOutOptions {
+  issuer: string;
+  idToken: string;
+  postLogoutRedirectUri?: string;
+  state?: string;
 }
 
 export interface AudienceToken {

@@ -1,14 +1,22 @@
 import { authorizationUrl, newSecrets } from '#/adapter/authorize';
-import { resourcesOf, scopeOf } from '#/services/sign-in-request';
+import { idTokenAlgOf, resourcesOf, scopeOf } from '#/services/sign-in-request';
 import type { Pending, ServerMetadata, SignInOptions } from '#/types';
 
 export async function buildAuthorizationRequest(
   metadata: ServerMetadata,
   options: SignInOptions,
+  silent = false,
 ): Promise<{ url: string; pending: Pending }> {
   const secrets = newSecrets();
   const resources = resourcesOf(options);
-  const url = await authorizationUrl(metadata, options, secrets, scopeOf(options), resources);
+  const url = await authorizationUrl(
+    metadata,
+    options,
+    secrets,
+    scopeOf(options),
+    resources,
+    silent,
+  );
   return {
     url,
     pending: {
@@ -17,7 +25,7 @@ export async function buildAuthorizationRequest(
       redirectUri: options.redirectUri,
       ...secrets,
       resources,
-      idTokenAlg: options.idTokenAlg ?? 'RS256',
+      idTokenAlg: idTokenAlgOf(options),
     },
   };
 }

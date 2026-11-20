@@ -79,7 +79,10 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
             token_type: 'Bearer',
             expires_in: fake.expiresIn,
             scope: fake.scope,
-            refresh_token: 'refresh-token-1',
+            refresh_token:
+              form.get('grant_type') === 'refresh_token'
+                ? `${form.get('refresh_token') ?? ''}-rotated`
+                : 'refresh-token-1',
             id_token: idToken({
               iss: fake.issuer,
               sub: 'subject-1',
