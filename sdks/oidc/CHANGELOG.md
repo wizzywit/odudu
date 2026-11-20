@@ -22,6 +22,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A token endpoint that refuses the client with a 401, a `WWW-Authenticate` challenge and an OAuth error body (as Odudu does for a wrong secret) now rejects with that error's code, such as `invalid_client`, from `clientCredentials`, `createTokenSource`, `completeSignIn` and `refresh`. It was `request_failed`. A challenge with no OAuth error body stays `request_failed`.
 - A refresh response that names no scope no longer empties the scope stored with the tokens.
 - `completeSignIn` rejects a malformed redirect URI or callback address with `invalid_callback` instead of a `TypeError`.
 - `completeSignIn` refuses a callback that did not arrive at the redirect URI.

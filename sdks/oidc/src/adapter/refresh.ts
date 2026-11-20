@@ -46,7 +46,7 @@ export async function refreshGrant(
         { error: cause.error, ...detail(cause.error_description) },
       );
     }
-    throw tokenFailure(cause, 'the token endpoint refused the refresh token');
+    throw await tokenFailure(cause, 'the token endpoint refused the refresh token');
   }
 }
 

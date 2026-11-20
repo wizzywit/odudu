@@ -188,6 +188,21 @@ describe('completeSignIn', () => {
     expect(error.errorDescription).toBe('code already used');
   });
 
+  it('names invalid_client when the code exchange is refused with a challenge', async () => {
+    const pending = await begin();
+    fake.tokenChallenge = true;
+    fake.tokenError = { error: 'invalid_client' };
+    const error = await refusal(callback(good(pending)), pending);
+    expect(error.code).toBe('invalid_client');
+  });
+
+  it('keeps request_failed for a challenge with no OAuth error body', async () => {
+    const pending = await begin();
+    fake.tokenChallenge = true;
+    const error = await refusal(callback(good(pending)), pending);
+    expect(error.code).toBe('request_failed');
+  });
+
   it('keeps a code the server does not name as the raw error', async () => {
     const pending = await begin();
     fake.tokenError = { error: 'brand_new_error' };

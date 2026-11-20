@@ -104,6 +104,21 @@ describe('refresh', () => {
     expect(refreshRequests()).toHaveLength(1);
   });
 
+  it('names invalid_client when the refresh is refused with a challenge', async () => {
+    const tokens = await signedIn();
+    fake.tokenChallenge = true;
+    fake.tokenError = { error: 'invalid_client' };
+    const error = await refresh(tokens, {}, deps).catch((e: unknown) => e);
+    expect((error as OduduError).code).toBe('invalid_client');
+  });
+
+  it('keeps request_failed for a challenge with no OAuth error body', async () => {
+    const tokens = await signedIn();
+    fake.tokenChallenge = true;
+    const error = await refresh(tokens, {}, deps).catch((e: unknown) => e);
+    expect((error as OduduError).code).toBe('request_failed');
+  });
+
   it('drops the in-flight entry so a later refresh makes a new request', async () => {
     const tokens = await signedIn();
     fake.tokenError = { error: 'server_error' };

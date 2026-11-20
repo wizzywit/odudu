@@ -122,6 +122,21 @@ describe('clientCredentials with a secret', () => {
     expect(error.errorDescription).toBe('unknown client');
   });
 
+  it('names invalid_client when the server refuses with a 401 and a challenge', async () => {
+    fake.tokenChallenge = true;
+    fake.tokenError = { error: 'invalid_client', error_description: 'bad secret' };
+    const error = await refusal({ issuer: fake.issuer, clientId: 'c', auth: { secret: 'bad' } });
+    expect(error.code).toBe('invalid_client');
+    expect(error.errorDescription).toBe('bad secret');
+  });
+
+  it('keeps request_failed for a challenge with no OAuth error, and echoes nothing', async () => {
+    fake.tokenChallenge = true;
+    const error = await refusal({ issuer: fake.issuer, clientId: 'c', auth: { secret: 'bad' } });
+    expect(error.code).toBe('request_failed');
+    expect(error.message).toBe('the token request did not complete');
+  });
+
   it('rejects a secret and a private key together as invalid_options', async () => {
     const key = await testKey('ES256');
     const both = {

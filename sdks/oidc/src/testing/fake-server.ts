@@ -10,6 +10,9 @@ export interface FakeServer {
   claims: Record<string, unknown>;
   // A refusal the token endpoint answers with instead of tokens.
   tokenError: { error: string; error_description?: string } | undefined;
+  // Answers `tokenError` as Odudu does for a refused client: 401 with a Basic
+  // challenge. With `tokenError` unset the 401 has no body.
+  tokenChallenge: boolean;
   // Omitted from the token response when undefined.
   scope: string | undefined;
   // Omitted from the token response when undefined.
@@ -56,6 +59,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
     metadataIssuer: undefined,
     claims: {},
     tokenError: undefined,
+    tokenChallenge: false,
     scope: 'openid',
     expiresIn: 900,
     tokenRequests: [],
@@ -90,6 +94,14 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
           const form = new URLSearchParams(raw);
           fake.tokenRequests.push(form);
           fake.tokenAuthorizations.push(request.headers.authorization);
+          if (fake.tokenChallenge) {
+            response.writeHead(401, {
+              'content-type': 'application/json',
+              'www-authenticate': 'Basic realm="token"',
+            });
+            response.end(fake.tokenError === undefined ? '' : JSON.stringify(fake.tokenError));
+            return;
+          }
           if (fake.tokenError !== undefined) {
             send(400, fake.tokenError);
             return;

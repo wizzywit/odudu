@@ -20,8 +20,10 @@ export function isExpiredForGood(tokens: TokenSet, now: number): boolean {
 }
 
 // Failures that say nothing about the grant: the issuer or the network was out
-// of reach. A callback that meets one is the issuer's fault, not the caller's.
+// of reach, or refused the BFF's own secret. A callback that meets one is the
+// issuer's or the operator's fault, not the caller's.
 const TRANSIENT = new Set([
+  'invalid_client',
   'request_failed',
   'discovery_failed',
   'server_error',

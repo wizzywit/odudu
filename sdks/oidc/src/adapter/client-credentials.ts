@@ -1,7 +1,8 @@
 import * as oauth from 'oauth4webapi';
 import { requestOptions } from '#/adapter/discovery';
 import { clientAuthentication } from '#/adapter/client-authentication';
-import { fromServerError, OduduError } from '#/services/odudu-error';
+import { tokenFailure } from '#/adapter/token-failure';
+import { OduduError } from '#/services/odudu-error';
 import { withUsableLifetime } from '#/services/client-credentials-request';
 import type { ClientAuth, Deps, ServerMetadata } from '#/types';
 
@@ -29,15 +30,16 @@ export async function clientCredentialsGrant(
     );
   } catch (cause) {
     if (cause instanceof OduduError) throw cause;
-    if (cause instanceof oauth.ResponseBodyError) {
-      throw fromServerError(
-        cause.error,
-        cause.error_description,
-        'the token endpoint refused the client',
-      );
-    }
-    throw new OduduError('request_failed', 'the token request did not complete', { cause });
+    throw await clientTokenFailure(cause);
   }
+}
+
+// A refused client is named by the server's code; anything else did not complete.
+async function clientTokenFailure(cause: unknown): Promise<OduduError> {
+  const failure = await tokenFailure(cause, 'the token endpoint refused the client');
+  return failure.code === 'invalid_id_token'
+    ? new OduduError('request_failed', 'the token request did not complete', { cause })
+    : failure;
 }
 
 // oauth4webapi refuses a response whose `expires_in` is not a non-negative

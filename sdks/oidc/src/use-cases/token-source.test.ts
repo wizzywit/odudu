@@ -25,6 +25,13 @@ function source(extra: { skewMs?: number } = {}): () => Promise<string> {
 }
 
 describe('createTokenSource', () => {
+  it('rejects with invalid_client when the server refuses the secret with a challenge', async () => {
+    fake.tokenChallenge = true;
+    fake.tokenError = { error: 'invalid_client' };
+    const error = await source()().catch((e: unknown) => e);
+    expect((error as OduduError).code).toBe('invalid_client');
+  });
+
   it('reuses the token until 30 s before expiry', async () => {
     fake.expiresIn = 900;
     const token = source();

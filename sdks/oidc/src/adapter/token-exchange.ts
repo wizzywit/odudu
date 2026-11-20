@@ -50,6 +50,6 @@ export async function exchangeCode(
   } catch (cause) {
     throw cause instanceof OduduError
       ? cause
-      : tokenFailure(cause, 'the token endpoint refused the code');
+      : await tokenFailure(cause, 'the token endpoint refused the code');
   }
 }

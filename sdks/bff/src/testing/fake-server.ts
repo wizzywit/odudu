@@ -7,6 +7,8 @@ export interface FakeServer {
   claims: Record<string, unknown>;
   // Refused instead of tokens when set.
   tokenError: { error: string; error_description?: string } | undefined;
+  // Answers `tokenError` as Odudu does for a refused client: 401 with a Basic challenge.
+  tokenChallenge: boolean;
   expiresIn: number;
   // Whether the token endpoint issues a refresh token.
   issueRefreshToken: boolean;
@@ -43,6 +45,7 @@ export async function startFakeServer(): Promise<FakeServer> {
     issuer: '',
     claims: {},
     tokenError: undefined,
+    tokenChallenge: false,
     expiresIn: 900,
     issueRefreshToken: true,
     refreshDelayMs: 0,
@@ -80,6 +83,14 @@ export async function startFakeServer(): Promise<FakeServer> {
         fake.tokenAuthorizations.push(request.headers.authorization);
         const refreshing = form.get('grant_type') === 'refresh_token';
         const answer = (): void => {
+          if (fake.tokenError !== undefined && fake.tokenChallenge) {
+            response.writeHead(401, {
+              'content-type': 'application/json',
+              'www-authenticate': 'Basic realm="token"',
+            });
+            response.end(JSON.stringify(fake.tokenError));
+            return;
+          }
           if (fake.tokenError !== undefined) {
             send(400, fake.tokenError);
             return;

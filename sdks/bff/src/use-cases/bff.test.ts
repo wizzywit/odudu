@@ -123,6 +123,27 @@ describe('callback', () => {
     expect(cookieSet(response, '__Host-odudu')).toBeUndefined();
   });
 
+  it('answers 502 when the issuer refuses the BFF secret, whatever the status', async () => {
+    const bff = makeBff(fake, clock);
+    const login = await bff.login(request('/auth/login', undefined));
+    const authorize = new URL(login.headers.get('location') ?? '');
+    fake.tokenError = { error: 'invalid_client', error_description: 'upstream-words' };
+    fake.tokenChallenge = true;
+    const params = new URLSearchParams({
+      code: 'c',
+      state: authorize.searchParams.get('state') ?? '',
+      iss: fake.issuer,
+    });
+    const response = await bff.callback(
+      request(
+        `/auth/callback?${params.toString()}`,
+        `__Host-odudu-login=${cookieSet(login, '__Host-odudu-login') ?? ''}`,
+      ),
+    );
+    expect(response.status).toBe(502);
+    expect(await response.text()).not.toContain('upstream-words');
+  });
+
   it('answers 400 for a code the issuer refuses, without its words', async () => {
     const bff = makeBff(fake, clock);
     const login = await bff.login(request('/auth/login', undefined));
@@ -384,6 +405,29 @@ describe('refresh failures', () => {
     fake.tokenError = undefined;
     const back = await bff.session(sessionRequest(cookie));
     expect(back.status).toBe(200);
+  });
+
+  it('keeps the session when Odudu refuses the secret with a 401 challenge', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 890_000;
+    fake.tokenError = { error: 'invalid_client' };
+    fake.tokenChallenge = true;
+    const refused = await bff.session(sessionRequest(cookie));
+    expect(refused.status).toBe(503);
+    expect(refused.headers.getSetCookie()).toHaveLength(0);
+    fake.tokenChallenge = false;
+    fake.tokenError = undefined;
+    expect((await bff.session(sessionRequest(cookie))).status).toBe(200);
+  });
+
+  it('ends the session when a 401 challenge says invalid_grant', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 890_000;
+    fake.tokenError = { error: 'invalid_grant' };
+    fake.tokenChallenge = true;
+    expect((await bff.session(sessionRequest(cookie))).status).toBe(401);
   });
 
   it('keeps the session when the issuer cannot be reached (request_failed)', async () => {
