@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Makes what the examples sign in with, in the `demo` tenant of a running
-# quickstart stack: the people `ada` and `ben`, a web app, a single-page app
-# and a service. Run it from the folder that holds compose.yaml, or set
-# COMPOSE_FILE. Running it again changes nothing.
+# quickstart stack: the people `ada` and `ben`, a web app, a single-page app,
+# a Next.js app and a service. Run it from the folder that holds compose.yaml,
+# or set COMPOSE_FILE. Running it again changes nothing.
 #
 # Every secret here is published in this repository. They are for a stack on
 # your own machine and must never be used anywhere else.
@@ -10,6 +10,7 @@ set -euo pipefail
 
 WEB_APP_ORIGIN="${WEB_APP_ORIGIN:-http://localhost:8081}"
 SPA_ORIGIN="${SPA_ORIGIN:-http://localhost:8084}"
+NEXT_APP_ORIGIN="${NEXT_APP_ORIGIN:-http://localhost:8085}"
 
 seed() {
   local output
@@ -34,3 +35,6 @@ seed client --tenant demo --client-id example-m2m --client-secret example-m2m-se
 seed client --tenant demo --client-id example-spa --public --grant-type authorization_code \
   --redirect-uri "$SPA_ORIGIN/callback" --post-logout-redirect-uri "$SPA_ORIGIN/" \
   --web-origin "$SPA_ORIGIN"
+seed client --tenant demo --client-id example-next --client-secret example-next-secret \
+  --grant-type authorization_code --grant-type refresh_token \
+  --redirect-uri "$NEXT_APP_ORIGIN/api/auth/callback" --post-logout-redirect-uri "$NEXT_APP_ORIGIN/"

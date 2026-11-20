@@ -473,7 +473,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [web-app, single-page-app, api, machine-to-machine]
+        example: [web-app, single-page-app, api, machine-to-machine, next]
     env:
       ODUDU_BASE: http://localhost:3205
       COMPOSE_FILE: ${{ github.workspace }}/quickstart/compose.yaml
@@ -509,6 +509,11 @@ jobs:
 
       - name: Make the tenant, the clients and the person
         run: examples/_shared/provision.sh
+
+      # The Next.js example links the SDKs from this repository, built.
+      - name: Build the SDKs the example links
+        if: matrix.example == 'next'
+        run: pnpm --filter "@odudu-io/next..." run build
 
       - name: Install the example
         working-directory: examples/${{ matrix.example }}

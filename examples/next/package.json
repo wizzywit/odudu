@@ -1,0 +1,30 @@
+{
+  "name": "odudu-example-next",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev --port 8085",
+    "build": "next build",
+    "start": "next start --port 8085",
+    "test": "node --test test.ts",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@odudu-io/bff": "file:../../sdks/bff",
+    "@odudu-io/next": "file:../../sdks/next",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "6.0.3"
+  }
+}
