@@ -66,5 +66,5 @@ does with none of those. The route table and agent scope rules are read from
 ## Amendment, 2026-11-20: the package also imports the stdio client's shared code
 
 `mcp-allowlist` covers `packages/` only, and `@odudu/mcp` now imports
-`@odudu-io/mcp-stdio/shared` from `sdks/`, so the rule is unchanged. ADR 0053's
+`@odudu-io/mcp-stdio/internal` from `sdks/`, so the rule is unchanged. ADR 0053's
 amendment of the same date says why and what is shared.

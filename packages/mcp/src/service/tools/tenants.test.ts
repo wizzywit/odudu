@@ -1,6 +1,6 @@
 import { countResponseSchema, listTenantsResponseSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { callTool } from '@odudu-io/mcp-stdio/shared';
+import { callTool } from '@odudu-io/mcp-stdio/internal';
 import { instanceTenantTools } from '#/service/tools/tenants';
 import { describeReadTool } from '#/testing/conformance';
 import { respondingWith } from '#/testing/fake-caller';

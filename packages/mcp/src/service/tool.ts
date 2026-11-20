@@ -12,7 +12,7 @@ import {
   type ToolAnnotations,
   type ToolData,
   type ToolResult,
-} from '@odudu-io/mcp-stdio/shared';
+} from '@odudu-io/mcp-stdio/internal';
 import type { z } from 'zod';
 
 // The request, result and problem types are the stdio client's own, so that

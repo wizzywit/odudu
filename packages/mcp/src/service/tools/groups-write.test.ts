@@ -1,6 +1,6 @@
 import { groupSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { callTool } from '@odudu-io/mcp-stdio/shared';
+import { callTool } from '@odudu-io/mcp-stdio/internal';
 import { respondingWith } from '#/testing/fake-caller';
 import {
   createGroupTool,

@@ -1,7 +1,7 @@
 import type { ThemeBodyWire } from '@odudu/contracts';
 import { themeViewSchema } from '@odudu/contracts/admin';
-import { isEtag } from '@odudu-io/mcp-stdio/shared';
-import { jsonObjectOf } from '@odudu-io/mcp-stdio/shared';
+import { isEtag } from '@odudu-io/mcp-stdio/internal';
+import { jsonObjectOf } from '@odudu-io/mcp-stdio/internal';
 import { ToolProblem, type JsonObject } from '#/service/tool';
 
 // What a tool may send as a theme draft, in bytes of its JSON: under the

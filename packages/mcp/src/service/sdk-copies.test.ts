@@ -5,7 +5,7 @@ import {
   MCP_WRITE_SCOPE,
   pathAddress as sdkPath,
   stripBidiControls as sdkStrip,
-} from '@odudu-io/mcp-stdio/shared';
+} from '@odudu-io/mcp-stdio/internal';
 import { stripBidiControls } from '@odudu/contracts';
 import { addressIssuer, domainAddress, pathAddress } from '@odudu/kernel';
 import { MCP_READ_SCOPE as READ, MCP_WRITE_SCOPE as WRITE } from '@odudu/protocol-oidc';

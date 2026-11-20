@@ -30,14 +30,11 @@ const DOCS_ALIAS = {
 
 const REACT_SDK = 'sdks/react';
 
-// The server's MCP endpoint and command run the stdio client's code. Tests read
-// it as source, so they need no build of the package in front of them.
+// The server's command imports the stdio client's package root. Tests read it as
+// source, so they need no build of the package in front of them. Its `./internal`
+// subpath is source already.
 const MCP_STDIO_SOURCE = {
   alias: [
-    {
-      find: /^@odudu-io\/mcp-stdio\/shared$/u,
-      replacement: join(REPO_ROOT, 'sdks/mcp-stdio/src/shared.ts'),
-    },
     {
       find: /^@odudu-io\/mcp-stdio$/u,
       replacement: join(REPO_ROOT, 'sdks/mcp-stdio/src/index.ts'),

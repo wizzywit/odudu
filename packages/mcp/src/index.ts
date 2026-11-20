@@ -31,7 +31,7 @@ export type { McpRefusalAudit, McpRouteDeps } from '#/view/routes/mcp';
 export type { McpExchange, McpPrincipal, McpRequestInfo, OpenExchange } from '#/service/endpoint';
 export { validateMcpToken } from '#/usecase/validate-mcp-token';
 export type { ValidateMcpTokenDeps } from '#/usecase/validate-mcp-token';
-export { callMcpTool } from '@odudu-io/mcp-stdio/shared';
+export { callMcpTool } from '@odudu-io/mcp-stdio/internal';
 export {
   memoryWriteBudget,
   renewableWriteBudget,
@@ -39,8 +39,8 @@ export {
   type BudgetKind,
   type BudgetLimits,
   type WriteBudget,
-} from '@odudu-io/mcp-stdio/shared';
-export type { CallMcpToolDeps, RecordedToolCall } from '@odudu-io/mcp-stdio/shared';
+} from '@odudu-io/mcp-stdio/internal';
+export type { CallMcpToolDeps, RecordedToolCall } from '@odudu-io/mcp-stdio/internal';
 export { createToolLimiter, DEFAULT_TOOL_LIMITS } from '#/service/rate-limit';
 export type { ToolLimiter, ToolLimiterOptions } from '#/service/rate-limit';
 export { TOOLS } from '#/service/catalogue';

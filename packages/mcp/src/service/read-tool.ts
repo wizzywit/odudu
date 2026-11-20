@@ -1,10 +1,10 @@
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import type { AdminCapability } from '@odudu/protocol-admin';
 import { z } from 'zod';
-import { problemOf } from '@odudu-io/mcp-stdio/shared';
+import { problemOf } from '@odudu-io/mcp-stdio/internal';
 import { defineTool } from '#/service/define-tool';
-import { ETAG_PATTERN, isEtag } from '@odudu-io/mcp-stdio/shared';
-import { cleanData, LONG_TEXT_CAP, type CleanStats } from '@odudu-io/mcp-stdio/shared';
+import { ETAG_PATTERN, isEtag } from '@odudu-io/mcp-stdio/internal';
+import { cleanData, LONG_TEXT_CAP, type CleanStats } from '@odudu-io/mcp-stdio/internal';
 import {
   ToolProblem,
   type AdminCaller,

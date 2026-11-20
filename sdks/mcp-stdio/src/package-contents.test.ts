@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 const read = (path: string): string => readFileSync(new URL(path, import.meta.url), 'utf8');
 const manifest = JSON.parse(read('../package.json')) as {
   files: string[];
-  exports: Record<string, { types: string; default: string }>;
+  exports: Record<string, string | { types: string; default: string }>;
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
   license: string;
@@ -14,20 +14,32 @@ describe('what the package publishes', () => {
   it('ships dist only, built from entries that never reach the test helpers', () => {
     expect(manifest.files).toEqual(['dist', 'LICENSE', 'CHANGELOG.md']);
     const config = read('../tsup.config.ts');
-    for (const [name, source] of Object.entries({ index: 'index', shared: 'shared' })) {
+    for (const [name, source] of Object.entries({ index: 'index' })) {
       expect(config).toContain(`${name}: 'src/${source}.ts'`);
     }
-    for (const entry of ['index', 'shared']) {
+    for (const entry of ['index']) {
       expect(read(`./${entry}.ts`)).not.toContain('testing');
     }
   });
 
-  it('exposes the root and the shared subpath, each with its types', () => {
-    expect(Object.keys(manifest.exports)).toEqual(['.', './shared']);
-    for (const [subpath, target] of Object.entries(manifest.exports)) {
-      const file = subpath === '.' ? 'index' : subpath.slice(2);
-      expect(target).toEqual({ types: `./dist/${file}.d.ts`, default: `./dist/${file}.js` });
-    }
+  it('publishes the root as built code, and the internal subpath as source that is not shipped', () => {
+    expect(Object.keys(manifest.exports)).toEqual(['.', './internal']);
+    expect(manifest.exports['.']).toEqual({
+      types: './dist/index.d.ts',
+      default: './dist/index.js',
+    });
+    expect(manifest.exports['./internal']).toBe('./src/internal.ts');
+    expect(manifest.files).not.toContain('src');
+    expect(read('../tsup.config.ts')).not.toContain('internal');
+  });
+
+  it('marks every export of the internal module, and says who it is for', () => {
+    const source = read('./internal.ts');
+    expect(source).toContain('For @odudu/mcp only');
+    const exports = source.match(/^export /gmu) ?? [];
+    const marks = source.match(/^\/\*\* @internal \*\/$/gmu) ?? [];
+    expect(exports.length).toBeGreaterThan(10);
+    expect(marks).toHaveLength(exports.length);
   });
 
   it('is Apache-2.0 and depends on the MCP SDK and Zod alone', () => {

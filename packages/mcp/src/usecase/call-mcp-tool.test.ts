@@ -2,15 +2,15 @@ import { z } from 'zod';
 import { describe, expect, it, vi } from 'vitest';
 import { defineTool } from '#/service/define-tool';
 import { ToolProblem, type AdminCaller, type McpTool } from '#/service/tool';
-import { accessOf } from '@odudu-io/mcp-stdio/shared';
+import { accessOf } from '@odudu-io/mcp-stdio/internal';
 import { scopeFor } from '#/service/admin-access';
 import { unverifiedTokenForTests } from '#/testing/token';
-import { memoryWriteBudget, type WriteBudget } from '@odudu-io/mcp-stdio/shared';
+import { memoryWriteBudget, type WriteBudget } from '@odudu-io/mcp-stdio/internal';
 import {
   clearMessageOverrideTool,
   setMessageOverrideTool,
 } from '#/service/tools/message-overrides-write';
-import { callMcpTool, type RecordedToolCall } from '@odudu-io/mcp-stdio/shared';
+import { callMcpTool, type RecordedToolCall } from '@odudu-io/mcp-stdio/internal';
 
 const base: McpTool<Record<string, never>, { data: { ok: boolean } }> = {
   name: 'whoami',

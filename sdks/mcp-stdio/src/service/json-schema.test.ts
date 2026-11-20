@@ -66,4 +66,16 @@ describe('reading an answer against its JSON Schema', () => {
     expect(parse(word, 'three').ok).toBe(false);
     expect(parse({ const: 1 }, 1).ok).toBe(true);
   });
+
+  it('keeps a __proto__ member of an open record as a member and leaves prototypes alone', () => {
+    const record = { type: 'object', additionalProperties: { type: 'string' } };
+    const hostile: unknown = JSON.parse('{"__proto__": "x", "a": "y"}');
+    const parsed = parse(record, hostile);
+    expect(parsed.ok).toBe(true);
+    const value = parsed.ok ? (parsed.value as Record<string, unknown>) : {};
+    expect(Object.keys(value)).toEqual(['__proto__', 'a']);
+    expect(Object.getPrototypeOf(value)).toBeNull();
+    expect(Object.getPrototypeOf({})).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
 });

@@ -1,4 +1,4 @@
-import type { McpLogger } from '@odudu-io/mcp-stdio/shared';
+import type { McpLogger } from '@odudu-io/mcp-stdio/internal';
 import type { MintAgentTokenInput } from '@odudu/protocol-oidc';
 import type { InjectOptions, LightMyRequestResponse } from 'fastify';
 import type { RequestScope } from '#/service/request-scope';

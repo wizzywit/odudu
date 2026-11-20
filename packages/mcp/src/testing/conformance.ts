@@ -1,8 +1,8 @@
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
-import { callTool } from '@odudu-io/mcp-stdio/shared';
-import { TEXT_CAP } from '@odudu-io/mcp-stdio/shared';
+import { callTool } from '@odudu-io/mcp-stdio/internal';
+import { TEXT_CAP } from '@odudu-io/mcp-stdio/internal';
 import type { RegisteredTool } from '#/service/tool';
 import { exampleOf } from '#/testing/example-of';
 import { respondingWith } from '#/testing/fake-caller';

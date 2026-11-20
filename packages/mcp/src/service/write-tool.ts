@@ -2,12 +2,12 @@ import { LOCALISED_TEXT_ENTRIES_MAX, noBidiControls } from '@odudu/contracts';
 import { CLIENT_NAME_MAX, DESCRIPTION_MAX } from '@odudu/contracts/admin';
 import type { AdminCapability } from '@odudu/protocol-admin';
 import { z } from 'zod';
-import { problemOf } from '@odudu-io/mcp-stdio/shared';
+import { problemOf } from '@odudu-io/mcp-stdio/internal';
 import { defineTool } from '#/service/define-tool';
-import { IDEMPOTENCY_KEY_PATTERN } from '@odudu-io/mcp-stdio/shared';
-import { ETAG_MAX_LENGTH, ETAG_PATTERN, isEtag } from '@odudu-io/mcp-stdio/shared';
-import { cleanData, type CleanStats } from '@odudu-io/mcp-stdio/shared';
-import { jsonOf } from '@odudu-io/mcp-stdio/shared';
+import { IDEMPOTENCY_KEY_PATTERN } from '@odudu-io/mcp-stdio/internal';
+import { ETAG_MAX_LENGTH, ETAG_PATTERN, isEtag } from '@odudu-io/mcp-stdio/internal';
+import { cleanData, type CleanStats } from '@odudu-io/mcp-stdio/internal';
+import { jsonOf } from '@odudu-io/mcp-stdio/internal';
 import { DATA_NOTICE, idField } from '#/service/read-tool';
 import {
   ToolProblem,

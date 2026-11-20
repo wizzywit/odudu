@@ -72,7 +72,9 @@ function objectOf(schema: Record<string, unknown>): Compiled {
       if (required.some((key) => typeof key !== 'string' || !Object.hasOwn(input, key))) {
         return REFUSED;
       }
-      const out: Record<string, unknown> = {};
+      // No prototype, and each member defined rather than assigned, so a key
+      // such as `__proto__` is a member like any other.
+      const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
       for (const [key, item] of Object.entries(input)) {
         if (names !== undefined && !names.parse(key).ok) return REFUSED;
         const member = members.get(key) ?? rest;
@@ -80,7 +82,12 @@ function objectOf(schema: Record<string, unknown>): Compiled {
         if (member === undefined) continue;
         const parsed = member.parse(item);
         if (!parsed.ok) return REFUSED;
-        out[key] = parsed.value;
+        Object.defineProperty(out, key, {
+          value: parsed.value,
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
       }
       return { ok: true, value: out };
     },

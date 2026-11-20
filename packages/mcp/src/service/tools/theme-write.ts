@@ -8,11 +8,11 @@ import {
 import { fieldErrorSchema, themeSourcesSchema, themeViewSchema } from '@odudu/contracts/admin';
 import type { AdminCapability } from '@odudu/protocol-admin';
 import { z } from 'zod';
-import { problemOf } from '@odudu-io/mcp-stdio/shared';
+import { problemOf } from '@odudu-io/mcp-stdio/internal';
 import { defineTool } from '#/service/define-tool';
-import { ETAG_PATTERN, isEtag } from '@odudu-io/mcp-stdio/shared';
+import { ETAG_PATTERN, isEtag } from '@odudu-io/mcp-stdio/internal';
 import { DATA_NOTICE, idField } from '#/service/read-tool';
-import { cleanData, type CleanStats } from '@odudu-io/mcp-stdio/shared';
+import { cleanData, type CleanStats } from '@odudu-io/mcp-stdio/internal';
 import {
   heldOf,
   mergedBody,

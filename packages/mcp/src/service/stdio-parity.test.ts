@@ -138,4 +138,21 @@ describe('the catalogue file against the tools it was generated from', () => {
       }
     },
   );
+
+  it.each(
+    direct
+      .filter((tool) => argumentsFor(tool).id !== undefined)
+      .map((tool) => [tool.name, tool] as const),
+  )('%s keeps a hostile id out of the path, as its twin does', async (name, tool) => {
+    const other = twin(name);
+    for (const id of ['..', '.', 'a/b', '%2f', '?x=1', '#', '../x', '']) {
+      const input = { ...argumentsFor(tool), id };
+      const server = await outcome(tool, input, {});
+      const client = await outcome(other, input, {});
+      expect(client).toEqual(server);
+      for (const request of client.requests) {
+        expect(Object.values(request.params)).not.toContain(id);
+      }
+    }
+  });
 });

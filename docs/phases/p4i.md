@@ -484,9 +484,9 @@ tests, and a test in the package (`package-contents.test.ts`) fails on any
 - **Moved because both sides run it (9 modules, one copy).** `sanitize`,
   `call-tool`, `admin-path`, `admin-request`, `etag-shape`, `json-value`,
   `write-budget`, `tenant-announcement` and `usecase/call-mcp-tool`. `@odudu/mcp`
-  imports them from `@odudu-io/mcp-stdio/shared` (the amendment to ADR 0053).
+  imports them from `@odudu-io/mcp-stdio/internal` (the amendment to ADR 0053).
   The tests that needed the server's tools or `@odudu/protocol-admin` stayed in
-  `packages/mcp` and import from `shared`.
+  `packages/mcp` and import from `internal`.
 - **Copied, three small pieces, each held to the original by a test.** The three
   address helpers of `@odudu/kernel` (`service/address.ts`), `stripBidiControls`
   (`service/bidi.ts`) and the five names `mcp:read`, `mcp:write`, `odudu-mcp`,
@@ -513,6 +513,13 @@ tests, and a test in the package (`package-contents.test.ts`) fails on any
   the service-account key helpers from `@odudu/crypto` and the audience and
   client names from `@odudu/domain-tenant`; it is repointed only as far as the
   move required.
+- **Owed by P4i, in its closing increment.** Rename the package's `usecase`,
+  `service` and `view` folders to the SDKs' `use-cases`, `services` and
+  `adapter`, in one commit apart from any other change, and bring the three
+  functions the SDKs' complexity rule would flag under it (`callMcpTool`,
+  `storedSignIn` and `bearer` of the token source). Kept out of the move so the
+  moved code stayed as it was. Placed here and not in `docs/NEXT.md`, which
+  would need a roadmap line for a placement inside the phase that owns it.
 - **Cost, by ADR 0041.** Start-up parses one 312 KB JSON file, once. A call does
   the one HTTP request and, for a signed-in run, a read of the credential file;
   nothing else is read. The bundle is 335 KB of which the catalogue is most.

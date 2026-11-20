@@ -1,6 +1,9 @@
-// What the server's own MCP endpoint takes from this package so that the two
-// run the same code: the request and result types, the admin path and request
-// rules, the cleaning of text, the write budget, and the single call of a tool.
+// For @odudu/mcp only, and outside this package's semver contract: the pieces the
+// server's own MCP endpoint runs together with the stdio client. It is exported
+// as source, never built or published, so a consumer outside this repository
+// cannot import it.
+
+/** @internal */
 export {
   ToolProblem,
   type AdminCaller,
@@ -16,8 +19,11 @@ export {
   type ToolData,
   type ToolResult,
 } from '#/service/tool';
+/** @internal */
 export { accessOf, insufficientScopeProblem, type AdminAccess } from '#/service/admin-access';
+/** @internal */
 export { expandPattern, INSTANCE_PATTERNS } from '#/service/admin-path';
+/** @internal */
 export {
   ADMIN_BODY_CAP_BYTES,
   createOnlyOf,
@@ -31,8 +37,11 @@ export {
   RETURNED_HEADERS,
   returnedHeaders,
 } from '#/service/admin-request';
+/** @internal */
 export { ETAG_MAX_LENGTH, ETAG_PATTERN, isEtag } from '#/service/etag-shape';
+/** @internal */
 export { jsonObjectOf, jsonOf } from '#/service/json-value';
+/** @internal */
 export {
   cleanData,
   cleanText,
@@ -46,6 +55,7 @@ export {
   type CleanOptions,
   type CleanStats,
 } from '#/service/sanitize';
+/** @internal */
 export {
   callTool,
   errorResult,
@@ -54,6 +64,7 @@ export {
   runTool,
   type ToolRun,
 } from '#/service/call-tool';
+/** @internal */
 export {
   memoryWriteBudget,
   renewableWriteBudget,
@@ -62,15 +73,21 @@ export {
   type BudgetLimits,
   type WriteBudget,
 } from '#/service/write-budget';
+/** @internal */
 export {
   announceTenant,
   TENANT_LABEL_CAP,
   type TenantAnnouncement,
 } from '#/service/tenant-announcement';
+/** @internal */
 export { callMcpTool, type CallMcpToolDeps, type RecordedToolCall } from '#/usecase/call-mcp-tool';
+/** @internal */
 export type { McpLogger } from '#/service/logger';
+/** @internal */
 export { addressIssuer, domainAddress, pathAddress } from '#/service/address';
+/** @internal */
 export { stripBidiControls } from '#/service/bidi';
+/** @internal */
 export {
   ADMIN_API_AUDIENCE,
   MCP_CLIENT_ID,

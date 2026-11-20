@@ -1,5 +1,5 @@
 import type { InjectOptions, LightMyRequestResponse } from 'fastify';
-import { expandPattern } from '@odudu-io/mcp-stdio/shared';
+import { expandPattern } from '@odudu-io/mcp-stdio/internal';
 import {
   ADMIN_BODY_CAP_BYTES,
   createOnlyOf,
@@ -9,8 +9,8 @@ import {
   preflight,
   preconditionOf,
   returnedHeaders,
-} from '@odudu-io/mcp-stdio/shared';
-import { accessOf, type AdminAccess } from '@odudu-io/mcp-stdio/shared';
+} from '@odudu-io/mcp-stdio/internal';
+import { accessOf, type AdminAccess } from '@odudu-io/mcp-stdio/internal';
 import type { McpLogger } from '#/service/deps';
 import {
   ToolProblem,
@@ -20,7 +20,7 @@ import {
 } from '#/service/tool';
 import type { ValidatedMcpToken } from '#/service/validated-token';
 
-export { ADMIN_BODY_CAP_BYTES, REQUEST_BODY_CAP_BYTES } from '@odudu-io/mcp-stdio/shared';
+export { ADMIN_BODY_CAP_BYTES, REQUEST_BODY_CAP_BYTES } from '@odudu-io/mcp-stdio/internal';
 
 export interface InProcessCallerDeps {
   inject(options: InjectOptions): Promise<LightMyRequestResponse>;

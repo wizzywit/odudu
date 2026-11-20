@@ -1,4 +1,4 @@
-import { insufficientScopeProblem, type AdminAccess } from '@odudu-io/mcp-stdio/shared';
+import { insufficientScopeProblem, type AdminAccess } from '@odudu-io/mcp-stdio/internal';
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '@odudu/protocol-oidc';
 import type { ValidatedMcpToken } from '#/service/validated-token';
 

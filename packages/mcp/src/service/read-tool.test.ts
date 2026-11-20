@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { callTool } from '@odudu-io/mcp-stdio/shared';
+import { callTool } from '@odudu-io/mcp-stdio/internal';
 import { TOOLS } from '#/service/catalogue';
 import { tenantGet, valueTool } from '#/service/read-tool';
 import { respondingWith } from '#/testing/fake-caller';

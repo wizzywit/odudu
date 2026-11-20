@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { callTool, problemOf } from '@odudu-io/mcp-stdio/shared';
+import { callTool, problemOf } from '@odudu-io/mcp-stdio/internal';
 import { TOOLS } from '#/service/catalogue';
 import { defineTool } from '#/service/define-tool';
 import { ToolProblem, type AdminCaller, type AdminResult, type McpTool } from '#/service/tool';
