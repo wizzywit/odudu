@@ -23,7 +23,7 @@ function lifetimeSeconds(expiresIn: number | undefined): number {
 // `lifetimeSeconds`.
 export function withUsableLifetime(body: unknown): unknown {
   if (typeof body !== 'object' || body === null || !('expires_in' in body)) return body;
-  const { expires_in: expiresIn, ...rest } = body as { expires_in: unknown };
+  const { expires_in: expiresIn, ...rest } = body;
   const parsed = typeof expiresIn === 'number' ? expiresIn : parseFloat(String(expiresIn));
   return Number.isFinite(parsed) && parsed >= 0 ? body : rest;
 }
