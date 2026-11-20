@@ -45,6 +45,49 @@ describe('refresh', () => {
     expect(new Set(results.map((r) => r.refreshToken)).size).toBe(1);
   });
 
+  it('concurrent refreshes with different resources never present the same refresh token twice', async () => {
+    const a = 'https://a.example/api';
+    const b = 'https://b.example/api';
+    const tokens = await signedIn({ resource: [a, b] });
+    const [first, second] = await Promise.all([
+      refresh(tokens, { resource: a }, deps),
+      refresh(tokens, { resource: b }, deps),
+    ]);
+    expect(refreshRequests().map((form) => form.get('refresh_token'))).toEqual([
+      'refresh-token-1',
+      'refresh-token-1-rotated',
+    ]);
+    expect(refreshRequests().map((form) => form.get('resource'))).toEqual([a, b]);
+    expect(first.refreshToken).toBe('refresh-token-1-rotated');
+    expect(second.refreshToken).toBe('refresh-token-1-rotated-rotated');
+    expect(Object.keys(second.byAudience).sort()).toEqual([a, b]);
+  });
+
+  it('a waiter whose predecessor was refused uses the original refresh token', async () => {
+    const a = 'https://a.example/api';
+    const b = 'https://b.example/api';
+    const tokens = await signedIn({ resource: [a, b] });
+    fake.tokenError = { error: 'server_error' };
+    const failing = refresh(tokens, { resource: a }, deps).catch(() => undefined);
+    const waiting = refresh(tokens, { resource: b }, deps);
+    await failing;
+    fake.tokenError = undefined;
+    await waiting;
+    expect(refreshRequests().map((form) => form.get('refresh_token'))).toEqual([
+      'refresh-token-1',
+      'refresh-token-1',
+    ]);
+  });
+
+  it('keeps the issuer and the client on the result', async () => {
+    const tokens = await signedIn();
+    const renewed = await refresh(tokens, {}, deps);
+    expect(tokens.issuer).toBe(fake.issuer);
+    expect(tokens.clientId).toBe('app-1');
+    expect(renewed.issuer).toBe(fake.issuer);
+    expect(renewed.clientId).toBe('app-1');
+  });
+
   it('a refused refresh rejects every waiter with the same OduduError', async () => {
     const tokens = await signedIn();
     fake.tokenError = { error: 'invalid_grant', error_description: 'the token is spent' };

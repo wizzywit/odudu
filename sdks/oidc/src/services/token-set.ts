@@ -20,5 +20,7 @@ export function tokenSetOf(
     idToken: response.id_token ?? '',
     ...(response.refresh_token === undefined ? {} : { refreshToken: response.refresh_token }),
     claims,
+    issuer: pending.issuer,
+    clientId: pending.clientId,
   };
 }

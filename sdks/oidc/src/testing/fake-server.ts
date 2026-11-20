@@ -13,6 +13,8 @@ export interface FakeServer {
   scope: string;
   expiresIn: number;
   tokenRequests: URLSearchParams[];
+  // Refresh tokens already presented; a second use is refused as Odudu does.
+  spentRefreshTokens: Set<string>;
   discoveryRequests: number;
   close: () => Promise<void>;
 }
@@ -42,6 +44,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
     scope: 'openid',
     expiresIn: 900,
     tokenRequests: [],
+    spentRefreshTokens: new Set(),
     discoveryRequests: 0,
     close: () => Promise.resolve(),
   };
@@ -72,6 +75,14 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
           if (fake.tokenError !== undefined) {
             send(400, fake.tokenError);
             return;
+          }
+          const presented = form.get('refresh_token');
+          if (form.get('grant_type') === 'refresh_token' && presented !== null) {
+            if (fake.spentRefreshTokens.has(presented)) {
+              send(400, { error: 'invalid_grant', error_description: 'reuse detected' });
+              return;
+            }
+            fake.spentRefreshTokens.add(presented);
           }
           const now = Math.floor(Date.now() / 1000);
           send(200, {

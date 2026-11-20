@@ -90,6 +90,9 @@ export interface AudienceToken {
 export type IdTokenClaims = IDToken;
 
 export interface TokenSet {
+  // Where the tokens came from and whom they were issued to; refresh reads both.
+  issuer: string;
+  clientId: string;
   // Keyed by the audience (`resource`) the access token was issued for, and by
   // the issuer when the sign-in named none.
   byAudience: Record<string, AudienceToken>;

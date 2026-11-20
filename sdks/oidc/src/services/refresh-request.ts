@@ -1,18 +1,6 @@
 import type { IDToken, TokenEndpointResponse } from 'oauth4webapi';
 import { OduduError } from '#/services/odudu-error';
-import type { IdTokenClaims, TokenSet } from '#/types';
-
-// The client an ID token was issued to: its `azp` when it has one, otherwise
-// its audience (OIDC Core section 2).
-export function clientIdOf(claims: IdTokenClaims): string {
-  if (typeof claims.azp === 'string') return claims.azp;
-  const { aud } = claims;
-  return typeof aud === 'string' ? aud : (aud[0] ?? '');
-}
-
-export function issuerOf(claims: IdTokenClaims): string {
-  return claims.iss;
-}
+import type { TokenSet } from '#/types';
 
 export function refreshTokenOf(tokens: TokenSet): string {
   if (tokens.refreshToken === undefined) {
@@ -22,10 +10,6 @@ export function refreshTokenOf(tokens: TokenSet): string {
     );
   }
   return tokens.refreshToken;
-}
-
-export function flightKey(refreshToken: string, resource: string | undefined): string {
-  return `${String(refreshToken.length)}:${refreshToken}${resource ?? ''}`;
 }
 
 // The tokens after a refresh. Without a `resource` the new access token covers
@@ -55,5 +39,7 @@ export function refreshedTokenSet(
     idToken: response.id_token ?? previous.idToken,
     ...(refreshToken === undefined ? {} : { refreshToken }),
     claims: claims ?? previous.claims,
+    issuer: previous.issuer,
+    clientId: previous.clientId,
   };
 }

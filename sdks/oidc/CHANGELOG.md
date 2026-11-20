@@ -9,9 +9,13 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `refresh` renews the access tokens of a sign-in. Concurrent calls with the same refresh token make one request, a rotated refresh token replaces the old one in the result, and a refused refresh rejects every caller with the same error.
+- `refresh` renews the access tokens of a sign-in. Concurrent calls with the same refresh token make one request (a call naming another audience waits and continues with the rotated token), a rotated refresh token replaces the old one in the result, and a refused refresh rejects every caller with the same error.
 - `requestAudience` starts a second authorization for an audience the first sign-in did not carry; a refresh naming such an audience rejects with `audience_not_granted`.
 - `signOutUrl` builds the address that ends the person's session, with the ID token hint and the post-logout redirect.
+
+### Changed
+
+- A `TokenSet` now carries `issuer` and `clientId`, which `refresh` reads.
 
 ### Fixed
 
