@@ -42,6 +42,9 @@ export interface BffOptions {
   store?: SessionStore;
   // Must start with `__Host-`; the login cookie is `<cookieName>-login`.
   cookieName?: string;
+  // Where the issuer sends the person after they confirm the sign-out; it must
+  // be registered for the client. Sent without an ID token hint: no token of
+  // any kind reaches the browser, so the issuer asks the person to confirm.
   postLogoutRedirectUri?: string;
   // Origins whose browser pages may call the state-changing routes. Defaults
   // to the origin of `redirectUri`.

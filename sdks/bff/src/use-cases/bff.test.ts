@@ -25,6 +25,7 @@ afterEach(async () => {
 
 const post = (path: string, cookie: string | undefined, headers: Record<string, string>): Request =>
   request(path, cookie, { method: 'POST', headers });
+const JWT_SHAPED = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/u;
 const csrfHeaders = { 'x-odudu-bff': '1', origin: ORIGIN };
 
 describe('login', () => {
@@ -327,6 +328,129 @@ describe('session', () => {
   });
 });
 
+describe('tokens', () => {
+  it('no route puts a JWT-shaped string in a response', async () => {
+    const bff = makeBff(fake, clock, { postLogoutRedirectUri: 'https://app.example/' });
+    const { cookie, login, callback } = await signIn(bff, fake);
+    const session = await bff.session(request('/auth/session', cookie));
+    const logout = await bff.logout(post('/auth/logout', cookie, csrfHeaders));
+    for (const response of [login, callback, session, logout]) {
+      const everything = `${[...response.headers].join(' ')} ${await response.text()}`;
+      expect(everything).not.toMatch(JWT_SHAPED);
+    }
+  });
+});
+
+describe('refresh failures', () => {
+  it('keeps the session when the client secret is refused (invalid_client)', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 890_000;
+    fake.tokenError = { error: 'invalid_client' };
+    const refused = await bff.session(request('/auth/session', cookie));
+    expect(refused.status).toBe(503);
+    expect(refused.headers.getSetCookie()).toHaveLength(0);
+    fake.tokenError = undefined;
+    const back = await bff.session(request('/auth/session', cookie));
+    expect(back.status).toBe(200);
+  });
+
+  it('keeps the session when the issuer cannot be reached (request_failed)', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 890_000;
+    await fake.close();
+    fake.close = () => Promise.resolve();
+    const down = await bff.session(request('/auth/session', cookie));
+    expect(down.status).toBe(503);
+    expect(down.headers.getSetCookie()).toHaveLength(0);
+  });
+
+  it('keeps the session for any other error code, not only the ones it knows', async () => {
+    for (const error of ['invalid_request', 'invalid_scope', 'unauthorized_client', 'made_up']) {
+      const bff = makeBff(fake, clock);
+      const { cookie } = await signIn(bff, fake);
+      clock.now += 890_000;
+      fake.tokenError = { error };
+      const response = await bff.session(request('/auth/session', cookie));
+      expect(response.status).toBe(503);
+      fake.tokenError = undefined;
+      clock.now = START;
+    }
+  });
+
+  it('a logout during a delayed refresh is not undone by the refresh', async () => {
+    const memory = createMemoryStore({ now: () => clock.now });
+    const bff = makeBff(fake, clock, { store: memory });
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 890_000;
+    fake.refreshDelayMs = 80;
+    const refreshing = bff.session(request('/auth/session', cookie));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const out = await bff.logout(post('/auth/logout', cookie, csrfHeaders));
+    expect(out.status).toBe(200);
+    const result = await refreshing;
+    expect(await result.json()).toEqual({ authenticated: false });
+    fake.refreshDelayMs = 0;
+    const after = await bff.session(request('/auth/session', cookie));
+    expect(await after.json()).toEqual({ authenticated: false });
+    const id = cookie.split('=')[1] ?? '';
+    expect(await memory.get(`session:${id}`)).toBeUndefined();
+  });
+});
+
+describe('session ids', () => {
+  function spy(): { store: SessionStore; keys: string[] } {
+    const inner = createMemoryStore({ now: () => clock.now });
+    const keys: string[] = [];
+    return {
+      keys,
+      store: {
+        get: (id) => inner.get(id),
+        delete: (id) => inner.delete(id),
+        set: (id, value, ttl) => {
+          keys.push(id);
+          return inner.set(id, value, ttl);
+        },
+      },
+    };
+  }
+
+  it('a sign-in makes a session id that is not the login id', async () => {
+    const { store, keys } = spy();
+    const { cookie, login } = await signIn(makeBff(fake, clock, { store }), fake);
+    const loginId = cookieSet(login, '__Host-odudu-login') ?? 'none';
+    const sessionId = cookie.split('=')[1] ?? '';
+    expect(sessionId).not.toBe(loginId);
+    expect(keys).toContain(`login:${loginId}`);
+    expect(keys).toContain(`session:${sessionId}`);
+    expect(keys).not.toContain(`session:${loginId}`);
+  });
+
+  it('a callback that carried a session drops it', async () => {
+    const memory = createMemoryStore({ now: () => clock.now });
+    const bff = makeBff(fake, clock, { store: memory });
+    const first = await signIn(bff, fake);
+    const login = await bff.login(request('/auth/login', first.cookie));
+    const authorize = new URL(login.headers.get('location') ?? '');
+    fake.claims = { nonce: authorize.searchParams.get('nonce') };
+    const params = new URLSearchParams({
+      code: 'c',
+      state: authorize.searchParams.get('state') ?? '',
+      iss: fake.issuer,
+    });
+    const callback = await bff.callback(
+      request(
+        `/auth/callback?${params.toString()}`,
+        `${first.cookie}; __Host-odudu-login=${cookieSet(login, '__Host-odudu-login') ?? ''}`,
+      ),
+    );
+    expect(callback.status).toBe(302);
+    const oldId = first.cookie.split('=')[1] ?? '';
+    expect(await memory.get(`session:${oldId}`)).toBeUndefined();
+  });
+});
+
 describe('logout', () => {
   it('answers 405 with allow: POST to a GET', async () => {
     const response = await makeBff(fake, clock).logout(request('/auth/logout', undefined));
@@ -381,14 +505,26 @@ describe('logout', () => {
     const { cookie } = await signIn(bff, fake);
     const response = await bff.logout(post('/auth/logout', cookie, csrfHeaders));
     expect(response.status).toBe(200);
-    const { redirectTo } = (await response.json()) as { redirectTo: string };
+    const raw = await response.text();
+    const { redirectTo } = JSON.parse(raw) as { redirectTo: string };
     const url = new URL(redirectTo);
     expect(url.origin + url.pathname).toBe(`${fake.issuer}/logout`);
-    expect(url.searchParams.get('id_token_hint')).toMatch(/^\S+\.\S+\.\S+$/u);
+    expect(url.searchParams.get('client_id')).toBe('web1');
     expect(url.searchParams.get('post_logout_redirect_uri')).toBe('https://app.example/');
+    expect(url.searchParams.has('id_token_hint')).toBe(false);
+    expect(`${raw} ${[...response.headers].join(' ')}`).not.toMatch(JWT_SHAPED);
     expect(setCookieLine(response, '__Host-odudu')).toContain('Max-Age=0');
     const after = await bff.session(request('/auth/session', cookie));
     expect(await after.json()).toEqual({ authenticated: false });
+  });
+
+  it('answers the logout address without a redirect when none is configured', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    const response = await bff.logout(post('/auth/logout', cookie, csrfHeaders));
+    const url = new URL(((await response.json()) as { redirectTo: string }).redirectTo);
+    expect(url.searchParams.get('client_id')).toBe('web1');
+    expect(url.searchParams.has('post_logout_redirect_uri')).toBe(false);
   });
 
   it('is idempotent when there is no session', async () => {
@@ -452,6 +588,9 @@ describe('configuration', () => {
     expect(() => makeBff(fake, clock, { afterSignInPath: 'https://evil.example' })).toThrow(
       TypeError,
     );
+    for (const path of ['/\\evil.example', '/a\nb', '/a\u0000b', '/a\u007fb']) {
+      expect(() => makeBff(fake, clock, { afterSignInPath: path })).toThrow(TypeError);
+    }
   });
 
   it('uses another cookie name for both cookies', async () => {

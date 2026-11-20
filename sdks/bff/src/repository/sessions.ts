@@ -29,6 +29,9 @@ export function createSessions(
       stores.sessions.set(sessionKey(id), session, sessionTtlMs(session.createdAt)),
     dropSession: (id) => stores.sessions.delete(sessionKey(id)),
     saveLogin: (id, login) => stores.logins.set(loginKey(id), login, LOGIN_TTL_MS),
+    // Get then delete, not atomic: two callbacks racing on one record both read
+    // it, but the issuer accepts an authorization code once, so the second
+    // exchange fails.
     async takeLogin(id) {
       const record = await stores.logins.get(loginKey(id));
       await stores.logins.delete(loginKey(id));

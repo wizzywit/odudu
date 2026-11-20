@@ -22,7 +22,7 @@
       "env": ["ODUDU_TEST_SHARD"]
     },
     "@odudu-io/bff#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^typecheck", "^build"]
     },
     "@odudu-io/bff#test": {
       "dependsOn": ["^build"],

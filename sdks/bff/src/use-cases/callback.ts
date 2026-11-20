@@ -19,6 +19,8 @@ export function createCallback(
     if (login === undefined) return browser.signInFailed(400);
     try {
       const tokens = await identity.complete(request.url, login.pending);
+      const previous = browser.sessionIdOf(request);
+      if (previous !== undefined) await sessions.dropSession(previous);
       const sessionId = newSessionId();
       await sessions.saveSession(sessionId, { kind: 'session', tokens, createdAt: now() });
       return browser.signedIn(sessionId);

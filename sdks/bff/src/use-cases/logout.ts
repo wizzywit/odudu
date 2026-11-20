@@ -4,7 +4,8 @@ import type { Sessions } from '#/repository/sessions';
 import type { Handler } from '#/types';
 
 // Ends the session here, then hands the browser the address that ends it at
-// the issuer. The session is gone even when that address cannot be made.
+// the issuer. The address holds no token. The session is gone even when it
+// cannot be made.
 export function createLogout(
   browser: Browser,
   sessions: Sessions,
@@ -14,7 +15,7 @@ export function createLogout(
     const id = browser.sessionIdOf(request);
     const session = id === undefined ? undefined : await sessions.loadSession(id);
     if (id !== undefined) await sessions.dropSession(id);
-    if (session === undefined || session.tokens.idToken === '') return browser.loggedOut(undefined);
-    return browser.loggedOut(await identity.signOut(session.tokens).catch(() => undefined));
+    if (session === undefined) return browser.loggedOut(undefined);
+    return browser.loggedOut(await identity.signOut().catch(() => undefined));
   };
 }

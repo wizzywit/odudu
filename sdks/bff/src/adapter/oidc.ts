@@ -1,1 +1,1 @@
-export { beginSignIn, completeSignIn, refresh, signOutUrl, OduduError } from '@odudu-io/oidc';
+export { beginSignIn, completeSignIn, discover, refresh, OduduError } from '@odudu-io/oidc';

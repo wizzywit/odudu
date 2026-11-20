@@ -13,7 +13,7 @@ export function needsRefresh(tokens: TokenSet, now: number): boolean {
 }
 
 // Failures that say nothing about the grant: the issuer or the network was out
-// of reach, and the session should survive them.
+// of reach. A callback that meets one is the issuer's fault, not the caller's.
 const TRANSIENT = new Set([
   'request_failed',
   'discovery_failed',
@@ -22,10 +22,14 @@ const TRANSIENT = new Set([
   'unrecognized_error',
 ]);
 
-// True when the issuer turned the refresh token down, so the session can no
-// longer be renewed (RFC 10017 section 6.1.2.2).
+// True only when the issuer says the refresh token is no longer good, so the
+// session cannot be renewed (RFC 10017 section 6.1.2.2). Every other failure,
+// including a refused client secret, is the BFF's or the network's trouble and
+// must not end a person's session. The core surfaces `invalid_grant` for a
+// revoked, expired or replayed refresh token; the server answers nothing else
+// for one.
 export function refreshWasRefused(error: unknown): boolean {
-  return error instanceof OduduError && !TRANSIENT.has(error.code);
+  return error instanceof OduduError && error.code === 'invalid_grant';
 }
 
 export function remainingTtlMs(createdAt: number, ttlMs: number, now: number): number {

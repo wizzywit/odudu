@@ -17,7 +17,7 @@ export function createSession(
     if (found === undefined) return browser.anonymous();
     try {
       const session = await access.fresh(found.id, found.session);
-      return browser.claims(session.tokens.claims);
+      return session === undefined ? browser.anonymous() : browser.claims(session.tokens.claims);
     } catch (error) {
       if (!refreshWasRefused(error)) return browser.unavailable();
       await sessions.dropSession(found.id);

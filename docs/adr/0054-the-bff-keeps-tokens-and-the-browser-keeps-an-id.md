@@ -45,13 +45,24 @@ answers are in `docs/protocols/rfc10017.md`.
   core shares one request per refresh token, and a per-session guard in the BFF
   re-reads the stored session inside it, so a read that began before an earlier
   refresh finished does not present the refresh token that refresh replaced.
-  When the issuer refuses the refresh, the session is deleted, the cookie is
-  cleared and the answer is `401`. When the issuer cannot be reached the
-  session stays and the answer is `503`.
+  Only `invalid_grant` ends the session: the cookie is cleared, the record is
+  deleted and the answer is `401`. Every other failure (a refused client
+  secret, a malformed request, an unreachable issuer, a code nobody knows)
+  keeps the session and answers `503` with `Retry-After`, so a rotated secret
+  or an outage signs nobody out. A refresh that finishes after a logout does
+  not write the session back; the answer is `{ authenticated: false }`.
 - **Logout.** `POST` only. It deletes the session, clears the cookie and
-  answers the issuer's RP-initiated logout address as `{ redirectTo }`, which
-  the app navigates to; a session without an ID token, or an issuer that has no
-  logout endpoint, answers `204`. With no session it is a `204` as well.
+  answers `{ redirectTo }`, the issuer's RP-initiated logout address, which the
+  app navigates to. The address carries `client_id` and the configured
+  `post_logout_redirect_uri` and **no `id_token_hint`**: the ID token never
+  leaves the server, so no token of any kind reaches the browser. The server
+  accepts this form: it resolves the client from `client_id` alone
+  (`packages/protocol-oidc/src/usecase/logout.ts:252-262`), skips its
+  confirmation page only for a valid hint (`logout.ts:71-85`, so without one the
+  person is asked), and honours a registered `post_logout_redirect_uri` after
+  the confirmation (`logout.ts:47-55`; ADR 0047). The cost is the page ADR 0047
+  makes the default. A session with no logout endpoint at the issuer, or with
+  no session at all, answers `204`.
 - **Store.** `SessionStore` is `get`, `set` with a time to live, and
   `delete`, over plain JSON records, so an app can back it with a database. The
   default is in-process: bounded at 10,000 records, evicting the one used
