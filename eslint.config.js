@@ -13,6 +13,8 @@ export default tseslint.config(
       '**/test-results/**',
       'tests/boundaries/fixtures/**',
       'tests/lint/fixtures/**',
+      // Written by tools/sdk-generate and replaced on every run.
+      'sdks/*/src/generated/**',
       // Standalone projects with their own lockfiles, copied out of the
       // repository by readers; the examples job runs them.
       'examples/**',

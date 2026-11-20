@@ -24,6 +24,7 @@
     "mutate:crypto": "stryker run packages/crypto/stryker.config.json",
     "conformance:config-op": "bash infra/conformance/run-config-op.sh",
     "conformance:dynamic-op": "bash infra/conformance/run-dynamic-op.sh",
+    "sdks:generate": "node tools/sdk-generate/src/generate.ts",
     "docs:screenshots": "pnpm --filter @odudu/docs screenshots",
     "docs:gif": "pnpm --filter @odudu/docs gif"
   },

@@ -21,6 +21,18 @@
       "outputs": ["trace-report.json"],
       "env": ["ODUDU_TEST_SHARD"]
     },
+    "@odudu/sdk-generate#test": {
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "src/**",
+        "package.json",
+        "tsconfig.json",
+        "$TURBO_ROOT$/sdks/*/src/generated/**",
+        "$TURBO_ROOT$/apps/docs/static/openapi/**"
+      ],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
     "@odudu-io/bff#typecheck": {
       "dependsOn": ["^typecheck", "^build"]
     },

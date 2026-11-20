@@ -81,6 +81,11 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
     targets: ['docs/phases/p4g.md'],
   },
   { file: 'tools/ci/src/cli.test.ts', targets: ['tools/ci/src/**'] },
+  {
+    file: 'tools/sdk-generate/src/generate.test.ts',
+    targets: ['sdks/*/src/generated/**', 'apps/docs/static/openapi/**'],
+  },
+  { file: 'tools/sdk-generate/src/generate.ts', targets: ['apps/docs/static/openapi/**'] },
   { file: 'packages/db/src/migrate.ts', targets: ['packages/db/drizzle/**'] },
   {
     file: 'apps/admin-console/src/shared/ui/shadows.test.ts',
