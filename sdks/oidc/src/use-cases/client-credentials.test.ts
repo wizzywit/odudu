@@ -78,6 +78,17 @@ describe('clientCredentials with a secret', () => {
     expect(token.scope).toBe('a b');
   });
 
+  for (const unusable of [0, -5, 'soon']) {
+    it(`treats expires_in ${JSON.stringify(unusable)} as a 60 s token`, async () => {
+      fake.expiresIn = unusable;
+      const token = await clientCredentials(
+        { issuer: fake.issuer, clientId: 'c', auth: { secret: 's' } },
+        deps,
+      );
+      expect(token.expiresAt).toBe(NOW + 60_000);
+    });
+  }
+
   it('treats a response without expires_in as a 60 s token', async () => {
     fake.expiresIn = undefined;
     const token = await clientCredentials(

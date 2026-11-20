@@ -86,6 +86,20 @@ describe('createTokenSource', () => {
     expect(fake.clientCredentialsGrants).toBe(2);
   });
 
+  for (const unusable of [0, -5, 'soon']) {
+    it(`treats expires_in ${JSON.stringify(unusable)} as a 60 s token`, async () => {
+      fake.expiresIn = unusable;
+      const token = source();
+      await token();
+      clock = START + 29_999;
+      await token();
+      expect(fake.clientCredentialsGrants).toBe(1);
+      clock = START + 30_000;
+      await token();
+      expect(fake.clientCredentialsGrants).toBe(2);
+    });
+  }
+
   it('makes one renewal under concurrent calls', async () => {
     const token = source();
     const results = await Promise.all(Array.from({ length: 10 }, () => token()));

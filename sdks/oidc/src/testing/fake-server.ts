@@ -13,7 +13,7 @@ export interface FakeServer {
   // Omitted from the token response when undefined.
   scope: string | undefined;
   // Omitted from the token response when undefined.
-  expiresIn: number | undefined;
+  expiresIn: number | string | undefined;
   tokenRequests: URLSearchParams[];
   // The `authorization` header of each token request, in the same order.
   tokenAuthorizations: (string | undefined)[];

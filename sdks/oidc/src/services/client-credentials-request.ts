@@ -12,6 +12,22 @@ const ASSERTION_LIFETIME_SECONDS = 120;
 export const DEFAULT_LIFETIME_SECONDS = 60;
 
 // The types already rule these out; a JavaScript caller is held to them here.
+function lifetimeSeconds(expiresIn: number | undefined): number {
+  return expiresIn !== undefined && Number.isFinite(expiresIn) && expiresIn > 0
+    ? expiresIn
+    : DEFAULT_LIFETIME_SECONDS;
+}
+
+// The body of a token response with an `expires_in` the library would refuse
+// (not a number, or negative) removed; zero and the rest are left to
+// `lifetimeSeconds`.
+export function withUsableLifetime(body: unknown): unknown {
+  if (typeof body !== 'object' || body === null || !('expires_in' in body)) return body;
+  const { expires_in: expiresIn, ...rest } = body as { expires_in: unknown };
+  const parsed = typeof expiresIn === 'number' ? expiresIn : parseFloat(String(expiresIn));
+  return Number.isFinite(parsed) && parsed >= 0 ? body : rest;
+}
+
 export function checkedOptions(options: ClientCredentialsOptions): ClientCredentialsOptions {
   const auth: { secret?: unknown; privateKey?: { kty?: unknown } } = options.auth;
   if (options.issuer === '' || options.clientId === '') {
@@ -80,7 +96,9 @@ export function privateKeyOf(
       };
 }
 
-// A response without `expires_in` is taken to live 60 s. A response without `scope` grants what was asked for (RFC 6749 section 5.1).
+// A response without a usable `expires_in` (missing, not a number, zero or
+// negative) is taken to live 60 s, so a token is never stale on arrival.
+// A response without `scope` grants what was asked for (RFC 6749 section 5.1).
 export function audienceTokenOf(
   response: TokenEndpointResponse,
   requestedScope: string | undefined,
@@ -88,7 +106,7 @@ export function audienceTokenOf(
 ): AudienceToken {
   return {
     accessToken: response.access_token,
-    expiresAt: now + (response.expires_in ?? DEFAULT_LIFETIME_SECONDS) * 1000,
+    expiresAt: now + lifetimeSeconds(response.expires_in) * 1000,
     scope: response.scope ?? requestedScope ?? '',
   };
 }
