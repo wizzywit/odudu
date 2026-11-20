@@ -1,3 +1,4 @@
+import { checkPrefix } from '#/services/config';
 import type { Bff, Handler } from '#/types';
 
 export interface BffRoute {
@@ -10,7 +11,8 @@ export interface BffRoute {
 
 // The routes a framework adapter mounts. Each answers every method, so the
 // handler's own 405 reaches the browser.
-export function routesOf(bff: Bff, prefix: string): BffRoute[] {
+export function routesOf(bff: Bff, mount: string): BffRoute[] {
+  const prefix = checkPrefix(mount);
   return [
     { path: `${prefix}/login`, handler: bff.login, below: false },
     { path: `${prefix}/callback`, handler: bff.callback, below: false },

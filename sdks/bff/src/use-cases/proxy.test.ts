@@ -202,6 +202,60 @@ describe('what goes upstream', () => {
     expect(seen?.headers.accept).toBe('application/json');
   });
 
+  it('strips the headers a client could use to spoof its address', async () => {
+    const { bff, cookie } = await signedIn();
+    await call(bff, cookie, '/v1/x', {
+      headers: {
+        'x-forwarded-for': '6.6.6.6',
+        'x-forwarded-host': 'evil.example',
+        'x-forwarded-proto': 'https',
+        forwarded: 'for=6.6.6.6',
+        'x-real-ip': '6.6.6.6',
+        'proxy-connection': 'keep-alive',
+        'x-keep': 'yes',
+      },
+    });
+    const headers = upstream.seen[0]?.headers ?? {};
+    for (const name of [
+      'x-forwarded-for',
+      'x-forwarded-host',
+      'x-forwarded-proto',
+      'forwarded',
+      'x-real-ip',
+      'proxy-connection',
+    ]) {
+      expect(headers[name]).toBeUndefined();
+    }
+    expect(headers['x-keep']).toBe('yes');
+  });
+
+  it('calls the upstream through the fetch it was given', async () => {
+    const urls: string[] = [];
+    const bff = proxied({
+      deps: {
+        allowInsecureRequests: true,
+        now: () => clock.now,
+        fetch: (input, init) => {
+          urls.push(input instanceof Request ? input.url : String(input));
+          return fetch(input, init);
+        },
+      },
+    });
+    const { cookie } = await signIn(bff, fake);
+    await call(bff, cookie, '/v1/x');
+    expect(urls).toContain(`${upstream.origin}/v1/x`);
+  });
+
+  it('ends the session as a refused refresh does when the tokens expired with no refresh token', async () => {
+    fake.issueRefreshToken = false;
+    const { bff, cookie } = await signedIn();
+    clock.now += 900_000;
+    const response = await call(bff, cookie, '/v1/x');
+    expect(response.status).toBe(401);
+    expect(response.headers.getSetCookie().join(' ')).toContain('__Host-odudu=;');
+    expect(upstream.started).toBe(0);
+  });
+
   it('streams a request body through unchanged', async () => {
     const { bff, cookie } = await signedIn();
     const response = await call(bff, cookie, '/v1/items', {
@@ -242,7 +296,11 @@ describe('what goes upstream', () => {
     fake.tokenError = undefined;
     const again = await call(bff, cookie, '/v1/items');
     expect(again.status).toBe(401);
-    expect(await (await bff.session(request('/auth/session', cookie))).json()).toEqual({
+    expect(
+      await (
+        await bff.session(request('/auth/session', cookie, { headers: { 'x-odudu-bff': '1' } }))
+      ).json(),
+    ).toEqual({
       authenticated: false,
     });
   });

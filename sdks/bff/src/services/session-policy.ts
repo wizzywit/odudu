@@ -12,6 +12,13 @@ export function needsRefresh(tokens: TokenSet, now: number): boolean {
   return expiries.length > 0 && Math.min(...expiries) - now <= REFRESH_SKEW_MS;
 }
 
+// A session whose tokens ran out with no refresh token to renew them is over.
+export function isExpiredForGood(tokens: TokenSet, now: number): boolean {
+  if (tokens.refreshToken !== undefined) return false;
+  const expiries = Object.values(tokens.byAudience).map((token) => token.expiresAt);
+  return expiries.length > 0 && Math.min(...expiries) <= now;
+}
+
 // Failures that say nothing about the grant: the issuer or the network was out
 // of reach. A callback that meets one is the issuer's fault, not the caller's.
 const TRANSIENT = new Set([

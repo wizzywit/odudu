@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { proxyGate } from '#/services/gate';
+import { gate as routeGate, proxyGate } from '#/services/gate';
 
 const allowed = ['https://app.example'];
 const gate = (method: string, customHeader: string | null, origin: string | null): string =>
@@ -26,5 +26,19 @@ describe('proxyGate', () => {
       expect(gate(method, '1', null)).toBe('forbidden');
       expect(gate(method, '1', 'https://evil.example')).toBe('forbidden');
     }
+  });
+});
+
+describe('gate with requireHeader', () => {
+  const base = { method: 'GET', allow: 'GET', allowedOrigins: allowed } as const;
+  it('lets a GET through only with the header and an allowed Origin if one is sent', () => {
+    const verdict = (customHeader: string | null, origin: string | null): string =>
+      routeGate({ ...base, customHeader, origin, requireHeader: true });
+    expect(verdict(null, null)).toBe('forbidden');
+    expect(verdict('1', null)).toBe('ok');
+    expect(verdict('1', 'https://evil.example')).toBe('forbidden');
+    expect(routeGate({ ...base, customHeader: null, origin: null, requireHeader: false })).toBe(
+      'ok',
+    );
   });
 });

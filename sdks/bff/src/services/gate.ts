@@ -7,6 +7,8 @@ export interface GateInput {
   customHeader: string | null;
   origin: string | null;
   allowedOrigins: string[];
+  // A GET too must carry the custom header, as the `session` read does.
+  requireHeader?: boolean;
 }
 
 // Whether a request may reach a route. A route accepts one method. A POST,
@@ -15,10 +17,14 @@ export interface GateInput {
 // (RFC 10017 section 6.1.3.3.2), and an `Origin` the app is served from.
 export function gate(input: GateInput): Gate {
   if (input.method !== input.allow) return 'method-not-allowed';
-  if (input.allow === 'GET') return 'ok';
+  if (input.allow === 'GET') return input.requireHeader === true ? readGate(input) : 'ok';
   const hasHeader = input.customHeader !== null && input.customHeader !== '';
   const originOk = input.origin !== null && input.allowedOrigins.includes(input.origin);
   return hasHeader && originOk ? 'ok' : 'forbidden';
+}
+
+function readGate(input: GateInput): Gate {
+  return proxyGate(input) === 'ok' ? 'ok' : 'forbidden';
 }
 
 export interface ProxyGateInput {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveConfig } from '#/services/config';
+import { checkPrefix, resolveConfig } from '#/services/config';
 import type { BffOptions, Upstream } from '#/types';
 
 const base: BffOptions = {
@@ -47,7 +47,18 @@ describe('proxy configuration', () => {
   });
 
   it('refuses a proxyPath that is not a path below the root', () => {
-    for (const proxyPath of ['proxy', '/', '/proxy/', '//x', '/a/../b']) {
+    for (const proxyPath of [
+      'proxy',
+      '/',
+      '/proxy/',
+      '//x',
+      '/a/../b',
+      '/pro xy',
+      '/p?x',
+      '/p%2fx',
+      '/p;x',
+      '/é',
+    ]) {
       expect(() => resolveConfig({ ...base, proxyPath })).toThrow(TypeError);
     }
   });
@@ -60,5 +71,26 @@ describe('proxy configuration', () => {
   it('upper-cases the methods an upstream names', () => {
     const config = resolveConfig(withUpstream({ methods: ['get', 'Post'] }));
     expect(config.upstreams[0]?.methods).toEqual(['GET', 'POST']);
+  });
+});
+
+describe('checkPrefix', () => {
+  it('accepts none and a clean path, and refuses anything else', () => {
+    expect(checkPrefix('')).toBe('');
+    expect(checkPrefix('/auth')).toBe('/auth');
+    expect(checkPrefix('/a/b_c.d~e-f')).toBe('/a/b_c.d~e-f');
+    for (const prefix of [
+      'auth',
+      '/',
+      '/auth/',
+      '//x',
+      '/a b',
+      '/a?b',
+      '/a%2fb',
+      '/a/../b',
+      '/é',
+    ]) {
+      expect(() => checkPrefix(prefix)).toThrow(TypeError);
+    }
   });
 });

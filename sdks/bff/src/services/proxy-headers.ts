@@ -7,11 +7,21 @@ const HOP_BY_HOP = [
   'trailer',
   'transfer-encoding',
   'upgrade',
+  'proxy-connection',
 ];
 
 // Headers the BFF owns on the way upstream: the browser's credentials and the
 // markers of the request that came from it.
-const NOT_FORWARDED = ['cookie', 'host', 'origin', 'x-odudu-bff', 'authorization'];
+const NOT_FORWARDED = [
+  'cookie',
+  'host',
+  'origin',
+  'x-odudu-bff',
+  'authorization',
+  // The client's claim about its own address, which the upstream could trust.
+  'forwarded',
+  'x-real-ip',
+];
 
 function namedByConnection(headers: Headers): string[] {
   return (headers.get('connection') ?? '')
@@ -24,7 +34,7 @@ function without(headers: Headers, dropped: string[]): Headers {
   const drop = new Set([...HOP_BY_HOP, ...namedByConnection(headers), ...dropped]);
   const kept = new Headers();
   headers.forEach((value, name) => {
-    if (!drop.has(name)) kept.append(name, value);
+    if (!drop.has(name) && !name.startsWith('x-forwarded-')) kept.append(name, value);
   });
   return kept;
 }

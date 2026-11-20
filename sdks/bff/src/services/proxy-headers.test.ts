@@ -21,6 +21,11 @@ describe('upstreamRequestHeaders', () => {
       accept: 'application/json',
       'content-type': 'text/plain',
       'x-request-id': 'r1',
+      'x-forwarded-for': '1.2.3.4',
+      'x-forwarded-proto': 'https',
+      forwarded: 'for=1.2.3.4',
+      'x-real-ip': '1.2.3.4',
+      'proxy-connection': 'keep-alive',
     });
     const headers = upstreamRequestHeaders(incoming, 'tok');
     expect([...headers.keys()].sort()).toEqual([

@@ -1,4 +1,4 @@
-import { needsRefresh, refreshWasRefused } from '#/services/session-policy';
+import { isExpiredForGood, needsRefresh, refreshWasRefused } from '#/services/session-policy';
 import { createInFlight } from '#/repository/in-flight';
 import type { Browser } from '#/repository/browser';
 import type { IdentityProvider } from '#/repository/identity-provider';
@@ -52,7 +52,10 @@ export function createSessionAccess(
       if (id === undefined || found === undefined) return { kind: 'anonymous' };
       try {
         const session = await fresh(id, found);
-        return session === undefined ? { kind: 'anonymous' } : { kind: 'session', session };
+        if (session === undefined) return { kind: 'anonymous' };
+        if (!isExpiredForGood(session.tokens, now())) return { kind: 'session', session };
+        await sessions.dropSession(id);
+        return { kind: 'ended' };
       } catch (error) {
         if (!refreshWasRefused(error)) return { kind: 'unavailable' };
         await sessions.dropSession(id);

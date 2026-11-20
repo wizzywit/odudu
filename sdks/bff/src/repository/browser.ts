@@ -5,6 +5,7 @@ import { isSessionId } from '#/services/session-id';
 import { LOGIN_TTL_MS } from '#/services/session-policy';
 import type { BffConfig } from '#/services/config';
 import type { Gate } from '#/services/gate';
+import { answerFor, type ProxyFailure } from '#/services/proxy-failure';
 import type { Route } from '#/services/proxy-route';
 
 // What the BFF reads from a request and writes to a response in the browser's
@@ -26,22 +27,16 @@ export interface Browser {
   // Why a proxied call has no session to run under.
   noSession(kind: 'anonymous' | 'ended' | 'unavailable'): Response;
   // Why a session's tokens cannot serve the upstream called.
-  noToken(kind: 'not-granted' | 'expired'): Response;
+  noToken(kind: 'not-granted'): Response;
   // What the browser is told of the upstream's answer or of its failure.
   upstreamAnswer(outcome: UpstreamOutcome): Response;
 }
 
 export type ProxyRefusal = Exclude<Route, { kind: 'target' }>;
 
-const UPSTREAM_FAILURES = {
-  'too-large': { status: 413, message: 'The body is too large.' },
-  'answer-too-large': { status: 502, message: 'The upstream answer is too large.' },
-  timeout: { status: 504, message: 'The upstream did not answer in time.' },
-  failed: { status: 502, message: 'The upstream could not be reached.' },
-} as const;
-
-function upstreamFailure(kind: keyof typeof UPSTREAM_FAILURES): Response {
-  return text(UPSTREAM_FAILURES[kind].status, UPSTREAM_FAILURES[kind].message);
+function upstreamFailure(kind: ProxyFailure): Response {
+  const { status, message } = answerFor(kind);
+  return text(status, message);
 }
 
 const NOT_AUTHENTICATED = (): Response => json(401, { authenticated: false });
@@ -89,7 +84,7 @@ export function createBrowser(config: BffConfig): Browser {
         ? empty(405, [], { allow: route.allow })
         : empty(route.kind === 'forbidden' ? 403 : 404),
     noSession: (kind) => NO_SESSION[kind](),
-    noToken: (kind) => (kind === 'expired' ? NOT_AUTHENTICATED() : upstreamFailure('failed')),
+    noToken: (kind) => upstreamFailure(kind),
     upstreamAnswer: (outcome) =>
       outcome.kind === 'response' ? outcome.response : upstreamFailure(outcome.kind),
   };

@@ -98,6 +98,7 @@ describe.each(frameworks)('the %s adapter', (_name, start) => {
     expect(login.status).toBe(302);
     expect(login.headers.get('location')).toContain(`${fake.issuer}/authorize`);
     expect(login.headers.getSetCookie()[0]).toMatch(/^__Host-odudu-login=/u);
+    expect((await fetch(`${base}/auth/session`)).status).toBe(403);
     const session = await fetch(`${base}/auth/session`, { headers: guard });
     expect(session.status).toBe(200);
     expect(await session.json()).toEqual({ authenticated: false });
@@ -219,5 +220,15 @@ describe.each(frameworks)('the %s adapter', (_name, start) => {
   it('answers 404 to a path the routes do not name', async () => {
     const { base } = await serve();
     expect((await fetch(`${base}/auth/nothing`)).status).toBe(404);
+  });
+});
+
+describe('adapter prefix', () => {
+  it('is refused at registration when it is not a clean path', () => {
+    const bff = bffOf();
+    expect(() => {
+      registerBff(Fastify(), bff, { prefix: '/auth/' });
+    }).toThrow(TypeError);
+    expect(() => bffRouter(bff, { prefix: 'auth' })).toThrow(TypeError);
   });
 });

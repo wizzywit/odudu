@@ -36,7 +36,7 @@ export function createBff(options: BffOptions): Bff {
   const access = createSessionAccess(browser, sessions, identity, now);
 
   const guarded =
-    (allow: 'GET' | 'POST', handler: Handler): Handler =>
+    (allow: 'GET' | 'POST', handler: Handler, requireHeader = false): Handler =>
     (request) => {
       const verdict = gate({
         method: request.method,
@@ -44,6 +44,7 @@ export function createBff(options: BffOptions): Bff {
         customHeader: request.headers.get(CUSTOM_HEADER),
         origin: request.headers.get('origin'),
         allowedOrigins: config.allowedOrigins,
+        requireHeader,
       });
       return verdict === 'ok' ? handler(request) : Promise.resolve(browser.refused(verdict, allow));
     };
@@ -51,8 +52,8 @@ export function createBff(options: BffOptions): Bff {
   return {
     login: guarded('GET', createLogin(browser, sessions, identity, now)),
     callback: guarded('GET', createCallback(browser, sessions, identity, now)),
-    session: guarded('GET', createSession(browser, access)),
-    proxy: createProxy(browser, access, createUpstreams(config), config, now),
+    session: guarded('GET', createSession(browser, access), true),
+    proxy: createProxy(browser, access, createUpstreams(config), config),
     proxyPath: config.proxyPath,
     logout: guarded('POST', createLogout(browser, sessions, identity)),
   };

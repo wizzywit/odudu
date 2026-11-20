@@ -56,9 +56,18 @@ function positiveInteger(value: number, name: string): number {
 }
 
 function checkProxyPath(path: string): string {
-  if (path === '/' || path.endsWith('/') || !isLocalPath(path) || !isCleanPath(path)) {
+  if (path === '/') throw new TypeError('proxyPath must be below the root');
+  return checkPrefix(path, 'proxyPath');
+}
+
+// A mount path the browser can use as it stands: it starts with a slash, ends
+// without one, and holds only unreserved characters and slashes, so nothing
+// in it needs an escape or can be read as a dot segment. Empty is no prefix.
+export function checkPrefix(path: string, name = 'prefix'): string {
+  if (path === '') return path;
+  if (!/^\/[A-Za-z0-9/_.~-]*$/u.test(path) || path.endsWith('/') || !isCleanPath(path)) {
     throw new TypeError(
-      'proxyPath must be a path on this origin, below the root, with no trailing slash',
+      `${name} must start with / and not end with one, with only A-Z a-z 0-9 / _ . ~ - in it`,
     );
   }
   return path;

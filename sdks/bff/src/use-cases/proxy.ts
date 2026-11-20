@@ -15,7 +15,6 @@ export function createProxy(
   access: SessionAccess,
   upstreams: Upstreams,
   config: BffConfig,
-  now: () => number,
 ): Handler {
   return async (request) => {
     const { pathname, search } = new URL(request.url);
@@ -32,7 +31,7 @@ export function createProxy(
     if (route.kind !== 'target') return browser.proxyRefused(route);
     const usable = await access.usable(request);
     if (usable.kind !== 'session') return browser.noSession(usable.kind);
-    const token = accessTokenFor(usable.session.tokens, route.upstream, now());
+    const token = accessTokenFor(usable.session.tokens, route.upstream);
     if (token.kind !== 'token') return browser.noToken(token.kind);
     return browser.upstreamAnswer(
       await upstreams.forward({

@@ -26,6 +26,8 @@ afterEach(async () => {
 const post = (path: string, cookie: string | undefined, headers: Record<string, string>): Request =>
   request(path, cookie, { method: 'POST', headers });
 const JWT_SHAPED = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/u;
+const sessionRequest = (cookie: string | undefined): Request =>
+  request('/auth/session', cookie, { headers: { 'x-odudu-bff': '1' } });
 const csrfHeaders = { 'x-odudu-bff': '1', origin: ORIGIN };
 
 describe('login', () => {
@@ -183,10 +185,39 @@ describe('callback', () => {
 });
 
 describe('session', () => {
+  it('[RFC10017-6.1.3.3.2-01] answers 403 without the X-Odudu-BFF header and serves with it', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    const bare = await bff.session(request('/auth/session', cookie));
+    expect(bare.status).toBe(403);
+    expect(await bare.text()).toBe('');
+    const foreign = await bff.session(
+      request('/auth/session', cookie, {
+        headers: { 'x-odudu-bff': '1', origin: 'https://evil.example' },
+      }),
+    );
+    expect(foreign.status).toBe(403);
+    expect((await bff.session(sessionRequest(cookie))).status).toBe(200);
+  });
+
+  it('answers 401 and ends a session whose tokens expired with no refresh token', async () => {
+    fake.issueRefreshToken = false;
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    expect((await bff.session(sessionRequest(cookie))).status).toBe(200);
+    clock.now += 900_000;
+    const ended = await bff.session(sessionRequest(cookie));
+    expect(ended.status).toBe(401);
+    expect(ended.headers.getSetCookie().join(' ')).toContain('__Host-odudu=;');
+    expect(await (await bff.session(sessionRequest(cookie))).json()).toEqual({
+      authenticated: false,
+    });
+  });
+
   it('returns claims and never a token', async () => {
     const bff = makeBff(fake, clock);
     const { cookie } = await signIn(bff, fake);
-    const response = await bff.session(request('/auth/session', cookie));
+    const response = await bff.session(sessionRequest(cookie));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
     const raw = await response.text();
@@ -199,7 +230,7 @@ describe('session', () => {
   });
 
   it('says not authenticated to a browser with no cookie', async () => {
-    const response = await makeBff(fake, clock).session(request('/auth/session', undefined));
+    const response = await makeBff(fake, clock).session(sessionRequest(undefined));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ authenticated: false });
   });
@@ -211,7 +242,7 @@ describe('session', () => {
     const tampered = `${cookie}x`;
     const junk = '__Host-odudu=../../etc/passwd';
     for (const probe of [unknown, tampered, junk]) {
-      const response = await bff.session(request('/auth/session', probe));
+      const response = await bff.session(sessionRequest(probe));
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ authenticated: false });
     }
@@ -221,7 +252,7 @@ describe('session', () => {
     const bff = makeBff(fake, clock);
     const login = await bff.login(request('/auth/login', undefined));
     const stolen = `__Host-odudu=${cookieSet(login, '__Host-odudu-login') ?? ''}`;
-    const response = await bff.session(request('/auth/session', stolen));
+    const response = await bff.session(sessionRequest(stolen));
     expect(await response.json()).toEqual({ authenticated: false });
   });
 
@@ -229,7 +260,7 @@ describe('session', () => {
     const bff = makeBff(fake, clock);
     const { cookie } = await signIn(bff, fake);
     clock.now += 800_000;
-    await bff.session(request('/auth/session', cookie));
+    await bff.session(sessionRequest(cookie));
     expect(fake.tokenRequests).toHaveLength(1);
   });
 
@@ -237,15 +268,15 @@ describe('session', () => {
     const bff = makeBff(fake, clock);
     const { cookie } = await signIn(bff, fake);
     clock.now += 880_000;
-    const first = await bff.session(request('/auth/session', cookie));
+    const first = await bff.session(sessionRequest(cookie));
     expect(first.status).toBe(200);
     expect(fake.tokenRequests).toHaveLength(2);
     expect(fake.tokenRequests[1]?.get('grant_type')).toBe('refresh_token');
     expect(fake.tokenRequests[1]?.get('refresh_token')).toBe('refresh-token-1');
-    await bff.session(request('/auth/session', cookie));
+    await bff.session(sessionRequest(cookie));
     expect(fake.tokenRequests).toHaveLength(2);
     clock.now += 880_000;
-    await bff.session(request('/auth/session', cookie));
+    await bff.session(sessionRequest(cookie));
     expect(fake.tokenRequests[2]?.get('refresh_token')).toBe('refresh-token-1-rotated');
   });
 
@@ -255,12 +286,12 @@ describe('session', () => {
     const { cookie } = await signIn(bff, fake);
     clock.now += 890_000;
     fake.tokenError = { error: 'invalid_grant', error_description: 'revoked' };
-    const response = await bff.session(request('/auth/session', cookie));
+    const response = await bff.session(sessionRequest(cookie));
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ authenticated: false });
     expect(setCookieLine(response, '__Host-odudu')).toContain('Max-Age=0');
     fake.tokenError = undefined;
-    const after = await bff.session(request('/auth/session', cookie));
+    const after = await bff.session(sessionRequest(cookie));
     expect(await after.json()).toEqual({ authenticated: false });
     expect(after.status).toBe(200);
     expect(fake.tokenRequests).toHaveLength(2);
@@ -271,12 +302,12 @@ describe('session', () => {
     const { cookie } = await signIn(bff, fake);
     clock.now += 890_000;
     fake.tokenError = { error: 'server_error' };
-    const down = await bff.session(request('/auth/session', cookie));
+    const down = await bff.session(sessionRequest(cookie));
     expect(down.status).toBe(503);
     expect(down.headers.get('retry-after')).toBe('5');
     expect(down.headers.getSetCookie()).toHaveLength(0);
     fake.tokenError = undefined;
-    const back = await bff.session(request('/auth/session', cookie));
+    const back = await bff.session(sessionRequest(cookie));
     expect(back.status).toBe(200);
   });
 
@@ -286,7 +317,7 @@ describe('session', () => {
     clock.now += 890_000;
     fake.refreshDelayMs = 40;
     const responses = await Promise.all(
-      Array.from({ length: 10 }, () => bff.session(request('/auth/session', cookie))),
+      Array.from({ length: 10 }, () => bff.session(sessionRequest(cookie))),
     );
     expect(responses.map((r) => r.status)).toEqual(Array(10).fill(200));
     expect(fake.tokenRequests.filter((f) => f.get('grant_type') === 'refresh_token')).toHaveLength(
@@ -315,10 +346,10 @@ describe('session', () => {
     const { cookie } = await signIn(bff, fake);
     clock.now += 890_000;
     delayRead = true;
-    const late = bff.session(request('/auth/session', cookie));
+    const late = bff.session(sessionRequest(cookie));
     await new Promise((resolve) => setTimeout(resolve, 10));
     delayRead = false;
-    const early = await bff.session(request('/auth/session', cookie));
+    const early = await bff.session(sessionRequest(cookie));
     expect(early.status).toBe(200);
     release();
     expect((await late).status).toBe(200);
@@ -332,7 +363,7 @@ describe('tokens', () => {
   it('no route puts a JWT-shaped string in a response', async () => {
     const bff = makeBff(fake, clock, { postLogoutRedirectUri: 'https://app.example/' });
     const { cookie, login, callback } = await signIn(bff, fake);
-    const session = await bff.session(request('/auth/session', cookie));
+    const session = await bff.session(sessionRequest(cookie));
     const logout = await bff.logout(post('/auth/logout', cookie, csrfHeaders));
     for (const response of [login, callback, session, logout]) {
       const everything = `${[...response.headers].join(' ')} ${await response.text()}`;
@@ -347,11 +378,11 @@ describe('refresh failures', () => {
     const { cookie } = await signIn(bff, fake);
     clock.now += 890_000;
     fake.tokenError = { error: 'invalid_client' };
-    const refused = await bff.session(request('/auth/session', cookie));
+    const refused = await bff.session(sessionRequest(cookie));
     expect(refused.status).toBe(503);
     expect(refused.headers.getSetCookie()).toHaveLength(0);
     fake.tokenError = undefined;
-    const back = await bff.session(request('/auth/session', cookie));
+    const back = await bff.session(sessionRequest(cookie));
     expect(back.status).toBe(200);
   });
 
@@ -361,7 +392,7 @@ describe('refresh failures', () => {
     clock.now += 890_000;
     await fake.close();
     fake.close = () => Promise.resolve();
-    const down = await bff.session(request('/auth/session', cookie));
+    const down = await bff.session(sessionRequest(cookie));
     expect(down.status).toBe(503);
     expect(down.headers.getSetCookie()).toHaveLength(0);
   });
@@ -372,7 +403,7 @@ describe('refresh failures', () => {
       const { cookie } = await signIn(bff, fake);
       clock.now += 890_000;
       fake.tokenError = { error };
-      const response = await bff.session(request('/auth/session', cookie));
+      const response = await bff.session(sessionRequest(cookie));
       expect(response.status).toBe(503);
       fake.tokenError = undefined;
       clock.now = START;
@@ -385,14 +416,14 @@ describe('refresh failures', () => {
     const { cookie } = await signIn(bff, fake);
     clock.now += 890_000;
     fake.refreshDelayMs = 80;
-    const refreshing = bff.session(request('/auth/session', cookie));
+    const refreshing = bff.session(sessionRequest(cookie));
     await new Promise((resolve) => setTimeout(resolve, 20));
     const out = await bff.logout(post('/auth/logout', cookie, csrfHeaders));
     expect(out.status).toBe(200);
     const result = await refreshing;
     expect(await result.json()).toEqual({ authenticated: false });
     fake.refreshDelayMs = 0;
-    const after = await bff.session(request('/auth/session', cookie));
+    const after = await bff.session(sessionRequest(cookie));
     expect(await after.json()).toEqual({ authenticated: false });
     const id = cookie.split('=')[1] ?? '';
     expect(await memory.get(`session:${id}`)).toBeUndefined();
@@ -465,7 +496,7 @@ describe('logout', () => {
       const response = await bff.logout(post('/auth/logout', cookie, { origin: ORIGIN }));
       expect(response.status).toBe(403);
       expect(await response.text()).toBe('');
-      const still = await bff.session(request('/auth/session', cookie));
+      const still = await bff.session(sessionRequest(cookie));
       expect(((await still.json()) as { authenticated: boolean }).authenticated).toBe(true);
     });
 
@@ -514,7 +545,7 @@ describe('logout', () => {
     expect(url.searchParams.has('id_token_hint')).toBe(false);
     expect(`${raw} ${[...response.headers].join(' ')}`).not.toMatch(JWT_SHAPED);
     expect(setCookieLine(response, '__Host-odudu')).toContain('Max-Age=0');
-    const after = await bff.session(request('/auth/session', cookie));
+    const after = await bff.session(sessionRequest(cookie));
     expect(await after.json()).toEqual({ authenticated: false });
   });
 
@@ -597,7 +628,7 @@ describe('configuration', () => {
     const bff = makeBff(fake, clock, { cookieName: '__Host-shop' });
     const { cookie, login } = await signIn(bff, fake, '__Host-shop');
     expect(cookieSet(login, '__Host-shop-login')).toBeDefined();
-    const response = await bff.session(request('/auth/session', cookie));
+    const response = await bff.session(sessionRequest(cookie));
     expect(((await response.json()) as { authenticated: boolean }).authenticated).toBe(true);
   });
 
@@ -605,7 +636,7 @@ describe('configuration', () => {
     const bff = makeBff(fake, clock);
     const { cookie } = await signIn(bff, fake);
     for (let i = 0; i < 12_000; i += 1) await bff.login(request('/auth/login', undefined));
-    const response = await bff.session(request('/auth/session', cookie));
+    const response = await bff.session(sessionRequest(cookie));
     expect(((await response.json()) as { authenticated: boolean }).authenticated).toBe(true);
   }, 60_000);
 });

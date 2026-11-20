@@ -31,12 +31,17 @@ answers are in `docs/protocols/rfc10017.md`.
 - **CSRF.** A route accepts one method. A `POST`, which is where state
   changes, requires the header `X-Odudu-BFF` (any value) and an `Origin` that
   is one of `allowedOrigins`, the origin of `redirectUri` by default;
-  otherwise `403` with no body. A cross-origin page cannot add the header
-  without a preflight the BFF never approves. `GET` changes nothing a person
-  has signed in for. The one `GET` that writes is `login`, which stores a
+  otherwise `403` with no body. The `session` read and every proxied call
+  require the header too (RFC 10017 section 6.1.3.3.2), and an allowed `Origin`
+  when the browser sends one; a script in the app adds the header, a
+  cross-origin page cannot without a preflight the BFF never approves. `login`
+  and `callback` are browser navigations, which cannot add a header, so they
+  are exempt, and the row for that MUST is `accepted:`. `login` writes only a
   login record under a random id bound to its own cookie.
 - **The check session route.** `session` answers `{ authenticated, claims }`
-  with `Cache-Control: no-store` and never a token. A cookie that is not an id
+  with `Cache-Control: no-store` and never a token. A session whose tokens
+  expired with no refresh token to renew them is ended as a refused refresh
+  is, here and on the proxy. A cookie that is not an id
   the BFF could have made, or names no record, is `{ authenticated: false }`
   with `200`, not an error.
 - **Refresh.** The access token is renewed when it is within 30 seconds of
@@ -123,7 +128,7 @@ answers are in `docs/protocols/rfc10017.md`.
 - **Framework adapters.** `@odudu-io/bff/fastify` (`registerBff`) and
   `@odudu-io/bff/express` (`bffRouter`) mount `login`, `callback`, `logout` and
   `session` at an optional `prefix`, and the proxy at `proxyPath`, answering
-  every method so the handler's own `405` reaches the browser. They hand the
+  every method Fastify supports, so the handler's own `405` reaches the browser. They hand the
   socket's stream to the handler unparsed (Fastify answers from `onRequest`;
   Express's router must come before a body parser) and write every
   `Set-Cookie` line and the body as it streams. Fastify 5 and Express 5 are

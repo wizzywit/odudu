@@ -8,6 +8,8 @@ export interface FakeServer {
   // Refused instead of tokens when set.
   tokenError: { error: string; error_description?: string } | undefined;
   expiresIn: number;
+  // Whether the token endpoint issues a refresh token.
+  issueRefreshToken: boolean;
   // How long a refresh takes to answer, so concurrent callers overlap.
   refreshDelayMs: number;
   tokenRequests: URLSearchParams[];
@@ -42,6 +44,7 @@ export async function startFakeServer(): Promise<FakeServer> {
     claims: {},
     tokenError: undefined,
     expiresIn: 900,
+    issueRefreshToken: true,
     refreshDelayMs: 0,
     tokenRequests: [],
     tokenAuthorizations: [],
@@ -93,7 +96,9 @@ export async function startFakeServer(): Promise<FakeServer> {
             token_type: 'Bearer',
             expires_in: fake.expiresIn,
             scope: 'openid offline_access',
-            refresh_token: refreshing ? `${presented}-rotated` : 'refresh-token-1',
+            ...(fake.issueRefreshToken
+              ? { refresh_token: refreshing ? `${presented}-rotated` : 'refresh-token-1' }
+              : {}),
             id_token: idToken({
               iss: fake.issuer,
               sub: 'subject-1',
