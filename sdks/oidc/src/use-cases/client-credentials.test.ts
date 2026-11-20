@@ -78,6 +78,15 @@ describe('clientCredentials with a secret', () => {
     expect(token.scope).toBe('a b');
   });
 
+  it('treats a response without expires_in as a 60 s token', async () => {
+    fake.expiresIn = undefined;
+    const token = await clientCredentials(
+      { issuer: fake.issuer, clientId: 'c', auth: { secret: 's' } },
+      deps,
+    );
+    expect(token.expiresAt).toBe(NOW + 60_000);
+  });
+
   it('sends the resource when given and omits scope and resource otherwise', async () => {
     await clientCredentials(
       {
@@ -100,6 +109,17 @@ describe('clientCredentials with a secret', () => {
     expect(error.code).toBe('invalid_client');
     expect(error.error).toBe('invalid_client');
     expect(error.errorDescription).toBe('unknown client');
+  });
+
+  it('rejects a secret and a private key together as invalid_options', async () => {
+    const key = await testKey('ES256');
+    const both = {
+      secret: 's',
+      privateKey: key.privateKey,
+    } as unknown as ClientCredentialsOptions['auth'];
+    const error = await refusal({ issuer: fake.issuer, clientId: 'c', auth: both });
+    expect(error.code).toBe('invalid_options');
+    expect(fake.tokenRequests).toHaveLength(0);
   });
 
   it('rejects an empty secret as invalid_options before any request', async () => {
@@ -135,7 +155,7 @@ describe('clientCredentials with a private key', () => {
       expect(payload.sub).toBe('service-1');
       expect(payload.aud).toBe(`${fake.issuer}/token`);
       expect(payload.exp).toBeGreaterThan(NOW / 1000);
-      expect(payload.exp).toBeLessThanOrEqual(NOW / 1000 + 120);
+      expect(payload.exp).toBe(NOW / 1000 + 120);
     });
   }
 

@@ -2,13 +2,23 @@ import type { TokenEndpointResponse } from 'oauth4webapi';
 import type { AudienceToken, ClientAuth, ClientCredentialsOptions, PrivateKeyJwk } from '#/types';
 import { OduduError } from '#/services/odudu-error';
 
-const ASSERTION_LIFETIME_SECONDS = 60;
+// The server accepts an assertion that expires at most 300 s ahead
+// (MAX_ASSERTION_LIFETIME_SECONDS in packages/protocol-oidc). 120 s leaves room
+// for a service clock that runs behind the server's; one more than that behind
+// gets `invalid_client`.
+const ASSERTION_LIFETIME_SECONDS = 120;
+
+// What a token is assumed to live when the response omits `expires_in`.
+export const DEFAULT_LIFETIME_SECONDS = 60;
 
 // The types already rule these out; a JavaScript caller is held to them here.
 export function checkedOptions(options: ClientCredentialsOptions): ClientCredentialsOptions {
   const auth: { secret?: unknown; privateKey?: { kty?: unknown } } = options.auth;
   if (options.issuer === '' || options.clientId === '') {
     throw new OduduError('invalid_options', 'the issuer and the client ID are required');
+  }
+  if (auth.secret !== undefined && auth.privateKey !== undefined) {
+    throw new OduduError('invalid_options', 'auth takes a secret or a private key, not both');
   }
   if (typeof auth.secret === 'string' && auth.secret !== '') return options;
   if (typeof auth.privateKey?.kty === 'string') return options;
@@ -70,7 +80,7 @@ export function privateKeyOf(
       };
 }
 
-// A response without `scope` grants what was asked for (RFC 6749 section 5.1).
+// A response without `expires_in` is taken to live 60 s. A response without `scope` grants what was asked for (RFC 6749 section 5.1).
 export function audienceTokenOf(
   response: TokenEndpointResponse,
   requestedScope: string | undefined,
@@ -78,7 +88,7 @@ export function audienceTokenOf(
 ): AudienceToken {
   return {
     accessToken: response.access_token,
-    expiresAt: now + (response.expires_in ?? 0) * 1000,
+    expiresAt: now + (response.expires_in ?? DEFAULT_LIFETIME_SECONDS) * 1000,
     scope: response.scope ?? requestedScope ?? '',
   };
 }

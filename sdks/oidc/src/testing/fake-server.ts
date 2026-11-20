@@ -12,7 +12,8 @@ export interface FakeServer {
   tokenError: { error: string; error_description?: string } | undefined;
   // Omitted from the token response when undefined.
   scope: string | undefined;
-  expiresIn: number;
+  // Omitted from the token response when undefined.
+  expiresIn: number | undefined;
   tokenRequests: URLSearchParams[];
   // The `authorization` header of each token request, in the same order.
   tokenAuthorizations: (string | undefined)[];
@@ -88,7 +89,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
             send(200, {
               access_token: `client-token-${String(fake.clientCredentialsGrants)}`,
               token_type: 'Bearer',
-              expires_in: fake.expiresIn,
+              ...(fake.expiresIn === undefined ? {} : { expires_in: fake.expiresIn }),
               ...(fake.scope === undefined ? {} : { scope: fake.scope }),
             });
             return;
@@ -105,7 +106,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
           send(200, {
             access_token: 'access-token-1',
             token_type: 'Bearer',
-            expires_in: fake.expiresIn,
+            ...(fake.expiresIn === undefined ? {} : { expires_in: fake.expiresIn }),
             ...(fake.scope === undefined ? {} : { scope: fake.scope }),
             refresh_token:
               form.get('grant_type') === 'refresh_token'

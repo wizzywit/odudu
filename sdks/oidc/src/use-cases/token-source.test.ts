@@ -49,6 +49,43 @@ describe('createTokenSource', () => {
     expect(fake.clientCredentialsGrants).toBe(2);
   });
 
+  it('renews a short token after half its lifetime, not on every call', async () => {
+    fake.expiresIn = 10;
+    const token = source();
+    await token();
+    clock = START + 4_999;
+    await token();
+    await token();
+    expect(fake.clientCredentialsGrants).toBe(1);
+    clock = START + 5_000;
+    await token();
+    expect(fake.clientCredentialsGrants).toBe(2);
+  });
+
+  it('caps the skew at half the lifetime for a 30 s token too', async () => {
+    fake.expiresIn = 30;
+    const token = source();
+    await token();
+    clock = START + 14_999;
+    await token();
+    expect(fake.clientCredentialsGrants).toBe(1);
+    clock = START + 15_000;
+    await token();
+    expect(fake.clientCredentialsGrants).toBe(2);
+  });
+
+  it('treats a response without expires_in as a 60 s token', async () => {
+    fake.expiresIn = undefined;
+    const token = source();
+    await token();
+    clock = START + 29_999;
+    await token();
+    expect(fake.clientCredentialsGrants).toBe(1);
+    clock = START + 30_000;
+    await token();
+    expect(fake.clientCredentialsGrants).toBe(2);
+  });
+
   it('makes one renewal under concurrent calls', async () => {
     const token = source();
     const results = await Promise.all(Array.from({ length: 10 }, () => token()));
@@ -75,6 +112,8 @@ describe('createTokenSource', () => {
     const timeout = vi.spyOn(globalThis, 'setTimeout');
     const token = source();
     await token();
+    // Positive control: the spy does see the HTTP client's own timers.
+    expect(timeout).toHaveBeenCalled();
     expect(interval).not.toHaveBeenCalled();
     // The HTTP client sets short timers of its own; a renewal timer would wait
     // for the token to age, minutes at least.
