@@ -13,8 +13,8 @@ writes each of them from the protocol notes. P4i ships the official libraries
 that wrap what exists, a typed client for the two APIs, and `odudu mcp` as a
 package a laptop can install.
 
-**Owner decisions (2026-11-20).** Names: npm scope `@odudu`, PyPI project
-`odudu`. The five design calls below are taken as recommended. The "me" API's
+**Owner decisions (2026-11-20).** Names: npm scope `@odudu-io` (the owner chose it after
+the spike found `@odudu` held by another npm user), PyPI project `odudu`. The five design calls below are taken as recommended. The "me" API's
 missing OpenAPI document is solved in this phase. Nothing P4i owns is placed
 elsewhere: "complete" means every bullet in the goals is shipped, documented and
 run in CI by the time the branch is finished.
@@ -23,12 +23,12 @@ run in CI by the time the branch is finished.
 
 1. **A shared-components admin OpenAPI document** and a **new "me" OpenAPI
    document**, both generated from the route tables, both checked for size.
-2. **Sign-in SDKs** (TypeScript, Apache-2.0): `@odudu/oidc` (framework-neutral
-   core), `@odudu/react`, `@odudu/bff`, `@odudu/next`, `@odudu/node`.
-3. **Typed clients, generated**: `@odudu/admin-client` and `@odudu/me-client`
+2. **Sign-in SDKs** (TypeScript, Apache-2.0): `@odudu-io/oidc` (framework-neutral
+   core), `@odudu-io/react`, `@odudu-io/bff`, `@odudu-io/next`, `@odudu-io/node`.
+3. **Typed clients, generated**: `@odudu-io/admin-client` and `@odudu-io/me-client`
    (TypeScript) and `odudu` on PyPI (admin and "me" clients and an access-token
    verifier, Python 3.10+).
-4. **`@odudu/mcp-stdio`**, `odudu mcp` installable without the image or a
+4. **`@odudu-io/mcp-stdio`**, `odudu mcp` installable without the image or a
    checkout, and the server's own `odudu mcp` command built on the same code.
 5. **Per SDK**: a page in a new SDKs docs section, a runnable example run in CI, its
    own version and changelog, and a dry run of its publish in CI. The four
@@ -64,7 +64,7 @@ that is only type-checked; an Apache package that imports AGPL code.
 
 ## Owner prerequisites
 
-Before the first publish, and checked first in the plan (spike S5): the `@odudu`
+Before the first publish, and checked first in the plan (spike S5): the `@odudu-io`
 organization exists on npm, the `odudu` project exists on PyPI, and trusted
 publishing is configured for each against `sdk-release.yml`. `RELEASING.md` gets
 this as a checklist in the same increment that adds the workflow.
@@ -105,7 +105,7 @@ recommendation on all five.
 | Layout and versioning | `sdks/*` in this monorepo, Apache-2.0, a tag per package                                        | A separate repository (the generated client and the server's document could drift, and an example in CI would boot a server from another repository). `packages/*` (AGPL, and the licence lint forbids it). |
 | Client generation     | Generate TypeScript and Python from the committed documents; CI regenerates and fails on a diff | Generate only at publish time (a reviewer cannot see what changed, and P4h's `fieldErrorSchema` change would land unseen).                                                                                  |
 | Runnable examples     | One example per SDK under `examples/`, run in CI against the quick start stack                  | One combined app (hides what each SDK needs).                                                                                                                                                               |
-| BFF                   | A real `@odudu/bff`, which Next builds on                                                       | Documentation and an example only (leaves cookie and CSRF rules to each app).                                                                                                                               |
+| BFF                   | A real `@odudu-io/bff`, which Next builds on                                                    | Documentation and an example only (leaves cookie and CSRF rules to each app).                                                                                                                               |
 | `odudu mcp`           | A standalone package, the server's command built on it                                          | A bundle of the existing command (ships AGPL code in an Apache package).                                                                                                                                    |
 
 Calls made without being asked (mine; each can be reversed):
@@ -119,8 +119,8 @@ Calls made without being asked (mine; each can be reversed):
 - **The "me" document is served at `/me/openapi.json`**, unauthenticated and
   readable from any origin, as `/admin/openapi.json` is, and absent from its own
   `paths`.
-- **Public names:** `@odudu/oidc`, `@odudu/react`, `@odudu/bff`, `@odudu/next`,
-  `@odudu/node`, `@odudu/admin-client`, `@odudu/me-client`, `@odudu/mcp-stdio`;
+- **Public names:** `@odudu-io/oidc`, `@odudu-io/react`, `@odudu-io/bff`, `@odudu-io/next`,
+  `@odudu-io/node`, `@odudu-io/admin-client`, `@odudu-io/me-client`, `@odudu-io/mcp-stdio`;
   PyPI `odudu`. `assumption:` all are free on both registries; checked by
   `npm view` and a PyPI lookup in the first task, before anything is built on a
   name.
@@ -173,7 +173,7 @@ so a generated client records what it came from.
   (the wire), one `index.ts`. No `any`, no `void` statements, the comment rules
   and `complexity: 8` hold, with no allowlist.
 
-### 3. `@odudu/oidc`: the core (increment 3)
+### 3. `@odudu-io/oidc`: the core (increment 3)
 
 Pure functions and one small client, over `oauth4webapi`.
 
@@ -208,7 +208,7 @@ Pure functions and one small client, over `oauth4webapi`.
   through (`prompt=create is not supported: registration is off`, the
   `invalid_request` forms); no thrown string is shown to a person.
 
-### 4. `@odudu/node`: token verification (increment 4)
+### 4. `@odudu-io/node`: token verification (increment 4)
 
 `verifyAccessToken(token, options)` plus middleware for Fastify, Express and
 Node's `http`. Rules are the server's own for an API (RFC 9068): signature
@@ -221,7 +221,7 @@ answers `401`/`403` with `WWW-Authenticate` (RFC 6750). The former
 differential runs the same tokens through it and the package and requires the
 same verdict.
 
-### 5. `@odudu/bff` (increment 5)
+### 5. `@odudu-io/bff` (increment 5)
 
 The backend-for-frontend of RFC 10017, built on `Request`/`Response`, so Next,
 Fastify and Express adapters are thin. Routes: `/login`, `/callback`,
@@ -243,10 +243,10 @@ refreshes on expiry).
   already implements the same shape; the SDK does not import it (licence) but
   its tests are the model for the BFF's cases.
 
-### 6. `@odudu/react` and `@odudu/next` (increments 6 and 7)
+### 6. `@odudu-io/react` and `@odudu-io/next` (increments 6 and 7)
 
 - **React:** `OduduProvider`, `useAuth`, `useUser`, `useAccessToken`, `SignedIn`,
-  `SignedOut`. Two modes: **BFF mode** (talks to `@odudu/bff`'s `/session`;
+  `SignedOut`. Two modes: **BFF mode** (talks to `@odudu-io/bff`'s `/session`;
   recommended) and **in-browser mode** (PKCE in the page, tokens held in memory
   only, as `examples/single-page-app` does; a guide section says the risk RFC
   10017 gives). The React Compiler rule of the repository's consoles applies to
@@ -254,12 +254,12 @@ refreshes on expiry).
   components import nothing browser-only.
 - **Next.js:** App Router route handlers (`createOduduHandlers`), `getSession()`
   for server components and actions, `withAuth` for middleware, all on
-  `@odudu/bff`. `assumption:` Next's `cookies()` and middleware APIs are as
+  `@odudu-io/bff`. `assumption:` Next's `cookies()` and middleware APIs are as
   the current docs say (spike S3 builds the example against the pinned Next).
 
 ### 7. Generated clients (increments 8 and 9)
 
-- **TypeScript:** `@odudu/admin-client` and `@odudu/me-client`: generated types
+- **TypeScript:** `@odudu-io/admin-client` and `@odudu-io/me-client`: generated types
   and a thin `fetch` client from the two committed documents; tenant is a
   client option, so a path never repeats it; `Idempotency-Key` is supplied for
   the methods that take one; **cursor pagination helpers** iterate with a page
@@ -275,17 +275,17 @@ refreshes on expiry).
 - A client is never hand-edited: a hand-written file lives beside the generated
   directory, and the generated directory is marked generated.
 
-**Python verifier.** `odudu.verify` applies `@odudu/node`'s rules (RFC 9068:
+**Python verifier.** `odudu.verify` applies `@odudu-io/node`'s rules (RFC 9068:
 signature by JWKS, `iss`, `aud`, `typ: at+jwt`, expiry, required scope, ID tokens
 and me-audience tokens refused at an API) with a bounded, TTL-cached JWKS and
 rate-limited unknown-`kid` refetch, plus FastAPI and Flask helpers as optional
-extras. It runs the same shared token fixtures as `@odudu/node`, so one set of
+extras. It runs the same shared token fixtures as `@odudu-io/node`, so one set of
 tokens gives one verdict in both languages. `assumption:` `PyJWT` with its
 crypto extra or `joserfc` covers the checks; the Python spike picks one.
 
-### 8. `@odudu/mcp-stdio` (increment 10)
+### 8. `@odudu-io/mcp-stdio` (increment 10)
 
-The end state: `npx @odudu/mcp-stdio --base-url … --tenant …` works on a
+The end state: `npx @odudu-io/mcp-stdio --base-url … --tenant …` works on a
 machine with neither the image nor a checkout, and `odudu mcp` in the server CLI
 runs the same code.
 
@@ -313,12 +313,12 @@ runs the same code.
 (hand-written `fetch` token source) each do by hand what an SDK now does, so each
 is rewritten to use it and keeps its folder, its test and its guide:
 
-| Example              | Uses                                                                                    | Before                          |
-| -------------------- | --------------------------------------------------------------------------------------- | ------------------------------- |
-| `web-app`            | `@odudu/oidc` and `@odudu/bff` on Node's `http`                                         | `openid-client`                 |
-| `single-page-app`    | `@odudu/oidc` in the browser, no framework (also the model for Vue, Svelte and Angular) | `oauth4webapi`                  |
-| `api`                | `@odudu/node`                                                                           | its own verifier                |
-| `machine-to-machine` | `@odudu/oidc`'s client credentials token source                                         | `fetch` and a hand-rolled cache |
+| Example              | Uses                                                                                       | Before                          |
+| -------------------- | ------------------------------------------------------------------------------------------ | ------------------------------- |
+| `web-app`            | `@odudu-io/oidc` and `@odudu-io/bff` on Node's `http`                                      | `openid-client`                 |
+| `single-page-app`    | `@odudu-io/oidc` in the browser, no framework (also the model for Vue, Svelte and Angular) | `oauth4webapi`                  |
+| `api`                | `@odudu-io/node`                                                                           | its own verifier                |
+| `machine-to-machine` | `@odudu-io/oidc`'s client credentials token source                                         | `fetch` and a hand-rolled cache |
 
 So the core gains `clientCredentials()` and a `createTokenSource()` (renews
 before expiry, single-flight, `client_secret_basic` and `private_key_jwt`).
@@ -328,8 +328,8 @@ differential in section 4 runs against, so the SDK is still checked against
 code it did not write.
 
 **New examples**, each Apache-2.0 with its own `test.ts`:
-`examples/react-bff` (`@odudu/react` over `@odudu/bff`), `examples/next`
-(`@odudu/next`), `examples/admin` (admin and "me" clients, TypeScript),
+`examples/react-bff` (`@odudu-io/react` over `@odudu-io/bff`), `examples/next`
+(`@odudu-io/next`), `examples/admin` (admin and "me" clients, TypeScript),
 `examples/python` (the clients and the verifier behind a small FastAPI app) and
 `examples/mcp` (the stdio client run against the stack). That is nine in all.
 `examples/README.md` lists every one with what it shows and how to run it.
@@ -387,8 +387,8 @@ code it did not write.
   path parameter (`/admin/tenants/:tenant/...`, `capability.ts:427`); the
   generated client is wrapped, not rewritten: a hand-written `createAdminClient({
 baseUrl, tenant, token })` fills it. `token` is a string or an async provider,
-  so `@odudu/admin-client` depends on no other SDK; the guide shows
-  `@odudu/oidc`'s `refresh` as a provider. The "me" client takes the same.
+  so `@odudu-io/admin-client` depends on no other SDK; the guide shows
+  `@odudu-io/oidc`'s `refresh` as a provider. The "me" client takes the same.
   Python: both a sync and an async `httpx` client, the same helpers (cursor
   iteration, `Idempotency-Key`, typed `ProblemDetails`); S1 picks a generator that
   emits both or the hand-written transport wraps its models.
@@ -396,7 +396,7 @@ baseUrl, tenant, token })` fills it. `token` is a string or an async provider,
   The target is that no `POST` inlines a problem schema; the ceiling is the
   measured size plus 5 per cent. A smaller-than-before result is required, and a
   result that is not smaller is a failure of the increment, not a waiver.
-- **Dependency direction.** The server's `odudu mcp` imports `@odudu/mcp-stdio`
+- **Dependency direction.** The server's `odudu mcp` imports `@odudu-io/mcp-stdio`
   (AGPL consuming Apache is allowed); the dependency rule stays one-way. When the
   vendoring fallback is taken, `mcp-tools.json` is generated by a script in
   `tools/` and owned by the `sdks` job's check, never edited by hand. The loopback
@@ -407,10 +407,10 @@ baseUrl, tenant, token })` fills it. `token` is a string or an async provider,
   a scratch copy of the example, so the committed `package.json` and lockfile stay
   as a reader would copy them. The pnpm release-age rule does not apply to npm
   inside the example.
-- **BFF adapters.** `@odudu/bff` exports the `Request`/`Response` handlers plus
-  Fastify and Express adapters at subpaths (`@odudu/bff/fastify`,
-  `@odudu/bff/express`), with those frameworks as optional peers. `@odudu/node`
-  stays verification only, and `@odudu/next` the Next binding.
+- **BFF adapters.** `@odudu-io/bff` exports the `Request`/`Response` handlers plus
+  Fastify and Express adapters at subpaths (`@odudu-io/bff/fastify`,
+  `@odudu-io/bff/express`), with those frameworks as optional peers. `@odudu-io/node`
+  stays verification only, and `@odudu-io/next` the Next binding.
 - **Proxy defaults.** The allowlist is a list of exact origins plus path
   prefixes per origin; methods default to `GET`, `POST`, `PUT`, `PATCH`,
   `DELETE`; request and response bodies are streamed with a 10 MiB default
@@ -462,7 +462,7 @@ baseUrl, tenant, token })` fills it. `token` is a string or an async provider,
    and publishes in dry run; versions and changelogs are per package.
 3. Each example runs in the `sdks` job against the quick start stack; the
    regeneration check and the MCP catalogue check are green.
-4. `npx @odudu/mcp-stdio` (from a packed tarball) completes a sign-in and a
+4. `npx @odudu-io/mcp-stdio` (from a packed tarball) completes a sign-in and a
    read call on a machine whose `PATH` has no `odudu` and no checkout.
 5. An SDKs section with an index, a page per package, an examples page showing all nine examples, the BFF page and the no-React guide; the four existing examples and their guides run on the SDKs; the introduction, `README.md`, the landing page, the
    console and docs that said "no SDK" are corrected; transcripts re-run.
