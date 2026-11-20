@@ -509,10 +509,9 @@ tests, and a test in the package (`package-contents.test.ts`) fails on any
   display name's trim, the language count of a map) are left to the admin API.
   `packages/mcp/src/service/stdio-parity.test.ts` runs every one of the 69 tools
   both ways against the same answers and arguments, and names the three.
-- **Left for the next increment.** `apps/server/src/cli/mcp.ts` still takes
+- **Left for the next increment, done below.** `apps/server/src/cli/mcp.ts` still took
   the service-account key helpers from `@odudu/crypto` and the audience and
-  client names from `@odudu/domain-tenant`; it is repointed only as far as the
-  move required.
+  client names from `@odudu/domain-tenant`.
 - **Owed by P4i, in its closing increment.** Rename the package's `usecase`,
   `service` and `view` folders to the SDKs' `use-cases`, `services` and
   `adapter`, in one commit apart from any other change, and bring the three
@@ -523,6 +522,58 @@ tests, and a test in the package (`package-contents.test.ts`) fails on any
 - **Cost, by ADR 0041.** Start-up parses one 312 KB JSON file, once. A call does
   the one HTTP request and, for a signed-in run, a read of the credential file;
   nothing else is read. The bundle is 335 KB of which the catalogue is most.
+
+#### What the standalone command needs
+
+`odudu-mcp` (`sdks/mcp-stdio/src/bin.ts`) and `odudu mcp` run one function,
+`runMcp(io, argv)` in `src/run-mcp.ts`, the package's composition root, which sits outside
+the layer folders because it imports every adapter and the boundary rules refuse that of a use case; `apps/server/src/cli/mcp.ts` is now
+a wrapper that hands it `process`. Flags, environment variables, help text,
+messages and exit status are unchanged.
+
+- **Moved out of the server command.** The option table (`service/mcp-options.ts`,
+  with the parse, the contradiction and the required checks), the key file read
+  (`adapter/key-file.ts`), the wiring of credential, token source, loopback login
+  and serve loop (`src/run-mcp.ts`), `McpIo` (a service type; `RunTool` moved to
+  `service/ports.ts` so it need not import an adapter) and `processMcpIo` (`src/process-io.ts`). `odudu help`
+  keeps its own copy of the option table, because `registry.test.ts` holds the
+  help path to importing `@odudu/kernel` alone; `mcp-options.test.ts` holds the
+  two equal.
+- **Replaced.** The three `@odudu/domain-tenant` names were already package
+  constants held by `mcp-constants.test.ts`. `@odudu/crypto`'s key helpers became
+  `service/client-key.ts`, on `node:crypto` (key generation, load, the RFC 7638
+  thumbprint as the kid), so the package takes no `jose`. The assertion is signed
+  by `@odudu-io/oidc`, which gained `signClientAssertion` (the package's one
+  addition; its `private_key_jwt` signing existed but was reachable only through
+  `clientCredentials`, which discovers the issuer by OIDC metadata and would
+  have replaced the stdio client's own discovery, redirect and body checks).
+  `@odudu-io/oidc` is a `workspace:*` dependency; `pnpm pack` writes its version.
+- **One behaviour change.** The assertion lives 120 seconds, not 60: the core's
+  lifetime, which leaves room for a client clock that runs behind. The server
+  accepts up to 300. `apps/server/src/cli/mcp-assertion.test.ts` signs through
+  the command and holds the result to the server's structural limits (read from
+  `client-assertion.ts`) and to `verifyJwtAgainstJwkSet`.
+- **The proof.** `sdks/mcp-stdio/src/bin.test.ts` runs `pnpm pack` in
+  `sdks/oidc` and `sdks/mcp-stdio`, then in an empty directory
+  `npm install --omit=dev --ignore-scripts --no-audit --no-fund
+<oidc>.tgz <mcp-stdio>.tgz`, and starts `node_modules/.bin/odudu-mcp` with a
+  `PATH` that holds only Node's directory. It answers `initialize` and
+  `tools/list` (the 62 read tools a tenant's agent is offered) with nothing else on standard
+  output, and `find node_modules -path '*/@odudu/*'` is empty. verified: the
+  same command by hand, 2026-11-20, printed both answers and exit 0. The test
+  skips with a named message only when `npm view` cannot reach the registry; CI
+  sets `ODUDU_REQUIRE_REGISTRY=1`, which makes that a failure.
+- **verified:** tsup keeps the shebang and sets the executable bit
+  (`-rwxr-xr-x dist/bin.js`, first line `#!/usr/bin/env node`), and inlines
+  `mcp-tools.json` into the shared chunk, so start-up reads no file of its own.
+  `pnpm pack` writes `"@odudu-io/oidc": "0.1.0"` for `workspace:*`, and npm
+  installs two local tarballs together without asking the registry for the one
+  it was given.
+- **Cost, by ADR 0041.** Unchanged: one JSON parse at start-up (bundled), then
+  one HTTP request per call and the credential file for a signed-in run.
+- **Release order.** `@odudu-io/oidc` must be on npm before `mcp-stdio` is
+  tagged; RELEASING.md says so. The image build copies and builds `sdks/oidc`
+  before `sdks/mcp-stdio`, which the server's bundle takes it from.
 
 ### S6: refresh with a changed resource
 
