@@ -100,13 +100,13 @@ Each carries the command that showed it (run in this worktree on 2026-11-20).
 Each contested call had two or three approaches; the owner took the
 recommendation on all five.
 
-| Call | Taken | Rejected, and why |
-| ---- | ----- | ----------------- |
-| Layout and versioning | `sdks/*` in this monorepo, Apache-2.0, a tag per package | A separate repository (the generated client and the server's document could drift, and an example in CI would boot a server from another repository). `packages/*` (AGPL, and the licence lint forbids it). |
-| Client generation | Generate TypeScript and Python from the committed documents; CI regenerates and fails on a diff | Generate only at publish time (a reviewer cannot see what changed, and P4h's `fieldErrorSchema` change would land unseen). |
-| Runnable examples | One example per SDK under `examples/`, run in CI against the quick start stack | One combined app (hides what each SDK needs). |
-| BFF | A real `@odudu/bff`, which Next builds on | Documentation and an example only (leaves cookie and CSRF rules to each app). |
-| `odudu mcp` | A standalone package, the server's command built on it | A bundle of the existing command (ships AGPL code in an Apache package). |
+| Call                  | Taken                                                                                           | Rejected, and why                                                                                                                                                                                           |
+| --------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Layout and versioning | `sdks/*` in this monorepo, Apache-2.0, a tag per package                                        | A separate repository (the generated client and the server's document could drift, and an example in CI would boot a server from another repository). `packages/*` (AGPL, and the licence lint forbids it). |
+| Client generation     | Generate TypeScript and Python from the committed documents; CI regenerates and fails on a diff | Generate only at publish time (a reviewer cannot see what changed, and P4h's `fieldErrorSchema` change would land unseen).                                                                                  |
+| Runnable examples     | One example per SDK under `examples/`, run in CI against the quick start stack                  | One combined app (hides what each SDK needs).                                                                                                                                                               |
+| BFF                   | A real `@odudu/bff`, which Next builds on                                                       | Documentation and an example only (leaves cookie and CSRF rules to each app).                                                                                                                               |
+| `odudu mcp`           | A standalone package, the server's command built on it                                          | A bundle of the existing command (ships AGPL code in an Apache package).                                                                                                                                    |
 
 Calls made without being asked (mine; each can be reversed):
 
@@ -313,12 +313,12 @@ runs the same code.
 (hand-written `fetch` token source) each do by hand what an SDK now does, so each
 is rewritten to use it and keeps its folder, its test and its guide:
 
-| Example | Uses | Before |
-| ------- | ---- | ------ |
-| `web-app` | `@odudu/oidc` and `@odudu/bff` on Node's `http` | `openid-client` |
-| `single-page-app` | `@odudu/oidc` in the browser, no framework (also the model for Vue, Svelte and Angular) | `oauth4webapi` |
-| `api` | `@odudu/node` | its own verifier |
-| `machine-to-machine` | `@odudu/oidc`'s client credentials token source | `fetch` and a hand-rolled cache |
+| Example              | Uses                                                                                    | Before                          |
+| -------------------- | --------------------------------------------------------------------------------------- | ------------------------------- |
+| `web-app`            | `@odudu/oidc` and `@odudu/bff` on Node's `http`                                         | `openid-client`                 |
+| `single-page-app`    | `@odudu/oidc` in the browser, no framework (also the model for Vue, Svelte and Angular) | `oauth4webapi`                  |
+| `api`                | `@odudu/node`                                                                           | its own verifier                |
+| `machine-to-machine` | `@odudu/oidc`'s client credentials token source                                         | `fetch` and a hand-rolled cache |
 
 So the core gains `clientCredentials()` and a `createTokenSource()` (renews
 before expiry, single-flight, `client_secret_basic` and `private_key_jwt`).
@@ -386,7 +386,7 @@ code it did not write.
 - **Tenant and auth in the clients.** The admin document keeps its `{tenant}`
   path parameter (`/admin/tenants/:tenant/...`, `capability.ts:427`); the
   generated client is wrapped, not rewritten: a hand-written `createAdminClient({
-  baseUrl, tenant, token })` fills it. `token` is a string or an async provider,
+baseUrl, tenant, token })` fills it. `token` is a string or an async provider,
   so `@odudu/admin-client` depends on no other SDK; the guide shows
   `@odudu/oidc`'s `refresh` as a provider. The "me" client takes the same.
   Python: both a sync and an async `httpx` client, the same helpers (cursor
@@ -433,7 +433,7 @@ code it did not write.
   tag, and import no server package (the dependency rule).
 - **ADR 0054:** the BFF's cookie, CSRF, store and refresh rules, and why the
   React package's in-browser mode exists beside it.
-- `docs/protocols/rfc10017.md`: the reading note for the BFF cases.
+- `rfc10017.md` in the protocols directory: the reading note for the BFF cases.
 
 ## Performance and scale (ADR 0041)
 
@@ -482,11 +482,11 @@ recomputed when the plan is written, with the totals, as earlier phases did.
 
 ## Spikes the plan opens with
 
-| Spike | Question | Done when |
-| ----- | -------- | --------- |
-| S1 | Do `oauth4webapi`, `jose`, `openapi-typescript`, `openapi-fetch` and the Python generator run on Node 24 and handle our two documents? | each command run, output recorded |
-| S2 | Does the stdio code compile with no import of `protocol-*` once the catalogue is data? | `dependency-cruiser` result |
-| S3 | Does a Next App Router app build with the BFF handlers on the pinned version? | an example builds and signs in |
-| S4 | Does a scoped npm package publish in dry run with provenance, and a PyPI package build and pass `twine check`? | both commands run |
-| S6 | Does a refresh with a changed `resource` work against a built stack? | the request run, response recorded |
-| S5 | Do the names in the plan exist unclaimed on npm and PyPI? | `npm view` and the PyPI JSON lookup |
+| Spike | Question                                                                                                                               | Done when                           |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| S1    | Do `oauth4webapi`, `jose`, `openapi-typescript`, `openapi-fetch` and the Python generator run on Node 24 and handle our two documents? | each command run, output recorded   |
+| S2    | Does the stdio code compile with no import of `protocol-*` once the catalogue is data?                                                 | `dependency-cruiser` result         |
+| S3    | Does a Next App Router app build with the BFF handlers on the pinned version?                                                          | an example builds and signs in      |
+| S4    | Does a scoped npm package publish in dry run with provenance, and a PyPI package build and pass `twine check`?                         | both commands run                   |
+| S6    | Does a refresh with a changed `resource` work against a built stack?                                                                   | the request run, response recorded  |
+| S5    | Do the names in the plan exist unclaimed on npm and PyPI?                                                                              | `npm view` and the PyPI JSON lookup |
