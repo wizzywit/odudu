@@ -510,6 +510,19 @@ describe('the CI workflow', () => {
       expect(block).toMatch(/python"? -m twine check/u);
     });
 
+    it('tests the Python package on 3.10 and 3.13 from a hashed requirements file', async () => {
+      const workflow = await read('.github/workflows/verify.yml');
+      const block = jobBlock(workflow, 'sdks', 'commit-messages');
+      expect(block).toMatch(/uses: actions\/setup-python@[0-9a-f]{40}/u);
+      expect(block).toMatch(/python-version: \|\n\s+3\.10\n\s+3\.13/u);
+      expect(block).toContain('for version in 3.10 3.13');
+      expect(block).toContain('--require-hashes -r sdks/python/requirements-dev.txt');
+      for (const tool of ['pytest', 'mypy', 'ruff check', 'ruff format --check']) {
+        expect(block, tool).toMatch(new RegExp(`python" -m ${tool}`, 'u'));
+      }
+      expect(await read('sdks/python/requirements-dev.txt')).toMatch(/--hash=sha256:/u);
+    });
+
     it('runs the sdks job for a change under sdks/, and not for prose alone', async () => {
       const { classifyChanges } = await import('../../tools/ci/src/changes.ts');
       expect(classifyChanges(['sdks/oidc/src/index.ts']).server).toBe(true);

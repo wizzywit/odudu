@@ -742,9 +742,17 @@ jobs:
         with:
           turbo-cache-key: sdks
 
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: |
+            3.10
+            3.13
+
       # The OpenAPI documents are generated, not committed; regenerating the
       # clients from fresh ones and finding no diff proves the committed
-      # generated types are what the server's routes describe.
+      # generated types are what the server's routes describe. The Python
+      # clients come from the same documents, through a generator installed
+      # with hashes into node_modules/.cache.
       - name: Regenerate the API clients and fail on any diff
         run: |
           pnpm --filter @odudu/docs generate
@@ -779,16 +787,26 @@ jobs:
             npm publish --dry-run "$tarball" --access public --provenance=false
           done
 
+      # Both interpreters stay on the PATH as python3.10 and python3.13: the
+      # package supports 3.10 and the newest stable is the one people install on.
+      # sdks/python/requirements-dev.txt pins every tool with hashes.
+      - name: Test, lint and type-check the Python package
+        run: |
+          for version in 3.10 3.13; do
+            venv="$RUNNER_TEMP/venv-$version"
+            "python$version" -m venv "$venv"
+            "$venv/bin/python" -m pip install --require-hashes -r sdks/python/requirements-dev.txt
+            "$venv/bin/python" -m pip install --no-deps ./sdks/python
+            (cd sdks/python && "$venv/bin/python" -m pytest)
+            (cd sdks/python && "$venv/bin/python" -m mypy)
+            (cd sdks/python && "$venv/bin/python" -m ruff check .)
+            (cd sdks/python && "$venv/bin/python" -m ruff format --check .)
+          done
+
       - name: Build and check the Python distributions
         run: |
-          if [ ! -d sdks/python ]; then
-            echo "sdks/python does not exist yet"
-            exit 0
-          fi
-          python3 -m venv "$RUNNER_TEMP/venv"
-          "$RUNNER_TEMP/venv/bin/python" -m pip install build twine
-          "$RUNNER_TEMP/venv/bin/python" -m build --outdir "$RUNNER_TEMP/dist" sdks/python
-          "$RUNNER_TEMP/venv/bin/python" -m twine check "$RUNNER_TEMP/dist"/*
+          "$RUNNER_TEMP/venv-3.13/bin/python" -m build --outdir "$RUNNER_TEMP/dist" sdks/python
+          "$RUNNER_TEMP/venv-3.13/bin/python" -m twine check "$RUNNER_TEMP/dist"/*
 
   commit-messages:
     runs-on: ubuntu-latest
