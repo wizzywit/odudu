@@ -584,6 +584,123 @@ one authorization per audience it needs (for example `me` for the account
 page, the admin API in a separate sign-in) rather than rely on a later
 `resource` at a refresh.
 
+### S3: Next.js App Router with the BFF handlers
+
+Checked on 2026-11-20 on Node 24.15.0 and npm 11.12.1.
+
+Version. verified: `npm view next dist-tags --json` gives `latest: 16.4.6`,
+and `npm view next time --json` gives `"16.4.6": "2026-11-09T20:33:38.821Z"`,
+eleven days before the check; the repository's `minimumReleaseAge` is 1440
+minutes (`pnpm-workspace.yaml`). `examples/next` pins `next` 16.4.6 exactly,
+beside `react` and `react-dom` 19.3.1, the version `sdks/react` pins.
+`sdks/next` takes `next` ^16.0.0 and `react` ^19.0.0 as peers and `next`
+16.4.6 as a dev dependency (added to `pnpm-lock.yaml`: seven packages, `next`
+and its SWC binary among them).
+
+The example. `examples/next` is not a pnpm workspace member (`pnpm-workspace.yaml`
+lists `apps`, `packages`, `tools`, `sdks` and `tests`) and installs with npm,
+like the other examples, so it depends on the two SDKs as `file:` links to the
+built packages: `@odudu-io/bff` and `@odudu-io/next` at `file:../../sdks/...`.
+npm symlinks them, so `pnpm --filter @odudu-io/next build` must run first. It
+holds `lib/odudu.ts` (`createOduduHandlers`), the catch-all
+`app/api/auth/[...odudu]/route.ts`, a server component page that calls
+`getSession()`, a protected `/dashboard`, and `proxy.ts` with `withAuth`.
+
+Build. verified: `cd examples/next && npm install --ignore-scripts && npm run
+typecheck && npx next build` ends with `Compiled successfully` (Turbopack, the
+default in 16), and routes `/` (dynamic), `/api/auth/[...odudu]` and
+`/dashboard`, and `Proxy (Middleware)`.
+
+Against a live issuer. verified: a stack from the existing `odudu-try-odudu`
+image (the image the port 3090 try stack runs; not rebuilt from this branch),
+started with `quickstart/stack.sh up odudu-try-odudu 3219` under the project
+`odudu-p4i-s3` and removed with `stack.sh down`. In the `demo` tenant,
+`odudu seed` made `ada` and the client `example-next` (confidential, redirect
+`http://localhost:8085/api/auth/callback`, `authorization_code` and
+`refresh_token`). The app ran as `next start --port 8085` with
+`ODUDU_BASE=http://localhost:3219` and was stopped afterwards. A Node script
+(scratchpad, not committed) drove it with `fetch`, handling cookies by hand
+because `__Host-` cookies are `Secure` and the script runs over http:
+
+```text
+login status                       302
+login set-cookie count             2
+issuer authenticate status         302
+callback status                    302
+callback location                  /dashboard?tab=2
+callback set-cookie names          __Host-odudu, __Host-odudu-login, __Host-odudu-return
+dashboard status                   200
+dashboard text                     Hello, 01a1fa63-cbc7-73fd-9813-719fb9245b4f.
+session status                     200
+session body has a JWT             false
+anon dashboard                     307 /api/auth/login?returnTo=%2Fdashboard
+logout status                      200
+logout clears cookie               true
+home after logout                  Signed out.
+unknown route                      404
+```
+
+The listed lines are the ones that bear on the SDK; the script printed three
+more (the redirect back to the app, the home page signed in and the session
+body). The home page read `Signed in as` followed by nothing only because the
+script's pattern stops at the `<!-- -->` React puts between text parts.
+
+What the pinned Next does:
+
+- `cookies()` is asynchronous. verified: `node_modules/next/dist/server/request/cookies.d.ts`
+  declares `cookies(): Promise<ReadonlyRequestCookies>`, and the server
+  component's `await cookies()` returned the browser's cookies in the run above.
+  `getSession` reads all of them with `getAll()` and lets the BFF pick its own.
+- A route handler receives a standard `Request` (a `NextRequest`), and its
+  `Response` goes out as built. verified: the BFF handlers ran in the catch-all
+  route unchanged, and the login answer carried two `Set-Cookie` lines and the
+  callback three, each as the BFF wrote it (`Path=/; HttpOnly; Secure; SameSite=Lax`).
+- Route `params` are a Promise (docs: `dist/docs/01-app/03-api-reference/03-file-conventions/route.md`).
+  The SDK does not read them: it dispatches on the request's path against a
+  `mountPath` option, so the folder name `[...odudu]` is free.
+- `middleware.ts` is deprecated in 16; the file is `proxy.ts`, exporting
+  `proxy` (docs: `proxy.md`), and it runs on the Node.js runtime. The `runtime`
+  option is not available in it and throws if set (the same file, "Runtime").
+  `withAuth` returns a plain function, so `export const proxy = withAuth(...)`
+  works, and so does `export const middleware = ...` on Next 15.
+  assumption: the Edge runtime is no longer offered for this file in 16; the
+  docs say Node.js is the default and `runtime` is not accepted, and the SDK
+  uses neither Node nor Edge-only APIs in `withAuth`.
+- The proxy file is a separate module graph and "should not rely on shared
+  modules or globals" (docs: `proxy.md`). assumption: the in-memory store the
+  route handlers use is therefore not visible from the proxy. `withAuth`
+  checks the cookie's shape by default and asks a store only when given one.
+- `NextResponse.redirect` needs an absolute URL. verified: `NextResponse.redirect('/x')`
+  throws `URL is malformed "/x". Please use only absolute URLs`;
+  `NextResponse.redirect(new URL('/x', base))` answers 307. On the wire the
+  `Location` the proxy sent was relative (`/api/auth/login?returnTo=%2Fdashboard`):
+  Next rewrites a same-origin redirect.
+- `next/server` and `next/headers` have no `exports` map, so under `nodenext`
+  `tsc` refuses the bare specifier. verified: `tsc` error TS2307 for
+  `from 'next/server'`, gone with `from 'next/server.js'`. The SDK imports the
+  `.js` forms and `tsup` leaves `next` and `next/*` external.
+
+A divergence from the plan's wording, and the finding of the spike: a route
+handler and a server component do not share module instances in a production
+build, so a store created when `lib/odudu.ts` loads is two stores. verified:
+with the BFF's default in-memory store, `/api/auth/session` answered with the
+claims while `/` and `/dashboard` rendered `Signed out.` and `No session.`;
+with one store kept on `globalThis` in `lib/odudu.ts` the same run rendered
+`Hello, <sub>`. The SDK therefore keeps its default store on `globalThis`
+(one per issuer, client and cookie name, split so a flood of `login` requests
+cannot evict a session), and says that a deployment with more than one
+process needs a store of its own.
+
+Linking. verified: the example resolved `@odudu-io/next` through a symlink to
+`sdks/next`, whose `node_modules` holds a second copy of `next`; `cookies()`
+still read the request, so Turbopack resolved `next/headers.js` to the app's
+copy. A registry install has one copy.
+
+Not run: `next dev`, a `basePath`, the Edge or a serverless target (a process
+per request has no shared store at all), `output: 'standalone'`, the proxy
+streaming a large body through a route handler, and the example in CI, which
+needs a tarball install and `example-next` in `examples/_shared/provision.sh`.
+
 ## Documentation coverage baseline
 
 `apps/docs/scripts/coverage-ratchet.test.ts` holds each area of the me API to
