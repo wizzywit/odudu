@@ -34,6 +34,16 @@ function idToken(claims: Record<string, unknown>): string {
   return `${base64url({ alg: 'RS256', typ: 'JWT' })}.${base64url(claims)}.c2ln`;
 }
 
+function basicClientId(authorization: string | undefined): string | undefined {
+  if (!authorization?.startsWith('Basic ')) return undefined;
+  const decoded = Buffer.from(authorization.slice(6), 'base64').toString('utf8');
+  // The user name is form-encoded (RFC 6749 section 2.3.1).
+  return (
+    new URLSearchParams(`v=${decoded.slice(0, Math.max(decoded.indexOf(':'), 0))}`).get('v') ??
+    undefined
+  );
+}
+
 async function readBody(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.from(chunk as Uint8Array));
@@ -115,7 +125,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
             id_token: idToken({
               iss: fake.issuer,
               sub: 'subject-1',
-              aud: form.get('client_id'),
+              aud: form.get('client_id') ?? basicClientId(request.headers.authorization),
               iat: now,
               exp: now + 300,
               ...fake.claims,

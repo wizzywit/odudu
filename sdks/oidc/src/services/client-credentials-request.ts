@@ -11,7 +11,6 @@ const ASSERTION_LIFETIME_SECONDS = 120;
 // What a token is assumed to live when the response omits `expires_in`.
 export const DEFAULT_LIFETIME_SECONDS = 60;
 
-// The types already rule these out; a JavaScript caller is held to them here.
 function lifetimeSeconds(expiresIn: number | undefined): number {
   return expiresIn !== undefined && Number.isFinite(expiresIn) && expiresIn > 0
     ? expiresIn
@@ -28,6 +27,7 @@ export function withUsableLifetime(body: unknown): unknown {
   return Number.isFinite(parsed) && parsed >= 0 ? body : rest;
 }
 
+// The types already rule these out; a JavaScript caller is held to them here.
 export function checkedOptions(options: ClientCredentialsOptions): ClientCredentialsOptions {
   const auth: { secret?: unknown; privateKey?: { kty?: unknown } } = options.auth;
   if (options.issuer === '' || options.clientId === '') {

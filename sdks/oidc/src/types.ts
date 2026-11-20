@@ -52,7 +52,17 @@ export interface Pending {
   idTokenAlg: 'RS256' | 'ES256';
 }
 
+export interface CompleteSignInOptions {
+  // Authenticates the code exchange of a confidential client. Omitted for a
+  // public client.
+  auth?: ClientAuth;
+}
+
 export interface RefreshOptions {
+  // Authenticates the refresh of a confidential client. Omitted for a public
+  // client. It does not take part in single-flight: calls sharing a refresh
+  // token share one request.
+  auth?: ClientAuth;
   // An audience the original sign-in already carries. Any other value is
   // refused with `audience_not_granted`; use requestAudience for a new one.
   resource?: string;

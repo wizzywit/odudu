@@ -17,6 +17,7 @@ export type {
   IdTokenClaims,
   Pending,
   PrivateKeyJwk,
+  CompleteSignInOptions,
   RefreshOptions,
   ServerMetadata,
   SignInAction,

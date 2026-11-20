@@ -1,8 +1,9 @@
 import * as oauth from 'oauth4webapi';
+import { clientAuthentication } from '#/adapter/client-authentication';
 import { requestOptions } from '#/adapter/discovery';
 import { tokenFailure } from '#/adapter/token-failure';
 import { OduduError } from '#/services/odudu-error';
-import type { Deps, IdTokenClaims, ServerMetadata } from '#/types';
+import type { ClientAuth, Deps, IdTokenClaims, ServerMetadata } from '#/types';
 
 interface Refreshed {
   response: oauth.TokenEndpointResponse;
@@ -18,16 +19,23 @@ export async function refreshGrant(
   refreshToken: string,
   resource: string | undefined,
   deps: Deps,
+  auth?: ClientAuth,
 ): Promise<Refreshed> {
   const options = requestOptions(deps);
   try {
     const response = await oauth.processRefreshTokenResponse(
       metadata,
       client,
-      await oauth.refreshTokenGrantRequest(metadata, client, oauth.None(), refreshToken, {
-        ...(resource === undefined ? {} : { additionalParameters: { resource } }),
-        ...options,
-      }),
+      await oauth.refreshTokenGrantRequest(
+        metadata,
+        client,
+        clientAuthentication(auth, deps),
+        refreshToken,
+        {
+          ...(resource === undefined ? {} : { additionalParameters: { resource } }),
+          ...options,
+        },
+      ),
     );
     return { response, claims: oauth.getValidatedIdTokenClaims(response) };
   } catch (cause) {

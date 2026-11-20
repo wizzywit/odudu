@@ -1,5 +1,6 @@
 import type { IDToken, TokenEndpointResponse } from 'oauth4webapi';
 import { OduduError } from '#/services/odudu-error';
+import { expiresAtOf } from '#/services/token-set';
 import type { TokenSet } from '#/types';
 
 export function refreshTokenOf(tokens: TokenSet): string {
@@ -25,7 +26,7 @@ export function refreshedTokenSet(
   now: number,
 ): TokenSet {
   const accessToken = response.access_token;
-  const expiresAt = now + (response.expires_in ?? 0) * 1000;
+  const expiresAt = expiresAtOf(response, now);
   const audiences = resource === undefined ? Object.keys(previous.byAudience) : [resource];
   const refreshToken = response.refresh_token ?? previous.refreshToken;
   return {

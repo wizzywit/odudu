@@ -24,6 +24,7 @@ export function refreshTokens(
       refreshTokenOf(previous),
       options.resource,
       deps,
+      options.auth,
     );
     return refreshedTokenSet(
       previous,

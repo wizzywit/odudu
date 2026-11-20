@@ -1,8 +1,9 @@
 import * as oauth from 'oauth4webapi';
+import { clientAuthentication } from '#/adapter/client-authentication';
 import { requestOptions } from '#/adapter/discovery';
 import { tokenFailure } from '#/adapter/token-failure';
 import { OduduError } from '#/services/odudu-error';
-import type { Deps, IdTokenClaims, Pending, ServerMetadata } from '#/types';
+import type { ClientAuth, Deps, IdTokenClaims, Pending, ServerMetadata } from '#/types';
 
 interface Exchanged {
   response: oauth.TokenEndpointResponse;
@@ -18,6 +19,7 @@ export async function exchangeCode(
   params: URLSearchParams,
   pending: Pending,
   deps: Deps,
+  auth?: ClientAuth,
 ): Promise<Exchanged> {
   const client: oauth.Client = {
     client_id: pending.clientId,
@@ -31,7 +33,7 @@ export async function exchangeCode(
       await oauth.authorizationCodeGrantRequest(
         metadata,
         client,
-        oauth.None(),
+        clientAuthentication(auth, deps),
         // Only a value this library has validated is accepted for the exchange;
         // readCallback has already refused everything it would.
         oauth.validateAuthResponse(metadata, client, params, pending.state),
