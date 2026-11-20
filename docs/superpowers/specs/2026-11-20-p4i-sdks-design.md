@@ -26,7 +26,8 @@ run in CI by the time the branch is finished.
 2. **Sign-in SDKs** (TypeScript, Apache-2.0): `@odudu/oidc` (framework-neutral
    core), `@odudu/react`, `@odudu/bff`, `@odudu/next`, `@odudu/node`.
 3. **Typed clients, generated**: `@odudu/admin-client` and `@odudu/me-client`
-   (TypeScript) and `odudu` on PyPI (admin and "me", Python 3.10+).
+   (TypeScript) and `odudu` on PyPI (admin and "me" clients and an access-token
+   verifier, Python 3.10+).
 4. **`@odudu/mcp-stdio`**, `odudu mcp` installable without the image or a
    checkout, and the server's own `odudu mcp` command built on the same code.
 5. **Per SDK**: a guide, a runnable example run in CI, its own version and
@@ -37,8 +38,13 @@ run in CI by the time the branch is finished.
 
 ## Non-goals
 
-- Vue, Svelte, Angular, native mobile, other-language verifiers, headless
-  sign-in components, and an agent delegation library: P14 (roadmap, "Later").
+- Vue, Svelte and Angular bindings, native mobile SDKs, verifiers for Go, Java,
+  .NET, PHP and Ruby, headless sign-in components, and an agent delegation
+  library: P14 (roadmap, "Later"). Researched 2026-11-20: a Python verifier is
+  in this phase (the Python package would otherwise have clients and no way to
+  verify a token), and so is a guide to using the core without React. Mobile
+  stays out because a guide that cannot run in CI would break the rule that
+  examples run; RFC 8252 and the AppAuth libraries already serve it.
 - Any sign-in form, password field or credential ceremony in an app's page
   ("Decided against": until P14's flow API exists). An SDK only redirects.
 - Changing the server's protocol behaviour. P4i adds two documents, one
@@ -54,6 +60,13 @@ An SDK that reimplements token verification differently from the server's own
 rules; an SDK that stores a token where a compromised dependency can read it
 without saying so; a generated client nobody regenerates; a runnable example
 that is only type-checked; an Apache package that imports AGPL code.
+
+## Owner prerequisites
+
+Before the first publish, and checked first in the plan (spike S5): the `@odudu`
+organization exists on npm, the `odudu` project exists on PyPI, and trusted
+publishing is configured for each against `sdk-release.yml`. `RELEASING.md` gets
+this as a checklist in the same increment that adds the workflow.
 
 ## Constraints from the repository
 
@@ -257,6 +270,14 @@ refreshes on expiry).
 - A client is never hand-edited: a hand-written file lives beside the generated
   directory, and the generated directory is marked generated.
 
+**Python verifier.** `odudu.verify` applies `@odudu/node`'s rules (RFC 9068:
+signature by JWKS, `iss`, `aud`, `typ: at+jwt`, expiry, required scope, ID tokens
+and me-audience tokens refused at an API) with a bounded, TTL-cached JWKS and
+rate-limited unknown-`kid` refetch, plus FastAPI and Flask helpers as optional
+extras. It runs the same shared token fixtures as `@odudu/node`, so one set of
+tokens gives one verdict in both languages. `assumption:` `PyJWT` with its
+crypto extra or `joserfc` covers the checks; the Python spike picks one.
+
 ### 8. `@odudu/mcp-stdio` (increment 10)
 
 The end state: `npx @odudu/mcp-stdio --base-url … --tenant …` works on a
@@ -283,7 +304,9 @@ runs the same code.
 
 - `examples/sdk-web-app` (Next), `examples/sdk-spa` (React, BFF mode),
   `examples/sdk-api` (Node middleware), `examples/sdk-admin` (admin and "me"
-  clients, TypeScript), `examples/sdk-python`, `examples/sdk-mcp`. Each is
+  clients, TypeScript), `examples/sdk-python` (the clients and the verifier behind a small FastAPI
+  app), `examples/sdk-core` (the core with no framework, the model for Vue,
+  Svelte and Angular), `examples/sdk-mcp`. Each is
   Apache-2.0 with its own test, depends on the **published version range**, and
   is copyable out of the repository.
 - A new `sdks` job in `verify.yml`: builds and packs every SDK
@@ -298,7 +321,7 @@ runs the same code.
 
 ### 10. Documentation (increment 12)
 
-A guide per package under `apps/docs/content/en/guides/`, each with runnable
+A guide per package, and one on using the core without React, under `apps/docs/content/en/guides/`, each with runnable
 blocks run by `tools/docs-run`; a concept page on the backend-for-frontend; a
 reference page per SDK; `reference/generated` pages for the "me" document; the
 introduction's "Odudu has no SDK of its own" sentence replaced; the guides that
@@ -390,7 +413,7 @@ change to an SDK's public surface" names its guide, its example and its checks;
    regeneration check and the MCP catalogue check are green.
 4. `npx @odudu/mcp-stdio` (from a packed tarball) completes a sign-in and a
    read call on a machine whose `PATH` has no `odudu` and no checkout.
-5. A guide per package; the introduction, `README.md`, the landing page, the
+5. A guide per package and the no-React guide; the introduction, `README.md`, the landing page, the
    console and docs that said "no SDK" are corrected; transcripts re-run.
 6. Section 11 and the roadmap agree both ways (`roadmap-section-11.test.ts`);
    the two P4i rows in `docs/NEXT.md` are gone; `CHANGELOG.md` `Unreleased`
