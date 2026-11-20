@@ -51,3 +51,8 @@ Notes on the verifier:
   of `@odudu-io/node`. The status and the `WWW-Authenticate` challenge are the contract.
 - The Flask decorator takes synchronous views only; decorating an `async def` view raises
   `TypeError`.
+- Claims are judged in the order `jose` judges them, with the same reasons. One difference: a
+  huge integer `exp` or `iat` (such as 10**400) is refused as `invalid_claims`, where Node reads
+  it as Infinity and accepts it.
+- Reading an issuer's keys, discovery and key set together, has one budget (`fetch_timeout`, 5 s).
+  A server that stalls or sends its headers a byte at a time is cut at it with a `KeyFetchError`.

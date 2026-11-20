@@ -51,6 +51,8 @@ class _Rules:
         self.jwks_ttl = float(jwks_ttl)
 
     def before_keys(self, token: str) -> tuple[str, TokenHeader]:
+        if not isinstance(token, str):
+            raise VerificationError("malformed")
         issuer = claimed_issuer(token, self.issuers)
         return issuer, check_header(token)
 
@@ -70,8 +72,9 @@ class Verifier:
     `issuers` are the issuers whose tokens the API accepts: a token's `iss` must equal one
     exactly, and keys are read for these issuers only. `audience` is what this API is called in a
     token's `aud`. A token that lacks `required_scope` is refused with a 403. An issuer's keys are
-    kept for `jwks_ttl` seconds. `now` returns seconds since the epoch. `http_client` replaces the
-    client that reads the keys; it is then yours to close.
+    kept for `jwks_ttl` seconds. Reading them, discovery and key set together, may take
+    `fetch_timeout` seconds in all. `now` returns seconds since the epoch. `http_client`
+    replaces the client that reads the keys; it is then yours to close.
     """
 
     def __init__(
@@ -84,6 +87,7 @@ class Verifier:
         now: Callable[[], float] = time.time,
         http_client: httpx.Client | None = None,
         allow_insecure_issuers: bool = False,
+        fetch_timeout: float = TIMEOUT_SECONDS,
     ) -> None:
         self._rules = _Rules(issuers, audience, required_scope, jwks_ttl, allow_insecure_issuers)
         self._now = now
@@ -93,7 +97,13 @@ class Verifier:
             if http_client is None
             else http_client
         )
-        self._keys = KeyStore(self._rules.issuers, self._client, self._rules.jwks_ttl, now)
+        self._keys = KeyStore(
+            self._rules.issuers,
+            self._client,
+            self._rules.jwks_ttl,
+            now,
+            fetch_timeout=fetch_timeout,
+        )
 
     def verify(self, token: str) -> VerifiedToken:
         issuer, header = self._rules.before_keys(token)
@@ -129,6 +139,7 @@ class AsyncVerifier:
         now: Callable[[], float] = time.time,
         http_client: httpx.AsyncClient | None = None,
         allow_insecure_issuers: bool = False,
+        fetch_timeout: float = TIMEOUT_SECONDS,
     ) -> None:
         self._rules = _Rules(issuers, audience, required_scope, jwks_ttl, allow_insecure_issuers)
         self._now = now
@@ -138,7 +149,13 @@ class AsyncVerifier:
             if http_client is None
             else http_client
         )
-        self._keys = AsyncKeyStore(self._rules.issuers, self._client, self._rules.jwks_ttl, now)
+        self._keys = AsyncKeyStore(
+            self._rules.issuers,
+            self._client,
+            self._rules.jwks_ttl,
+            now,
+            fetch_timeout=fetch_timeout,
+        )
 
     async def verify(self, token: str) -> VerifiedToken:
         issuer, header = self._rules.before_keys(token)

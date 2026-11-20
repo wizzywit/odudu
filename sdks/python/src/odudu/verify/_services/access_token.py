@@ -128,7 +128,10 @@ def _audiences(value: object) -> list[str]:
 
 def check_claims(payload: dict[str, object], issuer: str, audience: str, now: float) -> None:
     """`exp`, `iss`, `aud`, `iat` and `nbf` as `jose` checks them, in its order, with the same
-    tolerance. The status, code and challenge always match; so does the reason.
+    tolerance, and with the same reasons.
+
+    One difference: JSON has no limit on a number, so a huge integer `exp` or `iat` (10**400) is
+    refused here as `invalid_claims`, where jose reads it as Infinity and accepts it.
 
     `now` is seconds since the epoch; the check works on whole seconds.
     """
@@ -143,9 +146,8 @@ def check_claims(payload: dict[str, object], issuer: str, audience: str, now: fl
         raise VerificationError("invalid_claims")
     if "nbf" in payload:
         nbf = _number(payload["nbf"])
-        if nbf is None:
-            raise VerificationError("invalid_claims")
-        if nbf > seconds + CLOCK_TOLERANCE_SECONDS:
+        # jose reports an `nbf` that is not a finite number as not yet valid.
+        if nbf is None or nbf > seconds + CLOCK_TOLERANCE_SECONDS:
             raise VerificationError("not_yet_valid")
     exp = _number(payload["exp"])
     if exp is None:

@@ -14,7 +14,8 @@ from collections.abc import Callable, Sequence
 
 import httpx
 
-from odudu.verify._adapter.fetch import aget_json, get_json
+from odudu.verify._adapter.deadline import Deadline, run_within
+from odudu.verify._adapter.fetch import TIMEOUT_SECONDS, aget_json, get_json
 from odudu.verify._services.errors import KeyFetchError
 from odudu.verify._services.jwks import Jwk, jwks_uri_of, keys_by_kid
 from odudu.verify._services.key_cache import (
@@ -22,7 +23,6 @@ from odudu.verify._services.key_cache import (
     KeyEntry,
     after_failure,
     after_success,
-    discovery_failed,
     discovery_succeeded,
     is_fresh,
     may_refetch,
@@ -37,7 +37,10 @@ def _not_a_key_set(issuer: str) -> KeyFetchError:
 
 
 class KeyStore:
-    """For the threads of a synchronous server."""
+    """For the threads of a synchronous server.
+
+    One refresh, discovery and key set together, gets `fetch_timeout` seconds in all.
+    """
 
     def __init__(
         self,
@@ -46,39 +49,43 @@ class KeyStore:
         ttl: float,
         now: Clock,
         monotonic: Clock = time.monotonic,
+        fetch_timeout: float = TIMEOUT_SECONDS,
     ) -> None:
         self._monotonic = monotonic
+        self._fetch_timeout = fetch_timeout
         self._client = client
         self._ttl = ttl
         self._now = now
         self._states = {issuer: IssuerState() for issuer in issuers}
         self._locks = {issuer: threading.Lock() for issuer in issuers}
 
-    def _jwks_uri(self, issuer: str, state: IssuerState) -> str:
-        now = self._now()
-        held = state.discovery
-        if held is not None and held.expires_at > now:
-            if held.uri is None:
-                raise KeyFetchError(held.failure or _UNREADABLE)
-            return held.uri
-        try:
-            uri = jwks_uri_of(
-                issuer,
-                get_json(
-                    self._client, f"{issuer}/.well-known/openid-configuration", self._monotonic
-                ),
+    def _fetch(
+        self, issuer: str, known_uri: str | None, deadline: Deadline, found: list[str]
+    ) -> dict[str, Jwk]:
+        """Runs in a worker thread, so it changes nothing but `found`, a list of its own."""
+        uri = known_uri
+        if uri is None:
+            document = get_json(
+                self._client, f"{issuer}/.well-known/openid-configuration", deadline
             )
-        except KeyFetchError as error:
-            discovery_failed(state, str(error), now, self._ttl)
-            raise
-        discovery_succeeded(state, uri, now, self._ttl)
-        return uri
-
-    def _read(self, issuer: str, state: IssuerState) -> dict[str, Jwk]:
-        keys = keys_by_kid(get_json(self._client, self._jwks_uri(issuer, state), self._monotonic))
+            uri = jwks_uri_of(issuer, document)
+            found.append(uri)
+        keys = keys_by_kid(get_json(self._client, uri, deadline))
         if keys is None:
             raise _not_a_key_set(issuer)
         return keys
+
+    def _read(self, issuer: str, state: IssuerState) -> dict[str, Jwk]:
+        now = self._now()
+        held = state.discovery
+        known = held.uri if held is not None and held.expires_at > now else None
+        deadline = Deadline(self._fetch_timeout, self._monotonic)
+        found: list[str] = []
+        try:
+            return run_within(lambda: self._fetch(issuer, known, deadline, found), deadline)
+        finally:
+            if found:
+                discovery_succeeded(state, found[0], now, self._ttl)
 
     def _refresh(self, issuer: str, seen: KeyEntry | None) -> KeyEntry:
         """A new read, unless another thread has made one since `seen` was taken."""
@@ -115,7 +122,7 @@ class KeyStore:
 
 
 class AsyncKeyStore:
-    """For the tasks of one event loop."""
+    """For the tasks of one event loop. The same budget, enforced with `asyncio.wait_for`."""
 
     def __init__(
         self,
@@ -124,38 +131,37 @@ class AsyncKeyStore:
         ttl: float,
         now: Clock,
         monotonic: Clock = time.monotonic,
+        fetch_timeout: float = TIMEOUT_SECONDS,
     ) -> None:
         self._monotonic = monotonic
+        self._fetch_timeout = fetch_timeout
         self._client = client
         self._ttl = ttl
         self._now = now
         self._states = {issuer: IssuerState() for issuer in issuers}
         self._locks = {issuer: asyncio.Lock() for issuer in issuers}
 
-    async def _jwks_uri(self, issuer: str, state: IssuerState) -> str:
+    async def _fetch(self, issuer: str, state: IssuerState, deadline: Deadline) -> dict[str, Jwk]:
         now = self._now()
         held = state.discovery
-        if held is not None and held.expires_at > now:
-            if held.uri is None:
-                raise KeyFetchError(held.failure or _UNREADABLE)
-            return held.uri
-        try:
+        uri = held.uri if held is not None and held.expires_at > now else None
+        if uri is None:
             document = await aget_json(
-                self._client, f"{issuer}/.well-known/openid-configuration", self._monotonic
+                self._client, f"{issuer}/.well-known/openid-configuration", deadline
             )
             uri = jwks_uri_of(issuer, document)
-        except KeyFetchError as error:
-            discovery_failed(state, str(error), now, self._ttl)
-            raise
-        discovery_succeeded(state, uri, now, self._ttl)
-        return uri
-
-    async def _read(self, issuer: str, state: IssuerState) -> dict[str, Jwk]:
-        uri = await self._jwks_uri(issuer, state)
-        keys = keys_by_kid(await aget_json(self._client, uri, self._monotonic))
+            discovery_succeeded(state, uri, now, self._ttl)
+        keys = keys_by_kid(await aget_json(self._client, uri, deadline))
         if keys is None:
             raise _not_a_key_set(issuer)
         return keys
+
+    async def _read(self, issuer: str, state: IssuerState) -> dict[str, Jwk]:
+        deadline = Deadline(self._fetch_timeout, self._monotonic)
+        try:
+            return await asyncio.wait_for(self._fetch(issuer, state, deadline), self._fetch_timeout)
+        except asyncio.TimeoutError:
+            raise KeyFetchError("could not read the issuer's keys: took too long") from None
 
     async def _refresh(self, issuer: str, seen: KeyEntry | None) -> KeyEntry:
         state = self._states[issuer]

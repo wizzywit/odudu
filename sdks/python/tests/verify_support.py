@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import importlib
 import json
 import os
+import socket
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
@@ -15,7 +18,6 @@ import httpx
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
-from jwt.algorithms import ECAlgorithm
 
 ISSUER = "https://id.example.test/tenants/demo"
 API = "https://api.example.test"
@@ -53,10 +55,24 @@ class SigningKey:
     jwk: Jwk
 
 
+def _coordinate(value: int) -> str:
+    return base64.urlsafe_b64encode(value.to_bytes(32, "big")).rstrip(b"=").decode()
+
+
 def make_key(kid: str) -> SigningKey:
     private = ec.generate_private_key(ec.SECP256R1())
-    jwk = ECAlgorithm.to_jwk(private.public_key(), as_dict=True)
-    return SigningKey(kid, private, {**jwk, "kid": kid, "alg": "ES256", "use": "sig"})
+    # Built here, with fixed-width coordinates: PyJWT 2.8's `to_jwk` drops leading zero bytes.
+    numbers = private.public_key().public_numbers()
+    jwk: Jwk = {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": _coordinate(numbers.x),
+        "y": _coordinate(numbers.y),
+        "kid": kid,
+        "alg": "ES256",
+        "use": "sig",
+    }
+    return SigningKey(kid, private, jwk)
 
 
 def mint(
@@ -154,3 +170,52 @@ class IssuerServer:
         if self.async_release is not None and request.url.path.endswith("/jwks"):
             await self.async_release.wait()
         return self._answer(request)
+
+
+class SlowServer:
+    """A real loopback HTTP server that never finishes an answer, for deadline tests.
+
+    `trickle` sends the answer's headers one byte at a time; `stall` sends nothing at all.
+    """
+
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+        self._listener = socket.socket()
+        self._listener.bind(("127.0.0.1", 0))
+        self._listener.listen(8)
+        self._stop = threading.Event()
+        self._open: list[socket.socket] = []
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    @property
+    def issuer(self) -> str:
+        return f"http://127.0.0.1:{self._listener.getsockname()[1]}"
+
+    def _accept(self) -> None:
+        while not self._stop.is_set():
+            try:
+                connection, _ = self._listener.accept()
+            except OSError:
+                return
+            self._open.append(connection)
+            threading.Thread(target=self._serve, args=(connection,), daemon=True).start()
+
+    def _serve(self, connection: socket.socket) -> None:
+        try:
+            connection.recv(65536)
+            if self.mode == "trickle":
+                for byte in b"HTTP/1.1 200 OK\r\nx-padding: " + b"a" * 4000:
+                    if self._stop.is_set():
+                        return
+                    connection.sendall(bytes([byte]))
+                    time.sleep(0.2)
+            else:
+                self._stop.wait(30)
+        except OSError:
+            return
+
+    def close(self) -> None:
+        self._stop.set()
+        self._listener.close()
+        for connection in self._open:
+            connection.close()

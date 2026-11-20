@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import threading
+import time
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -18,12 +19,14 @@ from verify_support import (
     Clock,
     IssuerServer,
     SigningKey,
+    SlowServer,
     extra,
     make_key,
     mint,
 )
 
 from odudu.verify import AsyncVerifier, KeyFetchError, VerificationError, Verifier
+from odudu.verify._adapter.deadline import Deadline
 from odudu.verify._adapter.fetch import aget_json, get_json
 from odudu.verify._use_cases.key_store import AsyncKeyStore, KeyStore
 
@@ -109,9 +112,56 @@ def test_the_web_helpers_answer_401_for_a_deeply_nested_token(key: SigningKey) -
     assert web.test_client().get("/x", headers=headers).status_code == 401
 
 
-@pytest.mark.parametrize("claim", ["exp", "nbf"])
-def test_a_huge_integer_claim_is_invalid_not_an_error(key: SigningKey, claim: str) -> None:
-    assert reason(key, mint(key, claims={claim: 10**400})) == "invalid_claims"
+def test_a_huge_integer_exp_is_invalid_not_an_error(key: SigningKey) -> None:
+    assert reason(key, mint(key, claims={"exp": 10**400})) == "invalid_claims"
+
+
+@pytest.mark.parametrize("nbf", [10**400, "x", None, True])
+def test_an_nbf_that_is_not_a_number_is_not_yet_valid_as_in_node(
+    key: SigningKey, nbf: object
+) -> None:
+    assert reason(key, mint(key, claims={"nbf": nbf})) == "not_yet_valid"
+
+
+@pytest.mark.parametrize("token", [None, 7, b"abc", ["a"]])
+def test_a_token_that_is_not_a_string_is_malformed(key: SigningKey, token: Any) -> None:
+    assert reason(key, token) == "malformed"
+    with pytest.raises(VerificationError) as refused:
+        asyncio.run(_averify(key, token))
+    assert refused.value.reason == "malformed"
+
+
+async def _averify(key: SigningKey, token: Any) -> object:
+    server = IssuerServer(keys=[key.jwk])
+    async with AsyncVerifier([ISSUER], API, now=Clock(), http_client=server.async_client) as v:
+        return await v.verify(token)
+
+
+def test_unusable_keys_do_not_consume_the_cap_and_are_unknown(key: SigningKey) -> None:
+    short: dict[str, object] = {
+        "kty": "RSA",
+        "n": b64(b"\x01" * 128),
+        "e": "AQAB",
+        "alg": "RS256",
+        "use": "sig",
+    }
+    other_curve: dict[str, object] = {
+        "kty": "EC",
+        "crv": "P-384",
+        "x": "AA",
+        "y": "AA",
+        "alg": "ES256",
+    }
+    unusable = [{**(short if i % 2 else other_curve), "kid": f"bad{i}"} for i in range(24)]
+    usable = [make_key(f"k{i}") for i in range(21)]
+    server = IssuerServer(keys=[*unusable, *(u.jwk for u in usable)])
+    verify = Verifier([ISSUER], API, now=Clock(), http_client=server.client)
+    assert verify.verify(mint(usable[19])).sub == "subject-1"
+    for name, bad in (("bad1", unusable[1]), ("bad0", unusable[0]), ("k20", None)):
+        signer = usable[20] if bad is None else SigningKey(name, key.private, bad)
+        with pytest.raises(VerificationError) as refused:
+            verify.verify(mint(signer))
+        assert refused.value.reason == "unknown_key"
 
 
 def test_a_signature_with_padding_is_malformed(key: SigningKey) -> None:
@@ -145,6 +195,36 @@ def test_a_token_with_no_exp_is_invalid_before_the_audience_is_looked_at(
         headers={"typ": "at+jwt", "kid": "k1"},
     )
     assert reason(key, token) == "invalid_claims"
+
+
+def test_fastapi_body_shape_for_a_missing_scope(key: SigningKey) -> None:
+    extra("fastapi")
+    from fastapi import Depends, FastAPI
+    from fastapi.testclient import TestClient
+
+    from odudu.verify import VerifiedToken
+    from odudu.verify.fastapi import require_token
+
+    server = IssuerServer(keys=[key.jwk])
+    guard = require_token(
+        AsyncVerifier([ISSUER], API, now=Clock(), http_client=server.async_client),
+        scope="reports:write",
+    )
+    app = FastAPI()
+
+    @app.get("/x")
+    async def route(_: VerifiedToken = Depends(guard)) -> dict[str, str]:  # noqa: B008
+        return {}
+
+    with TestClient(app) as client:
+        answer = client.get("/x", headers={"Authorization": f"Bearer {mint(key)}"})
+    assert answer.status_code == 403
+    assert answer.json() == {
+        "detail": {
+            "error": "insufficient_scope",
+            "error_description": "The access token lacks the required scope",
+        }
+    }
 
 
 def test_flask_refuses_a_coroutine_view_when_it_is_decorated(key: SigningKey) -> None:
@@ -185,9 +265,14 @@ def test_a_body_that_trickles_past_the_deadline_is_a_key_fetch_error() -> None:
     clock = Clock(0.0)
     client = httpx.Client(transport=trickling(clock))
     with pytest.raises(KeyFetchError, match="too long"):
-        get_json(client, f"{ISSUER}/jwks", clock)
+        get_json(client, f"{ISSUER}/jwks", Deadline(5.0, clock))
     clock.now = 0.0
-    assert get_json(httpx.Client(transport=trickling(clock, 0.1, 3)), f"{ISSUER}/jwks", clock) == {}
+    assert (
+        get_json(
+            httpx.Client(transport=trickling(clock, 0.1, 3)), f"{ISSUER}/jwks", Deadline(5.0, clock)
+        )
+        == {}
+    )
 
 
 def test_the_async_fetch_has_the_same_deadline() -> None:
@@ -196,7 +281,7 @@ def test_the_async_fetch_has_the_same_deadline() -> None:
     async def scenario() -> None:
         client = httpx.AsyncClient(transport=trickling(clock))
         with pytest.raises(KeyFetchError, match="too long"):
-            await aget_json(client, f"{ISSUER}/jwks", clock)
+            await aget_json(client, f"{ISSUER}/jwks", Deadline(5.0, clock))
 
     asyncio.run(scenario())
 
@@ -224,3 +309,78 @@ def test_the_async_lock_is_free_after_a_fetch_that_ran_out_of_time() -> None:
         return not store._locks[ISSUER].locked()
 
     assert asyncio.run(scenario())
+
+
+BUDGET = 1.0
+
+
+@pytest.fixture(params=["trickle", "stall"])
+def slow(request: pytest.FixtureRequest) -> Iterator[SlowServer]:
+    server = SlowServer(str(request.param))
+    yield server
+    server.close()
+
+
+def test_a_server_that_trickles_or_stalls_is_cut_at_the_budget(
+    key: SigningKey, slow: SlowServer
+) -> None:
+    verify = Verifier(
+        [slow.issuer],
+        API,
+        now=Clock(),
+        http_client=httpx.Client(trust_env=False),
+        allow_insecure_issuers=True,
+        fetch_timeout=BUDGET,
+    )
+    token = mint(key, issuer=slow.issuer)
+    started = time.monotonic()
+    with pytest.raises(KeyFetchError):
+        verify.verify(token)
+    assert time.monotonic() - started < BUDGET + 1
+    # The refresh lock was released: a second call is answered from memory at once.
+    started = time.monotonic()
+    with pytest.raises(KeyFetchError):
+        verify.verify(token)
+    assert time.monotonic() - started < 0.5
+
+
+def test_the_async_verifier_cuts_a_trickling_or_stalled_server_at_the_budget(
+    key: SigningKey, slow: SlowServer
+) -> None:
+    async def scenario() -> tuple[float, float]:
+        async with AsyncVerifier(
+            [slow.issuer],
+            API,
+            now=Clock(),
+            http_client=httpx.AsyncClient(trust_env=False),
+            allow_insecure_issuers=True,
+            fetch_timeout=BUDGET,
+        ) as verify:
+            token = mint(key, issuer=slow.issuer)
+            timings = []
+            for _ in range(2):
+                started = time.monotonic()
+                with pytest.raises(KeyFetchError):
+                    await verify.verify(token)
+                timings.append(time.monotonic() - started)
+            return timings[0], timings[1]
+
+    first, second = asyncio.run(scenario())
+    assert first < BUDGET + 1
+    assert second < 0.5
+
+
+def test_discovery_and_the_key_set_share_one_budget(key: SigningKey) -> None:
+    clock = Clock(0.0)
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        clock.now += 3.0
+        if request.url.path.endswith("openid-configuration"):
+            return httpx.Response(200, json={"issuer": ISSUER, "jwks_uri": f"{ISSUER}/jwks"})
+        return httpx.Response(200, json={"keys": [key.jwk]})
+
+    store = KeyStore(
+        [ISSUER], httpx.Client(transport=httpx.MockTransport(answer)), 300.0, Clock(), clock, 5.0
+    )
+    with pytest.raises(KeyFetchError):
+        store.key_for(ISSUER, "k1")

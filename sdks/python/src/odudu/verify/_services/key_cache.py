@@ -32,8 +32,7 @@ class KeyEntry:
 @dataclass
 class DiscoveryEntry:
     expires_at: float
-    uri: str | None = None
-    failure: str | None = None
+    uri: str
 
 
 @dataclass
@@ -78,9 +77,3 @@ def after_failure(state: IssuerState, reason: str, now: float, ttl: float) -> Ke
 
 def discovery_succeeded(state: IssuerState, uri: str, now: float, ttl: float) -> None:
     state.discovery = DiscoveryEntry(expires_at=now + ttl, uri=uri)
-
-
-def discovery_failed(state: IssuerState, reason: str, now: float, ttl: float) -> None:
-    state.discovery = DiscoveryEntry(
-        expires_at=now + min(ttl, REFETCH_INTERVAL_SECONDS), failure=reason
-    )

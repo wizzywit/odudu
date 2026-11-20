@@ -117,9 +117,7 @@ def test_the_verified_token_reads_the_claims(key: SigningKey) -> None:
     assert "claims" not in repr(token)
 
 
-@pytest.mark.parametrize(
-    "claims", [{"scope": 7}, {"sub": ""}, {"sub": 5}, {"exp": "later"}, {"nbf": "now"}]
-)
+@pytest.mark.parametrize("claims", [{"scope": 7}, {"sub": ""}, {"sub": 5}, {"exp": "later"}])
 def test_claims_of_the_wrong_shape_are_invalid(key: SigningKey, claims: dict[str, object]) -> None:
     with pytest.raises(VerificationError) as refused:
         verifier(key).verify(mint(key, claims=claims))
