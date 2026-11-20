@@ -19,6 +19,12 @@ export const unknownPath = client.GET('/admin/nothing');
 // @ts-expect-error a method the path does not have
 export const wrongMethod = client.DELETE('/admin/tenants/{tenant}/clients');
 
+// A call cannot name its own origin, fetch, redirect policy or middleware.
+// @ts-expect-error baseUrl is the client's
+export const ownOrigin = client.GET('/admin/tenants/{tenant}/clients', { baseUrl: 'http://evil' });
+// @ts-expect-error redirect policy is the client's
+export const ownRedirect = client.GET('/admin/tenants/{tenant}/clients', { redirect: 'follow' });
+
 // A request body is still required where the document requires one.
 // @ts-expect-error `username` is required
 export const noBody = client.POST('/admin/tenants/{tenant}/subjects', { body: {} });

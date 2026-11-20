@@ -216,6 +216,24 @@ describe('the admin client', () => {
     expect(seen).toEqual(['http://api.test/admin/tenants/acme/clients']);
   });
 
+  it("a caller-supplied tenant or Authorization cannot replace the client's", async () => {
+    const server = await api(() => json(200, { items: [] }));
+    const client = createAdminClient({ baseUrl: server.origin, tenant: 'acme', token: 'real' });
+    const sneaky = {
+      params: { path: { id: 'c1', tenant: 'other' }, header: { Authorization: 'Bearer fake' } },
+    };
+    await client.GET('/admin/tenants/{tenant}/clients/{id}', sneaky as never);
+    expect(server.requests[0]?.url).toBe('/admin/tenants/acme/clients/c1');
+    expect(server.requests[0]?.headers.authorization).toBe('Bearer real');
+  });
+
+  it('refuses a path id of ..', async () => {
+    const client = createAdminClient({ baseUrl: 'http://api.test', tenant: 'acme', token: 't' });
+    await expect(
+      client.GET('/admin/tenants/{tenant}/clients/{id}', { params: { path: { id: '..' } } }),
+    ).rejects.toThrow(TypeError);
+  });
+
   it('refuses a baseUrl that is not an absolute http(s) URL', () => {
     const options = { tenant: 'acme', token: 't' };
     expect(() => createAdminClient({ ...options, baseUrl: '/relative' })).toThrow(/baseUrl/u);
@@ -271,6 +289,22 @@ describe('iterate', () => {
     const queries = seen.map((url) => new URL(url, 'http://x').searchParams);
     expect(queries.map((q) => q.get('cursor'))).toEqual([null, '3', '6']);
     expect(queries.every((q) => q.get('limit') === '3')).toBe(true);
+  });
+
+  it('slices a page longer than asked to maxItems', async () => {
+    const server = await api(() =>
+      json(200, { items: [{ n: 1 }, { n: 2 }, { n: 3 }, { n: 4 }], next: 'x' }),
+    );
+    const client = createAdminClient({ baseUrl: server.origin, tenant: 'acme', token: 't' });
+    const items: unknown[] = [];
+    for await (const item of iterate(
+      (page) => client.GET('/admin/tenants/{tenant}/clients', { params: { query: page } }),
+      { pageLimit: 2, maxItems: 3 },
+    )) {
+      items.push(item);
+    }
+    expect(items).toHaveLength(3);
+    expect(server.requests).toHaveLength(1);
   });
 
   it('defaults to 50 per page', async () => {

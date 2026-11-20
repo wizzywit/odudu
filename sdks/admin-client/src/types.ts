@@ -72,9 +72,19 @@ type OperationOf<P, Path extends keyof P, Method extends string> = Method extend
   ? P[Path][Method]
   : never;
 
+/** What a call cannot set: the client owns the origin, the transport and the redirect policy. */
+interface ClientOwned {
+  baseUrl?: never;
+  fetch?: never;
+  redirect?: never;
+  middleware?: never;
+  pathSerializer?: never;
+}
+
 type Call<P, Method extends 'get' | 'put' | 'post' | 'patch' | 'delete'> = <
   Path extends ClientPathsWithMethod<Client<TenantPaths<P>>, Method>,
-  Init extends MaybeOptionalInit<TenantPaths<P>[Path], Method & keyof TenantPaths<P>[Path]>,
+  Init extends MaybeOptionalInit<TenantPaths<P>[Path], Method & keyof TenantPaths<P>[Path]> &
+    ClientOwned,
 >(
   url: Path,
   ...init: InitParam<Init>
@@ -88,7 +98,8 @@ type Call<P, Method extends 'get' | 'put' | 'post' | 'patch' | 'delete'> = <
 
 /**
  * The generated paths as calls. A call resolves with the success response and
- * throws a `ProblemError` for any other.
+ * throws a `ProblemError` for any other. That includes every 3xx, a 304 among
+ * them: redirects are never followed, so the token cannot be sent elsewhere.
  */
 export interface TenantClient<P> {
   GET: Call<P, 'get'>;

@@ -26,7 +26,7 @@ export function createTenantClient<P extends object>(options: ClientOptions): Te
   inner.use(requestHeaders(options.token, IDEMPOTENT_OPERATIONS, () => crypto.randomUUID()));
   // openapi-fetch types each call by path; here the method is a runtime value.
   const raw = inner as unknown as RawClient;
-  const call = (method: string) => (url: string, init?: unknown) =>
+  const call = (method: string) => async (url: string, init?: unknown) =>
     raw.request(method, url, withTenant(init, tenant));
   const surface = {
     GET: call('GET'),

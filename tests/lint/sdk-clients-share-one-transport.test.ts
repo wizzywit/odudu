@@ -21,6 +21,8 @@ const SHARED = [
   'repository/client.ts',
   'use-cases/iterate.ts',
   'testing/fake-api.ts',
+  'services/request.test.ts',
+  'adapter/transport.test.ts',
 ];
 
 // Written for one package only: the entry point, the factory that names the
@@ -59,9 +61,7 @@ describe('the admin and me clients', () => {
     'name every other source file as one package' + "'s own, so a new shared file is listed above",
     async () => {
       for (const pkg of ['admin-client', 'me-client']) {
-        const files = (await sourceFiles(SRC(pkg))).filter(
-          (file) => !file.endsWith('.test.ts') || OWN.has(file),
-        );
+        const files = await sourceFiles(SRC(pkg));
         const unlisted = files.filter((file) => !SHARED.includes(file) && !OWN.has(file));
         expect(unlisted, `${pkg} has files in neither list`).toEqual([]);
       }

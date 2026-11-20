@@ -3,8 +3,11 @@ const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS', 'PUT', 'DELETE'];
 
+const RETRYABLE_STATUSES = [429, 500, 502, 503, 504];
+
+/** 501 and 505 will not change on a repeat. */
 export function isRetryableStatus(status: number): boolean {
-  return status === 429 || status >= 500;
+  return RETRYABLE_STATUSES.includes(status);
 }
 
 /** A repeat is harmless for the methods HTTP defines as idempotent and for a call that carries a key. */
