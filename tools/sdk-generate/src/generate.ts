@@ -11,6 +11,7 @@ export interface Target {
   readonly name: string;
   readonly document: string;
   readonly output: string;
+  readonly idempotentOutput: string;
 }
 
 // A further generator (the Python models) adds its own list beside this one and
@@ -20,11 +21,13 @@ export const TARGETS: readonly Target[] = [
     name: 'admin',
     document: 'apps/docs/static/openapi/admin.json',
     output: 'sdks/admin-client/src/generated/schema.d.ts',
+    idempotentOutput: 'sdks/admin-client/src/generated/idempotent.ts',
   },
   {
     name: 'me',
     document: 'apps/docs/static/openapi/me.json',
     output: 'sdks/me-client/src/generated/schema.d.ts',
+    idempotentOutput: 'sdks/me-client/src/generated/idempotent.ts',
   },
 ];
 
@@ -45,6 +48,61 @@ export async function renderSchema(documentText: string, source: string): Promis
   return `${header}${astToString(ast)}`;
 }
 
+const METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] as const;
+
+type Json = Record<string, unknown>;
+
+function asObject(value: unknown): Json {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Json)
+    : {};
+}
+
+function resolveParameter(document: Json, parameter: unknown): Json {
+  const object = asObject(parameter);
+  const ref = object.$ref;
+  if (typeof ref !== 'string') return object;
+  const name = ref.replace('#/components/parameters/', '');
+  return asObject(asObject(asObject(document.components).parameters)[name]);
+}
+
+function takesIdempotencyKey(document: Json, parameters: unknown): boolean {
+  return (Array.isArray(parameters) ? (parameters as unknown[]) : []).some((parameter) => {
+    const resolved = resolveParameter(document, parameter);
+    return resolved.in === 'header' && resolved.name === 'Idempotency-Key';
+  });
+}
+
+// The runtime client adds an Idempotency-Key to exactly these calls and retries
+// them; deriving the list from the document keeps it from drifting from the API.
+export function renderIdempotent(documentText: string, source: string): string {
+  const parsed: unknown = JSON.parse(documentText);
+  if (!isOpenApi31(parsed)) {
+    throw new Error(`${source} is not an OpenAPI 3.1 document`);
+  }
+  const document = asObject(parsed);
+  const operations: string[] = [];
+  for (const [route, item] of Object.entries(asObject(document.paths))) {
+    const pathItem = asObject(item);
+    for (const method of METHODS) {
+      const operation = asObject(pathItem[method]);
+      if (Object.keys(operation).length === 0) continue;
+      if (
+        takesIdempotencyKey(document, operation.parameters) ||
+        takesIdempotencyKey(document, pathItem.parameters)
+      ) {
+        operations.push(`${method.toUpperCase()} ${route}`);
+      }
+    }
+  }
+  operations.sort();
+  const header = `${GENERATED_HEADER_MARKER} from ${source}.\n// Do not edit: run \`pnpm sdks:generate\`.\n`;
+  const declaration = 'export const IDEMPOTENT_OPERATIONS: readonly string[] =';
+  if (operations.length === 0) return `${header}${declaration} [];\n`;
+  const lines = operations.map((operation) => `  '${operation}',`).join('\n');
+  return `${header}${declaration} [\n${lines}\n];\n`;
+}
+
 export async function generateAll(root: string, outRoot: string = root): Promise<string[]> {
   const written: string[] = [];
   for (const target of TARGETS) {
@@ -54,11 +112,17 @@ export async function generateAll(root: string, outRoot: string = root): Promise
         `${target.document} does not exist: run \`pnpm --filter @odudu/docs generate\` first`,
       );
     }
-    const text = await renderSchema(await readFile(documentPath, 'utf8'), target.document);
-    const outputPath = path.join(outRoot, target.output);
-    await mkdir(path.dirname(outputPath), { recursive: true });
-    await writeFile(outputPath, text);
-    written.push(target.output);
+    const documentText = await readFile(documentPath, 'utf8');
+    const outputs = [
+      [target.output, await renderSchema(documentText, target.document)],
+      [target.idempotentOutput, renderIdempotent(documentText, target.document)],
+    ] as const;
+    for (const [output, text] of outputs) {
+      const outputPath = path.join(outRoot, output);
+      await mkdir(path.dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, text);
+      written.push(output);
+    }
   }
   return written;
 }

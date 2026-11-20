@@ -3,7 +3,13 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GENERATED_HEADER_MARKER, generateAll, renderSchema, TARGETS } from '#/generate';
+import {
+  GENERATED_HEADER_MARKER,
+  generateAll,
+  renderIdempotent,
+  renderSchema,
+  TARGETS,
+} from '#/generate';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 
@@ -76,9 +82,11 @@ describe.skipIf(!documentsPresent)('the generated clients', () => {
       await generateAll(REPO_ROOT, a);
       await generateAll(REPO_ROOT, b);
       for (const target of TARGETS) {
-        const first = await readFile(path.join(a, target.output), 'utf8');
-        const second = await readFile(path.join(b, target.output), 'utf8');
-        expect(second).toBe(first);
+        for (const output of [target.output, target.idempotentOutput]) {
+          const first = await readFile(path.join(a, output), 'utf8');
+          const second = await readFile(path.join(b, output), 'utf8');
+          expect(second).toBe(first);
+        }
       }
     } finally {
       await rm(a, { recursive: true });
@@ -91,9 +99,11 @@ describe.skipIf(!documentsPresent)('the generated clients', () => {
     try {
       await generateAll(REPO_ROOT, out);
       for (const target of TARGETS) {
-        const fresh = await readFile(path.join(out, target.output), 'utf8');
-        const committed = await readFile(path.join(REPO_ROOT, target.output), 'utf8');
-        expect(committed === fresh, `${target.output} is stale: run pnpm sdks:generate`).toBe(true);
+        for (const output of [target.output, target.idempotentOutput]) {
+          const fresh = await readFile(path.join(out, output), 'utf8');
+          const committed = await readFile(path.join(REPO_ROOT, output), 'utf8');
+          expect(committed === fresh, `${output} is stale: run pnpm sdks:generate`).toBe(true);
+        }
       }
     } finally {
       await rm(out, { recursive: true });
@@ -101,18 +111,80 @@ describe.skipIf(!documentsPresent)('the generated clients', () => {
   });
 });
 
+const IDEMPOTENT_DOCUMENT = JSON.stringify({
+  openapi: '3.1.0',
+  info: { title: 'Idempotent', version: '1' },
+  components: {
+    parameters: {
+      Key: { name: 'Idempotency-Key', in: 'header', required: false, schema: { type: 'string' } },
+      Other: { name: 'X-Other', in: 'header', required: false, schema: { type: 'string' } },
+    },
+  },
+  paths: {
+    '/b/{id}': {
+      post: {
+        parameters: [{ $ref: '#/components/parameters/Key' }],
+        responses: { '200': { description: 'OK' } },
+      },
+      patch: {
+        parameters: [{ $ref: '#/components/parameters/Other' }],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/a': {
+      parameters: [{ $ref: '#/components/parameters/Key' }],
+      put: { responses: { '200': { description: 'OK' } } },
+      get: {
+        parameters: [{ name: 'Idempotency-Key', in: 'header', schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/c': { delete: { responses: { '200': { description: 'OK' } } } },
+  },
+});
+
+describe('the idempotent operations list', () => {
+  it('names each method and path that takes an Idempotency-Key header, sorted', () => {
+    const text = renderIdempotent(IDEMPOTENT_DOCUMENT, 'idem.json');
+    expect(text.startsWith(GENERATED_HEADER_MARKER)).toBe(true);
+    expect(text).toContain('export const IDEMPOTENT_OPERATIONS: readonly string[] = [');
+    const entries = [...text.matchAll(/^ {2}'([^']+)',$/gmu)].map((m) => m[1]);
+    expect(entries).toEqual(['GET /a', 'POST /b/{id}', 'PUT /a']);
+  });
+
+  it('renders an empty list for a document with no such parameter, and the same bytes twice', () => {
+    const text = renderIdempotent(SMALL_DOCUMENT, 'small.json');
+    expect(text).toContain('export const IDEMPOTENT_OPERATIONS: readonly string[] = [];');
+    expect(renderIdempotent(SMALL_DOCUMENT, 'small.json')).toBe(text);
+  });
+
+  it('lists the nine admin operations the document marks and none for me', async () => {
+    if (!documentsPresent) return;
+    const admin = TARGETS.find((t) => t.name === 'admin');
+    const me = TARGETS.find((t) => t.name === 'me');
+    const adminText = await readFile(path.join(REPO_ROOT, admin?.idempotentOutput ?? ''), 'utf8');
+    const meText = await readFile(path.join(REPO_ROOT, me?.idempotentOutput ?? ''), 'utf8');
+    expect(adminText).toContain("'POST /admin/tenants/{tenant}/subjects',");
+    expect(meText).toContain('= [];');
+  });
+});
+
 describe('the generated directories', () => {
   it('carry the generated header on every file', async () => {
     for (const target of TARGETS) {
-      const text = await readFile(path.join(REPO_ROOT, target.output), 'utf8');
-      expect(text.startsWith(GENERATED_HEADER_MARKER), target.output).toBe(true);
+      for (const output of [target.output, target.idempotentOutput]) {
+        const text = await readFile(path.join(REPO_ROOT, output), 'utf8');
+        expect(text.startsWith(GENERATED_HEADER_MARKER), output).toBe(true);
+      }
     }
   });
 
   it('hold no hand-written file', async () => {
     for (const target of TARGETS) {
       const directory = path.dirname(path.join(REPO_ROOT, target.output));
-      expect(await readdir(directory), directory).toEqual([path.basename(target.output)]);
+      expect(await readdir(directory), directory).toEqual(
+        [path.basename(target.idempotentOutput), path.basename(target.output)].sort(),
+      );
     }
   });
 });
