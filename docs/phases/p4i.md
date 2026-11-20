@@ -583,3 +583,20 @@ not run, because the spike's question was the refresh. The SDK plan should keep
 one authorization per audience it needs (for example `me` for the account
 page, the admin API in a separate sign-in) rather than rely on a later
 `resource` at a refresh.
+
+## Documentation coverage baseline
+
+`apps/docs/scripts/coverage-ratchet.test.ts` holds each area of the me API to
+the table below, as it holds the admin API to the table in `docs/phases/p4g.md`.
+A count may rise and never fall; an area new to the API must be added. The
+fields counted are the query parameters, the request body and the body of the
+success response of every operation.
+
+### Me API documentation coverage
+
+| Area          | Described | Fields |
+| ------------- | --------- | ------ |
+| `consents`    | 7         | 7      |
+| `credentials` | 17        | 17     |
+| `profile`     | 75        | 75     |
+| `sessions`    | 14        | 14     |
