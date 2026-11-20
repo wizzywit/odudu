@@ -106,4 +106,11 @@ describe('discover', () => {
     ]);
     expect(asked).toBe(1);
   });
+
+  it('does not serve a result fetched insecurely to a caller that did not ask', async () => {
+    fake = await startFakeServer();
+    await discover(fake.issuer, HTTP);
+    const error = await discover(fake.issuer).catch((e: unknown) => e);
+    expect((error as OduduError).code).toBe('discovery_failed');
+  });
 });
