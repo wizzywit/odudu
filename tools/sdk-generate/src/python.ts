@@ -21,15 +21,6 @@ const HTTPX: Replacement = ['httpx2', 'httpx'];
 
 type Replacement = readonly [from: string, to: string];
 
-// The admin document describes every 204 as a JSON response with an empty
-// schema, and the generated parser then calls `response.json()` on the empty
-// body of a successful delete. An empty body becomes None instead.
-const EMPTY_BODY_IS_NONE: Replacement = [
-  '{{ response.prop.python_name }} = {{ response.source.attribute }}\n',
-  '{{ response.prop.python_name }} = {{ response.source.attribute }}' +
-    '{% if response.source.attribute == "response.json()" %} if response.content else None{% endif +%}\n',
-];
-
 const PATCHES: Record<string, readonly Replacement[]> = {
   'client.py.jinja': [
     HTTPX,
@@ -38,7 +29,7 @@ const PATCHES: Record<string, readonly Replacement[]> = {
       'from typing import Any\nfrom typing_extensions import Self\n',
     ],
   ],
-  'endpoint_macros.py.jinja': [HTTPX, EMPTY_BODY_IS_NONE],
+  'endpoint_macros.py.jinja': [HTTPX],
   'endpoint_module.py.jinja': [HTTPX],
   'types.py.jinja': [HTTPX],
   'str_enum.py.jinja': [
@@ -86,6 +77,18 @@ export function renderPythonIdempotent(documentText: string, source: string): st
     })
     .join('\n');
   return `${header}${declaration}\n    {\n${lines}\n    }\n)\n`;
+}
+
+/** The modules of every generated operation, importable from one public module. */
+export function renderPythonOperations(name: string, modules: string[], source: string): string {
+  const sorted = [...modules].sort();
+  const header = `${PYTHON_HEADER_MARKER} from ${source}.\n# Do not edit: run \`pnpm sdks:generate\`.\n\n`;
+  const imports = sorted.map((module) => `    ${module},`).join('\n');
+  const names = sorted.map((module) => `    "${module}",`).join('\n');
+  return (
+    `${header}from odudu._generated.${name}.api.default import (\n${imports}\n)\n\n` +
+    `__all__ = [\n${names}\n]\n`
+  );
 }
 
 interface Run {
@@ -270,6 +273,16 @@ async function generateTarget(
     const idempotentPath = path.join(outRoot, target.pythonIdempotentOutput);
     await writeFile(idempotentPath, renderPythonIdempotent(documentText, target.document));
     written.push(target.pythonIdempotentOutput);
+    const modules = written
+      .filter((file) => file.startsWith(`${target.pythonOutput}/api/default/`))
+      .map((file) => path.basename(file, '.py'))
+      .filter((module) => module !== '__init__');
+    const operationsPath = `${GENERATED_ROOT}/${target.name}_operations.py`;
+    await writeFile(
+      path.join(outRoot, operationsPath),
+      renderPythonOperations(target.name, modules, target.document),
+    );
+    written.push(operationsPath);
     return written;
   } finally {
     await rm(work, { recursive: true, force: true });

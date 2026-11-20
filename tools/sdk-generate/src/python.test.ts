@@ -15,6 +15,7 @@ import {
   PYTHON_HEADER_MARKER,
   PYTHON_TEMPLATES,
   renderPythonIdempotent,
+  renderPythonOperations,
 } from '#/python';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
@@ -76,6 +77,18 @@ describe('the Python idempotent file', () => {
   });
 });
 
+describe('the Python operations file', () => {
+  it('imports each operation module of the generated package, sorted, and lists them', () => {
+    const text = renderPythonOperations('admin', ['b_op', 'a_op'], 'd.json');
+    expect(text.startsWith(PYTHON_HEADER_MARKER)).toBe(true);
+    expect(text).toContain(
+      'from odudu._generated.admin.api.default import (\n    a_op,\n    b_op,\n)',
+    );
+    expect(text).toContain('__all__ = [\n    "a_op",\n    "b_op",\n]');
+    expect(renderPythonOperations('admin', ['b_op', 'a_op'], 'd.json')).toBe(text);
+  });
+});
+
 describe('the template patches', () => {
   it('name the five templates that write httpx2, Self or StrEnum', () => {
     expect([...PYTHON_TEMPLATES].sort()).toEqual([
@@ -85,14 +98,6 @@ describe('the template patches', () => {
       'str_enum.py.jinja',
       'types.py.jinja',
     ]);
-  });
-
-  it('read an empty JSON body as None instead of failing on it', () => {
-    const line = '{{ response.prop.python_name }} = {{ response.source.attribute }}\n';
-    const patched = patchTemplate('endpoint_macros.py.jinja', `${line}x httpx2\n`);
-    expect(patched).toContain('if response.content else None');
-    expect(patched).toContain('x httpx\n');
-    expect(() => patchTemplate('endpoint_macros.py.jinja', 'httpx2 only')).toThrow(/response/u);
   });
 
   it('write a string enum as str and Enum, which Python 3.10 has', () => {

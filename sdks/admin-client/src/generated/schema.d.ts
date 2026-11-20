@@ -450,14 +450,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -839,14 +837,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -1009,14 +1005,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -1330,14 +1324,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -1378,14 +1370,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -1984,14 +1974,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -2514,14 +2502,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -4033,14 +4019,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -4158,14 +4142,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -4751,14 +4733,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -6156,14 +6136,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -6375,14 +6353,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -6750,14 +6726,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -6871,14 +6845,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 400: components["responses"]["BadRequest"];
                 401: components["responses"]["Unauthorized"];
@@ -6925,14 +6897,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -7193,14 +7163,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -7590,14 +7558,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -8124,14 +8090,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -8429,14 +8393,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -8580,14 +8542,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
@@ -8935,14 +8895,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description No Content */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];

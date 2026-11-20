@@ -47,7 +47,7 @@ def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
 ) -> Any | ProblemDetails | None:
     if response.status_code == 202:
-        response_202 = response.json() if response.content else None
+        response_202 = response.json()
         return response_202
 
     if response.status_code == 400:
