@@ -1,7 +1,11 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: {
+    index: 'src/index.ts',
+    express: 'src/adapter/express.ts',
+    fastify: 'src/adapter/fastify.ts',
+  },
   outDir: 'dist',
   format: ['esm'],
   platform: 'neutral',

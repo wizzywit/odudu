@@ -19,6 +19,7 @@ export function createIdentityProvider(config: BffConfig): IdentityProvider {
           clientId: config.clientId,
           redirectUri: config.redirectUri,
           scope: config.scope,
+          ...(config.resource === undefined ? {} : { resource: config.resource }),
         },
         deps,
       ),

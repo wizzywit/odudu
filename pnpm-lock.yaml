@@ -1052,6 +1052,15 @@ importers:
         specifier: workspace:*
         version: link:../oidc
     devDependencies:
+      '@types/express':
+        specifier: 5.0.6
+        version: 5.0.6
+      express:
+        specifier: 5.2.1
+        version: 5.2.1(supports-color@8.1.1)
+      fastify:
+        specifier: 5.12.8
+        version: 5.12.8
       tsup:
         specifier: 9.0.0
         version: 9.0.0(@swc/core@1.16.18(@swc/helpers@0.5.23))(jiti@1.21.7)(postcss@8.5.33)(tsx@4.23.13)(typescript@6.0.3)(yaml@2.9.0)

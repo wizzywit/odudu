@@ -30,6 +30,23 @@ export interface SessionStore {
   delete(id: string): Promise<void>;
 }
 
+// A server the proxy may call for a signed-in browser. The browser names it by
+// `name` and may reach only the paths under `pathPrefixes`, so the allowlist is
+// the origin plus those prefixes and nothing a request carries decides it.
+export interface Upstream {
+  // The first path segment after the proxy path: `/proxy/<name>/...`.
+  name: string;
+  // An exact origin: scheme, host and port, no path.
+  origin: string;
+  // Paths the browser may reach, matched on whole segments. None proxies nothing.
+  pathPrefixes: string[];
+  // GET, POST, PUT, PATCH and DELETE when omitted.
+  methods?: string[];
+  // The audience whose access token is sent; the issuer's own when omitted. It
+  // must be one of the sign-in's `resource` values.
+  resource?: string;
+}
+
 export interface BffOptions {
   issuer: string;
   clientId: string;
@@ -39,6 +56,9 @@ export interface BffOptions {
   // The address of the `callback` route as the browser reaches it.
   redirectUri: string;
   scope: string;
+  // Audiences the sign-in asks access tokens for (RFC 8707), for upstreams that
+  // name a `resource`.
+  resource?: string[];
   store?: SessionStore;
   // Must start with `__Host-`; the login cookie is `<cookieName>-login`.
   cookieName?: string;
@@ -53,6 +73,17 @@ export interface BffOptions {
   afterSignInPath?: string;
   // The longest a session is kept, whatever its use. 7 days when omitted.
   sessionTtlMs?: number;
+  // Servers the `proxy` route may call. None, and the proxy answers 404.
+  upstreams?: Upstream[];
+  // Where the browser reaches the proxy, as a path of this origin; `/proxy`
+  // when omitted. The framework adapters mount the route here.
+  proxyPath?: string;
+  // The most bytes of a request body, and of a response body, the proxy passes:
+  // 10 MiB when omitted.
+  maxBodyBytes?: number;
+  // How long the proxy waits for an upstream to start answering; 30 seconds when
+  // omitted.
+  upstreamTimeoutMs?: number;
   // Passed to the OIDC core: a fetch, a clock, `allowInsecureRequests`.
   deps?: Deps;
 }
@@ -62,4 +93,8 @@ export interface Bff {
   callback: Handler;
   logout: Handler;
   session: Handler;
+  // Calls an allowlisted upstream with the session's access token. Mount it
+  // for every method at `${proxyPath}/*`.
+  proxy: Handler;
+  proxyPath: string;
 }

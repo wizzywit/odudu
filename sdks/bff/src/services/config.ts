@@ -1,5 +1,6 @@
 import type { ClientAuth } from '@odudu-io/oidc';
-import type { BffOptions } from '#/types';
+import { DEFAULT_METHODS, isCleanPath } from '#/services/proxy-route';
+import type { BffOptions, Upstream } from '#/types';
 
 export interface BffConfig extends BffOptions {
   cookieName: string;
@@ -7,10 +8,17 @@ export interface BffConfig extends BffOptions {
   allowedOrigins: string[];
   afterSignInPath: string;
   sessionTtlMs: number;
+  upstreams: Upstream[];
+  proxyPath: string;
+  maxBodyBytes: number;
+  upstreamTimeoutMs: number;
 }
 
 export const DEFAULT_COOKIE_NAME = '__Host-odudu';
 const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_PROXY_PATH = '/proxy';
+const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
+const DEFAULT_UPSTREAM_TIMEOUT_MS = 30_000;
 
 // The options with their defaults applied, or a TypeError for one that would
 // weaken the cookie or leave the CSRF check with nothing to compare.
@@ -30,7 +38,70 @@ export function resolveConfig(options: BffOptions): BffConfig {
     allowedOrigins: options.allowedOrigins ?? [new URL(options.redirectUri).origin],
     afterSignInPath,
     sessionTtlMs: options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS,
+    upstreams: checkUpstreams(options.upstreams ?? []),
+    proxyPath: checkProxyPath(options.proxyPath ?? DEFAULT_PROXY_PATH),
+    maxBodyBytes: positiveInteger(options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES, 'maxBodyBytes'),
+    upstreamTimeoutMs: positiveInteger(
+      options.upstreamTimeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS,
+      'upstreamTimeoutMs',
+    ),
   };
+}
+
+function positiveInteger(value: number, name: string): number {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new TypeError(`${name} must be a positive whole number`);
+  }
+  return value;
+}
+
+function checkProxyPath(path: string): string {
+  if (path === '/' || path.endsWith('/') || !isLocalPath(path) || !isCleanPath(path)) {
+    throw new TypeError(
+      'proxyPath must be a path on this origin, below the root, with no trailing slash',
+    );
+  }
+  return path;
+}
+
+// An upstream is an exact origin the app names; a mistake here would widen what
+// the proxy reaches, so each part is checked and a bad one stops the start.
+function checkUpstreams(upstreams: Upstream[]): Upstream[] {
+  const names = new Set<string>();
+  return upstreams.map((upstream) => {
+    if (!/^[A-Za-z0-9_-]{1,64}$/u.test(upstream.name) || names.has(upstream.name)) {
+      throw new TypeError(`upstream name "${upstream.name}" is empty, malformed or used twice`);
+    }
+    names.add(upstream.name);
+    checkOrigin(upstream);
+    for (const prefix of upstream.pathPrefixes) {
+      if (!isCleanPath(prefix)) {
+        throw new TypeError(`upstream ${upstream.name}: "${prefix}" is not a clean path prefix`);
+      }
+    }
+    return { ...upstream, methods: checkMethods(upstream) };
+  });
+}
+
+function checkOrigin(upstream: Upstream): void {
+  const parsed = URL.canParse(upstream.origin) ? new URL(upstream.origin) : undefined;
+  if (
+    parsed === undefined ||
+    (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') ||
+    parsed.origin !== upstream.origin
+  ) {
+    throw new TypeError(
+      `upstream ${upstream.name}: origin must be an http(s) origin with no path, as ${parsed?.origin ?? 'https://host'}`,
+    );
+  }
+}
+
+function checkMethods(upstream: Upstream): string[] {
+  const methods = (upstream.methods ?? DEFAULT_METHODS).map((method) => method.toUpperCase());
+  if (methods.length === 0 || methods.some((method) => !/^[A-Z]+$/u.test(method))) {
+    throw new TypeError(`upstream ${upstream.name}: methods must be a non-empty list of names`);
+  }
+  return methods;
 }
 
 // The core's client authentication for the options, none for a public client.

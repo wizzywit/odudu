@@ -8,7 +8,7 @@
   "rfc7636.md": { "deferred": 0, "na": 3 },
   "rfc9068.md": { "deferred": 0, "na": 3 },
   "rfc9207.md": { "deferred": 0, "na": 2 },
-  "rfc10017.md": { "deferred": 3, "na": 0 },
+  "rfc10017.md": { "deferred": 0, "na": 0 },
   "oidc-rpinitiated.md": { "deferred": 0, "na": 1 },
   "oidc-backchannel.md": { "deferred": 0, "na": 8 },
   "oidc-frontchannel.md": { "deferred": 0, "na": 0 },

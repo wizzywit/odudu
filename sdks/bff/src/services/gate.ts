@@ -20,3 +20,23 @@ export function gate(input: GateInput): Gate {
   const originOk = input.origin !== null && input.allowedOrigins.includes(input.origin);
   return hasHeader && originOk ? 'ok' : 'forbidden';
 }
+
+export interface ProxyGateInput {
+  method: string;
+  customHeader: string | null;
+  origin: string | null;
+  allowedOrigins: string[];
+}
+
+// Whether a request may use the proxy. Every call carries the custom header,
+// a read included (RFC 10017 section 6.1.3.3.2), because the proxy spends the
+// person's token on it. An `Origin`, when the browser sends one, must be an
+// allowed one; a method that can change state must send one, since a browser
+// always does for those.
+export function proxyGate(input: ProxyGateInput): 'ok' | 'forbidden' {
+  if (input.customHeader === null || input.customHeader === '') return 'forbidden';
+  if (input.origin === null) {
+    return input.method === 'GET' || input.method === 'HEAD' ? 'ok' : 'forbidden';
+  }
+  return input.allowedOrigins.includes(input.origin) ? 'ok' : 'forbidden';
+}

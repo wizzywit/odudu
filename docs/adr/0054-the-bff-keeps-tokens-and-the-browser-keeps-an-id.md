@@ -74,6 +74,60 @@ answers are in `docs/protocols/rfc10017.md`.
 - **Confidential by default in the docs, optional in the type.** `clientSecret`
   is optional so development against a public client works. Without it the BFF
   is not the architecture the RFC describes, and the guide says that.
+- **The proxy.** `proxy` calls an allowlisted upstream with the session's
+  access token, mounted at `proxyPath` (`/proxy`) as `/proxy/<name>/<path>`.
+  - _Allowlist._ An `Upstream` is a `name`, an exact `origin` and `pathPrefixes`,
+    and optionally `methods` (default `GET`, `POST`, `PUT`, `PATCH`, `DELETE`)
+    and a `resource`, the audience whose token is sent (the issuer's own when
+    omitted; the sign-in asks for it through the BFF's `resource` option, and an
+    audience the sign-in did not carry answers `502`). No upstream, and every
+    call answers `404`. An unknown `name` is `404`, a path outside the prefixes
+    `403`, a method outside the list `405` with `Allow`.
+  - _SSRF._ The host never comes from the request: the target is the
+    configured origin plus the path, and is checked to still name that origin.
+    The path is checked as it will be sent, on whole segments: a dot or empty
+    segment, a backslash, a semicolon, a control or non-ASCII character, an
+    escaped dot, slash, backslash, percent sign or NUL, and a malformed escape
+    are `403`. Escaped percent signs are refused so a second decoding upstream
+    cannot make a dot of one. The cost is a literal `%2f` in a path.
+  - _Header on every call._ Every proxied request needs `X-Odudu-BFF`, a `GET`
+    included (RFC 10017 section 6.1.3.3.2), and an `Origin` among
+    `allowedOrigins` when the browser sends one; a method that can change state
+    must send one. Without a session the answer is `401` with
+    `{ authenticated: false }`; a refused refresh ends the session as `session` does, `401` and
+    the cookie cleared.
+  - _What crosses._ The upstream request loses the cookie, `host`, `origin`,
+    the BFF header, any `Authorization` the browser sent and every hop-by-hop
+    header, with any header `Connection` names, and gains an
+    `Authorization: Bearer` header holding the token. The answer loses `Set-Cookie`, because an upstream's cookie
+    belongs to the upstream and not to this origin, and the hop-by-hop headers.
+    Compression is declined upstream (`Accept-Encoding: identity`) because the
+    client library decodes, and an answer that arrives encoded anyway loses
+    `Content-Encoding` and `Content-Length`.
+  - _Redirects._ An upstream `3xx` is returned as it is and never followed,
+    `Location` unchanged: following it would call a host nobody allowlisted.
+    The app sees the redirect and decides. An upstream `401` is returned as it
+    is; the one refresh happens before the call, not after a refusal.
+  - _Bodies and time._ Request and response bodies stream, one chunk in memory
+    at a time, counted against `maxBodyBytes` (10 MiB). A request that
+    declares more answers `413` before anything goes upstream; one that
+    outgrows it while streaming answers `413` and no byte past the limit is
+    sent, though the upstream may have received the earlier ones. A response
+    that declares more is `502`; one that outgrows it mid-stream is cut, so the
+    browser's connection errors rather than ending as if complete.
+    `upstreamTimeoutMs` (30 s) bounds the wait for the upstream to start
+    answering (`504`); a body then streams for as long as it takes, within the
+    limit. An upstream that cannot be reached is `502`.
+  - _Refresh._ The proxy asks the same session access as `session`, so a burst
+    of proxied calls near expiry spends one refresh.
+- **Framework adapters.** `@odudu-io/bff/fastify` (`registerBff`) and
+  `@odudu-io/bff/express` (`bffRouter`) mount `login`, `callback`, `logout` and
+  `session` at an optional `prefix`, and the proxy at `proxyPath`, answering
+  every method so the handler's own `405` reaches the browser. They hand the
+  socket's stream to the handler unparsed (Fastify answers from `onRequest`;
+  Express's router must come before a body parser) and write every
+  `Set-Cookie` line and the body as it streams. Fastify 5 and Express 5 are
+  optional peers.
 - **It stores no password and renders no form.**
 
 ### Why in-browser mode exists beside it
@@ -87,8 +141,11 @@ server exists.
 
 ## Consequences
 
-- An app that uses the BFF has a cookie and a server hop on every API call once
-  the proxy is on; it gains tokens that cannot be read by a script.
+- An app that uses the BFF has a cookie and a server hop on every API call when
+  it uses the proxy; it gains tokens that cannot be read by a script.
+- The proxy's cost per call is one upstream request and, at expiry, one shared
+  refresh; it reads the allowlist in time linear in the number of upstreams and
+  holds one body chunk in memory.
 - The default store forgets sessions when the process restarts and holds them
   per process. Both are the documented limit of the default, not a defect.
 - A custom store inherits the refresh guard only per process. Two instances over
@@ -108,6 +165,13 @@ session, would both be lost for a saving the in-process default already makes.
 
 **A double-submit CSRF cookie.** It needs a second cookie and a script that
 reads it. The custom header and `Origin` check need neither and fail closed.
+
+**Following upstream redirects.** A redirect can name any host, so following one
+turns an allowlist of origins into whatever an upstream chooses to point at.
+
+**A `host` taken from the request or a path-and-host URL.** It makes every
+parsing difference between the check and the call a way out; the origin comes
+from the configuration and only a checked path is appended.
 
 **Putting login records in the session store.** A flood of `login` requests
 would then evict signed-in sessions from a bounded store. A second store costs

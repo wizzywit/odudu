@@ -17,6 +17,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./express": {
+      "types": "./dist/express.d.ts",
+      "default": "./dist/express.js"
+    },
+    "./fastify": {
+      "types": "./dist/fastify.d.ts",
+      "default": "./dist/fastify.js"
     }
   },
   "imports": {
@@ -31,6 +39,21 @@
     "@odudu-io/oidc": "workspace:*"
   },
   "devDependencies": {
+    "@types/express": "5.0.6",
+    "express": "5.2.1",
+    "fastify": "5.12.8",
     "tsup": "9.0.0"
+  },
+  "peerDependencies": {
+    "express": "^5.0.0",
+    "fastify": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    },
+    "fastify": {
+      "optional": true
+    }
   }
 }

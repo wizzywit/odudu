@@ -9,4 +9,5 @@ export type {
   Session,
   SessionStore,
   SignedInSession,
+  Upstream,
 } from '#/types';

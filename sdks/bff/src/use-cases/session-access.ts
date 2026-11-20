@@ -1,4 +1,4 @@
-import { needsRefresh } from '#/services/session-policy';
+import { needsRefresh, refreshWasRefused } from '#/services/session-policy';
 import { createInFlight } from '#/repository/in-flight';
 import type { Browser } from '#/repository/browser';
 import type { IdentityProvider } from '#/repository/identity-provider';
@@ -6,14 +6,17 @@ import type { Sessions } from '#/repository/sessions';
 import type { SignedInSession } from '#/types';
 
 export interface SessionAccess {
-  // The session the request's cookie names, when it names a live one.
-  load(request: Request): Promise<{ id: string; session: SignedInSession } | undefined>;
-  // The session with tokens that are good for use: renewed when they are about
-  // to expire. Concurrent calls for one session make one refresh request. Throws
-  // what the refresh throws. Undefined when the session ended meanwhile, in
-  // which case nothing is written back.
-  fresh(id: string, session: SignedInSession): Promise<SignedInSession | undefined>;
+  // The session of the request with tokens good for use, renewed when they are
+  // about to expire; concurrent calls for one session make one refresh request.
+  // When there is none, why: `anonymous` (no live session, or one that ended
+  // meanwhile), `ended` (the issuer refused the refresh token, so the session
+  // is deleted) or `unavailable` (the refresh failed for a reason that says
+  // nothing about the grant, so the session is kept).
+  usable(request: Request): Promise<Usable>;
 }
+
+export type Usable =
+  { kind: 'session'; session: SignedInSession } | { kind: 'anonymous' | 'ended' | 'unavailable' };
 
 export function createSessionAccess(
   browser: Browser,
@@ -38,13 +41,23 @@ export function createSessionAccess(
     return next;
   }
 
+  async function fresh(id: string, session: SignedInSession): Promise<SignedInSession | undefined> {
+    return needsRefresh(session.tokens, now()) ? once(id, () => renew(id)) : session;
+  }
+
   return {
-    async load(request) {
+    async usable(request) {
       const id = browser.sessionIdOf(request);
-      const session = id === undefined ? undefined : await sessions.loadSession(id);
-      return id === undefined || session === undefined ? undefined : { id, session };
+      const found = id === undefined ? undefined : await sessions.loadSession(id);
+      if (id === undefined || found === undefined) return { kind: 'anonymous' };
+      try {
+        const session = await fresh(id, found);
+        return session === undefined ? { kind: 'anonymous' } : { kind: 'session', session };
+      } catch (error) {
+        if (!refreshWasRefused(error)) return { kind: 'unavailable' };
+        await sessions.dropSession(id);
+        return { kind: 'ended' };
+      }
     },
-    fresh: (id, session) =>
-      needsRefresh(session.tokens, now()) ? once(id, () => renew(id)) : Promise.resolve(session),
   };
 }

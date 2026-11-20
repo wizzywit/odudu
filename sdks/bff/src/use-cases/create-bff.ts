@@ -1,4 +1,5 @@
 import { createBrowser } from '#/repository/browser';
+import { createUpstreams } from '#/repository/upstream';
 import { createIdentityProvider } from '#/repository/identity-provider';
 import { createSessions } from '#/repository/sessions';
 import { resolveConfig } from '#/services/config';
@@ -8,6 +9,7 @@ import { remainingTtlMs, LOGIN_TTL_MS } from '#/services/session-policy';
 import { createCallback } from '#/use-cases/callback';
 import { createLogin } from '#/use-cases/login';
 import { createLogout } from '#/use-cases/logout';
+import { createProxy } from '#/use-cases/proxy';
 import { createSession } from '#/use-cases/session';
 import { createSessionAccess } from '#/use-cases/session-access';
 import type { Bff, BffOptions, Handler } from '#/types';
@@ -49,7 +51,9 @@ export function createBff(options: BffOptions): Bff {
   return {
     login: guarded('GET', createLogin(browser, sessions, identity, now)),
     callback: guarded('GET', createCallback(browser, sessions, identity, now)),
-    session: guarded('GET', createSession(browser, sessions, access)),
+    session: guarded('GET', createSession(browser, access)),
+    proxy: createProxy(browser, access, createUpstreams(config), config, now),
+    proxyPath: config.proxyPath,
     logout: guarded('POST', createLogout(browser, sessions, identity)),
   };
 }
