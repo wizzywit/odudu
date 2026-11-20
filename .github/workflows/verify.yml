@@ -718,6 +718,64 @@ jobs:
         env:
           MCP_PREBUILT: '1'
 
+  # What publishing an SDK would need, run on every change that can affect one:
+  # each package's build and tests, then the same pack and publish checks the
+  # registries' tools run without sending anything. A package still marked
+  # private is skipped, so the job passes while there is nothing to publish.
+  # sdk-release.yml does the publishing, from a tag.
+  sdks:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          turbo-cache-key: sdks
+
+      - name: Build every SDK that has a build script
+        run: pnpm --filter "./sdks/*" --if-present run build
+
+      - name: Test every SDK that has a test script
+        run: pnpm --filter "./sdks/*" --if-present run test
+
+      # `pnpm pack` writes the tarball a release would publish, with `workspace:`
+      # dependencies on other SDKs rewritten; the registry's own client then
+      # checks it without logging in.
+      - name: Pack and dry-run the publish of each public npm package
+        run: |
+          mkdir "$RUNNER_TEMP/tarballs"
+          for manifest in sdks/*/package.json; do
+            directory="$(dirname "$manifest")"
+            if [ "$(node -p "require('./$manifest').private === true")" = "true" ]; then
+              echo "skipping $directory: private"
+              continue
+            fi
+            echo "::group::$directory"
+            (cd "$directory" && npm pack --dry-run)
+            (cd "$directory" && pnpm pack --pack-destination "$RUNNER_TEMP/tarballs")
+            echo "::endgroup::"
+          done
+          for tarball in "$RUNNER_TEMP"/tarballs/*.tgz; do
+            [ -e "$tarball" ] || continue
+            npm publish --dry-run "$tarball" --access public --provenance=false
+          done
+
+      - name: Build and check the Python distributions
+        run: |
+          if [ ! -d sdks/python ]; then
+            echo "sdks/python does not exist yet"
+            exit 0
+          fi
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install build twine
+          "$RUNNER_TEMP/venv/bin/python" -m build --outdir "$RUNNER_TEMP/dist" sdks/python
+          "$RUNNER_TEMP/venv/bin/python" -m twine check "$RUNNER_TEMP/dist"/*
+
   commit-messages:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -773,6 +831,7 @@ jobs:
       - quickstart
       - conformance
       - mcp
+      - sdks
       - commit-messages
     if: always()
     runs-on: ubuntu-latest
