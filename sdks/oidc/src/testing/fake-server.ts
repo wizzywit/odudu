@@ -13,6 +13,9 @@ export interface FakeServer {
   // Answers `tokenError` as Odudu does for a refused client: 401 with a Basic
   // challenge. With `tokenError` unset the 401 has no body.
   tokenChallenge: boolean;
+  // The raw body of the challenge answer, instead of `tokenError`: bytes, or
+  // `endless` for a body that is never finished.
+  tokenChallengeBody: Buffer | 'endless' | undefined;
   // Omitted from the token response when undefined.
   scope: string | undefined;
   // Omitted from the token response when undefined.
@@ -60,6 +63,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
     claims: {},
     tokenError: undefined,
     tokenChallenge: false,
+    tokenChallengeBody: undefined,
     scope: 'openid',
     expiresIn: 900,
     tokenRequests: [],
@@ -99,7 +103,17 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
               'content-type': 'application/json',
               'www-authenticate': 'Basic realm="token"',
             });
-            response.end(fake.tokenError === undefined ? '' : JSON.stringify(fake.tokenError));
+            if (fake.tokenChallengeBody === 'endless') {
+              const timer = setInterval(() => response.write('x'.repeat(1024)), 1);
+              response.on('close', () => {
+                clearInterval(timer);
+              });
+              return;
+            }
+            response.end(
+              fake.tokenChallengeBody ??
+                (fake.tokenError === undefined ? '' : JSON.stringify(fake.tokenError)),
+            );
             return;
           }
           if (fake.tokenError !== undefined) {

@@ -1,21 +1,18 @@
 import * as oauth from 'oauth4webapi';
+import { ERROR_BODY_LIMIT, readBoundedText } from '#/adapter/bounded-body';
 import { fromServerError, OduduError } from '#/services/odudu-error';
-
-const BODY_LIMIT = 8192;
 
 // A server that refuses the client's authentication answers 401 with a
 // challenge and, as RFC 6749 section 5.2 asks, an OAuth error body. The
 // library raises the challenge before it reads the body, so the body is read
-// here. A challenge with no readable OAuth error is not echoed.
+// here, never past ERROR_BODY_LIMIT bytes. A challenge with no readable OAuth
+// error is not echoed.
 async function challengeRefusal(
   cause: oauth.WWWAuthenticateChallengeError,
   refusal: string,
 ): Promise<OduduError | undefined> {
-  const text = await cause.response
-    .clone()
-    .text()
-    .catch(() => '');
-  if (text.length > BODY_LIMIT) return undefined;
+  const text = await readBoundedText(cause.response, ERROR_BODY_LIMIT);
+  if (text === undefined) return undefined;
   let body: unknown;
   try {
     body = JSON.parse(text);
