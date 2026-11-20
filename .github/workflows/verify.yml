@@ -71,6 +71,7 @@ jobs:
 
       - run: pnpm format:check
       - run: pnpm typecheck
+      # Type-aware: it reads the built dist of @odudu-io/mcp-stdio, which the typecheck above builds.
       - run: pnpm lint
       - run: pnpm test:node-esm
       - run: pnpm boundaries
@@ -758,6 +759,8 @@ jobs:
           pnpm --filter @odudu/docs generate
           pnpm sdks:generate
           git diff --exit-code -- sdks
+          pnpm mcp:catalogue
+          git diff --exit-code -- sdks/mcp-stdio
 
       - name: Build every SDK that has a build script
         run: pnpm --filter "./sdks/*" --if-present run build

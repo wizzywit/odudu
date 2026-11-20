@@ -504,6 +504,8 @@ describe('the CI workflow', () => {
       expect(block).toContain('pnpm --filter @odudu/docs generate');
       expect(block).toContain('pnpm sdks:generate');
       expect(block).toContain('git diff --exit-code -- sdks');
+      expect(block).toContain('pnpm mcp:catalogue');
+      expect(block).toContain('git diff --exit-code -- sdks/mcp-stdio');
       expect(block).toContain('npm pack --dry-run');
       expect(block).toContain('npm publish --dry-run');
       expect(block).toMatch(/python"? -m build/u);
