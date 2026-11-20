@@ -14,7 +14,7 @@ from collections.abc import Callable, Sequence
 
 import httpx
 
-from odudu.verify._adapter.deadline import Deadline, run_within
+from odudu.verify._adapter.deadline import Deadline, Interrupt, run_within
 from odudu.verify._adapter.fetch import TIMEOUT_SECONDS, aget_json, get_json
 from odudu.verify._services.errors import KeyFetchError
 from odudu.verify._services.jwks import Jwk, jwks_uri_of, keys_by_kid
@@ -60,17 +60,22 @@ class KeyStore:
         self._locks = {issuer: threading.Lock() for issuer in issuers}
 
     def _fetch(
-        self, issuer: str, known_uri: str | None, deadline: Deadline, found: list[str]
+        self,
+        issuer: str,
+        known_uri: str | None,
+        deadline: Deadline,
+        interrupt: Interrupt,
+        found: list[str],
     ) -> dict[str, Jwk]:
-        """Runs in a worker thread, so it changes nothing but `found`, a list of its own."""
+        """Runs in a worker thread. It changes nothing but `found`, a list made for this read."""
         uri = known_uri
         if uri is None:
             document = get_json(
-                self._client, f"{issuer}/.well-known/openid-configuration", deadline
+                self._client, f"{issuer}/.well-known/openid-configuration", deadline, interrupt
             )
             uri = jwks_uri_of(issuer, document)
             found.append(uri)
-        keys = keys_by_kid(get_json(self._client, uri, deadline))
+        keys = keys_by_kid(get_json(self._client, uri, deadline, interrupt))
         if keys is None:
             raise _not_a_key_set(issuer)
         return keys
@@ -80,10 +85,15 @@ class KeyStore:
         held = state.discovery
         known = held.uri if held is not None and held.expires_at > now else None
         deadline = Deadline(self._fetch_timeout, self._monotonic)
+        interrupt = Interrupt()
         found: list[str] = []
         try:
-            return run_within(lambda: self._fetch(issuer, known, deadline, found), deadline)
+            return run_within(
+                lambda: self._fetch(issuer, known, deadline, interrupt, found), deadline, interrupt
+            )
         finally:
+            # `found` holds the address the issuer's own discovery document gave, if the worker
+            # got that far; it is true however the read ended, so it is kept for the TTL.
             if found:
                 discovery_succeeded(state, found[0], now, self._ttl)
 

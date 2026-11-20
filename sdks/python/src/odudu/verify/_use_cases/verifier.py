@@ -42,12 +42,15 @@ class _Rules:
         required_scope: str | None,
         jwks_ttl: float,
         allow_insecure_issuers: bool,
+        fetch_timeout: float,
     ) -> None:
         self.issuers = check_issuers(issuers, allow_insecure_issuers)
         self.audience = check_audience(audience)
         self.required_scope = check_scope(required_scope, "required_scope")
         if jwks_ttl <= 0:
             raise ValueError("jwks_ttl is a positive number of seconds")
+        if fetch_timeout <= 0:
+            raise ValueError("fetch_timeout is a positive number of seconds")
         self.jwks_ttl = float(jwks_ttl)
 
     def before_keys(self, token: str) -> tuple[str, TokenHeader]:
@@ -89,7 +92,9 @@ class Verifier:
         allow_insecure_issuers: bool = False,
         fetch_timeout: float = TIMEOUT_SECONDS,
     ) -> None:
-        self._rules = _Rules(issuers, audience, required_scope, jwks_ttl, allow_insecure_issuers)
+        self._rules = _Rules(
+            issuers, audience, required_scope, jwks_ttl, allow_insecure_issuers, fetch_timeout
+        )
         self._now = now
         self._owned = http_client is None
         self._client = (
@@ -141,7 +146,9 @@ class AsyncVerifier:
         allow_insecure_issuers: bool = False,
         fetch_timeout: float = TIMEOUT_SECONDS,
     ) -> None:
-        self._rules = _Rules(issuers, audience, required_scope, jwks_ttl, allow_insecure_issuers)
+        self._rules = _Rules(
+            issuers, audience, required_scope, jwks_ttl, allow_insecure_issuers, fetch_timeout
+        )
         self._now = now
         self._owned = http_client is None
         self._client = (

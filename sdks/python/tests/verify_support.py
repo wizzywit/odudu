@@ -173,18 +173,24 @@ class IssuerServer:
 
 
 class SlowServer:
-    """A real loopback HTTP server that never finishes an answer, for deadline tests.
+    """A real loopback HTTP server whose answers are slow, for deadline and cleanup tests.
 
-    `trickle` sends the answer's headers one byte at a time; `stall` sends nothing at all.
+    `trickle` sends the answer's headers one byte at a time, faster than any read timeout;
+    `stall` sends nothing; `healthy` answers the discovery document and a key set at once; `late`
+    does so but holds the key set back for `delay` seconds. `active` counts the connections
+    still open on its side.
     """
 
-    def __init__(self, mode: str) -> None:
+    def __init__(self, mode: str, keys: list[Jwk] | None = None, delay: float = 1.5) -> None:
         self.mode = mode
+        self.keys = keys or []
+        self.delay = delay
+        self.active = 0
+        self._guard = threading.Lock()
         self._listener = socket.socket()
         self._listener.bind(("127.0.0.1", 0))
-        self._listener.listen(8)
+        self._listener.listen(64)
         self._stop = threading.Event()
-        self._open: list[socket.socket] = []
         threading.Thread(target=self._accept, daemon=True).start()
 
     @property
@@ -197,25 +203,42 @@ class SlowServer:
                 connection, _ = self._listener.accept()
             except OSError:
                 return
-            self._open.append(connection)
+            with self._guard:
+                self.active += 1
             threading.Thread(target=self._serve, args=(connection,), daemon=True).start()
 
     def _serve(self, connection: socket.socket) -> None:
         try:
-            connection.recv(65536)
+            request = connection.recv(65536)
             if self.mode == "trickle":
                 for byte in b"HTTP/1.1 200 OK\r\nx-padding: " + b"a" * 4000:
                     if self._stop.is_set():
                         return
                     connection.sendall(bytes([byte]))
-                    time.sleep(0.2)
+                    time.sleep(0.05)
+            elif self.mode == "stall":
+                while connection.recv(1024):
+                    pass
             else:
-                self._stop.wait(30)
+                self._answer(connection, request)
         except OSError:
             return
+        finally:
+            connection.close()
+            with self._guard:
+                self.active -= 1
+
+    def _answer(self, connection: socket.socket, request: bytes) -> None:
+        if b"openid-configuration" in request:
+            document: dict[str, object] = {"issuer": self.issuer, "jwks_uri": f"{self.issuer}/jwks"}
+        else:
+            if self.mode == "late":
+                time.sleep(self.delay)
+            document = {"keys": self.keys}
+        body = json.dumps(document).encode()
+        head = f"HTTP/1.1 200 OK\r\ncontent-length: {len(body)}\r\nconnection: close\r\n\r\n"
+        connection.sendall(head.encode() + body)
 
     def close(self) -> None:
         self._stop.set()
         self._listener.close()
-        for connection in self._open:
-            connection.close()

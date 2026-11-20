@@ -63,12 +63,14 @@ def after_success(state: IssuerState, keys: dict[str, Jwk], now: float, ttl: flo
 def after_failure(state: IssuerState, reason: str, now: float, ttl: float) -> KeyEntry:
     """A failed read is answered with the last good key set while it is under twice the TTL old.
 
-    The failure is remembered for 10 s either way, so it is answered from memory for a while
-    instead of driving a request per token.
+    The failure is remembered for 10 s however short the TTL, so it is answered from memory
+    instead of driving a request per token. `@odudu-io/node` remembers it for the shorter of
+    the TTL and 10 s; a TTL under 10 s is the one case where the two differ.
     """
-    remembered = now + min(ttl, REFETCH_INTERVAL_SECONDS)
+    remembered = now + REFETCH_INTERVAL_SECONDS
     if state.good is not None and state.good[1] > now:
-        entry = KeyEntry(started_at=now, expires_at=remembered, keys=state.good[0])
+        stale = min(remembered, state.good[1])
+        entry = KeyEntry(started_at=now, expires_at=stale, keys=state.good[0])
     else:
         entry = KeyEntry(started_at=now, expires_at=remembered, failure=reason)
     state.current = entry

@@ -6,7 +6,7 @@ import json
 
 import httpx
 
-from odudu.verify._adapter.deadline import Deadline
+from odudu.verify._adapter.deadline import Deadline, Interrupt
 from odudu.verify._services.errors import KeyFetchError
 
 # The budget for one refresh: discovery and the key set together.
@@ -38,13 +38,15 @@ def _timeout(deadline: Deadline) -> httpx.Timeout:
     return httpx.Timeout(max(deadline.remaining(), 0.001))
 
 
-def get_json(client: httpx.Client, url: str, deadline: Deadline) -> object:
+def get_json(
+    client: httpx.Client, url: str, deadline: Deadline, interrupt: Interrupt | None = None
+) -> object:
     """The document at `url`. A redirect is a failure, never followed.
 
     Bounded here: each httpx phase (connect, write, each read) by the time left, and the body's
     total time and size, checked as every chunk arrives. Not bounded here: time to the first byte
-    of the headers when the server sends them a byte at a time; `run_within` and
-    `asyncio.wait_for` bound the whole read for the sync and async stores.
+    of the headers when the server sends them a byte at a time; `run_within` (which also shuts
+    the sockets through `interrupt`) and `asyncio.wait_for` bound the whole read.
     """
     try:
         with client.stream(
@@ -53,6 +55,7 @@ def get_json(client: httpx.Client, url: str, deadline: Deadline) -> object:
             headers={"accept": "application/json"},
             timeout=_timeout(deadline),
             follow_redirects=False,
+            extensions=None if interrupt is None else {"trace": interrupt.trace},
         ) as response:
             if _declared_too_large(response):
                 raise KeyFetchError(f"could not read {url}: declared too large a document")

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import os
 import threading
 import time
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
 import httpx
@@ -384,3 +385,141 @@ def test_discovery_and_the_key_set_share_one_budget(key: SigningKey) -> None:
     )
     with pytest.raises(KeyFetchError):
         store.key_for(ISSUER, "k1")
+
+
+def fd_count() -> int:
+    return len(os.listdir("/dev/fd"))
+
+
+def workers() -> int:
+    return sum(1 for t in threading.enumerate() if t.name == "odudu-verify-fetch")
+
+
+def settle(condition: Callable[[], bool], seconds: float = 20.0) -> bool:
+    """Polls rather than sleeping a fixed time, so a loaded machine only makes it slower."""
+    until = time.monotonic() + seconds
+    while time.monotonic() < until:
+        if condition():
+            return True
+        time.sleep(0.05)
+    return condition()
+
+
+@pytest.mark.parametrize("mode", ["trickle", "stall"])
+def test_many_timed_out_refreshes_leave_no_threads_or_sockets(key: SigningKey, mode: str) -> None:
+    server = SlowServer(mode, [key.jwk])
+    store = KeyStore(
+        [server.issuer], httpx.Client(trust_env=False), 300.0, Clock(), fetch_timeout=0.2
+    )
+    state = store._states[server.issuer]
+    failures: list[KeyFetchError] = []
+
+    def refresh() -> None:
+        try:
+            store._read(server.issuer, state)
+        except KeyFetchError as error:
+            failures.append(error)
+
+    baseline = fd_count()
+    try:
+        for _ in range(10):
+            batch = [threading.Thread(target=refresh) for _ in range(15)]
+            for thread in batch:
+                thread.start()
+            for thread in batch:
+                thread.join(30)
+        assert len(failures) == 150
+        assert settle(lambda: workers() < 10 and server.active < 10 and fd_count() < baseline + 20)
+        server.mode = "healthy"
+        assert "k1" in store._read(server.issuer, state)
+    finally:
+        server.close()
+
+
+@pytest.mark.parametrize("mode", ["trickle", "stall"])
+def test_many_cancelled_async_refreshes_leave_no_sockets(key: SigningKey, mode: str) -> None:
+    server = SlowServer(mode, [key.jwk])
+    baseline = fd_count()
+
+    async def scenario() -> int:
+        store = AsyncKeyStore(
+            [server.issuer], httpx.AsyncClient(trust_env=False), 300.0, Clock(), fetch_timeout=0.2
+        )
+        state = store._states[server.issuer]
+
+        async def refresh() -> int:
+            try:
+                await store._read(server.issuer, state)
+            except KeyFetchError:
+                return 1
+            return 0
+
+        done = 0
+        for _ in range(10):
+            done += sum(await asyncio.gather(*(refresh() for _ in range(15))))
+        assert settle(lambda: server.active < 10 and fd_count() < baseline + 20)
+        server.mode = "healthy"
+        assert "k1" in await store._read(server.issuer, state)
+        return done
+
+    try:
+        assert asyncio.run(scenario()) == 150
+    finally:
+        server.close()
+
+
+def test_a_late_valid_answer_is_discarded(key: SigningKey) -> None:
+    server = SlowServer("late", [key.jwk], delay=1.5)
+    store = KeyStore(
+        [server.issuer], httpx.Client(trust_env=False), 300.0, Clock(), fetch_timeout=1.0
+    )
+    try:
+        with pytest.raises(KeyFetchError):
+            store.key_for(server.issuer, "k1")
+        time.sleep(1.2)
+        state = store._states[server.issuer]
+        assert state.good is None
+        assert state.current is not None
+        assert state.current.keys is None
+    finally:
+        server.close()
+
+
+def test_a_refresh_that_timed_out_is_retried_after_the_refetch_interval(
+    key: SigningKey,
+) -> None:
+    server, clock = SlowServer("stall", [key.jwk]), Clock()
+    store = KeyStore(
+        [server.issuer], httpx.Client(trust_env=False), 300.0, clock, fetch_timeout=0.3
+    )
+    try:
+        with pytest.raises(KeyFetchError):
+            store.key_for(server.issuer, "k1")
+        server.mode = "healthy"
+        clock.now += 5
+        with pytest.raises(KeyFetchError):
+            store.key_for(server.issuer, "k1")
+        clock.now += 6
+        assert store.key_for(server.issuer, "k1") is not None
+    finally:
+        server.close()
+
+
+@pytest.mark.parametrize("bad", [0, -1, 0.0])
+def test_a_fetch_timeout_must_be_positive(bad: float) -> None:
+    with pytest.raises(ValueError, match="fetch_timeout"):
+        Verifier([ISSUER], API, fetch_timeout=bad)
+    with pytest.raises(ValueError, match="fetch_timeout"):
+        AsyncVerifier([ISSUER], API, fetch_timeout=bad)
+
+
+def test_a_failed_read_is_not_repeated_within_ten_seconds_even_for_a_short_ttl(
+    key: SigningKey,
+) -> None:
+    server, clock = IssuerServer(keys=[key.jwk], jwks_status=503), Clock()
+    verify = Verifier([ISSUER], API, jwks_ttl=2, now=clock, http_client=server.client)
+    for step, requests in ((0, 1), (9, 1), (1.5, 2)):
+        clock.now += step
+        with pytest.raises(KeyFetchError):
+            verify.verify(mint(key, now=clock.now))
+        assert server.jwks_requests == requests
