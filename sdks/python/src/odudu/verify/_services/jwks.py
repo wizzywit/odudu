@@ -29,7 +29,12 @@ def _rsa_bits(key: Jwk) -> int:
 
 
 def _is_usable(key: object) -> bool:
-    """Public, for signing, of a kind the server signs with, and named."""
+    """Public, for signing, of a kind the server signs with, and named.
+
+    Stricter than `@odudu-io/node`: an RSA key under 2048 bits and an EC key that is not on
+    P-256 are not usable here, so a token naming one is `unknown_key` (401) where Node answers
+    `malformed` (401). The cap of 20 keys counts the usable keys only, in document order.
+    """
     if not isinstance(key, dict):
         return False
     kid = key.get("kid")

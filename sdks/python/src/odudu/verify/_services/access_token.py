@@ -40,7 +40,7 @@ def _loads(raw: bytes) -> dict[str, object]:
     """A JSON object, with no `NaN` or `Infinity`, which JSON does not have."""
     try:
         decoded = json.loads(raw, parse_constant=_reject_constant)
-    except ValueError:
+    except (ValueError, TypeError, RecursionError, OverflowError):
         raise VerificationError("malformed") from None
     if not isinstance(decoded, dict):
         raise VerificationError("malformed")
@@ -58,11 +58,9 @@ def _algorithm(value: object) -> SigningAlgorithm | None:
 def _segment(token: str, index: int) -> dict[str, object]:
     """One dot-separated segment of a compact JWS, decoded as a JSON object."""
     parts = token.split(".")
-    if len(parts) != 3:
+    if len(parts) != 3 or any(_SEGMENT.fullmatch(part) is None for part in parts):
         raise VerificationError("malformed")
     text = parts[index]
-    if _SEGMENT.fullmatch(text) is None:
-        raise VerificationError("malformed")
     try:
         raw = base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
     except (binascii.Error, ValueError):
@@ -90,6 +88,10 @@ def check_header(token: str) -> TokenHeader:
     `none` and every HMAC are refused here, before a key is looked up.
     """
     header = _segment(token, 0)
+    # RFC 7515 section 4.1.11: a verifier must refuse a `crit` it does not understand, and an
+    # access token never needs one. Not every PyJWT release checks it, so this does.
+    if "crit" in header:
+        raise VerificationError("malformed")
     if header.get("typ") != AT_JWT_MEDIA_TYPE:
         raise VerificationError("wrong_type")
     alg = _algorithm(header.get("alg"))
@@ -109,7 +111,11 @@ def payload_of(raw: bytes) -> dict[str, object]:
 def _number(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value) if math.isfinite(value) else None
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    return number if math.isfinite(number) else None
 
 
 def _audiences(value: object) -> list[str]:
@@ -121,24 +127,29 @@ def _audiences(value: object) -> list[str]:
 
 
 def check_claims(payload: dict[str, object], issuer: str, audience: str, now: float) -> None:
-    """`exp`, `iss`, `aud` and `nbf` as `jose` checks them, with the same tolerance.
+    """`exp`, `iss`, `aud`, `iat` and `nbf` as `jose` checks them, in its order, with the same
+    tolerance. The status, code and challenge always match; so does the reason.
 
     `now` is seconds since the epoch; the check works on whole seconds.
     """
-    exp = _number(payload.get("exp"))
-    if exp is None:
+    if "exp" not in payload:
         raise VerificationError("invalid_claims")
     if payload.get("iss") != issuer:
         raise VerificationError("wrong_issuer")
     if audience not in _audiences(payload.get("aud")):
         raise VerificationError("wrong_audience")
     seconds = math.floor(now)
+    if "iat" in payload and _number(payload["iat"]) is None:
+        raise VerificationError("invalid_claims")
     if "nbf" in payload:
         nbf = _number(payload["nbf"])
         if nbf is None:
             raise VerificationError("invalid_claims")
         if nbf > seconds + CLOCK_TOLERANCE_SECONDS:
             raise VerificationError("not_yet_valid")
+    exp = _number(payload["exp"])
+    if exp is None:
+        raise VerificationError("invalid_claims")
     if exp <= seconds - CLOCK_TOLERANCE_SECONDS:
         raise VerificationError("expired")
 

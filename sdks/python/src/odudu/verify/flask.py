@@ -16,6 +16,7 @@ A refusal is the same JSON answer `@odudu-io/node`'s middleware sends, with the
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from functools import wraps
 from typing import ParamSpec, TypeVar
@@ -43,11 +44,15 @@ def require_token(
 ) -> Callable[[Callable[P, R]], Callable[P, R | Response]]:
     """Runs the view only for a verified token, which `current_token()` returns.
 
-    `scope` is a scope the route needs; without it the route answers 403.
+    `scope` is a scope the route needs; without it the route answers 403. Async views are not
+    supported and are refused with a `TypeError` when decorated.
     """
     check_scope(scope, "scope")
 
     def decorate(view: Callable[P, R]) -> Callable[P, R | Response]:
+        if inspect.iscoroutinefunction(view):
+            raise TypeError("require_token does not support async views; use a sync view")
+
         @wraps(view)
         def guarded(*args: P.args, **kwargs: P.kwargs) -> R | Response:
             outcome = authenticate(verifier, request.headers.getlist("Authorization"), scope)

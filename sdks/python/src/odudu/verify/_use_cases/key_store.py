@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 from collections.abc import Callable, Sequence
 
 import httpx
@@ -39,8 +40,14 @@ class KeyStore:
     """For the threads of a synchronous server."""
 
     def __init__(
-        self, issuers: Sequence[str], client: httpx.Client, ttl: float, now: Clock
+        self,
+        issuers: Sequence[str],
+        client: httpx.Client,
+        ttl: float,
+        now: Clock,
+        monotonic: Clock = time.monotonic,
     ) -> None:
+        self._monotonic = monotonic
         self._client = client
         self._ttl = ttl
         self._now = now
@@ -56,7 +63,10 @@ class KeyStore:
             return held.uri
         try:
             uri = jwks_uri_of(
-                issuer, get_json(self._client, f"{issuer}/.well-known/openid-configuration")
+                issuer,
+                get_json(
+                    self._client, f"{issuer}/.well-known/openid-configuration", self._monotonic
+                ),
             )
         except KeyFetchError as error:
             discovery_failed(state, str(error), now, self._ttl)
@@ -65,7 +75,7 @@ class KeyStore:
         return uri
 
     def _read(self, issuer: str, state: IssuerState) -> dict[str, Jwk]:
-        keys = keys_by_kid(get_json(self._client, self._jwks_uri(issuer, state)))
+        keys = keys_by_kid(get_json(self._client, self._jwks_uri(issuer, state), self._monotonic))
         if keys is None:
             raise _not_a_key_set(issuer)
         return keys
@@ -108,8 +118,14 @@ class AsyncKeyStore:
     """For the tasks of one event loop."""
 
     def __init__(
-        self, issuers: Sequence[str], client: httpx.AsyncClient, ttl: float, now: Clock
+        self,
+        issuers: Sequence[str],
+        client: httpx.AsyncClient,
+        ttl: float,
+        now: Clock,
+        monotonic: Clock = time.monotonic,
     ) -> None:
+        self._monotonic = monotonic
         self._client = client
         self._ttl = ttl
         self._now = now
@@ -124,7 +140,9 @@ class AsyncKeyStore:
                 raise KeyFetchError(held.failure or _UNREADABLE)
             return held.uri
         try:
-            document = await aget_json(self._client, f"{issuer}/.well-known/openid-configuration")
+            document = await aget_json(
+                self._client, f"{issuer}/.well-known/openid-configuration", self._monotonic
+            )
             uri = jwks_uri_of(issuer, document)
         except KeyFetchError as error:
             discovery_failed(state, str(error), now, self._ttl)
@@ -134,7 +152,7 @@ class AsyncKeyStore:
 
     async def _read(self, issuer: str, state: IssuerState) -> dict[str, Jwk]:
         uri = await self._jwks_uri(issuer, state)
-        keys = keys_by_kid(await aget_json(self._client, uri))
+        keys = keys_by_kid(await aget_json(self._client, uri, self._monotonic))
         if keys is None:
             raise _not_a_key_set(issuer)
         return keys

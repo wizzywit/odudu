@@ -39,3 +39,15 @@ token = verifier.verify(bearer_token)  # VerifiedToken: sub, client_id, scope, a
 `AsyncVerifier` is the same for an event loop (`await verifier.verify(...)`).
 `pip install 'odudu[fastapi]'` adds `odudu.verify.fastapi.require_token(verifier, scope=...)`, a
 dependency, and `pip install 'odudu[flask]'` adds the decorator `odudu.verify.flask.require_token`.
+
+Notes on the verifier:
+
+- Key selection is stricter than `@odudu-io/node`: an RSA key under 2048 bits and an EC key that
+  is not on P-256 are ignored, so a token naming one is `unknown_key` (401) where Node answers
+  `malformed` (401). The cap of 20 keys per issuer counts the usable keys, in document order.
+- `AsyncVerifier` is bound to the first event loop that uses it; use one verifier per loop.
+- The FastAPI dependency answers with FastAPI's own error body, `{"detail": {"error": ...,
+"error_description": ...}}`, which differs from the flat JSON body of the Flask decorator and
+  of `@odudu-io/node`. The status and the `WWW-Authenticate` challenge are the contract.
+- The Flask decorator takes synchronous views only; decorating an `async def` view raises
+  `TypeError`.
