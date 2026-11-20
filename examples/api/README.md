@@ -1,6 +1,6 @@
 # API example
 
-An API that decides, on its own, whether to trust the access token a caller sends. It does not ask Odudu on each request. This example is one file, `server.ts`, and one dependency, [`jose`](https://github.com/panva/jose).
+An API that decides, on its own, whether to trust the access token a caller sends. It does not ask Odudu on each request. This example is one file, `server.ts`, and one dependency, the `@odudu-io/node` SDK, which makes the checks below.
 
 ## What it checks
 
@@ -20,11 +20,13 @@ A token that fails the first five is a `401`, and the body says only `invalid_to
 You need Node 24 or later and the quick start stack. Run `../_shared/provision.sh` once, then:
 
 ```text
-npm ci
+../_shared/install.sh . node
 npm start
 ```
 
-Get a token the way [`../machine-to-machine`](../machine-to-machine) does and call `http://localhost:8082/reports` with it. `npm test` does that against your stack, and `verifier.test.ts` tries every way a token can be wrong with keys made on the spot: another issuer, another audience, an ID token, an expired token, a bad signature, an unknown key (and the keys read again when the tenant rotates them), an unsigned token, an HMAC token keyed by the public key, and an algorithm the API did not choose.
+The SDK is not on npm yet, so `../_shared/install.sh` builds it from this repository and installs the packed result (it needs `pnpm install` run once at the repository root). Once `@odudu-io/node` is published, `npm install` is all a copy of this folder needs.
+
+Get a token the way [`../machine-to-machine`](../machine-to-machine) does and call `http://localhost:8082/reports` with it. `npm test` does that against your stack: a service with the scope, a service without it, a person, no token, another audience and an ID token. The ways a token can be wrong that need keys made on the spot are tried by the SDK's own tests.
 
 ## What is only for the example
 

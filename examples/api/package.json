@@ -9,11 +9,11 @@
   },
   "scripts": {
     "start": "node server.ts",
-    "test": "node --test verifier.test.ts test.ts",
+    "test": "node --test test.ts",
     "typecheck": "tsc"
   },
   "dependencies": {
-    "jose": "6.2.17"
+    "@odudu-io/node": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

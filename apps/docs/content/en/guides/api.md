@@ -100,7 +100,7 @@ Checking a token yourself is fast, and it cannot know that a session just ended 
 
 ## 7. Run a finished API
 
-A JOSE library runs the checks above in one call: the signature against the tenant's keys, the issuer, the audience, the type and the expiry. [The API example](https://github.com/wizzywit/odudu/tree/main/examples/api) is a small server that does exactly that with `jose`, answers a token it trusts and refuses an ID token, a token for another audience and an expired one. Its README says how to run it against your stack.
+A JOSE library runs the checks above in one call: the signature against the tenant's keys, the issuer, the audience, the type and the expiry. [The API example](https://github.com/wizzywit/odudu/tree/main/examples/api) is a small server that does exactly that with the `@odudu-io/node` SDK, answers a token it trusts and refuses an ID token and a token for another audience. Its README says how to run it against your stack.
 
 ## Where to go next
 

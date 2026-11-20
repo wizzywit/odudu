@@ -10,7 +10,7 @@ A service that is not a person: a nightly job, or a backend calling another back
 
 ## Run it
 
-You need Node 24 or later, the quick start stack and the API example running. Run `../_shared/provision.sh` once, start the API with `npm ci && npm start` in `../api`, then here:
+You need Node 24 or later, the quick start stack and the API example running. Run `../_shared/provision.sh` once, start the API in `../api` (see its README), then here:
 
 ```text
 npm start
