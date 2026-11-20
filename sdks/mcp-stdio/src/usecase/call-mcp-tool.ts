@@ -1,12 +1,7 @@
-import type { McpLogger } from '#/service/deps';
+import type { McpLogger } from '#/service/logger';
 import { insufficientScopeProblem } from '#/service/admin-access';
 import { errorResult, runTool, type ToolRun } from '#/service/call-tool';
-import {
-  ToolProblem,
-  type AdminCaller,
-  type RegisteredTool,
-  type ToolResult,
-} from '#/service/tool';
+import { ToolProblem, type AdminCaller, type CallableTool, type ToolResult } from '#/service/tool';
 import type { BudgetKind, WriteBudget } from '#/service/write-budget';
 
 // What the audit trail holds of a tool call: which tool, which admin route it
@@ -76,7 +71,7 @@ function changedNothing(problem: ToolProblem | null): boolean {
 // What a call spends, when it spends anything: a write whose arguments the
 // schema accepts. One it refuses is never sent, so it costs nothing. A write
 // that declares no budget has no place in one, so it is not made.
-function spendOf(tool: RegisteredTool, input: unknown): BudgetKind | 'undeclared' | undefined {
+function spendOf(tool: CallableTool, input: unknown): BudgetKind | 'undeclared' | undefined {
   if (tool.access !== 'write') return undefined;
   if (tool.spends === undefined) return 'undeclared';
   try {
@@ -108,7 +103,7 @@ function within<T>(wait: Promise<T>): Promise<T | 'late'> {
 // and a place that arrives after the wait ended is given back at once.
 async function reserved(
   deps: CallMcpToolDeps,
-  tool: RegisteredTool,
+  tool: CallableTool,
   kind: BudgetKind | 'undeclared',
 ): Promise<ToolProblem | null> {
   const unavailable = (detail: string): ToolProblem =>
@@ -148,7 +143,7 @@ async function reserved(
 
 async function released(
   deps: CallMcpToolDeps,
-  tool: RegisteredTool,
+  tool: CallableTool,
   kind: BudgetKind,
 ): Promise<void> {
   try {
@@ -168,7 +163,7 @@ async function released(
 
 async function execute(
   deps: CallMcpToolDeps,
-  tool: RegisteredTool,
+  tool: CallableTool,
   caller: AdminCaller,
   input: unknown,
 ): Promise<ToolRun> {
@@ -224,7 +219,7 @@ async function execute(
 // correlation id and answered as that id alone.
 export async function callMcpTool(
   deps: CallMcpToolDeps,
-  tool: RegisteredTool,
+  tool: CallableTool,
   caller: AdminCaller,
   input: unknown,
 ): Promise<ToolResult> {

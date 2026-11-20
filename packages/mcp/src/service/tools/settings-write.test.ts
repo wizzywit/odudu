@@ -1,7 +1,7 @@
 import { settingsSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { callTool } from '#/service/call-tool';
+import { callTool } from '@odudu-io/mcp-stdio/shared';
 import { respondingWith } from '#/testing/fake-caller';
 import { ETAG, NEW_ETAG } from '#/testing/write-conformance';
 import { settingsWriteTools, updateTenantTextSettingsTool } from '#/service/tools/settings-write';

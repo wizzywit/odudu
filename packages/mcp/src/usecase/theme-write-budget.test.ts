@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { memoryWriteBudget, type BudgetKind } from '#/service/write-budget';
+import { memoryWriteBudget, type BudgetKind } from '@odudu-io/mcp-stdio/shared';
 import { updateThemeDraftTool } from '#/service/tools/theme-write';
 import type { AdminCaller, AdminRequestSpec, AdminResult } from '#/service/tool';
-import { callMcpTool } from '#/usecase/call-mcp-tool';
+import { callMcpTool } from '@odudu-io/mcp-stdio/shared';
 
 const ETAG = `"${'a'.repeat(64)}"`;
 const NEW_ETAG = `"${'b'.repeat(64)}"`;

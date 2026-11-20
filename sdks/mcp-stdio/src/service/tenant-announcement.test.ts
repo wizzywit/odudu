@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { TOOLS } from '#/service/catalogue';
+import { parseCatalogue } from '#/service/catalogue';
+import generated from '../mcp-tools.json' with { type: 'json' };
 import { announceTenant, TENANT_LABEL_CAP } from '#/service/tenant-announcement';
 
 describe('announceTenant', () => {
@@ -47,10 +48,11 @@ describe('announceTenant', () => {
     expect(announceTenant('\u0000').name).toBe('odudu:_');
   });
 
-  it('prefixes all 76 tools without touching the wording after the prefix', () => {
-    expect(TOOLS).toHaveLength(76);
+  it('prefixes every tool of the catalogue without touching the wording after the prefix', () => {
+    const { tools } = parseCatalogue(generated);
+    expect(tools.length).toBeGreaterThan(0);
     const a = announceTenant('acme');
-    for (const tool of TOOLS) {
+    for (const tool of tools) {
       const described = a.describe(tool.description);
       expect(described.startsWith('[acme] ')).toBe(true);
       expect(described.slice('[acme] '.length)).toBe(tool.description);

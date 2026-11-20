@@ -12,7 +12,7 @@ import {
   preconditionOf,
   returnedHeaders,
 } from '#/service/admin-request';
-import type { McpLogger } from '#/service/deps';
+import type { McpLogger } from '#/service/logger';
 import { stdioTarget } from '#/service/stdio-target';
 import type { TokenSource } from '#/service/token-source';
 import {

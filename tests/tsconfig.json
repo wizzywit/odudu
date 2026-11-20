@@ -24,6 +24,7 @@
     "lint/fixtures/docs-usecase-no-browser-globals/**",
     "lint/fixtures/console-no-browser-globals-below-ui/**",
     "boundaries/fixtures/apps/docs/**",
-    "boundaries/fixtures/sdks/oidc/src/imports-server-by-name.ts"
+    "boundaries/fixtures/sdks/oidc/src/imports-server-by-name.ts",
+    "boundaries/fixtures/sdks/mcp-stdio/src/imports-server-by-name.ts"
   ]
 }

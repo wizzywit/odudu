@@ -465,6 +465,58 @@ Not decided here: the three things `mcp.ts` takes from `@odudu/crypto`
 (`signClientAssertion` and two key helpers, on `jose`); they cannot be cut
 without the plan saying what the SDK's `jose` dependency is.
 
+#### Result of the cut
+
+Done at the commit that moved the stdio client into `sdks/mcp-stdio`. verified:
+`pnpm exec vitest run --config vitest.config.ts sdks/mcp-stdio` passes 357
+tests, and a test in the package (`package-contents.test.ts`) fails on any
+`@odudu/` import in its files, tests included.
+
+- **Moved, with `git mv`, tests beside them (26 modules).** `adapter/` the HTTP
+  caller, the OAuth client, the loopback listener, the browser opener, the
+  credential store, the file lock, `run-tool` and `bounded-body`; `usecase/`
+  `loopback-login` and `token-source`; `view/stdio`; `service/` `stdio-target`,
+  `stdio-error`, `config-dir`, `failure-line`, `file-mode`, `ports`,
+  `token-source`, `token-set`, `authorization-url`, `callback`, `pkce`,
+  `stored-sign-in`, `token-policy`, `error-code` and `metadata`. The layer
+  folders keep their server names, because renaming them would put the use cases
+  under the SDKs' complexity rule and change code that was only to move.
+- **Moved because both sides run it (9 modules, one copy).** `sanitize`,
+  `call-tool`, `admin-path`, `admin-request`, `etag-shape`, `json-value`,
+  `write-budget`, `tenant-announcement` and `usecase/call-mcp-tool`. `@odudu/mcp`
+  imports them from `@odudu-io/mcp-stdio/shared` (the amendment to ADR 0053).
+  The tests that needed the server's tools or `@odudu/protocol-admin` stayed in
+  `packages/mcp` and import from `shared`.
+- **Copied, three small pieces, each held to the original by a test.** The three
+  address helpers of `@odudu/kernel` (`service/address.ts`), `stripBidiControls`
+  (`service/bidi.ts`) and the five names `mcp:read`, `mcp:write`, `odudu-mcp`,
+  `urn:odudu:params:admin-api` and `system` (`service/scopes.ts`). The first
+  two are checked in `packages/mcp/src/service/sdk-copies.test.ts`, the names
+  in `apps/server/src/cli/mcp-constants.test.ts`.
+- **The response schemas became data.** `tools/mcp-catalogue` writes
+  `src/mcp-tools.json` (69 tools, 312 KB) from the tools `directCallerTools`
+  keeps, with `z.toJSONSchema` for the input and the response of each. The
+  stdio client reads it with a guard, builds each call from `method` and
+  `pathTemplate`, checks arguments with `z.fromJSONSchema` plus the checks a
+  schema cannot carry (a string cap on reads; a field and a byte cap on writes)
+  and reads each answer with a small walker (`service/json-schema.ts`) that, as
+  a Zod object does, leaves out any member the schema does not name. The server
+  still enforces every call.
+- **Not carried: refinements across members.** `z.toJSONSchema` drops a Zod
+  `refine`, so three response schemas (`get_flow`, `get_flow_executions`,
+  `list_flows`, whose authenticator settings depend on the authenticator) are
+  read by shape alone, and the argument checks that were refinements (the
+  display name's trim, the language count of a map) are left to the admin API.
+  `packages/mcp/src/service/stdio-parity.test.ts` runs every one of the 69 tools
+  both ways against the same answers and arguments, and names the three.
+- **Left for the next increment.** `apps/server/src/cli/mcp.ts` still takes
+  the service-account key helpers from `@odudu/crypto` and the audience and
+  client names from `@odudu/domain-tenant`; it is repointed only as far as the
+  move required.
+- **Cost, by ADR 0041.** Start-up parses one 312 KB JSON file, once. A call does
+  the one HTTP request and, for a signed-in run, a read of the credential file;
+  nothing else is read. The bundle is 335 KB of which the catalogue is most.
+
 ### S6: refresh with a changed resource
 
 Checked on 2026-11-20 against an image built from the worktree at `5420b15e3`

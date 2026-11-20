@@ -50,11 +50,7 @@
           },
           "outcome": {
             "type": "string",
-            "enum": [
-              "allowed",
-              "refused",
-              "failed"
-            ]
+            "enum": ["allowed", "refused", "failed"]
           },
           "from": {
             "type": "string",
@@ -81,10 +77,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "count",
-          "capped"
-        ],
+        "required": ["count", "capped"],
         "additionalProperties": false
       }
     },
@@ -122,24 +115,15 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "public",
-              "confidential"
-            ]
+            "enum": ["public", "confidential"]
           },
           "enabled": {
             "type": "string",
-            "enum": [
-              "true",
-              "false"
-            ]
+            "enum": ["true", "false"]
           },
           "counts_toward_max_clients": {
             "type": "string",
-            "enum": [
-              "true",
-              "false"
-            ]
+            "enum": ["true", "false"]
           }
         },
         "additionalProperties": false
@@ -156,10 +140,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "count",
-          "capped"
-        ],
+        "required": ["count", "capped"],
         "additionalProperties": false
       }
     },
@@ -213,10 +194,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "count",
-          "capped"
-        ],
+        "required": ["count", "capped"],
         "additionalProperties": false
       }
     },
@@ -270,10 +248,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "count",
-          "capped"
-        ],
+        "required": ["count", "capped"],
         "additionalProperties": false
       }
     },
@@ -314,10 +289,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "count",
-          "capped"
-        ],
+        "required": ["count", "capped"],
         "additionalProperties": false
       }
     },
@@ -358,10 +330,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "count",
-          "capped"
-        ],
+        "required": ["count", "capped"],
         "additionalProperties": false
       }
     },
@@ -409,10 +378,7 @@
           },
           "enabled": {
             "type": "string",
-            "enum": [
-              "true",
-              "false"
-            ]
+            "enum": ["true", "false"]
           },
           "role": {
             "type": "string",
@@ -443,18 +409,11 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "user",
-              "service",
-              "agent_instance"
-            ]
+            "enum": ["user", "service", "agent_instance"]
           },
           "locked": {
             "type": "string",
-            "enum": [
-              "true",
-              "false"
-            ]
+            "enum": ["true", "false"]
           }
         },
         "additionalProperties": false
@@ -471,10 +430,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "count",
-          "capped"
-        ],
+        "required": ["count", "capped"],
         "additionalProperties": false
       }
     },
@@ -507,10 +463,7 @@
           },
           "enabled": {
             "type": "string",
-            "enum": [
-              "true",
-              "false"
-            ]
+            "enum": ["true", "false"]
           }
         },
         "additionalProperties": false
@@ -527,10 +480,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "count",
-          "capped"
-        ],
+        "required": ["count", "capped"],
         "additionalProperties": false
       }
     },
@@ -546,9 +496,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "etag": true,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -561,9 +509,7 @@
             "description": "The client's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -579,10 +525,7 @@
             "type": "string"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "name_i18n": {
             "type": "object",
@@ -604,10 +547,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "public",
-              "confidential"
-            ]
+            "enum": ["public", "confidential"]
           },
           "enabled": {
             "type": "boolean"
@@ -620,13 +560,7 @@
           },
           "registration_origin": {
             "type": "string",
-            "enum": [
-              "seeded",
-              "anonymous",
-              "token",
-              "operator",
-              "cimd"
-            ]
+            "enum": ["seeded", "anonymous", "token", "operator", "cimd"]
           },
           "created_at": {
             "type": "string"
@@ -715,22 +649,13 @@
             ]
           },
           "jwks_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "frontchannel_logout_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "backchannel_logout_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "frontchannel_logout_session_required": {
             "type": "boolean"
@@ -751,52 +676,28 @@
             "type": "boolean"
           },
           "userinfo_signed_response_alg": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "userinfo_encrypted_response_alg": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "userinfo_encrypted_response_enc": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "tls_client_auth_subject_dn": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "client_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "policy_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "tos_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "id_token_signed_response_alg": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "default_max_age": {
             "anyOf": [
@@ -828,16 +729,10 @@
             }
           },
           "flow_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "previous_secret_expires_at": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "builtin_admin": {
             "type": "boolean"
@@ -867,17 +762,10 @@
                 },
                 "assignment": {
                   "type": "string",
-                  "enum": [
-                    "default",
-                    "optional"
-                  ]
+                  "enum": ["default", "optional"]
                 }
               },
-              "required": [
-                "id",
-                "name",
-                "assignment"
-              ],
+              "required": ["id", "name", "assignment"],
               "additionalProperties": false
             }
           },
@@ -974,9 +862,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -988,9 +874,7 @@
             "description": "The client's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -1007,10 +891,7 @@
           },
           "client_type": {
             "type": "string",
-            "enum": [
-              "public",
-              "confidential"
-            ]
+            "enum": ["public", "confidential"]
           },
           "token_endpoint_auth_method": {
             "type": "string"
@@ -1063,9 +944,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -1077,9 +956,7 @@
             "description": "The client's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -1090,11 +967,7 @@
             "properties": {
               "source": {
                 "type": "string",
-                "enum": [
-                  "client",
-                  "tenant",
-                  "default"
-                ]
+                "enum": ["client", "tenant", "default"]
               },
               "colours": {
                 "type": "object",
@@ -1141,10 +1014,7 @@
                 "additionalProperties": false
               }
             },
-            "required": [
-              "source",
-              "colours"
-            ],
+            "required": ["source", "colours"],
             "additionalProperties": false
           },
           "dark": {
@@ -1152,11 +1022,7 @@
             "properties": {
               "source": {
                 "type": "string",
-                "enum": [
-                  "client",
-                  "tenant",
-                  "default"
-                ]
+                "enum": ["client", "tenant", "default"]
               },
               "colours": {
                 "type": "object",
@@ -1203,10 +1069,7 @@
                 "additionalProperties": false
               }
             },
-            "required": [
-              "source",
-              "colours"
-            ],
+            "required": ["source", "colours"],
             "additionalProperties": false
           },
           "logo": {
@@ -1231,12 +1094,7 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": [
-                  "src",
-                  "alt",
-                  "width",
-                  "height"
-                ],
+                "required": ["src", "alt", "width", "height"],
                 "additionalProperties": false
               },
               {
@@ -1266,12 +1124,7 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": [
-                  "src",
-                  "alt",
-                  "width",
-                  "height"
-                ],
+                "required": ["src", "alt", "width", "height"],
                 "additionalProperties": false
               },
               {
@@ -1280,12 +1133,7 @@
             ]
           }
         },
-        "required": [
-          "light",
-          "dark",
-          "logo",
-          "dark_logo"
-        ],
+        "required": ["light", "dark", "logo", "dark_logo"],
         "additionalProperties": false
       }
     },
@@ -1301,9 +1149,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "etag": true,
       "longText": [
         "draft.stylesheet",
@@ -1323,9 +1169,7 @@
             "description": "The client's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -1333,10 +1177,7 @@
         "properties": {
           "scope": {
             "type": "string",
-            "enum": [
-              "tenant",
-              "client"
-            ]
+            "enum": ["tenant", "client"]
           },
           "draft": {
             "anyOf": [
@@ -1474,19 +1315,13 @@
                       },
                       "font": {
                         "type": "string",
-                        "enum": [
-                          "IBM Plex Sans",
-                          "IBM Plex Mono"
-                        ]
+                        "enum": ["IBM Plex Sans", "IBM Plex Mono"]
                       }
                     },
                     "additionalProperties": false
                   },
                   "stylesheet": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "type": ["string", "null"]
                   },
                   "templates": {
                     "type": "object",
@@ -1535,10 +1370,7 @@
                             "maxLength": 200
                           }
                         },
-                        "required": [
-                          "assetId",
-                          "alt"
-                        ],
+                        "required": ["assetId", "alt"],
                         "additionalProperties": false
                       },
                       "darkLogo": {
@@ -1554,10 +1386,7 @@
                             "maxLength": 200
                           }
                         },
-                        "required": [
-                          "assetId",
-                          "alt"
-                        ],
+                        "required": ["assetId", "alt"],
                         "additionalProperties": false
                       },
                       "favicon": {
@@ -1569,9 +1398,7 @@
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                           }
                         },
-                        "required": [
-                          "assetId"
-                        ],
+                        "required": ["assetId"],
                         "additionalProperties": false
                       },
                       "background": {
@@ -1583,21 +1410,14 @@
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                           }
                         },
-                        "required": [
-                          "assetId"
-                        ],
+                        "required": ["assetId"],
                         "additionalProperties": false
                       }
                     },
                     "additionalProperties": false
                   }
                 },
-                "required": [
-                  "tokens",
-                  "stylesheet",
-                  "templates",
-                  "assets"
-                ],
+                "required": ["tokens", "stylesheet", "templates", "assets"],
                 "additionalProperties": false
               },
               {
@@ -1619,10 +1439,7 @@
                     "maximum": 9007199254740991
                   },
                   "published_at": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "type": ["string", "null"]
                   },
                   "body": {
                     "type": "object",
@@ -1758,19 +1575,13 @@
                           },
                           "font": {
                             "type": "string",
-                            "enum": [
-                              "IBM Plex Sans",
-                              "IBM Plex Mono"
-                            ]
+                            "enum": ["IBM Plex Sans", "IBM Plex Mono"]
                           }
                         },
                         "additionalProperties": false
                       },
                       "stylesheet": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
+                        "type": ["string", "null"]
                       },
                       "templates": {
                         "type": "object",
@@ -1819,10 +1630,7 @@
                                 "maxLength": 200
                               }
                             },
-                            "required": [
-                              "assetId",
-                              "alt"
-                            ],
+                            "required": ["assetId", "alt"],
                             "additionalProperties": false
                           },
                           "darkLogo": {
@@ -1838,10 +1646,7 @@
                                 "maxLength": 200
                               }
                             },
-                            "required": [
-                              "assetId",
-                              "alt"
-                            ],
+                            "required": ["assetId", "alt"],
                             "additionalProperties": false
                           },
                           "favicon": {
@@ -1853,9 +1658,7 @@
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                               }
                             },
-                            "required": [
-                              "assetId"
-                            ],
+                            "required": ["assetId"],
                             "additionalProperties": false
                           },
                           "background": {
@@ -1867,30 +1670,18 @@
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                               }
                             },
-                            "required": [
-                              "assetId"
-                            ],
+                            "required": ["assetId"],
                             "additionalProperties": false
                           }
                         },
                         "additionalProperties": false
                       }
                     },
-                    "required": [
-                      "tokens",
-                      "stylesheet",
-                      "templates",
-                      "assets"
-                    ],
+                    "required": ["tokens", "stylesheet", "templates", "assets"],
                     "additionalProperties": false
                   }
                 },
-                "required": [
-                  "id",
-                  "version",
-                  "published_at",
-                  "body"
-                ],
+                "required": ["id", "version", "published_at", "body"],
                 "additionalProperties": false
               },
               {
@@ -1905,11 +1696,7 @@
             },
             "additionalProperties": {
               "type": "string",
-              "enum": [
-                "client",
-                "tenant",
-                "default"
-              ]
+              "enum": ["client", "tenant", "default"]
             }
           },
           "draft_sources": {
@@ -1921,11 +1708,7 @@
                 },
                 "additionalProperties": {
                   "type": "string",
-                  "enum": [
-                    "client",
-                    "tenant",
-                    "default"
-                  ]
+                  "enum": ["client", "tenant", "default"]
                 }
               },
               {
@@ -1942,11 +1725,7 @@
                 },
                 "additionalProperties": {
                   "type": "string",
-                  "enum": [
-                    "client",
-                    "tenant",
-                    "default"
-                  ]
+                  "enum": ["client", "tenant", "default"]
                 }
               },
               {
@@ -1958,12 +1737,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "tokens",
-                "assets",
-                "stylesheet",
-                "templates"
-              ]
+              "enum": ["tokens", "assets", "stylesheet", "templates"]
             }
           }
         },
@@ -1991,9 +1765,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -2031,15 +1803,10 @@
           },
           "scheme": {
             "type": "string",
-            "enum": [
-              "light",
-              "dark"
-            ]
+            "enum": ["light", "dark"]
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -2072,19 +1839,11 @@
           },
           "from": {
             "type": "string",
-            "enum": [
-              "draft",
-              "published",
-              "none"
-            ]
+            "enum": ["draft", "published", "none"]
           },
           "shown": {
             "type": "string",
-            "enum": [
-              "client",
-              "tenant",
-              "default"
-            ]
+            "enum": ["client", "tenant", "default"]
           },
           "faults": {
             "type": "array",
@@ -2093,24 +1852,14 @@
               "properties": {
                 "layer": {
                   "type": "string",
-                  "enum": [
-                    "client",
-                    "tenant"
-                  ]
+                  "enum": ["client", "tenant"]
                 },
                 "code": {
                   "type": "string",
-                  "enum": [
-                    "invalid_body",
-                    "image_gone",
-                    "stylesheet_refused"
-                  ]
+                  "enum": ["invalid_body", "image_gone", "stylesheet_refused"]
                 }
               },
-              "required": [
-                "layer",
-                "code"
-              ],
+              "required": ["layer", "code"],
               "additionalProperties": false
             }
           },
@@ -2121,10 +1870,7 @@
               "properties": {
                 "layer": {
                   "type": "string",
-                  "enum": [
-                    "client",
-                    "tenant"
-                  ]
+                  "enum": ["client", "tenant"]
                 },
                 "codes": {
                   "type": "array",
@@ -2133,10 +1879,7 @@
                   }
                 }
               },
-              "required": [
-                "layer",
-                "codes"
-              ],
+              "required": ["layer", "codes"],
               "additionalProperties": false
             }
           },
@@ -2144,14 +1887,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "kind",
-          "from",
-          "shown",
-          "faults",
-          "refused",
-          "unfilled"
-        ],
+        "required": ["kind", "from", "shown", "faults", "refused", "unfilled"],
         "additionalProperties": false
       }
     },
@@ -2167,9 +1903,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -2181,9 +1915,7 @@
             "description": "The domain's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -2197,26 +1929,16 @@
           },
           "state": {
             "type": "string",
-            "enum": [
-              "pending",
-              "verified",
-              "failed"
-            ]
+            "enum": ["pending", "verified", "failed"]
           },
           "canonical": {
             "type": "boolean"
           },
           "verified_at": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "last_checked_at": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "dns_record": {
             "anyOf": [
@@ -2230,10 +1952,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "name",
-                  "value"
-                ],
+                "required": ["name", "value"],
                 "additionalProperties": false
               },
               {
@@ -2266,9 +1985,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -2280,9 +1997,7 @@
             "description": "The flow's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -2309,53 +2024,30 @@
                 },
                 "requirement": {
                   "type": "string",
-                  "enum": [
-                    "required",
-                    "alternative",
-                    "conditional",
-                    "disabled"
-                  ]
+                  "enum": ["required", "alternative", "conditional", "disabled"]
                 },
                 "settings": {
                   "type": "object",
                   "properties": {
                     "algorithm": {
                       "type": "string",
-                      "enum": [
-                        "SHA1",
-                        "SHA256",
-                        "SHA512"
-                      ]
+                      "enum": ["SHA1", "SHA256", "SHA512"]
                     },
                     "digits": {
                       "type": "number",
-                      "enum": [
-                        6,
-                        8
-                      ]
+                      "enum": [6, 8]
                     },
                     "period": {
                       "type": "number",
-                      "enum": [
-                        30,
-                        60
-                      ]
+                      "enum": [30, 60]
                     },
                     "user_verification": {
                       "type": "string",
-                      "enum": [
-                        "required",
-                        "preferred",
-                        "discouraged"
-                      ]
+                      "enum": ["required", "preferred", "discouraged"]
                     },
                     "resident_key": {
                       "type": "string",
-                      "enum": [
-                        "required",
-                        "preferred",
-                        "discouraged"
-                      ]
+                      "enum": ["required", "preferred", "discouraged"]
                     },
                     "count": {
                       "type": "integer",
@@ -2366,20 +2058,12 @@
                   "additionalProperties": false
                 }
               },
-              "required": [
-                "authenticator",
-                "requirement"
-              ],
+              "required": ["authenticator", "requirement"],
               "additionalProperties": false
             }
           }
         },
-        "required": [
-          "id",
-          "name",
-          "is_default",
-          "steps"
-        ],
+        "required": ["id", "name", "is_default", "steps"],
         "additionalProperties": false
       }
     },
@@ -2420,53 +2104,30 @@
                 },
                 "requirement": {
                   "type": "string",
-                  "enum": [
-                    "required",
-                    "alternative",
-                    "conditional",
-                    "disabled"
-                  ]
+                  "enum": ["required", "alternative", "conditional", "disabled"]
                 },
                 "settings": {
                   "type": "object",
                   "properties": {
                     "algorithm": {
                       "type": "string",
-                      "enum": [
-                        "SHA1",
-                        "SHA256",
-                        "SHA512"
-                      ]
+                      "enum": ["SHA1", "SHA256", "SHA512"]
                     },
                     "digits": {
                       "type": "number",
-                      "enum": [
-                        6,
-                        8
-                      ]
+                      "enum": [6, 8]
                     },
                     "period": {
                       "type": "number",
-                      "enum": [
-                        30,
-                        60
-                      ]
+                      "enum": [30, 60]
                     },
                     "user_verification": {
                       "type": "string",
-                      "enum": [
-                        "required",
-                        "preferred",
-                        "discouraged"
-                      ]
+                      "enum": ["required", "preferred", "discouraged"]
                     },
                     "resident_key": {
                       "type": "string",
-                      "enum": [
-                        "required",
-                        "preferred",
-                        "discouraged"
-                      ]
+                      "enum": ["required", "preferred", "discouraged"]
                     },
                     "count": {
                       "type": "integer",
@@ -2477,11 +2138,7 @@
                   "additionalProperties": false
                 }
               },
-              "required": [
-                "index",
-                "authenticator",
-                "requirement"
-              ],
+              "required": ["index", "authenticator", "requirement"],
               "additionalProperties": false
             }
           },
@@ -2492,10 +2149,7 @@
             }
           }
         },
-        "required": [
-          "items",
-          "available"
-        ],
+        "required": ["items", "available"],
         "additionalProperties": false
       }
     },
@@ -2511,9 +2165,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "etag": true,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2526,9 +2178,7 @@
             "description": "The group's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -2541,16 +2191,10 @@
             "type": "string"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "parent_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "default_for_new_subjects": {
             "type": "boolean"
@@ -2605,9 +2249,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -2619,9 +2261,7 @@
             "description": "The group's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -2639,16 +2279,10 @@
                   "type": "string"
                 },
                 "client_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "client_key": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "admin_reach": {
                   "type": "array",
@@ -2669,20 +2303,12 @@
                   }
                 }
               },
-              "required": [
-                "id",
-                "name",
-                "client_id",
-                "client_key",
-                "admin_reach"
-              ],
+              "required": ["id", "name", "client_id", "client_key", "admin_reach"],
               "additionalProperties": false
             }
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -2713,11 +2339,7 @@
             "properties": {
               "source": {
                 "type": "string",
-                "enum": [
-                  "client",
-                  "tenant",
-                  "default"
-                ]
+                "enum": ["client", "tenant", "default"]
               },
               "colours": {
                 "type": "object",
@@ -2764,10 +2386,7 @@
                 "additionalProperties": false
               }
             },
-            "required": [
-              "source",
-              "colours"
-            ],
+            "required": ["source", "colours"],
             "additionalProperties": false
           },
           "dark": {
@@ -2775,11 +2394,7 @@
             "properties": {
               "source": {
                 "type": "string",
-                "enum": [
-                  "client",
-                  "tenant",
-                  "default"
-                ]
+                "enum": ["client", "tenant", "default"]
               },
               "colours": {
                 "type": "object",
@@ -2826,10 +2441,7 @@
                 "additionalProperties": false
               }
             },
-            "required": [
-              "source",
-              "colours"
-            ],
+            "required": ["source", "colours"],
             "additionalProperties": false
           },
           "logo": {
@@ -2854,12 +2466,7 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": [
-                  "src",
-                  "alt",
-                  "width",
-                  "height"
-                ],
+                "required": ["src", "alt", "width", "height"],
                 "additionalProperties": false
               },
               {
@@ -2889,12 +2496,7 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": [
-                  "src",
-                  "alt",
-                  "width",
-                  "height"
-                ],
+                "required": ["src", "alt", "width", "height"],
                 "additionalProperties": false
               },
               {
@@ -2903,12 +2505,7 @@
             ]
           }
         },
-        "required": [
-          "light",
-          "dark",
-          "logo",
-          "dark_logo"
-        ],
+        "required": ["light", "dark", "logo", "dark_logo"],
         "additionalProperties": false
       }
     },
@@ -2982,25 +2579,17 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "key",
-                      "en"
-                    ],
+                    "required": ["key", "en"],
                     "additionalProperties": false
                   }
                 }
               },
-              "required": [
-                "kinds",
-                "messages"
-              ],
+              "required": ["kinds", "messages"],
               "additionalProperties": false
             }
           }
         },
-        "required": [
-          "sections"
-        ],
+        "required": ["sections"],
         "additionalProperties": false
       }
     },
@@ -3027,9 +2616,7 @@
             "maxLength": 512
           }
         },
-        "required": [
-          "canonical"
-        ],
+        "required": ["canonical"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -3044,10 +2631,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "subjects",
-          "capped"
-        ],
+        "required": ["subjects", "capped"],
         "additionalProperties": false
       }
     },
@@ -3063,9 +2647,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "etag": true,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3078,9 +2660,7 @@
             "description": "The role's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -3093,22 +2673,13 @@
             "type": "string"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "client_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "client_key": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "default_for_new_subjects": {
             "type": "boolean"
@@ -3160,9 +2731,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3174,9 +2743,7 @@
             "description": "The role's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -3194,22 +2761,13 @@
                   "type": "string"
                 },
                 "description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "client_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "client_key": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "default_for_new_subjects": {
                   "type": "boolean"
@@ -3250,9 +2808,7 @@
             }
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -3268,9 +2824,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "etag": true,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3283,9 +2837,7 @@
             "description": "The scope's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -3298,10 +2850,7 @@
             "type": "string"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "include_in_id_token": {
             "type": "boolean"
@@ -3313,10 +2862,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "default",
-                  "optional"
-                ]
+                "enum": ["default", "optional"]
               },
               {
                 "type": "null"
@@ -3324,10 +2870,7 @@
             ]
           },
           "consent_text": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "description_i18n": {
             "type": "object",
@@ -3384,9 +2927,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3398,9 +2939,7 @@
             "description": "The scope's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -3421,10 +2960,7 @@
                 "type": "boolean"
               }
             },
-            "required": [
-              "count",
-              "capped"
-            ],
+            "required": ["count", "capped"],
             "additionalProperties": false
           },
           "role_mappings": {
@@ -3439,18 +2975,11 @@
                 "type": "boolean"
               }
             },
-            "required": [
-              "count",
-              "capped"
-            ],
+            "required": ["count", "capped"],
             "additionalProperties": false
           }
         },
-        "required": [
-          "builtin",
-          "client_assignments",
-          "role_mappings"
-        ],
+        "required": ["builtin", "client_assignments", "role_mappings"],
         "additionalProperties": false
       }
     },
@@ -3466,9 +2995,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3480,9 +3007,7 @@
             "description": "The scope's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -3507,11 +3032,7 @@
             }
           }
         },
-        "required": [
-          "available",
-          "bound",
-          "declared"
-        ],
+        "required": ["available", "bound", "declared"],
         "additionalProperties": false
       }
     },
@@ -3527,9 +3048,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3541,9 +3060,7 @@
             "description": "The scope's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -3561,16 +3078,10 @@
                   "type": "string"
                 },
                 "client_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "client_key": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "admin_reach": {
                   "type": "array",
@@ -3591,20 +3102,12 @@
                   }
                 }
               },
-              "required": [
-                "id",
-                "name",
-                "client_id",
-                "client_key",
-                "admin_reach"
-              ],
+              "required": ["id", "name", "client_id", "client_key", "admin_reach"],
               "additionalProperties": false
             }
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -3767,9 +3270,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3781,9 +3282,7 @@
             "description": "The subject's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -3794,23 +3293,13 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "user",
-              "service",
-              "agent_instance"
-            ]
+            "enum": ["user", "service", "agent_instance"]
           },
           "username": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "email": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "enabled": {
             "type": "boolean"
@@ -3819,20 +3308,10 @@
             "type": "string"
           },
           "pending_email": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         },
-        "required": [
-          "id",
-          "type",
-          "username",
-          "email",
-          "enabled",
-          "created_at"
-        ],
+        "required": ["id", "type", "username", "email", "enabled", "created_at"],
         "additionalProperties": false
       }
     },
@@ -3848,9 +3327,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3862,9 +3339,7 @@
             "description": "The subject's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -3882,16 +3357,10 @@
                   "type": "string"
                 },
                 "client_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "client_key": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "via": {
                   "type": "array",
@@ -3905,9 +3374,7 @@
                             "const": "direct"
                           }
                         },
-                        "required": [
-                          "kind"
-                        ],
+                        "required": ["kind"],
                         "additionalProperties": false
                       },
                       {
@@ -3924,11 +3391,7 @@
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "kind",
-                          "group_id",
-                          "group_path"
-                        ],
+                        "required": ["kind", "group_id", "group_path"],
                         "additionalProperties": false
                       },
                       {
@@ -3945,24 +3408,14 @@
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "kind",
-                          "parent_role_id",
-                          "parent_name"
-                        ],
+                        "required": ["kind", "parent_role_id", "parent_name"],
                         "additionalProperties": false
                       }
                     ]
                   }
                 }
               },
-              "required": [
-                "id",
-                "name",
-                "client_id",
-                "client_key",
-                "via"
-              ],
+              "required": ["id", "name", "client_id", "client_key", "via"],
               "additionalProperties": false
             }
           },
@@ -3970,10 +3423,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "items",
-          "complete"
-        ],
+        "required": ["items", "complete"],
         "additionalProperties": false
       }
     },
@@ -3989,9 +3439,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -4003,9 +3451,7 @@
             "description": "The subject's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -4023,16 +3469,10 @@
                   "type": "string"
                 },
                 "description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "parent_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "default_for_new_subjects": {
                   "type": "boolean"
@@ -4057,9 +3497,7 @@
             }
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -4075,9 +3513,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -4089,9 +3525,7 @@
             "description": "The subject's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -4101,10 +3535,7 @@
             "type": "boolean"
           },
           "locked_until": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "failure_count": {
             "type": "integer",
@@ -4112,18 +3543,10 @@
             "maximum": 9007199254740991
           },
           "last_failure_at": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         },
-        "required": [
-          "locked",
-          "locked_until",
-          "failure_count",
-          "last_failure_at"
-        ],
+        "required": ["locked", "locked_until", "failure_count", "last_failure_at"],
         "additionalProperties": false
       }
     },
@@ -4139,9 +3562,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -4153,9 +3574,7 @@
             "description": "The subject's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -4177,9 +3596,7 @@
             }
           }
         },
-        "required": [
-          "actions"
-        ],
+        "required": ["actions"],
         "additionalProperties": false
       }
     },
@@ -4195,9 +3612,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -4209,9 +3624,7 @@
             "description": "The subject's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -4229,31 +3642,18 @@
                   "type": "string"
                 },
                 "client_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "client_key": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 }
               },
-              "required": [
-                "id",
-                "name",
-                "client_id",
-                "client_key"
-              ],
+              "required": ["id", "name", "client_id", "client_key"],
               "additionalProperties": false
             }
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -4286,10 +3686,7 @@
             "type": "string"
           },
           "display_name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "enabled": {
             "type": "boolean"
@@ -4298,13 +3695,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "name",
-          "display_name",
-          "enabled",
-          "created_at"
-        ],
+        "required": ["id", "name", "display_name", "enabled", "created_at"],
         "additionalProperties": false
       }
     },
@@ -4340,10 +3731,7 @@
         "properties": {
           "scope": {
             "type": "string",
-            "enum": [
-              "tenant",
-              "client"
-            ]
+            "enum": ["tenant", "client"]
           },
           "draft": {
             "anyOf": [
@@ -4481,19 +3869,13 @@
                       },
                       "font": {
                         "type": "string",
-                        "enum": [
-                          "IBM Plex Sans",
-                          "IBM Plex Mono"
-                        ]
+                        "enum": ["IBM Plex Sans", "IBM Plex Mono"]
                       }
                     },
                     "additionalProperties": false
                   },
                   "stylesheet": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "type": ["string", "null"]
                   },
                   "templates": {
                     "type": "object",
@@ -4542,10 +3924,7 @@
                             "maxLength": 200
                           }
                         },
-                        "required": [
-                          "assetId",
-                          "alt"
-                        ],
+                        "required": ["assetId", "alt"],
                         "additionalProperties": false
                       },
                       "darkLogo": {
@@ -4561,10 +3940,7 @@
                             "maxLength": 200
                           }
                         },
-                        "required": [
-                          "assetId",
-                          "alt"
-                        ],
+                        "required": ["assetId", "alt"],
                         "additionalProperties": false
                       },
                       "favicon": {
@@ -4576,9 +3952,7 @@
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                           }
                         },
-                        "required": [
-                          "assetId"
-                        ],
+                        "required": ["assetId"],
                         "additionalProperties": false
                       },
                       "background": {
@@ -4590,21 +3964,14 @@
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                           }
                         },
-                        "required": [
-                          "assetId"
-                        ],
+                        "required": ["assetId"],
                         "additionalProperties": false
                       }
                     },
                     "additionalProperties": false
                   }
                 },
-                "required": [
-                  "tokens",
-                  "stylesheet",
-                  "templates",
-                  "assets"
-                ],
+                "required": ["tokens", "stylesheet", "templates", "assets"],
                 "additionalProperties": false
               },
               {
@@ -4626,10 +3993,7 @@
                     "maximum": 9007199254740991
                   },
                   "published_at": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "type": ["string", "null"]
                   },
                   "body": {
                     "type": "object",
@@ -4765,19 +4129,13 @@
                           },
                           "font": {
                             "type": "string",
-                            "enum": [
-                              "IBM Plex Sans",
-                              "IBM Plex Mono"
-                            ]
+                            "enum": ["IBM Plex Sans", "IBM Plex Mono"]
                           }
                         },
                         "additionalProperties": false
                       },
                       "stylesheet": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
+                        "type": ["string", "null"]
                       },
                       "templates": {
                         "type": "object",
@@ -4826,10 +4184,7 @@
                                 "maxLength": 200
                               }
                             },
-                            "required": [
-                              "assetId",
-                              "alt"
-                            ],
+                            "required": ["assetId", "alt"],
                             "additionalProperties": false
                           },
                           "darkLogo": {
@@ -4845,10 +4200,7 @@
                                 "maxLength": 200
                               }
                             },
-                            "required": [
-                              "assetId",
-                              "alt"
-                            ],
+                            "required": ["assetId", "alt"],
                             "additionalProperties": false
                           },
                           "favicon": {
@@ -4860,9 +4212,7 @@
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                               }
                             },
-                            "required": [
-                              "assetId"
-                            ],
+                            "required": ["assetId"],
                             "additionalProperties": false
                           },
                           "background": {
@@ -4874,30 +4224,18 @@
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                               }
                             },
-                            "required": [
-                              "assetId"
-                            ],
+                            "required": ["assetId"],
                             "additionalProperties": false
                           }
                         },
                         "additionalProperties": false
                       }
                     },
-                    "required": [
-                      "tokens",
-                      "stylesheet",
-                      "templates",
-                      "assets"
-                    ],
+                    "required": ["tokens", "stylesheet", "templates", "assets"],
                     "additionalProperties": false
                   }
                 },
-                "required": [
-                  "id",
-                  "version",
-                  "published_at",
-                  "body"
-                ],
+                "required": ["id", "version", "published_at", "body"],
                 "additionalProperties": false
               },
               {
@@ -4912,11 +4250,7 @@
             },
             "additionalProperties": {
               "type": "string",
-              "enum": [
-                "client",
-                "tenant",
-                "default"
-              ]
+              "enum": ["client", "tenant", "default"]
             }
           },
           "draft_sources": {
@@ -4928,11 +4262,7 @@
                 },
                 "additionalProperties": {
                   "type": "string",
-                  "enum": [
-                    "client",
-                    "tenant",
-                    "default"
-                  ]
+                  "enum": ["client", "tenant", "default"]
                 }
               },
               {
@@ -4949,11 +4279,7 @@
                 },
                 "additionalProperties": {
                   "type": "string",
-                  "enum": [
-                    "client",
-                    "tenant",
-                    "default"
-                  ]
+                  "enum": ["client", "tenant", "default"]
                 }
               },
               {
@@ -4965,12 +4291,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "tokens",
-                "assets",
-                "stylesheet",
-                "templates"
-              ]
+              "enum": ["tokens", "assets", "stylesheet", "templates"]
             }
           }
         },
@@ -5030,10 +4351,7 @@
           },
           "scheme": {
             "type": "string",
-            "enum": [
-              "light",
-              "dark"
-            ]
+            "enum": ["light", "dark"]
           }
         },
         "additionalProperties": false
@@ -5068,19 +4386,11 @@
           },
           "from": {
             "type": "string",
-            "enum": [
-              "draft",
-              "published",
-              "none"
-            ]
+            "enum": ["draft", "published", "none"]
           },
           "shown": {
             "type": "string",
-            "enum": [
-              "client",
-              "tenant",
-              "default"
-            ]
+            "enum": ["client", "tenant", "default"]
           },
           "faults": {
             "type": "array",
@@ -5089,24 +4399,14 @@
               "properties": {
                 "layer": {
                   "type": "string",
-                  "enum": [
-                    "client",
-                    "tenant"
-                  ]
+                  "enum": ["client", "tenant"]
                 },
                 "code": {
                   "type": "string",
-                  "enum": [
-                    "invalid_body",
-                    "image_gone",
-                    "stylesheet_refused"
-                  ]
+                  "enum": ["invalid_body", "image_gone", "stylesheet_refused"]
                 }
               },
-              "required": [
-                "layer",
-                "code"
-              ],
+              "required": ["layer", "code"],
               "additionalProperties": false
             }
           },
@@ -5117,10 +4417,7 @@
               "properties": {
                 "layer": {
                   "type": "string",
-                  "enum": [
-                    "client",
-                    "tenant"
-                  ]
+                  "enum": ["client", "tenant"]
                 },
                 "codes": {
                   "type": "array",
@@ -5129,10 +4426,7 @@
                   }
                 }
               },
-              "required": [
-                "layer",
-                "codes"
-              ],
+              "required": ["layer", "codes"],
               "additionalProperties": false
             }
           },
@@ -5140,14 +4434,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "kind",
-          "from",
-          "shown",
-          "faults",
-          "refused",
-          "unfilled"
-        ],
+        "required": ["kind", "from", "shown", "faults", "refused", "unfilled"],
         "additionalProperties": false
       }
     },
@@ -5177,9 +4464,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "username_editable"
-        ],
+        "required": ["username_editable"],
         "additionalProperties": false
       }
     },
@@ -5233,11 +4518,7 @@
           },
           "outcome": {
             "type": "string",
-            "enum": [
-              "allowed",
-              "refused",
-              "failed"
-            ]
+            "enum": ["allowed", "refused", "failed"]
           },
           "from": {
             "type": "string",
@@ -5286,45 +4567,25 @@
                 },
                 "outcome": {
                   "type": "string",
-                  "enum": [
-                    "allowed",
-                    "refused",
-                    "failed"
-                  ]
+                  "enum": ["allowed", "refused", "failed"]
                 },
                 "actor_tenant_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "actor_subject_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "actor_client_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "actor_name": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "actor_origin": {
                   "anyOf": [
                     {
                       "type": "string",
-                      "enum": [
-                        "tenant",
-                        "system",
-                        "other-tenant"
-                      ]
+                      "enum": ["tenant", "system", "other-tenant"]
                     },
                     {
                       "type": "null"
@@ -5332,28 +4593,16 @@
                   ]
                 },
                 "resource_type": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "resource_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "request_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "ip": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "detail": {
                   "type": "object",
@@ -5387,9 +4636,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -5427,17 +4674,12 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "name",
-                "present"
-              ],
+              "required": ["name", "present"],
               "additionalProperties": false
             }
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -5453,9 +4695,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -5480,16 +4720,10 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "delivered",
-              "failed"
-            ]
+            "enum": ["pending", "delivered", "failed"]
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -5511,11 +4745,7 @@
                 },
                 "status": {
                   "type": "string",
-                  "enum": [
-                    "pending",
-                    "delivered",
-                    "failed"
-                  ]
+                  "enum": ["pending", "delivered", "failed"]
                 },
                 "attempts": {
                   "type": "integer",
@@ -5523,10 +4753,7 @@
                   "maximum": 9007199254740991
                 },
                 "last_error": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "created_at": {
                   "type": "string"
@@ -5535,10 +4762,7 @@
                   "type": "string"
                 },
                 "delivered_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 }
               },
               "required": [
@@ -5559,9 +4783,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -5577,9 +4799,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -5603,9 +4823,7 @@
             "maxLength": 1024
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -5635,19 +4853,13 @@
                   }
                 },
                 "device": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "subject_id": {
                   "type": "string"
                 },
                 "username": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 }
               },
               "required": [
@@ -5667,9 +4879,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -5685,9 +4895,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -5699,9 +4907,7 @@
             "description": "The client's id, a UUID."
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -5722,35 +4928,21 @@
                 },
                 "state": {
                   "type": "string",
-                  "enum": [
-                    "published",
-                    "archived"
-                  ]
+                  "enum": ["published", "archived"]
                 },
                 "created_at": {
                   "type": "string"
                 },
                 "published_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 }
               },
-              "required": [
-                "id",
-                "version",
-                "state",
-                "created_at",
-                "published_at"
-              ],
+              "required": ["id", "version", "state", "created_at", "published_at"],
               "additionalProperties": false
             }
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -5788,24 +4980,15 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "public",
-              "confidential"
-            ]
+            "enum": ["public", "confidential"]
           },
           "enabled": {
             "type": "string",
-            "enum": [
-              "true",
-              "false"
-            ]
+            "enum": ["true", "false"]
           },
           "counts_toward_max_clients": {
             "type": "string",
-            "enum": [
-              "true",
-              "false"
-            ]
+            "enum": ["true", "false"]
           },
           "limit": {
             "description": "Rows in the page, at most 200.",
@@ -5840,10 +5023,7 @@
                   "type": "string"
                 },
                 "description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "name_i18n": {
                   "type": "object",
@@ -5865,10 +5045,7 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": [
-                    "public",
-                    "confidential"
-                  ]
+                  "enum": ["public", "confidential"]
                 },
                 "enabled": {
                   "type": "boolean"
@@ -5881,13 +5058,7 @@
                 },
                 "registration_origin": {
                   "type": "string",
-                  "enum": [
-                    "seeded",
-                    "anonymous",
-                    "token",
-                    "operator",
-                    "cimd"
-                  ]
+                  "enum": ["seeded", "anonymous", "token", "operator", "cimd"]
                 },
                 "created_at": {
                   "type": "string"
@@ -5976,22 +5147,13 @@
                   ]
                 },
                 "jwks_uri": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "frontchannel_logout_uri": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "backchannel_logout_uri": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "frontchannel_logout_session_required": {
                   "type": "boolean"
@@ -6012,52 +5174,28 @@
                   "type": "boolean"
                 },
                 "userinfo_signed_response_alg": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "userinfo_encrypted_response_alg": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "userinfo_encrypted_response_enc": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "tls_client_auth_subject_dn": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "client_uri": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "policy_uri": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "tos_uri": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "id_token_signed_response_alg": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "default_max_age": {
                   "anyOf": [
@@ -6089,16 +5227,10 @@
                   }
                 },
                 "flow_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "previous_secret_expires_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "builtin_admin": {
                   "type": "boolean"
@@ -6128,17 +5260,10 @@
                       },
                       "assignment": {
                         "type": "string",
-                        "enum": [
-                          "default",
-                          "optional"
-                        ]
+                        "enum": ["default", "optional"]
                       }
                     },
-                    "required": [
-                      "id",
-                      "name",
-                      "assignment"
-                    ],
+                    "required": ["id", "name", "assignment"],
                     "additionalProperties": false
                   }
                 },
@@ -6219,9 +5344,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -6273,26 +5396,16 @@
                 },
                 "state": {
                   "type": "string",
-                  "enum": [
-                    "pending",
-                    "verified",
-                    "failed"
-                  ]
+                  "enum": ["pending", "verified", "failed"]
                 },
                 "canonical": {
                   "type": "boolean"
                 },
                 "verified_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "last_checked_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "dns_record": {
                   "anyOf": [
@@ -6306,10 +5419,7 @@
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "name",
-                        "value"
-                      ],
+                      "required": ["name", "value"],
                       "additionalProperties": false
                     },
                     {
@@ -6334,9 +5444,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -6388,53 +5496,30 @@
                       },
                       "requirement": {
                         "type": "string",
-                        "enum": [
-                          "required",
-                          "alternative",
-                          "conditional",
-                          "disabled"
-                        ]
+                        "enum": ["required", "alternative", "conditional", "disabled"]
                       },
                       "settings": {
                         "type": "object",
                         "properties": {
                           "algorithm": {
                             "type": "string",
-                            "enum": [
-                              "SHA1",
-                              "SHA256",
-                              "SHA512"
-                            ]
+                            "enum": ["SHA1", "SHA256", "SHA512"]
                           },
                           "digits": {
                             "type": "number",
-                            "enum": [
-                              6,
-                              8
-                            ]
+                            "enum": [6, 8]
                           },
                           "period": {
                             "type": "number",
-                            "enum": [
-                              30,
-                              60
-                            ]
+                            "enum": [30, 60]
                           },
                           "user_verification": {
                             "type": "string",
-                            "enum": [
-                              "required",
-                              "preferred",
-                              "discouraged"
-                            ]
+                            "enum": ["required", "preferred", "discouraged"]
                           },
                           "resident_key": {
                             "type": "string",
-                            "enum": [
-                              "required",
-                              "preferred",
-                              "discouraged"
-                            ]
+                            "enum": ["required", "preferred", "discouraged"]
                           },
                           "count": {
                             "type": "integer",
@@ -6445,10 +5530,7 @@
                         "additionalProperties": false
                       }
                     },
-                    "required": [
-                      "authenticator",
-                      "requirement"
-                    ],
+                    "required": ["authenticator", "requirement"],
                     "additionalProperties": false
                   }
                 },
@@ -6458,13 +5540,7 @@
                   "maximum": 9007199254740991
                 }
               },
-              "required": [
-                "id",
-                "name",
-                "is_default",
-                "steps",
-                "client_count"
-              ],
+              "required": ["id", "name", "is_default", "steps", "client_count"],
               "additionalProperties": false
             }
           },
@@ -6480,11 +5556,7 @@
             }
           }
         },
-        "required": [
-          "items",
-          "total",
-          "available"
-        ],
+        "required": ["items", "total", "available"],
         "additionalProperties": false
       }
     },
@@ -6553,16 +5625,10 @@
                   "type": "string"
                 },
                 "description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "parent_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "default_for_new_subjects": {
                   "type": "boolean"
@@ -6609,9 +5675,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -6646,18 +5710,11 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "rotating",
-              "retired"
-            ]
+            "enum": ["active", "rotating", "retired"]
           },
           "alg": {
             "type": "string",
-            "enum": [
-              "RS256",
-              "ES256"
-            ]
+            "enum": ["RS256", "ES256"]
           }
         },
         "additionalProperties": false
@@ -6675,40 +5732,23 @@
                 },
                 "status": {
                   "type": "string",
-                  "enum": [
-                    "active",
-                    "rotating",
-                    "retired"
-                  ]
+                  "enum": ["active", "rotating", "retired"]
                 },
                 "kid": {
                   "type": "string"
                 },
                 "alg": {
                   "type": "string",
-                  "enum": [
-                    "RS256",
-                    "ES256"
-                  ]
+                  "enum": ["RS256", "ES256"]
                 },
                 "created_at": {
                   "type": "string"
                 },
                 "not_after": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 }
               },
-              "required": [
-                "id",
-                "status",
-                "kid",
-                "alg",
-                "created_at",
-                "not_after"
-              ],
+              "required": ["id", "status", "kid", "alg", "created_at", "not_after"],
               "additionalProperties": false
             }
           },
@@ -6716,9 +5756,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -6753,12 +5791,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "queued",
-              "retrying",
-              "sent",
-              "failed"
-            ]
+            "enum": ["queued", "retrying", "sent", "failed"]
           }
         },
         "additionalProperties": false
@@ -6785,12 +5818,7 @@
                 },
                 "status": {
                   "type": "string",
-                  "enum": [
-                    "queued",
-                    "retrying",
-                    "sent",
-                    "failed"
-                  ]
+                  "enum": ["queued", "retrying", "sent", "failed"]
                 },
                 "attempts": {
                   "type": "integer",
@@ -6798,10 +5826,7 @@
                   "maximum": 9007199254740991
                 },
                 "last_error": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "created_at": {
                   "type": "string"
@@ -6810,10 +5835,7 @@
                   "type": "string"
                 },
                 "sent_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 }
               },
               "required": [
@@ -6835,9 +5857,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -6875,9 +5895,7 @@
             "pattern": "^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$"
           }
         },
-        "required": [
-          "locale"
-        ],
+        "required": ["locale"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -6908,13 +5926,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "locale",
-                "key",
-                "message",
-                "updated_at",
-                "etag"
-              ],
+              "required": ["locale", "key", "message", "updated_at", "etag"],
               "additionalProperties": false
             }
           },
@@ -6922,9 +5934,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -6993,22 +6003,13 @@
                   "type": "string"
                 },
                 "description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "client_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "client_key": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "default_for_new_subjects": {
                   "type": "boolean"
@@ -7052,9 +6053,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -7070,9 +6069,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -7096,9 +6093,7 @@
             "maxLength": 1024
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -7120,18 +6115,10 @@
                 },
                 "assignment": {
                   "type": "string",
-                  "enum": [
-                    "default",
-                    "optional"
-                  ]
+                  "enum": ["default", "optional"]
                 }
               },
-              "required": [
-                "id",
-                "client_id",
-                "name",
-                "assignment"
-              ],
+              "required": ["id", "client_id", "name", "assignment"],
               "additionalProperties": false
             }
           },
@@ -7139,9 +6126,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -7197,10 +6182,7 @@
                   "type": "string"
                 },
                 "description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "include_in_id_token": {
                   "type": "boolean"
@@ -7212,10 +6194,7 @@
                   "anyOf": [
                     {
                       "type": "string",
-                      "enum": [
-                        "default",
-                        "optional"
-                      ]
+                      "enum": ["default", "optional"]
                     },
                     {
                       "type": "null"
@@ -7223,10 +6202,7 @@
                   ]
                 },
                 "consent_text": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "description_i18n": {
                   "type": "object",
@@ -7275,9 +6251,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -7345,19 +6319,13 @@
                   }
                 },
                 "device": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "subject_id": {
                   "type": "string"
                 },
                 "username": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 }
               },
               "required": [
@@ -7377,9 +6345,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -7395,9 +6361,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -7421,9 +6385,7 @@
             "maxLength": 1024
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -7450,12 +6412,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "client_id",
-                "client_key",
-                "scope_names",
-                "granted_at"
-              ],
+              "required": ["client_id", "client_key", "scope_names", "granted_at"],
               "additionalProperties": false
             }
           },
@@ -7463,9 +6420,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -7481,9 +6436,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -7507,9 +6460,7 @@
             "maxLength": 1024
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -7527,16 +6478,10 @@
                   "type": "string"
                 },
                 "client_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "client_key": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "via": {
                   "type": "array",
@@ -7550,9 +6495,7 @@
                             "const": "direct"
                           }
                         },
-                        "required": [
-                          "kind"
-                        ],
+                        "required": ["kind"],
                         "additionalProperties": false
                       },
                       {
@@ -7569,11 +6512,7 @@
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "kind",
-                          "group_id",
-                          "group_path"
-                        ],
+                        "required": ["kind", "group_id", "group_path"],
                         "additionalProperties": false
                       },
                       {
@@ -7590,24 +6529,14 @@
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "kind",
-                          "parent_role_id",
-                          "parent_name"
-                        ],
+                        "required": ["kind", "parent_role_id", "parent_name"],
                         "additionalProperties": false
                       }
                     ]
                   }
                 }
               },
-              "required": [
-                "id",
-                "name",
-                "client_id",
-                "client_key",
-                "via"
-              ],
+              "required": ["id", "name", "client_id", "client_key", "via"],
               "additionalProperties": false
             }
           },
@@ -7615,9 +6544,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -7633,9 +6560,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -7659,9 +6584,7 @@
             "maxLength": 1024
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -7688,19 +6611,13 @@
                   "type": "string"
                 },
                 "session_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "offline": {
                   "type": "boolean"
                 },
                 "refresh_expires_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 }
               },
               "required": [
@@ -7720,9 +6637,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -7738,9 +6653,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -7764,9 +6677,7 @@
             "maxLength": 1024
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -7796,10 +6707,7 @@
                   }
                 },
                 "device": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 }
               },
               "required": [
@@ -7817,9 +6725,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -7835,9 +6741,7 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
+      "pathParams": ["id"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -7861,9 +6765,7 @@
             "maxLength": 1024
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -7881,10 +6783,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "version",
-                "accepted_at"
-              ],
+              "required": ["version", "accepted_at"],
               "additionalProperties": false
             }
           },
@@ -7892,9 +6791,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -7942,10 +6839,7 @@
           },
           "enabled": {
             "type": "string",
-            "enum": [
-              "true",
-              "false"
-            ]
+            "enum": ["true", "false"]
           },
           "role": {
             "type": "string",
@@ -7976,18 +6870,11 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "user",
-              "service",
-              "agent_instance"
-            ]
+            "enum": ["user", "service", "agent_instance"]
           },
           "locked": {
             "type": "string",
-            "enum": [
-              "true",
-              "false"
-            ]
+            "enum": ["true", "false"]
           },
           "limit": {
             "description": "Rows in the page, at most 200.",
@@ -8017,23 +6904,13 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": [
-                    "user",
-                    "service",
-                    "agent_instance"
-                  ]
+                  "enum": ["user", "service", "agent_instance"]
                 },
                 "username": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "email": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "enabled": {
                   "type": "boolean"
@@ -8066,22 +6943,12 @@
                         "type": "boolean"
                       }
                     },
-                    "required": [
-                      "name",
-                      "direct"
-                    ],
+                    "required": ["name", "direct"],
                     "additionalProperties": false
                   }
                 }
               },
-              "required": [
-                "id",
-                "type",
-                "username",
-                "email",
-                "enabled",
-                "created_at"
-              ],
+              "required": ["id", "type", "username", "email", "enabled", "created_at"],
               "additionalProperties": false
             }
           },
@@ -8089,9 +6956,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -8124,10 +6989,7 @@
           },
           "enabled": {
             "type": "string",
-            "enum": [
-              "true",
-              "false"
-            ]
+            "enum": ["true", "false"]
           },
           "limit": {
             "description": "Rows in the page, at most 200.",
@@ -8159,10 +7021,7 @@
                   "type": "string"
                 },
                 "display_name": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "enabled": {
                   "type": "boolean"
@@ -8171,13 +7030,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "id",
-                "name",
-                "display_name",
-                "enabled",
-                "created_at"
-              ],
+              "required": ["id", "name", "display_name", "enabled", "created_at"],
               "additionalProperties": false
             }
           },
@@ -8185,9 +7038,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -8228,35 +7079,21 @@
                 },
                 "state": {
                   "type": "string",
-                  "enum": [
-                    "published",
-                    "archived"
-                  ]
+                  "enum": ["published", "archived"]
                 },
                 "created_at": {
                   "type": "string"
                 },
                 "published_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 }
               },
-              "required": [
-                "id",
-                "version",
-                "state",
-                "created_at",
-                "published_at"
-              ],
+              "required": ["id", "version", "state", "created_at", "published_at"],
               "additionalProperties": false
             }
           }
         },
-        "required": [
-          "items"
-        ],
+        "required": ["items"],
         "additionalProperties": false
       }
     },
@@ -8272,15 +7109,8 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
-      "bodyFields": [
-        "name",
-        "description",
-        "name_i18n",
-        "description_i18n"
-      ],
+      "pathParams": ["id"],
+      "bodyFields": ["name", "description", "name_i18n", "description_i18n"],
       "spends": "mutating",
       "refusal": "insufficient_scope: a token holding mcp:write may change only the descriptive fields of a client or a scope, never the name of a built-in client; check the target and the fields.",
       "stale": "The resource changed since it was read. Read it again with the matching get tool, then send the etag that read returned as if_match.",
@@ -8379,10 +7209,7 @@
             "description": "The description by language tag, replacing every language held now."
           }
         },
-        "required": [
-          "id",
-          "if_match"
-        ],
+        "required": ["id", "if_match"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -8398,10 +7225,7 @@
             "type": "string"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "name_i18n": {
             "type": "object",
@@ -8423,10 +7247,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "public",
-              "confidential"
-            ]
+            "enum": ["public", "confidential"]
           },
           "enabled": {
             "type": "boolean"
@@ -8439,13 +7260,7 @@
           },
           "registration_origin": {
             "type": "string",
-            "enum": [
-              "seeded",
-              "anonymous",
-              "token",
-              "operator",
-              "cimd"
-            ]
+            "enum": ["seeded", "anonymous", "token", "operator", "cimd"]
           },
           "created_at": {
             "type": "string"
@@ -8534,22 +7349,13 @@
             ]
           },
           "jwks_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "frontchannel_logout_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "backchannel_logout_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "frontchannel_logout_session_required": {
             "type": "boolean"
@@ -8570,52 +7376,28 @@
             "type": "boolean"
           },
           "userinfo_signed_response_alg": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "userinfo_encrypted_response_alg": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "userinfo_encrypted_response_enc": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "tls_client_auth_subject_dn": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "client_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "policy_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "tos_uri": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "id_token_signed_response_alg": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "default_max_age": {
             "anyOf": [
@@ -8647,16 +7429,10 @@
             }
           },
           "flow_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "previous_secret_expires_at": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "builtin_admin": {
             "type": "boolean"
@@ -8686,17 +7462,10 @@
                 },
                 "assignment": {
                   "type": "string",
-                  "enum": [
-                    "default",
-                    "optional"
-                  ]
+                  "enum": ["default", "optional"]
                 }
               },
-              "required": [
-                "id",
-                "name",
-                "assignment"
-              ],
+              "required": ["id", "name", "assignment"],
               "additionalProperties": false
             }
           },
@@ -8793,12 +7562,8 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
-      "bodyFields": [
-        "description"
-      ],
+      "pathParams": ["id"],
+      "bodyFields": ["description"],
       "spends": "mutating",
       "refusal": "insufficient_scope: a token holding mcp:write may change only a group's description; check the target and the fields.",
       "stale": "The resource changed since it was read. Read it again with the matching get tool, then send the etag that read returned as if_match.",
@@ -8839,10 +7604,7 @@
             "description": "The description, at most 1000 characters; null clears it, and an empty string sets it to empty."
           }
         },
-        "required": [
-          "id",
-          "if_match"
-        ],
+        "required": ["id", "if_match"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -8855,16 +7617,10 @@
             "type": "string"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "parent_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "default_for_new_subjects": {
             "type": "boolean"
@@ -8919,12 +7675,8 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
-      "bodyFields": [
-        "description"
-      ],
+      "pathParams": ["id"],
+      "bodyFields": ["description"],
       "spends": "mutating",
       "refusal": "insufficient_scope: a token holding mcp:write may change only a role's description; check the target and the fields.",
       "stale": "The resource changed since it was read. Read it again with the matching get tool, then send the etag that read returned as if_match.",
@@ -8965,10 +7717,7 @@
             "description": "The description, at most 1000 characters; null clears it, and an empty string sets it to empty."
           }
         },
-        "required": [
-          "id",
-          "if_match"
-        ],
+        "required": ["id", "if_match"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -8981,22 +7730,13 @@
             "type": "string"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "client_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "client_key": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "default_for_new_subjects": {
             "type": "boolean"
@@ -9048,14 +7788,8 @@
         "destructiveHint": false,
         "idempotentHint": true
       },
-      "pathParams": [
-        "id"
-      ],
-      "bodyFields": [
-        "description",
-        "description_i18n",
-        "display_order"
-      ],
+      "pathParams": ["id"],
+      "bodyFields": ["description", "description_i18n", "display_order"],
       "spends": "mutating",
       "refusal": "insufficient_scope: a token holding mcp:write may change the description and display order of a scope a person made, and never of a built-in scope (openid, offline_access, mcp:read, mcp:write and the other standard ones); check the target and the fields.",
       "stale": "The resource changed since it was read. Read it again with the matching get tool, then send the etag that read returned as if_match.",
@@ -9124,10 +7858,7 @@
             "description": "Where the consent screen lists the scope among the others, lowest first: an integer from 0."
           }
         },
-        "required": [
-          "id",
-          "if_match"
-        ],
+        "required": ["id", "if_match"],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -9140,10 +7871,7 @@
             "type": "string"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "include_in_id_token": {
             "type": "boolean"
@@ -9155,10 +7883,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "default",
-                  "optional"
-                ]
+                "enum": ["default", "optional"]
               },
               {
                 "type": "null"
@@ -9166,10 +7891,7 @@
             ]
           },
           "consent_text": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "description_i18n": {
             "type": "object",
@@ -9227,11 +7949,7 @@
         "idempotentHint": true
       },
       "pathParams": [],
-      "bodyFields": [
-        "display_name",
-        "supported_locales",
-        "default_locale"
-      ],
+      "bodyFields": ["display_name", "supported_locales", "default_locale"],
       "spends": "mutating",
       "refusal": "insufficient_scope: a token holding mcp:write may change only the display name and the languages of the tenant settings; check the fields.",
       "stale": "The settings changed since they were read. Read them again with get_settings, then send the etag that read returned as if_match.",
@@ -9284,9 +8002,7 @@
             ]
           }
         },
-        "required": [
-          "if_match"
-        ],
+        "required": ["if_match"],
         "additionalProperties": false
       },
       "outputSchema": {

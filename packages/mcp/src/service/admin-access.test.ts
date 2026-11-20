@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { accessOf, scopeFor } from '#/service/admin-access';
+import { accessOf } from '@odudu-io/mcp-stdio/shared';
+import { scopeFor } from '#/service/admin-access';
 import { ToolProblem } from '#/service/tool';
 import { unverifiedTokenForTests } from '#/testing/token';
 

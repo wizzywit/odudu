@@ -79,3 +79,17 @@ licence (`LICENSING.md`), and the licence lint requires AGPL-3.0-only there.
 **Generating the clients at publish time.** A reviewer would see nothing of what
 a release contains, and a change to the server's error shape would reach users
 unseen. The clients are committed, so a reviewer sees them change.
+
+## Amendment, 2026-11-20: the server may import an SDK, and shares code with `@odudu-io/mcp-stdio`
+
+`sdks-import-no-server` is one-way: the server may import an SDK, since AGPL code
+may consume Apache code. `@odudu/mcp` does, through `@odudu-io/mcp-stdio/shared`,
+the subpath that holds what the tenant's MCP endpoint and the stdio client both
+run: the admin request and path rules, the cleaning of text, the write budget and
+the single call of a tool. The code was moved to the SDK, not copied, so there is
+one copy of it. `apps/server` imports the package's root for `odudu mcp`.
+Three pieces that would have pulled a server package into the SDK are copies held
+to the server's by tests in `packages/mcp` and `apps/server`: the tenant address
+helpers, the bidirectional-control strip and the scope and client names.
+`mcp-allowlist` needed no change: it names workspace packages under `packages/`
+and an SDK is not one. A positive fixture in `tests/boundaries` records it.

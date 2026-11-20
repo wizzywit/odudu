@@ -2,7 +2,7 @@ import { themeViewSchema } from '@odudu/contracts/admin';
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { TOOLS } from '#/service/catalogue';
-import { callTool } from '#/service/call-tool';
+import { callTool } from '@odudu-io/mcp-stdio/shared';
 import type { AdminResult, RegisteredTool } from '#/service/tool';
 import { exampleOf } from '#/testing/example-of';
 import type { respondingWith } from '#/testing/fake-caller';

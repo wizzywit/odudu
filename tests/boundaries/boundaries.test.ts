@@ -133,6 +133,28 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(found.some((v) => v.from.includes('mcp/src/allowed'))).toBe(false);
   });
 
+  it('lets the MCP package import the stdio client it shares code with', async () => {
+    const found = await violations('mcp-allowlist');
+    expect(found.some((v) => v.from.includes('mcp/src/imports-mcp-stdio'))).toBe(false);
+  });
+
+  it('rejects the stdio client importing the MCP package, or a server package by name', async () => {
+    const found = await violations('sdks-import-no-server');
+    expect(
+      found.some(
+        (v) =>
+          v.from.includes('sdks/mcp-stdio/src/imports-server.') && v.to.includes('packages/mcp'),
+      ),
+    ).toBe(true);
+    expect(
+      found.some(
+        (v) =>
+          v.from.includes('sdks/mcp-stdio/src/imports-server-by-name') && v.to === '@odudu/kernel',
+      ),
+    ).toBe(true);
+    expect(found.some((v) => v.from.includes('mcp/src/imports-mcp-stdio'))).toBe(false);
+  });
+
   it('rejects a protocol package importing the MCP package', async () => {
     const found = await violations('mcp-imported-only-by-server');
     expect(

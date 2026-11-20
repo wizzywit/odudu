@@ -5,7 +5,7 @@ import {
   themeViewSchema,
 } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { callTool } from '#/service/call-tool';
+import { callTool } from '@odudu-io/mcp-stdio/shared';
 import { clientBrandingTools } from '#/service/tools/client-branding';
 import { describeReadTool } from '#/testing/conformance';
 import { exampleOf } from '#/testing/example-of';

@@ -18,13 +18,14 @@ import {
   createTokenSource,
   fileModeProblem,
   listenOnLoopback,
+  loadCatalogue,
   loopbackLogin,
   runTool,
   serveMcpStdio,
   StdioError,
   stdioTarget,
   toolServer,
-  TOOLS,
+  toolsOf,
   directCallerTools,
   visibleTools,
   type CredentialStore,
@@ -35,7 +36,7 @@ import {
   type StdioTarget,
   type ToolResult,
   type WriteBudget,
-} from '@odudu/mcp';
+} from '@odudu-io/mcp-stdio';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { readFile, stat } from 'node:fs/promises';
@@ -324,7 +325,7 @@ async function serve(
   const connection = serveMcpStdio({
     stdin: io.stdin,
     stdout: io.stdout,
-    server: () => toolServer(tenant, tools, run, undefined, note),
+    server: () => toolServer(tenant, tools, run, note),
     onerror: (error) => {
       io.stderr(failureLine('protocol error', 'transport', error));
     },
@@ -396,7 +397,7 @@ async function start(values: Values, io: McpIo): Promise<void> {
   const inSystemTenant = await signsInAtSystemTenant(target, discover);
   await serve(
     tenant,
-    visibleTools(directCallerTools(TOOLS), [scope], null, inSystemTenant),
+    visibleTools(directCallerTools(toolsOf(loadCatalogue())), [scope], inSystemTenant),
     caller,
     budget,
     io,

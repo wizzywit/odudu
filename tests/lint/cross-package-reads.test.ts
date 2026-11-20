@@ -90,6 +90,8 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
     targets: ['sdks/python/src/**', 'apps/docs/static/openapi/**'],
   },
   { file: 'tools/sdk-generate/src/run.ts', targets: ['apps/docs/static/openapi/**'] },
+  { file: 'tools/mcp-catalogue/src/location.ts', targets: ['sdks/mcp-stdio/src/mcp-tools.json'] },
+  { file: 'tools/mcp-catalogue/src/run.ts', targets: ['sdks/mcp-stdio/src/mcp-tools.json'] },
   { file: 'packages/db/src/migrate.ts', targets: ['packages/db/drizzle/**'] },
   {
     file: 'apps/admin-console/src/shared/ui/shadows.test.ts',

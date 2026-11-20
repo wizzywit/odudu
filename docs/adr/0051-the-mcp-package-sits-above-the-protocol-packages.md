@@ -62,3 +62,9 @@ listening address, a Host the tenant accepts and a network credential path,
 where an in-process `inject` with a minted token takes the same door a request
 does with none of those. The route table and agent scope rules are read from
 `protocol-admin` either way, so the import edge would remain.
+
+## Amendment, 2026-11-20: the package also imports the stdio client's shared code
+
+`mcp-allowlist` covers `packages/` only, and `@odudu/mcp` now imports
+`@odudu-io/mcp-stdio/shared` from `sdks/`, so the rule is unchanged. ADR 0053's
+amendment of the same date says why and what is shared.

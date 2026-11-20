@@ -1,4 +1,4 @@
-import { addressIssuer, domainAddress, pathAddress } from '@odudu/kernel';
+import { addressIssuer, domainAddress, pathAddress } from '#/service/address';
 import { StdioError } from '#/service/stdio-error';
 
 // One way a tenant can be addressed: the issuer its metadata must name and where

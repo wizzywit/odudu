@@ -396,7 +396,9 @@ module.exports = {
         'The MCP package sits above the protocol packages (ADR 0051) and reaches the admin API ' +
         'only through its HTTP surface, so of the workspace it may import the kernel, the ' +
         'contracts, the OIDC package and the admin API package, and no database, crypto or ' +
-        'domain package. The rule covers src/ minus its *.test.ts files.',
+        'domain package. The rule covers src/ minus its *.test.ts files. It names packages/ ' +
+        'only, so the stdio client in sdks/mcp-stdio, which the package shares code with ' +
+        '(ADR 0053), is outside it.',
       from: { path: '(^|/)packages/mcp/src/', pathNot: '\\.test\\.ts$' },
       to: {
         path: '(^|/)packages/',

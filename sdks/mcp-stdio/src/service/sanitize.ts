@@ -1,4 +1,4 @@
-import { stripBidiControls } from '@odudu/contracts';
+import { stripBidiControls } from '#/service/bidi';
 import { ToolProblem } from '#/service/tool';
 
 // What one string a tool returns may hold. A name or a description is free

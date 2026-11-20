@@ -11,7 +11,7 @@ import {
   ToolProblem,
   type AdminResult,
   type ProblemError,
-  type RegisteredTool,
+  type CallableTool,
   type ToolResult,
 } from '#/service/tool';
 
@@ -95,7 +95,7 @@ export interface ToolRun {
 
 // A caller refuses an answer past the admin read cap before the tool can speak;
 // the tool's own advice is added where that refusal has no detail of its own.
-function withAdvice(problem: ToolProblem, tool: RegisteredTool): ToolProblem {
+function withAdvice(problem: ToolProblem, tool: CallableTool): ToolProblem {
   if (
     problem.problemType !== 'mcp:result_too_large' ||
     problem.detail !== undefined ||
@@ -108,8 +108,8 @@ function withAdvice(problem: ToolProblem, tool: RegisteredTool): ToolProblem {
 
 // `callTool` with the problem it turned into an error result kept beside it.
 export async function runTool(
-  tool: RegisteredTool,
-  caller: Parameters<RegisteredTool['run']>[0],
+  tool: CallableTool,
+  caller: Parameters<CallableTool['run']>[0],
   input: unknown,
 ): Promise<ToolRun> {
   try {
@@ -138,8 +138,8 @@ export async function runTool(
 }
 
 export async function callTool(
-  tool: RegisteredTool,
-  caller: Parameters<RegisteredTool['run']>[0],
+  tool: CallableTool,
+  caller: Parameters<CallableTool['run']>[0],
   input: unknown,
 ): Promise<ToolResult> {
   return (await runTool(tool, caller, input)).result;

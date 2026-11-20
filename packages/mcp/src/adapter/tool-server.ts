@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import type { z } from 'zod';
-import { announceTenant } from '#/service/tenant-announcement';
+import { announceTenant } from '@odudu-io/mcp-stdio/shared';
 import type { RegisteredTool, ToolResult } from '#/service/tool';
 
 const SERVER_VERSION = '1.0.0';

@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { z } from 'zod';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createMcpExchange, type ExchangeParts } from '#/adapter/mcp-exchange';
-import { callTool } from '#/service/call-tool';
+import { callTool } from '@odudu-io/mcp-stdio/shared';
 import { defineTool } from '#/service/define-tool';
 import type { McpTool, RegisteredTool } from '#/service/tool';
 

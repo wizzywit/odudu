@@ -1,7 +1,7 @@
 import { tenantSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { callTool } from '#/service/call-tool';
+import { callTool } from '@odudu-io/mcp-stdio/shared';
 import { ownTenantTool } from '#/service/tools/tenant';
 import { describeReadTool } from '#/testing/conformance';
 import { respondingWith } from '#/testing/fake-caller';

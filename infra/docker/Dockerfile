@@ -53,7 +53,10 @@ FROM store AS build
 COPY tsconfig.base.json ./
 COPY packages packages
 COPY apps apps
+COPY sdks/mcp-stdio sdks/mcp-stdio
 RUN pnpm install --frozen-lockfile --offline --ignore-scripts
+# The server bundles the stdio client from its built package, so it builds first.
+RUN pnpm --filter @odudu-io/mcp-stdio build
 RUN pnpm --filter @odudu/server build
 RUN pnpm --filter @odudu/admin-console build
 RUN pnpm --filter @odudu/instrument build
@@ -70,6 +73,7 @@ RUN ODUDU_COMMIT="$(printf '%.7s' "$ODUDU_REVISION")" pnpm --filter @odudu/docs 
 FROM store AS prod-deps
 COPY packages packages
 COPY apps apps
+COPY sdks/mcp-stdio sdks/mcp-stdio
 # --ignore-scripts is safe here: @node-rs/argon2 ships prebuilt platform
 # binaries as optionalDependencies (verified against its package.json — no
 # install/postinstall script selects or compiles anything), so skipping

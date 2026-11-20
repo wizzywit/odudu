@@ -35,6 +35,26 @@
       "outputs": ["trace-report.json"],
       "env": ["ODUDU_TEST_SHARD"]
     },
+    "@odudu/mcp#typecheck": {
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"]
+    },
+    "@odudu/mcp-catalogue#typecheck": {
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"]
+    },
+    "@odudu/server#typecheck": {
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"]
+    },
+    "@odudu/mcp-catalogue#test": {
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"],
+      "inputs": [
+        "src/**",
+        "package.json",
+        "tsconfig.json",
+        "$TURBO_ROOT$/sdks/mcp-stdio/src/mcp-tools.json"
+      ],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
     "@odudu-io/bff#typecheck": {
       "dependsOn": ["^typecheck", "^build"]
     },
