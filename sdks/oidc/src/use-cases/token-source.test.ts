@@ -1,0 +1,84 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OduduError } from '#/services/odudu-error';
+import { startFakeServer, type FakeServer } from '#/testing/fake-server';
+import { createTokenSource } from '#/use-cases/token-source';
+
+let fake: FakeServer;
+let clock: number;
+const START = 1_800_000_000_000;
+const deps = () => ({ allowInsecureRequests: true, now: () => clock });
+
+beforeEach(async () => {
+  clock = START;
+  fake = await startFakeServer();
+});
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await fake.close();
+});
+
+function source(extra: { skewMs?: number } = {}): () => Promise<string> {
+  return createTokenSource(
+    { issuer: fake.issuer, clientId: 'service-1', auth: { secret: 's' }, scope: 'a', ...extra },
+    deps(),
+  );
+}
+
+describe('createTokenSource', () => {
+  it('reuses the token until 30 s before expiry', async () => {
+    fake.expiresIn = 900;
+    const token = source();
+    expect(await token()).toBe('client-token-1');
+    clock = START + 869_000;
+    expect(await token()).toBe('client-token-1');
+    expect(fake.clientCredentialsGrants).toBe(1);
+    clock = START + 870_000;
+    expect(await token()).toBe('client-token-2');
+    expect(fake.clientCredentialsGrants).toBe(2);
+  });
+
+  it('renews skewMs before expiry when the caller sets it', async () => {
+    fake.expiresIn = 100;
+    const token = source({ skewMs: 10_000 });
+    await token();
+    clock = START + 89_000;
+    await token();
+    expect(fake.clientCredentialsGrants).toBe(1);
+    clock = START + 90_000;
+    await token();
+    expect(fake.clientCredentialsGrants).toBe(2);
+  });
+
+  it('makes one renewal under concurrent calls', async () => {
+    const token = source();
+    const results = await Promise.all(Array.from({ length: 10 }, () => token()));
+    expect(new Set(results)).toEqual(new Set(['client-token-1']));
+    expect(fake.clientCredentialsGrants).toBe(1);
+  });
+
+  it('rejects every waiter of a failed renewal with one error and retries on the next call', async () => {
+    const token = source();
+    fake.tokenError = { error: 'invalid_client' };
+    const outcomes = await Promise.allSettled([token(), token(), token()]);
+    const reasons = outcomes.map((o) => (o.status === 'rejected' ? (o.reason as unknown) : null));
+    expect(reasons[0]).toBeInstanceOf(OduduError);
+    expect(reasons[1]).toBe(reasons[0]);
+    expect(reasons[2]).toBe(reasons[0]);
+    expect(fake.tokenRequests).toHaveLength(1);
+    fake.tokenError = undefined;
+    expect(await token()).toBe('client-token-1');
+    expect(fake.tokenRequests).toHaveLength(2);
+  });
+
+  it('holds no timer', async () => {
+    const interval = vi.spyOn(globalThis, 'setInterval');
+    const timeout = vi.spyOn(globalThis, 'setTimeout');
+    const token = source();
+    await token();
+    expect(interval).not.toHaveBeenCalled();
+    // The HTTP client sets short timers of its own; a renewal timer would wait
+    // for the token to age, minutes at least.
+    const delays = timeout.mock.calls.map(([, delay]) => delay ?? 0);
+    expect(Math.max(0, ...delays)).toBeLessThan(10_000);
+  });
+});

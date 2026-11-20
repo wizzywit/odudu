@@ -100,3 +100,31 @@ export interface TokenSet {
   refreshToken?: string;
   claims: IdTokenClaims;
 }
+
+// A private key in JWK form (RFC 7517). Any JWK object fits, including the
+// result of `crypto.subtle.exportKey('jwk', key)`.
+export interface PrivateKeyJwk {
+  kty?: string;
+  crv?: string;
+  [member: string]: unknown;
+}
+
+// How a service proves who it is to the token endpoint. A secret is sent as
+// `client_secret_basic`; a private key signs a `private_key_jwt` assertion.
+export type ClientAuth =
+  | { secret: string; privateKey?: never; kid?: never; alg?: never }
+  | { privateKey: PrivateKeyJwk; kid?: string; alg?: string; secret?: never };
+
+export interface ClientCredentialsOptions {
+  issuer: string;
+  clientId: string;
+  auth: ClientAuth;
+  scope?: string;
+  // The API the access token is for (RFC 8707).
+  resource?: string;
+}
+
+export interface TokenSourceOptions extends ClientCredentialsOptions {
+  // How long before expiry a token is replaced; 30 seconds when omitted.
+  skewMs?: number;
+}

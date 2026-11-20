@@ -28,6 +28,7 @@
     "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
   },
   "dependencies": {
+    "jose": "6.2.17",
     "oauth4webapi": "3.8.8"
   },
   "devDependencies": {
