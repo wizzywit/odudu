@@ -450,10 +450,18 @@ function mediaBlock(
   ];
 }
 
+// An error status names a shared response under `components.responses`.
+function resolveResponse(response: Json, root: OpenApiDocument): Json {
+  const ref = str(response.$ref);
+  const prefix = '#/components/responses/';
+  if (ref?.startsWith(prefix) !== true) return response;
+  return record((root.components.responses as Json)[ref.slice(prefix.length)]) ?? response;
+}
+
 function responseBlocks(operation: Json, ctx: Context): string[] {
   const lines: string[] = [];
   for (const [status, response] of Object.entries(record(operation.responses) ?? {})) {
-    const found = record(response) ?? {};
+    const found = resolveResponse(record(response) ?? {}, ctx.root);
     const description = str(found.description) ?? '';
     lines.push(`${'#'.repeat(ctx.level + 1)} ${status} ${escapeProse(description)}`.trimEnd(), '');
     const content = Object.entries(record(found.content) ?? {});
