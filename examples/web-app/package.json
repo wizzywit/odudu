@@ -13,13 +13,10 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "openid-client": "6.9.0"
+    "@odudu-io/oidc": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
     "typescript": "6.0.3"
-  },
-  "overrides": {
-    "jose": "6.2.12"
   }
 }
