@@ -17,6 +17,8 @@ import type { VerifiedToken } from '#/types';
 const ACCESS_TOKEN_TYPE = 'at+jwt';
 // Seconds of leeway on `exp` and `nbf`.
 export const CLOCK_TOLERANCE_SECONDS = 5;
+// A token longer than this is refused before it is decoded.
+export const MAX_TOKEN_LENGTH = 16_384;
 
 export interface TokenHeader {
   alg: SigningAlgorithm;
@@ -26,6 +28,7 @@ export interface TokenHeader {
 // The issuer a token claims, read before anything is trusted. It only selects
 // among the configured issuers: it is never fetched or used as an address.
 export function claimedIssuer(token: string, issuers: readonly string[]): string {
+  if (token.length > MAX_TOKEN_LENGTH) throw new VerificationError('malformed');
   let iss: unknown;
   try {
     iss = decodeJwt(token).iss;
@@ -84,7 +87,7 @@ export async function verifySigned(
   try {
     const key = await importJWK(jwk, header.alg);
     const { payload } = await jwtVerify(token, key, {
-      algorithms: [header.alg],
+      algorithms: SIGNING_ALGORITHMS.filter((alg) => alg === header.alg),
       issuer: expected.issuer,
       audience: expected.audience,
       requiredClaims: ['exp'],

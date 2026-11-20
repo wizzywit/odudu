@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http';
+import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { SignJWT, exportJWK, generateKeyPair, type CryptoKey, type JWK } from 'jose';
 
@@ -26,7 +26,36 @@ export interface FakeIssuer {
   jwksStatus: number;
   // Hold every JWK Set answer until released, to overlap requests.
   holdJwks: Promise<void> | undefined;
+  // Answer this document with far more than any client should read, with or
+  // without a declared length, and count what was written before the client
+  // hung up.
+  oversize: { path: 'jwks' | 'discovery'; declared: boolean } | undefined;
+  bytesWritten: number;
   close: () => Promise<void>;
+}
+
+export const OVERSIZE_BYTES = 64 * 1024 * 1024;
+
+function streamOversize(response: ServerResponse, fake: FakeIssuer, declared: boolean): void {
+  const chunk = Buffer.alloc(65_536, 0x20);
+  response.writeHead(200, {
+    'content-type': 'application/json',
+    ...(declared ? { 'content-length': String(OVERSIZE_BYTES) } : {}),
+  });
+  let sent = 0;
+  const pump = (): void => {
+    while (sent < OVERSIZE_BYTES && !response.destroyed) {
+      const open = response.write(chunk);
+      sent += chunk.length;
+      fake.bytesWritten = sent;
+      if (!open) {
+        response.once('drain', pump);
+        return;
+      }
+    }
+    if (!response.destroyed) response.end();
+  };
+  pump();
 }
 
 export async function startFakeIssuer(keys: JWK[]): Promise<FakeIssuer> {
@@ -37,6 +66,8 @@ export async function startFakeIssuer(keys: JWK[]): Promise<FakeIssuer> {
     jwksRequests: 0,
     jwksStatus: 200,
     holdJwks: undefined,
+    oversize: undefined,
+    bytesWritten: 0,
     close: () => Promise.resolve(),
   };
   const server: Server = createServer((request, response) => {
@@ -45,6 +76,13 @@ export async function startFakeIssuer(keys: JWK[]): Promise<FakeIssuer> {
       response.writeHead(status, { 'content-type': 'application/json' });
       response.end(JSON.stringify(body));
     };
+    const document = path.endsWith('/jwks') ? 'jwks' : 'discovery';
+    if (fake.oversize?.path === document) {
+      if (document === 'jwks') fake.jwksRequests += 1;
+      else fake.discoveryRequests += 1;
+      streamOversize(response, fake, fake.oversize.declared);
+      return;
+    }
     if (path.endsWith('/.well-known/openid-configuration')) {
       fake.discoveryRequests += 1;
       send(200, { issuer: fake.issuer, jwks_uri: `${fake.issuer}/jwks` });

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { OVERSIZE_BYTES } from '#/testing/fake-issuer';
 import { createVerifier } from '#/use-cases/create-verifier';
 import { KeyFetchError } from '#/services/verification-error';
 import {
@@ -30,6 +31,7 @@ const verifier = (jwksTtlMs?: number) =>
     issuers: [issuer.issuer],
     audience: API,
     clock: () => clock,
+    allowInsecureIssuers: true,
     ...(jwksTtlMs === undefined ? {} : { jwksTtlMs }),
   });
 const tokenFor = (key: TestKey): Promise<string> =>
@@ -134,6 +136,7 @@ describe('reading the issuer keys', () => {
       issuers: [issuer.issuer],
       audience: API,
       clock: () => clock,
+      allowInsecureIssuers: true,
       fetch: (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
         const target = `${other.issuer}${url.pathname.replace('/tenants/demo', '')}`;
@@ -142,5 +145,55 @@ describe('reading the issuer keys', () => {
     });
     await expect(verify(await tokenFor(first))).rejects.toBeInstanceOf(KeyFetchError);
     await other.close();
+  });
+
+  for (const path of ['jwks', 'discovery'] as const) {
+    for (const declared of [true, false]) {
+      it(`refuses an oversized ${path} document ${declared ? 'declared' : 'streamed'} without buffering it`, async () => {
+        issuer.oversize = { path, declared };
+        const verify = verifier();
+        await expect(verify(await tokenFor(first))).rejects.toBeInstanceOf(KeyFetchError);
+        expect(issuer.bytesWritten).toBeLessThan(OVERSIZE_BYTES / 2);
+      });
+    }
+  }
+
+  it('a failed unknown-kid refetch keeps known keys working', async () => {
+    const verify = verifier();
+    const token = await tokenFor(first);
+    await verify(token);
+    issuer.jwksStatus = 503;
+    clock += 11_000;
+    const stranger = await tokenFor(await testKey('k7'));
+    await expect(verify(stranger)).rejects.toMatchObject({ reason: 'unknown_key' });
+    expect(issuer.jwksRequests).toBe(2);
+    await expect(verify(token)).resolves.toBeDefined();
+    clock += 1_000;
+    await expect(verify(stranger)).rejects.toMatchObject({ reason: 'unknown_key' });
+    expect(issuer.jwksRequests).toBe(2);
+  });
+
+  it('a failed refresh after the TTL serves stale keys up to 2x the TTL then fails with KeyFetchError', async () => {
+    const verify = verifier(1_000);
+    const token = await tokenFor(first);
+    await verify(token);
+    issuer.jwksStatus = 503;
+    clock += 1_001;
+    await expect(verify(token)).resolves.toBeDefined();
+    expect(issuer.jwksRequests).toBe(2);
+    clock += 500;
+    await expect(verify(token)).resolves.toBeDefined();
+    expect(issuer.jwksRequests).toBe(2);
+    clock += 600;
+    await expect(verify(token)).rejects.toBeInstanceOf(KeyFetchError);
+  });
+
+  it('refuses a token longer than 16 KiB before reading it or fetching keys', async () => {
+    const verify = verifier();
+    await expect(verify('a'.repeat(16_385))).rejects.toMatchObject({
+      status: 401,
+      code: 'invalid_token',
+    });
+    expect(issuer.discoveryRequests).toBe(0);
   });
 });

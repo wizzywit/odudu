@@ -147,6 +147,19 @@ describe('verifying an access token', () => {
     });
   });
 
+  it('refuses a configuration that is unsafe or ambiguous', () => {
+    const audience = 'a';
+    expect(() => createVerifier({ issuers: ['https://i.test/tenants/a/'], audience })).toThrow(
+      /trailing slash/u,
+    );
+    expect(() => createVerifier({ issuers: ['http://i.test'], audience })).toThrow(/https/u);
+    expect(() =>
+      createVerifier({ issuers: ['http://127.0.0.1:1'], audience, allowInsecureIssuers: true }),
+    ).not.toThrow();
+    const many = Array.from({ length: 257 }, (_, i) => `https://i${String(i)}.test`);
+    expect(() => createVerifier({ issuers: many, audience })).toThrow(TypeError);
+  });
+
   it('refuses a configuration with no issuer or no audience', () => {
     expect(() => createVerifier({ issuers: [], audience: 'a' })).toThrow(TypeError);
     expect(() => createVerifier({ issuers: ['https://i.test'], audience: '' })).toThrow(TypeError);

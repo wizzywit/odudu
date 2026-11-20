@@ -3,6 +3,27 @@ import { KeyFetchError } from '#/services/verification-error';
 const TIMEOUT_MS = 5_000;
 const MAX_BYTES = 1_048_576;
 
+// Reads at most `MAX_BYTES` of a body, counting bytes as they arrive and
+// hanging up on the first chunk that passes the cap.
+async function readCapped(response: Response): Promise<string> {
+  const declared = Number(response.headers.get('content-length'));
+  if (declared > MAX_BYTES) {
+    await response.body?.cancel();
+    throw new Error('declared too large a document');
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  // Leaving the loop early cancels the stream, which hangs up on the server.
+  for await (const piece of response.body ?? []) {
+    const chunk: unknown = piece;
+    if (!(chunk instanceof Uint8Array)) throw new Error('answered with a body of no bytes');
+    total += chunk.byteLength;
+    if (total > MAX_BYTES) throw new Error('answered with too large a document');
+    chunks.push(chunk);
+  }
+  return new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
+}
+
 async function getJson(url: string, fetcher: typeof fetch): Promise<unknown> {
   try {
     const response = await fetcher(url, {
@@ -11,9 +32,7 @@ async function getJson(url: string, fetcher: typeof fetch): Promise<unknown> {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`answered ${String(response.status)}`);
-    const text = await response.text();
-    if (text.length > MAX_BYTES) throw new Error('answered with too large a document');
-    return JSON.parse(text);
+    return JSON.parse(await readCapped(response));
   } catch (cause) {
     throw new KeyFetchError(`could not read ${url}`, { cause });
   }

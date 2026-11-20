@@ -22,6 +22,8 @@ export function createKeyStore(deps: KeyStoreDeps): {
 } {
   const discovery = new TimedCache<string>();
   const sets = new TimedCache<KeySet>();
+  // The last key set read successfully, kept for twice the TTL.
+  const good = new TimedCache<KeySet>();
 
   function jwksUri(issuer: string): Promise<string> {
     const now = deps.now();
@@ -42,13 +44,30 @@ export function createKeyStore(deps: KeyStoreDeps): {
     return { keys };
   }
 
+  // A failed read is answered with the last good key set while it is under
+  // twice the TTL old, and the failure is remembered for 10 s either way.
   function fetchSet(issuer: string): Entry<KeySet> {
     const now = deps.now();
-    const request = readKeys(issuer);
+    const outcome = { failed: false };
+    const request = readKeys(issuer).then(
+      (set) => {
+        good.set(issuer, Promise.resolve(set), now, deps.ttlMs * 2);
+        return set;
+      },
+      (error: unknown) => {
+        outcome.failed = true;
+        const stale = good.get(issuer, deps.now());
+        if (stale === undefined) throw error;
+        return stale.value;
+      },
+    );
     const entry = sets.set(issuer, request, now, deps.ttlMs);
-    request.catch(() => {
+    const remember = (): void => {
       sets.retire(entry, now + REFETCH_INTERVAL_MS);
-    });
+    };
+    request.then(() => {
+      if (outcome.failed) remember();
+    }, remember);
     return entry;
   }
 

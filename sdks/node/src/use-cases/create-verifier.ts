@@ -1,5 +1,6 @@
 import { createKeyStore } from '#/repository/keys';
 import { checkHeader, claimedIssuer, readClaims, verifySigned } from '#/services/access-token';
+import { checkIssuers } from '#/services/configuration';
 import { VerificationError } from '#/services/verification-error';
 import type { VerifiedToken, VerifierOptions } from '#/types';
 
@@ -11,7 +12,7 @@ const DEFAULT_TTL_MS = 300_000;
 export function createVerifier(
   options: VerifierOptions,
 ): (token: string) => Promise<VerifiedToken> {
-  if (options.issuers.length === 0) throw new TypeError('createVerifier needs at least one issuer');
+  checkIssuers(options.issuers, options.allowInsecureIssuers === true);
   if (options.audience === '') throw new TypeError('createVerifier needs the API audience');
   const issuers = [...options.issuers];
   const now = options.clock ?? Date.now;

@@ -11,6 +11,9 @@ export interface VerifierOptions {
   // Milliseconds since the epoch. Default `Date.now`.
   clock?: () => number;
   fetch?: typeof fetch;
+  // Accept issuers that are not `https` (a development server on loopback).
+  // Default false.
+  allowInsecureIssuers?: boolean;
 }
 
 export interface VerifiedToken {
