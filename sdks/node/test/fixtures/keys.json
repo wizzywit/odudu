@@ -26,5 +26,15 @@
     "kid": "key-2",
     "alg": "RS256",
     "use": "sig"
+  },
+  "key-3": {
+    "kty": "EC",
+    "x": "a2R6O_Xp5obifUi13ywTATENYIxyitvUro0dvR-hBzY",
+    "y": "hvpDGvqBLrC1fRaPayy_l24KplJbOZqUHgewwdET80U",
+    "crv": "P-256",
+    "d": "SdZcEIgcuRQoNbhNzc-TqIyLkYCSDQwzuSgFHTIh1yk",
+    "kid": "key-3",
+    "alg": "ES256",
+    "use": "sig"
   }
 }

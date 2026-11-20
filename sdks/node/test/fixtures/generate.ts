@@ -1,6 +1,6 @@
 // Writes keys.json, jwks.json and cases.json beside this file. RS256 signatures
-// are deterministic, so with keys.json present a rerun reproduces the same
-// bytes. Run: node --experimental-strip-types generate.ts
+// are deterministic and the ES256 token is kept from the previous cases.json, so
+// a rerun reproduces the same bytes. Run: node --experimental-strip-types generate.ts
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { type JWK, SignJWT, exportJWK, exportSPKI, generateKeyPair, importJWK } from 'jose';
 
@@ -13,20 +13,28 @@ const here = (name: string): URL => new URL(name, import.meta.url);
 
 type KeyFile = Record<string, JWK>;
 
+// Keys already in keys.json are kept; a missing one is minted.
 async function keysFile(): Promise<KeyFile> {
-  if (existsSync(here('keys.json'))) {
-    return JSON.parse(readFileSync(here('keys.json'), 'utf8')) as KeyFile;
-  }
-  const out: KeyFile = {};
-  for (const kid of ['key-1', 'key-2']) {
-    const { privateKey } = await generateKeyPair('RS256', {
-      extractable: true,
-      modulusLength: 2048,
-    });
-    out[kid] = { ...(await exportJWK(privateKey)), kid, alg: 'RS256', use: 'sig' };
+  const out: KeyFile = existsSync(here('keys.json'))
+    ? (JSON.parse(readFileSync(here('keys.json'), 'utf8')) as KeyFile)
+    : {};
+  for (const [kid, alg] of [
+    ['key-1', 'RS256'],
+    ['key-2', 'RS256'],
+    ['key-3', 'ES256'],
+  ] as const) {
+    if (out[kid] !== undefined) continue;
+    const { privateKey } = await generateKeyPair(alg, { extractable: true, modulusLength: 2048 });
+    out[kid] = { ...(await exportJWK(privateKey)), kid, alg, use: 'sig' };
   }
   return out;
 }
+
+// ECDSA signatures are random, so a token signed with an EC key is taken from
+// the cases.json already on disk when it has one of that name.
+const previous: { name: string; token: string }[] = existsSync(here('cases.json'))
+  ? (JSON.parse(readFileSync(here('cases.json'), 'utf8')) as { name: string; token: string }[])
+  : [];
 
 const privateKeys = await keysFile();
 function keyOf(kid: string): JWK {
@@ -35,8 +43,8 @@ function keyOf(kid: string): JWK {
   return jwk;
 }
 const publicOf = (jwk: JWK): JWK => {
-  const { kty, n, e, kid, alg, use } = jwk;
-  return { kty, n, e, kid, alg, use } as JWK;
+  const { kty, n, e, crv, x, y, kid, alg, use } = jwk;
+  return { kty, n, e, crv, x, y, kid, alg, use } as JWK;
 };
 
 interface Spec {
@@ -58,9 +66,10 @@ const baseClaims = (): Record<string, unknown> => ({
 
 async function sign(spec: Spec): Promise<string> {
   const claims = { ...baseClaims(), ...spec.claims };
-  const header = { alg: 'RS256', typ: 'at+jwt', kid: 'key-1', ...spec.header };
   const jwk = keyOf(spec.signWith ?? 'key-1');
-  return new SignJWT(claims).setProtectedHeader(header).sign(await importJWK(jwk, 'RS256'));
+  const alg = jwk.alg ?? 'RS256';
+  const header = { alg, typ: 'at+jwt', kid: spec.signWith ?? 'key-1', ...spec.header };
+  return new SignJWT(claims).setProtectedHeader(header).sign(await importJWK(jwk, alg));
 }
 
 const b64 = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -189,6 +198,34 @@ await add(
   { header: { kid: 'key-2' }, signWith: 'key-2' },
   { ok: true, scope: ['openid', 'reports:read'] },
 );
+await add(
+  'an AT+JWT typ, which the server refuses: the match is exact',
+  { header: { typ: 'AT+JWT' } },
+  invalid('wrong_type'),
+);
+const exp = NOW_MS + 300_000;
+const early = NOW_MS - 60_000;
+await add(
+  'expired 4 s ago, inside the tolerance',
+  {},
+  { ok: true, scope: ['openid', 'reports:read'] },
+  { now: exp + 4_000 },
+);
+await add('expired 6 s ago, outside the tolerance', {}, invalid('expired'), { now: exp + 6_000 });
+await add(
+  'valid in 4 s, inside the tolerance',
+  {},
+  { ok: true, scope: ['openid', 'reports:read'] },
+  { now: early - 4_000 },
+);
+await add('valid in 6 s, outside the tolerance', {}, invalid('not_yet_valid'), {
+  now: early - 6_000,
+});
+{
+  const name = 'an ES256 token';
+  const known = previous.find((c) => c.name === name)?.token;
+  await add(name, known ?? { signWith: 'key-3' }, { ok: true, scope: ['openid', 'reports:read'] });
+}
 await add('garbage', 'not-a-token', invalid('malformed'));
 
 const jwks = { keys: Object.values(privateKeys).map(publicOf) };

@@ -4,7 +4,7 @@ The keys here are test keys. `keys.json` holds their private halves and is
 committed on purpose; it protects nothing. Never trust a key from this folder.
 
 `generate.ts` rewrites every file beside it. With `keys.json` present the output
-is byte-stable (RS256 signatures are deterministic); delete it to mint new keys.
+is byte-stable: RS256 signatures are deterministic, and the ES256 token is kept from the `cases.json` already on disk (ECDSA signatures are random). Delete both files to start over.
 
 ```sh
 node --experimental-strip-types generate.ts
@@ -34,3 +34,12 @@ it is `{ "ok": false, "status": 401 | 403, "code": "invalid_token" |
 names the check that refused and is there so a case cannot pass by failing for
 another cause. The JWKS to serve is `jwks.json`, at the `jwks_uri` of the issuer's
 discovery document.
+
+## Clock tolerance
+
+A verifier applies 5 seconds of leeway to `exp` and `nbf`. That is a deliberate
+deviation from the server, which applies none; every verifier reading these cases
+must use the same value, because the `expired 4 s ago` / `6 s ago` and
+`valid in 4 s` / `6 s` cases sit on either side of it. Matching is otherwise the
+server's: `typ` must equal `at+jwt` exactly (`AT+JWT` and `application/at+jwt`
+are refused) and only RS256 and ES256 are accepted.
