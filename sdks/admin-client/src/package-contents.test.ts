@@ -12,7 +12,7 @@ describe('what the package publishes', () => {
     expect(read('./index.ts')).toContain("from '#/generated/schema'");
   });
 
-  it('exposes the root only and has no runtime dependency', () => {
+  it('exposes the root only and depends on openapi-fetch alone', () => {
     const manifest = JSON.parse(read('../package.json')) as {
       exports: Record<string, { types: string; default: string }>;
       dependencies?: Record<string, string>;
@@ -20,6 +20,6 @@ describe('what the package publishes', () => {
     expect(manifest.exports).toEqual({
       '.': { types: './dist/index.d.ts', default: './dist/index.js' },
     });
-    expect(manifest.dependencies).toBeUndefined();
+    expect(manifest.dependencies).toEqual({ 'openapi-fetch': '0.17.0' });
   });
 });
