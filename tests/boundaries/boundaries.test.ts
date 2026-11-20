@@ -166,6 +166,14 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(found.some((v) => v.from.includes('apps/server/src/composes-me'))).toBe(false);
   });
 
+  it('lets the docs app read only the me docs entry', async () => {
+    const entry = await violations('me-docs-entry-only');
+    expect(entry.some((v) => v.from.includes('apps/docs/src/reads-me-internals'))).toBe(true);
+    expect(entry.some((v) => v.from.includes('apps/docs/src/reads-me-docs-entry'))).toBe(false);
+    const server = await violations('me-imported-only-by-server');
+    expect(server.some((v) => v.from.includes('apps/docs/'))).toBe(false);
+  });
+
   it('rejects a circular import', async () => {
     expect((await violations('no-circular')).length).toBeGreaterThan(0);
   });
