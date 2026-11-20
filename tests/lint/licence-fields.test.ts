@@ -21,7 +21,7 @@ function assignedLicences(): Map<string, string> {
 function manifests(): string[] {
   return [
     'package.json',
-    ...globSync('{apps,packages,tools,examples}/*/package.json', { cwd: REPO_ROOT }),
+    ...globSync('{apps,packages,tools,examples,sdks}/*/package.json', { cwd: REPO_ROOT }),
     'tests/package.json',
   ].sort();
 }
@@ -66,7 +66,7 @@ describe('licence fields', () => {
   });
 
   it('licenses any package under the Apache directories as Apache-2.0', () => {
-    const found = globSync('{examples,apps/docs/content}/**/package.json', {
+    const found = globSync('{examples,sdks,apps/docs/content}/**/package.json', {
       cwd: REPO_ROOT,
       exclude: (name) => name === 'node_modules',
     });

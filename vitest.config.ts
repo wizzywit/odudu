@@ -34,6 +34,7 @@ function globs(): { unit: string[]; integration: string[]; dom: string[]; plans:
       unit: [
         '{packages,apps}/*/src/**/*.test.{ts,tsx}',
         'tools/*/src/**/*.test.ts',
+        'sdks/*/src/**/*.test.ts',
         'tests/**/*.test.ts',
       ],
       integration: [

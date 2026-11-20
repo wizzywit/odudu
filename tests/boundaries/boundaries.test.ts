@@ -153,6 +153,20 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(found.some((v) => v.from.includes('me/src/allowed'))).toBe(false);
   });
 
+  it('rejects an SDK importing a server package', async () => {
+    const found = await violations('sdks-import-no-server');
+    expect(
+      found.some(
+        (v) => v.from.includes('sdks/oidc/src/imports-server') && v.to.includes('packages/'),
+      ),
+    ).toBe(true);
+  });
+
+  it('does not flag an SDK importing another SDK', async () => {
+    const found = await violations('sdks-import-no-server');
+    expect(found.some((v) => v.from.includes('sdks/react/src/imports-sdk'))).toBe(false);
+  });
+
   it('rejects a protocol package importing the me package', async () => {
     const found = await violations('me-imported-only-by-server');
     expect(

@@ -1,0 +1,11 @@
+{
+  "name": "@odudu-io/oidc",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=24"
+  }
+}

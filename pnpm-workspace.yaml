@@ -2,6 +2,7 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - 'tools/*'
+  - 'sdks/*'
   - 'tests'
 # A newly published package version is more likely to be compromised
 # (supply-chain attacks are typically pulled within hours of publish) or

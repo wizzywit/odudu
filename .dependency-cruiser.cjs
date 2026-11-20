@@ -414,6 +414,16 @@ module.exports = {
       to: { path: '(^|/)packages/mcp/' },
     },
     {
+      name: 'sdks-import-no-server',
+      severity: 'error',
+      comment:
+        'The SDKs are Apache-2.0 and the server is AGPL-3.0 (ADR 0042), so the licence ' +
+        'boundary is a dependency edge: nothing under sdks/ imports a server package, an ' +
+        'app or a tool. An SDK may import another SDK.',
+      from: { path: '(^|/)sdks/' },
+      to: { path: '(^|/)(?:packages|apps|tools)/', pathNot: '(^|/)node_modules/' },
+    },
+    {
       name: 'me-allowlist',
       severity: 'error',
       comment:
