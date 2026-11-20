@@ -1,0 +1,146 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createVerifier } from '#/use-cases/create-verifier';
+import { KeyFetchError } from '#/services/verification-error';
+import {
+  type FakeIssuer,
+  type TestKey,
+  mintToken,
+  startFakeIssuer,
+  testKey,
+} from '#/testing/fake-issuer';
+
+const API = 'https://api.example.test';
+const T0 = 1_800_000_000_000;
+
+let issuer: FakeIssuer;
+let first: TestKey;
+let clock: number;
+
+beforeEach(async () => {
+  first = await testKey('k1');
+  issuer = await startFakeIssuer([first.jwk]);
+  clock = T0;
+});
+afterEach(async () => {
+  await issuer.close();
+});
+
+const verifier = (jwksTtlMs?: number) =>
+  createVerifier({
+    issuers: [issuer.issuer],
+    audience: API,
+    clock: () => clock,
+    ...(jwksTtlMs === undefined ? {} : { jwksTtlMs }),
+  });
+const tokenFor = (key: TestKey): Promise<string> =>
+  mintToken(key, issuer.issuer, API, Math.floor(T0 / 1000));
+
+describe('reading the issuer keys', () => {
+  it('finds the keys through the jwks_uri of the discovery document and keeps them', async () => {
+    const verify = verifier();
+    const token = await tokenFor(first);
+    await verify(token);
+    await verify(token);
+    expect([issuer.discoveryRequests, issuer.jwksRequests]).toEqual([1, 1]);
+  });
+
+  it('reads both again once the TTL has passed', async () => {
+    const verify = verifier(1_000);
+    const token = await tokenFor(first);
+    await verify(token);
+    clock += 1_001;
+    await verify(token);
+    expect([issuer.discoveryRequests, issuer.jwksRequests]).toEqual([2, 2]);
+  });
+
+  it('shares one fetch between concurrent requests', async () => {
+    let release: () => void = () => undefined;
+    issuer.holdJwks = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const verify = verifier();
+    const token = await tokenFor(first);
+    const all = Promise.all([verify(token), verify(token), verify(token)]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    release();
+    await all;
+    expect(issuer.jwksRequests).toBe(1);
+  });
+
+  it('an unknown kid refetches the JWKS at most once per 10 s per issuer', async () => {
+    const verify = verifier();
+    await verify(await tokenFor(first));
+    expect(issuer.jwksRequests).toBe(1);
+    const second = await testKey('k2');
+    issuer.keys = [first.jwk, second.jwk];
+    const rotated = await tokenFor(second);
+
+    clock += 9_000;
+    await expect(verify(rotated)).rejects.toMatchObject({ reason: 'unknown_key' });
+    expect(issuer.jwksRequests).toBe(1);
+
+    clock += 2_000;
+    await expect(verify(rotated)).resolves.toBeDefined();
+    expect(issuer.jwksRequests).toBe(2);
+
+    const stranger = await testKey('k3');
+    const hostile = await tokenFor(stranger);
+    clock += 1_000;
+    await expect(verify(hostile)).rejects.toMatchObject({ reason: 'unknown_key' });
+    expect(issuer.jwksRequests).toBe(2);
+    clock += 10_000;
+    await expect(verify(hostile)).rejects.toMatchObject({ reason: 'unknown_key' });
+    expect(issuer.jwksRequests).toBe(3);
+  });
+
+  it('a burst of unknown-kid tokens costs one fetch', async () => {
+    const verify = verifier();
+    await verify(await tokenFor(first));
+    clock += 11_000;
+    const stranger = await tokenFor(await testKey('k9'));
+    const results = await Promise.allSettled(Array.from({ length: 20 }, () => verify(stranger)));
+    expect(results.every((r) => r.status === 'rejected')).toBe(true);
+    expect(issuer.jwksRequests).toBe(2);
+  });
+
+  it('the key cache holds at most 20 keys per issuer', async () => {
+    const keys = await Promise.all(Array.from({ length: 30 }, (_, i) => testKey(`k${String(i)}`)));
+    issuer.keys = keys.map((k) => k.jwk);
+    const verify = verifier();
+    const within = keys.find((k) => k.kid === 'k19');
+    const beyond = keys.find((k) => k.kid === 'k20');
+    if (within === undefined || beyond === undefined) throw new Error('keys not generated');
+    await expect(verify(await tokenFor(within))).resolves.toBeDefined();
+    await expect(verify(await tokenFor(beyond))).rejects.toMatchObject({ reason: 'unknown_key' });
+  });
+
+  it('reports a JWKS endpoint that fails as a KeyFetchError, not a token fault', async () => {
+    issuer.jwksStatus = 503;
+    const verify = verifier();
+    const token = await tokenFor(first);
+    await expect(verify(token)).rejects.toBeInstanceOf(KeyFetchError);
+    expect(issuer.jwksRequests).toBe(1);
+    clock += 5_000;
+    await expect(verify(token)).rejects.toBeInstanceOf(KeyFetchError);
+    expect(issuer.jwksRequests).toBe(1);
+    issuer.jwksStatus = 200;
+    clock += 6_000;
+    await expect(verify(token)).resolves.toBeDefined();
+  });
+
+  it('refuses a discovery document that names another issuer', async () => {
+    const other = await startFakeIssuer([first.jwk]);
+    const verify = createVerifier({
+      issuers: [issuer.issuer],
+      audience: API,
+      clock: () => clock,
+      fetch: (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        const target = `${other.issuer}${url.pathname.replace('/tenants/demo', '')}`;
+        return fetch(target, init);
+      },
+    });
+    await expect(verify(await tokenFor(first))).rejects.toBeInstanceOf(KeyFetchError);
+    await other.close();
+  });
+});
