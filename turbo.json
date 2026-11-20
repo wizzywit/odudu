@@ -25,9 +25,11 @@
       "dependsOn": ["^typecheck"],
       "inputs": [
         "src/**",
+        "requirements.txt",
         "package.json",
         "tsconfig.json",
         "$TURBO_ROOT$/sdks/*/src/generated/**",
+        "$TURBO_ROOT$/sdks/python/src/**",
         "$TURBO_ROOT$/apps/docs/static/openapi/**"
       ],
       "outputs": ["trace-report.json"],

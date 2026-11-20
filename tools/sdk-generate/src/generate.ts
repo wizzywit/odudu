@@ -12,22 +12,26 @@ export interface Target {
   readonly document: string;
   readonly output: string;
   readonly idempotentOutput: string;
+  readonly pythonOutput: string;
+  readonly pythonIdempotentOutput: string;
 }
 
-// A further generator (the Python models) adds its own list beside this one and
-// reads the same documents; the TypeScript step does not know about it.
 export const TARGETS: readonly Target[] = [
   {
     name: 'admin',
     document: 'apps/docs/static/openapi/admin.json',
     output: 'sdks/admin-client/src/generated/schema.d.ts',
     idempotentOutput: 'sdks/admin-client/src/generated/idempotent.ts',
+    pythonOutput: 'sdks/python/src/odudu/_generated/admin',
+    pythonIdempotentOutput: 'sdks/python/src/odudu/_generated/admin_idempotent.py',
   },
   {
     name: 'me',
     document: 'apps/docs/static/openapi/me.json',
     output: 'sdks/me-client/src/generated/schema.d.ts',
     idempotentOutput: 'sdks/me-client/src/generated/idempotent.ts',
+    pythonOutput: 'sdks/python/src/odudu/_generated/me',
+    pythonIdempotentOutput: 'sdks/python/src/odudu/_generated/me_idempotent.py',
   },
 ];
 
@@ -73,9 +77,10 @@ function takesIdempotencyKey(document: Json, parameters: unknown): boolean {
   });
 }
 
-// The runtime client adds an Idempotency-Key to exactly these calls and retries
+// The runtime clients add an Idempotency-Key to exactly these calls and retry
 // them; deriving the list from the document keeps it from drifting from the API.
-export function renderIdempotent(documentText: string, source: string): string {
+// Each entry is `METHOD /path/{template}`, sorted.
+export function idempotentOperations(documentText: string, source: string): string[] {
   const parsed: unknown = JSON.parse(documentText);
   if (!isOpenApi31(parsed)) {
     throw new Error(`${source} is not an OpenAPI 3.1 document`);
@@ -95,7 +100,11 @@ export function renderIdempotent(documentText: string, source: string): string {
       }
     }
   }
-  operations.sort();
+  return operations.sort();
+}
+
+export function renderIdempotent(documentText: string, source: string): string {
+  const operations = idempotentOperations(documentText, source);
   const header = `${GENERATED_HEADER_MARKER} from ${source}.\n// Do not edit: run \`pnpm sdks:generate\`.\n`;
   const declaration = 'export const IDEMPOTENT_OPERATIONS: readonly string[] =';
   if (operations.length === 0) return `${header}${declaration} [];\n`;
@@ -125,9 +134,4 @@ export async function generateAll(root: string, outRoot: string = root): Promise
     }
   }
   return written;
-}
-
-if (import.meta.main) {
-  const root = path.resolve(import.meta.dirname, '../../..');
-  for (const file of await generateAll(root)) console.log(`wrote ${file}`);
 }

@@ -85,7 +85,11 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
     file: 'tools/sdk-generate/src/generate.test.ts',
     targets: ['sdks/*/src/generated/**', 'apps/docs/static/openapi/**'],
   },
-  { file: 'tools/sdk-generate/src/generate.ts', targets: ['apps/docs/static/openapi/**'] },
+  {
+    file: 'tools/sdk-generate/src/python.test.ts',
+    targets: ['sdks/python/src/**', 'apps/docs/static/openapi/**'],
+  },
+  { file: 'tools/sdk-generate/src/run.ts', targets: ['apps/docs/static/openapi/**'] },
   { file: 'packages/db/src/migrate.ts', targets: ['packages/db/drizzle/**'] },
   {
     file: 'apps/admin-console/src/shared/ui/shadows.test.ts',

@@ -27,3 +27,13 @@ infra/docker/try-certs/
 apps/docs/content/en/reference/generated/
 apps/docs/static/openapi/
 .lighthouseci
+
+# Python SDK build and tooling output
+__pycache__/
+*.egg-info/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+sdks/python/dist/
+sdks/python/build/
