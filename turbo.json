@@ -21,6 +21,15 @@
       "outputs": ["trace-report.json"],
       "env": ["ODUDU_TEST_SHARD"]
     },
+    "@odudu-io/bff#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@odudu-io/bff#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tests/**", "package.json", "tsconfig.json"],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
     "@odudu/db#test": {
       "dependsOn": ["^typecheck"],
       "inputs": [

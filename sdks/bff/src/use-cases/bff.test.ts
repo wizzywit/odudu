@@ -1,0 +1,472 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { startFakeServer, type FakeServer } from '#/testing/fake-server';
+import {
+  cookieSet,
+  makeBff,
+  ORIGIN,
+  request,
+  setCookieLine,
+  signIn,
+  START,
+  type Clock,
+} from '#/testing/harness';
+import { createMemoryStore } from '#/services/memory-store';
+import type { SessionStore } from '#/types';
+
+let fake: FakeServer;
+let clock: Clock;
+beforeEach(async () => {
+  fake = await startFakeServer();
+  clock = { now: START };
+});
+afterEach(async () => {
+  await fake.close();
+});
+
+const post = (path: string, cookie: string | undefined, headers: Record<string, string>): Request =>
+  request(path, cookie, { method: 'POST', headers });
+const csrfHeaders = { 'x-odudu-bff': '1', origin: ORIGIN };
+
+describe('login', () => {
+  it('redirects with state bound to a pre-session cookie', async () => {
+    const bff = makeBff(fake, clock);
+    const response = await bff.login(request('/auth/login', undefined));
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.get('location') ?? '');
+    expect(location.origin + location.pathname).toBe(`${fake.issuer}/authorize`);
+    expect(location.searchParams.get('state')).toMatch(/\S{16}/u);
+    expect(location.searchParams.get('code_challenge_method')).toBe('S256');
+    const line = setCookieLine(response, '__Host-odudu-login');
+    expect(line).toMatch(/^__Host-odudu-login=[A-Za-z0-9_-]{43};/u);
+    expect(line).toContain('HttpOnly');
+    expect(line).toContain('Secure');
+    expect(line).toContain('SameSite=Lax');
+    expect(line).toContain('Path=/');
+    expect(line).not.toContain('Domain');
+    expect(response.headers.getSetCookie()).toHaveLength(1);
+    expect(location.href).not.toContain(cookieSet(response, '__Host-odudu-login'));
+  });
+
+  it('answers 405 to a POST', async () => {
+    const response = await makeBff(fake, clock).login(post('/auth/login', undefined, csrfHeaders));
+    expect(response.status).toBe(405);
+    expect(response.headers.get('allow')).toBe('GET');
+  });
+});
+
+describe('callback', () => {
+  it('creates a __Host- HttpOnly Secure SameSite=Lax cookie holding only a random id', async () => {
+    const bff = makeBff(fake, clock);
+    const { callback } = await signIn(bff, fake);
+    expect(callback.status).toBe(302);
+    expect(callback.headers.get('location')).toBe('/');
+    const line = setCookieLine(callback, '__Host-odudu');
+    expect(line).toMatch(
+      /^__Host-odudu=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; Secure; SameSite=Lax$/u,
+    );
+    expect(line).not.toMatch(/Max-Age|Expires|Domain/u);
+    expect(cookieSet(callback, '__Host-odudu-login')).toBe('');
+    expect(setCookieLine(callback, '__Host-odudu-login')).toContain('Max-Age=0');
+  });
+
+  it('makes a different id for every sign-in', async () => {
+    const bff = makeBff(fake, clock);
+    const first = await signIn(bff, fake);
+    const second = await signIn(bff, fake);
+    expect(first.cookie).not.toBe(second.cookie);
+  });
+
+  it('never puts a token in the cookie or the redirect', async () => {
+    const { callback, cookie } = await signIn(makeBff(fake, clock), fake);
+    const everything = `${cookie} ${callback.headers.get('location') ?? ''} ${callback.headers.getSetCookie().join(' ')}`;
+    expect(everything).not.toMatch(/access-token|refresh-token/u);
+  });
+
+  it('answers 400 for a state that does not match and sets no session cookie', async () => {
+    const bff = makeBff(fake, clock);
+    const login = await bff.login(request('/auth/login', undefined));
+    const authorize = new URL(login.headers.get('location') ?? '');
+    fake.claims = { nonce: authorize.searchParams.get('nonce') };
+    const params = new URLSearchParams({ code: 'c', state: 'forged', iss: fake.issuer });
+    const response = await bff.callback(
+      request(
+        `/auth/callback?${params.toString()}`,
+        `__Host-odudu-login=${cookieSet(login, '__Host-odudu-login') ?? ''}`,
+      ),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.text()).toBe('Sign-in failed.');
+    expect(cookieSet(response, '__Host-odudu')).toBeUndefined();
+    expect(fake.tokenRequests).toHaveLength(0);
+  });
+
+  it('answers 400 for an iss that differs and never echoes it', async () => {
+    const bff = makeBff(fake, clock);
+    const login = await bff.login(request('/auth/login', undefined));
+    const authorize = new URL(login.headers.get('location') ?? '');
+    const params = new URLSearchParams({
+      code: 'c',
+      state: authorize.searchParams.get('state') ?? '',
+      iss: 'https://evil.example/leaked-marker',
+    });
+    const response = await bff.callback(
+      request(
+        `/auth/callback?${params.toString()}`,
+        `__Host-odudu-login=${cookieSet(login, '__Host-odudu-login') ?? ''}`,
+      ),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain('leaked-marker');
+    expect(cookieSet(response, '__Host-odudu')).toBeUndefined();
+  });
+
+  it('answers 400 for a code the issuer refuses, without its words', async () => {
+    const bff = makeBff(fake, clock);
+    const login = await bff.login(request('/auth/login', undefined));
+    const authorize = new URL(login.headers.get('location') ?? '');
+    fake.tokenError = { error: 'invalid_grant', error_description: 'upstream-words' };
+    const params = new URLSearchParams({
+      code: 'c',
+      state: authorize.searchParams.get('state') ?? '',
+      iss: fake.issuer,
+    });
+    const response = await bff.callback(
+      request(
+        `/auth/callback?${params.toString()}`,
+        `__Host-odudu-login=${cookieSet(login, '__Host-odudu-login') ?? ''}`,
+      ),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain('upstream-words');
+    expect(cookieSet(response, '__Host-odudu')).toBeUndefined();
+  });
+
+  it('spends the login record even when the sign-in fails', async () => {
+    const bff = makeBff(fake, clock);
+    const login = await bff.login(request('/auth/login', undefined));
+    const loginCookie = `__Host-odudu-login=${cookieSet(login, '__Host-odudu-login') ?? ''}`;
+    const authorize = new URL(login.headers.get('location') ?? '');
+    const bad = new URLSearchParams({ code: 'c', state: 'forged', iss: fake.issuer });
+    await bff.callback(request(`/auth/callback?${bad.toString()}`, loginCookie));
+    fake.claims = { nonce: authorize.searchParams.get('nonce') };
+    const good = new URLSearchParams({
+      code: 'c',
+      state: authorize.searchParams.get('state') ?? '',
+      iss: fake.issuer,
+    });
+    const replay = await bff.callback(request(`/auth/callback?${good.toString()}`, loginCookie));
+    expect(replay.status).toBe(400);
+  });
+
+  it('answers 400 to a callback with no login cookie', async () => {
+    const response = await makeBff(fake, clock).callback(
+      request('/auth/callback?code=c&state=s', undefined),
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it('answers 400 to a login cookie that names no record', async () => {
+    const response = await makeBff(fake, clock).callback(
+      request('/auth/callback?code=c&state=s', `__Host-odudu-login=${'A'.repeat(43)}`),
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it('sends the person to afterSignInPath when it is set', async () => {
+    const { callback } = await signIn(
+      makeBff(fake, clock, { afterSignInPath: '/dashboard' }),
+      fake,
+    );
+    expect(callback.headers.get('location')).toBe('/dashboard');
+  });
+});
+
+describe('session', () => {
+  it('returns claims and never a token', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    const response = await bff.session(request('/auth/session', cookie));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    const raw = await response.text();
+    const body = JSON.parse(raw) as { authenticated: boolean; claims: { sub: string } };
+    expect(body.authenticated).toBe(true);
+    expect(body.claims.sub).toBe('subject-1');
+    expect(raw).not.toMatch(/access-token|refresh-token|"idToken"/u);
+    expect(raw).not.toContain(cookie.split('=')[1] ?? 'x');
+    expect(Object.keys(body)).toEqual(['authenticated', 'claims']);
+  });
+
+  it('says not authenticated to a browser with no cookie', async () => {
+    const response = await makeBff(fake, clock).session(request('/auth/session', undefined));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ authenticated: false });
+  });
+
+  it('says not authenticated, not 500, to a tampered or unknown id', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    const unknown = `__Host-odudu=${'B'.repeat(43)}`;
+    const tampered = `${cookie}x`;
+    const junk = '__Host-odudu=../../etc/passwd';
+    for (const probe of [unknown, tampered, junk]) {
+      const response = await bff.session(request('/auth/session', probe));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ authenticated: false });
+    }
+  });
+
+  it('does not accept the login cookie value as a session', async () => {
+    const bff = makeBff(fake, clock);
+    const login = await bff.login(request('/auth/login', undefined));
+    const stolen = `__Host-odudu=${cookieSet(login, '__Host-odudu-login') ?? ''}`;
+    const response = await bff.session(request('/auth/session', stolen));
+    expect(await response.json()).toEqual({ authenticated: false });
+  });
+
+  it('makes no token request while the access token is fresh', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 800_000;
+    await bff.session(request('/auth/session', cookie));
+    expect(fake.tokenRequests).toHaveLength(1);
+  });
+
+  it('refreshes inside the skew and keeps the rotated tokens', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 880_000;
+    const first = await bff.session(request('/auth/session', cookie));
+    expect(first.status).toBe(200);
+    expect(fake.tokenRequests).toHaveLength(2);
+    expect(fake.tokenRequests[1]?.get('grant_type')).toBe('refresh_token');
+    expect(fake.tokenRequests[1]?.get('refresh_token')).toBe('refresh-token-1');
+    await bff.session(request('/auth/session', cookie));
+    expect(fake.tokenRequests).toHaveLength(2);
+    clock.now += 880_000;
+    await bff.session(request('/auth/session', cookie));
+    expect(fake.tokenRequests[2]?.get('refresh_token')).toBe('refresh-token-1-rotated');
+  });
+
+  it('answers 401, deletes the session and clears the cookie when the refresh is refused', async () => {
+    const store = createMemoryStore({ now: () => clock.now });
+    const bff = makeBff(fake, clock, { store });
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 890_000;
+    fake.tokenError = { error: 'invalid_grant', error_description: 'revoked' };
+    const response = await bff.session(request('/auth/session', cookie));
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ authenticated: false });
+    expect(setCookieLine(response, '__Host-odudu')).toContain('Max-Age=0');
+    fake.tokenError = undefined;
+    const after = await bff.session(request('/auth/session', cookie));
+    expect(await after.json()).toEqual({ authenticated: false });
+    expect(after.status).toBe(200);
+    expect(fake.tokenRequests).toHaveLength(2);
+  });
+
+  it('keeps the session when the issuer cannot be reached for a refresh', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 890_000;
+    fake.tokenError = { error: 'server_error' };
+    const down = await bff.session(request('/auth/session', cookie));
+    expect(down.status).toBe(503);
+    expect(down.headers.get('retry-after')).toBe('5');
+    expect(down.headers.getSetCookie()).toHaveLength(0);
+    fake.tokenError = undefined;
+    const back = await bff.session(request('/auth/session', cookie));
+    expect(back.status).toBe(200);
+  });
+
+  it('concurrent session reads cause one refresh', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 890_000;
+    fake.refreshDelayMs = 40;
+    const responses = await Promise.all(
+      Array.from({ length: 10 }, () => bff.session(request('/auth/session', cookie))),
+    );
+    expect(responses.map((r) => r.status)).toEqual(Array(10).fill(200));
+    expect(fake.tokenRequests.filter((f) => f.get('grant_type') === 'refresh_token')).toHaveLength(
+      1,
+    );
+  });
+
+  it('a read that loaded before a refresh finished does not spend the replaced token', async () => {
+    const stale = createMemoryStore({ now: () => clock.now });
+    let delayRead = false;
+    let release: () => void = () => undefined;
+    const store: SessionStore = {
+      set: (id, value, ttl) => stale.set(id, value, ttl),
+      delete: (id) => stale.delete(id),
+      get: async (id) => {
+        const value = await stale.get(id);
+        if (delayRead) {
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        return value;
+      },
+    };
+    const bff = makeBff(fake, clock, { store });
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 890_000;
+    delayRead = true;
+    const late = bff.session(request('/auth/session', cookie));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    delayRead = false;
+    const early = await bff.session(request('/auth/session', cookie));
+    expect(early.status).toBe(200);
+    release();
+    expect((await late).status).toBe(200);
+    expect(fake.tokenRequests.filter((f) => f.get('grant_type') === 'refresh_token')).toHaveLength(
+      1,
+    );
+  });
+});
+
+describe('logout', () => {
+  it('answers 405 with allow: POST to a GET', async () => {
+    const response = await makeBff(fake, clock).logout(request('/auth/logout', undefined));
+    expect(response.status).toBe(405);
+    expect(response.headers.get('allow')).toBe('POST');
+  });
+
+  describe('[RFC10017-6.1.3.3-01] CSRF', () => {
+    it('a POST to logout without the X-Odudu-BFF header answers 403', async () => {
+      const bff = makeBff(fake, clock);
+      const { cookie } = await signIn(bff, fake);
+      const response = await bff.logout(post('/auth/logout', cookie, { origin: ORIGIN }));
+      expect(response.status).toBe(403);
+      expect(await response.text()).toBe('');
+      const still = await bff.session(request('/auth/session', cookie));
+      expect(((await still.json()) as { authenticated: boolean }).authenticated).toBe(true);
+    });
+
+    it('a POST to logout with a wrong Origin answers 403', async () => {
+      const bff = makeBff(fake, clock);
+      const { cookie } = await signIn(bff, fake);
+      const response = await bff.logout(
+        post('/auth/logout', cookie, { 'x-odudu-bff': '1', origin: 'https://evil.example' }),
+      );
+      expect(response.status).toBe(403);
+    });
+
+    it('a POST to logout with no Origin or an empty header answers 403', async () => {
+      const bff = makeBff(fake, clock);
+      expect(
+        (await bff.logout(post('/auth/logout', undefined, { 'x-odudu-bff': '1' }))).status,
+      ).toBe(403);
+      expect(
+        (await bff.logout(post('/auth/logout', undefined, { 'x-odudu-bff': '', origin: ORIGIN })))
+          .status,
+      ).toBe(403);
+    });
+
+    it('allowedOrigins replaces the origin of the redirect address', async () => {
+      const bff = makeBff(fake, clock, { allowedOrigins: ['https://spa.example'] });
+      const refused = await bff.logout(post('/auth/logout', undefined, csrfHeaders));
+      const allowed = await bff.logout(
+        post('/auth/logout', undefined, { 'x-odudu-bff': '1', origin: 'https://spa.example' }),
+      );
+      expect(refused.status).toBe(403);
+      expect(allowed.status).toBe(204);
+    });
+  });
+
+  it('deletes the session, clears the cookie and answers the issuer logout address', async () => {
+    const bff = makeBff(fake, clock, { postLogoutRedirectUri: 'https://app.example/' });
+    const { cookie } = await signIn(bff, fake);
+    const response = await bff.logout(post('/auth/logout', cookie, csrfHeaders));
+    expect(response.status).toBe(200);
+    const { redirectTo } = (await response.json()) as { redirectTo: string };
+    const url = new URL(redirectTo);
+    expect(url.origin + url.pathname).toBe(`${fake.issuer}/logout`);
+    expect(url.searchParams.get('id_token_hint')).toMatch(/^\S+\.\S+\.\S+$/u);
+    expect(url.searchParams.get('post_logout_redirect_uri')).toBe('https://app.example/');
+    expect(setCookieLine(response, '__Host-odudu')).toContain('Max-Age=0');
+    const after = await bff.session(request('/auth/session', cookie));
+    expect(await after.json()).toEqual({ authenticated: false });
+  });
+
+  it('is idempotent when there is no session', async () => {
+    const bff = makeBff(fake, clock);
+    const response = await bff.logout(post('/auth/logout', undefined, csrfHeaders));
+    expect(response.status).toBe(204);
+    expect(setCookieLine(response, '__Host-odudu')).toContain('Max-Age=0');
+    const again = await bff.logout(post('/auth/logout', undefined, csrfHeaders));
+    expect(again.status).toBe(204);
+  });
+});
+
+describe('[RFC10017-6.1.3.1-01] confidential client', () => {
+  it('authenticates the code exchange with client_secret_basic', async () => {
+    await signIn(makeBff(fake, clock), fake);
+    expect(fake.tokenAuthorizations[0]).toMatch(/^Basic /u);
+  });
+});
+
+describe('[RFC10017-6.1.3.1-02] authorization code grant', () => {
+  it('exchanges a code with its PKCE verifier and asks for nothing else', async () => {
+    await signIn(makeBff(fake, clock), fake);
+    const form = fake.tokenRequests[0];
+    expect(form?.get('grant_type')).toBe('authorization_code');
+    expect(form?.get('code_verifier')).toMatch(/\S{43,}/u);
+  });
+});
+
+describe('[RFC10017-6.1.3.2-01] the Secure flag', () => {
+  it('is on the session cookie and the login cookie', async () => {
+    const { login, callback } = await signIn(makeBff(fake, clock), fake);
+    expect(setCookieLine(login, '__Host-odudu-login')).toContain('; Secure');
+    expect(setCookieLine(callback, '__Host-odudu')).toContain('; Secure');
+  });
+});
+
+describe('[RFC10017-6.1.3.2-02] the HttpOnly flag', () => {
+  it('is on the session cookie and the login cookie', async () => {
+    const { login, callback } = await signIn(makeBff(fake, clock), fake);
+    expect(setCookieLine(login, '__Host-odudu-login')).toContain('; HttpOnly');
+    expect(setCookieLine(callback, '__Host-odudu')).toContain('; HttpOnly');
+  });
+});
+
+describe('[RFC10017-6.1.3.2-05] the cookie path', () => {
+  it('is / and no Domain is set', async () => {
+    const { callback } = await signIn(makeBff(fake, clock), fake);
+    const line = setCookieLine(callback, '__Host-odudu');
+    expect(line).toContain('Path=/');
+    expect(line).not.toContain('Domain');
+  });
+});
+
+describe('configuration', () => {
+  it('refuses a cookie name without the __Host- prefix', () => {
+    expect(() => makeBff(fake, clock, { cookieName: 'odudu' })).toThrow(TypeError);
+  });
+
+  it('refuses an afterSignInPath that leaves the origin', () => {
+    expect(() => makeBff(fake, clock, { afterSignInPath: '//evil.example' })).toThrow(TypeError);
+    expect(() => makeBff(fake, clock, { afterSignInPath: 'https://evil.example' })).toThrow(
+      TypeError,
+    );
+  });
+
+  it('uses another cookie name for both cookies', async () => {
+    const bff = makeBff(fake, clock, { cookieName: '__Host-shop' });
+    const { cookie, login } = await signIn(bff, fake, '__Host-shop');
+    expect(cookieSet(login, '__Host-shop-login')).toBeDefined();
+    const response = await bff.session(request('/auth/session', cookie));
+    expect(((await response.json()) as { authenticated: boolean }).authenticated).toBe(true);
+  });
+
+  it('keeps login records out of the session store of its own making', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    for (let i = 0; i < 12_000; i += 1) await bff.login(request('/auth/login', undefined));
+    const response = await bff.session(request('/auth/session', cookie));
+    expect(((await response.json()) as { authenticated: boolean }).authenticated).toBe(true);
+  }, 60_000);
+});
