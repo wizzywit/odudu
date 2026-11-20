@@ -30,7 +30,8 @@ run in CI by the time the branch is finished.
    verifier, Python 3.10+).
 4. **`@odudu/mcp-stdio`**, `odudu mcp` installable without the image or a
    checkout, and the server's own `odudu mcp` command built on the same code.
-5. **Per SDK**: a guide, a runnable example run in CI, its own version and
+5. **Per SDK**: a page in a new SDKs docs section, a runnable example run in CI,
+   and the four existing examples rewritten on the SDKs, its own version and
    changelog, and a dry-run of its publish in CI.
 6. **Every document and check the closing pass of CLAUDE.md names**: roadmap,
    section 11, `docs/NEXT.md`, the introduction, `README.md`, the landing page,
@@ -189,6 +190,9 @@ Pure functions and one small client, over `oauth4webapi`.
 - `refresh(tokens)` with **single-flight per refresh token** (a second call
   waits for the first, so one use is never replayed: Odudu's reuse detection
   would end the family).
+- `clientCredentials(options)` and `createTokenSource(options)`: the machine
+  grant with `client_secret_basic` or `private_key_jwt`, renewed before expiry,
+  single-flight. It is how `examples/machine-to-machine` runs on the SDK.
 - `signOutUrl(options)`: RP-initiated logout with `id_token_hint` and
   `post_logout_redirect_uri`, and the confirm-by-default page of ADR 0047 named.
 - Tokens are held **per audience** (`Tokens` is keyed by `resource`): a sign-in that
@@ -212,9 +216,10 @@ by JWKS, `iss`, `aud`, `typ: at+jwt`, `exp`/`nbf`, required scope, a
 refusal for an ID token and for a token naming the "me" audience at an API.
 The JWKS is cached with a TTL and a size bound, re-fetched on an unknown `kid`
 under a rate limit (so an unknown `kid` cannot drive fetches). Failure
-answers `401`/`403` with `WWW-Authenticate` (RFC 6750). The example
-`examples/api/` verifier is the reference behaviour; its test file is run
-against this package too (a differential: same tokens, same verdict).
+answers `401`/`403` with `WWW-Authenticate` (RFC 6750). The former
+`examples/api` verifier becomes the independent oracle (section 9); a
+differential runs the same tokens through it and the package and requires the
+same verdict.
 
 ### 5. `@odudu/bff` (increment 5)
 
@@ -302,33 +307,78 @@ runs the same code.
 
 ### 9. Examples and CI (increment 11)
 
-- `examples/sdk-web-app` (Next), `examples/sdk-spa` (React, BFF mode),
-  `examples/sdk-api` (Node middleware), `examples/sdk-admin` (admin and "me"
-  clients, TypeScript), `examples/sdk-python` (the clients and the verifier behind a small FastAPI
-  app), `examples/sdk-core` (the core with no framework, the model for Vue,
-  Svelte and Angular), `examples/sdk-mcp`. Each is
-  Apache-2.0 with its own test, depends on the **published version range**, and
-  is copyable out of the repository.
-- A new `sdks` job in `verify.yml`: builds and packs every SDK
-  (`npm pack`, `python -m build`), installs the **tarballs** into each example,
-  boots the quick start stack, runs the example's test, runs the regeneration
-  check, and runs the publish dry run. It is added to `gate` and to ADR 0044's
-  path filters (`sdks/**`, the two OpenAPI builders, the contracts).
-- Each example's test signs in through the stack and checks what came back
-  (as the existing four do); the admin and "me" examples create and read a
-  record; the Python example does the same; the MCP example runs the SDK's
+**The four examples that exist move onto the SDKs.** `examples/web-app`
+(`openid-client`), `examples/single-page-app` (`oauth4webapi`),
+`examples/api` (hand-written verifier) and `examples/machine-to-machine`
+(hand-written `fetch` token source) each do by hand what an SDK now does, so each
+is rewritten to use it and keeps its folder, its test and its guide:
+
+| Example | Uses | Before |
+| ------- | ---- | ------ |
+| `web-app` | `@odudu/oidc` and `@odudu/bff` on Node's `http` | `openid-client` |
+| `single-page-app` | `@odudu/oidc` in the browser, no framework (also the model for Vue, Svelte and Angular) | `oauth4webapi` |
+| `api` | `@odudu/node` | its own verifier |
+| `machine-to-machine` | `@odudu/oidc`'s client credentials token source | `fetch` and a hand-rolled cache |
+
+So the core gains `clientCredentials()` and a `createTokenSource()` (renews
+before expiry, single-flight, `client_secret_basic` and `private_key_jwt`).
+`examples/api/verifier.test.ts` is not lost: its verifier moves to
+`sdks/node/test/reference-verifier.ts` as the independent oracle the
+differential in section 4 runs against, so the SDK is still checked against
+code it did not write.
+
+**New examples**, each Apache-2.0 with its own `test.ts`:
+`examples/react-bff` (`@odudu/react` over `@odudu/bff`), `examples/next`
+(`@odudu/next`), `examples/admin` (admin and "me" clients, TypeScript),
+`examples/python` (the clients and the verifier behind a small FastAPI app) and
+`examples/mcp` (the stdio client run against the stack). That is nine in all.
+`examples/README.md` lists every one with what it shows and how to run it.
+
+- Every example depends on the **published version range** and is copyable out
+  of the repository. In CI the `examples` job packs each SDK (`npm pack`,
+  `python -m build`) and installs the tarballs into a scratch copy of the
+  example, so the committed `package.json` and lockfile stay as a reader copies them.
+- A new `sdks` job holds what is not an example: build and test of each package,
+  the regeneration check, the MCP catalogue check and the publish dry runs. Both
+  jobs stay in `gate`, and ADR 0044's path filters name `sdks/**`, the two
+  OpenAPI builders and the contracts.
+- Each example's test signs in through the stack and checks what came back (as
+  the four do now); the admin and "me" examples create and read a record; the
+  Python example does the same and verifies a token; the MCP example runs the
   stdio client against the stack.
+- `tests/lint/ci-workflow.test.ts` (which holds every `examples/*` directory to a
+  `test.ts` and the job to `gate`) and `.github/dependabot.yml` (an entry per
+  example directory) are extended for the new folders in the same increment.
 
 ### 10. Documentation (increment 12)
 
-A guide per package, and one on using the core without React, under `apps/docs/content/en/guides/`, each with runnable
-blocks run by `tools/docs-run`; a concept page on the backend-for-frontend; a
-reference page per SDK; `reference/generated` pages for the "me" document; the
-introduction's "Odudu has no SDK of its own" sentence replaced; the guides that
-say "use any OpenID Connect library" point to the SDKs and keep the library
-route as the alternative. A row in CLAUDE.md's documentation-owner table: "A
-change to an SDK's public surface" names its guide, its example and its checks;
-`documentation-owner-table.test.ts` holds that row to files that exist.
+**A new top-level "SDKs" section** in the docs site, beside Guides, added to
+`apps/docs/nav.ts` and `apps/docs/sidebars.ts` and held by `ia.test.ts`:
+
+- **An index** with a table of every package (name, registry, what it is for,
+  version, licence) and a "which do I need" list by kind of app.
+- **A page per package**: install, the shortest working use, the options, the
+  errors it raises, the security notes (where tokens live, what the BFF stores),
+  and a link to its example.
+- **An examples page** that shows all nine examples, one section each: what it
+  demonstrates, the files that matter, the command that runs it, and a link
+  to the folder. `apps/docs/tests/example-links.test.ts` holds every link to a
+  file that exists, and a new test holds this page to the `examples/` directory
+  both ways (a folder with no section, or a section with no folder, fails).
+- **A page on the backend-for-frontend** (the concept, and the cookie, CSRF and
+  store rules of ADR 0054) and **a guide on using the core without React**.
+- **The existing guides**: `web-app`, `single-page-app`, `api` and
+  `machine-to-machine` are rewritten around the SDK versions of their examples
+  and keep a short "without an SDK" section naming the underlying protocol
+  steps and the library route, so a reader on another stack still has the way.
+  Runnable blocks stay run by `tools/docs-run`; a command nobody ran is not shown.
+- **Elsewhere:** the introduction's "Odudu has no SDK of its own" sentence,
+  `README.md`, the landing page and its "Planned" bands, the quick start's
+  next steps, the roadmap (P4i out of "Next", the P14 text kept), the
+  generated reference pages for the "me" document, and `llms` entries.
+- **CLAUDE.md** gains a row in the documentation-owner table, "A change to an
+  SDK's public surface", naming its page, its example and its checks;
+  `documentation-owner-table.test.ts` holds that row to files that exist.
 
 ## Calls taken after the builder check (mine; each can be reversed)
 
@@ -372,9 +422,9 @@ change to an SDK's public surface" names its guide, its example and its checks;
   (`docs/protocols/rfc9207.md`, rows 2) and `azp` is checked when present, as
   OIDC Core requires. The core is strict by default with no option to relax
   `iss`.
-- **The `node` differential.** `examples/api/verifier.test.ts` stays in the
-  example; its token fixtures move to a shared `sdks/node/test/fixtures` copied
-  by a script, and a CI check holds the two copies equal.
+- **The `node` differential.** The oracle and its fixtures live in
+  `sdks/node/test`; the Python package reads the same fixture files from
+  `sdks/node/test/fixtures`, so there is one copy.
 
 ## Decisions to record
 
@@ -413,7 +463,7 @@ change to an SDK's public surface" names its guide, its example and its checks;
    regeneration check and the MCP catalogue check are green.
 4. `npx @odudu/mcp-stdio` (from a packed tarball) completes a sign-in and a
    read call on a machine whose `PATH` has no `odudu` and no checkout.
-5. A guide per package and the no-React guide; the introduction, `README.md`, the landing page, the
+5. An SDKs section with an index, a page per package, an examples page showing all nine examples, the BFF page and the no-React guide; the four existing examples and their guides run on the SDKs; the introduction, `README.md`, the landing page, the
    console and docs that said "no SDK" are corrected; transcripts re-run.
 6. Section 11 and the roadmap agree both ways (`roadmap-section-11.test.ts`);
    the two P4i rows in `docs/NEXT.md` are gone; `CHANGELOG.md` `Unreleased`
