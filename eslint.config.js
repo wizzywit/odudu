@@ -87,9 +87,22 @@ export default tseslint.config(
     files: [
       'apps/admin-console/src/**/{use-cases,repository}/**/*.ts',
       'apps/docs/src/**/use-cases/**/*.ts',
+      'sdks/*/src/**/{use-cases,repository}/**/*.ts',
     ],
     ignores: ['**/*.test.ts'],
     rules: { complexity: ['error', 8] },
+  },
+  {
+    // oauth4webapi marks allowInsecureRequests deprecated so that it stands
+    // out; the SDK offers it only as an explicit option for a development
+    // server on http, and never turns it on itself.
+    files: ['sdks/*/src/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-deprecated': [
+        'error',
+        { allow: [{ from: 'package', package: 'oauth4webapi', name: 'allowInsecureRequests' }] },
+      ],
+    },
   },
   {
     files: [
