@@ -6,9 +6,14 @@ import { fromServerError, OduduError } from '#/services/odudu-error';
 // response as much as for one carrying a code.
 export function readCallback(
   callbackUrl: string,
-  expected: { state: string; issuer: string },
+  expected: { state: string; issuer: string; redirectUri: string },
 ): URLSearchParams {
-  const params = new URL(callbackUrl).searchParams;
+  const url = new URL(callbackUrl);
+  const redirect = new URL(expected.redirectUri);
+  if (url.origin !== redirect.origin || url.pathname !== redirect.pathname) {
+    throw new OduduError('invalid_callback', 'the response did not arrive at the redirect URI');
+  }
+  const params = url.searchParams;
   const state = params.get('state');
   if (state === null) {
     throw new OduduError('invalid_state', 'the response carries no state');

@@ -195,4 +195,13 @@ describe('completeSignIn', () => {
     expect(error.code).toBe('unrecognized_error');
     expect(error.error).toBe('brand_new_error');
   });
+
+  it('refuses a callback at another address than the redirect URI', async () => {
+    const pending = await begin();
+    const wrong = new URL('http://localhost:5173/elsewhere');
+    for (const [k, v] of Object.entries(good(pending))) wrong.searchParams.set(k, v);
+    expect((await refusal(wrong.href, pending)).code).toBe('invalid_callback');
+    const other = new URL(wrong.href.replace('localhost:5173/elsewhere', 'evil.example/callback'));
+    expect((await refusal(other.href, pending)).code).toBe('invalid_callback');
+  });
 });
