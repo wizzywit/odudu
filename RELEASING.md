@@ -120,6 +120,99 @@ Do not move a tag and do not reuse a version number.
 Deleting a package version cannot be undone, so only the owner does it, from
 the package's page on GitHub.
 
+## Releasing an SDK
+
+The libraries under `sdks/` are released one at a time, each by its own tag,
+and the image's `v*` tags do not start them. The tag is `<name>-vX.Y.Z`, or
+`<name>-vX.Y.Z-rc.N` for a candidate, as in `oidc-v0.1.0` and
+`python-v0.1.0-rc.1`. The name is the directory under `sdks/`: `oidc`, `react`,
+`bff`, `next`, `node`, `admin-client`, `me-client`, `mcp-stdio` or `python`. The
+first eight go to npm as `@odudu-io/<name>`, and `python` goes to PyPI as
+`odudu`. The workflow refuses any other name, and a number with a leading zero.
+
+1. Write the package's changelog first. In `sdks/<name>/CHANGELOG.md`, give the
+   changes under `Unreleased` a heading `## [X.Y.Z] - YYYY-MM-DD`, as in "Cut a
+   release". Set the version in `package.json`, or in `pyproject.toml`, to the
+   same number. PyPI spells a candidate `0.1.0rc1` where the tag says
+   `0.1.0-rc.1`, and the workflow expects that spelling.
+2. Take the package out of private: remove `"private": true`. The workflow
+   refuses a private package.
+3. Merge to `main` and wait for `gate`. A stable tag must point at a commit on
+   `main`, and every tag at one `gate` passed on, as for the image.
+4. Tag the commit and push the tag:
+
+   ```text
+   git tag -s oidc-v0.1.0 -m "@odudu-io/oidc 0.1.0"
+   git push origin oidc-v0.1.0
+   ```
+
+5. Watch the `sdk-release` workflow, and approve the `sdk-release` environment
+   when it asks.
+
+What the workflow does:
+
+- **prepare** checks the tag has the right shape and names a package, that the
+  package's name and version are what the tag says and that it is not private,
+  that its `CHANGELOG.md` has the section, that a stable tag is on `main` and
+  that `gate` passed.
+- **build** runs the package's `build` and `test` scripts where it has them,
+  packs it (`pnpm pack` for npm, `python -m build` and `twine check` for PyPI)
+  and keeps the result for the publish job. It holds no registry credential. A
+  package's example needs the quick start stack, so the release does not run it:
+  the `examples` job of `verify` has run it on a commit `gate` passed on.
+- **publish-npm** or **publish-pypi** publishes what `build` kept, behind the
+  `sdk-release` environment. Neither registry is given a token: each trusts
+  this workflow's own identity (trusted publishing). npm gets the dist-tag
+  `latest`, or `rc` for a candidate, so a candidate never becomes what
+  `npm install` gives. npm generates the provenance statement for a public
+  package from a public repository, so there is no flag for it.
+
+To run everything except the publishing, start the `sdk-release` workflow by
+hand from the Actions tab and give it a tag. It checks the tag, builds, tests
+and packs, and sends nothing to a registry. The workflow file has to be on
+`main` for the tab to offer it. The `sdks` job of `verify` runs the same
+build, `npm pack --dry-run` and `npm publish --dry-run` on every pull request
+that touches code, for each package that is not private.
+
+### Owner setup, once
+
+These settings are only the owner's to make, and the first release needs them.
+Nothing here is done yet except the two accounts. The registries' pages were
+read on 2026-11-20 and nothing was configured, so a setting below is unverified
+until a release has used it, and the two that the pages leave open are marked.
+`docs/phases/p4i.md` has what was read.
+
+1. **npm.** The `@odudu-io` organization exists (done). Turn on two-factor
+   authentication for the account that owns it.
+2. **A trusted publisher for each of the eight npm packages**, on the package's
+   settings page at npmjs.com: repository `wizzywit/odudu`, workflow
+   `sdk-release.yml`, environment `sdk-release`. The workflow is the file name
+   alone, and `repository.url` in the package's `package.json` must name that
+   repository exactly. npm does not check the configuration when you save it,
+   so a mistake shows only when the workflow publishes, and a new
+   configuration expires after 2 days if no publish has used it. Configure it
+   just before you push the tag.
+3. **If npm will not let you configure a trusted publisher for a package that
+   has never been published (unverified: the page read gives no steps for
+   one),** publish `0.1.0` once from your machine with
+   `npm publish --access public` and two-factor authentication, then configure
+   trusted publishing for the later versions. That first version would have no
+   provenance statement (inferred, not observed).
+4. **PyPI.** The account exists (done). Add a pending publisher for the
+   project `odudu`: owner `wizzywit`, repository `odudu`, workflow
+   `sdk-release.yml`, environment `sdk-release`. The project does not exist
+   yet, so the first publish creates it. Add the publisher just before the
+   first tag, because the name `odudu` is not reserved until that publish: if
+   someone registers it first, the pending publisher stops working. Whether
+   the workflow's `id-token: write` permission and the PyPA publish action it
+   calls are what PyPI expects is unverified, because the page read names
+   neither.
+5. **The `sdk-release` environment.** In the repository's Settings, Environments,
+   create `sdk-release` and add yourself as a required reviewer, so a tag
+   publishes only after you approve it. Without the environment, GitHub creates
+   one with no reviewers when the workflow first names it, and nothing waits
+   for you.
+
 ## Owner settings
 
 These are settings only the owner can change. They are done:

@@ -505,6 +505,25 @@ describe('the CI workflow', () => {
       expect(classifyChanges(['docs/NEXT.md', 'README.md']).server).toBe(false);
     });
 
+    it('tells the owner what to set up once, and says which settings are unverified', async () => {
+      const text = await read('RELEASING.md');
+      const section = text.slice(text.indexOf('## Releasing an SDK'));
+      expect(section).toContain('### Owner setup, once');
+      for (const term of [
+        '<name>-vX.Y.Z',
+        '`sdk-release.yml`',
+        '`sdk-release`',
+        '@odudu-io',
+        'wizzywit/odudu',
+        'pending publisher',
+        'expires after 2 days',
+        'npm publish --access public',
+        'unverified',
+      ]) {
+        expect(section, term).toContain(term);
+      }
+    });
+
     describe('sdk-release.yml', () => {
       async function release(): Promise<string> {
         return read('.github/workflows/sdk-release.yml');
