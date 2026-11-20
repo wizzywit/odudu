@@ -24,6 +24,10 @@ describe('routeFor', () => {
     '/api/auth/unknown',
     '/api/auth/login/extra',
     '/api/auth/Login',
+    '/api/auth/LOGIN',
+    '/api/auth/log%69n',
+    '/api/auth/proxyfoo',
+    '/api/auth/../x',
     '/api/other/login',
     '/login',
   ])('names nothing for %s', (path) => {

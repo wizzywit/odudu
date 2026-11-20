@@ -3,7 +3,6 @@ import { createDispatch } from '#/repository/dispatch';
 import { createReturnTrip } from '#/repository/return-trip';
 import { createSessionReader } from '#/repository/session-reader';
 import { storeOf } from '#/repository/stores';
-import { sessionOf } from '#/services/claims';
 import { resolveConfig } from '#/services/config';
 import type { RouteName } from '#/services/route';
 import type { OduduHandlers, OduduHandlersOptions } from '#/types';
@@ -13,13 +12,10 @@ import type { OduduHandlers, OduduHandlersOptions } from '#/types';
 // proxy's own path is below the mount path unless `proxyPath` says otherwise.
 export function createOduduHandlers(options: OduduHandlersOptions): OduduHandlers {
   const config = resolveConfig(options);
-  const bff = createBff({
-    ...options,
-    store: storeOf(options, config),
-    proxyPath: config.proxyPath,
-  });
+  const store = storeOf(options, config);
+  const bff = createBff({ ...options, store, proxyPath: config.proxyPath });
   const trip = createReturnTrip(config);
-  const reader = createSessionReader(bff);
+  const reader = createSessionReader(store, config.cookieName, options.deps?.now ?? Date.now);
 
   const routes: Record<RouteName, Handler> = {
     login: async (request) => trip.afterLogin(request, await bff.login(request)),
@@ -36,6 +32,6 @@ export function createOduduHandlers(options: OduduHandlersOptions): OduduHandler
     PUT: dispatch,
     PATCH: dispatch,
     DELETE: dispatch,
-    getSession: async () => sessionOf(await reader.read()),
+    getSession: () => reader.read(),
   };
 }

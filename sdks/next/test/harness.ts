@@ -58,7 +58,7 @@ export async function signIn(
   fake.claims = { nonce: authorize.searchParams.get('nonce'), name: 'Ada Lovelace' };
   const loginCookies = [`${cookieName}-login`, `${cookieName}-return`]
     .map((name) => [name, cookieSet(login, name)] as const)
-    .filter(([, value]) => value !== undefined)
+    .filter(([, value]) => value !== undefined && value !== '')
     .map(([name, value]) => `${name}=${value ?? ''}`)
     .join('; ');
   const params = new URLSearchParams({

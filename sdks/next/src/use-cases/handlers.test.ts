@@ -161,6 +161,23 @@ describe('dispatch by path', () => {
 });
 
 describe('returnTo', () => {
+  it('clears a stale return cookie when the sign-in names no page', async () => {
+    const response = await makeHandlers(fake, clock).GET(
+      route('/api/auth/login', {}, `${RETURN_COOKIE}=%2Fold`),
+    );
+    expect(response.status).toBe(302);
+    expect(
+      response.headers.getSetCookie().find((line) => line.startsWith(`${RETURN_COOKIE}=;`)),
+    ).toContain('Max-Age=0');
+  });
+
+  it('does not touch the return cookie when the BFF refuses the login', async () => {
+    const response = await makeHandlers(fake, clock).POST(
+      route('/api/auth/login', { method: 'POST', headers: POST_HEADERS }),
+    );
+    expect(cookieSet(response, RETURN_COOKIE)).toBeUndefined();
+  });
+
   it('remembers a safe path across the sign-in and returns the person to it', async () => {
     const handlers = makeHandlers(fake, clock);
     const { login, callback } = await signIn(handlers, fake, '/dashboard?tab=2');
@@ -180,7 +197,7 @@ describe('returnTo', () => {
     async (value) => {
       const handlers = makeHandlers(fake, clock);
       const { login, callback } = await signIn(handlers, fake, value);
-      expect(cookieSet(login, RETURN_COOKIE)).toBeUndefined();
+      expect(cookieSet(login, RETURN_COOKIE)).toBe('');
       expect(callback.headers.get('location')).toBe('/');
     },
   );

@@ -1,16 +1,21 @@
-import { readJson } from '#/adapter/responses';
-import { cookieHeaderOfRender } from '#/adapter/next-cookies';
-import { sessionRequest } from '#/adapter/requests';
-import type { Bff } from '@odudu-io/bff';
+import { cookieOfRender } from '#/adapter/next-cookies';
+import { sessionFromStore } from '#/services/claims';
+import type { Session } from '#/types';
+import type { SessionStore } from '@odudu-io/bff';
 
 export interface SessionReader {
-  // The BFF's answer to the `session` route for the request being rendered,
-  // as parsed JSON, or undefined when it is not JSON.
-  read(): Promise<unknown>;
+  // The signed-in person for the request being rendered. Reads the store and
+  // never writes it.
+  read(): Promise<Session | null>;
 }
 
-export function createSessionReader(bff: Bff): SessionReader {
+export function createSessionReader(
+  store: SessionStore,
+  cookieName: string,
+  now: () => number,
+): SessionReader {
   return {
-    read: async () => readJson(await bff.session(sessionRequest(await cookieHeaderOfRender()))),
+    read: async () =>
+      sessionFromStore(await cookieOfRender(cookieName), (key) => store.get(key), now()),
   };
 }

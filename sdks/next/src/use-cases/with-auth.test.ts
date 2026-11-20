@@ -1,4 +1,5 @@
 import { createMemoryStore } from '@odudu-io/bff';
+import { sessionKey } from '@odudu-io/bff/shared';
 import { NextRequest } from 'next/server.js';
 import { describe, expect, it } from 'vitest';
 import { withAuth } from '#/use-cases/with-auth';
@@ -91,7 +92,7 @@ describe('withAuth, with a store', () => {
 
   it('lets through a cookie whose id the store holds as a session', async () => {
     const store = createMemoryStore();
-    await store.set(ID, sessionRecord, 60_000);
+    await store.set(sessionKey(ID), sessionRecord, 60_000);
     const guard = withAuth({ paths: ['/dashboard'], store });
     expect(
       (await guard(ask('/dashboard', `__Host-odudu=${ID}`))).headers.get('location'),
@@ -106,7 +107,7 @@ describe('withAuth, with a store', () => {
 
   it('does not take a login record for a session', async () => {
     const store = createMemoryStore();
-    await store.set(ID, { kind: 'login', pending: {} as never, createdAt: 0 }, 60_000);
+    await store.set(sessionKey(ID), { kind: 'login', pending: {} as never, createdAt: 0 }, 60_000);
     const guard = withAuth({ paths: ['/dashboard'], store });
     expect((await guard(ask('/dashboard', `__Host-odudu=${ID}`))).status).toBe(REDIRECT_STATUS);
   });

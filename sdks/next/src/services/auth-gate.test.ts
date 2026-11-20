@@ -71,12 +71,17 @@ describe('isSignedIn', () => {
     expect(await isSignedIn(ID, undefined)).toBe(true);
   });
 
-  it.each([undefined, '', 'short', 'a b'.repeat(20), 'A'.repeat(300)])(
-    'takes %j for no session',
-    async (id) => {
-      expect(await isSignedIn(id, undefined)).toBe(false);
-    },
-  );
+  it.each([
+    undefined,
+    '',
+    'short',
+    'a b'.repeat(20),
+    'A'.repeat(300),
+    'B'.repeat(42),
+    'B'.repeat(44),
+  ])('takes %j for no session', async (id) => {
+    expect(await isSignedIn(id, undefined)).toBe(false);
+  });
 
   it('asks the store, and counts only a session record', async () => {
     expect(await isSignedIn(ID, () => Promise.resolve(record))).toBe(true);
@@ -86,6 +91,15 @@ describe('isSignedIn', () => {
         Promise.resolve({ kind: 'login' as const, pending: {} as never, createdAt: 0 }),
       ),
     ).toBe(false);
+  });
+
+  it('asks the store under the key the BFF keeps a session by', async () => {
+    const keys: string[] = [];
+    await isSignedIn(ID, (key) => {
+      keys.push(key);
+      return Promise.resolve(record);
+    });
+    expect(keys).toEqual([`session:${ID}`]);
   });
 
   it('does not ask the store about a malformed id', async () => {

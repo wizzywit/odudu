@@ -7,6 +7,8 @@ export interface FakeIssuer {
   claims: Record<string, unknown>;
   expiresIn: number;
   issueRefreshToken: boolean;
+  // How many times the token endpoint was called.
+  tokenRequests: number;
   close: () => Promise<void>;
 }
 
@@ -23,6 +25,7 @@ export async function startFakeIssuer(): Promise<FakeIssuer> {
     claims: {},
     expiresIn: 900,
     issueRefreshToken: true,
+    tokenRequests: 0,
     close: () => Promise.resolve(),
   };
   const server: Server = createServer((request, response) => {
@@ -47,6 +50,7 @@ export async function startFakeIssuer(): Promise<FakeIssuer> {
       send(404, { error: 'not_found' });
       return;
     }
+    fake.tokenRequests += 1;
     request.resume();
     request.on('end', () => {
       const now = Math.floor(Date.now() / 1000);

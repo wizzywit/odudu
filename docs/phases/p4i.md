@@ -650,7 +650,10 @@ What the pinned Next does:
 - `cookies()` is asynchronous. verified: `node_modules/next/dist/server/request/cookies.d.ts`
   declares `cookies(): Promise<ReadonlyRequestCookies>`, and the server
   component's `await cookies()` returned the browser's cookies in the run above.
-  `getSession` reads all of them with `getAll()` and lets the BFF pick its own.
+  `getSession` reads the session cookie with `get()` and the record from the
+  store, and never refreshes: each module graph has its own refresh guard, so a
+  render could spend a rotating refresh token twice. Refreshing stays with the
+  route handlers and the proxy.
 - A route handler receives a standard `Request` (a `NextRequest`), and its
   `Response` goes out as built. verified: the BFF handlers ran in the catch-all
   route unchanged, and the login answer carried two `Set-Cookie` lines and the

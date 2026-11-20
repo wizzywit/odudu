@@ -1,7 +1,6 @@
+import { isSessionId, sessionKey } from '@odudu-io/bff/shared';
 import { safeReturnTo } from '#/services/return-to';
 import type { Session as StoredSession } from '@odudu-io/bff';
-
-const ID_SHAPE = /^[A-Za-z0-9_-]{16,128}$/u;
 
 function isUnder(pathname: string, prefix: string): boolean {
   if (prefix === '/') return true;
@@ -32,14 +31,15 @@ export async function decideAccess(input: AccessInput): Promise<'pass' | 'sign-i
 
 // Whether a session cookie's value stands for a signed-in browser. Without a
 // store the value is only checked for the shape of an id, so this is a gate
-// for the page, not proof of a session.
+// for the page, not proof of a session. With one, the record is read under
+// the key the BFF stores it by.
 export async function isSignedIn(
   id: string | undefined,
-  lookup: ((id: string) => Promise<StoredSession | undefined>) | undefined,
+  lookup: ((key: string) => Promise<StoredSession | undefined>) | undefined,
 ): Promise<boolean> {
-  if (id === undefined || !ID_SHAPE.test(id)) return false;
+  if (!isSessionId(id)) return false;
   if (lookup === undefined) return true;
-  return (await lookup(id))?.kind === 'session';
+  return (await lookup(sessionKey(id)))?.kind === 'session';
 }
 
 // The sign-in route with the page the person asked for as `returnTo`, or the

@@ -15,14 +15,6 @@ export function applyChange(response: Response, change: Change): Response {
   });
 }
 
-export async function readJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return undefined;
-  }
-}
-
 export function notFound(): Response {
   return new Response(null, { status: 404, headers: { 'cache-control': 'no-store' } });
 }

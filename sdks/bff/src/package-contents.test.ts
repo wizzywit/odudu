@@ -12,22 +12,23 @@ describe('what the package publishes', () => {
       index: 'index',
       express: 'adapter/express',
       fastify: 'adapter/fastify',
+      shared: 'shared',
     })) {
       expect(config).toContain(`${name}: 'src/${source}.ts'`);
     }
-    for (const entry of ['index', 'adapter/express', 'adapter/fastify']) {
+    for (const entry of ['index', 'adapter/express', 'adapter/fastify', 'shared']) {
       expect(read(`./${entry}.ts`)).not.toContain('testing');
     }
   });
 
-  it('exposes the root and the two adapters, with express and fastify optional peers', () => {
+  it('exposes the root, the two adapters and the shared rules, with express and fastify optional peers', () => {
     const manifest = JSON.parse(read('../package.json')) as {
       exports: Record<string, { types: string; default: string }>;
       peerDependencies: Record<string, string>;
       peerDependenciesMeta: Record<string, { optional: boolean }>;
       dependencies: Record<string, string>;
     };
-    expect(Object.keys(manifest.exports)).toEqual(['.', './express', './fastify']);
+    expect(Object.keys(manifest.exports)).toEqual(['.', './express', './fastify', './shared']);
     for (const [subpath, target] of Object.entries(manifest.exports)) {
       const file = subpath === '.' ? 'index' : subpath.slice(2);
       expect(target).toEqual({ types: `./dist/${file}.d.ts`, default: `./dist/${file}.js` });

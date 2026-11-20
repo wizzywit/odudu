@@ -5,6 +5,7 @@ export default defineConfig({
     index: 'src/index.ts',
     express: 'src/adapter/express.ts',
     fastify: 'src/adapter/fastify.ts',
+    shared: 'src/shared.ts',
   },
   outDir: 'dist',
   format: ['esm'],

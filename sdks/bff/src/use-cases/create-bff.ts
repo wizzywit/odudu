@@ -2,7 +2,7 @@ import { createBrowser } from '#/repository/browser';
 import { createUpstreams } from '#/repository/upstream';
 import { createIdentityProvider } from '#/repository/identity-provider';
 import { createSessions } from '#/repository/sessions';
-import { resolveConfig } from '#/services/config';
+import { BFF_HEADER, resolveConfig } from '#/services/config';
 import { gate } from '#/services/gate';
 import { createMemoryStore } from '#/services/memory-store';
 import { remainingTtlMs, LOGIN_TTL_MS } from '#/services/session-policy';
@@ -13,8 +13,6 @@ import { createProxy } from '#/use-cases/proxy';
 import { createSession } from '#/use-cases/session';
 import { createSessionAccess } from '#/use-cases/session-access';
 import type { Bff, BffOptions, Handler } from '#/types';
-
-const CUSTOM_HEADER = 'x-odudu-bff';
 
 export function createBff(options: BffOptions): Bff {
   const config = resolveConfig(options);
@@ -41,7 +39,7 @@ export function createBff(options: BffOptions): Bff {
       const verdict = gate({
         method: request.method,
         allow,
-        customHeader: request.headers.get(CUSTOM_HEADER),
+        customHeader: request.headers.get(BFF_HEADER),
         origin: request.headers.get('origin'),
         allowedOrigins: config.allowedOrigins,
         requireHeader,

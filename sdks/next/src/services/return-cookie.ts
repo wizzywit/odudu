@@ -1,6 +1,6 @@
+import { clearCookie, readCookie, setCookie } from '@odudu-io/bff/shared';
 import { safeReturnTo } from '#/services/return-to';
 
-const FIXED = 'Path=/; HttpOnly; Secure; SameSite=Lax';
 const TEN_MINUTES_SECONDS = 600;
 
 export function returnCookieName(cookieName: string): string {
@@ -8,23 +8,11 @@ export function returnCookieName(cookieName: string): string {
 }
 
 export function setReturnCookie(name: string, target: string): string {
-  return `${name}=${encodeURIComponent(target)}; ${FIXED}; Max-Age=${String(TEN_MINUTES_SECONDS)}`;
+  return setCookie({ name, value: encodeURIComponent(target), maxAgeSeconds: TEN_MINUTES_SECONDS });
 }
 
 export function clearReturnCookie(name: string): string {
-  return `${name}=; ${FIXED}; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-}
-
-// The raw value of one cookie in a `Cookie` header. A name sent twice is
-// ambiguous, so it reads as absent.
-export function cookieValue(header: string | null, name: string): string | undefined {
-  if (header === null) return undefined;
-  const values = header
-    .split(';')
-    .map((part) => part.trim())
-    .filter((part) => part.startsWith(`${name}=`))
-    .map((part) => part.slice(name.length + 1));
-  return values.length === 1 ? values[0] : undefined;
+  return clearCookie(name);
 }
 
 // The path the return cookie holds, checked again: the cookie is the browser's,
@@ -34,7 +22,7 @@ export function returnTargetOf(
   name: string,
   mount: string,
 ): string | undefined {
-  const raw = cookieValue(header, name);
+  const raw = readCookie(header, name);
   if (raw === undefined) return undefined;
   try {
     return safeReturnTo(decodeURIComponent(raw), mount);

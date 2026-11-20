@@ -10,6 +10,6 @@ export function createSignedInCheck(
   cookieName: string,
   store: SessionStore | undefined,
 ): SignedInCheck {
-  const lookup = store === undefined ? undefined : (id: string) => store.get(id);
+  const lookup = store === undefined ? undefined : (key: string) => store.get(key);
   return (request) => () => isSignedIn(request.cookies.get(cookieName)?.value, lookup);
 }

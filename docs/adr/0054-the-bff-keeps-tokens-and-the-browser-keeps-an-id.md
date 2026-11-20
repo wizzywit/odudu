@@ -157,6 +157,21 @@ server exists.
   one shared store can each refresh once; the issuer's reuse detection then
   refuses the second, and that session ends with `401`. The guide recommends one
   instance, or an affinity rule, until a store offers a lock.
+- The default store is a per-process registry on `globalThis` in
+  `@odudu-io/next`: a Next build gives each route and page its own copy of a
+  module, so a store made at load would be several. It is lost on restart and
+  not shared across processes or serverless instances; the SDK emits one
+  `ODUDU_NEXT_DEFAULT_STORE` warning per production process, and an app that
+  runs more than one passes its own `store`.
+- `getSession` in `@odudu-io/next` only reads the store: it never refreshes,
+  deletes or writes. A single Next process has several module graphs, each with
+  its own in-flight refresh guard, so a refresh from a render could spend a
+  rotating refresh token twice and end the session; refreshing stays with the
+  route handlers and the proxy. A session whose tokens ran out for good reads as
+  none; a stale access token with a live session still returns the claims.
+- `@odudu-io/bff/shared` is the one supported way for a framework binding to
+  share the BFF's rules (cookie, session id and store key, custom header, mount
+  and local path checks, when a session is over) instead of copying them.
 
 ## Alternatives rejected
 

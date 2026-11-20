@@ -7,8 +7,8 @@ export interface Change {
   cookies: string[];
 }
 
-// After `login`: remember a safe `returnTo` for the callback, only when the
-// BFF is sending the person to the issuer.
+// After `login`: remember a safe `returnTo` for the callback, or clear one an
+// earlier sign-in left, when the BFF is sending the person to the issuer.
 export function planLogin(
   status: number,
   returnTo: string | null,
@@ -16,8 +16,14 @@ export function planLogin(
   mount: string,
 ): Change {
   const target = safeReturnTo(returnTo, mount);
-  if (status !== 302 || target === undefined) return { cookies: [] };
-  return { cookies: [setReturnCookie(returnCookieName, target)] };
+  if (status !== 302) return { cookies: [] };
+  return {
+    cookies: [
+      target === undefined
+        ? clearReturnCookie(returnCookieName)
+        : setReturnCookie(returnCookieName, target),
+    ],
+  };
 }
 
 export interface CallbackInput {

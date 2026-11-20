@@ -1,4 +1,4 @@
-import { createMemoryStore } from '@odudu-io/bff';
+import { createMemoryStore, type SessionStore } from '@odudu-io/bff';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startFakeIssuer, type FakeIssuer } from '#test/fake-issuer';
 import { makeHandlers, SESSION_COOKIE, signIn, START, type Clock } from '#test/harness';
@@ -13,6 +13,10 @@ const jar = vi.hoisted(() => ({
 vi.mock('next/headers.js', () => ({
   cookies: () =>
     Promise.resolve({
+      get: (name: string) => {
+        const value = jar.values.get(name);
+        return value === undefined ? undefined : { name, value };
+      },
       getAll: () => [...jar.values].map(([name, value]) => ({ name, value })),
       set: () => {
         jar.writes.push('set');
@@ -107,6 +111,44 @@ describe('getSession', () => {
     clock.now += 2 * 60 * 60 * 1000;
     await handlers.getSession();
     expect(jar.writes).toEqual([]);
+  });
+
+  it('returns the claims of a session whose access token is about to expire, and refreshes nothing', async () => {
+    const handlers = makeHandlers(fake, clock);
+    browserHolds((await signIn(handlers, fake)).cookie);
+    const before = fake.tokenRequests;
+    clock.now += (fake.expiresIn - 10) * 1000;
+    expect(await handlers.getSession()).toEqual({
+      claims: expect.objectContaining({ sub: 'subject-1' }) as unknown,
+    });
+    clock.now += 60 * 1000;
+    expect(await handlers.getSession()).not.toBeNull();
+    expect(fake.tokenRequests).toBe(before);
+  });
+
+  it('returns null for a session that ended for good, and deletes nothing', async () => {
+    fake.issueRefreshToken = false;
+    const writes: string[] = [];
+    const inner = createMemoryStore();
+    const store: SessionStore = {
+      get: (id) => inner.get(id),
+      set: (id, session, ttl) => inner.set(id, session, ttl),
+      delete: (id) => inner.delete(id),
+    };
+    const handlers = makeHandlers(fake, clock, { store });
+    browserHolds((await signIn(handlers, fake)).cookie);
+    store.set = (id, session, ttl) => {
+      writes.push('set');
+      return inner.set(id, session, ttl);
+    };
+    store.delete = (id) => {
+      writes.push('delete');
+      return inner.delete(id);
+    };
+    clock.now += 2 * 60 * 60 * 1000;
+    expect(await handlers.getSession()).toBeNull();
+    expect(writes).toEqual([]);
+    expect(fake.tokenRequests).toBe(1);
   });
 
   it('shares the default store between handlers of one configuration', async () => {

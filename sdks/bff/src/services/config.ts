@@ -15,6 +15,8 @@ export interface BffConfig extends BffOptions {
 }
 
 export const DEFAULT_COOKIE_NAME = '__Host-odudu';
+// The header a read of the session, a sign-out and the proxy must carry.
+export const BFF_HEADER = 'x-odudu-bff';
 const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_PROXY_PATH = '/proxy';
 const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
@@ -129,7 +131,7 @@ export function callbackUrlOf(redirectUri: string, requestUrl: string): string {
 
 // A path on this origin: it starts with one slash, and has no backslash, which
 // browsers read as a slash, and no control character.
-function isLocalPath(path: string): boolean {
+export function isLocalPath(path: string): boolean {
   if (!path.startsWith('/') || path.startsWith('//')) return false;
   for (let i = 0; i < path.length; i += 1) {
     const code = path.charCodeAt(i);
@@ -153,4 +155,9 @@ export function logoutAddressOf(
     url.searchParams.set('post_logout_redirect_uri', postLogoutRedirectUri);
   }
   return url.href;
+}
+
+// A path to mount the BFF's routes on, as a framework binding takes it.
+export function checkMountPath(path: string): string {
+  return checkPrefix(path, 'mountPath');
 }
