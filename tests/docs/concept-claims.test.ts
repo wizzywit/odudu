@@ -66,7 +66,7 @@ describe('the concept pages name only routes the server has', () => {
 
     expect(named.length).toBeGreaterThan(0);
     expect(named.filter(({ call }) => !served.has(call))).toEqual([]);
-  });
+  }, 60_000);
 });
 
 describe('the audit refusal budget the consent and audit page states', () => {

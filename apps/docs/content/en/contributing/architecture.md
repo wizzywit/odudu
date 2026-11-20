@@ -98,6 +98,7 @@ Every directory of the workspace, grouped by what it is for.
 - `tools/ci` works out which CI jobs a change needs.
 - `tools/commit-message` checks commit messages.
 - `tools/docs-run` runs the commands in the guides against a live stack.
+- `tools/mcp-catalogue` generates the stdio MCP tool catalogue (`sdks/mcp-stdio/src/mcp-tools.json`) from the server's tool definitions.
 - `tools/release` works out a release's version and image tags, and writes its notes and its compose file.
 - `tools/sdk-generate` generates the admin and me clients, in TypeScript and in Python, from the OpenAPI documents.
 - `tools/trace` checks every requirement in a protocol note has a test.
