@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { cruise } from 'dependency-cruiser';
 import type { ICruiseResult } from 'dependency-cruiser';
@@ -160,6 +161,26 @@ describe('boundary rules', { timeout: 60_000 }, () => {
         (v) => v.from.includes('sdks/oidc/src/imports-server') && v.to.includes('packages/'),
       ),
     ).toBe(true);
+  });
+
+  it('rejects an SDK importing a server package by its workspace name', async () => {
+    const found = await violations('sdks-import-no-server');
+    expect(
+      found.some(
+        (v) => v.from.includes('sdks/oidc/src/imports-server-by-name') && v.to === '@odudu/kernel',
+      ),
+    ).toBe(true);
+  });
+
+  it('cruises the sdks tree in the boundaries script', () => {
+    const manifest: unknown = JSON.parse(
+      readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'),
+    );
+    const script =
+      typeof manifest === 'object' && manifest !== null && 'scripts' in manifest
+        ? (manifest.scripts as Record<string, string>).boundaries
+        : undefined;
+    expect(script?.split(' ')).toContain('sdks');
   });
 
   it('does not flag an SDK importing another SDK', async () => {

@@ -419,9 +419,10 @@ module.exports = {
       comment:
         'The SDKs are Apache-2.0 and the server is AGPL-3.0 (ADR 0042), so the licence ' +
         'boundary is a dependency edge: nothing under sdks/ imports a server package, an ' +
-        'app or a tool. An SDK may import another SDK.',
+        'app or a tool, by path or by the @odudu/ name a workspace link would resolve to ' +
+        '(an unresolved @odudu/ name is caught by its name). An SDK may import another SDK.',
       from: { path: '(^|/)sdks/' },
-      to: { path: '(^|/)(?:packages|apps|tools)/', pathNot: '(^|/)node_modules/' },
+      to: { path: '(^|/)(?:packages|apps|tools)/|^@odudu/', pathNot: '(^|/)node_modules/' },
     },
     {
       name: 'me-allowlist',
