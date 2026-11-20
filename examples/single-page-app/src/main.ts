@@ -69,7 +69,8 @@ async function signOut(): Promise<void> {
 }
 
 // The page keeps saying "signed in" after the access token lapses, because the
-// app calls no API. An app that does asks `refresh` or signs the person in again.
+// app calls no API. An app that does reads `expiresAt` and signs the person in
+// again once it has passed.
 function render(): void {
   if (tokens === undefined) {
     show('You are signed out.', { label: 'Sign in', run: () => attempt(signIn()) });
@@ -77,9 +78,12 @@ function render(): void {
   }
   const { claims } = tokens;
   const expiresAt = new Date(tokens.byAudience[ISSUER]?.expiresAt ?? Number.NaN);
+  const expiry = Number.isNaN(expiresAt.getTime())
+    ? 'at a time this app cannot read'
+    : expiresAt.toISOString();
   show(
     `Signed in as ${String(claims.preferred_username ?? claims.sub)} (${claims.sub}). ` +
-      `Access token expires ${expiresAt.toISOString()}`,
+      `Access token expires ${expiry}`,
     { label: 'Sign out', run: () => attempt(signOut()) },
   );
 }

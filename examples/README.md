@@ -1,6 +1,6 @@
 # Odudu examples
 
-Each folder here is a small, finished app that works with Odudu. Pick the one that looks like what you are building, copy its folder anywhere, and run it against the stack from the Odudu quick start. Each is short enough to read in one sitting.
+Each folder here is a small, finished app that works with Odudu. Pick the one that looks like what you are building, copy its folder anywhere once the SDKs are published (until then use `_shared/install.sh`, as each README says), and run it against the stack from the Odudu quick start. Each is short enough to read in one sitting.
 
 | Folder               | What it shows                                                                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |

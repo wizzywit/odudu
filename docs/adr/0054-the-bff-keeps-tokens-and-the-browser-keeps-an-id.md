@@ -24,8 +24,9 @@ answers are in `docs/protocols/rfc10017.md`.
   login record, kept ten minutes under a random id in a second cookie
   (`__Host-odudu-login`) with the same attributes. `callback` reads that
   record once, whatever the outcome, so a replayed or forged callback finds
-  nothing. A callback that fails answers a fixed `400` and never repeats what
-  the issuer or the query said.
+  nothing. A callback that fails answers a fixed `400`, or `502` when the failure
+  is transient or a BFF configuration fault such as a refused client secret, and
+  never repeats what the issuer or the query said.
 - **A new id on every sign-in.** `callback` makes a fresh session id and never
   reuses one the browser sent, so a planted id is not adopted.
 - **CSRF.** A route accepts one method. A `POST`, which is where state

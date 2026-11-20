@@ -346,7 +346,7 @@ describe('the CI workflow', () => {
       const install = await read('examples/_shared/install.sh');
       expect(install).toContain('pnpm --dir "$root" --filter "@odudu-io/$sdk" pack');
       expect(install).toContain('npm install --no-save --ignore-scripts');
-      expect(install).toContain('npm ci --ignore-scripts');
+      expect(install).not.toContain('npm ci');
     });
 
     // The SDKs each leg installs, by evaluating the workflow's own expression,
@@ -391,6 +391,7 @@ describe('the CI workflow', () => {
         const used = Object.keys(manifest.dependencies ?? {})
           .filter((dependency) => dependency.startsWith('@odudu-io/'))
           .map((dependency) => dependency.slice('@odudu-io/'.length));
+        expect(used, `${example} names an SDK`).not.toEqual([]);
         expect(listed(example), example).toEqual(await closure(used));
       }
     });
