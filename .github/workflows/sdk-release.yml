@@ -24,6 +24,9 @@ on:
 
 permissions: {}
 
+# A manual run never publishes: the publish jobs run on a push of a tag only.
+# The gate check is read for $GITHUB_SHA, the commit that tag points at, by
+# design, so a manual run (which skips that check) needs no CI of its own.
 concurrency:
   group: sdk-release-${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
   cancel-in-progress: false
