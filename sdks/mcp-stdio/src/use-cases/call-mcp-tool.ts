@@ -2,17 +2,21 @@ import type { McpLogger } from '#/services/logger';
 import { insufficientScopeProblem } from '#/services/admin-access';
 import { errorResult, runTool, type ToolRun } from '#/services/call-tool';
 import { ToolProblem, type AdminCaller, type CallableTool, type ToolResult } from '#/services/tool';
+import {
+  budgetToGiveBack,
+  lacksWriteScope,
+  outcomeOf,
+  spendOf,
+  type ToolOutcome,
+} from '#/services/tool-call-rules';
 import type { BudgetKind, WriteBudget } from '#/services/write-budget';
 
 // What the audit trail holds of a tool call: which tool, which admin route it
 // reached and how it ended. Never its arguments or its result, which can carry
 // text an agent reads back.
-export interface RecordedToolCall {
+export interface RecordedToolCall extends ToolOutcome {
   readonly tool: string;
   readonly route: string;
-  readonly outcome: 'allowed' | 'refused' | 'failed';
-  readonly reason?:
-    'insufficient_scope' | 'missing_capability' | 'timeout_outcome_unknown' | 'write_budget';
 }
 
 export interface CallMcpToolDeps {
@@ -36,52 +40,9 @@ const OUTCOME_UNKNOWN =
   'The change may or may not have been made. Read the resource again with the matching get tool ' +
   'and compare it with what you meant to write before trying again.';
 
-function outcomeOf(problem: ToolProblem | null): Pick<RecordedToolCall, 'outcome' | 'reason'> {
-  if (problem === null) return { outcome: 'allowed' };
-  if (problem.problemType === 'mcp:write_budget') {
-    return { outcome: 'refused', reason: 'write_budget' };
-  }
-  if (problem.problemType === 'mcp:outcome_unknown') {
-    return { outcome: 'failed', reason: 'timeout_outcome_unknown' };
-  }
-  if (problem.status !== 403) return { outcome: 'failed' };
-  const scope =
-    problem.problemType === 'mcp:insufficient_scope' ||
-    /^insufficient_scope\b/u.test(problem.detail ?? '');
-  return { outcome: 'refused', reason: scope ? 'insufficient_scope' : 'missing_capability' };
-}
-
 const BUDGET_SPENT =
   'This sign-in has made as many changes as it may. Nothing was changed by this call: tell the ' +
   'person, who can sign in again to give you a new allowance.';
-
-// A write that answers 4xx was refused before it changed anything, so what it
-// reserved is given back; a timeout, a failure to reach the admin API or an
-// answer too large to read may follow a change that was made.
-function changedNothing(problem: ToolProblem | null): boolean {
-  return (
-    problem !== null &&
-    problem.problemType !== 'mcp:outcome_unknown' &&
-    problem.status !== null &&
-    problem.status >= 400 &&
-    problem.status < 500
-  );
-}
-
-// What a call spends, when it spends anything: a write whose arguments the
-// schema accepts. One it refuses is never sent, so it costs nothing. A write
-// that declares no budget has no place in one, so it is not made.
-function spendOf(tool: CallableTool, input: unknown): BudgetKind | 'undeclared' | undefined {
-  if (tool.access !== 'write') return undefined;
-  if (tool.spends === undefined) return 'undeclared';
-  try {
-    const parsed = tool.input.safeParse(input);
-    if (!parsed.success) return undefined;
-    return tool.createsWhen?.(parsed.data) === true ? 'create' : tool.spends;
-  } catch {
-    return undefined;
-  }
-}
 
 const BUDGET_WAIT_MS = 5_000;
 
@@ -224,16 +185,14 @@ export async function callMcpTool(
   input: unknown,
 ): Promise<ToolResult> {
   const kind = spendOf(tool, input);
-  const unscoped =
-    tool.access === 'write' && deps.holdsWrite === false ? insufficientScopeProblem() : null;
+  const unscoped = lacksWriteScope(tool, deps.holdsWrite) ? insufficientScopeProblem() : null;
   const refusal = unscoped ?? (kind === undefined ? null : await reserved(deps, tool, kind));
   const { result, problem } =
     refusal === null
       ? await execute(deps, tool, caller, input)
       : { result: errorResult(refusal), problem: refusal };
-  if (kind !== undefined && kind !== 'undeclared' && refusal === null && changedNothing(problem)) {
-    await released(deps, tool, kind);
-  }
+  const giveBack = budgetToGiveBack(kind, refusal === null, problem);
+  if (giveBack !== undefined) await released(deps, tool, giveBack);
   try {
     await deps.record({ tool: tool.name, route: tool.routeKey, ...outcomeOf(problem) });
   } catch (error) {

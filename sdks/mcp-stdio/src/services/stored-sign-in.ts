@@ -40,3 +40,26 @@ export function storedMatches(
 ): boolean {
   return stored.issuer === server.issuer && stored.tokenEndpoint === server.tokenEndpoint;
 }
+
+export interface StoredVerdict {
+  // Present only for a sign-in made at this server.
+  readonly refreshToken: string | undefined;
+  // True when something is held that must not be used again: it was made for
+  // another server, or it cannot be read.
+  readonly forget: boolean;
+}
+
+// Of the sign-in kept in memory and the text kept in the store, which to present
+// to `server`. The one in memory is what the store would not take, so it is the
+// newer.
+export function judgeStored(
+  unsaved: StoredSignIn | undefined,
+  text: string | null,
+  server: { readonly issuer: string; readonly tokenEndpoint: string },
+): StoredVerdict {
+  const held = unsaved ?? (text === null ? undefined : decodeStored(text));
+  if (held !== undefined && storedMatches(held, server)) {
+    return { refreshToken: held.refreshToken, forget: false };
+  }
+  return { refreshToken: undefined, forget: held !== undefined || text !== null };
+}

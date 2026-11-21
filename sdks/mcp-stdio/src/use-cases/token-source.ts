@@ -1,13 +1,14 @@
 import { insufficientScopeProblem, type AdminAccess } from '#/services/admin-access';
 import type { CredentialStore, RefreshLock } from '#/services/ports';
 import { StdioError } from '#/services/stdio-error';
-import { endsStoredSignIn, keepsRefreshToken, readsStoredSignIn } from '#/services/token-policy';
 import {
-  decodeStored,
-  encodeStored,
-  storedMatches,
-  type StoredSignIn,
-} from '#/services/stored-sign-in';
+  endsStoredSignIn,
+  freshAccessToken,
+  keepsRefreshToken,
+  readsStoredSignIn,
+  refusesAccess,
+} from '#/services/token-policy';
+import { encodeStored, judgeStored, type StoredSignIn } from '#/services/stored-sign-in';
 import type { TokenSource } from '#/services/token-source';
 import { acceptTokenSet, type TokenSet } from '#/services/token-set';
 import { ToolProblem } from '#/services/tool';
@@ -87,14 +88,12 @@ export function createTokenSource(deps: TokenSourceDeps): TokenSource {
   ): Promise<string | undefined> {
     if (!readsStoredSignIn(scope)) return undefined;
     const text = unsaved === undefined ? ((await credential.store?.get()) ?? null) : null;
-    const held = unsaved ?? (text === null ? undefined : decodeStored(text));
-    const server = await deps.authority();
-    if (held !== undefined && storedMatches(held, server)) return held.refreshToken;
-    if (held !== undefined || text !== null) {
+    const verdict = judgeStored(unsaved, text, await deps.authority());
+    if (verdict.forget) {
       unsaved = undefined;
       await credential.store?.clear();
     }
-    return undefined;
+    return verdict.refreshToken;
   }
 
   // Under the lock: read what is stored, refresh it and keep the new one. Undefined
@@ -163,10 +162,9 @@ export function createTokenSource(deps: TokenSourceDeps): TokenSource {
       if (current?.accessToken === rejected) current = undefined;
     },
     async bearer(access: AdminAccess): Promise<string> {
-      if (access === 'write' && scope !== 'mcp:write') throw insufficientScopeProblem();
-      if (current !== undefined && current.expiresAt.getTime() - skewMs > deps.now().getTime()) {
-        return current.accessToken;
-      }
+      if (refusesAccess(access, scope)) throw insufficientScopeProblem();
+      const fresh = freshAccessToken(current, deps.now().getTime(), skewMs);
+      if (fresh !== undefined) return fresh;
       const cooling = coolingDown();
       if (cooling !== undefined) throw cooling;
       try {

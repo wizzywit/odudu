@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { endsStoredSignIn, keepsRefreshToken, readsStoredSignIn } from '#/services/token-policy';
+import {
+  endsStoredSignIn,
+  freshAccessToken,
+  keepsRefreshToken,
+  readsStoredSignIn,
+  refusesAccess,
+} from '#/services/token-policy';
 import { StdioError } from '#/services/stdio-error';
 import type { TokenSet } from '#/services/token-set';
 import { jwtOf } from '#/testing/jwt';
@@ -28,5 +34,22 @@ describe('what a run does with a stored sign-in', () => {
     expect(endsStoredSignIn(new StdioError('mcp_grant_ended', 'x'))).toBe(true);
     expect(endsStoredSignIn(new StdioError('mcp_unreachable', 'x'))).toBe(false);
     expect(endsStoredSignIn(new Error('x'))).toBe(false);
+  });
+});
+
+describe('what a token source hands out', () => {
+  it('refuses a write to a run that did not ask for mcp:write, and nothing else', () => {
+    expect(refusesAccess('write', 'mcp:read')).toBe(true);
+    expect(refusesAccess('write', 'mcp:write')).toBe(false);
+    expect(refusesAccess('read', 'mcp:read')).toBe(false);
+    expect(refusesAccess('read', 'mcp:write')).toBe(false);
+  });
+
+  it('keeps a token until it is within the skew of expiring', () => {
+    const held = { ...set('mcp:read'), accessToken: 'a', expiresAt: new Date(100_000) };
+    expect(freshAccessToken(held, 69_999, 30_000)).toBe('a');
+    expect(freshAccessToken(held, 70_000, 30_000)).toBeUndefined();
+    expect(freshAccessToken(held, 100_000, 30_000)).toBeUndefined();
+    expect(freshAccessToken(undefined, 0, 30_000)).toBeUndefined();
   });
 });

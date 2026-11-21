@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeStored, encodeStored, storedMatches } from '#/services/stored-sign-in';
+import { decodeStored, encodeStored, judgeStored, storedMatches } from '#/services/stored-sign-in';
 
 const stored = {
   refreshToken: 'rt-1',
@@ -30,5 +30,42 @@ describe('a sign-in kept with where it was made', () => {
     expect(storedMatches(stored, { ...same, tokenEndpoint: 'https://evil.example/token' })).toBe(
       false,
     );
+  });
+});
+
+describe('what is done with the sign-in a run finds', () => {
+  const server = { issuer: stored.issuer, tokenEndpoint: stored.tokenEndpoint };
+  const elsewhere = { ...server, issuer: 'https://other.example' };
+
+  it('presents the one held in memory, or else the one stored, when it is from this server', () => {
+    expect(judgeStored(stored, null, server)).toEqual({ refreshToken: 'rt-1', forget: false });
+    expect(judgeStored(undefined, encodeStored(stored), server)).toEqual({
+      refreshToken: 'rt-1',
+      forget: false,
+    });
+  });
+
+  it('prefers the one held in memory over the stored text', () => {
+    const newer = { ...stored, refreshToken: 'rt-2' };
+    expect(judgeStored(newer, encodeStored(stored), server).refreshToken).toBe('rt-2');
+  });
+
+  it('forgets one made for another server, and one it cannot read', () => {
+    expect(judgeStored(stored, null, elsewhere)).toEqual({ refreshToken: undefined, forget: true });
+    expect(judgeStored(undefined, encodeStored(stored), elsewhere)).toEqual({
+      refreshToken: undefined,
+      forget: true,
+    });
+    expect(judgeStored(undefined, 'rt-raw', server)).toEqual({
+      refreshToken: undefined,
+      forget: true,
+    });
+  });
+
+  it('finds nothing to forget when nothing is held', () => {
+    expect(judgeStored(undefined, null, server)).toEqual({
+      refreshToken: undefined,
+      forget: false,
+    });
   });
 });
