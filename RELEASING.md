@@ -257,10 +257,16 @@ until a release has used it, and the two that the pages leave open are marked.
    SDK, with the published `^0.1.0` ranges, commit the lockfiles, and re-check
    Dependabot: its pull requests for those folders fail to resolve `@odudu-io/*`
    until the packages exist.
-8. **After the first publish of all SDKs: the documentation.** In
-   `apps/docs/content/en/sdks/index.md`, remove the paragraph that says the
-   first release has not been published, and add the npm and PyPI version
-   badges to `README.md` (see the SDK plan's follow-up) in the same change.
+8. **After the first publish of all SDKs: the documentation.** Remove every
+   sentence that begins "Until the first release is published", with its
+   checkout instructions, in `introduction/index.md`, `guides/web-app.md`,
+   `single-page-app.md`, `api.md` (npm and pip), `machine-to-machine.md` (three),
+   `connect-claude.md` (with both checkout blocks: the person's entry and the
+   service account's replacement line); the paragraph in `sdks/index.md`; and
+   the install-state paragraphs in `sdks/examples.md`. Reword "What was not run"
+   in `connect-claude.md` once the npx entry has been run. Add the npm and PyPI
+   version badges to `README.md` (see the SDK plan's follow-up) in the same
+   change. `guides-sdk.test.ts` fails while a marker outlives publication.
 
 ## Owner settings
 
