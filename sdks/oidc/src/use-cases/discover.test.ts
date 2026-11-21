@@ -35,6 +35,16 @@ describe('discover', () => {
     expect((error as OduduError).code).toBe('discovery_failed');
   });
 
+  it.each([
+    ['https://exact.example', 'https://exact.example/'],
+    ['https://exact2.example/', 'https://exact2.example'],
+  ])('refuses metadata that spells the issuer %s as %s', async (asked, advertised) => {
+    const fetcher: typeof fetch = () => Promise.resolve(metadataFor(advertised));
+    const error = await discover(asked, { fetch: fetcher, now: () => 0 }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(OduduError);
+    expect((error as OduduError).code).toBe('discovery_failed');
+  });
+
   it('refuses an http issuer unless told otherwise', async () => {
     fake = await startFakeServer();
     const error = await discover(fake.issuer).catch((e: unknown) => e);

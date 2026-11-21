@@ -38,7 +38,11 @@ export async function fetchMetadata(issuer: string, deps: Deps): Promise<ServerM
       algorithm: 'oidc',
       ...requestOptions(deps),
     });
-    return await oauth.processDiscoveryResponse(url, response);
+    const metadata = await oauth.processDiscoveryResponse(url, response);
+    // The library compares parsed addresses, which equates `https://id.example`
+    // with `https://id.example/`; every later `iss` check compares the string.
+    if (metadata.issuer !== issuer) throw new Error('the metadata spells the issuer differently');
+    return metadata;
   } catch (cause) {
     throw new OduduError('discovery_failed', `could not read the metadata of ${issuer}`, { cause });
   }
