@@ -53,9 +53,9 @@ beforeAll(async () => {
     );
     return;
   }
-  for (const directory of [PACKAGE, OIDC]) {
-    if (!existsSync(join(directory, 'dist/index.js'))) {
-      throw new Error(`${directory} has no dist: build it before this test (pnpm build)`);
+  for (const built of [join(PACKAGE, 'dist/bin.js'), join(OIDC, 'dist/index.js')]) {
+    if (!existsSync(built)) {
+      throw new Error(`${built} is missing: build it before this test (pnpm build)`);
     }
   }
   work = await mkdtemp(join(tmpdir(), 'odudu-mcp-bin-'));
@@ -141,7 +141,6 @@ describe('the packed odudu-mcp command', () => {
     expect(entries).toEqual(
       expect.arrayContaining([
         'package/dist/bin.js',
-        'package/dist/index.js',
         'package/package.json',
         'package/LICENSE',
         'package/CHANGELOG.md',
@@ -149,12 +148,22 @@ describe('the packed odudu-mcp command', () => {
       ]),
     );
     expect(entries.filter((entry) => !entry.startsWith('package/dist/'))).toHaveLength(4);
+    expect(entries.some((entry) => entry.startsWith('package/src/'))).toBe(false);
+    expect(entries).not.toContain('package/dist/index.js');
     const { stdout: manifest } = await run('tar', [
       '-xzOf',
       join(tarballs, PACKAGE_TARBALL),
       'package/package.json',
     ]);
     expect(manifest).not.toContain('workspace:');
+    const packed = JSON.parse(manifest) as {
+      exports: Record<string, string>;
+      imports: Record<string, string>;
+      dependencies: Record<string, string>;
+    };
+    expect(packed.exports).toEqual({ './package.json': './package.json' });
+    expect(packed.imports).toEqual({});
+    expect(packed.dependencies['@odudu-io/oidc']).toMatch(/^\^\d+\.\d+\.\d+$/u);
   });
 
   it('the packed tarball, run with a PATH that has no odudu, answers initialize and tools/list', async (ctx) => {
