@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Makes what the examples sign in with, in the `demo` tenant of a running
 # quickstart stack: the people `ada` and `ben`, a web app, a single-page app,
-# a Next.js app, a React app behind a backend for frontend and a service. Run
-# it from the folder that holds compose.yaml, or set COMPOSE_FILE. Running it
-# again changes nothing.
+# a Next.js app, a React app behind a backend for frontend, services and a
+# command-line tool. Run it from the folder that holds compose.yaml, or set
+# COMPOSE_FILE. Running it again changes nothing.
 #
 # Every secret here is published in this repository. They are for a stack on
 # your own machine and must never be used anywhere else.
@@ -13,6 +13,9 @@ WEB_APP_ORIGIN="${WEB_APP_ORIGIN:-http://localhost:8081}"
 SPA_ORIGIN="${SPA_ORIGIN:-http://localhost:8084}"
 NEXT_APP_ORIGIN="${NEXT_APP_ORIGIN:-http://localhost:8085}"
 REACT_BFF_ORIGIN="${REACT_BFF_ORIGIN:-http://localhost:8083}"
+ADMIN_CLI_ORIGIN="${ADMIN_CLI_ORIGIN:-http://127.0.0.1:8086}"
+ODUDU_BASE="${ODUDU_BASE:-http://localhost:3000}"
+ADMIN_API_AUDIENCE=urn:odudu:params:admin-api
 
 seed() {
   local output
@@ -43,3 +46,29 @@ seed client --tenant demo --client-id example-next --client-secret example-next-
 seed client --tenant demo --client-id example-react-bff --client-secret example-react-bff-secret \
   --grant-type authorization_code --grant-type refresh_token \
   --redirect-uri "$REACT_BFF_ORIGIN/bff/callback" --post-logout-redirect-uri "$REACT_BFF_ORIGIN/"
+# A command-line tool signs a person in at a loopback address (RFC 8252). It
+# asks for the person's own account, so it may name the me audience and holds
+# me:read, which --allow-action gives a client.
+seed client --tenant demo --client-id example-admin-cli --public --grant-type authorization_code \
+  --redirect-uri "$ADMIN_CLI_ORIGIN/callback" --audience "$ODUDU_BASE/tenants/demo/me" \
+  --allow-action verify-email
+
+# A service that calls the admin API asks for its audience, and what it may do
+# there is the admin capabilities its account holds. `odudu seed` has no command
+# that gives a service account one, so this writes the row as the database
+# owner, in the demo tenant.
+grant_manage_clients() {
+  docker compose exec -T postgres psql -U odudu -d odudu -v ON_ERROR_STOP=1 -q -c \
+    "insert into subject_roles (tenant_id, subject_id, role_id)
+     select k.tenant_id, k.service_subject_id, r.id
+     from clients k
+     join tenants t on t.id = k.tenant_id
+     join clients a on a.tenant_id = k.tenant_id and a.client_id = 'odudu-admin'
+     join roles r on r.client_id = a.id
+     where t.name = 'demo' and k.client_id = '$1' and r.name = 'manage-clients'
+     on conflict do nothing;"
+}
+
+seed client --tenant demo --client-id example-admin --client-secret example-admin-secret \
+  --grant-type client_credentials --audience "$ADMIN_API_AUDIENCE"
+grant_manage_clients example-admin
