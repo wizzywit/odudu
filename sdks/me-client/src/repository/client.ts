@@ -16,12 +16,16 @@ const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(
  * origin: the 3xx answer is returned to the caller as a `ProblemError`.
  */
 export function createTenantClient<P extends object>(options: ClientOptions): TenantClient<P> {
-  const { baseUrl, tenant } = resolveOptions(options);
+  const { baseUrl, tenant, timeoutMs } = resolveOptions(options);
   const send = options.fetch ?? ((input: Request) => globalThis.fetch(input));
   const inner = createClient<P>({
     baseUrl,
     redirect: 'manual',
-    fetch: createTransport({ fetch: (request) => send(request), sleep: options.sleep ?? wait }),
+    fetch: createTransport({
+      fetch: (request) => send(request),
+      sleep: options.sleep ?? wait,
+      timeoutMs,
+    }),
   });
   inner.use(requestHeaders(options.token, IDEMPOTENT_OPERATIONS, () => crypto.randomUUID()));
   // openapi-fetch types each call by path; here the method is a runtime value.

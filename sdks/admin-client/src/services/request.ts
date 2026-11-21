@@ -3,9 +3,12 @@ import type { ClientOptions } from '#/types';
 export interface ResolvedOptions {
   baseUrl: string;
   tenant: string;
+  timeoutMs: number;
 }
 
 /** Refuses what would send a token somewhere unintended: a relative or non-http(s) base URL. */
+const DEFAULT_TIMEOUT_MS = 30_000;
+
 export function resolveOptions(options: ClientOptions): ResolvedOptions {
   let url: URL;
   try {
@@ -21,7 +24,11 @@ export function resolveOptions(options: ClientOptions): ResolvedOptions {
       'tenant must be a name: not empty, not . or .., and without /, \\, % or control characters',
     );
   }
-  return { baseUrl: options.baseUrl, tenant: options.tenant };
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  if (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new TypeError('timeoutMs must be a finite number of milliseconds above zero');
+  }
+  return { baseUrl: options.baseUrl, tenant: options.tenant, timeoutMs };
 }
 
 function isSafeSegment(value: string): boolean {

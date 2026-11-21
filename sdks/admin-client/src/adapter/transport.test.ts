@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTransport } from '#/adapter/transport';
+import { RequestTimeoutError } from '#/services/problem';
+import { startFakeApi } from '#/testing/fake-api';
 import { ProblemError } from '#/services/problem';
 
 function transport(
@@ -72,5 +74,79 @@ describe('the transport', () => {
     const { send, calls } = transport([new Response(null, { status }), new Response('ok')]);
     await send(get());
     expect(calls()).toBe(2);
+  });
+});
+
+describe('the per-attempt timeout', () => {
+  const sleep = (): Promise<void> => Promise.resolve();
+  const sendTo = (origin: string, timeoutMs: number) =>
+    createTransport({ fetch: (request) => fetch(request), sleep, timeoutMs });
+
+  it('fails a call to a server that never answers with a RequestTimeoutError', async () => {
+    const api = await startFakeApi(() => ({ status: 200, hang: true }));
+    try {
+      const started = Date.now();
+      const failure = await sendTo(
+        api.origin,
+        80,
+      )(new Request(`${api.origin}/x`, { method: 'POST', body: '{}' })).catch(
+        (error: unknown) => error,
+      );
+      expect(failure).toBeInstanceOf(RequestTimeoutError);
+      expect((failure as Error).message).toContain('80 ms');
+      expect(Date.now() - started).toBeLessThan(1500);
+      expect(api.requests).toHaveLength(1);
+    } finally {
+      await api.close();
+    }
+  });
+
+  it('retries a GET whose first attempt timed out, and the repeat answers', async () => {
+    const api = await startFakeApi((_request, index) =>
+      index === 0 ? { status: 200, hang: true } : { status: 200, body: 'fast' },
+    );
+    try {
+      const response = await sendTo(api.origin, 80)(new Request(`${api.origin}/x`));
+      expect(await response.text()).toBe('fast');
+      expect(api.requests).toHaveLength(2);
+    } finally {
+      await api.close();
+    }
+  });
+
+  it('stops after the bounded retries when every attempt times out', async () => {
+    const api = await startFakeApi(() => ({ status: 200, hang: true }));
+    try {
+      const failure = await sendTo(
+        api.origin,
+        50,
+      )(new Request(`${api.origin}/x`)).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(RequestTimeoutError);
+      expect(api.requests).toHaveLength(3);
+    } finally {
+      await api.close();
+    }
+  });
+
+  it('still lets the caller abort, and says nothing about a timeout then', async () => {
+    const api = await startFakeApi(() => ({ status: 200, hang: true }));
+    try {
+      const controller = new AbortController();
+      const pending = sendTo(
+        api.origin,
+        5_000,
+      )(new Request(`${api.origin}/x`, { signal: controller.signal })).catch(
+        (error: unknown) => error,
+      );
+      setTimeout(() => {
+        controller.abort();
+      }, 30);
+      const failure = await pending;
+      expect(failure).not.toBeInstanceOf(RequestTimeoutError);
+      expect((failure as Error).name).toBe('AbortError');
+      expect(api.requests).toHaveLength(1);
+    } finally {
+      await api.close();
+    }
   });
 });

@@ -1,10 +1,12 @@
 import { readProblemText } from '#/adapter/body';
-import { problemFromBody, ProblemError } from '#/services/problem';
+import { problemFromBody, ProblemError, RequestTimeoutError } from '#/services/problem';
 import { isRetryableStatus, MAX_RETRIES, mayRetry, retryDelayMs } from '#/services/retry';
 
 export interface Transport {
   fetch: (request: Request) => Promise<Response>;
   sleep: (ms: number) => Promise<void>;
+  // The longest one attempt may take; none when omitted.
+  timeoutMs?: number | undefined;
 }
 
 const REDIRECT_MESSAGE =
@@ -19,12 +21,30 @@ async function toProblem(response: Response): Promise<ProblemError> {
   return new ProblemError(problemFromBody(response.status, body), response);
 }
 
+// The caller's signal and a deadline as one signal. `AbortSignal.any` is in
+// Node 20.3 and later and in browsers since 2023-24; on a runtime without it a
+// controller follows both.
+function withDeadline(caller: AbortSignal, deadline: AbortSignal): AbortSignal {
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([caller, deadline]);
+  const controller = new AbortController();
+  const abort = (from: AbortSignal) => () => {
+    controller.abort(from.reason);
+  };
+  for (const signal of [caller, deadline]) {
+    if (signal.aborted) controller.abort(signal.reason);
+    else signal.addEventListener('abort', abort(signal), { once: true });
+  }
+  return controller.signal;
+}
+
 /**
  * Sends a request, repeating it at most twice when the repeat is harmless and
  * the server or the network failed, and throws a `ProblemError` for a response
  * that is not a success. A repeat is the same request, so it carries the same
  * `Idempotency-Key`. A retried DELETE whose first answer was lost can answer
- * 404 because the first attempt took effect.
+ * 404 because the first attempt took effect. An attempt that gets no answer
+ * within `timeoutMs` counts as a network failure, and the last one is thrown
+ * as a `RequestTimeoutError`.
  */
 export function createTransport(transport: Transport): (request: Request) => Promise<Response> {
   return async (request) => {
@@ -33,10 +53,17 @@ export function createTransport(transport: Transport): (request: Request) => Pro
       const last = attempt >= retries;
       let response: Response | undefined;
       let failure: unknown;
+      const deadline =
+        transport.timeoutMs === undefined ? undefined : AbortSignal.timeout(transport.timeoutMs);
       try {
-        response = await transport.fetch(last ? request : request.clone());
+        const source = last ? request : request.clone();
+        response = await transport.fetch(
+          deadline === undefined
+            ? source
+            : new Request(source, { signal: withDeadline(request.signal, deadline) }),
+        );
       } catch (error) {
-        failure = error;
+        failure = timedOut(error, request, deadline, transport.timeoutMs);
       }
       if (response?.ok === true) return response;
       if (response !== undefined && (last || !isRetryableStatus(response.status))) {
@@ -47,4 +74,17 @@ export function createTransport(transport: Transport): (request: Request) => Pro
       await transport.sleep(retryDelayMs(attempt, response?.headers.get('retry-after') ?? null));
     }
   };
+}
+
+// A failure after the deadline passed and the caller did not abort is the
+// timeout; anything else is what `fetch` threw.
+function timedOut(
+  error: unknown,
+  request: Request,
+  deadline: AbortSignal | undefined,
+  timeoutMs: number | undefined,
+): unknown {
+  return deadline?.aborted === true && !request.signal.aborted && timeoutMs !== undefined
+    ? new RequestTimeoutError(timeoutMs, { cause: error })
+    : error;
 }

@@ -3,7 +3,7 @@ import type { components } from '#/generated/schema';
 export type { components, operations, paths } from '#/generated/schema';
 export { createMeClient } from '#/use-cases/me-client';
 export { iterate } from '#/use-cases/iterate';
-export { ProblemError } from '#/services/problem';
+export { ProblemError, RequestTimeoutError } from '#/services/problem';
 export type { FieldError } from '#/services/problem';
 export type {
   ClientOptions,

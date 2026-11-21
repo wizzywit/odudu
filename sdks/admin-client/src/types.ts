@@ -15,6 +15,12 @@ export interface ClientOptions {
   /** An access token, or a function that returns one. It is called for every request. */
   token: TokenSource;
   fetch?: typeof fetch;
+  /**
+   * The longest one attempt may take, in milliseconds: a finite number above
+   * zero, 30000 when omitted. A timed-out attempt is retried like any network
+   * error, and the call then fails with a `RequestTimeoutError`.
+   */
+  timeoutMs?: number;
   /** Waits between retries; replaced in tests. */
   sleep?: (ms: number) => Promise<void>;
 }

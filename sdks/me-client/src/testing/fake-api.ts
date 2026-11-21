@@ -12,6 +12,8 @@ export interface Reply {
   status: number;
   headers?: Record<string, string>;
   body?: string;
+  // Never answers: the request stays open until the server is closed.
+  hang?: boolean;
 }
 
 export interface FakeApi {
@@ -51,6 +53,7 @@ export async function startFakeApi(
         };
         requests.push(recorded);
         const reply = handler(recorded, requests.length - 1);
+        if (reply.hang === true) return;
         response.writeHead(reply.status, reply.headers);
         response.end(reply.body);
       },

@@ -49,6 +49,20 @@ export class ProblemError extends Error {
   }
 }
 
+/**
+ * Raised when a request got no answer within `timeoutMs`, after the retries the
+ * method allows. A caller's own abort is not this: it keeps its `AbortError`.
+ */
+export class RequestTimeoutError extends Error {
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number, options?: ErrorOptions) {
+    super(`the server did not answer within ${String(timeoutMs)} ms`, options);
+    this.name = 'RequestTimeoutError';
+    this.timeoutMs = timeoutMs;
+  }
+}
+
 function messageOf(init: ProblemInit): string {
   const reason = init.detail ?? init.title ?? init.code;
   return reason === undefined

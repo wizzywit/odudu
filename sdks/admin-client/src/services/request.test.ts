@@ -20,6 +20,21 @@ describe('resolveOptions', () => {
     expect(attempt).not.toThrow(/super-secret/u);
   });
 
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, '30'])(
+    'refuses a timeoutMs of %s',
+    (timeoutMs) => {
+      const attempt = (): unknown =>
+        resolveOptions({ ...base, tenant: 'acme', timeoutMs: timeoutMs as number });
+      expect(attempt).toThrow(TypeError);
+      expect(attempt).toThrow(/timeoutMs/u);
+    },
+  );
+
+  it('takes 30 seconds when no timeoutMs is given, and any finite positive one', () => {
+    expect(resolveOptions({ ...base, tenant: 'acme' }).timeoutMs).toBe(30_000);
+    expect(resolveOptions({ ...base, tenant: 'acme', timeoutMs: 250 }).timeoutMs).toBe(250);
+  });
+
   it('accepts an ordinary tenant name', () => {
     expect(resolveOptions({ ...base, tenant: 'acme-corp.eu' }).tenant).toBe('acme-corp.eu');
   });
