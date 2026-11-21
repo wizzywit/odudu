@@ -205,6 +205,20 @@ def test_stale_keys_serve_up_to_twice_the_ttl_when_a_refresh_fails(first: Signin
         verify.verify(mint(first, now=clock.now))
 
 
+def test_stale_keys_are_never_served_past_twice_the_ttl(first: SigningKey) -> None:
+    server, clock = IssuerServer(keys=[first.jwk]), Clock()
+    verify = verifier(server, clock, ttl=1000)
+    verify.verify(mint(first))
+    server.jwks_status = 503
+    clock.now += 1900
+    assert verify.verify(mint(first, now=clock.now)).sub == "subject-1"
+    clock.now += 99
+    assert verify.verify(mint(first, now=clock.now)).sub == "subject-1"
+    clock.now += 2
+    with pytest.raises(KeyFetchError):
+        verify.verify(mint(first, now=clock.now))
+
+
 def test_a_token_over_16_kib_is_refused_before_any_key_is_read(first: SigningKey) -> None:
     server, clock = IssuerServer(keys=[first.jwk]), Clock()
     with pytest.raises(VerificationError) as refused:

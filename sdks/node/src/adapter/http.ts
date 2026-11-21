@@ -30,9 +30,13 @@ export function withToken<
       if ('refusal' in outcome) sendRefusal(res, outcome.refusal);
       else await handler(req, res, outcome.auth);
     } catch (error) {
-      options.onError?.(error);
-      if (res.headersSent) res.end();
-      else sendRefusal(res, serverError());
+      // Whatever the hook does, the caller still gets an answer.
+      try {
+        options.onError?.(error);
+      } finally {
+        if (res.headersSent) res.end();
+        else sendRefusal(res, serverError());
+      }
     }
   };
   return (req, res) => {

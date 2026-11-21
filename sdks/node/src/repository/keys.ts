@@ -48,7 +48,9 @@ export function createKeyStore(deps: KeyStoreDeps): {
   // twice the TTL old, and the failure is remembered for 10 s either way.
   function fetchSet(issuer: string): Entry<KeySet> {
     const now = deps.now();
-    const outcome = { failed: false };
+    // When the answer may stop being served from memory if the read fails: in
+    // 10 s, and never after the stale set it fell back to is itself too old.
+    const outcome = { failed: false, until: now + REFETCH_INTERVAL_MS };
     const request = readKeys(issuer).then(
       (set) => {
         good.set(issuer, Promise.resolve(set), now, deps.ttlMs * 2);
@@ -58,12 +60,13 @@ export function createKeyStore(deps: KeyStoreDeps): {
         outcome.failed = true;
         const stale = good.get(issuer, deps.now());
         if (stale === undefined) throw error;
+        outcome.until = Math.min(outcome.until, stale.expiresAt);
         return stale.value;
       },
     );
     const entry = sets.set(issuer, request, now, deps.ttlMs);
     const remember = (): void => {
-      sets.retire(entry, now + REFETCH_INTERVAL_MS);
+      sets.retire(entry, outcome.until);
     };
     request.then(() => {
       if (outcome.failed) remember();

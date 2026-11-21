@@ -142,6 +142,7 @@ def test_the_clock_tolerance_is_five_seconds() -> None:
         (["Bearer"], "malformed"),
         (["Bearer "], "malformed"),
         (["Bearer a b"], "malformed"),
+        (["Bearer  abc"], "malformed"),
         (["Bearer a", "Bearer b"], "malformed"),
         (["bearer abc.def-ghi_jkl=="], "token"),
     ],

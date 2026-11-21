@@ -130,6 +130,21 @@ describe('reading the issuer keys', () => {
     await expect(verify(token)).resolves.toBeDefined();
   });
 
+  it('serves the last good keys through a failure, but never past twice the TTL', async () => {
+    const verify = verifier(1_000);
+    const token = await tokenFor(first);
+    await verify(token);
+    issuer.jwksStatus = 503;
+    clock += 1_900;
+    await expect(verify(token)).resolves.toBeDefined();
+    clock += 99;
+    await expect(verify(token)).resolves.toBeDefined();
+    const requests = issuer.jwksRequests;
+    clock += 2;
+    await expect(verify(token)).rejects.toBeInstanceOf(KeyFetchError);
+    expect(issuer.jwksRequests).toBe(requests + 1);
+  });
+
   it('refuses a discovery document that names another issuer', async () => {
     const other = await startFakeIssuer([first.jwk]);
     const verify = createVerifier({
