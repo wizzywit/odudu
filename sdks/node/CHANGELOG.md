@@ -18,6 +18,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The verifier imports each key into a `CryptoKey` once and keeps it with the key set it came from, instead of on every request, so a request costs one signature check.
 - `withToken` answers `500` and ends the response even when the `onError` hook throws.
 - Keys kept through a failed read are never served past twice `jwksTtlMs`, however short the TTL.
 - A `jwks_uri` that is not https is refused with `KeyFetchError` for an https issuer; an http issuer (allowed with `allowInsecureIssuers`) may name an http one only on its own origin.

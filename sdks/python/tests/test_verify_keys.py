@@ -20,6 +20,7 @@ from verify_support import (
 
 from odudu.verify import AsyncVerifier, KeyFetchError, VerificationError, Verifier
 from odudu.verify._adapter.fetch import MAX_BYTES
+from odudu.verify._adapter.signature import _public_key
 
 
 @pytest.fixture(scope="module")
@@ -42,6 +43,28 @@ def test_it_finds_the_keys_through_the_discovery_document_and_keeps_them(
     verify.verify(token)
     verify.verify(token)
     assert (server.discovery_requests, server.jwks_requests) == (1, 1)
+
+
+def test_it_builds_the_public_key_once_however_many_tokens_it_checks(
+    first: SigningKey, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jwt.algorithms import ECAlgorithm, RSAAlgorithm
+
+    _public_key.cache_clear()
+    builds: list[str] = []
+    for algorithm in (ECAlgorithm, RSAAlgorithm):
+        original = algorithm.from_jwk
+
+        def counting(jwk, _original=original):  # type: ignore[no-untyped-def]
+            builds.append("built")
+            return _original(jwk)
+
+        monkeypatch.setattr(algorithm, "from_jwk", staticmethod(counting))
+    server, clock = IssuerServer(keys=[first.jwk]), Clock()
+    verify = verifier(server, clock)
+    for _ in range(10):
+        verify.verify(mint(first))
+    assert len(builds) == 1
 
 
 def test_it_reads_both_again_once_the_ttl_has_passed(first: SigningKey) -> None:

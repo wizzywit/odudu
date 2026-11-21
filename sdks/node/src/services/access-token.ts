@@ -75,6 +75,26 @@ function failure(error: unknown): VerificationError {
   return new VerificationError('malformed');
 }
 
+type ImportedKey = Awaited<ReturnType<typeof importJWK>>;
+
+// A key set holds JWK objects that live as long as the set does, and importing
+// one into a CryptoKey costs about as much as the signature check it serves.
+// The import is kept per JWK object (and per algorithm, for a key that names
+// none), so it is dropped with the key set that held it, and its size is
+// bounded by the key set's own cap. A failed import is not kept.
+const imports = new WeakMap<JWK, Map<string, Promise<ImportedKey>>>();
+
+function importedKey(jwk: JWK, alg: string): Promise<ImportedKey> {
+  const forKey = imports.get(jwk) ?? new Map<string, Promise<ImportedKey>>();
+  imports.set(jwk, forKey);
+  const held = forKey.get(alg);
+  if (held !== undefined) return held;
+  const made = importJWK(jwk, alg);
+  forKey.set(alg, made);
+  made.catch(() => forKey.delete(alg));
+  return made;
+}
+
 export async function verifySigned(
   token: string,
   jwk: JWK,
@@ -85,7 +105,7 @@ export async function verifySigned(
     throw new VerificationError('unsupported_algorithm');
   }
   try {
-    const key = await importJWK(jwk, header.alg);
+    const key = await importedKey(jwk, header.alg);
     const { payload } = await jwtVerify(token, key, {
       algorithms: SIGNING_ALGORITHMS.filter((alg) => alg === header.alg),
       issuer: expected.issuer,
