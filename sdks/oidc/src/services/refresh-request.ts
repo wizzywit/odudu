@@ -7,7 +7,7 @@ export function refreshTokenOf(tokens: TokenSet): string {
   if (tokens.refreshToken === undefined) {
     throw new OduduError(
       'invalid_options',
-      'these tokens carry no refresh token: sign in with the offline_access scope to get one',
+      'these tokens carry no refresh token: Odudu issues one to a client that has the refresh_token grant, so sign in again with such a client',
     );
   }
   return tokens.refreshToken;

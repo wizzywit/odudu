@@ -41,7 +41,7 @@ export interface SessionStore {
 // `name` and may reach only the paths under `pathPrefixes`, so the allowlist is
 // the origin plus those prefixes and nothing a request carries decides it.
 export interface Upstream {
-  // The first path segment after the proxy path: `/proxy/<name>/...`.
+  // The first path segment after the proxy path: `<proxyPath>/<name>/...`.
   name: string;
   // An exact origin: scheme, host and port, no path.
   origin: string;

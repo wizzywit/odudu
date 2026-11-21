@@ -6,7 +6,7 @@ import type { VerifiedToken, Verifier } from '#/types';
 export type { NodeResponse, RequestHeaders };
 
 export interface RequireTokenOptions {
-  // A scope the route needs; without it the route answers 403.
+  // A scope the route needs. A token that lacks it gets 403.
   scope?: string;
 }
 

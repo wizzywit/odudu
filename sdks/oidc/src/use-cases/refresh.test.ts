@@ -257,6 +257,9 @@ describe('refresh', () => {
     delete without.refreshToken;
     const error = await refresh(without, {}, deps).catch((e: unknown) => e);
     expect((error as OduduError).code).toBe('invalid_options');
+    // The grant decides whether a refresh token is issued, not a scope.
+    expect((error as OduduError).message).toContain('refresh_token grant');
+    expect((error as OduduError).message).not.toContain('offline_access');
   });
 });
 

@@ -8,7 +8,7 @@ import type { VerifiedToken, Verifier } from '#/types';
 export type { NodeResponse, RequestHeaders };
 
 export interface WithTokenOptions {
-  // A scope the route needs; without it the route answers 403.
+  // A scope the route needs. A token that lacks it gets 403.
   scope?: string;
   // Told of an error that is not a refusal, to log it. The caller gets a bare 500.
   onError?: (error: unknown) => void;

@@ -22,7 +22,7 @@ export interface ProblemInit {
 
 /**
  * Raised for every response that is not a success. `code` is the part after `#`
- * of the problem `type` (`about:blank#idempotency-in-progress`), or the `error`
+ * of the problem `type` (`about:blank#idempotency-in-flight`), or the `error`
  * of a me API refusal.
  */
 export class ProblemError extends Error {
