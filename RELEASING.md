@@ -205,7 +205,14 @@ until a release has used it, and the two that the pages leave open are marked.
    one),** publish `0.1.0` once from your machine with
    `npm publish --access public` and two-factor authentication, then configure
    trusted publishing for the later versions. That first version would have no
-   provenance statement (inferred, not observed).
+   provenance statement (inferred, not observed). Check before you publish,
+   because npm never lets a published version be replaced: run
+   `pnpm install --frozen-lockfile`, then `npm pack --dry-run` in the package
+   directory and confirm `dist/index.js` and `dist/index.d.ts` are in the file
+   list. The package's `prepack` script runs the build (`dist/` is not
+   committed), so `npm publish` builds it too. `sdks/python` has no
+   `prepack`: build it with `python -m build`, check it with `twine check`, and
+   upload with `twine upload`.
 4. **PyPI.** The account exists (done). Add a pending publisher for the
    project `odudu`: owner `wizzywit`, repository `odudu`, workflow
    `sdk-release.yml`, environment `sdk-release`. The project does not exist
