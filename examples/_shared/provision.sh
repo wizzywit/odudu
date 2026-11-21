@@ -72,3 +72,10 @@ grant_manage_clients() {
 seed client --tenant demo --client-id example-admin --client-secret example-admin-secret \
   --grant-type client_credentials --audience "$ADMIN_API_AUDIENCE"
 grant_manage_clients example-admin
+# The key an MCP client signs in with is made by whoever runs it and registered
+# on this client; the secret here is never used again after that. The account
+# holds the capability the tools it is offered need.
+seed client --tenant demo --client-id example-mcp --client-secret example-mcp-secret \
+  --grant-type client_credentials --client-credentials-scope mcp:read \
+  --audience "$ADMIN_API_AUDIENCE"
+grant_manage_clients example-mcp

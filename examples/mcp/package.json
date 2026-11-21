@@ -1,0 +1,25 @@
+{
+  "name": "odudu-example-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node client.ts",
+    "test": "node --test test.ts",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@odudu-io/mcp-stdio": "^0.1.0"
+  },
+  "devDependencies": {
+    "@odudu-io/admin-client": "^0.1.0",
+    "@odudu-io/oidc": "^0.1.0",
+    "@types/node": "24.19.2",
+    "typescript": "6.0.3"
+  }
+}
