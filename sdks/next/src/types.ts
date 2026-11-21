@@ -28,7 +28,10 @@ export interface OduduHandlers {
   // cookie, refreshes no token and deletes nothing, so it is safe where a
   // response can no longer set a cookie and cannot race the route handlers'
   // refresh. A session whose access token is stale is still returned; the
-  // route handlers and the proxy renew it. Use it to authorize.
+  // route handlers and the proxy renew it. It never asks the issuer, so a person
+  // disabled or revoked there stays signed in until `sessionTtlMs` or until the
+  // BFF's next renewal is refused: call the `session` route or the proxy where
+  // that must be noticed sooner.
   getSession: () => Promise<Session | null>;
 }
 
