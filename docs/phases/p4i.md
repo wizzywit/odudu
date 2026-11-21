@@ -925,3 +925,61 @@ $ODUDU_BASE/tenants/demo/protocol/openid-connect/token`). oauth4webapi raises
 - **Lockfiles.** Committed lockfiles hold third-party packages only and `npm ci`
   fails on a copy until the SDKs are on npm; `RELEASING.md` item 7 and the plan
   regenerate them after the first publish.
+
+## New examples
+
+`react-bff`, `admin`, `python` and `mcp` join the five that exist, so
+`examples/` holds nine. Each was written test first and run against a stack
+built from the branch, with the SDKs installed from packed tarballs (and the
+`odudu` wheel) by `examples/_shared/install.sh` and `install-python.sh`.
+
+- **`react-bff` bridges with `@odudu-io/bff/express`.** Express is one
+  `app.use(bffRouter(bff, { prefix: '/bff' }))` and its own `express.static`
+  serves the built page. Node's `http` would need the Request and Response
+  bridging that `node-bridge.ts` keeps private, and Fastify would add a static
+  plugin. The anonymous `/bff/session` answers `200 {"authenticated":false}`,
+  not 401 (verified: `curl -si -H 'x-odudu-bff: 1' localhost:8083/bff/session`),
+  so the test asserts that.
+- **`admin` uses two tokens because it has two callers.** The admin client signs
+  in as the service `example-admin` (`createTokenSource`, `resource`
+  `urn:odudu:params:admin-api`, no scope). The me client needs a person's token
+  for audience `<issuer>/me` with `me:read`, and no password-less path exists,
+  so the script signs a person in at a loopback address (RFC 8252) with
+  `beginSignIn({ meAccess: 'read' })` and the test drives that page with
+  Playwright. The record is a client: `POST` with `grant_types:
+["client_credentials"]` (a client with no redirect URI needs exactly that),
+  found by `iterate`, then `DELETE`. `manage-clients` is the only capability the
+  service holds.
+- **`python` reads the record back by id and counts the list with
+  `iterate_pages`.** `iterate_pages` yields `object`, so reading attributes from
+  its items would need casts; a typed `GET` by id does not. The test runs under
+  `mypy --strict`, which the job runs too. Starlette's `TestClient` prints a
+  deprecation warning asking for `httpx2`; the example keeps the pinned
+  `httpx==0.28.1` the package's own tooling uses. Requirements are
+  `uv pip compile --universal --generate-hashes --exclude-newer
+2026-11-19T00:00:00Z`, with the same pins as `sdks/python/requirements-dev.in`
+  and `uvicorn` 0.54.0 resolved by that cutoff. The wheel is built with
+  `pip wheel --no-deps`, which runs the same build backend as `python -m build`.
+- **`mcp` registers a key made by the test.** `odudu-mcp --keygen` makes it, the
+  test keeps it in memory, and registers its public half on `example-mcp`
+  through the admin client (`PATCH` `token_endpoint_auth_method` and `jwks`), so
+  no private key is committed. The test therefore uses `admin-client` and `oidc`
+  as development dependencies, which `ci-workflow.test.ts` now counts.
+  `@modelcontextprotocol/client` is pinned to `2.4.0`, as the server's tests do.
+- **Provisioning.** `odudu seed` has no command that gives a service account an
+  admin capability, so `provision.sh` inserts the `manage-clients` row for
+  `example-admin` and `example-mcp` with `psql` as the quickstart's database
+  owner, as the `odudu mcp over stdio` transcript does. It needs `ODUDU_BASE`
+  when the stack is not on port 3000, because `example-admin-cli` is registered
+  with the audience `<issuer>/me`. Whether `seed` should gain that command is a
+  decision for the CLI's owner, not for the examples.
+- **Dependabot and CI.** `examples/next` had no Dependabot entry and gains one
+  with the four new directories (npm, and pip for `python`). The `examples` job
+  runs Playwright for `web-app`, `single-page-app`, `react-bff` and `admin`;
+  `next` drives plain requests and needs no browser.
+- **Docs the later tasks owe.** The examples page (one section per directory,
+  each with its test command: `npm test`, or `.venv/bin/python -m pytest` for
+  `python`), a link from each SDK page to its example folder, and the guides
+  that name an example (`single-page-app`, `web-app`, `machine-to-machine`,
+  `api`, `connect-claude`) where they now have a sibling. The `admin` example's
+  `me` half is the documented way a script gets a person's token.
