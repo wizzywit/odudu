@@ -394,6 +394,18 @@ describe('tokens', () => {
 });
 
 describe('refresh failures', () => {
+  it('never adopts the subject a refresh response names when it is another one', async () => {
+    const bff = makeBff(fake, clock);
+    const { cookie } = await signIn(bff, fake);
+    clock.now += 890_000;
+    fake.claims = { ...fake.claims, sub: 'someone-else' };
+    const swapped = await bff.session(sessionRequest(cookie));
+    expect(swapped.status).toBe(503);
+    fake.claims = { ...fake.claims, sub: 'subject-1' };
+    const after = await bff.session(sessionRequest(cookie));
+    expect(JSON.stringify(await after.json())).not.toContain('someone-else');
+  });
+
   it('keeps the session when the client secret is refused (invalid_client)', async () => {
     const bff = makeBff(fake, clock);
     const { cookie } = await signIn(bff, fake);
