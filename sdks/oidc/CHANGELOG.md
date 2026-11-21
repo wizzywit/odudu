@@ -24,7 +24,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `refresh` keeps the rotated refresh token when the response has no `expires_in` and reads the access token as living 60 seconds, as `clientCredentials` does; it used to reject and leave the caller with a spent token. `completeSignIn` still refuses such a response.
-- `beginSignIn` and `requestAudience` read the options once, so the address and the record `completeSignIn` needs agree even if the object changes during the call.
+- `beginSignIn` and `requestAudience` copy the options once, nested arrays included, so the address and the record `completeSignIn` needs agree even if the object changes during the call.
 - Discovery rejects with `discovery_failed` metadata that spells the issuer differently from the string asked for (`https://id.example` against `https://id.example/`), which would have failed the `iss` check later.
 - `createTokenSource` rejects a `skewMs` that is negative or not finite with `invalid_options` when it is made; a negative one kept a token past its expiry.
 - `PrivateKeyJwk` accepts the key `crypto.subtle.exportKey('jwk', key)` returns without a cast.

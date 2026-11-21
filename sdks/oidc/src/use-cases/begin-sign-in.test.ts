@@ -110,4 +110,14 @@ describe('beginSignIn', () => {
     expect(new URL(url).searchParams.get('prompt')).toBe('create');
     expect(pending.redirectUri).toBe('http://localhost:5173/callback');
   });
+
+  it('copies the nested arrays too, so changing resource mid-call changes nothing', async () => {
+    const metadata = await discover(fake.issuer, HTTP);
+    const given = options({ resource: ['https://a.example/api'] });
+    const started = buildAuthorizationRequest(metadata, given);
+    given.resource?.push('https://evil.example/api');
+    const { url, pending } = await started;
+    expect(new URL(url).searchParams.getAll('resource')).toEqual(['https://a.example/api']);
+    expect(pending.resources).toEqual(['https://a.example/api']);
+  });
 });

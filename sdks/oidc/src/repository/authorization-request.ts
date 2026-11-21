@@ -7,9 +7,9 @@ export async function buildAuthorizationRequest(
   given: SignInOptions,
   silent = false,
 ): Promise<{ url: string; pending: Pending }> {
-  // The PKCE challenge is awaited, so the options are read once, here: the
+  // The PKCE challenge is awaited, so the options are copied once, here, arrays included: the
   // address and the record then agree whatever the caller does meanwhile.
-  const options = { ...given };
+  const options = structuredClone(given);
   const secrets = newSecrets();
   const resources = resourcesOf(options);
   const url = await authorizationUrl(
