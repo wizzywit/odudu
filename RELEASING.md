@@ -265,8 +265,12 @@ until a release has used it, and the two that the pages leave open are marked.
    service account's replacement line); the paragraph in `sdks/index.md`; and
    the install-state paragraphs in `sdks/examples.md`. Reword "What was not run"
    in `connect-claude.md` once the npx entry has been run. Add the npm and PyPI
-   version badges to `README.md` (see the SDK plan's follow-up) in the same
-   change. `guides-sdk.test.ts` fails while a marker outlives publication.
+   version badges to `README.md` (`img.shields.io/npm/v/@odudu-io/oidc` and
+   one for each other package worth showing, and `img.shields.io/pypi/v/odudu`,
+   each linking to its registry page), extend the expected badge list in
+   `tests/docs/readme-front-door.test.ts` and drop the sentence that begins
+   "Until the first release is published" from the README's SDKs line, in the
+   same change. `guides-sdk.test.ts` fails while a marker outlives publication.
 
 ## Owner settings
 

@@ -115,11 +115,13 @@ describe('the badges are the ones that can be checked', () => {
     .map((image) => image.src)
     .filter((src) => /^https:\/\/(github\.com\/.+\/badge\.svg|img\.shields\.io\/)/u.test(src));
 
-  it('are the build, the licence and the documentation, plus the release and the image once one is published', () => {
+  it('are the build, the licence, the documentation and the SDKs, plus the release and the image once one is published', () => {
     const expected = [
       `${REPOSITORY_URL}/actions/workflows/verify.yml/badge.svg`,
       'https://img.shields.io/badge/licence-AGPL--3.0--only-blue',
       'https://img.shields.io/badge/docs-read%20them-0b7a5a',
+      'https://img.shields.io/badge/SDKs-TypeScript%20and%20Python-0b7a5a',
+      'https://img.shields.io/badge/SDKs%20licence-Apache--2.0-blue',
       ...(released
         ? [
             'https://img.shields.io/github/v/release/wizzywit/odudu?include_prereleases',
@@ -134,6 +136,8 @@ describe('the badges are the ones that can be checked', () => {
     expect(README).toContain(`${REPOSITORY_URL}/actions/workflows/verify.yml`);
     expect(README).toContain('(LICENSING.md)');
     expect(README).toContain(SITE_DOCS);
+    expect(links()).toContain(`${SITE_DOCS}sdks/`);
+    expect(README).toContain('(LICENSING.md)');
   });
 
   it('keep the workflow they report on', () => {
@@ -170,6 +174,7 @@ describe('what it says about the product matches the roadmap', () => {
     [/admin API/u, /An admin API of more than a hundred operations/u],
     [/console with a page for every area/u, /An admin console with a page for every area/u],
     [/"me" API/u, /A "me" API at/u],
+    [/SDKs/u, /npm packages under the scope `@odudu-io` and a Python package/u],
     [/audit/iu, /Every administrative change, sign-in, refusal/u],
     [/one container/iu, /The container image and the Docker Compose quick start/u],
   ];
