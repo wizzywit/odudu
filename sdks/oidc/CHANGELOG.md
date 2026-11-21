@@ -22,6 +22,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `signOutUrl` rejects with `discovery_failed` an `end_session_endpoint` that is not https, before the ID token is put in the address; an http endpoint passes only with `allowInsecureRequests`.
 - `refresh` rejects with `invalid_id_token` a refreshed ID token whose `sub` differs from the sign-in's.
 - A token endpoint that refuses the client with a 401, a `WWW-Authenticate` challenge and an OAuth error body (as Odudu does for a wrong secret) now rejects with that error's code, such as `invalid_client`, from `clientCredentials`, `createTokenSource`, `completeSignIn` and `refresh`. It was `request_failed`. A challenge with no OAuth error body stays `request_failed`.
 - A refresh response that names no scope no longer empties the scope stored with the tokens.

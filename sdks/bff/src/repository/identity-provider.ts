@@ -31,7 +31,12 @@ export function createIdentityProvider(config: BffConfig): IdentityProvider {
       if (endpoint === undefined) {
         throw new OduduError('discovery_failed', 'the metadata names no end_session_endpoint');
       }
-      return logoutAddressOf(endpoint, config.clientId, config.postLogoutRedirectUri);
+      return logoutAddressOf(
+        endpoint,
+        config.clientId,
+        config.postLogoutRedirectUri,
+        deps.allowInsecureRequests === true,
+      );
     },
   };
 }

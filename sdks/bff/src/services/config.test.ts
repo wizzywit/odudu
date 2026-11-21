@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkPrefix, resolveConfig } from '#/services/config';
+import { checkPrefix, logoutAddressOf, resolveConfig } from '#/services/config';
 import type { BffOptions, Upstream } from '#/types';
 
 const base: BffOptions = {
@@ -92,5 +92,22 @@ describe('checkPrefix', () => {
     ]) {
       expect(() => checkPrefix(prefix)).toThrow(TypeError);
     }
+  });
+});
+
+describe('logout address', () => {
+  it('names the client on an https endpoint', () => {
+    expect(logoutAddressOf('https://id.example/logout', 'web1', undefined, false)).toBe(
+      'https://id.example/logout?client_id=web1',
+    );
+  });
+
+  it('refuses an http endpoint unless insecure requests are allowed', () => {
+    expect(() => logoutAddressOf('http://id.example/logout', 'web1', undefined, false)).toThrow(
+      TypeError,
+    );
+    expect(logoutAddressOf('http://id.example/logout', 'web1', undefined, true)).toBe(
+      'http://id.example/logout?client_id=web1',
+    );
   });
 });

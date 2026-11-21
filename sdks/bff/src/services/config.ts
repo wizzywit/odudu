@@ -148,8 +148,12 @@ export function logoutAddressOf(
   endpoint: string,
   clientId: string,
   postLogoutRedirectUri: string | undefined,
+  allowInsecure: boolean,
 ): string {
   const url = new URL(endpoint);
+  if (url.protocol !== 'https:' && !(allowInsecure && url.protocol === 'http:')) {
+    throw new TypeError('the end_session_endpoint is not an https address');
+  }
   url.searchParams.set('client_id', clientId);
   if (postLogoutRedirectUri !== undefined) {
     url.searchParams.set('post_logout_redirect_uri', postLogoutRedirectUri);

@@ -9,5 +9,9 @@ import type { Deps, SignOutOptions } from '#/types';
 // must be registered for the client, and the server honors `state` only
 // together with it.
 export async function signOutUrl(options: SignOutOptions, deps: Deps = {}): Promise<string> {
-  return signOutAddress(await discover(options.issuer, deps), options);
+  return signOutAddress(
+    await discover(options.issuer, deps),
+    options,
+    deps.allowInsecureRequests === true,
+  );
 }

@@ -49,4 +49,61 @@ describe('signOutUrl', () => {
     expect(error).toBeInstanceOf(OduduError);
     expect((error as OduduError).code).toBe('discovery_failed');
   });
+
+  describe('end_session_endpoint scheme', () => {
+    const issuer = 'https://id.example/t';
+    const metadataWith = (endpoint: string) => (): Promise<Response> =>
+      Promise.resolve(
+        Response.json({
+          issuer,
+          token_endpoint: 'https://id.example/token',
+          end_session_endpoint: endpoint,
+        }),
+      );
+
+    it('refuses an http endpoint before the ID token is attached', async () => {
+      const error = await signOutUrl(
+        { issuer, idToken: 'secret.id.token' },
+        { fetch: metadataWith('http://id.example/logout') },
+      ).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(OduduError);
+      expect((error as OduduError).code).toBe('discovery_failed');
+      expect((error as OduduError).message).not.toContain('secret.id.token');
+    });
+
+    it('accepts an https endpoint', async () => {
+      const url = await signOutUrl(
+        { issuer: 'https://id2.example/t', idToken: 't' },
+        {
+          fetch: () =>
+            Promise.resolve(
+              Response.json({
+                issuer: 'https://id2.example/t',
+                token_endpoint: 'https://id2.example/token',
+                end_session_endpoint: 'https://id2.example/logout',
+              }),
+            ),
+        },
+      );
+      expect(url.startsWith('https://id2.example/logout?')).toBe(true);
+    });
+
+    it('lets an http endpoint through only with allowInsecureRequests', async () => {
+      const url = await signOutUrl(
+        { issuer: 'https://id3.example/t', idToken: 't' },
+        {
+          allowInsecureRequests: true,
+          fetch: () =>
+            Promise.resolve(
+              Response.json({
+                issuer: 'https://id3.example/t',
+                token_endpoint: 'https://id3.example/token',
+                end_session_endpoint: 'http://id3.example/logout',
+              }),
+            ),
+        },
+      );
+      expect(url.startsWith('http://id3.example/logout?')).toBe(true);
+    });
+  });
 });
