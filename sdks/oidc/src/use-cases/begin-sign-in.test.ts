@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { beginSignIn } from '#/use-cases/begin-sign-in';
+import { buildAuthorizationRequest } from '#/repository/authorization-request';
+import { discover } from '#/use-cases/discover';
 import { OduduError } from '#/services/odudu-error';
 import { startFakeServer, type FakeServer } from '#/testing/fake-server';
 import type { SignInOptions } from '#/types';
@@ -94,5 +96,18 @@ describe('beginSignIn', () => {
   it('returns a pending record that survives JSON', async () => {
     const { pending } = await beginSignIn(options(), HTTP);
     expect(JSON.parse(JSON.stringify(pending))).toEqual(pending);
+  });
+
+  it('reads the options once, so changing them mid-call cannot split the address from the record', async () => {
+    const metadata = await discover(fake.issuer, HTTP);
+    const given: SignInOptions = options({ prompt: 'create' });
+    const started = buildAuthorizationRequest(metadata, given);
+    const changeable = given as { redirectUri: string; prompt?: 'create' };
+    changeable.redirectUri = 'http://localhost:5173/other';
+    delete changeable.prompt;
+    const { url, pending } = await started;
+    expect(new URL(url).searchParams.get('redirect_uri')).toBe('http://localhost:5173/callback');
+    expect(new URL(url).searchParams.get('prompt')).toBe('create');
+    expect(pending.redirectUri).toBe('http://localhost:5173/callback');
   });
 });

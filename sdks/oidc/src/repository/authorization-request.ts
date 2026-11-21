@@ -4,9 +4,12 @@ import type { Pending, ServerMetadata, SignInOptions } from '#/types';
 
 export async function buildAuthorizationRequest(
   metadata: ServerMetadata,
-  options: SignInOptions,
+  given: SignInOptions,
   silent = false,
 ): Promise<{ url: string; pending: Pending }> {
+  // The PKCE challenge is awaited, so the options are read once, here: the
+  // address and the record then agree whatever the caller does meanwhile.
+  const options = { ...given };
   const secrets = newSecrets();
   const resources = resourcesOf(options);
   const url = await authorizationUrl(
