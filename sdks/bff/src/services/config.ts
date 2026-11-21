@@ -49,7 +49,10 @@ export function resolveConfig(options: BffOptions): BffConfig {
     allowedOrigins: options.allowedOrigins ?? [new URL(options.redirectUri).origin],
     afterSignInPath,
     sessionTtlMs: options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS,
-    upstreams: checkUpstreams(options.upstreams ?? []),
+    upstreams: checkUpstreams(
+      options.upstreams ?? [],
+      options.deps?.allowInsecureRequests === true,
+    ),
     proxyPath: checkProxyPath(options.proxyPath ?? `${mountPath}${DEFAULT_PROXY_PATH}`),
     maxBodyBytes: positiveInteger(options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES, 'maxBodyBytes'),
     upstreamIdleMs: positiveInteger(
@@ -90,14 +93,14 @@ export function checkPrefix(path: string, name = 'prefix'): string {
 
 // An upstream is an exact origin the app names; a mistake here would widen what
 // the proxy reaches, so each part is checked and a bad one stops the start.
-function checkUpstreams(upstreams: Upstream[]): Upstream[] {
+function checkUpstreams(upstreams: Upstream[], allowInsecure: boolean): Upstream[] {
   const names = new Set<string>();
   return upstreams.map((upstream) => {
     if (!/^[A-Za-z0-9_-]{1,64}$/u.test(upstream.name) || names.has(upstream.name)) {
       throw new TypeError(`upstream name "${upstream.name}" is empty, malformed or used twice`);
     }
     names.add(upstream.name);
-    checkOrigin(upstream);
+    checkOrigin(upstream, allowInsecure);
     for (const prefix of upstream.pathPrefixes) {
       if (!isCleanPath(prefix)) {
         throw new TypeError(`upstream ${upstream.name}: "${prefix}" is not a clean path prefix`);
@@ -107,7 +110,12 @@ function checkUpstreams(upstreams: Upstream[]): Upstream[] {
   });
 }
 
-function checkOrigin(upstream: Upstream): void {
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// The access token travels to the upstream in a header, so an http origin is
+// refused unless the traffic stays on this machine or the app opted in with
+// `deps.allowInsecureRequests`, the flag the core uses for the same purpose.
+function checkOrigin(upstream: Upstream, allowInsecure: boolean): void {
   const parsed = URL.canParse(upstream.origin) ? new URL(upstream.origin) : undefined;
   if (
     parsed === undefined ||
@@ -116,6 +124,11 @@ function checkOrigin(upstream: Upstream): void {
   ) {
     throw new TypeError(
       `upstream ${upstream.name}: origin must be an http(s) origin with no path, as ${parsed?.origin ?? 'https://host'}`,
+    );
+  }
+  if (parsed.protocol === 'http:' && !allowInsecure && !LOOPBACK_HOSTS.has(parsed.hostname)) {
+    throw new TypeError(
+      `upstream ${upstream.name}: an http origin sends the access token in the clear; use https, a loopback address (localhost, 127.0.0.1, [::1]) or deps.allowInsecureRequests`,
     );
   }
 }

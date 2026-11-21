@@ -55,6 +55,25 @@ describe('proxy configuration', () => {
     expect(() => resolveConfig(withUpstream(patch))).toThrow(TypeError);
   });
 
+  it('refuses an http upstream unless it is on this machine or allowInsecureRequests is set', () => {
+    for (const origin of [
+      'http://api.example',
+      'http://10.0.0.5:8080',
+      'http://localhost.example',
+    ]) {
+      expect(() => resolveConfig(withUpstream({ origin })), origin).toThrow(
+        /https|allowInsecureRequests/u,
+      );
+    }
+    for (const origin of ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://[::1]:3000']) {
+      expect(() => resolveConfig(withUpstream({ origin })), origin).not.toThrow();
+    }
+    const allowed = { ...withUpstream({ origin: 'http://api.example' }) };
+    expect(() =>
+      resolveConfig({ ...allowed, deps: { allowInsecureRequests: true } }),
+    ).not.toThrow();
+  });
+
   it('refuses two upstreams with one name', () => {
     expect(() => resolveConfig({ ...base, upstreams: [good, good] })).toThrow(TypeError);
   });

@@ -43,7 +43,8 @@ export interface SessionStore {
 export interface Upstream {
   // The first path segment after the proxy path: `<proxyPath>/<name>/...`.
   name: string;
-  // An exact origin: scheme, host and port, no path.
+  // An exact origin: scheme, host and port, no path. `https`, unless the host
+  // is localhost, 127.0.0.1 or [::1] or `deps.allowInsecureRequests` is set.
   origin: string;
   // Paths the browser may reach, matched on whole segments. None proxies nothing.
   pathPrefixes: string[];

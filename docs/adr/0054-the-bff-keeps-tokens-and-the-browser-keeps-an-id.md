@@ -94,6 +94,9 @@ answers are in `docs/protocols/rfc10017.md`.
     audience the sign-in did not carry answers `502`). No upstream, and every
     call answers `404`. An unknown `name` is `404`, a path outside the prefixes
     `403`, a method outside the list `405` with `Allow`.
+    An `http` origin is refused when the BFF is made, because the token goes to
+    it in a header, unless its host is `localhost`, `127.0.0.1` or `[::1]` or
+    `deps.allowInsecureRequests` is set, the flag the core uses for the same.
   - _SSRF._ The host never comes from the request: the target is the
     configured origin plus the path, and is checked to still name that origin.
     The path is checked as it will be sent, on whole segments: a dot or empty

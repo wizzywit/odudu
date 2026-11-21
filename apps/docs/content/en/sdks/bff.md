@@ -94,13 +94,13 @@ This block is illustrative: the example it comes from is run by the repository's
 | `upstreamIdleMs`        | no       | How long a proxied response body may go without a chunk once the upstream has started answering; the proxy then cuts it off and aborts the upstream request. 30 seconds when omitted.                                                                                                                                                                                                         |
 | `deps`                  | no       | Passed to the core: `fetch`, `now`, `allowInsecureRequests`. The proxy calls its upstreams with the same `fetch`.                                                                                                                                                                                                                                                                             |
 
-An `Upstream` is `{ name, origin, pathPrefixes, methods?, resource? }`. The browser names the upstream by `name` and may reach only the paths under `pathPrefixes`, matched on whole segments. `origin` is an exact origin with no path. `methods` defaults to GET, POST, PUT, PATCH and DELETE. `resource` is the audience whose access token is sent, the issuer's own when omitted, and it must be one of the sign-in's `resource` values.
+An `Upstream` is `{ name, origin, pathPrefixes, methods?, resource? }`. The browser names the upstream by `name` and may reach only the paths under `pathPrefixes`, matched on whole segments. `origin` is an exact origin with no path, and `https` unless it is `localhost`, `127.0.0.1` or `[::1]` or you set `deps.allowInsecureRequests`: the access token travels to the upstream in a header, so an `http` origin on another host is refused when the BFF is created. `methods` defaults to GET, POST, PUT, PATCH and DELETE. `resource` is the audience whose access token is sent, the issuer's own when omitted, and it must be one of the sign-in's `resource` values.
 
 A `SessionStore` is `get(id)`, `set(id, session, ttlMs)` and `delete(id)` over plain JSON records, so a database can back one, plus an optional `lock(id, ttlMs)` described below.
 
 ## Errors
 
-`createBff` throws a `TypeError` when an option would weaken the cookie or leave the CSRF check with nothing to compare: a `cookieName` that does not start with `__Host-`, an `afterSignInPath` that is not a path on this origin, an invalid upstream, proxy path or `mountPath`, a `redirectUri` that cannot be parsed, or a `maxBodyBytes`, `upstreamTimeoutMs` or `upstreamIdleMs` that is not a positive whole number.
+`createBff` throws a `TypeError` when an option would weaken the cookie or leave the CSRF check with nothing to compare: a `cookieName` that does not start with `__Host-`, an `afterSignInPath` that is not a path on this origin, an invalid upstream (an `http` origin that is not loopback among them), proxy path or `mountPath`, a `redirectUri` that cannot be parsed, or a `maxBodyBytes`, `upstreamTimeoutMs` or `upstreamIdleMs` that is not a positive whole number.
 
 The handlers do not throw at the browser. They answer with a status:
 
