@@ -181,7 +181,7 @@ def test_a_development_issuer_needs_the_insecure_switch() -> None:
     Verifier(["http://localhost:3000"], API, allow_insecure_issuers=True).close()
 
 
-@pytest.mark.parametrize("scope", ["", "a  b", 'a"b', "a\\b", " a"])
+@pytest.mark.parametrize("scope", ["", "a b", "a  b", 'a"b', "a\\b", " a", "a ", "a\tb"])
 def test_a_scope_that_could_break_a_header_is_refused(scope: str) -> None:
     with pytest.raises(ValueError, match="required_scope"):
         Verifier([ISSUER], API, scope)

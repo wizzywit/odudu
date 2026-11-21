@@ -20,15 +20,17 @@ export function checkIssuers(issuers: readonly string[], allowInsecure: boolean)
   }
 }
 
-// RFC 6749 §3.3: space-separated tokens of %x21 / %x23-5B / %x5D-7E. A scope
-// lands in a `WWW-Authenticate` challenge, so one that could break a header or
-// a quoted string is refused when the middleware or verifier is made.
-const SCOPE = /^[\x21\x23-\x5B\x5D-\x7E]+(?: [\x21\x23-\x5B\x5D-\x7E]+)*$/u;
+// RFC 6749 §3.3: a scope token is %x21 / %x23-5B / %x5D-7E. The check is made
+// against the token's whole `scope` claim, so it names one token: a value with
+// a space could never be found as a member and would refuse every request. A
+// scope lands in a `WWW-Authenticate` challenge, so one that could break a
+// header or a quoted string is refused when the middleware or verifier is made.
+const SCOPE = /^[\x21\x23-\x5B\x5D-\x7E]+$/u;
 
 export function checkScope(scope: string, name: string): void {
   if (!SCOPE.test(scope)) {
     throw new TypeError(
-      `${name} must be scope tokens (RFC 6749 section 3.3) separated by single spaces`,
+      `${name} must be one scope token (RFC 6749 section 3.3), with no space in it`,
     );
   }
 }

@@ -7,9 +7,11 @@ from collections.abc import Sequence
 
 MAX_ISSUERS = 256
 
-# RFC 6749 section 3.3: space-separated tokens of %x21 / %x23-5B / %x5D-7E. A scope lands in a
-# `WWW-Authenticate` challenge, so one that could break a header or a quoted string is refused.
-_SCOPE = re.compile(r"[\x21\x23-\x5B\x5D-\x7E]+(?: [\x21\x23-\x5B\x5D-\x7E]+)*")
+# RFC 6749 section 3.3: a scope token is %x21 / %x23-5B / %x5D-7E. The check is made against the
+# token's whole `scope` claim, so it names one token: a value with a space could never be found as
+# a member and would refuse every request. A scope lands in a `WWW-Authenticate` challenge, so one
+# that could break a header or a quoted string is refused.
+_SCOPE = re.compile(r"[\x21\x23-\x5B\x5D-\x7E]+")
 
 
 def check_issuers(issuers: Sequence[str], allow_insecure: bool) -> tuple[str, ...]:
@@ -45,6 +47,6 @@ def check_audience(audience: str) -> str:
 def check_scope(scope: str | None, name: str) -> str | None:
     if scope is not None and _SCOPE.fullmatch(scope) is None:
         raise ValueError(
-            f"{name} must be scope tokens (RFC 6749 section 3.3) separated by single spaces"
+            f"{name} must be one scope token (RFC 6749 section 3.3), with no space in it"
         )
     return scope

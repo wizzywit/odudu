@@ -3,11 +3,17 @@ import { authorizationValues, readCredentials } from '#/services/authorization';
 import { checkScope } from '#/services/configuration';
 
 describe('a required scope', () => {
-  it('accepts one token and several', () => {
+  it('accepts one scope token', () => {
     expect(() => {
       checkScope('reports:read', 'scope');
-      checkScope('a b:c', 'scope');
     }).not.toThrow();
+  });
+  it('refuses several tokens, which a token claim could never contain as one', () => {
+    for (const scope of ['a b:c', 'a  b', ' a', 'a ', 'a\tb']) {
+      expect(() => {
+        checkScope(scope, 'scope');
+      }).toThrow(TypeError);
+    }
   });
 });
 
