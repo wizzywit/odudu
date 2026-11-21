@@ -2,7 +2,15 @@
 // are deterministic and the ES256 token is kept from the previous cases.json, so
 // a rerun reproduces the same bytes. Run: node --experimental-strip-types generate.ts
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { type JWK, SignJWT, exportJWK, exportSPKI, generateKeyPair, importJWK } from 'jose';
+import {
+  type JWK,
+  SignJWT,
+  compactVerify,
+  exportJWK,
+  exportSPKI,
+  generateKeyPair,
+  importJWK,
+} from 'jose';
 
 const ISSUER = 'https://id.example.test/tenants/demo';
 const API = 'https://api.example.test';
@@ -31,7 +39,8 @@ async function keysFile(): Promise<KeyFile> {
 }
 
 // ECDSA signatures are random, so a token signed with an EC key is taken from
-// the cases.json already on disk when it has one of that name.
+// the cases.json already on disk when it has one of that name and it still
+// verifies under the key in keys.json: a regenerated key signs it anew.
 const previous: { name: string; token: string }[] = existsSync(here('cases.json'))
   ? (JSON.parse(readFileSync(here('cases.json'), 'utf8')) as { name: string; token: string }[])
   : [];
@@ -46,6 +55,15 @@ const publicOf = (jwk: JWK): JWK => {
   const { kty, n, e, crv, x, y, kid, alg, use } = jwk;
   return { kty, n, e, crv, x, y, kid, alg, use } as JWK;
 };
+
+async function signedBy(token: string, jwk: JWK): Promise<boolean> {
+  try {
+    await compactVerify(token, await importJWK(publicOf(jwk), 'ES256'));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface Spec {
   header?: Record<string, unknown>;
@@ -224,7 +242,11 @@ await add('valid in 6 s, outside the tolerance', {}, invalid('not_yet_valid'), {
 {
   const name = 'an ES256 token';
   const known = previous.find((c) => c.name === name)?.token;
-  await add(name, known ?? { signWith: 'key-3' }, { ok: true, scope: ['openid', 'reports:read'] });
+  const kept = known !== undefined && (await signedBy(known, keyOf('key-3')));
+  await add(name, kept ? known : { signWith: 'key-3' }, {
+    ok: true,
+    scope: ['openid', 'reports:read'],
+  });
 }
 await add('garbage', 'not-a-token', invalid('malformed'));
 

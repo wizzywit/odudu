@@ -4,7 +4,7 @@ The keys here are test keys. `keys.json` holds their private halves and is
 committed on purpose; it protects nothing. Never trust a key from this folder.
 
 `generate.ts` rewrites every file beside it. With `keys.json` present the output
-is byte-stable: RS256 signatures are deterministic, and the ES256 token is kept from the `cases.json` already on disk (ECDSA signatures are random). Delete both files to start over.
+is byte-stable: RS256 signatures are deterministic, and the ES256 token is kept from the `cases.json` already on disk (ECDSA signatures are random) as long as it verifies under `key-3`; replace `key-3` and the token is signed again. Delete both files to start over.
 
 ```sh
 node --experimental-strip-types generate.ts
