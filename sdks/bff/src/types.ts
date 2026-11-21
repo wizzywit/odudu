@@ -28,18 +28,12 @@ export interface SessionStore {
   get(id: string): Promise<Session | undefined>;
   set(id: string, session: Session, ttlMs: number): Promise<void>;
   delete(id: string): Promise<void>;
-  // Optional, and for a store shared by several BFF instances. Takes an
-  // exclusive lock for `id` for at most `ttlMs` and resolves with the function
-  // that releases it, or with undefined when the lock is not obtained; it should
-  // wait a short while for a lock another instance holds before giving up. The
-  // `id` is `lock:<session id>`, a key of its own, so it never names the
-  // session record. The lock lapses by itself after `ttlMs` (120 s, longer than
-  // a refresh takes), and the release function must release only the lock its
-  // holder took, for instance by comparing a random value stored with it: a
-  // holder whose lock lapsed must not release the next holder's. The BFF holds
-  // the lock while it refreshes a session's tokens, so two instances never
-  // spend one refresh token; without it they can, and the issuer then ends the
-  // session. A store used by one process needs none.
+  // Optional; for a store shared by several instances (ADR 0054). Takes an
+  // exclusive lock on `lock:<session id>`, a key of its own, for at most `ttlMs`
+  // (120 s, longer than a refresh takes) and resolves with its release function,
+  // or undefined when the lock is not obtained after a short wait. The function
+  // must release only its holder's own lock (compare a random value stored with
+  // it), because a lapsed lock may belong to the next holder.
   lock?(id: string, ttlMs: number): Promise<(() => Promise<void>) | undefined>;
 }
 
