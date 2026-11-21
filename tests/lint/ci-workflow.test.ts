@@ -326,8 +326,12 @@ describe('the CI workflow', () => {
       expect(block).toContain('examples/_shared/provision.sh');
       expect(block).toContain('npm test');
       expect(block).toContain('npm run typecheck');
-      expect(block).toMatch(
-        /if: matrix\.example == 'web-app' \|\| matrix\.example == 'single-page-app'/u,
+      // The examples that drive a browser borrow the docs app's Playwright.
+      const browser = /uses: \.\/\.github\/actions\/playwright\n\s+if: ([^\n]+)/u.exec(block)?.[1];
+      expect(browser?.split(' || ').sort()).toEqual(
+        ['admin', 'react-bff', 'single-page-app', 'web-app'].map(
+          (name) => `matrix.example == '${name}'`,
+        ),
       );
       expect(block).toMatch(/^ {4}timeout-minutes: \d+$/mu);
       expect(block).not.toMatch(/:3000\b/u);
@@ -342,6 +346,7 @@ describe('the CI workflow', () => {
         'run: examples/_shared/install.sh "examples/${{ matrix.example }}" $SDKS',
       );
       expect(block).toContain('run: examples/_shared/install.sh examples/api node');
+      expect(block).toContain("if: matrix.example != 'python'");
       expect(block).not.toContain('npm ci');
       const install = await read('examples/_shared/install.sh');
       expect(install).toContain('pnpm --dir "$root" --filter "@odudu-io/$sdk" pack');
@@ -356,7 +361,7 @@ describe('the CI workflow', () => {
       const expression = /SDKS: \$\{\{ (.+) \}\}/u.exec(block)?.[1] ?? '';
       expect(expression).not.toBe('');
       // The expression is a flat chain: `matrix.example == 'name' && 'sdks' || ... || ''`.
-      const terms = [...expression.matchAll(/matrix\.example == '([\w-]+)' && '([\w ]+)'/gu)];
+      const terms = [...expression.matchAll(/matrix\.example == '([\w-]+)' && '([\w -]+)'/gu)];
       expect(expression.split(' || ')).toHaveLength(terms.length + 1);
       const listed = (example: string): string[] =>
         (terms.find((term) => term[1] === example)?.[2] ?? '')
@@ -383,29 +388,75 @@ describe('the CI workflow', () => {
       };
       const examples = (await readdir(path.join(REPO_ROOT, 'examples'), { withFileTypes: true }))
         .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
-        .map((entry) => entry.name);
+        .map((entry) => entry.name)
+        .filter((name) => name !== 'python');
+      expect(examples.length).toBeGreaterThan(5);
       for (const example of examples) {
+        // An example's test may use an SDK its app does not, so both lists count.
         const manifest = JSON.parse(await read(`examples/${example}/package.json`)) as {
           dependencies?: Record<string, string>;
+          devDependencies?: Record<string, string>;
         };
-        const used = Object.keys(manifest.dependencies ?? {})
+        const used = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies })
           .filter((dependency) => dependency.startsWith('@odudu-io/'))
           .map((dependency) => dependency.slice('@odudu-io/'.length));
         expect(used, `${example} names an SDK`).not.toEqual([]);
         expect(listed(example), example).toEqual(await closure(used));
       }
+      // The Python example installs a wheel, not an npm tarball.
+      expect(listed('python')).toEqual([]);
+    });
+
+    it('builds the Python SDK into a wheel for the python example, which depends on it', async () => {
+      const block = await job();
+      expect(block).toContain('uses: actions/setup-python@');
+      const sdks = jobBlock(await read('.github/workflows/verify.yml'), 'sdks', 'commit-messages');
+      const pin = /uses: (actions\/setup-python@[0-9a-f]{40} # v[\d.]+)/u;
+      expect(pin.exec(block)?.[1]).toBe(pin.exec(sdks)?.[1]);
+      expect(block).toContain('run: examples/_shared/install-python.sh examples/python');
+      expect(block).toContain('.venv/bin/python -m pytest');
+      expect(block).toContain('.venv/bin/python -m mypy');
+      const install = await read('examples/_shared/install-python.sh');
+      expect(install).toContain('pip install --require-hashes -r');
+      expect(install).toContain('pip wheel --no-deps');
+      const project = await read('examples/python/pyproject.toml');
+      expect(project).toMatch(/"odudu\[fastapi\]>=0\.1,<0\.2"/u);
+      expect(await read('examples/python/requirements.txt')).toContain('--hash=sha256:');
     });
 
     it('has one matrix leg per example directory with a lockfile and a test', async () => {
       const block = await job();
-      const legs = /example: \[([^\]]+)\]/u.exec(block)?.[1]?.split(', ').sort() ?? [];
+      const legs = /example:\s+\[([^\]]+)\]/u.exec(block)?.[1]?.split(', ').sort() ?? [];
       const directories = (await readdir(path.join(REPO_ROOT, 'examples'), { withFileTypes: true }))
         .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
         .map((entry) => entry.name)
         .sort();
       expect(legs).toEqual(directories);
+      expect(directories).toHaveLength(9);
       for (const name of directories) {
-        await read(`examples/${name}/test.ts`);
+        const [test, lockfile] =
+          name === 'python'
+            ? ['test_example.py', 'requirements.txt']
+            : ['test.ts', 'package-lock.json'];
+        await read(`examples/${name}/${test}`);
+        await read(`examples/${name}/${lockfile}`);
+      }
+    });
+
+    it('has a Dependabot entry for every example directory, in its own ecosystem', async () => {
+      const config = await read('.github/dependabot.yml');
+      const entries = config.split(/^(?=  - package-ecosystem: )/mu);
+      const directories = (await readdir(path.join(REPO_ROOT, 'examples'), { withFileTypes: true }))
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
+        .map((entry) => entry.name);
+      for (const name of directories) {
+        const ecosystem = name === 'python' ? 'pip' : 'npm';
+        const entry = entries.find((candidate) =>
+          candidate.includes(`    directory: /examples/${name}\n`),
+        );
+        expect(entry, `no entry for examples/${name}`).toBeDefined();
+        expect(entry).toMatch(new RegExp(`^ {2}- package-ecosystem: ${ecosystem}\\n`, 'u'));
+        expect(entry).toMatch(/^ {4}cooldown:\n {6}default-days: \d+$/mu);
       }
     });
   });

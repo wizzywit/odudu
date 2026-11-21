@@ -474,7 +474,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [web-app, single-page-app, api, machine-to-machine, next]
+        example:
+          [web-app, single-page-app, api, machine-to-machine, next, react-bff, admin, python, mcp]
     env:
       ODUDU_BASE: http://localhost:3205
       COMPOSE_FILE: ${{ github.workspace }}/quickstart/compose.yaml
@@ -487,10 +488,10 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      # The two apps that sign a person in drive a browser, and borrow the docs
-      # app's Playwright.
+      # The examples that sign a person in at a page drive a browser, and borrow
+      # the docs app's Playwright.
       - uses: ./.github/actions/playwright
-        if: matrix.example == 'web-app' || matrix.example == 'single-page-app'
+        if: matrix.example == 'web-app' || matrix.example == 'single-page-app' || matrix.example == 'react-bff' || matrix.example == 'admin'
         with:
           package: '@odudu/docs'
 
@@ -511,18 +512,36 @@ jobs:
       - name: Make the tenant, the clients and the person
         run: examples/_shared/provision.sh
 
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: matrix.example == 'python'
+        with:
+          python-version: '3.13'
+
       # The SDKs are not on npm yet, so each example gets the ones it uses from
       # this commit: built, packed and installed beside its other dependencies,
       # with its package.json and lockfile left as a reader copies them. An
-      # example that uses no SDK is installed from its lockfile.
+      # example whose test uses an SDK its app does not lists that one too.
       - name: Install the example
+        if: matrix.example != 'python'
         env:
-          SDKS: ${{ matrix.example == 'web-app' && 'oidc' || matrix.example == 'single-page-app' && 'oidc' || matrix.example == 'machine-to-machine' && 'oidc' || matrix.example == 'api' && 'node' || matrix.example == 'next' && 'oidc bff next' || '' }}
+          SDKS: ${{ matrix.example == 'web-app' && 'oidc' || matrix.example == 'single-page-app' && 'oidc' || matrix.example == 'machine-to-machine' && 'oidc' || matrix.example == 'api' && 'node' || matrix.example == 'next' && 'oidc bff next' || matrix.example == 'react-bff' && 'oidc bff react' || matrix.example == 'admin' && 'oidc admin-client me-client' || matrix.example == 'mcp' && 'mcp-stdio oidc admin-client' || '' }}
         run: examples/_shared/install.sh "examples/${{ matrix.example }}" $SDKS
 
+      # The Python package is built into a wheel and installed into a virtual
+      # environment with the example's hashed requirements.
+      - name: Install the Python example
+        if: matrix.example == 'python'
+        run: examples/_shared/install-python.sh examples/python
+
       - name: Type-check the example
+        if: matrix.example != 'python'
         working-directory: examples/${{ matrix.example }}
         run: npm run typecheck
+
+      - name: Type-check the Python example
+        if: matrix.example == 'python'
+        working-directory: examples/python
+        run: .venv/bin/python -m mypy
 
       # The client's test starts the API example, which has its own install.
       - name: Install the API the client calls
@@ -530,8 +549,14 @@ jobs:
         run: examples/_shared/install.sh examples/api node
 
       - name: Run the example's test
+        if: matrix.example != 'python'
         working-directory: examples/${{ matrix.example }}
         run: npm test
+
+      - name: Run the Python example's test
+        if: matrix.example == 'python'
+        working-directory: examples/python
+        run: .venv/bin/python -m pytest
 
       - name: Stop the stack
         if: always()
