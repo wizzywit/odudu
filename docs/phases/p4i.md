@@ -992,3 +992,17 @@ built from the branch, with the SDKs installed from packed tarballs (and the
   that name an example (`single-page-app`, `web-app`, `machine-to-machine`,
   `api`, `connect-claude`) where they now have a sibling. The `admin` example's
   `me` half is the documented way a script gets a person's token.
+
+## Landing first-load budget raised to 186 KB
+
+The SDKs section adds ten pages, and every page adds its route to the registry
+in the main chunk (the route table, the docs metadata and the chunk map each
+name it). Measured the way the budget test does, the landing page's script
+bytes were 189,862, which is 422 over 185 KB. Built without the section the
+static scripts (`runtime~main` and `main`) were 166,876 bytes gzip and with it
+168,129, so the section costs 1,253 bytes, about 125 per page; nothing the
+landing page does not need was found in that path, because Docusaurus puts the
+whole route registry in the first load. The budget is raised to 186 KB
+(190,464 bytes), by decision and with this cause, as the 184 and 185 KB steps
+were. The slack is 602 bytes, enough for the three pages still to come in this
+phase; the next page beyond that needs the same decision, or fewer pages.
