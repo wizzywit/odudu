@@ -219,3 +219,66 @@ describe('refresh', () => {
     expect((error as OduduError).code).toBe('invalid_options');
   });
 });
+
+describe('refresh against a server that revokes a family on reuse', () => {
+  const a = 'https://a.example/api';
+  const b = 'https://b.example/api';
+  const c = 'https://c.example/api';
+
+  it('a caller holding the rotated token queues behind the flight that uses it', async () => {
+    const tokens = await signedIn({ resource: [a, b] });
+    fake.tokenDelayMs = 30;
+    const first = refresh(tokens, { resource: a }, deps);
+    const second = refresh(tokens, { resource: b }, deps);
+    const rotated = await first;
+    const third = refresh(rotated, { resource: a }, deps);
+    const results = await Promise.allSettled([second, third]);
+    expect(results.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled']);
+    expect(fake.reuseDetections).toBe(0);
+    expect(refreshRequests().map((form) => form.get('refresh_token'))).toEqual([
+      'refresh-token-1',
+      'refresh-token-1-rotated',
+      'refresh-token-1-rotated-rotated',
+    ]);
+  });
+
+  it('a call queued behind a refused flight continues from the last token that worked', async () => {
+    const tokens = await signedIn({ resource: [a, b, c] });
+    fake.refusedResource = b;
+    const outcomes = await Promise.allSettled([
+      refresh(tokens, { resource: a }, deps),
+      refresh(tokens, { resource: b }, deps),
+      refresh(tokens, { resource: c }, deps),
+    ]);
+    expect(outcomes.map((o) => o.status)).toEqual(['fulfilled', 'rejected', 'fulfilled']);
+    expect(fake.reuseDetections).toBe(0);
+    expect(refreshRequests().map((form) => form.get('refresh_token'))).toEqual([
+      'refresh-token-1',
+      'refresh-token-1-rotated',
+      'refresh-token-1-rotated',
+    ]);
+    const last = outcomes[2];
+    expect(last.status === 'fulfilled' ? last.value.refreshToken : '').toBe(
+      'refresh-token-1-rotated-rotated',
+    );
+  });
+
+  it('makes exactly one request per rotation for mixed callers', async () => {
+    const tokens = await signedIn({ resource: [a, b] });
+    fake.tokenDelayMs = 20;
+    const first = refresh(tokens, { resource: a }, deps);
+    const sameFirst = refresh(tokens, { resource: a }, deps);
+    const second = refresh(tokens, { resource: b }, deps);
+    await Promise.all([first, sameFirst, second]);
+    expect(refreshRequests()).toHaveLength(2);
+    expect(fake.reuseDetections).toBe(0);
+  });
+
+  it('forgets a family once its calls have settled', async () => {
+    const tokens = await signedIn({ resource: [a, b] });
+    const rotated = await refresh(tokens, { resource: a }, deps);
+    const again = await refresh(rotated, { resource: b }, deps);
+    expect(fake.reuseDetections).toBe(0);
+    expect(again.refreshToken).toBe('refresh-token-1-rotated-rotated');
+  });
+});

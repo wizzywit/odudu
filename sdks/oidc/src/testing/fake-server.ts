@@ -26,6 +26,14 @@ export interface FakeServer {
   clientCredentialsGrants: number;
   // Refresh tokens already presented; a second use is refused as Odudu does.
   spentRefreshTokens: Set<string>;
+  // Presenting a spent refresh token revokes the whole family: every refresh
+  // after it is refused, however fresh its token.
+  reuseDetections: number;
+  // A refresh asking for this `resource` is refused with invalid_target before
+  // its token is spent.
+  refusedResource: string | undefined;
+  // Milliseconds every token endpoint answer is held, to overlap requests.
+  tokenDelayMs: number;
   discoveryRequests: number;
   close: () => Promise<void>;
 }
@@ -70,6 +78,9 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
     tokenAuthorizations: [],
     clientCredentialsGrants: 0,
     spentRefreshTokens: new Set(),
+    reuseDetections: 0,
+    refusedResource: undefined,
+    tokenDelayMs: 0,
     discoveryRequests: 0,
     close: () => Promise.resolve(),
   };
@@ -94,10 +105,13 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
     }
     if (path.endsWith('/token') && request.method === 'POST') {
       readBody(request).then(
-        (raw) => {
+        async (raw) => {
           const form = new URLSearchParams(raw);
           fake.tokenRequests.push(form);
           fake.tokenAuthorizations.push(request.headers.authorization);
+          if (fake.tokenDelayMs > 0) {
+            await new Promise((resolve) => setTimeout(resolve, fake.tokenDelayMs));
+          }
           if (fake.tokenChallenge) {
             response.writeHead(401, {
               'content-type': 'application/json',
@@ -132,7 +146,19 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
           }
           const presented = form.get('refresh_token');
           if (form.get('grant_type') === 'refresh_token' && presented !== null) {
+            if (
+              fake.refusedResource !== undefined &&
+              form.get('resource') === fake.refusedResource
+            ) {
+              send(400, { error: 'invalid_target' });
+              return;
+            }
+            if (fake.reuseDetections > 0) {
+              send(400, { error: 'invalid_grant', error_description: 'family revoked' });
+              return;
+            }
             if (fake.spentRefreshTokens.has(presented)) {
+              fake.reuseDetections += 1;
               send(400, { error: 'invalid_grant', error_description: 'reuse detected' });
               return;
             }
