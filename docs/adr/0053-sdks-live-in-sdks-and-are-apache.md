@@ -88,7 +88,10 @@ the subpath that holds what the tenant's MCP endpoint and the stdio client both
 run: the admin request and path rules, the cleaning of text, the write budget and
 the single call of a tool. The code was moved to the SDK, not copied, so there is
 one copy of it. The subpath exports TypeScript source and is not built or
-published, so it is outside the package's API. `apps/server` imports the package's root for `odudu mcp`.
+published, so it is outside the package's API. `apps/server` imports the same
+subpath for `odudu mcp` (`runMcp`, `processMcpIo`), because the package has no
+other source entry: its published surface is the `odudu-mcp` command alone, and
+the server's build bundles the source.
 Three pieces that would have pulled a server package into the SDK are copies held
 to the server's by tests in `packages/mcp` and `apps/server`: the tenant address
 helpers, the bidirectional-control strip and the scope and client names.

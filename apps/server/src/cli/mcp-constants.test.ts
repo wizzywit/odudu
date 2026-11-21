@@ -1,5 +1,5 @@
 import { ADMIN_API_AUDIENCE, MCP_CLIENT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
-import * as sdk from '@odudu-io/mcp-stdio';
+import * as sdk from '@odudu-io/mcp-stdio/internal';
 import { describe, expect, it } from 'vitest';
 
 // The stdio client names the sign-in it makes with strings the server defines.

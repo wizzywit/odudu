@@ -30,18 +30,6 @@ const DOCS_ALIAS = {
 
 const REACT_SDK = 'sdks/react';
 
-// The server's command imports the stdio client's package root. Tests read it as
-// source, so they need no build of the package in front of them. Its `./internal`
-// subpath is source already.
-const MCP_STDIO_SOURCE = {
-  alias: [
-    {
-      find: /^@odudu-io\/mcp-stdio$/u,
-      replacement: join(REPO_ROOT, 'sdks/mcp-stdio/src/index.ts'),
-    },
-  ],
-};
-
 function globs(): {
   unit: string[];
   integration: string[];
@@ -126,7 +114,6 @@ export default defineConfig({
       {
         resolve: {
           alias: [
-            ...MCP_STDIO_SOURCE.alias,
             ...Object.entries(DOCS_ALIAS.alias).map(([find, replacement]) => ({
               find,
               replacement,
@@ -152,7 +139,6 @@ export default defineConfig({
         },
       },
       {
-        resolve: MCP_STDIO_SOURCE,
         test: {
           name: 'integration',
           include: integration,

@@ -83,7 +83,7 @@ A tool call that Odudu refuses comes back to the client as a tool result that na
 - **https and loopback.** `--base-url` must be https unless it is a loopback address.
 - **What the tools can do.** The tools come from a catalogue generated from the server's own tool definitions and built into the package. The server enforces every call, so a stale catalogue can hide a tool but never widen what a token may do. What a service account can do is what the admin capabilities of its account allow.
 - **The browser sign-in** listens for the answer on a loopback port.
-- **`./internal` is not API.** The package exports `./internal` as source for the server's own MCP endpoint. It is not built or published and is outside the semver contract. The root export is the API: `runMcp(io, argv)` runs the command and resolves with its exit status, and `processMcpIo()` builds the `io` from the current process. The pieces `runMcp` is built from are exported beside them.
+- **The command is the API.** The package publishes the `odudu-mcp` command and nothing to import. It has no root export, so `import '@odudu-io/mcp-stdio'` fails. Start it as a process, as the example above does. Its source also exports `./internal` for the server's own `odudu mcp` and MCP endpoint, but that file is not published and is outside the semver contract.
 
 ## Not in this package
 

@@ -1,7 +1,7 @@
-// For @odudu/mcp only, and outside this package's semver contract: the pieces the
-// server's own MCP endpoint runs together with the stdio client. It is exported
-// as source, never built or published, so a consumer outside this repository
-// cannot import it.
+// For @odudu/mcp and @odudu/server only, and outside this package's semver
+// contract: the pieces the server's own MCP endpoint and its `odudu mcp`
+// command run together with the stdio client. It is exported as source, never
+// built or published, so a consumer outside this repository cannot import it.
 
 /** @internal */
 export {
@@ -99,3 +99,17 @@ export {
   MCP_WRITE_SCOPE,
   SYSTEM_TENANT_NAME,
 } from '#/services/scopes';
+/** @internal */
+export { processMcpIo } from '#/process-io';
+/** @internal */
+export { runMcp } from '#/run-mcp';
+/** @internal */
+export type { McpIo } from '#/services/mcp-io';
+/** @internal */
+export type { RunTool } from '#/services/ports';
+/** @internal */
+export { MCP_OPTIONS } from '#/services/mcp-options';
+/** @internal */
+export { loadCatalogue, toolsOf } from '#/adapter/catalogue-file';
+/** @internal */
+export { createCredentialStore, type CredentialStoreDeps } from '#/adapter/credential-store';

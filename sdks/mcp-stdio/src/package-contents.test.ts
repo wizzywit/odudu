@@ -6,7 +6,9 @@ const manifest = JSON.parse(read('../package.json')) as {
   files: string[];
   bin: Record<string, string>;
   engines: Record<string, string>;
-  exports: Record<string, string | { types: string; default: string }>;
+  exports: Record<string, string>;
+  imports: Record<string, string>;
+  publishConfig: { exports: Record<string, string>; imports: Record<string, string> };
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
   license: string;
@@ -16,23 +18,18 @@ describe('what the package publishes', () => {
   it('ships dist only, built from entries that never reach the test helpers', () => {
     expect(manifest.files).toEqual(['dist', 'LICENSE', 'CHANGELOG.md', 'README.md']);
     const config = read('../tsup.config.ts');
-    for (const [name, source] of Object.entries({ index: 'index', bin: 'bin' })) {
-      expect(config).toContain(`${name}: 'src/${source}.ts'`);
-    }
-    for (const entry of ['index', 'bin']) {
-      expect(read(`./${entry}.ts`)).not.toContain('testing');
-    }
+    expect(config).toContain("entry: { bin: 'src/bin.ts' }");
+    expect(read('./bin.ts')).not.toContain('testing');
   });
 
-  it('publishes the root as built code, and the internal subpath as source that is not shipped', () => {
-    expect(Object.keys(manifest.exports)).toEqual(['.', './internal']);
-    expect(manifest.exports['.']).toEqual({
-      types: './dist/index.d.ts',
-      default: './dist/index.js',
-    });
-    expect(manifest.exports['./internal']).toBe('./src/internal.ts');
+  it('has the command as its only public entry: the internal subpath and the # imports are source the tarball leaves out', () => {
+    expect(manifest.exports).toEqual({ './internal': './src/internal.ts' });
+    expect(manifest.imports).toEqual({ '#/*': './src/*.ts' });
     expect(manifest.files).not.toContain('src');
+    expect(manifest.publishConfig.exports).toEqual({ './package.json': './package.json' });
+    expect(manifest.publishConfig.imports).toEqual({});
     expect(read('../tsup.config.ts')).not.toContain('internal');
+    expect(() => read('./index.ts')).toThrow();
   });
 
   it('installs the odudu-mcp command from the built entry, for Node 24 and later', () => {
@@ -43,7 +40,7 @@ describe('what the package publishes', () => {
 
   it('marks every export of the internal module, and says who it is for', () => {
     const source = read('./internal.ts');
-    expect(source).toContain('For @odudu/mcp only');
+    expect(source).toContain('For @odudu/mcp and @odudu/server only');
     const exports = source.match(/^export /gmu) ?? [];
     const marks = source.match(/^\/\*\* @internal \*\/$/gmu) ?? [];
     expect(exports.length).toBeGreaterThan(10);
@@ -57,7 +54,7 @@ describe('what the package publishes', () => {
       '@odudu-io/oidc',
       'zod',
     ]);
-    expect(manifest.dependencies['@odudu-io/oidc']).toBe('workspace:*');
+    expect(manifest.dependencies['@odudu-io/oidc']).toBe('workspace:^');
   });
 
   it('pins the same versions as the server package it was split from', () => {

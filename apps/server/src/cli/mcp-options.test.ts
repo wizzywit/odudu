@@ -1,4 +1,4 @@
-import { MCP_OPTIONS as SDK_OPTIONS } from '@odudu-io/mcp-stdio';
+import { MCP_OPTIONS as SDK_OPTIONS } from '@odudu-io/mcp-stdio/internal';
 import { describe, expect, it } from 'vitest';
 import { MCP_OPTIONS } from '#/cli/mcp-options';
 

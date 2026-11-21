@@ -1,4 +1,4 @@
-import { processMcpIo, runMcp, type McpIo } from '@odudu-io/mcp-stdio';
+import { processMcpIo, runMcp, type McpIo } from '@odudu-io/mcp-stdio/internal';
 
 export { processMcpIo, type McpIo };
 

@@ -10,4 +10,3 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `odudu-mcp`, the command, installable with `npx @odudu-io/mcp-stdio --base-url … --tenant …` on a machine with neither the Odudu image nor a checkout. It takes the options of `odudu mcp`, signs a person in through the browser or a service account through a private key, and writes only the protocol to standard output. `--help` prints the options.
-- `runMcp` and `processMcpIo` run the same command from code.

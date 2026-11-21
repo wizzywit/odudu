@@ -35,9 +35,10 @@ directory only the user can use) when the system has none. A run with
 
 ## What is API
 
-The root export (`runMcp` and the pieces it is built from) is the package's API.
-The `./internal` subpath is not: it is exported as source for the server's own
-MCP endpoint, is not built or published, and is outside the semver contract.
+The command is the API: the package has no root export to import, so start it
+as a process from your MCP client. The source also exports `./internal` for the
+server's own `odudu mcp` and MCP endpoint; that file is not published and is
+outside the semver contract.
 
 The tools it serves come from a catalogue generated from the server's own tool
 definitions and built into the package. The server enforces every call, so a stale

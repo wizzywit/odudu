@@ -18,14 +18,16 @@
     "README.md"
   ],
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
     "./internal": "./src/internal.ts"
   },
   "imports": {
     "#/*": "./src/*.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      "./package.json": "./package.json"
+    },
+    "imports": {}
   },
   "scripts": {
     "build": "tsup",
@@ -35,7 +37,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",
-    "@odudu-io/oidc": "workspace:*",
+    "@odudu-io/oidc": "workspace:^",
     "zod": "4.6.7"
   },
   "devDependencies": {

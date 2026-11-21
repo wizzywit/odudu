@@ -1,4 +1,4 @@
-import { loadCatalogue, toolsOf } from '@odudu-io/mcp-stdio';
+import { loadCatalogue, toolsOf } from '@odudu-io/mcp-stdio/internal';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { TOOLS } from '#/service/catalogue';
