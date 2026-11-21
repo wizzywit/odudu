@@ -30,6 +30,16 @@ function operationHint(path: string, method: string, ignored: ReadonlySet<string
   return `${pascal(segments.join('-'))}${pascal(method)}`;
 }
 
+// The values of these keywords are data, not schemas, so what looks like a
+// schema inside one is left alone.
+const LITERAL_KEYS: ReadonlySet<string> = new Set([
+  'example',
+  'examples',
+  'default',
+  'const',
+  'enum',
+]);
+
 interface Candidate {
   readonly shape: string;
   readonly hint: string;
@@ -50,7 +60,7 @@ function candidatesIn(node: unknown, hint: string, out: Candidate[]): void {
     }
   }
   for (const [key, child] of Object.entries(node)) {
-    if (key === 'properties') continue;
+    if (key === 'properties' || LITERAL_KEYS.has(key)) continue;
     candidatesIn(child, key === 'items' ? `${hint}Item` : hint, out);
   }
 }
@@ -70,17 +80,24 @@ function candidatesOfPaths(paths: Json, ignored: ReadonlySet<string>): Candidate
   return out;
 }
 
-function replace(node: unknown, shape: string, name: string): unknown {
+// `namesProperties` is true for the value of a `properties` keyword, whose keys
+// are property names rather than keywords: one called `example` holds a schema.
+function replace(node: unknown, shape: string, name: string, namesProperties = false): unknown {
   if (Array.isArray(node)) return node.map((child) => replace(child, shape, name));
   if (!isJson(node)) return node;
-  if ('properties' in node && shapeOf(node) === shape) {
+  if (!namesProperties && 'properties' in node && shapeOf(node) === shape) {
     return {
       $ref: `${COMPONENT_PREFIX}${name}`,
       ...(node.description === undefined ? {} : { description: node.description }),
     };
   }
   return Object.fromEntries(
-    Object.entries(node).map(([key, child]) => [key, replace(child, shape, name)]),
+    Object.entries(node).map(([key, child]) => [
+      key,
+      !namesProperties && LITERAL_KEYS.has(key)
+        ? child
+        : replace(child, shape, name, !namesProperties && key === 'properties'),
+    ]),
   );
 }
 
