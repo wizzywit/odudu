@@ -148,6 +148,8 @@ odudu seed client --tenant demo --client-id example-admin --client-secret exampl
 npm install @odudu-io/admin-client
 ```
 
+Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc admin-client me-client` in the folder of [the admin example](https://github.com/wizzywit/odudu/tree/main/examples/admin), which uses all three.
+
 From `examples/admin/admin.ts`:
 
 ```ts
