@@ -20,7 +20,7 @@ export ODUDU_BASE="${ODUDU_BASE:-http://localhost:3000}" && export TENANT="$ODUD
 
 ## 2. Get a token to test with
 
-Register a caller and ask for a token, the way [a service does](./machine-to-machine.md). A token a person's sign-in produced is checked the same way. The caller may ask for the scope `reports:read`, and it is registered for `http://localhost:8082` as an audience, which is what the API below will call itself. A token carries the audiences its client is registered for.
+Register a caller and ask for a token, the way [a service does](./machine-to-machine.md). A token a person's sign-in produced is checked the same way. The caller may ask for the scope `reports:read`, and it is registered for `http://localhost:8082` as an audience, which is what the API below will call itself. A token carries the tenant's address and every audience its client is registered for.
 
 ```sh {run}
 CALLER_SECRET=$(openssl rand -hex 24)
@@ -42,7 +42,9 @@ TOKEN=$(curl -fsS -u "my-api-caller:$CALLER_SECRET" --data-urlencode grant_type=
 npm install @odudu-io/node
 ```
 
-Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . node` in the folder of [the API example](https://github.com/wizzywit/odudu/tree/main/examples/api); it needs Node 24 or later, which the package needs too.
+The package needs Node 24 or later.
+
+Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . node` in the folder of [the API example](https://github.com/wizzywit/odudu/tree/main/examples/api) (it needs pnpm, and `pnpm install` run once at the repository root).
 
 The example is one file, `server.ts`. The verifier is made once, and it keeps the keys between requests.
 
@@ -76,7 +78,7 @@ const reports = withToken(
 );
 ```
 
-A token it cannot trust is a `401` whose body says only `invalid_token`; a token without the scope is a `403`; and when the tenant's keys cannot be read the answer is a `503` with `Retry-After`, so a caller keeps a token that is fine. For Express and Fastify, [`@odudu-io/node`](../sdks/node.md) has middleware of the same shape.
+A token it cannot trust is a `401` whose body is a small JSON object with an `error` and a fixed `error_description`, never an echo of the token; a token without the scope is a `403`; and when the tenant's keys cannot be read the answer is a `503` with `Retry-After`, so a caller keeps a token that is fine. For Express and Fastify, [`@odudu-io/node`](../sdks/node.md) has middleware of the same shape.
 
 In Python, `odudu.verify` makes the same checks and has a dependency for FastAPI and a decorator for Flask.
 
@@ -84,11 +86,16 @@ In Python, `odudu.verify` makes the same checks and has a dependency for FastAPI
 pip install 'odudu[fastapi]'
 ```
 
+The package needs Python 3.10 or later.
+
+Until the first release is published, the package is not on PyPI. Install it from a checkout of this repository by running `../_shared/install-python.sh .` in the folder of [the Python example](https://github.com/wizzywit/odudu/tree/main/examples/python).
+
 From `examples/python/app.py`:
 
 ```python
-# Odudu names the tenant itself as the audience unless a client says otherwise. RFC 9068
-# wants it to name this API: register the audience on the client and pass it here.
+# Odudu always puts the tenant's address in a token's audience, beside any audience the client
+# is registered for. An API that trusts the tenant's address trusts every token of the tenant:
+# register an audience on the client and pass it here.
 verifier = AsyncVerifier(
     [ISSUER], os.environ.get("API_AUDIENCE", ISSUER), allow_insecure_issuers=True
 )
@@ -108,7 +115,7 @@ async def reports(
 
 `allowInsecureIssuers` and `allow_insecure_issuers` let the verifier trust an `http` issuer such as your stack on localhost. A real API trusts an https issuer and never sets them.
 
-By default the example's API goes by the tenant's own address, which Odudu puts in the audience of the access tokens here. RFC 9068 wants the audience to name your API. The caller above is registered for `http://localhost:8082`, so start the example with that as its audience, in its folder:
+By default the example's API goes by the tenant's own address, which Odudu always puts in a token's audience, so it would accept every token the tenant issues, whatever API it was for. RFC 9068 wants the audience to name your API. The caller above is registered for `http://localhost:8082`, so start the example with that as its audience, in its folder:
 
 ```text
 API_AUDIENCE=http://localhost:8082 npm start
@@ -160,13 +167,13 @@ KID=$(decode "$TOKEN" 1 | sed -n 's/.*"kid":"\([^"]*\)".*/\1/p') && curl -fsS "$
 
 ## 6. The checks the SDK makes
 
-The verifier makes these checks on every request and refuses the request if any fails. It names the check that failed in a `reason` for your logs and never tells the caller more than `invalid_token` or `insufficient_scope`.
+The verifier makes these checks on every request and refuses the request if any fails. It names the check that failed in a `reason` for your logs and tells the caller no more than the code, `invalid_token` or `insufficient_scope`, and a fixed description.
 
 1. **The signature.** It is verified with the published key named by `kid`. Only RS256 and ES256 are accepted, so a token that says `none` or names an HMAC is refused before a key is looked up. (`bad_signature`, `unsupported_algorithm`, `unknown_key`)
 2. **The type.** The header `typ` must be `at+jwt`. An ID token is signed with the same keys, and this is what keeps it out. (`wrong_type`)
 3. **The issuer.** The `iss` claim must be the tenant you trust, exactly. (`wrong_issuer`)
-4. **The expiry.** The `exp` claim must be in the future, with 5 seconds of tolerance. (`expired`)
-5. **The audience.** The `aud` claim must name your API. (`wrong_audience`)
+4. **The expiry.** The `exp` claim must be in the future, and an `nbf` claim must not be, with 5 seconds of tolerance each way. (`expired`, `not_yet_valid`)
+5. **The audience.** The `aud` claim must name your API, and must not also name the account API, the audience of the me API. (`wrong_audience`, `me_audience`)
 6. **The scope.** The `scope` claim must allow what the caller is doing, when the route names a scope. Its absence is a `403`. (`insufficient_scope`)
 
 You can run three of them here. The issuer in the token must equal the issuer in the tenant's discovery document.
@@ -181,7 +188,7 @@ The expiry must be ahead of the clock.
 EXP=$(decode "$TOKEN" 2 | sed -n 's/.*"exp":\([0-9]*\).*/\1/p') && NOW=$(date +%s) && test "$EXP" -gt "$NOW" && echo "not expired: $((EXP - NOW)) seconds left"
 ```
 
-The `aud` claim lists the audience the caller is registered for, `http://localhost:8082`, and the tenant's own address beside it. The token is for your API when your API's name is among them.
+The `aud` claim always holds the tenant's own address, and beside it every audience the caller is registered for, here `http://localhost:8082`. The token is for your API when your API's name is among them. An API that goes by the tenant's address accepts every token of the tenant, so name your own.
 
 ```sh {run expect="audience includes"}
 decode "$TOKEN" 2 | grep -q '"http://localhost:8082"' && echo "audience includes http://localhost:8082"

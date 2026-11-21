@@ -8,7 +8,7 @@ For `GET /reports`, in this order:
 
 1. The token's signature, against the tenant's published keys. The keys are fetched once, kept, and fetched again when a token names a key the API does not know.
 2. The issuer is the tenant you trust, exactly.
-3. The audience is this API. Odudu names the tenant itself unless a client says otherwise; set `API_AUDIENCE` to change what this API accepts.
+3. The audience is this API. Odudu always puts the tenant's address in a token's audience, beside any audience the client is registered for; set `API_AUDIENCE` to change what this API accepts.
 4. The token is an access token. An ID token is signed with the same keys, so the check on its type is what keeps it out.
 5. The token has not expired.
 6. The token's `scope` holds `reports:read`. A valid token without it is a `403`, because the caller is known and not allowed; a `401` means the token itself is not trusted.
@@ -30,4 +30,4 @@ Get a token the way [`../machine-to-machine`](../machine-to-machine) does and ca
 
 ## What is only for the example
 
-The API listens on plain http; a production API sits behind HTTPS. The audience is the tenant itself, which is what Odudu puts in a token unless the client registers another one. [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068) wants the audience to name the API; that is a choice for your API, and `API_AUDIENCE` is where you make it.
+The API listens on plain http; a production API sits behind HTTPS. The audience is the tenant itself, which Odudu always puts in a token's audience, so the API accepts every token the tenant issues. [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068) wants the audience to name the API; that is a choice for your API, and `API_AUDIENCE` is where you make it.

@@ -143,7 +143,7 @@ Every answer carries `Cache-Control: no-store`.
 - **Keys.** They are read from the `jwks_uri` of the issuer's discovery document and cached for `jwksTtlMs`, shared between concurrent requests, and read again at most once every 10 seconds when a token names an unknown `kid`. Keys kept through a failed read are never served past twice `jwksTtlMs`. At most 20 keys are kept per issuer and 256 issuers. Only public keys meant for signing are used, and others in the set are ignored.
 - **https.** A `jwks_uri` that is not https is refused with `KeyFetchError` for an https issuer. An http issuer, allowed with `allowInsecureIssuers`, may name an http one only on its own origin. The issuer a token claims only selects among the configured issuers: it is never fetched or used as an address.
 - **What a local check cannot see.** A signature check cannot know that a session just ended or that a token was revoked. Until the token's `exp` it still passes. Keep access tokens short, as Odudu does, or ask Odudu through [token introspection](../reference/transcripts/request-paths/rp-initiated-logout.md#token-introspection-and-revocation) where that matters.
-- **The audience.** Odudu names the tenant itself as the audience unless the client registers another one. RFC 9068 wants the audience to name your API, so register one on the client and pass it as `audience`.
+- **The audience.** Odudu always puts the tenant's own address in a token's `aud`, and adds the audiences the client is registered for. An API that sets `audience` to the tenant's address therefore accepts every access token the tenant issues, whatever API it was for. RFC 9068 wants the audience to name your API, so register one on the client and pass it as `audience`.
 
 ## Not in this package
 

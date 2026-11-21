@@ -67,8 +67,8 @@ From `examples/web-app/app.ts`:
 From `examples/web-app/app.ts`:
 
 ```ts
-// Checks state, the issuer, the code's PKCE proof and the ID token's issuer, audience,
-// expiry and nonce. The signature is not checked.
+// Checks state, the issuer and the ID token's issuer, audience, expiry and nonce, and
+// sends the PKCE verifier with the code. The signature is not checked.
 completeSignIn(url.href, pending, deps, { auth: { secret: SECRET } }).then(
 ```
 
@@ -369,8 +369,9 @@ cd examples/python
 From `examples/python/app.py`:
 
 ```python
-# Odudu names the tenant itself as the audience unless a client says otherwise. RFC 9068
-# wants it to name this API: register the audience on the client and pass it here.
+# Odudu always puts the tenant's address in a token's audience, beside any audience the client
+# is registered for. An API that trusts the tenant's address trusts every token of the tenant:
+# register an audience on the client and pass it here.
 verifier = AsyncVerifier(
     [ISSUER], os.environ.get("API_AUDIENCE", ISSUER), allow_insecure_issuers=True
 )

@@ -40,9 +40,11 @@ docker compose exec odudu odudu seed client --tenant demo --client-id my-web-app
 npm install @odudu-io/oidc
 ```
 
-Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc` in the folder of [the web app example](https://github.com/wizzywit/odudu/tree/main/examples/web-app); it needs Node 24 or later, which the package needs too.
+The package needs Node 24 or later.
 
-The example is one file, `app.ts`. It keeps each person's session on the server, in a cookie that holds only an opaque id. This is the session it keeps. It lives in memory and never expires, which is fine for an example and not for an app you ship.
+Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc` in the folder of [the web app example](https://github.com/wizzywit/odudu/tree/main/examples/web-app) (it needs pnpm, and `pnpm install` run once at the repository root).
+
+The example is one file, `app.ts`. It keeps each person's session on the server, in a cookie that holds only an opaque id. This is the session it keeps. It lives in memory and never expires, which is fine for an example and not for an app you ship. The cookie is `HttpOnly` and `SameSite=Lax` but not `Secure`, because the example runs on http; set `Secure` in an app you ship.
 
 From `examples/web-app/app.ts`:
 
@@ -79,8 +81,8 @@ On `/callback`, `completeSignIn` takes the address the browser arrived at, the r
 From `examples/web-app/app.ts`:
 
 ```ts
-// Checks state, the issuer, the code's PKCE proof and the ID token's issuer, audience,
-// expiry and nonce. The signature is not checked.
+// Checks state, the issuer and the ID token's issuer, audience, expiry and nonce, and
+// sends the PKCE verifier with the code. The signature is not checked.
 completeSignIn(url.href, pending, deps, { auth: { secret: SECRET } }).then(
   (tokens) => {
     const sub = tokens.claims.sub;
@@ -135,7 +137,7 @@ CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl bas
 Now build the address `beginSignIn` returns. `state` is a value you will compare when the person comes back, and `nonce` will appear in the ID token.
 
 ```sh {run}
-AUTHORIZE_URL="$TENANT/protocol/openid-connect/auth?response_type=code&client_id=my-web-app&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid%20profile%20email&state=abc123&nonce=n-0S6_WzA2Mj&code_challenge=$CHALLENGE&code_challenge_method=S256" && echo "$AUTHORIZE_URL"
+AUTHORIZE_URL="$TENANT/protocol/openid-connect/auth?response_type=code&client_id=my-web-app&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid%20profile&state=abc123&nonce=n-0S6_WzA2Mj&code_challenge=$CHALLENGE&code_challenge_method=S256" && echo "$AUTHORIZE_URL"
 ```
 
 In a real app the person's browser opens that address. They see Odudu's sign-in page, named for your app, and sign in there. Your app never sees their password. A "Sign up" button is the same address with `prompt=create` added, which shows the registration page instead; see [a sign-up button](./sign-a-user-in.md#a-sign-up-button).

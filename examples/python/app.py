@@ -15,8 +15,9 @@ from odudu.verify.fastapi import require_token
 BASE = os.environ.get("ODUDU_BASE", "http://localhost:3000")
 ISSUER = f"{BASE}/tenants/{os.environ.get('TENANT', 'demo')}"
 
-# Odudu names the tenant itself as the audience unless a client says otherwise. RFC 9068
-# wants it to name this API: register the audience on the client and pass it here.
+# Odudu always puts the tenant's address in a token's audience, beside any audience the client
+# is registered for. An API that trusts the tenant's address trusts every token of the tenant:
+# register an audience on the client and pass it here.
 verifier = AsyncVerifier(
     [ISSUER], os.environ.get("API_AUDIENCE", ISSUER), allow_insecure_issuers=True
 )

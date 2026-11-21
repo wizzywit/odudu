@@ -7,9 +7,10 @@ import { withToken } from '@odudu-io/node/http';
 const BASE = process.env.ODUDU_BASE ?? 'http://localhost:3000';
 const ISSUER = `${BASE}/tenants/${process.env.TENANT ?? 'demo'}`;
 const PORT = Number(process.env.PORT ?? 8082);
-// Odudu names the tenant itself as the audience unless a client says otherwise.
-// RFC 9068 wants it to name this API: register the audience on the client and
-// set API_AUDIENCE to it.
+// Odudu always puts the tenant's address in a token's audience, beside any
+// audience the client is registered for. An API that trusts the tenant's
+// address trusts every token of the tenant: register an audience on the client
+// and set API_AUDIENCE to it.
 const AUDIENCE = process.env.API_AUDIENCE ?? ISSUER;
 
 // Checks the signature against the tenant's published keys, the issuer, the
