@@ -44,8 +44,10 @@ function audiencesNamedBy(accessToken: string): string[] | undefined {
   }
 }
 
-// The audiences a refresh without `resource` renews: those of the sign-in that
-// the new access token names, or all of them when it names none or cannot be read.
+// The audiences a refresh without `resource` keeps: those of the sign-in that
+// the new access token names, or all of them when it names none or cannot be
+// read. Best effort: an access token is opaque to a client, and this reads it
+// only because Odudu issues JWTs.
 function renewedAudiences(previous: TokenSet, accessToken: string): string[] {
   const held = Object.keys(previous.byAudience);
   const named = audiencesNamedBy(accessToken)?.filter((audience) => held.includes(audience));
@@ -53,9 +55,9 @@ function renewedAudiences(previous: TokenSet, accessToken: string): string[] {
 }
 
 // The tokens after a refresh. Without a `resource` the new access token covers
-// the audiences it names, so it replaces those entries and leaves a dropped
-// audience's as it was; with one it replaces that audience's entry and leaves
-// the others. A refresh token the server did not rotate stays, and so do an ID
+// the audiences it names, so it replaces those entries and removes the others
+// (a later request for one is `audience_not_granted`); with one it replaces
+// that audience's entry and leaves the others. A refresh token the server did not rotate stays, and so do an ID
 // token and claims it did not repeat.
 export function refreshedTokenSet(
   previous: TokenSet,
@@ -74,7 +76,7 @@ export function refreshedTokenSet(
   const refreshToken = response.refresh_token ?? previous.refreshToken;
   return {
     byAudience: {
-      ...previous.byAudience,
+      ...(resource === undefined ? {} : previous.byAudience),
       ...Object.fromEntries(
         audiences.map((audience) => [
           audience,

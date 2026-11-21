@@ -181,14 +181,16 @@ describe('refresh', () => {
     expect((error as OduduError).error).toBe('invalid_target');
   });
 
-  it('replaces only the audiences the new access token names', async () => {
+  it('drops the audiences the new access token does not name', async () => {
     const a = 'https://a.example/api';
     const b = 'https://b.example/api';
     const tokens = await signedIn({ resource: [a, b] });
     fake.refreshedAudience = [a];
     const renewed = await refresh(tokens, {}, deps);
     expect(renewed.byAudience[a]?.accessToken).toContain('.');
-    expect(renewed.byAudience[b]).toEqual(tokens.byAudience[b]);
+    expect(Object.keys(renewed.byAudience)).toEqual([a]);
+    const error = await refresh(renewed, { resource: b }, deps).catch((e: unknown) => e);
+    expect((error as OduduError).code).toBe('audience_not_granted');
   });
 
   it('replaces every audience when the access token names none of them', async () => {

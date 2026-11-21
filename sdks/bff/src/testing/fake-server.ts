@@ -14,6 +14,8 @@ export interface FakeServer {
   issueRefreshToken: boolean;
   // How long a refresh takes to answer, so concurrent callers overlap.
   refreshDelayMs: number;
+  // Makes the access token of a refresh a JWT whose `aud` is this list.
+  refreshedAudience: string[] | undefined;
   tokenRequests: URLSearchParams[];
   tokenAuthorizations: (string | undefined)[];
   spentRefreshTokens: Set<string>;
@@ -49,6 +51,7 @@ export async function startFakeServer(): Promise<FakeServer> {
     expiresIn: 900,
     issueRefreshToken: true,
     refreshDelayMs: 0,
+    refreshedAudience: undefined,
     tokenRequests: [],
     tokenAuthorizations: [],
     spentRefreshTokens: new Set(),
@@ -103,7 +106,10 @@ export async function startFakeServer(): Promise<FakeServer> {
           if (refreshing) fake.spentRefreshTokens.add(presented);
           const now = Math.floor(Date.now() / 1000);
           send(200, {
-            access_token: `access-token-${String(fake.tokenRequests.length)}`,
+            access_token:
+              refreshing && fake.refreshedAudience !== undefined
+                ? `${base64url({ alg: 'ES256', typ: 'at+jwt' })}.${base64url({ aud: fake.refreshedAudience })}.c2ln`
+                : `access-token-${String(fake.tokenRequests.length)}`,
             token_type: 'Bearer',
             expires_in: fake.expiresIn,
             scope: 'openid offline_access',

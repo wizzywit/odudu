@@ -394,6 +394,22 @@ describe('tokens', () => {
 });
 
 describe('refresh failures', () => {
+  it('does not refresh on every request once the server drops an audience', async () => {
+    const a = 'https://a.example/api';
+    const b = 'https://b.example/api';
+    const bff = makeBff(fake, clock, { resource: [a, b] });
+    const { cookie } = await signIn(bff, fake);
+    fake.expiresIn = 3_600;
+    clock.now += 890_000;
+    fake.refreshedAudience = [a];
+    expect((await bff.session(sessionRequest(cookie))).status).toBe(200);
+    const requests = fake.tokenRequests.length;
+    clock.now += 100_000;
+    expect((await bff.session(sessionRequest(cookie))).status).toBe(200);
+    expect((await bff.session(sessionRequest(cookie))).status).toBe(200);
+    expect(fake.tokenRequests).toHaveLength(requests);
+  });
+
   it('never adopts the subject a refresh response names when it is another one', async () => {
     const bff = makeBff(fake, clock);
     const { cookie } = await signIn(bff, fake);
