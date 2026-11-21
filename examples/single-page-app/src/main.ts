@@ -53,7 +53,8 @@ async function finishSignIn(): Promise<TokenSet> {
   // A callback can be used once: the record it needs is gone after the first.
   sessionStorage.removeItem(PENDING);
   if (stored === null) throw new Error('No sign-in is under way');
-  // Checks the state and the issuer, exchanges the code and validates the ID token.
+  // Checks the state and the issuer, exchanges the code and checks the ID token's issuer,
+  // audience, expiry and nonce, not its signature.
   return completeSignIn(location.href, JSON.parse(stored) as Pending, deps);
 }
 

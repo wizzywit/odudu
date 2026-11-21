@@ -20,7 +20,7 @@ _In words: The browser page holds one HttpOnly cookie with an opaque id. It talk
 
 ## What it is
 
-A backend for frontend (BFF) is a small server that sits beside your page and is the OAuth client. It is the pattern RFC 10017, also called BCP 212, recommends for browser apps. The server signs the person in, keeps the tokens, and gives the browser a cookie holding a random identifier and nothing else. Odudu provides it as [`@odudu-io/bff`](../sdks/bff.md).
+A backend for frontend (BFF) is a small server that sits beside your page and is the OAuth client. It is the pattern RFC 10017 (BCP 212) names for keeping tokens out of the browser. The server signs the person in and keeps the tokens. Odudu provides it as [`@odudu-io/bff`](../sdks/bff.md).
 
 ## What the browser holds
 
@@ -35,16 +35,16 @@ A BFF gives the page four routes and a proxy:
 - `login` sends the browser to Odudu. A second cookie, valid for 10 minutes, ties the sign-in to the browser that started it.
 - `callback` finishes the sign-in, makes the session with a new identifier and sends the browser back to your app.
 - `session` answers who is signed in, as claims, never as a token.
-- `logout` ends the session and answers the address of Odudu's end-session page. The address carries the client and the registered return address and no `id_token_hint`, because the ID token never leaves the server. Odudu asks the person to confirm on its own page.
+- `logout` ends the session and answers the address of Odudu's end-session page. The address carries the client, the registered return address when one is set, and no `id_token_hint`, because the ID token never leaves the server. With no session, or no end-session address, it answers `204`. Odudu asks the person to confirm on its own page.
 - The proxy calls your API with the session's access token. You list the servers it may call and the path prefixes under each, and it calls nothing else. The browser's cookie and its own `Authorization` header never reach the API. Bodies are limited to 10 MiB by default.
 
 ## Protecting the routes
 
-A request that changes something needs the header `X-Odudu-BFF`, with any value, and an `Origin` you allowed. A script in your page can add the header; a page from another site cannot without a preflight the BFF never approves. The `session` route and every proxied call need the header too. `login` and `callback` are plain navigations, which cannot add a header, so they are exempt.
+A request that changes something needs the header `X-Odudu-BFF`, with any value, and an `Origin` you allowed, which is the origin of the BFF's own redirect address unless you list others. A script in your page can add the header; a page from another site cannot without a preflight the BFF never approves. The `session` route and every proxied call need the header too. `login` and `callback` are plain navigations, which cannot add a header, so they are exempt.
 
 ## Keeping the session alive
 
-When a session holds a refresh token and its access token is within 30 seconds of expiry, the BFF renews it, with one request however many calls arrive together at one instance. A refresh token Odudu no longer accepts (`invalid_grant`) ends the session: the answer is `401` with the header `X-Odudu-Session: ended`, which tells a client it was the BFF and not your API. Any other failure, such as an unreachable Odudu, keeps the session and answers `503`. A session without a refresh token ends when its access token does. By default no session lasts longer than seven days.
+When a session holds a refresh token and its access token is within 30 seconds of expiry, the BFF renews it, with one request however many calls arrive together at one instance. A refresh token Odudu no longer accepts (`invalid_grant`), or a refreshed ID token that names another person, ends the session: the answer is `401` with the header `X-Odudu-Session: ended`, which tells a client it was the BFF and not your API. Any other failure, such as an unreachable Odudu, keeps the session and answers `503`. A session without a refresh token ends when its access token does. By default no session lasts longer than seven days.
 
 ## Where the sessions live
 

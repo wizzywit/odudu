@@ -254,6 +254,45 @@ describe('the examples page', () => {
     expect(problems).toEqual([]);
   });
 
+  // A comment directly above a line belongs to it, so an excerpt that starts below
+  // one has dropped what the example says about the line it shows.
+  it('no excerpt starts directly below a comment of its source', () => {
+    const problems: string[] = [];
+    for (const section of onPage) {
+      for (const { caption, fence } of section.excerpts) {
+        if (caption === undefined || !existsSync(path.join(REPO_ROOT, caption))) continue;
+        const lines = readFileSync(path.join(REPO_ROOT, caption), 'utf8').split('\n');
+        const first = fence.value.split('\n')[0]?.trim() ?? '';
+        const starts = lines.flatMap((line, at) => (line.trim() === first ? [at] : []));
+        const held = starts.filter((at) =>
+          squash(lines.slice(at).join('\n')).startsWith(squash(fence.value)),
+        );
+        for (const at of held) {
+          const above =
+            lines
+              .slice(0, at)
+              .reverse()
+              .find((line) => line.trim() !== '')
+              ?.trim() ?? '';
+          if (/^(\/\/|\/\*|\*|#)/u.test(above)) {
+            problems.push(`${caption}: the excerpt "${first.slice(0, 40)}" drops "${above}"`);
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('says what the excerpts leave out: the ID token signature and plain http', () => {
+    const intro = source.slice(0, source.indexOf('\n## `'));
+    expect(intro).toContain("do not check the ID token's signature");
+    expect(intro).toContain('OpenID Connect Core section 3.1.3.7');
+    expect(intro).toContain('allowInsecureRequests');
+    expect(intro).toContain('allowInsecureIssuers');
+    expect(intro).toContain('allow_insecure_issuers');
+    expect(intro).toContain('never sets them');
+  });
+
   it('shows a block only as an excerpt or as a text block of commands', () => {
     const odd = onPage.flatMap((section) =>
       section.fences

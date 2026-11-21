@@ -352,3 +352,14 @@ describe('the numbers and names the backend for frontend page states are the one
     expect(repoText(`${BFF}/services/config.ts`)).toMatch(/set\('client_id'/u);
   });
 });
+
+describe('the backend for frontend page says what ends a session', () => {
+  it('names a refreshed ID token for another person as well as invalid_grant', () => {
+    const page = prose('backend-for-frontend');
+    expect(page).toContain('`invalid_grant`');
+    expect(page).toContain('names another person');
+    expect(repoText(`${BFF}/services/session-policy.ts`)).toMatch(
+      /error\.code === 'invalid_grant' \|\| error\.code === 'invalid_id_token'/u,
+    );
+  });
+});

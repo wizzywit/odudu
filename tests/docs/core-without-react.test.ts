@@ -1,5 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { REPO_ROOT } from './markdown.js';
 
@@ -133,5 +135,64 @@ describe('the guide to the core without React', () => {
       expect(page()).toContain(`github.com/wizzywit/odudu/tree/main/examples/${example}`);
       expect(existsSync(path.join(REPO_ROOT, 'examples', example, 'README.md'))).toBe(true);
     }
+  });
+});
+
+describe('the guide to the core without React, read as code and as names', () => {
+  it('type-checks every sketch against the package source', () => {
+    const sketches = blocks().filter(
+      (block) => block.lang === 'ts' && block.before.startsWith('A sketch, not taken'),
+    );
+    expect(sketches.length).toBeGreaterThan(0);
+    const dir = mkdtempSync(path.join(tmpdir(), 'sketch-'));
+    try {
+      const files = sketches.map((block, index) => {
+        const file = path.join(dir, `sketch${String(index)}.ts`);
+        writeFileSync(file, `${block.value}\nexport {};\n`);
+        return file;
+      });
+      const oidc = path.join(REPO_ROOT, 'sdks/oidc');
+      const program = ts.createProgram(files, {
+        noEmit: true,
+        strict: true,
+        skipLibCheck: true,
+        target: ts.ScriptTarget.ES2022,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        lib: ['lib.es2022.d.ts', 'lib.dom.d.ts'],
+        types: [],
+        paths: {
+          '@odudu-io/oidc': [path.join(oidc, 'src/index.ts')],
+          '#/*': [path.join(oidc, 'src/*')],
+        },
+      });
+      const problems = ts
+        .getPreEmitDiagnostics(program)
+        .filter((diagnostic) => diagnostic.file?.fileName.startsWith(dir) === true)
+        .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'));
+      expect(problems).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('backticks only identifiers the package exports, its types spell, or an error code', () => {
+    const words = (text: string): string[] =>
+      [...text.matchAll(/\b[A-Za-z]\w*\b/gu)].map((m) => m[0]);
+    const known = new Set([
+      ...exported(),
+      ...codes(),
+      ...words(repoText(`${OIDC}/index.ts`)),
+      ...words(repoText(`${OIDC}/types.ts`)),
+      'sessionStorage',
+      'Authorization',
+      'OpenID',
+    ]);
+    const prose = page().replace(/```[\s\S]*?```/gu, '');
+    const named = [...prose.matchAll(/`([A-Za-z][A-Za-z0-9]*)`/gu)]
+      .map((match) => match[1] ?? '')
+      .filter((word) => /[a-z][A-Z]|^[A-Z][a-z]/u.test(word));
+    expect(named.length).toBeGreaterThan(10);
+    expect(named.filter((word) => !known.has(word))).toEqual([]);
   });
 });

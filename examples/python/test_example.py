@@ -17,7 +17,7 @@ def token_for_reports(scope: str | None) -> str:
     return admin.client_credentials("example-m2m", "example-m2m-secret", scope=scope)
 
 
-def test_the_script_makes_a_client_reads_it_back_and_deletes_it(
+def test_the_script_makes_a_client_then_reads_it_back_and_deletes_it(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     before = admin.count_clients()

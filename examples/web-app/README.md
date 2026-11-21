@@ -8,7 +8,7 @@ This is a web app with a server that signs a person in with Odudu. The server ke
 2. The app makes a one-time proof (PKCE), a `state` and a `nonce`, keeps them in a session, and sends the person's browser to Odudu.
 3. The person signs in on Odudu's page. The app never sees the password.
 4. Odudu sends the browser back with a code. The app checks that `state` is the one it sent and that the answer came from the tenant it started with, then swaps the code for tokens. It checks the ID token's issuer, audience, `azp`, expiry and `nonce`; it does not check the signature, because the token comes straight from the token endpoint over TLS, which OpenID Connect Core section 3.1.3.7 accepts in place of a signature check.
-5. The app shows who signed in. **Sign out** ends the session in the app, then sends the browser to Odudu's end-session address with the ID token as a hint. Odudu asks the person to confirm on its own page, whatever the hint, and then signs them out there too and sends the browser back to the app.
+5. The app shows who signed in. **Sign out** ends the session in the app, then sends the browser to Odudu's end-session address with the ID token as a hint. Odudu asks the person to confirm on its own page (by default, whatever the hint) and then signs them out there too and sends the browser back to the app.
 
 This app keeps its own session on the server and renders pages from it, so it uses the SDK's core and not the backend for frontend, which is for apps whose browser code reads a JSON session. [`../next`](../next) shows the backend for frontend.
 

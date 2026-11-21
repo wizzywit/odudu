@@ -22,11 +22,13 @@ The `examples/` folder of the repository holds nine small, finished apps that us
 
 ## What an example needs
 
-You need Node 24 or later (Python 3.10 or later for `python`), Docker, and the stack from the [quick start](../quick-start/index.mdx) running. Every example signs in to the tenant `demo` of that stack, so run `examples/_shared/provision.sh` from this repository once, from the folder that holds the quick start's `compose.yaml`. It makes the tenant's clients, the services and the people `ada` and `ben` that the examples share, and it is safe to run twice. The client secrets in it are published in the repository, for a stack on your own machine; a real service reads its secret from the environment of the machine it runs on.
+You need Node 24 or later (Python 3.10 or later for `python`), Docker, and the stack from the [quick start](../quick-start/index.mdx) running. Every example signs in to the tenant `demo` of that stack, so run `examples/_shared/provision.sh` from this repository once, from the folder that holds the quick start's `compose.yaml`. It makes the tenant's clients, the services and the people `ada` and `ben` that the examples share, and it is safe to run twice. Set `ODUDU_BASE` when you run it if the stack is not on port 3000, because it sets the audience of the `admin` example's sign-in client from it. A second run does not repair a client made by an older version of the script or made without `--capability`; reset the stack for that. The client secrets in it are published in the repository, for a stack on your own machine; a real service reads its secret from the environment of the machine it runs on.
 
-The SDKs are not on npm or PyPI yet, so an example installs them from this repository. `examples/_shared/install.sh` builds the SDKs you name, packs them and installs the packed files beside the example's other dependencies, leaving its `package.json` unchanged; it needs `pnpm install` run once at the repository root. `examples/_shared/install-python.sh` makes a virtual environment and installs the `odudu` package from a wheel it builds. Each section below shows the commands for its example. Once the SDKs are published, `npm install` is all a copied Node folder needs.
+The SDKs are not on npm or PyPI yet, so an example installs them from this repository. `examples/_shared/install.sh` builds the SDKs you name, packs them and installs the packed files beside the example's other dependencies, leaving its `package.json` unchanged; it needs `pnpm install` run once at the repository root, and you name every SDK that one you name depends on too. `examples/_shared/install-python.sh` makes a virtual environment and installs the `odudu` package from a wheel it builds. Each section below shows the commands for its example. Once the SDKs are published, `npm install` is nearly all a copied Node folder needs: `mcp` also needs the two packages its test uses, and the `react-bff` test needs its own Playwright.
 
-Each example reads the stack's address from `ODUDU_BASE` (default `http://localhost:3000`) and the tenant from `TENANT`. The examples that sign a person in at a page (`web-app`, `single-page-app`, `react-bff` and `admin`) drive a browser in their test, with the Playwright of this repository.
+Each example reads the stack's address from `ODUDU_BASE` (default `http://localhost:3000`) and the tenant from `TENANT`; `single-page-app` reads `VITE_ODUDU_BASE` and `VITE_TENANT` instead. By hand, `npm start` listens on port 8081 for `web-app`, 8082 for `api`, 8083 for `react-bff` (its small API on 8093), 8084 for `single-page-app` and 8085 for `next`; `admin` listens on 8086 while a person signs in, and the Python API runs on 8087 when started as its README shows. The examples that sign a person in at a page (`web-app`, `single-page-app`, `react-bff` and `admin`) drive a browser in their test, with the Playwright of this repository.
+
+The examples talk to your stack over plain http, so they set `allowInsecureRequests` (`allowInsecureIssuers` in the API, `allow_insecure_issuers` in Python). A real app serves over https and never sets them. The two sign-in examples, `web-app` and `single-page-app`, do not check the ID token's signature: it arrives straight from the token endpoint over TLS, which OpenID Connect Core section 3.1.3.7 accepts in place of a check. An ID token that reaches you any other way needs its signature checked.
 
 Below, each excerpt is copied from the file its caption names, and the list of tests is the list of titles in the test file.
 
@@ -65,7 +67,9 @@ From `examples/web-app/app.ts`:
 From `examples/web-app/app.ts`:
 
 ```ts
-    completeSignIn(url.href, pending, deps, { auth: { secret: SECRET } }).then(
+// Checks state, the issuer, the code's PKCE proof and the ID token's issuer, audience,
+// expiry and nonce. The signature is not checked.
+completeSignIn(url.href, pending, deps, { auth: { secret: SECRET } }).then(
 ```
 
 Its test file `test.ts` drives a browser through the sign-in, through each check with a deliberately altered request, and through the sign-out:
@@ -111,7 +115,8 @@ const stored = sessionStorage.getItem(PENDING);
 // A callback can be used once: the record it needs is gone after the first.
 sessionStorage.removeItem(PENDING);
 if (stored === null) throw new Error('No sign-in is under way');
-// Checks the state and the issuer, exchanges the code and validates the ID token.
+// Checks the state and the issuer, exchanges the code and checks the ID token's issuer,
+// audience, expiry and nonce, not its signature.
 return completeSignIn(location.href, JSON.parse(stored) as Pending, deps);
 ```
 
@@ -172,6 +177,8 @@ Its test file `test.ts` builds the page, starts the server and drives a browser 
 - signs a person in, shows their claims and holds no token the page can read
 - signs out of the app and of Odudu
 
+The server keeps its sessions in the memory of one process, so several processes need a `store` of their own, and the session cookie is `Secure`, which Chrome accepts on `localhost` and Safari may not.
+
 [Open `react-bff` on GitHub](https://github.com/wizzywit/odudu/tree/main/examples/react-bff).
 
 ## `next`
@@ -210,6 +217,8 @@ Its test file `test.ts` builds the app, starts it and signs a person in with pla
 - sends a request for a protected page without a session to sign in
 - does not send the person to a returnTo on another site
 
+The sessions live in the memory of one process, and the `Secure` cookie may be refused by Safari on `localhost`. The `offline_access` scope in the excerpt is not what gets a refresh token: the client's `refresh_token` grant is. The scope makes the grant independent of the sign-in session, so the session no longer bounds it.
+
 [Open `next` on GitHub](https://github.com/wizzywit/odudu/tree/main/examples/next).
 
 ## `api`
@@ -225,6 +234,9 @@ npm test
 From `examples/api/server.ts`:
 
 ```ts
+// Checks the signature against the tenant's published keys, the issuer, the
+// audience, the token type (which keeps an ID token out) and the expiry.
+// `allowInsecureIssuers` lets it trust an http issuer; never set it in production.
 const verifier = createVerifier({
   issuers: [ISSUER],
   audience: AUDIENCE,
@@ -235,6 +247,8 @@ const verifier = createVerifier({
 From `examples/api/server.ts`:
 
 ```ts
+// A valid token without the scope is a 403, because the caller is known and
+// not allowed; a 401 means the token itself is not trusted.
 const reports = withToken(
   verifier,
   (_request, response, token) => {
@@ -272,6 +286,10 @@ The second install line is for the test, which starts the `api` example itself.
 From `examples/machine-to-machine/client.ts`:
 
 ```ts
+// Gives the token it holds until it is nearly expired, then asks again with the
+// credentials the service already has. Calls that arrive together share one
+// request. `allowInsecureRequests` lets it talk to an http issuer; never set it
+// in production.
 const token = createTokenSource(
   {
     issuer: `${BASE}/tenants/${process.env.TENANT ?? 'demo'}`,
@@ -306,6 +324,8 @@ npm test
 From `examples/admin/admin.ts`:
 
 ```ts
+// The service signs in as itself. The admin API is its own audience, and what
+// the service may do there is the admin capabilities its account holds.
 const admin = createAdminClient({
   baseUrl: BASE,
   tenant: TENANT,
@@ -349,6 +369,8 @@ cd examples/python
 From `examples/python/app.py`:
 
 ```python
+# Odudu names the tenant itself as the audience unless a client says otherwise. RFC 9068
+# wants it to name this API: register the audience on the client and pass it here.
 verifier = AsyncVerifier(
     [ISSUER], os.environ.get("API_AUDIENCE", ISSUER), allow_insecure_issuers=True
 )
@@ -357,6 +379,8 @@ verifier = AsyncVerifier(
 From `examples/python/app.py`:
 
 ```python
+# A valid token without the scope is a 403, because the caller is known and not allowed; a 401
+# means the token itself is not trusted.
 @app.get("/reports")
 async def reports(
     token: VerifiedToken = Depends(require_token(verifier, scope="reports:read")),  # noqa: B008
@@ -366,7 +390,7 @@ async def reports(
 
 Its test file `test_example.py` runs the script and calls the API through FastAPI's test client with tokens from your stack:
 
-- the script makes a client reads it back and deletes it
+- the script makes a client then reads it back and deletes it
 - a client left by a crashed run is removed first
 - a request without a token is refused with a challenge
 - a token with the scope is let through

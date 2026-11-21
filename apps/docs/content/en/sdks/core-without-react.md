@@ -87,7 +87,8 @@ const stored = sessionStorage.getItem(PENDING);
 // A callback can be used once: the record it needs is gone after the first.
 sessionStorage.removeItem(PENDING);
 if (stored === null) throw new Error('No sign-in is under way');
-// Checks the state and the issuer, exchanges the code and validates the ID token.
+// Checks the state and the issuer, exchanges the code and checks the ID token's issuer,
+// audience, expiry and nonce, not its signature.
 return completeSignIn(location.href, JSON.parse(stored) as Pending, deps);
 ```
 
@@ -96,7 +97,9 @@ A confidential client passes its secret, or a private key, as the last argument:
 From `examples/web-app/app.ts`:
 
 ```ts
-    completeSignIn(url.href, pending, deps, { auth: { secret: SECRET } }).then(
+// Checks state, the issuer, the code's PKCE proof and the ID token's issuer, audience,
+// expiry and nonce. The signature is not checked.
+completeSignIn(url.href, pending, deps, { auth: { secret: SECRET } }).then(
 ```
 
 `completeSignIn` checks that the redirect arrived at the redirect address, that `state` is the one sent, that the `iss` parameter names the issuer you used, and that the code exchange carries the PKCE verifier. It then checks the ID token's issuer, audience, `azp`, expiry and `nonce`. Hold the result and read the person from `tokens.claims`; [the package page](./oidc.md#security-notes) lists each check.
@@ -126,12 +129,12 @@ import { refresh, type TokenSet } from '@odudu-io/oidc';
 
 // Keep what refresh returns: a rotated refresh token replaces the old one.
 async function fresh(tokens: TokenSet): Promise<TokenSet> {
-  const expiresAt = tokens.byAudience[tokens.issuer]?.expiresAt ?? 0;
+  const expiresAt = Math.min(...Object.values(tokens.byAudience).map((token) => token.expiresAt));
   return expiresAt - Date.now() < 30_000 ? refresh(tokens) : tokens;
 }
 ```
 
-Refresh tokens rotate, and the server treats a spent one as a replay and revokes the grant. So keep the `TokenSet` that `refresh` returns and drop the one you passed in. Concurrent calls that hold the same refresh token share one request, and the refreshes of one grant run one at a time. If a refresh fails in a way that may have spent the token, such as a lost connection, the calls waiting behind it reject with the same code instead of presenting a token that may be spent. Use the tokens the last successful refresh returned, or sign in again. A confidential client passes `{ auth }` to `refresh` as it does to `completeSignIn`.
+Refresh tokens rotate, and the server treats a spent one as a replay and revokes the grant. So keep the `TokenSet` that `refresh` returns and drop the one you passed in. Without `resource`, a refresh keeps only the audiences the new access token names and removes the others, so a later request for one of them rejects with `audience_not_granted`. A refresh answer without `expires_in` is read as living 60 seconds. Concurrent calls that hold the same refresh token share one request, and the refreshes of one grant run one at a time. If a refresh fails in a way that may have spent the token, such as a lost connection, the calls waiting behind it reject with the same code instead of presenting a token that may be spent. Use the tokens the last successful refresh returned, or sign in again. A confidential client passes `{ auth }` to `refresh` as it does to `completeSignIn`.
 
 ## Ask for another audience
 
@@ -157,7 +160,7 @@ Finish it with `completeSignIn` as before. The token set that comes back is file
 
 ## Sign out
 
-`signOutUrl` builds the address that ends the person's session at Odudu, with your ID token as a hint and the post-logout redirect address, which must be registered for the client. Forget the tokens first, then send the browser there. Odudu asks the person to confirm on its own page, whatever the hint, and then sends the browser back.
+`signOutUrl` builds the address that ends the person's session at Odudu, with your ID token as a hint and the post-logout redirect address, which must be registered for the client. Forget the tokens first, then send the browser there. By default Odudu asks the person to confirm on its own page, whatever the hint, and then sends the browser back.
 
 From `examples/web-app/app.ts`:
 
@@ -172,17 +175,17 @@ From `examples/web-app/app.ts`:
 
 Every function rejects with an `OduduError`, whose `code` comes from a closed set. The ones you meet in this flow:
 
-| Code                   | You see it when                                                                                  |
-| ---------------------- | ------------------------------------------------------------------------------------------------ |
-| `invalid_options`      | An option is missing or contradicts another, or `refresh` has no refresh token to use.           |
-| `discovery_failed`     | The issuer's metadata could not be read or names another issuer.                                 |
-| `invalid_callback`     | The address you passed is not a URL, did not arrive at the redirect address, or carries no code. |
-| `invalid_state`        | The answer carries no `state`, or one other than the sign-in sent.                               |
-| `invalid_issuer`       | The answer's `iss` parameter is missing or names another issuer.                                 |
-| `invalid_id_token`     | The ID token is missing or refused.                                                              |
-| `invalid_grant`        | The server refused the code or the refresh token, for example one already used.                  |
-| `request_failed`       | A request did not complete, or an answer was unusable.                                           |
-| `audience_not_granted` | A refresh named an audience the sign-in does not carry.                                          |
+| Code                   | You see it when                                                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `invalid_options`      | An option is missing or contradicts another, or `refresh` has no refresh token to use.                               |
+| `discovery_failed`     | The issuer's metadata could not be read or names another issuer, or `signOutUrl` finds no https end-session address. |
+| `invalid_callback`     | The address you passed is not a URL, did not arrive at the redirect address, or carries no code.                     |
+| `invalid_state`        | The answer carries no `state`, or one other than the sign-in sent.                                                   |
+| `invalid_issuer`       | The answer's `iss` parameter is missing or names another issuer.                                                     |
+| `invalid_id_token`     | The ID token is missing or refused, or a refreshed one names another subject.                                        |
+| `invalid_grant`        | The server refused the code or the refresh token, for example one already used.                                      |
+| `request_failed`       | A request did not complete, or an answer was unusable.                                                               |
+| `audience_not_granted` | A refresh named an audience the sign-in does not carry.                                                              |
 
 The [package page](./oidc.md#errors) has the full list. Log the code and the message and show the person a short, fixed sentence: the values a check compared hold the code and the state.
 
