@@ -9,6 +9,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Every request the core makes (metadata, token endpoint) is cut off after 30 seconds.
 - `clientCredentials` signs a service in as itself with a client secret (`client_secret_basic`) or a private key (`private_key_jwt`, valid for 120 seconds, signed with ES256, RS256 or the algorithm you name), and returns the access token, its expiry and its scope.
 - `createTokenSource` returns a function that gives a valid access token for a service, asking the server again 30 seconds before the held one expires (`skewMs` changes that). Concurrent calls share one request, a failed request rejects all of them and the next call tries again, and it holds no timer. A token that lives less than twice the skew is renewed after half its lifetime, and a response whose `expires_in` is missing, not a number, zero or negative is taken to live 60 seconds.
 - `refresh` renews the access tokens of a sign-in. Concurrent calls with the same refresh token make one request (a call naming another audience waits and continues with the rotated token), a rotated refresh token replaces the old one in the result, and a refused refresh rejects every caller with the same error.

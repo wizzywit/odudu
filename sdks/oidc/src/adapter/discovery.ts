@@ -20,12 +20,18 @@ function throughFetch(fetcher: typeof fetch): CustomFetch {
     });
 }
 
+// The longest any one request may take, headers and body together. A refresh
+// holds a lock in a shared session store for a bounded time because of it.
+export const REQUEST_TIMEOUT_MS = 30_000;
+
 // The options every oauth4webapi request here takes.
 export function requestOptions(deps: Deps): {
+  signal: () => AbortSignal;
   [oauth.customFetch]?: CustomFetch;
   [oauth.allowInsecureRequests]?: boolean;
 } {
   return {
+    signal: () => AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     ...(deps.fetch === undefined ? {} : { [oauth.customFetch]: throughFetch(deps.fetch) }),
     ...(deps.allowInsecureRequests === true ? { [oauth.allowInsecureRequests]: true } : {}),
   };
