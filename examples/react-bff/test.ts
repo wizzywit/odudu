@@ -1,5 +1,6 @@
 // Builds the page, starts the server and tests them through a real browser:
 // signed out at first, the sign-in at Odudu's own page, the claims on screen,
+// a call through the BFF's proxy that the server signs with the access token,
 // no token in what the page can read, and the sign-out.
 // Needs a stack provisioned by ../_shared/provision.sh.
 import assert from 'node:assert/strict';
@@ -58,6 +59,10 @@ test(
       });
       assert.equal(JSON.parse(session).authenticated, true);
       assert.doesNotMatch(session, /eyJ[\w-]+\.[\w-]+\./u);
+
+      await page.getByRole('button', { name: /call the api/i }).click();
+      await page.locator('text=API says: {"authenticated":true}').waitFor();
+      assert.doesNotMatch(await page.innerText('body'), /eyJ[\w-]+\.[\w-]+\.|Bearer/u);
 
       const stored = await page.evaluate(async () =>
         JSON.stringify([
