@@ -25,6 +25,24 @@ function source(extra: { skewMs?: number } = {}): () => Promise<string> {
 }
 
 describe('createTokenSource', () => {
+  it.each([-10_000, -Infinity, Infinity, NaN])('refuses skewMs %s when it is made', (skewMs) => {
+    expect(() => source({ skewMs })).toThrow(OduduError);
+    try {
+      source({ skewMs });
+    } catch (error) {
+      expect((error as OduduError).code).toBe('invalid_options');
+    }
+  });
+
+  it('accepts a skewMs of zero, which renews only at expiry', async () => {
+    fake.expiresIn = 100;
+    const get = source({ skewMs: 0 });
+    await get();
+    clock += 49_000;
+    await get();
+    expect(fake.clientCredentialsGrants).toBe(1);
+  });
+
   it('rejects with invalid_client when the server refuses the secret with a challenge', async () => {
     fake.tokenChallenge = true;
     fake.tokenError = { error: 'invalid_client' };

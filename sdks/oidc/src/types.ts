@@ -111,13 +111,31 @@ export interface TokenSet {
   claims: IdTokenClaims;
 }
 
-// A private key in JWK form (RFC 7517). Any JWK object fits, including the
-// result of `crypto.subtle.exportKey('jwk', key)`.
-export interface PrivateKeyJwk {
+// The members of a JWK a signing key carries (RFC 7517, RFC 7518).
+interface JwkMembers {
   kty?: string;
   crv?: string;
-  [member: string]: unknown;
+  alg?: string;
+  kid?: string;
+  use?: string;
+  key_ops?: string[];
+  ext?: boolean;
+  d?: string;
+  x?: string;
+  y?: string;
+  n?: string;
+  e?: string;
+  p?: string;
+  q?: string;
+  dp?: string;
+  dq?: string;
+  qi?: string;
 }
+
+// A private key in JWK form. Any JWK object fits: the named members take the
+// result of `crypto.subtle.exportKey('jwk', key)`, which is an interface with
+// no index signature, and the open form takes a plain object with more.
+export type PrivateKeyJwk = JwkMembers | { kty?: string; crv?: string; [member: string]: unknown };
 
 // How a service proves who it is to the token endpoint. A secret is sent as
 // `client_secret_basic`; a private key signs a `private_key_jwt` assertion.
@@ -135,6 +153,7 @@ export interface ClientCredentialsOptions {
 }
 
 export interface TokenSourceOptions extends ClientCredentialsOptions {
-  // How long before expiry a token is replaced; 30 seconds when omitted.
+  // How long before expiry a token is replaced, a finite number of milliseconds
+  // of zero or more; 30 seconds when omitted.
   skewMs?: number;
 }

@@ -22,6 +22,8 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `createTokenSource` rejects a `skewMs` that is negative or not finite with `invalid_options` when it is made; a negative one kept a token past its expiry.
+- `PrivateKeyJwk` accepts the key `crypto.subtle.exportKey('jwk', key)` returns without a cast.
 - `refresh` rejects with `audience_not_granted` a `resource` the sign-in did not carry before it sends anything, as its documentation said.
 - `refresh` without a `resource` renews only the audiences a JWT access token names (the server leaves out one a registration policy has taken away) and keeps the entry of the others; an opaque token renews them all.
 - `expiresAt` is counted from before the token request is sent in `clientCredentials`, `completeSignIn` and `refresh`, so a slow response no longer lengthens a token's life.

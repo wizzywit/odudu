@@ -1,4 +1,14 @@
+import { OduduError } from '#/services/odudu-error';
 import type { AudienceToken } from '#/types';
+
+// A negative skew would keep a token past its expiry, and an infinite or
+// missing one has no meaning.
+export function checkSkew(skewMs: number): number {
+  if (!Number.isFinite(skewMs) || skewMs < 0) {
+    throw new OduduError('invalid_options', 'skewMs must be a finite number, zero or more');
+  }
+  return skewMs;
+}
 
 // Holds one token and gives it until `skewMs` before it expires, or until half
 // its lifetime is gone when that is sooner: a token shorter than the skew is

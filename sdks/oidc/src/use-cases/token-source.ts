@@ -1,4 +1,4 @@
-import { tokenRenewer } from '#/services/token-renewer';
+import { checkSkew, tokenRenewer } from '#/services/token-renewer';
 import { clientCredentials } from '#/use-cases/client-credentials';
 import type { Deps, TokenSourceOptions } from '#/types';
 
@@ -12,5 +12,9 @@ export function createTokenSource(
   deps: Deps = {},
 ): () => Promise<string> {
   const { skewMs = DEFAULT_SKEW_MS, ...grant } = options;
-  return tokenRenewer(() => clientCredentials(grant, deps), deps.now ?? Date.now, skewMs);
+  return tokenRenewer(
+    () => clientCredentials(grant, deps),
+    deps.now ?? Date.now,
+    checkSkew(skewMs),
+  );
 }
