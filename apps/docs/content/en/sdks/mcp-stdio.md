@@ -72,7 +72,7 @@ Give the key once: `ODUDU_MCP_KEY` or `--key-file`, not both. An argument that i
 
 ## Errors
 
-A failure is one line on standard error that starts with `odudu mcp:` and exit status 1. The line names what to change and never carries a token, a key or a response body. A failure that is not one of the command's own refusals is shortened and has query strings and long runs of token characters taken out. Standard output carries the protocol and nothing else.
+A failure is one line on standard error that starts with the name of the command you ran, `odudu-mcp:` for this package and `odudu mcp:` for the server's command, and exit status 1. The commands it tells you to type, such as `--logout`, carry the same name. The line names what to change and never carries a token, a key or a response body. A failure that is not one of the command's own refusals is shortened and has query strings and long runs of token characters taken out. Standard output carries the protocol and nothing else.
 
 A tool call that Odudu refuses comes back to the client as a tool result that names the refusal. With `--allow-writes` the command counts the changes a run makes: a call over the allowance is not made and the client is told `mcp:write_budget`. The tools, their scopes and the allowance are described in [Connect Claude](../guides/connect-claude.md).
 

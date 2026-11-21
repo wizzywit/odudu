@@ -14,6 +14,7 @@ import { callMcpTool } from '#/use-cases/call-mcp-tool';
 import { loopbackLogin } from '#/use-cases/loopback-login';
 import { createTokenSource, type Credential } from '#/use-cases/token-source';
 import { generateClientKey, loadClientKey, type ClientKey } from '#/services/client-key';
+import { nameCommand } from '#/services/command-name';
 import { failureLine } from '#/services/failure-line';
 import { checkedArguments, requiredTarget, type McpValues } from '#/services/mcp-options';
 import type { McpIo } from '#/services/mcp-io';
@@ -315,7 +316,14 @@ async function signsInAtSystemTenant(
 // authenticated as a service account (a key from the environment) or as a
 // person (a sign-in in their browser, kept in the operating system's store).
 // Every failure is one line on standard error and exit status 1.
-export async function runMcp(io: McpIo, argv: readonly string[]): Promise<number> {
+export async function runMcp(caller: McpIo, argv: readonly string[]): Promise<number> {
+  const command = caller.command ?? 'odudu mcp';
+  const io: McpIo = {
+    ...caller,
+    stderr: (line) => {
+      caller.stderr(nameCommand(line, command));
+    },
+  };
   try {
     const values = checkedArguments(argv);
     if (values.keygen === true) keygen(io);

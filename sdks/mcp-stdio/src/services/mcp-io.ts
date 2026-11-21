@@ -14,5 +14,9 @@ export interface McpIo {
   readonly fetch: typeof fetch;
   readonly now: () => Date;
   readonly entropy: (bytes: number) => Uint8Array;
+  // How the person ran the command, for the failure lines and the commands the
+  // messages tell them to type: `odudu-mcp` for the package's command, `odudu mcp`
+  // for the server's. `odudu mcp` when omitted.
+  readonly command?: string;
   readonly openBrowser?: (url: string) => Promise<boolean>;
 }

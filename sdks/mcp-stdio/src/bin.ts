@@ -8,4 +8,4 @@ if (argv[0] === '--help' || argv[0] === '-h') {
   process.stdout.write(`${usageText()}\n`);
   process.exit(0);
 }
-process.exit(await runMcp(processMcpIo(), argv));
+process.exit(await runMcp({ ...processMcpIo(), command: 'odudu-mcp' }, argv));

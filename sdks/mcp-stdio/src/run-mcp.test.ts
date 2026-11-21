@@ -92,6 +92,7 @@ async function run(
     input?: unknown[];
     fetch?: typeof fetch;
     configDir?: string;
+    command?: string;
   } = {},
 ): Promise<Run> {
   const stdin = new PassThrough();
@@ -113,6 +114,7 @@ async function run(
     fetch: options.fetch ?? authority().fetch,
     now: () => new Date(),
     entropy: (bytes) => Uint8Array.from({ length: bytes }, (_, i) => (i * 7 + 3) % 251),
+    ...(options.command === undefined ? {} : { command: options.command }),
   };
   const done = runMcp(io, argv);
   const input = options.input ?? [];
@@ -167,6 +169,16 @@ describe('the odudu-mcp command: what it needs to start', () => {
     expect(r.code).toBe(1);
     expect(r.stderr).toHaveLength(1);
     expect(r.stderr[0]).not.toContain('SECRET');
+  });
+
+  it('names the command the caller runs, in its failure line and in what it tells you to type', async () => {
+    const bad = { env: { ODUDU_MCP_KEY: 'not-a-key' } };
+    const server = await run(KEY_ARGS, { ...bad, command: 'odudu mcp' });
+    expect(server.stderr[0]).toMatch(/^odudu mcp: .*odudu mcp --keygen/u);
+    const bin = await run(KEY_ARGS, { ...bad, command: 'odudu-mcp' });
+    expect(bin.stderr[0]).toMatch(/^odudu-mcp: .*odudu-mcp --keygen/u);
+    expect(bin.stderr[0]).not.toContain('odudu mcp');
+    expect((await run(KEY_ARGS, bad)).stderr[0]).toMatch(/^odudu mcp: /u);
   });
 
   it('refuses a key in both the environment and a file, and a file others can read', async () => {
@@ -260,5 +272,23 @@ describe('the odudu-mcp command --keygen and --logout', () => {
     expect(r.stdout).toBe('');
     expect(r.stderr).toEqual([`odudu mcp: signed out of ${ISSUER}`]);
     expect(await readdir(configDir)).toHaveLength(0);
+  });
+
+  it('says it was run as odudu-mcp when the caller says so', async () => {
+    const configDir = join(await mkdtemp(join(tmpdir(), 'odudu-config-')), 'odudu', 'mcp');
+    await mkdir(configDir, { recursive: true, mode: 0o700 });
+    await createCredentialStore({
+      account: ISSUER,
+      directory: configDir,
+      platform: 'linux',
+      run: () => Promise.resolve({ kind: 'missing' }),
+      warn: () => undefined,
+    }).put('rt-acme');
+    const r = await run(['--base-url', BASE, '--tenant', 'acme', '--logout'], {
+      configDir,
+      fetch: () => Promise.reject(new Error('no network')),
+      command: 'odudu-mcp',
+    });
+    expect(r.stderr).toEqual([`odudu-mcp: signed out of ${ISSUER}`]);
   });
 });
