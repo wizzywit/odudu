@@ -613,6 +613,52 @@ access-control-expose-headers: WWW-Authenticate, Retry-After
 retry-after: 9
 ```
 
+## The description of the API
+
+An OpenAPI 3.1 description of these routes is served at `/me/openapi.json`, with no token and no tenant in the path, since it describes the API rather than reaching into a tenant. It is generated from the same route table the API registers from, and `@odudu-io/me-client` is generated from it. Like `/admin/openapi.json`, it is readable from any origin. This section needs only a running server, so it depends on nothing the page did before it.
+
+```bash
+curl -sS -D - -o me-openapi.json http://localhost:3000/me/openapi.json
+jq '.paths | length' me-openapi.json
+wc -c < me-openapi.json | tr -d ' '
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1fc76-d932-7669-9c1b-6cd5f05e4180
+access-control-allow-origin: *
+content-type: application/json; charset=utf-8
+content-length: 29734
+Date: Sat, 21 Nov 2026 04:56:49 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+7
+29734
+```
+
+Seven paths: the four reads, and the routes of one credential, one session and one consent. `/me/openapi.json` is not among them: the document does not describe itself. Its first bytes, and the scheme it declares:
+
+```bash
+head -c 150 me-openapi.json; echo
+jq -c '.components.securitySchemes' me-openapi.json
+jq -r '.paths | keys[]' me-openapi.json
+```
+
+```
+{"openapi":"3.1.0","info":{"title":"Odudu me API","version":"0.0.0"},"security":[{"bearerAuth":[]}],"paths":{"/tenants/{tenant}/me/profile":{"get":{"s
+{"bearerAuth":{"type":"http","scheme":"bearer","bearerFormat":"JWT","description":"An access token whose \"aud\" claim is the tenant’s `/me` URL, with the scope the operation names. A token minted for another audience is refused with 401."}}
+/tenants/{tenant}/me/consents
+/tenants/{tenant}/me/consents/{client_id}
+/tenants/{tenant}/me/credentials
+/tenants/{tenant}/me/credentials/{id}
+/tenants/{tenant}/me/profile
+/tenants/{tenant}/me/sessions
+/tenants/{tenant}/me/sessions/{id}
+```
+
+The paths name the tenant as a parameter, so one document serves every tenant; at a tenant's own domain the same routes are at `/me/...`, as above.
+
 What this page does not show: the API at a tenant's own domain (the path is `/me/profile` there, and a token for the path
 address names the path address's me URL), and the end of a session or a grant, which a token already issued outlives until it
 expires on a read. What a person changes through the API is on [The me API: changes](./the-me-api-changes.md).
