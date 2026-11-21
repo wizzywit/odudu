@@ -358,6 +358,11 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      # The server's MCP code imports the SDK's source, which imports the
+      # oidc package's built output.
+      - name: Build the oidc SDK
+        run: pnpm --filter @odudu-io/oidc... run build
+
       - name: Check the query plans at volume
         run: pnpm test:plans
 
@@ -659,6 +664,11 @@ jobs:
         with:
           package: '@odudu/docs'
 
+      # The server's MCP code imports the SDK's source, which imports the
+      # oidc package's built output.
+      - name: Build the oidc SDK
+        run: pnpm --filter @odudu-io/oidc... run build
+
       - name: Build the Pages target
         timeout-minutes: 5
         run: pnpm --filter @odudu/docs build:pages
@@ -779,6 +789,11 @@ jobs:
           python-version: |
             3.10
             3.13
+
+      # The server's MCP code imports the SDK's source, which imports the
+      # oidc package's built output.
+      - name: Build the oidc SDK
+        run: pnpm --filter @odudu-io/oidc... run build
 
       # The OpenAPI documents are generated, not committed; regenerating the
       # clients from fresh ones and finding no diff proves the committed
