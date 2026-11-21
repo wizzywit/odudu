@@ -205,14 +205,27 @@ until a release has used it, and the two that the pages leave open are marked.
    one),** publish `0.1.0` once from your machine with
    `npm publish --access public` and two-factor authentication, then configure
    trusted publishing for the later versions. That first version would have no
-   provenance statement (inferred, not observed). Check before you publish,
-   because npm never lets a published version be replaced: run
-   `pnpm install --frozen-lockfile`, then `npm pack --dry-run` in the package
-   directory and confirm `dist/index.js` and `dist/index.d.ts` are in the file
-   list. The package's `prepack` script runs the build (`dist/` is not
-   committed), so `npm publish` builds it too. `sdks/python` has no
-   `prepack`: build it with `python -m build`, check it with `twine check`, and
-   upload with `twine upload`.
+   provenance statement (inferred, not observed). Publish the tarball the
+   workflow would, not the directory: `bff`, `next`, `react` and `mcp-stdio`
+   depend on `@odudu-io/oidc` as `workspace:*`, which `npm publish` would ship
+   as it stands and `pnpm pack` rewrites to the version. A published version can
+   never be replaced, so check first. For each package, `oidc` first and then
+   the packages that depend on it (the same commands, run per package):
+   1. `pnpm install --frozen-lockfile`, then build the package and what it
+      depends on: `pnpm --filter "./sdks/<name>..." run build`. (`prepack` also
+      builds the package itself, so its `dist/`, which is not committed, is
+      never missing.)
+   2. `cd sdks/<name> && pnpm pack --pack-destination "$TMPDIR/tarball"`.
+   3. Inspect it: `tar -tzf "$TMPDIR"/tarball/*.tgz` must list `dist/index.js`
+      and `dist/index.d.ts`, and
+      `tar -xzOf "$TMPDIR"/tarball/*.tgz package/package.json | grep workspace:`
+      must print nothing.
+   4. `npm publish "$TMPDIR"/tarball/odudu-io-<name>-0.1.0.tgz --access public`,
+      with two-factor authentication.
+
+   `sdks/python` is separate: `python -m build`, `twine check`, then
+   `twine upload`.
+
 4. **PyPI.** The account exists (done). Add a pending publisher for the
    project `odudu`: owner `wizzywit`, repository `odudu`, workflow
    `sdk-release.yml`, environment `sdk-release`. The project does not exist
