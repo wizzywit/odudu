@@ -548,7 +548,7 @@ messages and exit status are unchanged.
   addition; its `private_key_jwt` signing existed but was reachable only through
   `clientCredentials`, which discovers the issuer by OIDC metadata and would
   have replaced the stdio client's own discovery, redirect and body checks).
-  `@odudu-io/oidc` is a `workspace:*` dependency; `pnpm pack` writes its version.
+  `@odudu-io/oidc` is a `workspace:^` dependency; `pnpm pack` writes `^0.1.0`.
 - **One behaviour change.** The assertion lives 120 seconds, not 60: the core's
   lifetime, which leaves room for a client clock that runs behind. The server
   accepts up to 300. `apps/server/src/cli/mcp-assertion.test.ts` signs through
@@ -567,7 +567,7 @@ messages and exit status are unchanged.
 - **verified:** tsup keeps the shebang and sets the executable bit
   (`-rwxr-xr-x dist/bin.js`, first line `#!/usr/bin/env node`), and inlines
   `mcp-tools.json` into the shared chunk, so start-up reads no file of its own.
-  `pnpm pack` writes `"@odudu-io/oidc": "0.1.0"` for `workspace:*`, and npm
+  `pnpm pack` writes `"@odudu-io/oidc": "^0.1.0"` for `workspace:^`, and npm
   installs two local tarballs together without asking the registry for the one
   it was given.
 - **Cost, by ADR 0041.** Unchanged: one JSON parse at start-up (bundled), then
@@ -1100,3 +1100,27 @@ not have, so it is left for the phase that next raises the budget.
 `odudu mcp` as a package, the smaller admin document and the examples, under
 Added and Changed, and the 204 correction under Fixed: version 0.1.0's admin
 document did describe `204` responses as JSON with an empty schema.
+
+## Whole-branch review fixes
+
+The review of the whole branch found four things that would have shipped wrong
+and a group of smaller ones. Each was reproduced by a failing test first.
+
+- A gateway answer from the token endpoint (a 502 page, an empty 429, a body that
+  is not JSON) was labelled `invalid_id_token`, so the BFF ended the session. It
+  is `request_failed` now; `invalid_id_token` stays for a failed ID token check.
+- `completeSignIn` takes `(callbackUrl, pending, options?, deps?)`, as every other
+  entry point puts options before deps.
+- `@odudu-io/mcp-stdio` publishes the `odudu-mcp` command and no import: its
+  root export moved behind the source-only `./internal`, which `apps/server`
+  imports for `odudu mcp`. `publishConfig` replaces `exports` and `imports` in
+  the tarball (verified with `pnpm pack`).
+- SDKs name each other as `workspace:^`, every manifest names the repository,
+  and every publishable package ships a README.
+
+Smaller: the BFF refuses an `http` upstream that is not loopback unless
+`deps.allowInsecureRequests` is set, takes `idTokenAlg`, and reports a failed
+handler through `onError`; React ends a session on the BFF's two codes; both
+verifiers import a key once; the Python fixture tests name why they skip.
+`getSession()` of `@odudu-io/next` does not revalidate with Odudu, and the page
+now says how long a revoked person stays signed in.
