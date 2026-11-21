@@ -11,15 +11,14 @@ interface Chain<T> {
   pending: number;
 }
 
-// Runs the operations of a chain one at a time. A chain starts at the key of
-// its first caller and takes in each key a settled operation names through
+// Runs the operations of a chain one at a time. A chain starts at its first
+// caller's key and takes in each key a settled operation names through
 // `successorKeys`, so a caller holding a value an earlier operation produced
 // joins the same queue. A caller whose tag matches the last operation queued
-// gets its promise, so both settle with the same value or error; any other
-// caller queues behind the tail and starts, handed the latest value that
-// settled well (undefined before one has). A failure leaves that value as it
-// was. A chain is dropped when its last operation settles, so the map is
-// bounded by the operations in flight.
+// shares its promise; any other caller queues behind the tail and starts with
+// the latest value that settled well (undefined before one has): a failure
+// leaves it as it was. A chain is dropped when its last operation settles, so
+// the map is bounded by the operations in flight.
 export class SingleFlight<T> {
   private readonly chains = new Map<string, Chain<T>>();
 
