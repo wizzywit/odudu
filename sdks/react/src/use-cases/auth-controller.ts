@@ -12,6 +12,7 @@ import { restore, type Restored } from '#/repository/restore';
 import { asOduduError, endsSession, LOADING, signedOut, withError } from '#/services/auth-state';
 import { loginUrl } from '#/services/bff';
 import { bffHasNoToken, bffSignInTakesNoChoices, notSignedIn } from '#/services/errors';
+import { checkedMode } from '#/services/bff';
 import { hasChoices } from '#/services/sign-in';
 import type { AuthContextValue, AuthState, BrowserMode, SignInChoices } from '#/types';
 import type { Mode } from '#/types';
@@ -20,7 +21,7 @@ import type { Mode } from '#/types';
 // provider mounts. In browser mode the tokens live in a ref in this closure,
 // so they are in no storage and in no state a component can render.
 export function useAuthController(mode: Mode): AuthContextValue {
-  const [fixed] = useState(mode);
+  const [fixed] = useState(() => checkedMode(mode));
   const [state, setState] = useState<AuthState>(LOADING);
   const tokens = useRef<TokenSet | undefined>(undefined);
   const restoring = useRef<Promise<Restored> | undefined>(undefined);

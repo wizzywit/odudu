@@ -3,10 +3,12 @@ import type { IdTokenClaims, OduduError, SignInAction } from '@odudu-io/oidc';
 export type Claims = IdTokenClaims;
 
 // Tokens stay on a server; the page holds a cookie and asks the BFF who the
-// person is. `baseUrl` is where the BFF's routes are mounted.
+// person is. `baseUrl` is where the BFF's routes are mounted; `proxyPath` is
+// where its proxy is, a path of this origin, `<baseUrl>/proxy` when omitted.
 export interface BffMode {
   kind: 'bff';
   baseUrl: string;
+  proxyPath?: string;
 }
 
 // The page runs the authorization code flow with PKCE and keeps the tokens in

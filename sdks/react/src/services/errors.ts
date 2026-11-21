@@ -27,6 +27,14 @@ export function bffSignInTakesNoChoices(): OduduError {
   );
 }
 
+export function badProxyPath(): OduduError {
+  return new OduduError(
+    'invalid_options',
+    'proxyPath must be a path of this origin such as /bff/proxy: no host, dot segment, ' +
+      'escape or trailing slash',
+  );
+}
+
 export function notSignedIn(): OduduError {
   return new OduduError('login_required', 'there is no signed-in person to get a token for');
 }

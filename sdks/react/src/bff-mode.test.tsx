@@ -117,6 +117,20 @@ describe('bff mode', () => {
     });
   });
 
+  it('calls a custom proxyPath, and refuses a bad one when the provider mounts', async () => {
+    const custom = { kind: 'bff', baseUrl: '/bff', proxyPath: '/api/x/proxy' } as const;
+    const { result } = renderHook(() => ({ auth: useAuth(), call: useBffFetch() }), {
+      wrapper: providerFor(custom),
+    });
+    await waitFor(() => {
+      expect(result.current.auth.status).toBe('signedIn');
+    });
+    await result.current.call('api/items');
+    expect(bff.calls.at(-1)?.url).toBe('http://localhost:3000/api/x/proxy/api/items');
+    const bad = { kind: 'bff', baseUrl: '/bff', proxyPath: 'https://evil.example/p' } as const;
+    expect(() => renderHook(() => useAuth(), { wrapper: providerFor(bad) })).toThrow(OduduError);
+  });
+
   it('a 401 the API itself answers does not sign the UI out', async () => {
     const { result } = renderHook(() => ({ auth: useAuth(), call: useBffFetch() }), {
       wrapper: providerFor(mode),

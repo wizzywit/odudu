@@ -15,8 +15,13 @@ export function requestLogout(baseUrl: string): Promise<Response> {
   });
 }
 
-export function requestProxy(baseUrl: string, path: string, init?: RequestInit): Promise<Response> {
-  return fetch(proxyUrl(baseUrl, path), {
+export function requestProxy(
+  baseUrl: string,
+  path: string,
+  proxyPath: string | undefined,
+  init?: RequestInit,
+): Promise<Response> {
+  return fetch(proxyUrl(baseUrl, path, proxyPath), {
     ...init,
     headers: withBffHeader(init?.headers),
     credentials: 'same-origin',

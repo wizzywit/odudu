@@ -23,7 +23,8 @@ export async function endSession(baseUrl: string): Promise<string | undefined> {
 export function callThroughProxy(
   baseUrl: string,
   path: string,
+  proxyPath: string | undefined,
   init?: RequestInit,
 ): Promise<Response> {
-  return requestProxy(baseUrl, path, init);
+  return requestProxy(baseUrl, path, proxyPath, init);
 }

@@ -1,5 +1,13 @@
+import { OduduError } from '@odudu-io/oidc';
 import { describe, expect, it } from 'vitest';
-import { loginUrl, proxyUrl, redirectOf, sessionStateOf, withBffHeader } from '#/services/bff';
+import {
+  checkedMode,
+  loginUrl,
+  proxyUrl,
+  redirectOf,
+  sessionStateOf,
+  withBffHeader,
+} from '#/services/bff';
 
 describe('bff addresses', () => {
   it('join the base without doubling slashes', () => {
@@ -25,5 +33,38 @@ describe('what /session answers', () => {
   it('reads the address a logout answers with', () => {
     expect(redirectOf({ redirectTo: 'https://i/logout' })).toBe('https://i/logout');
     expect(redirectOf({})).toBeUndefined();
+  });
+});
+
+describe('a custom proxy path', () => {
+  it('is where the proxy is called, in place of <baseUrl>/proxy', () => {
+    expect(proxyUrl('/bff', '/api/items', '/api/x/proxy')).toBe('/api/x/proxy/api/items');
+    expect(proxyUrl('/bff', 'api/items')).toBe('/bff/proxy/api/items');
+  });
+
+  it.each(['/p', '/api/x/proxy', '/a.b/c_d~e-f'])('is accepted as %s', (proxyPath) => {
+    const mode = { kind: 'bff', baseUrl: '/bff', proxyPath } as const;
+    expect(checkedMode(mode)).toBe(mode);
+  });
+
+  it.each([
+    'proxy',
+    '',
+    '/',
+    '//evil.example/p',
+    'https://evil.example/p',
+    '/a/../b',
+    '/a/./b',
+    '/a\\b',
+    '/p/',
+    '/a b',
+    '/a%2fb',
+  ])('is refused as %j', (proxyPath) => {
+    expect(() => checkedMode({ kind: 'bff', baseUrl: '/bff', proxyPath })).toThrow(OduduError);
+  });
+
+  it('leaves a mode with none, and a browser mode, as they are', () => {
+    const mode = { kind: 'bff', baseUrl: '/bff' } as const;
+    expect(checkedMode(mode)).toBe(mode);
   });
 });

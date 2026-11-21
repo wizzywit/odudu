@@ -1,4 +1,5 @@
-import type { AuthState, Claims } from '#/types';
+import { badProxyPath } from '#/services/errors';
+import type { AuthState, Claims, Mode } from '#/types';
 
 export const BFF_HEADER = 'X-Odudu-BFF';
 
@@ -18,9 +19,22 @@ export function logoutUrl(baseUrl: string): string {
   return `${trimmed(baseUrl)}/logout`;
 }
 
-// `<name>/<path>` after the proxy mount; a leading slash is tolerated.
-export function proxyUrl(baseUrl: string, path: string): string {
-  return `${trimmed(baseUrl)}/proxy/${path.replace(/^\/+/u, '')}`;
+// `<name>/<path>` after the proxy mount, `<baseUrl>/proxy` unless the BFF's
+// `proxyPath` says otherwise; a leading slash is tolerated.
+export function proxyUrl(baseUrl: string, path: string, proxyPath?: string): string {
+  return `${proxyPath ?? `${trimmed(baseUrl)}/proxy`}/${path.replace(/^\/+/u, '')}`;
+}
+
+// A proxy path is a path of this origin: one slash at the start, unreserved
+// characters and slashes after, no dot segment, nothing at the end. A scheme, a
+// host, a backslash or an escape never gets through.
+const PROXY_PATH = /^\/[A-Za-z0-9_.~-]+(?:\/[A-Za-z0-9_.~-]+)*$/u;
+
+export function checkedMode(mode: Mode): Mode {
+  if (mode.kind !== 'bff' || mode.proxyPath === undefined) return mode;
+  const dotted = mode.proxyPath.split('/').some((part) => part === '.' || part === '..');
+  if (!PROXY_PATH.test(mode.proxyPath) || dotted) throw badProxyPath();
+  return mode;
 }
 
 type HeadersSource = ConstructorParameters<typeof Headers>[0];

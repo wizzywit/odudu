@@ -21,4 +21,11 @@ describe('the address React builds for a BFF mounted at a path', () => {
     const proxied = new URL(proxyUrl(mountPath, 'api/v1/x'), 'https://app.example').pathname;
     expect(proxied.startsWith(`${bff.proxyPath}/`)).toBe(true);
   });
+
+  it('follows a custom proxyPath given to both sides', () => {
+    const bff = createBff({ ...options, mountPath: '/bff', proxyPath: '/api/x/proxy' });
+    const proxied = new URL(proxyUrl('/bff', 'api/v1/x', bff.proxyPath), 'https://app.example')
+      .pathname;
+    expect(proxied.startsWith(`${bff.proxyPath}/`)).toBe(true);
+  });
 });

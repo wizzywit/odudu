@@ -10,7 +10,7 @@ export function useBffFetch(): (path: string, init?: RequestInit) => Promise<Res
   const { mode, sessionEnded } = useAuthContext();
   if (mode.kind !== 'bff') throw browserHasNoProxy();
   return async (path, init) => {
-    const response = await callThroughProxy(mode.baseUrl, path, init);
+    const response = await callThroughProxy(mode.baseUrl, path, mode.proxyPath, init);
     if (response.status === 401 && response.headers.get('x-odudu-session') === 'ended') {
       sessionEnded();
     }
