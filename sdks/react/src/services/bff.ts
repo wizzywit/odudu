@@ -23,7 +23,9 @@ export function proxyUrl(baseUrl: string, path: string): string {
   return `${trimmed(baseUrl)}/proxy/${path.replace(/^\/+/u, '')}`;
 }
 
-export function withBffHeader(headers: HeadersInit | undefined): Headers {
+type HeadersSource = ConstructorParameters<typeof Headers>[0];
+
+export function withBffHeader(headers: HeadersSource | undefined): Headers {
   const merged = new Headers(headers);
   merged.set(BFF_HEADER, '1');
   return merged;
