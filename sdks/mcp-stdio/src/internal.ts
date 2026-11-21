@@ -18,11 +18,11 @@ export {
   type ToolAnnotations,
   type ToolData,
   type ToolResult,
-} from '#/service/tool';
+} from '#/services/tool';
 /** @internal */
-export { accessOf, insufficientScopeProblem, type AdminAccess } from '#/service/admin-access';
+export { accessOf, insufficientScopeProblem, type AdminAccess } from '#/services/admin-access';
 /** @internal */
-export { expandPattern, INSTANCE_PATTERNS } from '#/service/admin-path';
+export { expandPattern, INSTANCE_PATTERNS } from '#/services/admin-path';
 /** @internal */
 export {
   ADMIN_BODY_CAP_BYTES,
@@ -36,11 +36,11 @@ export {
   REQUEST_BODY_CAP_BYTES,
   RETURNED_HEADERS,
   returnedHeaders,
-} from '#/service/admin-request';
+} from '#/services/admin-request';
 /** @internal */
-export { ETAG_MAX_LENGTH, ETAG_PATTERN, isEtag } from '#/service/etag-shape';
+export { ETAG_MAX_LENGTH, ETAG_PATTERN, isEtag } from '#/services/etag-shape';
 /** @internal */
-export { jsonObjectOf, jsonOf } from '#/service/json-value';
+export { jsonObjectOf, jsonOf } from '#/services/json-value';
 /** @internal */
 export {
   cleanData,
@@ -54,7 +54,7 @@ export {
   TEXT_CAP,
   type CleanOptions,
   type CleanStats,
-} from '#/service/sanitize';
+} from '#/services/sanitize';
 /** @internal */
 export {
   callTool,
@@ -63,7 +63,7 @@ export {
   RESULT_CAP,
   runTool,
   type ToolRun,
-} from '#/service/call-tool';
+} from '#/services/call-tool';
 /** @internal */
 export {
   memoryWriteBudget,
@@ -72,21 +72,25 @@ export {
   type BudgetKind,
   type BudgetLimits,
   type WriteBudget,
-} from '#/service/write-budget';
+} from '#/services/write-budget';
 /** @internal */
 export {
   announceTenant,
   TENANT_LABEL_CAP,
   type TenantAnnouncement,
-} from '#/service/tenant-announcement';
+} from '#/services/tenant-announcement';
 /** @internal */
-export { callMcpTool, type CallMcpToolDeps, type RecordedToolCall } from '#/usecase/call-mcp-tool';
+export {
+  callMcpTool,
+  type CallMcpToolDeps,
+  type RecordedToolCall,
+} from '#/use-cases/call-mcp-tool';
 /** @internal */
-export type { McpLogger } from '#/service/logger';
+export type { McpLogger } from '#/services/logger';
 /** @internal */
-export { addressIssuer, domainAddress, pathAddress } from '#/service/address';
+export { addressIssuer, domainAddress, pathAddress } from '#/services/address';
 /** @internal */
-export { stripBidiControls } from '#/service/bidi';
+export { stripBidiControls } from '#/services/bidi';
 /** @internal */
 export {
   ADMIN_API_AUDIENCE,
@@ -94,4 +98,4 @@ export {
   MCP_READ_SCOPE,
   MCP_WRITE_SCOPE,
   SYSTEM_TENANT_NAME,
-} from '#/service/scopes';
+} from '#/services/scopes';

@@ -2,9 +2,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { lstat, mkdir, open, rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { type RunTool } from '#/adapter/run-tool';
-import type { CredentialStore } from '#/service/ports';
-import { fileModeProblem, writableProblem } from '#/service/file-mode';
-import { StdioError } from '#/service/stdio-error';
+import type { CredentialStore } from '#/services/ports';
+import { fileModeProblem, writableProblem } from '#/services/file-mode';
+import { StdioError } from '#/services/stdio-error';
 
 export interface CredentialStoreDeps {
   // The issuer: base URL and tenant.

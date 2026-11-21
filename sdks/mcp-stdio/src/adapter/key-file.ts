@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
-import { fileModeProblem } from '#/service/file-mode';
-import { StdioError } from '#/service/stdio-error';
+import { fileModeProblem } from '#/services/file-mode';
+import { StdioError } from '#/services/stdio-error';
 
 // The service account key in a file only its owner can read, as `ssh` asks of
 // a private key.

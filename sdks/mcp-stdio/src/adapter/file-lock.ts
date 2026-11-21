@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { RefreshLock } from '#/service/ports';
-import { StdioError } from '#/service/stdio-error';
+import type { RefreshLock } from '#/services/ports';
+import { StdioError } from '#/services/stdio-error';
 
 export interface FileLockOptions {
   readonly path: string;

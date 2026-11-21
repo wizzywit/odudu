@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { boundedText } from '#/adapter/bounded-body';
-import { accessOf } from '#/service/admin-access';
-import { expandPattern } from '#/service/admin-path';
+import { accessOf } from '#/services/admin-access';
+import { expandPattern } from '#/services/admin-path';
 import {
   ADMIN_BODY_CAP_BYTES,
   createOnlyOf,
@@ -11,16 +11,16 @@ import {
   preflight,
   preconditionOf,
   returnedHeaders,
-} from '#/service/admin-request';
-import type { McpLogger } from '#/service/logger';
-import { stdioTarget } from '#/service/stdio-target';
-import type { TokenSource } from '#/service/token-source';
+} from '#/services/admin-request';
+import type { McpLogger } from '#/services/logger';
+import { stdioTarget } from '#/services/stdio-target';
+import type { TokenSource } from '#/services/token-source';
 import {
   ToolProblem,
   type AdminCaller,
   type AdminRequestSpec,
   type AdminResult,
-} from '#/service/tool';
+} from '#/services/tool';
 
 export interface HttpCallerOptions {
   // The tenant the run was configured for; no tool input can name another.

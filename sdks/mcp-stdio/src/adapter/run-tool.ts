@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import type { RunTool, ToolRun } from '#/service/ports';
+import type { RunTool, ToolRun } from '#/services/ports';
 
 export type { RunTool, ToolRun };
 

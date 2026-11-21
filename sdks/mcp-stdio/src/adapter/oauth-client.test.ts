@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createOauthClient } from '#/adapter/oauth-client';
-import { stdioTarget } from '#/service/stdio-target';
+import { stdioTarget } from '#/services/stdio-target';
 import { jwtOf } from '#/testing/jwt';
 
 const target = stdioTarget('https://id.example.com', 'acme');

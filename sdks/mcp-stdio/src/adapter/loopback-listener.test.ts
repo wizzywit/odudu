@@ -1,7 +1,7 @@
 import { request } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { listenOnLoopback } from '#/adapter/loopback-listener';
-import type { LoopbackListener } from '#/service/ports';
+import type { LoopbackListener } from '#/services/ports';
 
 const open: LoopbackListener[] = [];
 

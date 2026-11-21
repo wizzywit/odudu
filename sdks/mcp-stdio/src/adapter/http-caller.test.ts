@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createHttpCaller } from '#/adapter/http-caller';
-import { ADMIN_BODY_CAP_BYTES } from '#/service/admin-request';
-import { ToolProblem, type AdminRequestSpec } from '#/service/tool';
-import type { TokenSource } from '#/service/token-source';
+import { ADMIN_BODY_CAP_BYTES } from '#/services/admin-request';
+import { ToolProblem, type AdminRequestSpec } from '#/services/tool';
+import type { TokenSource } from '#/services/token-source';
 
 interface Sent {
   readonly url: string;

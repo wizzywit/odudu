@@ -2,8 +2,8 @@ import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { loadCatalogue, toolsOf } from '#/adapter/catalogue-file';
 import { toolServer } from '#/adapter/tool-server';
-import type { ToolResult } from '#/service/tool';
-import { serveMcpStdio } from '#/view/stdio';
+import type { ToolResult } from '#/services/tool';
+import { serveMcpStdio } from '#/adapter/stdio';
 
 const tools = toolsOf(loadCatalogue());
 

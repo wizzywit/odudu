@@ -1,6 +1,6 @@
 import { signClientAssertion } from '@odudu-io/oidc';
-import type { ClientKey } from '#/service/client-key';
-import { CLIENT_KEY_ALG } from '#/service/client-key';
+import type { ClientKey } from '#/services/client-key';
+import { CLIENT_KEY_ALG } from '#/services/client-key';
 
 // The private_key_jwt assertion that proves the service account at the token
 // endpoint it is sent to.

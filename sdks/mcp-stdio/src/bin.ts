@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { usageText } from '#/service/mcp-options';
+import { usageText } from '#/services/mcp-options';
 import { runMcp } from '#/run-mcp';
 import { processMcpIo } from '#/process-io';
 

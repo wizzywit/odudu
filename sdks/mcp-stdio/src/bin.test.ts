@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadCatalogue, toolsOf } from '#/adapter/catalogue-file';
-import { directCallerTools, visibleTools } from '#/service/visible-tools';
+import { directCallerTools, visibleTools } from '#/services/visible-tools';
 
 const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));

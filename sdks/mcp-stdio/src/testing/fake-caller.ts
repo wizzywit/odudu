@@ -1,4 +1,4 @@
-import type { AdminCaller, AdminRequestSpec, AdminResult } from '#/service/tool';
+import type { AdminCaller, AdminRequestSpec, AdminResult } from '#/services/tool';
 
 export interface FakeCaller extends AdminCaller {
   readonly requests: AdminRequestSpec[];

@@ -1,10 +1,10 @@
 import { boundedText } from '#/adapter/bounded-body';
-import { registeredErrorCode } from '#/service/error-code';
-import { readMetadata, type AuthorizationServer } from '#/service/metadata';
-import type { OauthClient } from '#/service/ports';
-import { StdioError } from '#/service/stdio-error';
-import type { StdioTarget } from '#/service/stdio-target';
-import { tokenSetFrom, type TokenSet } from '#/service/token-set';
+import { registeredErrorCode } from '#/services/error-code';
+import { readMetadata, type AuthorizationServer } from '#/services/metadata';
+import type { OauthClient } from '#/services/ports';
+import { StdioError } from '#/services/stdio-error';
+import type { StdioTarget } from '#/services/stdio-target';
+import { tokenSetFrom, type TokenSet } from '#/services/token-set';
 
 const RESPONSE_CAP_BYTES = 65_536;
 const TIMEOUT_MS = 30_000;

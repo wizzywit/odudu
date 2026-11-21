@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { LoopbackListener } from '#/service/ports';
-import { StdioError } from '#/service/stdio-error';
+import type { LoopbackListener } from '#/services/ports';
+import { StdioError } from '#/services/stdio-error';
 
 export interface LoopbackOptions {
   readonly timeoutMs: number;

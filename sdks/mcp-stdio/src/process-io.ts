@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { runTool } from '#/adapter/run-tool';
-import { configDirectory } from '#/service/config-dir';
-import type { McpIo } from '#/service/mcp-io';
+import { configDirectory } from '#/services/config-dir';
+import type { McpIo } from '#/services/mcp-io';
 
 export function processMcpIo(): McpIo {
   return {

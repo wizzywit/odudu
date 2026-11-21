@@ -5,9 +5,9 @@ import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { createCredentialStore } from '#/adapter/credential-store';
-import type { McpIo } from '#/service/mcp-io';
-import { generateClientKey, loadClientKey } from '#/service/client-key';
-import { ADMIN_API_AUDIENCE } from '#/service/scopes';
+import type { McpIo } from '#/services/mcp-io';
+import { generateClientKey, loadClientKey } from '#/services/client-key';
+import { ADMIN_API_AUDIENCE } from '#/services/scopes';
 import { runMcp } from '#/run-mcp';
 
 const BASE = 'https://id.example.com';

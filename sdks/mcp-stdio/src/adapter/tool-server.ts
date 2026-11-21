@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/server';
-import { announceTenant } from '#/service/tenant-announcement';
-import type { RegisteredTool, ToolResult } from '#/service/tool';
+import { announceTenant } from '#/services/tenant-announcement';
+import type { RegisteredTool, ToolResult } from '#/services/tool';
 
 const SERVER_VERSION = '1.0.0';
 

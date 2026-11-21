@@ -345,7 +345,7 @@ scope-name constants, the route table, and the `AdminCapability` and
 `MintAgentTokenInput` types. verified: `grep -n "@odudu/"` over the files
 above. All other files of the closure import only siblings, `node:*`, `zod`,
 `@modelcontextprotocol/server` and `@modelcontextprotocol/server/stdio` (the
-last two in `adapter/tool-server.ts` and `view/stdio.ts`).
+last two in `adapter/tool-server.ts` and `adapter/stdio.ts`).
 
 Beyond the package, `apps/server/src/cli/mcp.ts` itself imports
 `loadClientKey`, `generateClientKey`, `signClientAssertion` from
@@ -488,9 +488,9 @@ tests, and a test in the package (`package-contents.test.ts`) fails on any
   The tests that needed the server's tools or `@odudu/protocol-admin` stayed in
   `packages/mcp` and import from `internal`.
 - **Copied, three small pieces, each held to the original by a test.** The three
-  address helpers of `@odudu/kernel` (`service/address.ts`), `stripBidiControls`
-  (`service/bidi.ts`) and the five names `mcp:read`, `mcp:write`, `odudu-mcp`,
-  `urn:odudu:params:admin-api` and `system` (`service/scopes.ts`). The first
+  address helpers of `@odudu/kernel` (`services/address.ts`), `stripBidiControls`
+  (`services/bidi.ts`) and the five names `mcp:read`, `mcp:write`, `odudu-mcp`,
+  `urn:odudu:params:admin-api` and `system` (`services/scopes.ts`). The first
   two are checked in `packages/mcp/src/service/sdk-copies.test.ts`, the names
   in `apps/server/src/cli/mcp-constants.test.ts`.
 - **The response schemas became data.** `tools/mcp-catalogue` writes
@@ -531,11 +531,11 @@ the layer folders because it imports every adapter and the boundary rules refuse
 a wrapper that hands it `process`. Flags, environment variables, help text,
 messages and exit status are unchanged.
 
-- **Moved out of the server command.** The option table (`service/mcp-options.ts`,
+- **Moved out of the server command.** The option table (`services/mcp-options.ts`,
   with the parse, the contradiction and the required checks), the key file read
   (`adapter/key-file.ts`), the wiring of credential, token source, loopback login
   and serve loop (`src/run-mcp.ts`), `McpIo` (a service type; `RunTool` moved to
-  `service/ports.ts` so it need not import an adapter) and `processMcpIo` (`src/process-io.ts`). `odudu help`
+  `services/ports.ts` so it need not import an adapter) and `processMcpIo` (`src/process-io.ts`). `odudu help`
   keeps its own copy of the option table, because `registry.test.ts` holds the
   help path to importing `@odudu/kernel` alone; `mcp-options.test.ts` holds the
   two equal.

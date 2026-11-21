@@ -1,6 +1,6 @@
-import { parseCatalogue, type Catalogue } from '#/service/catalogue';
-import { toolOf } from '#/service/catalogue-tool';
-import type { RegisteredTool } from '#/service/tool';
+import { parseCatalogue, type Catalogue } from '#/services/catalogue';
+import { toolOf } from '#/services/catalogue-tool';
+import type { RegisteredTool } from '#/services/tool';
 import generated from '../mcp-tools.json' with { type: 'json' };
 
 // The tools the package ships: the generated file, read once and checked for
