@@ -33,7 +33,8 @@ it is `{ "ok": false, "status": 401 | 403, "code": "invalid_token" |
 "insufficient_scope", "reason": "..." }`. `status` and `code` are the contract; `reason`
 names the check that refused and is there so a case cannot pass by failing for
 another cause. The JWKS to serve is `jwks.json`, at the `jwks_uri` of the issuer's
-discovery document.
+discovery document. A verifier refuses a `jwks_uri` that is not https when its issuer
+is https; only an http development issuer may name an http one.
 
 ## Clock tolerance
 

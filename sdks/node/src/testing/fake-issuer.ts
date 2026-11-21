@@ -22,6 +22,8 @@ export interface FakeIssuer {
   keys: JWK[];
   discoveryRequests: number;
   jwksRequests: number;
+  // The `jwks_uri` the discovery document names; the issuer's own `/jwks` when unset.
+  jwksUri: string | undefined;
   // Answer the JWK Set with this status instead of the keys.
   jwksStatus: number;
   // Hold every JWK Set answer until released, to overlap requests.
@@ -64,6 +66,7 @@ export async function startFakeIssuer(keys: JWK[]): Promise<FakeIssuer> {
     keys,
     discoveryRequests: 0,
     jwksRequests: 0,
+    jwksUri: undefined,
     jwksStatus: 200,
     holdJwks: undefined,
     oversize: undefined,
@@ -85,7 +88,7 @@ export async function startFakeIssuer(keys: JWK[]): Promise<FakeIssuer> {
     }
     if (path.endsWith('/.well-known/openid-configuration')) {
       fake.discoveryRequests += 1;
-      send(200, { issuer: fake.issuer, jwks_uri: `${fake.issuer}/jwks` });
+      send(200, { issuer: fake.issuer, jwks_uri: fake.jwksUri ?? `${fake.issuer}/jwks` });
       return;
     }
     if (path.endsWith('/jwks')) {

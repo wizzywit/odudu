@@ -84,4 +84,9 @@ def jwks_uri_of(issuer: str, document: object) -> str:
         or not isinstance(document.get("jwks_uri"), str)
     ):
         raise KeyFetchError(f"the discovery document of {issuer} names no jwks_uri of its own")
-    return str(document["jwks_uri"])
+    uri = str(document["jwks_uri"])
+    # Keys fetched over plain http can be swapped on the way; only an http issuer, which
+    # `check_issuers` lets through for development, may name one.
+    if not uri.startswith("https://") and not issuer.startswith("http://"):
+        raise KeyFetchError(f"the jwks_uri of {issuer} is not an https address")
+    return uri

@@ -128,6 +128,7 @@ class IssuerServer:
     jwks_headers: dict[str, str] = field(default_factory=dict)
     jwks_body: bytes | None = None
     discovery_issuer: str | None = None
+    jwks_uri: str | None = None
     redirect_to: str | None = None
     discovery_requests: int = 0
     jwks_requests: int = 0
@@ -145,10 +146,10 @@ class IssuerServer:
             self.discovery_requests += 1
             document = {
                 "issuer": self.discovery_issuer or self.issuer,
-                "jwks_uri": f"{self.issuer}/jwks",
+                "jwks_uri": self.jwks_uri or f"{self.issuer}/jwks",
             }
             return httpx.Response(200, json=document)
-        if url == f"{self.issuer}/jwks":
+        if url == (self.jwks_uri or f"{self.issuer}/jwks"):
             self.jwks_requests += 1
             if self.jwks_status != 200:
                 return httpx.Response(self.jwks_status)

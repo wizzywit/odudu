@@ -49,6 +49,11 @@ export async function readJwksUri(issuer: string, fetcher: typeof fetch): Promis
   if (!isRecord(document) || document.issuer !== issuer || typeof document.jwks_uri !== 'string') {
     throw new KeyFetchError(`the discovery document of ${issuer} names no jwks_uri of its own`);
   }
+  // Keys fetched over plain http can be swapped on the way; only an http issuer,
+  // which `checkIssuers` lets through for development, may name one.
+  if (!document.jwks_uri.startsWith('https://') && !issuer.startsWith('http://')) {
+    throw new KeyFetchError(`the jwks_uri of ${issuer} is not an https address`);
+  }
   return document.jwks_uri;
 }
 

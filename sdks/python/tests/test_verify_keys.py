@@ -308,3 +308,44 @@ def test_the_clock_defaults_to_the_real_one(first: SigningKey) -> None:
     server = IssuerServer(keys=[first.jwk])
     verify = Verifier([ISSUER], API, http_client=server.client)
     assert verify.verify(mint(first, now=time.time())).sub == "subject-1"
+
+
+def test_an_http_jwks_uri_is_refused_for_an_https_issuer(first: SigningKey) -> None:
+    server, clock = IssuerServer(keys=[first.jwk], jwks_uri="http://id.example.test/jwks"), Clock()
+    with pytest.raises(KeyFetchError):
+        verifier(server, clock).verify(mint(first))
+    assert server.jwks_requests == 0
+
+
+def test_an_http_jwks_uri_is_refused_for_an_https_issuer_on_the_async_verifier(
+    first: SigningKey,
+) -> None:
+    server, clock = IssuerServer(keys=[first.jwk], jwks_uri="http://id.example.test/jwks"), Clock()
+
+    async def run() -> None:
+        async with AsyncVerifier(
+            [ISSUER], API, now=clock, http_client=server.async_client
+        ) as verify:
+            with pytest.raises(KeyFetchError):
+                await verify.verify(mint(first))
+
+    asyncio.run(run())
+    assert server.jwks_requests == 0
+
+
+def test_an_https_jwks_uri_is_read_for_an_https_issuer(first: SigningKey) -> None:
+    server, clock = IssuerServer(keys=[first.jwk]), Clock()
+    assert verifier(server, clock).verify(mint(first)).sub == "subject-1"
+
+
+def test_an_http_issuer_may_name_an_http_jwks_uri(first: SigningKey) -> None:
+    issuer = "http://id.example.test/tenants/demo"
+    server, clock = IssuerServer(keys=[first.jwk], issuer=issuer), Clock()
+    verify = Verifier(
+        [issuer],
+        API,
+        now=clock,
+        http_client=server.client,
+        allow_insecure_issuers=True,
+    )
+    assert verify.verify(mint(first, issuer=issuer)).sub == "subject-1"

@@ -197,3 +197,47 @@ describe('reading the issuer keys', () => {
     expect(issuer.discoveryRequests).toBe(0);
   });
 });
+
+describe('the jwks_uri of the discovery document', () => {
+  const secureIssuer = 'https://id.example.test/tenants/demo';
+  const discovery = (jwksUri: string, calls: string[]) =>
+    ((url: string) => {
+      calls.push(url);
+      return Promise.resolve(
+        url.endsWith('/.well-known/openid-configuration')
+          ? Response.json({ issuer: secureIssuer, jwks_uri: jwksUri })
+          : Response.json({ keys: [first.jwk] }),
+      );
+    }) as typeof fetch;
+
+  it('is refused as a KeyFetchError when it is http for an https issuer', async () => {
+    const calls: string[] = [];
+    const verify = createVerifier({
+      issuers: [secureIssuer],
+      audience: API,
+      clock: () => clock,
+      fetch: discovery('http://id.example.test/jwks', calls),
+    });
+    const token = await mintToken(first, secureIssuer, API, Math.floor(T0 / 1000));
+    await expect(verify(token)).rejects.toBeInstanceOf(KeyFetchError);
+    expect(calls).toEqual([`${secureIssuer}/.well-known/openid-configuration`]);
+  });
+
+  it('is read when it is https for an https issuer', async () => {
+    const calls: string[] = [];
+    const verify = createVerifier({
+      issuers: [secureIssuer],
+      audience: API,
+      clock: () => clock,
+      fetch: discovery('https://id.example.test/jwks', calls),
+    });
+    const token = await mintToken(first, secureIssuer, API, Math.floor(T0 / 1000));
+    await expect(verify(token)).resolves.toBeDefined();
+    expect(calls).toContain('https://id.example.test/jwks');
+  });
+
+  it('may be http when the issuer itself is http', async () => {
+    issuer.jwksUri = `${issuer.issuer}/jwks`;
+    await expect(verifier()(await tokenFor(first))).resolves.toBeDefined();
+  });
+});
