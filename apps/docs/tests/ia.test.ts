@@ -21,6 +21,7 @@ const SECTION_ORDER = [
   'Introduction',
   'Quick start',
   'Guides',
+  'SDKs',
   'Concepts',
   'Admin console',
   'Operating Odudu',
@@ -34,6 +35,7 @@ const SIDEBAR_ORDER = [
   'Introduction',
   'Quick start',
   'Guides',
+  'SDKs',
   'Concepts',
   'Admin console',
   'Operating Odudu',
@@ -52,7 +54,7 @@ function sidebarLinks(page: string): string[] {
 }
 
 describe('the information architecture', () => {
-  it('has the nine sections, in the order the design gives', () => {
+  it('has the ten sections, in the order the design gives', () => {
     expect(SECTIONS.map((section) => section.label)).toEqual(SECTION_ORDER);
   });
 
@@ -80,6 +82,26 @@ describe('the information architecture', () => {
     const start = links.indexOf(`${PAGES_DOCS_BASE}guides/`);
 
     expect(links.slice(start + 1, start + 1 + journeys.length)).toEqual(journeys);
+  });
+
+  it('opens the SDKs to the package pages, in order', () => {
+    const links = sidebarLinks('sdks/index.html');
+    const start = links.indexOf(`${PAGES_DOCS_BASE}sdks/`);
+    expect(
+      links
+        .slice(start + 1, start + 10)
+        .map((href) => href.slice(`${PAGES_DOCS_BASE}sdks/`.length)),
+    ).toEqual([
+      'oidc/',
+      'react/',
+      'bff/',
+      'next/',
+      'node/',
+      'admin-client/',
+      'me-client/',
+      'mcp-stdio/',
+      'python/',
+    ]);
   });
 
   it('opens the concepts to their eight pages, in order', () => {

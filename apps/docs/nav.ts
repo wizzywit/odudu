@@ -34,6 +34,13 @@ export const SECTIONS: readonly Section[] = [
     summary: 'Sign users in from a web app, a single-page app, an API or a machine.',
   },
   {
+    label: 'SDKs',
+    id: 'sdks/index',
+    route: 'sdks/',
+    summary:
+      'Packages that sign people in, protect an API and call the admin and account APIs, with the examples that use them.',
+  },
+  {
     label: 'Concepts',
     id: 'concepts/index',
     route: 'concepts/',
