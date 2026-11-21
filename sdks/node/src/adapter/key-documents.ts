@@ -41,6 +41,14 @@ async function getJson(url: string, fetcher: typeof fetch): Promise<unknown> {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+function sameOrigin(address: string, issuer: string): boolean {
+  return (
+    issuer.startsWith('http://') &&
+    URL.canParse(address) &&
+    new URL(address).origin === new URL(issuer).origin
+  );
+}
+
 // The `jwks_uri` of a configured issuer's discovery document. The document must
 // name that issuer (OpenID Connect Discovery §4.3); a document that names
 // another one is not that issuer's.
@@ -49,10 +57,12 @@ export async function readJwksUri(issuer: string, fetcher: typeof fetch): Promis
   if (!isRecord(document) || document.issuer !== issuer || typeof document.jwks_uri !== 'string') {
     throw new KeyFetchError(`the discovery document of ${issuer} names no jwks_uri of its own`);
   }
-  // Keys fetched over plain http can be swapped on the way; only an http issuer,
-  // which `checkIssuers` lets through for development, may name one.
-  if (!document.jwks_uri.startsWith('https://') && !issuer.startsWith('http://')) {
-    throw new KeyFetchError(`the jwks_uri of ${issuer} is not an https address`);
+  // Keys fetched over plain http can be swapped on the way. Only an http issuer,
+  // which `checkIssuers` lets through for development, may name an http
+  // address, and then only on its own origin.
+  const secure = document.jwks_uri.startsWith('https://');
+  if (!secure && !sameOrigin(document.jwks_uri, issuer)) {
+    throw new KeyFetchError(`the jwks_uri of ${issuer} is not an https address of its own`);
   }
   return document.jwks_uri;
 }

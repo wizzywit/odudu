@@ -20,4 +20,4 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `withToken` answers `500` and ends the response even when the `onError` hook throws.
 - Keys kept through a failed read are never served past twice `jwksTtlMs`, however short the TTL.
-- A `jwks_uri` that is not https is refused with `KeyFetchError` for an https issuer; an http issuer (allowed with `allowInsecureIssuers`) may still name an http one.
+- A `jwks_uri` that is not https is refused with `KeyFetchError` for an https issuer; an http issuer (allowed with `allowInsecureIssuers`) may name an http one only on its own origin.

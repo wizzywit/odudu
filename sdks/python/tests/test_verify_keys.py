@@ -363,3 +363,17 @@ def test_an_http_issuer_may_name_an_http_jwks_uri(first: SigningKey) -> None:
         allow_insecure_issuers=True,
     )
     assert verify.verify(mint(first, issuer=issuer)).sub == "subject-1"
+
+
+def test_an_http_issuer_may_not_name_a_jwks_uri_on_another_origin(first: SigningKey) -> None:
+    issuer = "http://id.example.test/tenants/demo"
+    server, clock = (
+        IssuerServer(keys=[first.jwk], issuer=issuer, jwks_uri="http://other.example.test/jwks"),
+        Clock(),
+    )
+    verify = Verifier(
+        [issuer], API, now=clock, http_client=server.client, allow_insecure_issuers=True
+    )
+    with pytest.raises(KeyFetchError):
+        verify.verify(mint(first, issuer=issuer))
+    assert server.jwks_requests == 0

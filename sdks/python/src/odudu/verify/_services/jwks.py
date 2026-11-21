@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 from typing import Literal
+from urllib.parse import urlsplit
 
 from odudu.verify._services.errors import KeyFetchError
 
@@ -72,6 +73,16 @@ def keys_by_kid(document: object) -> dict[str, Jwk] | None:
     return keys
 
 
+def _same_http_origin(uri: str, issuer: str) -> bool:
+    if not issuer.startswith("http://"):
+        return False
+    try:
+        left, right = urlsplit(uri), urlsplit(issuer)
+        return (left.scheme, left.hostname, left.port) == (right.scheme, right.hostname, right.port)
+    except ValueError:
+        return False
+
+
 def jwks_uri_of(issuer: str, document: object) -> str:
     """The `jwks_uri` of a configured issuer's discovery document.
 
@@ -85,8 +96,9 @@ def jwks_uri_of(issuer: str, document: object) -> str:
     ):
         raise KeyFetchError(f"the discovery document of {issuer} names no jwks_uri of its own")
     uri = str(document["jwks_uri"])
-    # Keys fetched over plain http can be swapped on the way; only an http issuer, which
-    # `check_issuers` lets through for development, may name one.
-    if not uri.startswith("https://") and not issuer.startswith("http://"):
-        raise KeyFetchError(f"the jwks_uri of {issuer} is not an https address")
+    # Keys fetched over plain http can be swapped on the way. Only an http issuer, which
+    # `check_issuers` lets through for development, may name an http address, and then only on
+    # its own origin.
+    if not uri.startswith("https://") and not _same_http_origin(uri, issuer):
+        raise KeyFetchError(f"the jwks_uri of {issuer} is not an https address of its own")
     return uri

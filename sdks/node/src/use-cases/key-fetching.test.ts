@@ -255,4 +255,9 @@ describe('the jwks_uri of the discovery document', () => {
     issuer.jwksUri = `${issuer.issuer}/jwks`;
     await expect(verifier()(await tokenFor(first))).resolves.toBeDefined();
   });
+
+  it('is refused when an http issuer names an http address on another origin', async () => {
+    issuer.jwksUri = 'http://other.example.test/jwks';
+    await expect(verifier()(await tokenFor(first))).rejects.toBeInstanceOf(KeyFetchError);
+  });
 });
