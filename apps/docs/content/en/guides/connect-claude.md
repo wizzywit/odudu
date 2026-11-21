@@ -70,7 +70,7 @@ A failure comes back to Claude as an error it reads and tells you, with a reason
 
 Claude Desktop starts local programs described in its configuration file, and [`@odudu-io/mcp-stdio`](../sdks/mcp-stdio.md) is one: its command `odudu-mcp` serves the read tools, and with `--allow-writes` the five that amend text, over standard input and output, and calls the instance as you or as a service account. `odudu mcp` in the server's command line runs the same code. This is the route for an instance Anthropic's servers cannot reach. The file is `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS and `%APPDATA%\Claude\claude_desktop_config.json` on Windows, which **Settings, Developer, Edit Config** opens, and Claude Desktop has to be quit and started again to read it (the Model Context Protocol's guide (`https://modelcontextprotocol.io/docs/develop/connect-local-servers`) has the steps).
 
-As a person, the command opens your browser to sign in, listens for the answer on a loopback port and keeps the sign-in in your operating system's credential store. It has to run on your machine and not in a container. It needs Node 24 or later, and neither the Odudu image nor a checkout of this repository. The entry runs it with `npx`, which fetches the package:
+As a person, the command opens your browser to sign in, listens for the answer on a loopback port and keeps the sign-in in your operating system's credential store. It has to run on your machine and not in a container. It needs Node 24 or later, and neither the Odudu image nor a checkout of this repository. The entry runs it with `npx`, which fetches the package: If Claude Desktop cannot start `npx`, give the absolute path to it as the command.
 
 ```text
 {
@@ -105,7 +105,7 @@ Until the first release is published, `npx` cannot find the package, so use the 
 }
 ```
 
-That is read-only. `npx @odudu-io/mcp-stdio --help` lists the flags; `--allow-writes` asks for `mcp:write` instead and offers the write tools that change a description, a name or the tenant's display name and languages as well (not the three that create something, nor the two that set or clear a message override, nor the two that save a theme draft, which only the endpoint offers, because only the endpoint counts them).
+That is read-only. `npx @odudu-io/mcp-stdio --help` lists the flags of the package, and `odudu help mcp` those of `odudu mcp`, which does not take `--help` itself; `--allow-writes` asks for `mcp:write` instead and offers the write tools that change a description, a name or the tenant's display name and languages as well (not the three that create something, nor the two that set or clear a message override, nor the two that save a theme draft, which only the endpoint offers, because only the endpoint counts them).
 
 For a service account, which needs no browser, the key travels in the entry's environment, so it is not in the arguments:
 
@@ -125,6 +125,8 @@ For a service account, which needs no browser, the key travels in the entry's en
   }
 }
 ```
+
+Until the first release is published, replace `"npx"` and `"-y", "@odudu-io/mcp-stdio"` with `"node"` and `"/path/to/odudu/sdks/mcp-stdio/dist/bin.js"` (after the build above).
 
 The same command runs in the container, which already holds it, when you would rather not install anything. The key is passed from the environment there too:
 

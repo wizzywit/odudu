@@ -50,7 +50,9 @@ The full exchange, with the header on the real request too, is in [CORS: the pre
 npm install @odudu-io/oidc
 ```
 
-Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc` in the folder of [the single-page app example](https://github.com/wizzywit/odudu/tree/main/examples/single-page-app); it needs Node 24 or later.
+The package runs in a browser or an edge runtime, and in Node 24 or later.
+
+Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc` in the folder of [the single-page app example](https://github.com/wizzywit/odudu/tree/main/examples/single-page-app) (it needs pnpm, and `pnpm install` run once at the repository root). For the React block below, also build React's package: `../_shared/install.sh . oidc react`.
 
 The example is one file, `src/main.ts`, built and served by Vite. When the person chooses **Sign in**, `beginSignIn` returns the address to send the browser to and `pending`, the record that holds the verifier, the state and the nonce. The page is replaced when the browser leaves, so the record waits in session storage, which stays in one tab.
 
@@ -178,7 +180,7 @@ CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl bas
 The app redirects the browser to the authorization address, which is the `url` that `beginSignIn` returns. `state` is a value it compares when the person comes back, and `nonce` appears in the ID token.
 
 ```sh {run}
-AUTHORIZE_URL="$TENANT/protocol/openid-connect/auth?response_type=code&client_id=my-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid%20profile%20email&state=abc123&nonce=n-0S6_WzA2Mj&code_challenge=$CHALLENGE&code_challenge_method=S256" && echo "$AUTHORIZE_URL"
+AUTHORIZE_URL="$TENANT/protocol/openid-connect/auth?response_type=code&client_id=my-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid%20profile&state=abc123&nonce=n-0S6_WzA2Mj&code_challenge=$CHALLENGE&code_challenge_method=S256" && echo "$AUTHORIZE_URL"
 ```
 
 In a real app the browser opens that address, and the person signs in on Odudu's page. To keep going in the terminal, the next commands play the browser's part and sign in as `ada`.

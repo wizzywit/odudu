@@ -12,7 +12,7 @@ The guides assume you have done the [quick start](../quick-start/index.mdx), so 
 ## Pick the one for what you are building
 
 1. [A web app with a server](./web-app.md) keeps a secret, so it is a confidential client and proves who it is when it swaps the sign-in code. It signs people in with `@odudu-io/oidc`.
-2. [A single-page app or a mobile app](./single-page-app.md) cannot keep a secret, so it is a public client and uses PKCE alone. It signs in with `@odudu-io/oidc` or `@odudu-io/react`.
+2. [A single-page app or a mobile app](./single-page-app.md) cannot keep a secret, so it is a public client and uses PKCE alone. It signs in with `@odudu-io/oidc` or `@odudu-io/react`, which run in a browser; a native mobile app makes the requests the guide shows.
 3. [An API](./api.md) receives access tokens and decides whether to trust them, with `@odudu-io/node` or the Python package `odudu`.
 4. [A service calling a service](./machine-to-machine.md) has no person to sign in, so it signs in as itself with the token source of `@odudu-io/oidc`.
 5. [Coming from Keycloak](./keycloak.md) maps its ideas to Odudu's and says what does not move.

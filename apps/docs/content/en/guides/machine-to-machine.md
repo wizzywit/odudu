@@ -40,7 +40,9 @@ docker compose exec odudu odudu seed client --tenant demo --client-id my-service
 npm install @odudu-io/oidc
 ```
 
-Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc` in the folder of [the machine-to-machine example](https://github.com/wizzywit/odudu/tree/main/examples/machine-to-machine); it needs Node 24 or later, which the package needs too.
+The package needs Node 24 or later.
+
+Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc` in the folder of [the machine-to-machine example](https://github.com/wizzywit/odudu/tree/main/examples/machine-to-machine) (it needs pnpm, and `pnpm install` run once at the repository root).
 
 The example is one file, `client.ts`. It makes the token source once and calls the source before each request.
 
@@ -74,7 +76,7 @@ const reports = await fetch(`${API_URL}/reports`, {
 
 A failure is an `OduduError` whose `code` says what Odudu refused, such as `invalid_client` for a wrong secret or `invalid_scope` for a scope the service may not ask for. [`@odudu-io/oidc`](../sdks/oidc.md#errors) lists them. A service that proves itself with a key instead of a secret passes `auth: { privateKey }`; [Use a key instead of a secret](#use-a-key-instead-of-a-secret) below says how to register that.
 
-To run the example as the service you registered above, give it the client, its secret and the API it calls. [Protect an API](./api.md) runs that API. In the example's folder:
+To run the example as the service you registered above, give it the client, its secret and the API it calls. Start the example API as [Protect an API](./api.md) shows, but without `API_AUDIENCE`, so that it goes by the tenant's address, the only audience a token of `my-service` carries; or register `my-service` with `--audience http://localhost:8082` and start the API with that audience. In the example's folder:
 
 ```text
 CLIENT_ID=my-service CLIENT_SECRET="$SERVICE_SECRET" API_URL=http://localhost:8082 npm start
@@ -148,7 +150,7 @@ odudu seed client --tenant demo --client-id example-admin --client-secret exampl
 npm install @odudu-io/admin-client
 ```
 
-Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc admin-client me-client` in the folder of [the admin example](https://github.com/wizzywit/odudu/tree/main/examples/admin), which uses all three.
+Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc admin-client me-client` in the folder of [the admin example](https://github.com/wizzywit/odudu/tree/main/examples/admin), which uses all three (it needs pnpm, and `pnpm install` run once at the repository root).
 
 From `examples/admin/admin.ts`:
 

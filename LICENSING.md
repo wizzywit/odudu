@@ -26,7 +26,7 @@ and each example application and each SDK carries its own copy as `LICENSE`.
 
 The server, the console, the gateway and the command line are AGPL-3.0: they
 are the service, and anyone who modifies Odudu and offers it over a network
-must publish their changes. The site's prose and the example applications are Apache-2.0,
+must publish their changes. The client SDKs, the site's prose and the example applications are Apache-2.0,
 so that copying a guide or starting from an example is never constrained.
 [ADR 0042](docs/adr/0042-distribution-licensing-and-the-paid-boundary.md)
 has the reasoning and the alternatives rejected.
