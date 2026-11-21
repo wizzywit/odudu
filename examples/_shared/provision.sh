@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Makes what the examples sign in with, in the `demo` tenant of a running
 # quickstart stack: the people `ada` and `ben`, a web app, a single-page app,
-# a Next.js app and a service. Run it from the folder that holds compose.yaml,
-# or set COMPOSE_FILE. Running it again changes nothing.
+# a Next.js app, a React app behind a backend for frontend and a service. Run
+# it from the folder that holds compose.yaml, or set COMPOSE_FILE. Running it
+# again changes nothing.
 #
 # Every secret here is published in this repository. They are for a stack on
 # your own machine and must never be used anywhere else.
@@ -11,6 +12,7 @@ set -euo pipefail
 WEB_APP_ORIGIN="${WEB_APP_ORIGIN:-http://localhost:8081}"
 SPA_ORIGIN="${SPA_ORIGIN:-http://localhost:8084}"
 NEXT_APP_ORIGIN="${NEXT_APP_ORIGIN:-http://localhost:8085}"
+REACT_BFF_ORIGIN="${REACT_BFF_ORIGIN:-http://localhost:8083}"
 
 seed() {
   local output
@@ -38,3 +40,6 @@ seed client --tenant demo --client-id example-spa --public --grant-type authoriz
 seed client --tenant demo --client-id example-next --client-secret example-next-secret \
   --grant-type authorization_code --grant-type refresh_token \
   --redirect-uri "$NEXT_APP_ORIGIN/api/auth/callback" --post-logout-redirect-uri "$NEXT_APP_ORIGIN/"
+seed client --tenant demo --client-id example-react-bff --client-secret example-react-bff-secret \
+  --grant-type authorization_code --grant-type refresh_token \
+  --redirect-uri "$REACT_BFF_ORIGIN/bff/callback" --post-logout-redirect-uri "$REACT_BFF_ORIGIN/"

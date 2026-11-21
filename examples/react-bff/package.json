@@ -1,0 +1,31 @@
+{
+  "name": "odudu-example-react-bff",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "vite build",
+    "start": "vite build && node server.ts",
+    "test": "node --test test.ts",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@odudu-io/bff": "^0.1.0",
+    "@odudu-io/react": "^0.1.0",
+    "express": "5.2.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "6.0.3",
+    "vite": "8.3.8"
+  }
+}
