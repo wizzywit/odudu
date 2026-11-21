@@ -44,4 +44,4 @@ The tools it serves come from a catalogue generated from the server's own tool
 definitions and built into the package. The server enforces every call, so a stale
 file can hide a tool but never widen what a token may do.
 
-Licence: Apache-2.0.
+License: Apache-2.0.

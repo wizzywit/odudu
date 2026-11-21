@@ -7,7 +7,7 @@ describe('what the package publishes', () => {
   it('ships dist only, built from the index that re-exports the generated types', () => {
     const manifest = JSON.parse(read('../package.json')) as { files: string[]; name: string };
     expect(manifest.name).toBe('@odudu-io/admin-client');
-    expect(manifest.files).toEqual(['dist', 'LICENSE', 'CHANGELOG.md']);
+    expect(manifest.files).toEqual(['dist', 'LICENSE', 'CHANGELOG.md', 'README.md']);
     expect(read('../tsup.config.ts')).toContain("entry: ['src/index.ts']");
     expect(read('./index.ts')).toContain("from '#/generated/schema'");
   });

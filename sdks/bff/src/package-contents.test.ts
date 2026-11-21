@@ -6,7 +6,7 @@ const read = (path: string): string => readFileSync(new URL(path, import.meta.ur
 describe('what the package publishes', () => {
   it('ships dist only, built from entries that never reach the test helpers', () => {
     const manifest = JSON.parse(read('../package.json')) as { files: string[] };
-    expect(manifest.files).toEqual(['dist', 'LICENSE', 'CHANGELOG.md']);
+    expect(manifest.files).toEqual(['dist', 'LICENSE', 'CHANGELOG.md', 'README.md']);
     const config = read('../tsup.config.ts');
     for (const [name, source] of Object.entries({
       index: 'index',

@@ -106,4 +106,14 @@ describe('what npm reads to publish with provenance', () => {
     expect(pyproject).toContain(`Repository = "https://github.com/${slug}"`);
     expect(pyproject).toContain(`Source = "https://github.com/${slug}/tree/main/sdks/python"`);
   });
+
+  it.each(npmPackages().map((manifest) => [manifest.name, manifest] as const))(
+    '%s ships a README that names it',
+    (_name, manifest) => {
+      expect(manifest.files).toContain('README.md');
+      expect(readFileSync(join(SDKS, manifest.directory, 'README.md'), 'utf8')).toContain(
+        manifest.name,
+      );
+    },
+  );
 });
