@@ -1065,7 +1065,7 @@ importers:
   sdks/bff:
     dependencies:
       '@odudu-io/oidc':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../oidc
     devDependencies:
       '@types/express':
@@ -1087,7 +1087,7 @@ importers:
         specifier: 2.4.0
         version: 2.4.0
       '@odudu-io/oidc':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../oidc
       zod:
         specifier: 4.6.7
@@ -1110,7 +1110,7 @@ importers:
   sdks/next:
     dependencies:
       '@odudu-io/bff':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../bff
     devDependencies:
       next:
@@ -1161,7 +1161,7 @@ importers:
   sdks/react:
     dependencies:
       '@odudu-io/oidc':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../oidc
     devDependencies:
       '@testing-library/dom':

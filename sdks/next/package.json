@@ -30,7 +30,7 @@
     "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
   },
   "dependencies": {
-    "@odudu-io/bff": "workspace:*"
+    "@odudu-io/bff": "workspace:^"
   },
   "devDependencies": {
     "next": "16.4.6",

@@ -138,7 +138,10 @@ first eight go to npm as `@odudu-io/<name>`, and `python` goes to PyPI as
    in `sdks/python/pyproject.toml` must equal the tag's, so every Python release,
    a candidate included, needs a commit that bumps it before the tag.
 2. Take the package out of private: remove `"private": true`. The workflow
-   refuses a private package.
+   refuses a private package. While a package is private the `sdks` job of
+   `verify` skips its pack and publish dry runs, so the pull request that
+   removes `private` is the first one on which they actually run: read that
+   job's output before you merge it.
 3. Merge to `main` and wait for `gate`. A stable tag must point at a commit on
    `main`, and every tag at one `gate` passed on, as for the image.
 4. Tag the commit and push the tag:
@@ -152,9 +155,9 @@ first eight go to npm as `@odudu-io/<name>`, and `python` goes to PyPI as
    when it asks.
 
 A package that depends on another SDK is released after it: `pnpm pack` writes
-the dependency's exact version into the tarball, so `mcp-stdio`'s `odudu-mcp`
-command installs only once `@odudu-io/oidc` at that version is on npm. Tag `oidc`
-first.
+the dependency as a caret range (`workspace:^` becomes `^0.1.0`), so `mcp-stdio`'s
+`odudu-mcp` command installs only once a version of `@odudu-io/oidc` that range
+accepts is on npm. Tag `oidc` first.
 
 What the workflow does:
 
@@ -196,7 +199,9 @@ until a release has used it, and the two that the pages leave open are marked.
    settings page at npmjs.com: repository `wizzywit/odudu`, workflow
    `sdk-release.yml`, environment `sdk-release`. The workflow is the file name
    alone, and `repository.url` in the package's `package.json` must name that
-   repository exactly. npm does not check the configuration when you save it,
+   repository exactly (`git+https://github.com/wizzywit/odudu.git`, which every
+   package has, with its own `directory`; `tests/lint/sdk-prepack.test.ts`
+   compares it with the git remote). npm does not check the configuration when you save it,
    so a mistake shows only when the workflow publishes, and a new
    configuration expires after 2 days if no publish has used it. Configure it
    just before you push the tag.
@@ -206,9 +211,10 @@ until a release has used it, and the two that the pages leave open are marked.
    `npm publish --access public` and two-factor authentication, then configure
    trusted publishing for the later versions. That first version would have no
    provenance statement (inferred, not observed). Publish the tarball the
-   workflow would, not the directory: `bff`, `next`, `react` and `mcp-stdio`
-   depend on `@odudu-io/oidc` as `workspace:*`, which `npm publish` would ship
-   as it stands and `pnpm pack` rewrites to the version. A published version can
+   workflow would, not the directory: `bff`, `react` and `mcp-stdio`
+   depend on `@odudu-io/oidc` (and `next` on `@odudu-io/bff`) as `workspace:^`,
+   which `npm publish` would ship as it stands and `pnpm pack` rewrites to a
+   `^` range. A published version can
    never be replaced, so check first. For each package, `oidc` first and then
    the packages that depend on it (the same commands, run per package):
    1. `pnpm install --frozen-lockfile`, then build the package and what it
@@ -216,8 +222,9 @@ until a release has used it, and the two that the pages leave open are marked.
       builds the package itself, so its `dist/`, which is not committed, is
       never missing.)
    2. `cd sdks/<name> && pnpm pack --pack-destination "$TMPDIR/tarball"`.
-   3. Inspect it: `tar -tzf "$TMPDIR"/tarball/*.tgz` must list `dist/index.js`
-      and `dist/index.d.ts`, and
+   3. Inspect it: `tar -tzf "$TMPDIR"/tarball/*.tgz` must list `README.md` and
+      `dist/index.js` and `dist/index.d.ts` (`mcp-stdio` has `dist/bin.js`
+      only), and
       `tar -xzOf "$TMPDIR"/tarball/*.tgz package/package.json | grep workspace:`
       must print nothing.
    4. `npm publish "$TMPDIR"/tarball/odudu-io-<name>-0.1.0.tgz --access public`,
