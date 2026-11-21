@@ -18,6 +18,10 @@ export interface BffConfig extends BffOptions {
 export const DEFAULT_COOKIE_NAME = '__Host-odudu';
 // The header a read of the session, a sign-out and the proxy must carry.
 export const BFF_HEADER = 'x-odudu-bff';
+// Set by the BFF on its own 401 when the session is over. The proxy removes it
+// from every upstream answer, so an API's 401 can never carry it.
+export const SESSION_HEADER = 'x-odudu-session';
+export const SESSION_ENDED = 'ended';
 const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_PROXY_PATH = '/proxy';
 const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;

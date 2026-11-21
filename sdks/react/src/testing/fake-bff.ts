@@ -11,6 +11,9 @@ export interface FakeBff {
   // Answers `/session` with this status instead of the usual one.
   sessionStatus: number | undefined;
   logoutRedirect: string | undefined;
+  // Answers a proxied call with this status, as the upstream API does: with
+  // none of the BFF's own markers.
+  upstreamStatus: number | undefined;
   calls: FakeBffCall[];
   fetch: typeof fetch;
 }
@@ -29,6 +32,7 @@ export function fakeBff(baseUrl: string): FakeBff {
     authenticated: true,
     sessionStatus: undefined,
     logoutRedirect: 'https://issuer.example/logout?client_id=app',
+    upstreamStatus: undefined,
     calls: [],
     fetch: (input, init) => {
       const request = new Request(
@@ -50,7 +54,15 @@ export function fakeBff(baseUrl: string): FakeBff {
         return Promise.resolve(new Response('upstream detail', { status: fake.sessionStatus }));
       }
       if (!fake.authenticated && path !== `${base}/logout`) {
-        return Promise.resolve(json(401, { authenticated: false }));
+        return Promise.resolve(
+          new Response(JSON.stringify({ authenticated: false }), {
+            status: 401,
+            headers: { 'content-type': 'application/json', 'x-odudu-session': 'ended' },
+          }),
+        );
+      }
+      if (path.startsWith(`${base}/proxy/`) && fake.upstreamStatus !== undefined) {
+        return Promise.resolve(new Response(null, { status: fake.upstreamStatus }));
       }
       if (path === `${base}/session`) {
         return Promise.resolve(

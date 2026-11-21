@@ -107,10 +107,14 @@ answers are in `docs/protocols/rfc10017.md`.
     must send one. Without a session the answer is `401` with
     `{ authenticated: false }`; a refused refresh ends the session as `session` does, `401` and
     the cookie cleared.
+    Each of the BFF's own `401`s, on the proxy and on `session`, carries
+    `X-Odudu-Session: ended`, which is how a client tells it from an API's `401`.
+    The proxy removes that header from every upstream answer, so an upstream can
+    neither fake nor trip it.
   - _What crosses._ The upstream request loses the cookie, `host`, `origin`,
     the BFF header, any `Authorization` the browser sent and every hop-by-hop
     header, with any header `Connection` names, and gains an
-    `Authorization: Bearer` header holding the token. The answer loses `Set-Cookie`, because an upstream's cookie
+    `Authorization: Bearer` header holding the token. The answer loses `X-Odudu-Session` and `Set-Cookie`, because an upstream's cookie
     belongs to the upstream and not to this origin, and the hop-by-hop headers.
     Compression is declined upstream (`Accept-Encoding: identity`) because the
     client library decodes, and an answer that arrives encoded anyway loses

@@ -17,10 +17,15 @@ export function redirect(location: string, cookies: string[]): Response {
   });
 }
 
-export function json(status: number, body: unknown, cookies: string[] = []): Response {
+export function json(
+  status: number,
+  body: unknown,
+  cookies: string[] = [],
+  extra: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: withCookies({ 'content-type': 'application/json', ...NO_STORE }, cookies),
+    headers: withCookies({ 'content-type': 'application/json', ...NO_STORE, ...extra }, cookies),
   });
 }
 

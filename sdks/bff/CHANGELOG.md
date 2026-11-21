@@ -14,5 +14,6 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The BFF's own `401` (no session, a session the issuer ended, `session`) carries `X-Odudu-Session: ended`, and the proxy removes that header from every upstream answer, so a client can tell it from an API's `401`.
 - A refresh whose ID token names another subject ends the session at once (`401`) instead of keeping it.
 - Sign-out no longer redirects to an `end_session_endpoint` that is not https (the session is still ended here and the response carries no address); an http endpoint passes only with `allowInsecureRequests`.

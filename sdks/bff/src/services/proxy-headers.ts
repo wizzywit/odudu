@@ -1,3 +1,5 @@
+import { SESSION_HEADER } from '#/services/config';
+
 const HOP_BY_HOP = [
   'connection',
   'keep-alive',
@@ -53,7 +55,7 @@ export function upstreamRequestHeaders(incoming: Headers, accessToken: string): 
 // What the browser is sent: the upstream's headers less its cookies, which
 // belong to the upstream and not to this origin, and the hop-by-hop headers.
 export function browserResponseHeaders(upstream: Headers): Headers {
-  const headers = without(upstream, ['set-cookie']);
+  const headers = without(upstream, ['set-cookie', SESSION_HEADER]);
   const encoding = headers.get('content-encoding');
   if (encoding !== null && encoding.toLowerCase() !== 'identity') {
     headers.delete('content-encoding');

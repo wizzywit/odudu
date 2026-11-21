@@ -3,7 +3,7 @@ import { cookieHeaderOf, empty, json, redirect, text } from '#/adapter/http';
 import { clearCookie, readCookie, setCookie } from '#/services/cookies';
 import { isSessionId } from '#/services/session-id';
 import { LOGIN_TTL_MS } from '#/services/session-policy';
-import type { BffConfig } from '#/services/config';
+import { SESSION_ENDED, SESSION_HEADER, type BffConfig } from '#/services/config';
 import type { Gate } from '#/services/gate';
 import { answerFor, type ProxyFailure } from '#/services/proxy-failure';
 import type { Route } from '#/services/proxy-route';
@@ -39,13 +39,15 @@ function upstreamFailure(kind: ProxyFailure): Response {
   return text(status, message);
 }
 
-const NOT_AUTHENTICATED = (): Response => json(401, { authenticated: false });
+const ENDED = { [SESSION_HEADER]: SESSION_ENDED };
+
+const NOT_AUTHENTICATED = (): Response => json(401, { authenticated: false }, [], ENDED);
 
 export function createBrowser(config: BffConfig): Browser {
   const clearSession = clearCookie(config.cookieName);
   const NO_SESSION = {
     anonymous: NOT_AUTHENTICATED,
-    ended: () => json(401, { authenticated: false }, [clearSession]),
+    ended: () => json(401, { authenticated: false }, [clearSession], ENDED),
     unavailable: () => empty(503, [], { 'retry-after': '5' }),
   };
   const clearLogin = clearCookie(config.loginCookieName);
@@ -73,7 +75,7 @@ export function createBrowser(config: BffConfig): Browser {
     signInFailed: (status) => text(status, 'Sign-in failed.', [clearLogin]),
     claims: (claims) => json(200, { authenticated: true, claims }),
     anonymous: () => json(200, { authenticated: false }),
-    sessionEnded: () => json(401, { authenticated: false }, [clearSession]),
+    sessionEnded: () => json(401, { authenticated: false }, [clearSession], ENDED),
     loggedOut: (redirectTo) =>
       redirectTo === undefined
         ? empty(204, [clearSession])

@@ -117,6 +117,21 @@ describe('bff mode', () => {
     });
   });
 
+  it('a 401 the API itself answers does not sign the UI out', async () => {
+    const { result } = renderHook(() => ({ auth: useAuth(), call: useBffFetch() }), {
+      wrapper: providerFor(mode),
+    });
+    await waitFor(() => {
+      expect(result.current.auth.status).toBe('signedIn');
+    });
+    bff.upstreamStatus = 401;
+    const refused = await result.current.call('api/items');
+    expect(refused.status).toBe(401);
+    expect(refused.headers.has('x-odudu-session')).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(result.current.auth.status).toBe('signedIn');
+  });
+
   it('signIn navigates to /login and refuses options the BFF cannot carry', async () => {
     bff.authenticated = false;
     const { result } = renderHook(() => useAuth(), { wrapper: providerFor(mode) });
