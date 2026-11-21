@@ -1,4 +1,9 @@
-import { isExpiredForGood, needsRefresh, refreshWasRefused } from '#/services/session-policy';
+import {
+  isExpiredForGood,
+  needsRefresh,
+  RefreshBusyError,
+  refreshWasRefused,
+} from '#/services/session-policy';
 import { createInFlight } from '#/repository/in-flight';
 import type { Browser } from '#/repository/browser';
 import type { IdentityProvider } from '#/repository/identity-provider';
@@ -26,19 +31,36 @@ export function createSessionAccess(
 ): SessionAccess {
   const once = createInFlight<SignedInSession | undefined>();
 
-  // Reads the session again inside the flight: a caller that loaded it before
-  // an earlier refresh finished must not spend the refresh token that refresh
-  // already replaced. It reads once more after the refresh, because a logout
-  // that ran meanwhile must not be undone by writing the session back.
+  // Reads the session again inside the flight, and after taking the store's
+  // lock when it has one: a caller that loaded it before an earlier refresh
+  // finished, here or in another instance, must not spend the refresh token
+  // that refresh already replaced. It reads once more after the refresh,
+  // because a logout that ran meanwhile must not be undone by writing the
+  // session back.
   async function renew(id: string): Promise<SignedInSession | undefined> {
+    const release = await sessions.lockSession(id);
+    if (release === undefined) return renewedElsewhere(id);
+    try {
+      const current = await sessions.loadSession(id);
+      if (current === undefined || !needsRefresh(current.tokens, now())) return current;
+      const tokens = await identity.refresh(current.tokens);
+      const stillThere = await sessions.loadSession(id);
+      if (stillThere === undefined) return undefined;
+      const next = { ...stillThere, tokens };
+      await sessions.saveSession(id, next);
+      return next;
+    } finally {
+      await release();
+    }
+  }
+
+  // The store would not grant the lock: another instance is refreshing. Its
+  // result is used when it is already saved, and otherwise the caller is told
+  // to try again.
+  async function renewedElsewhere(id: string): Promise<SignedInSession | undefined> {
     const current = await sessions.loadSession(id);
     if (current === undefined || !needsRefresh(current.tokens, now())) return current;
-    const tokens = await identity.refresh(current.tokens);
-    const stillThere = await sessions.loadSession(id);
-    if (stillThere === undefined) return undefined;
-    const next = { ...stillThere, tokens };
-    await sessions.saveSession(id, next);
-    return next;
+    throw new RefreshBusyError();
   }
 
   async function fresh(id: string, session: SignedInSession): Promise<SignedInSession | undefined> {

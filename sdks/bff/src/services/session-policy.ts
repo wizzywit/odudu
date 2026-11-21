@@ -3,6 +3,17 @@ import type { TokenSet } from '@odudu-io/oidc';
 
 export const REFRESH_SKEW_MS = 30_000;
 export const LOGIN_TTL_MS = 10 * 60 * 1000;
+// How long a store keeps the lock taken for one refresh if it is never released.
+export const REFRESH_LOCK_TTL_MS = 30_000;
+
+// Another instance holds the session's refresh lock and the session still needs
+// the refresh it is making; nothing is wrong with the grant.
+export class RefreshBusyError extends Error {
+  constructor() {
+    super('the session is being refreshed by another instance');
+    this.name = 'RefreshBusyError';
+  }
+}
 
 // An access token about to expire is renewed, when there is a refresh token to
 // renew it with. The soonest expiry counts: every audience is renewed together.

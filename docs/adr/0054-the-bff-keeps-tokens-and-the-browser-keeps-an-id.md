@@ -154,10 +154,17 @@ server exists.
   holds one body chunk in memory.
 - The default store forgets sessions when the process restarts and holds them
   per process. Both are the documented limit of the default, not a defect.
-- A custom store inherits the refresh guard only per process. Two instances over
-  one shared store can each refresh once; the issuer's reuse detection then
-  refuses the second, and that session ends with `401`. The guide recommends one
-  instance, or an affinity rule, until a store offers a lock.
+- The refresh guard is per process. A store shared by several instances should
+  implement the optional `lock(id, ttlMs)` of `SessionStore`: the BFF then takes
+  the lock for a session before it refreshes it, reads the session again once it
+  holds it, and uses the tokens another instance saved meanwhile instead of
+  spending the refresh token a second time. When the store gives no lock and
+  the session still needs a refresh, the read answers `503` and the session is
+  kept. Without `lock`, two instances over one shared store can each refresh
+  once; the issuer's reuse detection then refuses the second and revokes the
+  grant, so that session ends with `401`. Such a deployment runs one instance, or
+  routes a session to one instance, until its store implements `lock`. The
+  default memory store is per process and needs none.
 - The default store is a per-process registry on `globalThis` in
   `@odudu-io/next`: a Next build gives each route and page its own copy of a
   module, so a store made at load would be several. It is lost on restart and

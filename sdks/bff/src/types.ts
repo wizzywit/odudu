@@ -28,6 +28,14 @@ export interface SessionStore {
   get(id: string): Promise<Session | undefined>;
   set(id: string, session: Session, ttlMs: number): Promise<void>;
   delete(id: string): Promise<void>;
+  // Optional, and for a store shared by several BFF instances. Takes an
+  // exclusive lock on `id` for at most `ttlMs` and resolves with the function
+  // that releases it, or with undefined when the lock is not obtained. It
+  // should wait a short while for a lock another instance holds before giving
+  // up. The BFF holds it while it refreshes a session's tokens, so two
+  // instances never spend one refresh token; without it they can, and the
+  // issuer then ends the session. A store used by one process needs none.
+  lock?(id: string, ttlMs: number): Promise<(() => Promise<void>) | undefined>;
 }
 
 // A server the proxy may call for a signed-in browser. The browser names it by
