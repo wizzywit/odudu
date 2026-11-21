@@ -24,7 +24,7 @@ export function createIdentityProvider(config: BffConfig): IdentityProvider {
         deps,
       ),
     complete: (requestUrl, pending) =>
-      completeSignIn(callbackUrlOf(config.redirectUri, requestUrl), pending, deps, authOf(config)),
+      completeSignIn(callbackUrlOf(config.redirectUri, requestUrl), pending, authOf(config), deps),
     refresh: (tokens) => refresh(tokens, authOf(config), deps),
     signOut: async () => {
       const { end_session_endpoint: endpoint } = await discover(config.issuer, deps);

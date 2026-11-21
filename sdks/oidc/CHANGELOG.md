@@ -19,6 +19,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `completeSignIn(callbackUrl, pending, options?, deps?)` takes its options before `deps`, as `beginSignIn`, `refresh`, `signOutUrl` and `clientCredentials` do. It was `(callbackUrl, pending, deps?, options?)`.
 - A `TokenSet` now carries `issuer` and `clientId`, which `refresh` reads.
 
 ### Fixed

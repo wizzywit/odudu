@@ -45,7 +45,7 @@ function good(pending: Pending): Record<string, string> {
 }
 
 async function refusal(url: string, pending: Pending): Promise<OduduError> {
-  const error = await completeSignIn(url, pending, deps).then(
+  const error = await completeSignIn(url, pending, {}, deps).then(
     () => undefined,
     (e: unknown) => e,
   );
@@ -57,7 +57,7 @@ describe('completeSignIn', () => {
   it('returns the tokens and the validated claims', async () => {
     const pending = await begin();
     fake.scope = 'openid profile';
-    const tokens = await completeSignIn(callback(good(pending)), pending, deps);
+    const tokens = await completeSignIn(callback(good(pending)), pending, {}, deps);
     expect(tokens.idToken.split('.')).toHaveLength(3);
     expect(tokens.refreshToken).toBe('refresh-token-1');
     expect(tokens.claims.sub).toBe('subject-1');
@@ -73,7 +73,7 @@ describe('completeSignIn', () => {
 
   it('sends the code, the verifier and the redirect address to the token endpoint', async () => {
     const pending = await begin();
-    await completeSignIn(callback(good(pending)), pending, deps);
+    await completeSignIn(callback(good(pending)), pending, {}, deps);
     const request = fake.tokenRequests[0];
     expect(request?.get('grant_type')).toBe('authorization_code');
     expect(request?.get('code')).toBe('code-1');
@@ -85,7 +85,7 @@ describe('completeSignIn', () => {
   it('keys the access token by the audience it was asked for', async () => {
     const pending = await begin({ meAccess: 'write' });
     fake.scope = 'openid profile me:read me:write';
-    const tokens = await completeSignIn(callback(good(pending)), pending, deps);
+    const tokens = await completeSignIn(callback(good(pending)), pending, {}, deps);
     expect(Object.keys(tokens.byAudience)).toEqual([`${fake.issuer}/me`]);
     expect(tokens.byAudience[`${fake.issuer}/me`]?.scope).toBe('openid profile me:read me:write');
   });

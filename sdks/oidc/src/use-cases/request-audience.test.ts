@@ -40,7 +40,7 @@ describe('requestAudience', () => {
     callback.searchParams.set('code', 'code-2');
     callback.searchParams.set('state', new URL(url).searchParams.get('state') ?? '');
     callback.searchParams.set('iss', fake.issuer);
-    const tokens = await completeSignIn(callback.href, pending, deps);
+    const tokens = await completeSignIn(callback.href, pending, {}, deps);
     expect(Object.keys(tokens.byAudience)).toEqual([`${fake.issuer}/me`]);
     expect(tokens.byAudience[`${fake.issuer}/me`]?.scope).toBe('openid me:read');
   });

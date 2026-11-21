@@ -83,7 +83,7 @@ From `examples/web-app/app.ts`:
 ```ts
 // Checks state, the issuer and the ID token's issuer, audience, expiry and nonce, and
 // sends the PKCE verifier with the code. The signature is not checked.
-completeSignIn(url.href, pending, deps, { auth: { secret: SECRET } }).then(
+completeSignIn(url.href, pending, { auth: { secret: SECRET } }, deps).then(
   (tokens) => {
     const sub = tokens.claims.sub;
     const name = String(tokens.claims.preferred_username ?? sub);

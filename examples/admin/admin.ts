@@ -112,7 +112,7 @@ try {
     deps,
   );
   console.log(`Open ${url} to sign in.`);
-  const tokens = await completeSignIn(await waitForCallback(), pending, deps);
+  const tokens = await completeSignIn(await waitForCallback(), pending, {}, deps);
   // The access token for the me API is filed under the me audience.
   const meToken = tokens.byAudience[`${ISSUER}/me`]?.accessToken;
   if (meToken === undefined) throw new Error('no token for the me API came back');

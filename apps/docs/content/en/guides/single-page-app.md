@@ -81,7 +81,7 @@ async function finishSignIn(): Promise<TokenSet> {
   if (stored === null) throw new Error('No sign-in is under way');
   // Checks the state and the issuer, exchanges the code and checks the ID token's issuer,
   // audience, expiry and nonce, not its signature.
-  return completeSignIn(location.href, JSON.parse(stored) as Pending, deps);
+  return completeSignIn(location.href, JSON.parse(stored) as Pending, {}, deps);
 }
 ```
 

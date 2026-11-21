@@ -10,8 +10,8 @@ import type { CompleteSignInOptions, Deps, Pending, TokenSet } from '#/types';
 export async function completeSignIn(
   callbackUrl: string,
   pending: Pending,
-  deps: Deps = {},
   options: CompleteSignInOptions = {},
+  deps: Deps = {},
 ): Promise<TokenSet> {
   const params = readCallback(callbackUrl, pending);
   return exchangeForTokens(

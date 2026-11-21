@@ -55,7 +55,7 @@ describe('the expiry of a token that took a while to arrive', () => {
     callback.searchParams.set('code', 'code-1');
     callback.searchParams.set('state', new URL(url).searchParams.get('state') ?? '');
     callback.searchParams.set('iss', fake.issuer);
-    const tokens = await completeSignIn(callback.href, pending, deps);
+    const tokens = await completeSignIn(callback.href, pending, {}, deps);
     expect(tokens.byAudience[fake.issuer]?.expiresAt).toBe(START + 60_000);
   });
 
@@ -70,7 +70,7 @@ describe('the expiry of a token that took a while to arrive', () => {
     callback.searchParams.set('code', 'code-1');
     callback.searchParams.set('state', new URL(url).searchParams.get('state') ?? '');
     callback.searchParams.set('iss', fake.issuer);
-    const tokens = await completeSignIn(callback.href, pending, deps);
+    const tokens = await completeSignIn(callback.href, pending, {}, deps);
     fake.expiresIn = 60;
     clock = START;
     const renewed = await refresh(tokens, {}, deps);

@@ -41,7 +41,7 @@ const paths: Record<string, () => Promise<() => Promise<unknown>>> = {
     callback.searchParams.set('state', new URL(url).searchParams.get('state') ?? '');
     callback.searchParams.set('iss', fake.issuer);
     fake.claims = { nonce: pending.nonce };
-    return () => completeSignIn(callback.href, pending, deps);
+    return () => completeSignIn(callback.href, pending, {}, deps);
   },
   refresh: async () => {
     const { url, pending } = await beginSignIn(
@@ -53,7 +53,7 @@ const paths: Record<string, () => Promise<() => Promise<unknown>>> = {
     callback.searchParams.set('code', 'code-1');
     callback.searchParams.set('state', new URL(url).searchParams.get('state') ?? '');
     callback.searchParams.set('iss', fake.issuer);
-    const tokens = await completeSignIn(callback.href, pending, deps);
+    const tokens = await completeSignIn(callback.href, pending, {}, deps);
     return () => refresh(tokens, {}, deps);
   },
 };

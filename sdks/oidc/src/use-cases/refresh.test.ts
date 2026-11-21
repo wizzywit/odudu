@@ -28,7 +28,7 @@ async function signedIn(extra: Partial<SignInOptions> = {}): Promise<TokenSet> {
   callback.searchParams.set('code', 'code-1');
   callback.searchParams.set('state', new URL(url).searchParams.get('state') ?? '');
   callback.searchParams.set('iss', fake.issuer);
-  const tokens = await completeSignIn(callback.href, pending, deps);
+  const tokens = await completeSignIn(callback.href, pending, {}, deps);
   fake.tokenRequests.length = 0;
   return tokens;
 }

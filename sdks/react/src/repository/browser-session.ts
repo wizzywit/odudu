@@ -25,7 +25,7 @@ export async function finishSignIn(mode: BrowserMode): Promise<TokenSet | undefi
   replaceUrl(withoutCallbackParams(href));
   const pending = parsePending(stored);
   if (pending === undefined) throw noPendingSignIn();
-  return completeSignIn(href, pending, depsOf(mode));
+  return completeSignIn(href, pending, {}, depsOf(mode));
 }
 
 export function signOutAddress(mode: BrowserMode, tokens: TokenSet): Promise<string> {

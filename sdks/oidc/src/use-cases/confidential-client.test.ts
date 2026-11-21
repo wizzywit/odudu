@@ -40,7 +40,7 @@ async function begin(): Promise<{ pending: Pending; callback: string }> {
 
 async function signedIn(auth?: ClientAuth): Promise<TokenSet> {
   const { pending, callback } = await begin();
-  return completeSignIn(callback, pending, deps, auth === undefined ? {} : { auth });
+  return completeSignIn(callback, pending, auth === undefined ? {} : { auth }, deps);
 }
 
 function formEncode(value: string): string {
@@ -120,7 +120,7 @@ describe('confidential clients', () => {
       error_description: 'client authentication failed',
     };
     const { pending, callback } = await begin();
-    const error = await completeSignIn(callback, pending, deps, { auth: { secret: SECRET } }).then(
+    const error = await completeSignIn(callback, pending, { auth: { secret: SECRET } }, deps).then(
       () => undefined,
       (e: unknown) => e,
     );
@@ -136,9 +136,12 @@ describe('confidential clients', () => {
 
   it('a private key that cannot sign with the algorithm rejects with invalid_options on the exchange', async () => {
     const { pending, callback } = await begin();
-    const error = await completeSignIn(callback, pending, deps, {
-      auth: { privateKey: { kty: 'oct', k: 'AAAA' }, alg: 'ES256' },
-    }).then(
+    const error = await completeSignIn(
+      callback,
+      pending,
+      { auth: { privateKey: { kty: 'oct', k: 'AAAA' }, alg: 'ES256' } },
+      deps,
+    ).then(
       () => undefined,
       (e: unknown) => e,
     );
@@ -149,7 +152,7 @@ describe('confidential clients', () => {
   it('a code exchange response without expires_in is refused, not read as expired', async () => {
     fake.expiresIn = undefined;
     const { pending, callback } = await begin();
-    const exchanged = await completeSignIn(callback, pending, deps).then(
+    const exchanged = await completeSignIn(callback, pending, {}, deps).then(
       () => undefined,
       (e: unknown) => e,
     );

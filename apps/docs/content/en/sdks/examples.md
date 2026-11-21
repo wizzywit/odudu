@@ -69,7 +69,7 @@ From `examples/web-app/app.ts`:
 ```ts
 // Checks state, the issuer and the ID token's issuer, audience, expiry and nonce, and
 // sends the PKCE verifier with the code. The signature is not checked.
-completeSignIn(url.href, pending, deps, { auth: { secret: SECRET } }).then(
+completeSignIn(url.href, pending, { auth: { secret: SECRET } }, deps).then(
 ```
 
 Its test file `test.ts` drives a browser through the sign-in, through each check with a deliberately altered request, and through the sign-out:
@@ -117,7 +117,7 @@ sessionStorage.removeItem(PENDING);
 if (stored === null) throw new Error('No sign-in is under way');
 // Checks the state and the issuer, exchanges the code and checks the ID token's issuer,
 // audience, expiry and nonce, not its signature.
-return completeSignIn(location.href, JSON.parse(stored) as Pending, deps);
+return completeSignIn(location.href, JSON.parse(stored) as Pending, {}, deps);
 ```
 
 Its test file `test.ts` builds the app, serves it, and drives a browser through the sign-in, the checks and the sign-out:

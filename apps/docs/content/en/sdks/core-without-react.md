@@ -89,7 +89,7 @@ sessionStorage.removeItem(PENDING);
 if (stored === null) throw new Error('No sign-in is under way');
 // Checks the state and the issuer, exchanges the code and checks the ID token's issuer,
 // audience, expiry and nonce, not its signature.
-return completeSignIn(location.href, JSON.parse(stored) as Pending, deps);
+return completeSignIn(location.href, JSON.parse(stored) as Pending, {}, deps);
 ```
 
 A confidential client passes its secret, or a private key, as the last argument:
@@ -99,7 +99,7 @@ From `examples/web-app/app.ts`:
 ```ts
 // Checks state, the issuer and the ID token's issuer, audience, expiry and nonce, and
 // sends the PKCE verifier with the code. The signature is not checked.
-completeSignIn(url.href, pending, deps, { auth: { secret: SECRET } }).then(
+completeSignIn(url.href, pending, { auth: { secret: SECRET } }, deps).then(
 ```
 
 `completeSignIn` checks that the redirect arrived at the redirect address, that `state` is the one sent, that the `iss` parameter names the issuer you used, and that the code exchange carries the PKCE verifier. It then checks the ID token's issuer, audience, `azp`, expiry and `nonce`. Hold the result and read the person from `tokens.claims`; [the package page](./oidc.md#security-notes) lists each check.

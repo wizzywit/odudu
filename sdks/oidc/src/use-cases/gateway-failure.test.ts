@@ -59,7 +59,7 @@ async function rejection(run: () => Promise<unknown>): Promise<OduduError> {
 describe.each(Object.entries(answers))('%s', (_name, raw) => {
   it('is a request_failed on refresh, never an invalid ID token', async () => {
     const { callback, pending } = await signedIn();
-    const tokens = await completeSignIn(callback, pending, deps);
+    const tokens = await completeSignIn(callback, pending, {}, deps);
     fake.tokenRaw = raw;
     const error = await rejection(() => refresh(tokens, {}, deps));
     expect(error.code).toBe('request_failed');
@@ -69,7 +69,7 @@ describe.each(Object.entries(answers))('%s', (_name, raw) => {
   it('is a request_failed on the code exchange', async () => {
     const { callback, pending } = await signedIn();
     fake.tokenRaw = raw;
-    const error = await rejection(() => completeSignIn(callback, pending, deps));
+    const error = await rejection(() => completeSignIn(callback, pending, {}, deps));
     expect(error.code).toBe('request_failed');
   });
 
@@ -86,7 +86,7 @@ describe('an ID token that fails its checks', () => {
   it('is still an invalid_id_token', async () => {
     const { callback, pending } = await signedIn();
     fake.claims = { nonce: 'another-nonce' };
-    const error = await rejection(() => completeSignIn(callback, pending, deps));
+    const error = await rejection(() => completeSignIn(callback, pending, {}, deps));
     expect(error.code).toBe('invalid_id_token');
   });
 });

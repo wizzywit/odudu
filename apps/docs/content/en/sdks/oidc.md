@@ -78,18 +78,18 @@ try {
 
 ## What it exports
 
-| Export                                               | What it does                                                                                                                |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `discover(issuer, deps?)`                            | Reads the issuer's metadata, checks that it names the issuer you asked for, and keeps it for an hour (at most 256 issuers). |
-| `beginSignIn(options, deps?)`                        | Returns `{ url, pending }`: the address to send the person to and the record `completeSignIn` needs.                        |
-| `completeSignIn(callbackUrl, pending, deps?, opts?)` | Checks the redirect, exchanges the code and validates the ID token. Returns a `TokenSet`.                                   |
-| `refresh(tokens, options?, deps?)`                   | Renews the access tokens of a sign-in and returns the new `TokenSet`.                                                       |
-| `requestAudience(request, deps?)`                    | Starts a second authorization for an audience the first sign-in did not carry. Returns `{ url, pending }`.                  |
-| `clientCredentials(options, deps?)`                  | Signs a service in as itself once. Returns `{ accessToken, expiresAt, scope }`.                                             |
-| `createTokenSource(options, deps?)`                  | Returns a function that gives a valid access token for a service, asking again shortly before the held one expires.         |
-| `signClientAssertion(options)`                       | Signs the `private_key_jwt` assertion for a service that makes its own token request.                                       |
-| `signOutUrl(options, deps?)`                         | Builds the address that ends the person's session, with the ID token hint and the post-logout redirect.                     |
-| `OduduError`                                         | The error every function above raises. See [the errors](#errors).                                                           |
+| Export                                                  | What it does                                                                                                                |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `discover(issuer, deps?)`                               | Reads the issuer's metadata, checks that it names the issuer you asked for, and keeps it for an hour (at most 256 issuers). |
+| `beginSignIn(options, deps?)`                           | Returns `{ url, pending }`: the address to send the person to and the record `completeSignIn` needs.                        |
+| `completeSignIn(callbackUrl, pending, options?, deps?)` | Checks the redirect, exchanges the code and validates the ID token. Returns a `TokenSet`.                                   |
+| `refresh(tokens, options?, deps?)`                      | Renews the access tokens of a sign-in and returns the new `TokenSet`.                                                       |
+| `requestAudience(request, deps?)`                       | Starts a second authorization for an audience the first sign-in did not carry. Returns `{ url, pending }`.                  |
+| `clientCredentials(options, deps?)`                     | Signs a service in as itself once. Returns `{ accessToken, expiresAt, scope }`.                                             |
+| `createTokenSource(options, deps?)`                     | Returns a function that gives a valid access token for a service, asking again shortly before the held one expires.         |
+| `signClientAssertion(options)`                          | Signs the `private_key_jwt` assertion for a service that makes its own token request.                                       |
+| `signOutUrl(options, deps?)`                            | Builds the address that ends the person's session, with the ID token hint and the post-logout redirect.                     |
+| `OduduError`                                            | The error every function above raises. See [the errors](#errors).                                                           |
 
 ## Options
 
@@ -132,7 +132,7 @@ The last argument of most functions. Every member has a default that works in a 
 
 ### Confidential clients
 
-`completeSignIn` takes `{ auth }` as its last argument and `refresh` takes it in its options. `auth` is `{ secret }`, sent as `client_secret_basic`, or `{ privateKey, kid?, alg? }`, which signs a `private_key_jwt` assertion. Leave it out for a public client. `clientCredentials` and `createTokenSource` require it.
+`completeSignIn` and `refresh` take `{ auth }` in their options. `auth` is `{ secret }`, sent as `client_secret_basic`, or `{ privateKey, kid?, alg? }`, which signs a `private_key_jwt` assertion. Leave it out for a public client. `clientCredentials` and `createTokenSource` require it.
 
 ### `refresh` options
 
