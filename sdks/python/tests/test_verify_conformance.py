@@ -1,8 +1,8 @@
 """Every case of the shared token fixtures gives the same verdict as `@odudu-io/node`.
 
 The cases are the single copy under sdks/node/test/fixtures, read from the checkout. An sdist
-does not carry them, so outside a checkout this module is skipped; inside one, a missing file
-fails.
+does not carry them, so outside a checkout this module is skipped with a reason that names them,
+unless ODUDU_REQUIRE_FIXTURES is set, which CI does: then a missing file fails.
 """
 
 from __future__ import annotations
@@ -11,19 +11,24 @@ import asyncio
 from typing import cast
 
 import pytest
-from verify_support import IssuerServer, in_checkout, read_fixture
+from verify_support import (
+    IssuerServer,
+    fixtures_present,
+    fixtures_required,
+    fixtures_skip_reason,
+    read_fixture,
+)
 
 from odudu.verify import AsyncVerifier, VerificationError, Verifier
 
-pytestmark = pytest.mark.skipif(
-    not in_checkout(), reason="the shared token fixtures are read from a repository checkout"
-)
+_SKIP = fixtures_skip_reason(present=fixtures_present(), required=fixtures_required())
+pytestmark = pytest.mark.skipif(_SKIP is not None, reason=_SKIP or "")
 
 Case = dict[str, object]
 
 
 def _cases() -> list[Case]:
-    if not in_checkout():
+    if _SKIP is not None:
         return []
     return cast("list[Case]", read_fixture("cases.json"))
 

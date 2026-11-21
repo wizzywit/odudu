@@ -838,6 +838,7 @@ jobs:
       - name: Test, lint and type-check the Python package
         env:
           ODUDU_REQUIRE_EXTRAS: '1'
+          ODUDU_REQUIRE_FIXTURES: '1'
         run: |
           for version in 3.10 3.13; do
             venv="$RUNNER_TEMP/venv-$version"

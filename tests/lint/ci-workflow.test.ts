@@ -678,6 +678,14 @@ describe('the CI workflow', () => {
       expect(await read('sdks/python/requirements-dev.txt')).toMatch(/--hash=sha256:/u);
     });
 
+    it('fails, instead of skipping, the verifier tests that read the shared fixtures', async () => {
+      const verify = await read('.github/workflows/verify.yml');
+      expect(jobBlock(verify, 'sdks', 'commit-messages')).toContain("ODUDU_REQUIRE_FIXTURES: '1'");
+      expect(await read('.github/workflows/sdk-release.yml')).toContain(
+        "ODUDU_REQUIRE_FIXTURES: '1'",
+      );
+    });
+
     it('runs the verifier extras tests rather than skipping them', async () => {
       const verify = await read('.github/workflows/verify.yml');
       expect(jobBlock(verify, 'sdks', 'commit-messages')).toContain("ODUDU_REQUIRE_EXTRAS: '1'");

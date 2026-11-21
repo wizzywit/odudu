@@ -41,6 +41,29 @@ def in_checkout() -> bool:
     return (REPOSITORY / "pnpm-workspace.yaml").is_file()
 
 
+def fixtures_skip_reason(*, present: bool, required: bool) -> str | None:
+    """Why the fixture-driven tests are skipped, or None when they must run.
+
+    The fixtures are one copy under sdks/node, so an sdist does not carry them and its tests skip
+    with this reason. CI sets ODUDU_REQUIRE_FIXTURES so that a checkout that lost them fails
+    instead of skipping.
+    """
+    if present or required:
+        return None
+    return (
+        "the shared token fixtures (sdks/node/test/fixtures) are read from a repository checkout; "
+        "set ODUDU_REQUIRE_FIXTURES=1 to fail when they are missing"
+    )
+
+
+def fixtures_present() -> bool:
+    return in_checkout() and (FIXTURES / "cases.json").is_file()
+
+
+def fixtures_required() -> bool:
+    return bool(os.environ.get("ODUDU_REQUIRE_FIXTURES"))
+
+
 def read_fixture(name: str) -> object:
     path = FIXTURES / name
     if not path.is_file():
