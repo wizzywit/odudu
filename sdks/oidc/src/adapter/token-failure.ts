@@ -29,6 +29,14 @@ async function challengeRefusal(
   );
 }
 
+// The library raises OperationProcessingError for a response that is not an
+// OAuth answer at all (a gateway's 502 page, a 429 with no body, a body that
+// is not JSON) as well as for an ID token that fails its checks. Only the
+// second says anything about the person's tokens.
+function isUnusableResponse(cause: oauth.OperationProcessingError): boolean {
+  return cause.code === oauth.RESPONSE_IS_NOT_CONFORM || cause.code === oauth.RESPONSE_IS_NOT_JSON;
+}
+
 // What a token endpoint request that did not succeed means for the caller.
 export async function tokenFailure(cause: unknown, refusal: string): Promise<OduduError> {
   if (cause instanceof oauth.ResponseBodyError) {
@@ -38,7 +46,7 @@ export async function tokenFailure(cause: unknown, refusal: string): Promise<Odu
     const named = await challengeRefusal(cause, refusal);
     if (named !== undefined) return named;
   }
-  if (cause instanceof oauth.OperationProcessingError) {
+  if (cause instanceof oauth.OperationProcessingError && !isUnusableResponse(cause)) {
     return new OduduError('invalid_id_token', `the response was refused: ${cause.message}`, {
       cause,
     });

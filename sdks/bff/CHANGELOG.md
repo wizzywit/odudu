@@ -17,5 +17,6 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A browser that leaves a proxied call, in the wait for the upstream's headers as well as while the body streams, now aborts the upstream request, through the request's `signal` and through the Express and Fastify adapters' connection close.
 - The BFF's own `401` (no session, a session the issuer ended, `session`) carries `X-Odudu-Session: ended`, and the proxy removes that header from every upstream answer, so a client can tell it from an API's `401`.
+- A gateway error or an empty `429` from the token endpoint during a refresh keeps the session and answers `503` (it ended the session), and during the callback answers `502` (it answered `400`).
 - A refresh whose ID token names another subject ends the session at once (`401`) instead of keeping it.
 - Sign-out no longer redirects to an `end_session_endpoint` that is not https (the session is still ended here and the response carries no address); an http endpoint passes only with `allowInsecureRequests`.

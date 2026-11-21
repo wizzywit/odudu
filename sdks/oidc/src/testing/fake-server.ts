@@ -16,6 +16,9 @@ export interface FakeServer {
   // The raw body of the challenge answer, instead of `tokenError`: bytes, or
   // `endless` for a body that is never finished.
   tokenChallengeBody: Buffer | 'endless' | undefined;
+  // Answers every token request with this status and body, as a proxy in
+  // front of the server does: an HTML page, or nothing at all.
+  tokenRaw: { status: number; contentType?: string; body: string } | undefined;
   // Omitted from the token response when undefined.
   scope: string | undefined;
   // Omitted from the token response when undefined.
@@ -80,6 +83,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
     tokenError: undefined,
     tokenChallenge: false,
     tokenChallengeBody: undefined,
+    tokenRaw: undefined,
     scope: 'openid',
     expiresIn: 900,
     tokenRequests: [],
@@ -122,6 +126,16 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
           fake.tokenAuthorizations.push(request.headers.authorization);
           if (fake.tokenDelayMs > 0) {
             await new Promise((resolve) => setTimeout(resolve, fake.tokenDelayMs));
+          }
+          if (fake.tokenRaw !== undefined) {
+            response.writeHead(
+              fake.tokenRaw.status,
+              fake.tokenRaw.contentType === undefined
+                ? {}
+                : { 'content-type': fake.tokenRaw.contentType },
+            );
+            response.end(fake.tokenRaw.body);
+            return;
           }
           if (fake.tokenChallenge) {
             response.writeHead(401, {

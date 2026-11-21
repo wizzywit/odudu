@@ -27,6 +27,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `beginSignIn` and `requestAudience` copy the options once, nested arrays included, so the address and the record `completeSignIn` needs agree even if the object changes during the call.
 - Discovery rejects with `discovery_failed` metadata that spells the issuer differently from the string asked for (`https://id.example` against `https://id.example/`), which would have failed the `iss` check later.
 - `createTokenSource` rejects a `skewMs` that is negative or not finite with `invalid_options` when it is made; a negative one kept a token past its expiry.
+- A token endpoint answer that is not an OAuth answer (a gateway's 502 page, a 429 with no body, a body that is not JSON) rejects with `request_failed`, not `invalid_id_token`, on the code exchange and on `refresh`; `invalid_id_token` stays for an ID token that fails its checks.
 - `PrivateKeyJwk` accepts the key `crypto.subtle.exportKey('jwk', key)` returns without a cast.
 - `refresh` rejects with `audience_not_granted` a `resource` the sign-in did not carry before it sends anything, as its documentation said.
 - `refresh` without a `resource` renews the audiences a JWT access token names and removes the others, so a later request for one rejects with `audience_not_granted` (the server leaves out an audience a registration policy has taken away). Best effort: an access token is opaque to a client, and an opaque or unreadable one renews every audience.

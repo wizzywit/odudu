@@ -213,6 +213,20 @@ describe('the token endpoint', () => {
     await expect(odd).rejects.toThrow(/unrecognised/u);
   });
 
+  it('does not end the grant for a gateway page or an empty 429', async () => {
+    for (const answer of [
+      () => reply('<html>Bad Gateway</html>', 502, 'text/html'),
+      () => new Response('', { status: 429 }),
+    ]) {
+      const failed = client(answer).oauth.refresh(server, {
+        refreshToken: 'r1',
+        scope: 'mcp:read',
+        resource: ADMIN,
+      });
+      await expect(failed).rejects.toMatchObject({ code: 'mcp_token_endpoint' });
+    }
+  });
+
   it('refuses a success that is not a token response, and a redirect', async () => {
     await expect(
       client(() => reply({ hello: 'world' })).oauth.redeemCode(server, {
