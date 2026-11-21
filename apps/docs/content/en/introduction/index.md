@@ -13,9 +13,9 @@ Odudu is before 1.0, and 0.1.0 is its first stable release, so a minor version m
 
 ## Licence and language
 
-Odudu is free software under the GNU Affero General Public License, version 3 (`AGPL-3.0-only`). You may run it, study it and change it. If you let other people use a changed version over a network, the licence asks you to offer them that version's source. Read the [licence](https://github.com/wizzywit/odudu/blob/main/LICENSE) itself for the terms; this is not legal advice. The name and the mark have their own [trademark policy](https://github.com/wizzywit/odudu/blob/main/TRADEMARK.md).
+Odudu is free software under the GNU Affero General Public License, version 3 (`AGPL-3.0-only`). The SDKs and the examples are under Apache-2.0, so an application of any licence may use and copy them. You may run Odudu, study it and change it. If you let other people use a changed version over a network, the licence asks you to offer them that version's source. Read the [licence](https://github.com/wizzywit/odudu/blob/main/LICENSE) itself for the terms; this is not legal advice. The name and the mark have their own [trademark policy](https://github.com/wizzywit/odudu/blob/main/TRADEMARK.md).
 
-The pages and mail Odudu sends come in English and Arabic, and Arabic reads right to left. A tenant lists the languages it offers. Odudu has no SDK of its own: use any OpenID Connect library, as the [guides](../guides/index.md) do.
+The pages and mail Odudu sends come in English and Arabic, and Arabic reads right to left. A tenant lists the languages it offers. The [SDKs](../sdks/index.md) are TypeScript packages and a Python package that sign people in, protect an API and call the admin API from code, and the [guides](../guides/index.md) use them. Until the first release is published, they install from a checkout of the repository, which the SDKs page explains. Odudu speaks OpenID Connect, so any library for it works too.
 
 ## Where to start
 

@@ -11,6 +11,8 @@ OpenID Connect and OAuth 2.0, many tenants, one container and PostgreSQL.
 [![verify](https://github.com/wizzywit/odudu/actions/workflows/verify.yml/badge.svg)](https://github.com/wizzywit/odudu/actions/workflows/verify.yml)
 [![licence](https://img.shields.io/badge/licence-AGPL--3.0--only-blue)](LICENSING.md)
 [![docs](https://img.shields.io/badge/docs-read%20them-0b7a5a)](https://wizzywit.github.io/odudu/docs/)
+[![SDKs](https://img.shields.io/badge/SDKs-TypeScript%20and%20Python-0b7a5a)](https://wizzywit.github.io/odudu/docs/sdks/)
+[![SDKs licence](https://img.shields.io/badge/SDKs%20licence-Apache--2.0-blue)](LICENSING.md)
 [![release](https://img.shields.io/github/v/release/wizzywit/odudu?include_prereleases)](https://github.com/wizzywit/odudu/releases)
 [![image](https://img.shields.io/badge/image-ghcr.io%2Fwizzywit%2Fodudu-0b7a5a)](https://github.com/wizzywit/odudu/pkgs/container/odudu)
 
@@ -48,6 +50,7 @@ data on their own servers.
 - A "me" API for a person's own profile, credentials, sessions and consents, and application-initiated actions such as a password change.
 - Every page the server shows, and its mail, in a tenant's theme and a client's branding: colours, font, images, a stylesheet and page templates, previewed and published as versions.
 - A public address of its own for a tenant, such as `login.acme.com`, proved by a DNS record, switched to and back, with the issuer, cookies and mail links following it.
+- SDKs for TypeScript and Python, in this repository: eight npm packages under `@odudu-io` for signing in (a core, React, Next.js and a backend for frontend), checking access tokens, calling the admin and "me" APIs with types, and running `odudu mcp` without the image, and the Python package `odudu`. Until the first release is published, they install from a checkout.
 - An MCP server that gives an AI agent 64 read tools and 12 write tools over the admin API (two of them, which list and count the tenants, only for a system administrator's agent), held to the same capabilities as everyone else, read-only unless the person allows it to change descriptive text and the wording of the sign-in pages (the display name, the languages and message overrides), to prepare a draft of a theme that only a person can publish, and to add roles, groups and scopes that grant nothing, on a ten-minute token. Access-changing, credential and destructive operations are not available to an agent yet.
 - Pages and mail in English and Arabic, chosen per tenant, with the tenant's own wording.
 - An admin API with more than a hundred operations, and a console with a page for every area.
@@ -91,7 +94,8 @@ takes you from there to a signed-in app.
 ## Documentation
 
 - [Guides](https://wizzywit.github.io/odudu/docs/guides/) for signing in from a web app, a single-page app, an API or a machine.
-- [Examples](examples/), four small apps that run in CI.
+- [SDKs](https://wizzywit.github.io/odudu/docs/sdks/), the packages that sign people in, check tokens and call the APIs.
+- [Examples](examples/), nine small apps that run in CI.
 - [Concepts](https://wizzywit.github.io/odudu/docs/concepts/), [operating Odudu](https://wizzywit.github.io/odudu/docs/operating/) and the [reference](https://wizzywit.github.io/odudu/docs/reference/).
 - [How it compares with Keycloak](https://wizzywit.github.io/odudu/docs/introduction/compare/).
 
@@ -110,7 +114,7 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) before you send a change, and the
 
 ## Licence
 
-The server, console and tools are AGPL-3.0-only. The guides and the examples are
-Apache-2.0. [LICENSING.md](LICENSING.md) says which directory is which.
+The server, console and tools are AGPL-3.0-only. The SDKs, the guides and the
+examples are Apache-2.0. [LICENSING.md](LICENSING.md) says which directory is which.
 
 Odudu and the staff mark are the property of Wisdom Praise. The software is licensed under the AGPL; the name and the mark are used under the trademark policy. The policy is [TRADEMARK.md](TRADEMARK.md).

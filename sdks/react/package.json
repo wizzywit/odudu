@@ -1,0 +1,55 @@
+{
+  "name": "@odudu-io/react",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wizzywit/odudu.git",
+    "directory": "sdks/react"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "imports": {
+    "#/ui/*": "./src/ui/*.tsx",
+    "#/*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepack": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
+  },
+  "dependencies": {
+    "@odudu-io/oidc": "workspace:^"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "jsdom": "31.0.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tsup": "9.0.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

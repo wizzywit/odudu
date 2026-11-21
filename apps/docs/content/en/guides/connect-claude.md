@@ -6,7 +6,7 @@ sidebar_position: 13
 
 # Connect Claude
 
-Claude reaches an Odudu tenant three ways, and which one you use depends on where the instance is. Claude Code, the terminal tool, connects straight to the tenant's MCP endpoint, and it can do that to an instance on localhost. Claude Desktop can run `odudu mcp`, a local program that talks to the instance for it. claude.ai and the connectors in Claude Desktop are called from Anthropic's servers, so they need an address on the public internet.
+Claude reaches an Odudu tenant three ways, and which one you use depends on where the instance is. Claude Code, the terminal tool, connects straight to the tenant's MCP endpoint, and it can do that to an instance on localhost. Claude Desktop can run `@odudu-io/mcp-stdio`, a local program that talks to the instance for it and that `odudu mcp` also runs. claude.ai and the connectors in Claude Desktop are called from Anthropic's servers, so they need an address on the public internet.
 
 You need a tenant set up for MCP clients, which [Protect an MCP server](./protect-an-mcp-server.md) does in its step 4: `client_registration_policy` set to `mcp`, and `cimd_enabled` on if you want Claude Code or claude.ai to identify themselves with their own address. The examples use the quick start's `demo` tenant at `http://localhost:3000`.
 
@@ -16,7 +16,7 @@ The Odudu side of this page was run, against a stack built from this repository:
 
 **What was run in Claude's own software.** On 6 November 2026 the owner of the project ran Claude Code 2.1.319 and Claude Desktop 3.6556.2, as reported by the owner, against a local instance. In Claude Code the command-line form with `--client-id` and `--callback-port` against a client an administrator made (below) signed in and completed the sign-in inside the session, and the owner ran the reads that existed then (42 tools) and that release's two writes, `update_client_metadata` and `update_scope_metadata`, with an entity tag, a stale tag, refusals and bad arguments, which behaved as this page says. The tools added since (the other reads and ten more write tools), the write budget and the rule that only the endpoint offers the creates, the overrides and the theme drafts were run only against integration tests, the MCP Inspector, the SDK's client and replays of this page's commands, not in a real Claude client. Claude Desktop was run through the `odudu mcp` entry below, with the absolute path to `node`.
 
-**What was not run.** The write tools added after that run in a real Claude client, the `.mcp.json` settings (`oauth.scopes`, and the mix of `clientId`, `callbackPort` and `scopes`), Claude Code's own registration by metadata document or by dynamic registration, the claude.ai and Desktop connectors, and `odudu mcp` on Windows and with the Linux Secret Service. Those follow the vendor's documentation as read on 6 November 2026, linked where each is used, and a vendor can change them. Where a block is the vendor's syntax it is tagged `text`, which the guides use for what is shown and not run. If a step differs from what you see, the vendor's page is right about its own software, and a note to the Odudu project is welcome.
+**What was not run.** The write tools added after that run in a real Claude client, the `.mcp.json` settings (`oauth.scopes`, and the mix of `clientId`, `callbackPort` and `scopes`), Claude Code's own registration by metadata document or by dynamic registration, the claude.ai and Desktop connectors, the `npx @odudu-io/mcp-stdio` entry in Claude Desktop, and the command on Windows and with the Linux Secret Service. Those follow the vendor's documentation as read on 6 November 2026, linked where each is used, and a vendor can change them. Where a block is the vendor's syntax it is tagged `text`, which the guides use for what is shown and not run. If a step differs from what you see, the vendor's page is right about its own software, and a note to the Odudu project is welcome.
 
 ## Claude Code, to an instance on localhost
 
@@ -66,11 +66,28 @@ With a client that holds `mcp:write` you can also ask for a change, for example 
 
 A failure comes back to Claude as an error it reads and tells you, with a reason such as `mcp:invalid_arguments: id: must be a UUID` for a malformed argument, or a refusal that says the person lacks a capability. A call you did not expect to be refused is in the console's audit trail, as an `agent.tool_call` event with the reason. In Claude Code, `/mcp` shows whether the server is connected and lets you sign in again when the sign-in has ended. Claude Desktop shows a server that failed to start in its own settings, which this page did not check further.
 
-## Claude Desktop, through `odudu mcp`
+## Claude Desktop, through `@odudu-io/mcp-stdio`
 
-Claude Desktop starts local programs described in its configuration file, and `odudu mcp` is one: it serves the read tools, and with `--allow-writes` the five that amend text, over standard input and output, and calls the instance as you or as a service account. This is the route for an instance Anthropic's servers cannot reach. The file is `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS and `%APPDATA%\Claude\claude_desktop_config.json` on Windows, which **Settings, Developer, Edit Config** opens, and Claude Desktop has to be quit and started again to read it (the Model Context Protocol's guide (`https://modelcontextprotocol.io/docs/develop/connect-local-servers`) has the steps).
+Claude Desktop starts local programs described in its configuration file, and [`@odudu-io/mcp-stdio`](../sdks/mcp-stdio.md) is one: its command `odudu-mcp` serves the read tools, and with `--allow-writes` the five that amend text, over standard input and output, and calls the instance as you or as a service account. `odudu mcp` in the server's command line runs the same code. This is the route for an instance Anthropic's servers cannot reach. The file is `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS and `%APPDATA%\Claude\claude_desktop_config.json` on Windows, which **Settings, Developer, Edit Config** opens, and Claude Desktop has to be quit and started again to read it (the Model Context Protocol's guide (`https://modelcontextprotocol.io/docs/develop/connect-local-servers`) has the steps).
 
-As a person, `odudu mcp` opens your browser to sign in, listens for the answer on a loopback port and keeps the sign-in in your operating system's credential store. It has to run on your machine and not in a container, and the command ships in the Odudu image and in the repository, not yet as a download. From a checkout, with Node 24 and `pnpm install` done, the entry is:
+As a person, the command opens your browser to sign in, listens for the answer on a loopback port and keeps the sign-in in your operating system's credential store. It has to run on your machine and not in a container. It needs Node 24 or later, and neither the Odudu image nor a checkout of this repository. The entry runs it with `npx`, which fetches the package: If Claude Desktop cannot start `npx`, give the absolute path to it as the command.
+
+```text
+{
+  "mcpServers": {
+    "odudu": {
+      "command": "npx",
+      "args": [
+        "-y", "@odudu-io/mcp-stdio",
+        "--base-url", "http://localhost:3000",
+        "--tenant", "demo"
+      ]
+    }
+  }
+}
+```
+
+Until the first release is published, `npx` cannot find the package, so use the entry below instead. It runs the same code from a checkout of this repository, with Node 24 and `pnpm install` done and `pnpm --filter "@odudu-io/mcp-stdio..." build` run once, and it is the form that was run in Claude Desktop, as the section "What was checked, and what was not" says:
 
 ```text
 {
@@ -88,9 +105,30 @@ As a person, `odudu mcp` opens your browser to sign in, listens for the answer o
 }
 ```
 
-That is read-only. `odudu mcp --help` lists the flags; `--allow-writes` asks for `mcp:write` instead and offers the write tools that change a description, a name or the tenant's display name and languages as well (not the three that create something, nor the two that set or clear a message override, nor the two that save a theme draft, which only the endpoint offers, because only the endpoint counts them).
+That is read-only. `npx @odudu-io/mcp-stdio --help` lists the flags of the package, and `odudu help mcp` those of `odudu mcp`, which does not take `--help` itself; `--allow-writes` asks for `mcp:write` instead and offers the write tools that change a description, a name or the tenant's display name and languages as well (not the three that create something, nor the two that set or clear a message override, nor the two that save a theme draft, which only the endpoint offers, because only the endpoint counts them).
 
-For a service account, which needs no browser, run the command in the container. The key is passed from the environment, so it is not in the arguments:
+For a service account, which needs no browser, the key travels in the entry's environment, so it is not in the arguments:
+
+```text
+{
+  "mcpServers": {
+    "odudu": {
+      "command": "npx",
+      "args": [
+        "-y", "@odudu-io/mcp-stdio",
+        "--base-url", "http://localhost:3000",
+        "--tenant", "demo",
+        "--client-id", "my-agent"
+      ],
+      "env": { "ODUDU_MCP_KEY": "…the key line's value…" }
+    }
+  }
+}
+```
+
+Until the first release is published, replace `"npx"` and `"-y", "@odudu-io/mcp-stdio"` with `"node"` and `"/path/to/odudu/sdks/mcp-stdio/dist/bin.js"` (after the build above).
+
+The same command runs in the container, which already holds it, when you would rather not install anything. The key is passed from the environment there too:
 
 ```text
 {

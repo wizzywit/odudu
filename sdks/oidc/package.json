@@ -1,0 +1,44 @@
+{
+  "name": "@odudu-io/oidc",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wizzywit/odudu.git",
+    "directory": "sdks/oidc"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepack": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
+  },
+  "dependencies": {
+    "jose": "6.2.17",
+    "oauth4webapi": "3.8.8"
+  },
+  "devDependencies": {
+    "tsup": "9.0.0"
+  }
+}

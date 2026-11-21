@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { cruise } from 'dependency-cruiser';
 import type { ICruiseResult } from 'dependency-cruiser';
@@ -132,6 +133,28 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(found.some((v) => v.from.includes('mcp/src/allowed'))).toBe(false);
   });
 
+  it('lets the MCP package import the stdio client it shares code with', async () => {
+    const found = await violations('mcp-allowlist');
+    expect(found.some((v) => v.from.includes('mcp/src/imports-mcp-stdio'))).toBe(false);
+  });
+
+  it('rejects the stdio client importing the MCP package, or a server package by name', async () => {
+    const found = await violations('sdks-import-no-server');
+    expect(
+      found.some(
+        (v) =>
+          v.from.includes('sdks/mcp-stdio/src/imports-server.') && v.to.includes('packages/mcp'),
+      ),
+    ).toBe(true);
+    expect(
+      found.some(
+        (v) =>
+          v.from.includes('sdks/mcp-stdio/src/imports-server-by-name') && v.to === '@odudu/kernel',
+      ),
+    ).toBe(true);
+    expect(found.some((v) => v.from.includes('mcp/src/imports-mcp-stdio'))).toBe(false);
+  });
+
   it('rejects a protocol package importing the MCP package', async () => {
     const found = await violations('mcp-imported-only-by-server');
     expect(
@@ -153,6 +176,40 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(found.some((v) => v.from.includes('me/src/allowed'))).toBe(false);
   });
 
+  it('rejects an SDK importing a server package', async () => {
+    const found = await violations('sdks-import-no-server');
+    expect(
+      found.some(
+        (v) => v.from.includes('sdks/oidc/src/imports-server') && v.to.includes('packages/'),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects an SDK importing a server package by its workspace name', async () => {
+    const found = await violations('sdks-import-no-server');
+    expect(
+      found.some(
+        (v) => v.from.includes('sdks/oidc/src/imports-server-by-name') && v.to === '@odudu/kernel',
+      ),
+    ).toBe(true);
+  });
+
+  it('cruises the sdks tree in the boundaries script', () => {
+    const manifest: unknown = JSON.parse(
+      readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'),
+    );
+    const script =
+      typeof manifest === 'object' && manifest !== null && 'scripts' in manifest
+        ? (manifest.scripts as Record<string, string>).boundaries
+        : undefined;
+    expect(script?.split(' ')).toContain('sdks');
+  });
+
+  it('does not flag an SDK importing another SDK', async () => {
+    const found = await violations('sdks-import-no-server');
+    expect(found.some((v) => v.from.includes('sdks/react/src/imports-sdk'))).toBe(false);
+  });
+
   it('rejects a protocol package importing the me package', async () => {
     const found = await violations('me-imported-only-by-server');
     expect(
@@ -164,6 +221,14 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     const found = await violations('me-imported-only-by-server');
     expect(found.some((v) => v.from.includes('domain-example/src/imports-me'))).toBe(true);
     expect(found.some((v) => v.from.includes('apps/server/src/composes-me'))).toBe(false);
+  });
+
+  it('lets the docs app read only the me docs entry', async () => {
+    const entry = await violations('me-docs-entry-only');
+    expect(entry.some((v) => v.from.includes('apps/docs/src/reads-me-internals'))).toBe(true);
+    expect(entry.some((v) => v.from.includes('apps/docs/src/reads-me-docs-entry'))).toBe(false);
+    const server = await violations('me-imported-only-by-server');
+    expect(server.some((v) => v.from.includes('apps/docs/'))).toBe(false);
   });
 
   it('rejects a circular import', async () => {

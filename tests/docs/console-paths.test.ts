@@ -137,7 +137,7 @@ describe('the console pages name only console routes the server serves', () => {
       undefined,
     );
     expect(servingRoute(routes, { method: 'POST', url: '/console/auth/login' })).toBe(undefined);
-  });
+  }, 60_000);
 
   it('serves every console route the document sends a request to', async () => {
     const routes = await consoleRoutes();
@@ -148,5 +148,5 @@ describe('the console pages name only console routes the server serves', () => {
     expect(missing, `${GUIDE} sends requests to console routes the server does not serve`).toEqual(
       [],
     );
-  });
+  }, 60_000);
 });

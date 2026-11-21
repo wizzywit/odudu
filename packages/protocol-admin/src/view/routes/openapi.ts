@@ -1,40 +1,30 @@
 import { paletteSchema, themeBodySchema, themeLogoSchema } from '@odudu/contracts';
 import { problemDetailsSchema } from '@odudu/contracts/admin';
 import { documentedJsonSchema } from '@odudu/contracts/admin/docs';
+import {
+  bearerSecurityScheme,
+  COMPONENT_PREFIX,
+  errorResponse,
+  hoistRepeatedSchemas,
+  isJsonObject,
+  queryParametersOf,
+  without,
+  type JsonSchema,
+  type OpenApiOperation,
+  type OpenApiParameter,
+  type OpenApiParameterOrRef,
+  type OpenApiResponse,
+  type OpenApiResponseOrRef,
+} from '@odudu/contracts/openapi';
 import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
+import { KERNEL_VERSION } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import type { z } from 'zod';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 import { idempotentMethod } from '#/service/idempotency';
 import { pathParameterNames, rowIdSchema } from '#/service/path-params';
 
-type JsonSchema = z.core.JSONSchema.BaseSchema;
-
-interface OpenApiParameter {
-  readonly name: string;
-  readonly in: 'path' | 'query' | 'header';
-  readonly required: boolean;
-  readonly description?: string;
-  readonly schema: JsonSchema;
-}
-
-type OpenApiParameterOrRef = { readonly $ref: string } | OpenApiParameter;
-
-interface OpenApiResponse {
-  readonly description: string;
-  readonly content?: Readonly<Record<string, { readonly schema: JsonSchema }>>;
-}
-
-interface OpenApiOperation {
-  readonly summary: string;
-  readonly description?: string;
-  readonly parameters: readonly OpenApiParameterOrRef[];
-  readonly requestBody?: {
-    readonly required: boolean;
-    readonly content: Readonly<Record<string, { readonly schema: JsonSchema }>>;
-  };
-  readonly responses: Readonly<Record<string, OpenApiResponse>>;
-}
+const IGNORED_SEGMENTS = ['admin', 'tenants'];
 
 export interface OpenApiDocument {
   readonly openapi: '3.1.0';
@@ -44,12 +34,13 @@ export interface OpenApiDocument {
   readonly components: {
     readonly parameters: { readonly tenant: unknown; readonly IdempotencyKey: unknown };
     readonly securitySchemes: { readonly bearerAuth: unknown };
+    readonly responses: Readonly<Record<string, OpenApiResponse>>;
     readonly schemas: {
       readonly ProblemDetails: JsonSchema;
       readonly ThemeBody: JsonSchema;
       readonly Palette: JsonSchema;
       readonly Logo: JsonSchema;
-    };
+    } & Readonly<Record<string, JsonSchema>>;
   };
 }
 
@@ -98,27 +89,40 @@ const NO_IDEMPOTENCY = {
     'refused with `400` (`about:blank#idempotency-external-io`) and nothing is applied.',
 } as const;
 
-const BEARER_SECURITY_SCHEME = {
-  type: 'http',
-  scheme: 'bearer',
-  bearerFormat: 'JWT',
-  description:
-    `An access token whose "aud" claim names ${ADMIN_API_AUDIENCE}. ` +
+const BEARER_SECURITY_SCHEME = bearerSecurityScheme(
+  `An access token whose "aud" claim names ${ADMIN_API_AUDIENCE}. ` +
     'A token minted for another audience, including the protocol surface itself, is refused with 401.',
-};
+);
 
 // sendProblem (#/view/problem) sends RFC 9457 bodies as
 // application/problem+json, never application/json — a client generated
 // from this document has to pick that decoder for 401 and 403.
-const PROBLEM_DETAILS_RESPONSE: OpenApiResponse = {
-  description: 'RFC 9457 problem details',
-  content: { 'application/problem+json': { schema: jsonSchemaFor(problemDetailsSchema) } },
-};
+function problemResponse(description: string): OpenApiResponse {
+  return errorResponse(description, 'ProblemDetails', 'application/problem+json');
+}
+
+const PROBLEM_RESPONSES = {
+  '400': ['BadRequest', 'The request is malformed or fails validation.'],
+  '401': ['Unauthorized', 'The caller is not authenticated.'],
+  '403': ['Forbidden', 'The caller lacks the capability the route requires.'],
+  '404': ['NotFound', 'The addressed record does not exist.'],
+  '409': ['Conflict', 'The request conflicts with the current state.'],
+  '412': ['PreconditionFailed', 'The `If-Match` precondition does not hold.'],
+  '422': ['UnprocessableEntity', 'The request is well formed but cannot be processed.'],
+  '429': ['TooManyRequests', 'A rate or capacity limit was reached.'],
+  '503': ['ServiceUnavailable', 'The server cannot carry the call now.'],
+} as const;
+
+type ProblemStatus = keyof typeof PROBLEM_RESPONSES;
+
+function responseRef(status: ProblemStatus): { readonly $ref: string } {
+  return { $ref: `#/components/responses/${PROBLEM_RESPONSES[status][0]}` };
+}
 
 // What the Idempotency-Key adds to a route that takes it: a malformed key
 // (400), a call still running (409), a key used for another request (422), a
 // full tenant (429) and a server that cannot carry a keyed call (503).
-const KEYED_REFUSALS = ['400', '409', '422', '429', '503'];
+const KEYED_REFUSALS: readonly ProblemStatus[] = ['400', '409', '422', '429', '503'];
 
 // Every template variable in the path, because OpenAPI requires each one to
 // be declared and a generated client cannot fill one it was not told about.
@@ -143,25 +147,8 @@ function pathParametersFor(pattern: string): OpenApiParameterOrRef[] {
 // querystring against, so the document and the check cannot disagree.
 function queryParametersFor(schema: z.ZodType | undefined): OpenApiParameter[] {
   if (schema === undefined) return [];
-  const json = jsonSchemaFor(schema);
-  const required = new Set(json.required ?? []);
-  return Object.entries(json.properties ?? {}).map(([name, property]) => ({
-    name,
-    in: 'query' as const,
-    required: required.has(name),
-    schema: typeof property === 'boolean' ? {} : property,
-  }));
+  return queryParametersOf(jsonSchemaFor(schema));
 }
-
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function without(node: Record<string, unknown>, key: string): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(node).filter(([name]) => name !== key));
-}
-
-const COMPONENT_PREFIX = '#/components/schemas/';
 
 // A shape that occurs more than once, in the theme view for the draft and for
 // the published version, on every route that answers a theme, and for each of
@@ -187,23 +174,27 @@ function standalone(schema: z.ZodType): JsonSchema {
 
 function operationFor(route: AdminRoute): OpenApiOperation {
   const status = String(route.successStatus ?? 200);
-  const responses: Record<string, OpenApiResponse> = {
-    [status]: {
-      description: status === '201' ? 'Created' : 'OK',
-      content: {
-        [route.successMediaType ?? 'application/json']: {
-          schema: jsonSchemaFor(route.responseSchema),
-        },
-      },
-    },
-    '401': PROBLEM_DETAILS_RESPONSE,
+  const success: OpenApiResponse =
+    status === '204'
+      ? { description: 'No Content' }
+      : {
+          description: status === '201' ? 'Created' : 'OK',
+          content: {
+            [route.successMediaType ?? 'application/json']: {
+              schema: jsonSchemaFor(route.responseSchema),
+            },
+          },
+        };
+  const responses: Record<string, OpenApiResponseOrRef> = {
+    [status]: success,
+    '401': responseRef('401'),
   };
   if (route.capability !== null) {
-    responses['403'] = PROBLEM_DETAILS_RESPONSE;
+    responses['403'] = responseRef('403');
   }
   if (idempotentMethod(route.method)) {
-    for (const status of route.noIdempotency === undefined ? KEYED_REFUSALS : ['400']) {
-      responses[status] = PROBLEM_DETAILS_RESPONSE;
+    for (const status of route.noIdempotency === undefined ? KEYED_REFUSALS : (['400'] as const)) {
+      responses[status] = responseRef(status);
     }
   }
 
@@ -281,20 +272,31 @@ export function buildAdminOpenApiDocument(): OpenApiDocument {
     sharing(sharing(node, palette, 'Palette'), logo, 'Logo');
   const shared = (node: unknown): unknown =>
     parts(sharing(node, JSON.stringify(themeBody), 'ThemeBody'));
+  const hoisted = hoistRepeatedSchemas(
+    shared(paths) as Record<string, unknown>,
+    {
+      ProblemDetails: standalone(problemDetailsSchema),
+      ThemeBody: parts(themeBody),
+      Palette: standalone(paletteSchema),
+      Logo: standalone(themeLogoSchema),
+    },
+    IGNORED_SEGMENTS,
+  );
   return {
     openapi: '3.1.0',
-    info: { title: 'Odudu admin API', version: '0.0.0' },
+    info: { title: 'Odudu admin API', version: KERNEL_VERSION },
     security: [{ bearerAuth: [] }],
-    paths: shared(paths) as OpenApiDocument['paths'],
+    paths: hoisted.paths as OpenApiDocument['paths'],
     components: {
       parameters: { tenant: TENANT_PARAMETER, IdempotencyKey: IDEMPOTENCY_KEY_PARAMETER },
       securitySchemes: { bearerAuth: BEARER_SECURITY_SCHEME },
-      schemas: {
-        ProblemDetails: jsonSchemaFor(problemDetailsSchema),
-        ThemeBody: parts(themeBody) as JsonSchema,
-        Palette: standalone(paletteSchema),
-        Logo: standalone(themeLogoSchema),
-      },
+      responses: Object.fromEntries(
+        Object.values(PROBLEM_RESPONSES).map(([name, description]) => [
+          name,
+          problemResponse(description),
+        ]),
+      ),
+      schemas: hoisted.schemas as OpenApiDocument['components']['schemas'],
     },
   };
 }

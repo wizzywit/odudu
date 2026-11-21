@@ -28,12 +28,21 @@ const DOCS_ALIAS = {
   },
 };
 
-function globs(): { unit: string[]; integration: string[]; dom: string[]; plans: string[] } {
+const REACT_SDK = 'sdks/react';
+
+function globs(): {
+  unit: string[];
+  integration: string[];
+  dom: string[];
+  sdkDom: string[];
+  plans: string[];
+} {
   if (scope === '') {
     return {
       unit: [
         '{packages,apps}/*/src/**/*.test.{ts,tsx}',
         'tools/*/src/**/*.test.ts',
+        'sdks/*/src/**/*.test.ts',
         'tests/**/*.test.ts',
       ],
       integration: [
@@ -41,30 +50,50 @@ function globs(): { unit: string[]; integration: string[]; dom: string[]; plans:
         '{packages,apps}/*/src/**/*.int.test.ts',
       ],
       dom: [`${CONSOLE}/src/**/*.test.{ts,tsx}`],
+      sdkDom: [`${REACT_SDK}/src/**/*.test.tsx`],
       plans: ['{packages,apps}/*/tests/**/*.plan.test.ts'],
     };
   }
-  if (scope === 'tests') return { unit: ['**/*.test.ts'], integration: [], dom: [], plans: [] };
+  if (scope === 'tests') {
+    return { unit: ['**/*.test.ts'], integration: [], dom: [], sdkDom: [], plans: [] };
+  }
   if (scope === 'apps/docs') {
     return {
       unit: ['tests/**/*.test.ts', 'scripts/**/*.test.ts', 'src/**/*.test.{ts,tsx}'],
       integration: [],
       dom: [],
+      sdkDom: [],
       plans: [],
     };
   }
   if (scope === CONSOLE) {
-    return { unit: [], integration: [], dom: ['src/**/*.test.{ts,tsx}'], plans: [] };
+    return {
+      unit: [],
+      integration: [],
+      dom: ['src/**/*.test.{ts,tsx}'],
+      sdkDom: [],
+      plans: [],
+    };
+  }
+  if (scope === REACT_SDK) {
+    return {
+      unit: ['src/**/*.test.ts'],
+      integration: [],
+      dom: [],
+      sdkDom: ['src/**/*.test.tsx'],
+      plans: [],
+    };
   }
   return {
     unit: ['src/**/*.test.{ts,tsx}'],
     integration: ['tests/**/*.int.test.ts', 'src/**/*.int.test.ts'],
     dom: [],
+    sdkDom: [],
     plans: ['tests/**/*.plan.test.ts'],
   };
 }
 
-const { unit, integration, dom, plans } = globs();
+const { unit, integration, dom, sdkDom, plans } = globs();
 // Drives Chromium against the built site, so only the docs app's own
 // `test:browser` runs it.
 const browser =
@@ -83,7 +112,14 @@ export default defineConfig({
     shard: shard === undefined || shard === '' ? undefined : shard,
     projects: [
       {
-        resolve: DOCS_ALIAS,
+        resolve: {
+          alias: [
+            ...Object.entries(DOCS_ALIAS.alias).map(([find, replacement]) => ({
+              find,
+              replacement,
+            })),
+          ],
+        },
         test: {
           name: 'unit',
           include: unit,
@@ -154,6 +190,19 @@ export default defineConfig({
           // axe over several states in both themes takes five seconds or more
           // on a busy runner; a hang is still caught by each find's own limit.
           testTimeout: 30_000,
+        },
+      },
+      {
+        // The React SDK's hooks and components, compiled as a consumer's build
+        // would compile them, in a page of their own.
+        plugins: [reactCompiler()],
+        test: {
+          name: 'sdk-dom',
+          include: sdkDom,
+          exclude: ['**/node_modules/**', '**/dist/**'],
+          environment: 'jsdom',
+          setupFiles: [...SETUP, join(REPO_ROOT, REACT_SDK, 'test/setup.ts')],
+          testTimeout: 15_000,
         },
       },
     ],

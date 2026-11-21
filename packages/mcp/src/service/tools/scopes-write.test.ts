@@ -1,6 +1,6 @@
 import { clientScopeSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { callTool } from '#/service/call-tool';
+import { callTool } from '@odudu-io/mcp-stdio/internal';
 import { respondingWith } from '#/testing/fake-caller';
 import { createScopeTool } from '#/service/tools/scopes-write';
 import { describeCreateTool } from '#/testing/write-conformance';

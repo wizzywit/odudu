@@ -2,12 +2,12 @@ import { LOCALISED_TEXT_ENTRIES_MAX, noBidiControls } from '@odudu/contracts';
 import { CLIENT_NAME_MAX, DESCRIPTION_MAX } from '@odudu/contracts/admin';
 import type { AdminCapability } from '@odudu/protocol-admin';
 import { z } from 'zod';
-import { problemOf } from '#/service/call-tool';
+import { problemOf } from '@odudu-io/mcp-stdio/internal';
 import { defineTool } from '#/service/define-tool';
-import { IDEMPOTENCY_KEY_PATTERN } from '#/service/admin-request';
-import { ETAG_MAX_LENGTH, ETAG_PATTERN, isEtag } from '#/service/etag-shape';
-import { cleanData, type CleanStats } from '#/service/sanitize';
-import { jsonOf } from '#/service/json-value';
+import { IDEMPOTENCY_KEY_PATTERN } from '@odudu-io/mcp-stdio/internal';
+import { ETAG_MAX_LENGTH, ETAG_PATTERN, isEtag } from '@odudu-io/mcp-stdio/internal';
+import { cleanData, type CleanStats } from '@odudu-io/mcp-stdio/internal';
+import { jsonOf } from '@odudu-io/mcp-stdio/internal';
 import { DATA_NOTICE, idField } from '#/service/read-tool';
 import {
   ToolProblem,
@@ -292,6 +292,14 @@ export function contentWriteTool<F extends z.ZodRawShape>(
     ...createsWhenUnmatched(cfg),
     bodyFields: names,
     annotations: annotationsOf(cfg.mode),
+    wire: {
+      kind: 'write',
+      mode: cfg.mode,
+      pathParams: Object.keys(pathParams(cfg.mode, cfg.what, cfg.params)),
+      refusal: cfg.refusal ?? REFUSED,
+      stale: cfg.stale ?? STALE,
+      ...(cfg.bodyCap === undefined ? {} : { bodyCap: cfg.bodyCap }),
+    },
     input,
     response: cfg.response,
     output,

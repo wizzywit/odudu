@@ -294,6 +294,17 @@ where to read the page again rather than trust a green build.
     (`apps/docs/src/features/landing/ui/Agents/Agents.test.tsx`). That a
     planned item is removed when its phase ships: no check, so the closing pass
     greps for it.
+- **A change to an SDK's public surface** (an export, an option, an error code,
+  a generated client)
+  - Update: the package's page under `apps/docs/content/en/sdks/`, its example
+    under `examples/`, its own `CHANGELOG.md`, and the guide that shows an
+    excerpt of the example.
+  - Checked by: `apps/docs/tests/sdks.test.ts` (a page and a version per
+    package, every name a block imports against the package's exports),
+    `sdk-examples.test.ts` and `guides-sdk.test.ts` (each excerpt against the
+    example's file), `tests/lint/sdk-clients-share-one-transport.test.ts` for
+    the two clients, and the `examples` and `sdks` CI jobs, which run each
+    example on a live stack and regenerate the clients. Prose truth: no check.
 - **A change a user or operator can see** (a feature, a changed behaviour, a
   fix, a security change)
   - Update: `CHANGELOG.md` under `## [Unreleased]`, in the same commit, in the
@@ -317,6 +328,14 @@ where to read the page again rather than trust a green build.
 
 `tests/docs/documentation-owner-table.test.ts` holds every test this list
 names to a file that exists.
+
+**Four rules for `sdks/` the list cannot hold.** The packages are Apache-2.0
+and import no `@odudu/*` package (ADR 0053). A generated directory is never
+edited by hand, and `pnpm sdks:generate` and `pnpm mcp:catalogue` must leave no
+diff. A package that resolves another SDK's `dist` needs turbo's `^build` for
+its typecheck and test, or CI fails with a missing module. A sentence that
+begins "Until the first release is published" comes out at the first publish
+(`RELEASING.md`, item 8); `guides-sdk.test.ts` fails if one outlives it.
 
 The transcripts under `apps/docs/content/en/reference/transcripts/` carry a
 stronger promise than most prose: every command in them has been executed

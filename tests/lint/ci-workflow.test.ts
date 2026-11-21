@@ -13,6 +13,11 @@ function jobNames(workflow: string): string[] {
   return [...jobs.matchAll(/^ {2}([a-z][\w-]*):\s*$/gmu)].map((m) => m[1] ?? '');
 }
 
+function jobBlock(workflow: string, name: string, next?: string): string {
+  const from = workflow.slice(workflow.indexOf(`\n  ${name}:\n`));
+  return next === undefined ? from : from.slice(0, from.indexOf(`\n  ${next}:\n`));
+}
+
 function gateNeeds(workflow: string): string[] {
   const gate = workflow.slice(workflow.indexOf('\n  gate:\n'));
   const block = /needs:\n((?: {6}- [\w-]+\n)+)/u.exec(gate)?.[1] ?? '';
@@ -77,6 +82,15 @@ describe('the CI workflow', () => {
     const filter = /FILTER: .*&& '([^']+)' \|\|/u.exec(workflow)?.[1] ?? '';
     const excluded = [...filter.matchAll(/--filter=!(\S+)/gu)].map((m) => m[1] ?? '');
     expect(excluded.sort()).toEqual([...sliced, '@odudu/docs'].sort());
+  });
+
+  it('collects the report of every SDK in test-rest, the job that runs them', async () => {
+    const workflow = await read('.github/workflows/verify.yml');
+    const block = jobBlock(workflow, 'test-rest', 'trace');
+    expect(block).toContain('sdks/*/trace-report.json');
+    expect(block).toContain('tests/trace-report.json');
+    const sliced = [...workflow.matchAll(/package: '([^']+)', shard:/gu)].map((m) => m[1] ?? '');
+    expect(sliced.filter((name) => name.startsWith('@odudu-io/'))).toEqual([]);
   });
 
   it('fails an upload of a test report that finds no file', async () => {
@@ -310,11 +324,14 @@ describe('the CI workflow', () => {
       expect(block).toContain('uses: ./.github/actions/image');
       expect(block).toContain('quickstart/stack.sh up odudu-smoke-odudu 3205');
       expect(block).toContain('examples/_shared/provision.sh');
-      expect(block).toContain('npm ci --ignore-scripts');
       expect(block).toContain('npm test');
       expect(block).toContain('npm run typecheck');
-      expect(block).toMatch(
-        /if: matrix\.example == 'web-app' \|\| matrix\.example == 'single-page-app'/u,
+      // The examples that drive a browser borrow the docs app's Playwright.
+      const browser = /uses: \.\/\.github\/actions\/playwright\n\s+if: ([^\n]+)/u.exec(block)?.[1];
+      expect(browser?.split(' || ').sort()).toEqual(
+        ['admin', 'react-bff', 'single-page-app', 'web-app'].map(
+          (name) => `matrix.example == '${name}'`,
+        ),
       );
       expect(block).toMatch(/^ {4}timeout-minutes: \d+$/mu);
       expect(block).not.toMatch(/:3000\b/u);
@@ -323,16 +340,137 @@ describe('the CI workflow', () => {
       expect(gateNeeds(workflow)).toContain('examples');
     });
 
+    it('installs each example with the SDKs it uses packed from this commit', async () => {
+      const block = await job();
+      expect(block).toContain(
+        'run: examples/_shared/install.sh "examples/${{ matrix.example }}" $SDKS',
+      );
+      expect(block).toContain('run: examples/_shared/install.sh examples/api node');
+      expect(block).toContain("if: matrix.example != 'python'");
+      expect(block).not.toContain('npm ci');
+      const install = await read('examples/_shared/install.sh');
+      expect(install).toContain('pnpm --dir "$root" --filter "@odudu-io/$sdk" pack');
+      expect(install).toContain('npm install --no-save --ignore-scripts');
+      expect(install).not.toContain('npm ci');
+    });
+
+    // The SDKs each leg installs, by evaluating the workflow's own expression,
+    // against the SDKs each example's manifest names and what those depend on.
+    it('lists for each example exactly the SDKs it needs, and their dependencies', async () => {
+      const block = await job();
+      const expression = /SDKS: \$\{\{ (.+) \}\}/u.exec(block)?.[1] ?? '';
+      expect(expression).not.toBe('');
+      // The expression is a flat chain: `matrix.example == 'name' && 'sdks' || ... || ''`.
+      const terms = [...expression.matchAll(/matrix\.example == '([\w-]+)' && '([\w -]+)'/gu)];
+      expect(expression.split(' || ')).toHaveLength(terms.length + 1);
+      const listed = (example: string): string[] =>
+        (terms.find((term) => term[1] === example)?.[2] ?? '')
+          .split(' ')
+          .filter((name) => name !== '')
+          .sort();
+      const dependenciesOf = async (name: string): Promise<string[]> => {
+        const manifest = JSON.parse(await read(`sdks/${name}/package.json`)) as {
+          dependencies?: Record<string, string>;
+        };
+        return Object.keys(manifest.dependencies ?? {})
+          .filter((dependency) => dependency.startsWith('@odudu-io/'))
+          .map((dependency) => dependency.slice('@odudu-io/'.length));
+      };
+      const closure = async (names: string[]): Promise<string[]> => {
+        const seen = new Set<string>();
+        const queue = [...names];
+        for (let name = queue.pop(); name !== undefined; name = queue.pop()) {
+          if (seen.has(name)) continue;
+          seen.add(name);
+          queue.push(...(await dependenciesOf(name)));
+        }
+        return [...seen].sort();
+      };
+      const examples = (await readdir(path.join(REPO_ROOT, 'examples'), { withFileTypes: true }))
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
+        .map((entry) => entry.name)
+        .filter((name) => name !== 'python');
+      expect(examples.length).toBeGreaterThan(5);
+      for (const example of examples) {
+        // An example's test may use an SDK its app does not, so both lists count.
+        const manifest = JSON.parse(await read(`examples/${example}/package.json`)) as {
+          dependencies?: Record<string, string>;
+          devDependencies?: Record<string, string>;
+        };
+        const used = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies })
+          .filter((dependency) => dependency.startsWith('@odudu-io/'))
+          .map((dependency) => dependency.slice('@odudu-io/'.length));
+        expect(used, `${example} names an SDK`).not.toEqual([]);
+        expect(listed(example), example).toEqual(await closure(used));
+      }
+      // The Python example installs a wheel, not an npm tarball.
+      expect(listed('python')).toEqual([]);
+    });
+
+    it('builds the Python SDK into a wheel for the python example, which depends on it', async () => {
+      const block = await job();
+      expect(block).toContain('uses: actions/setup-python@');
+      const sdks = jobBlock(await read('.github/workflows/verify.yml'), 'sdks', 'commit-messages');
+      const pin = /uses: (actions\/setup-python@[0-9a-f]{40} # v[\d.]+)/u;
+      expect(pin.exec(block)?.[1]).toBe(pin.exec(sdks)?.[1]);
+      expect(block).toContain('run: examples/_shared/install-python.sh examples/python');
+      expect(block).toContain('.venv/bin/python -m pytest');
+      expect(block).toContain('.venv/bin/python -m mypy');
+      expect(block).toContain('.venv/bin/python -m ruff check .');
+      expect(block).toContain('.venv/bin/python -m ruff format --check .');
+      const install = await read('examples/_shared/install-python.sh');
+      expect(install).toContain('pip install --require-hashes -r');
+      expect(install).toContain('pip wheel --no-deps');
+      const project = await read('examples/python/pyproject.toml');
+      expect(project).toMatch(/"odudu\[fastapi\]>=0\.1,<0\.2"/u);
+      const locked = await read('examples/python/requirements.txt');
+      expect(locked).toContain('--hash=sha256:');
+      // One version of uvicorn and ruff, in the lock, the input and the project.
+      const pinned = (name: string): string =>
+        /^[\w-]+==([\d.]+)/mu.exec(
+          locked.split('\n').find((line) => line.startsWith(`${name}==`)) ?? '',
+        )?.[1] ?? '';
+      const input = await read('examples/python/requirements.in');
+      for (const name of ['uvicorn', 'ruff']) {
+        expect(pinned(name), name).not.toBe('');
+        expect(input).toContain(`${name}==${pinned(name)}`);
+      }
+      expect(project).toContain(`"uvicorn==${pinned('uvicorn')}"`);
+    });
+
     it('has one matrix leg per example directory with a lockfile and a test', async () => {
       const block = await job();
-      const legs = /example: \[([^\]]+)\]/u.exec(block)?.[1]?.split(', ').sort() ?? [];
+      const legs = /example:\s+\[([^\]]+)\]/u.exec(block)?.[1]?.split(', ').sort() ?? [];
       const directories = (await readdir(path.join(REPO_ROOT, 'examples'), { withFileTypes: true }))
         .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
         .map((entry) => entry.name)
         .sort();
       expect(legs).toEqual(directories);
+      expect(directories).toHaveLength(9);
       for (const name of directories) {
-        await read(`examples/${name}/test.ts`);
+        const [test, lockfile] =
+          name === 'python'
+            ? ['test_example.py', 'requirements.txt']
+            : ['test.ts', 'package-lock.json'];
+        await read(`examples/${name}/${test}`);
+        await read(`examples/${name}/${lockfile}`);
+      }
+    });
+
+    it('has a Dependabot entry for every example directory, in its own ecosystem', async () => {
+      const config = await read('.github/dependabot.yml');
+      const entries = config.split(/^(?=  - package-ecosystem: )/mu);
+      const directories = (await readdir(path.join(REPO_ROOT, 'examples'), { withFileTypes: true }))
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
+        .map((entry) => entry.name);
+      for (const name of directories) {
+        const ecosystem = name === 'python' ? 'pip' : 'npm';
+        const entry = entries.find((candidate) =>
+          candidate.includes(`    directory: /examples/${name}\n`),
+        );
+        expect(entry, `no entry for examples/${name}`).toBeDefined();
+        expect(entry).toMatch(new RegExp(`^ {2}- package-ecosystem: ${ecosystem}\\n`, 'u'));
+        expect(entry).toMatch(/^ {4}cooldown:\n {6}default-days: \d+$/mu);
       }
     });
   });
@@ -474,6 +612,247 @@ describe('the CI workflow', () => {
       for (const file of files) {
         expect(await read(file), file).not.toMatch(/apt-get|playwright install/u);
       }
+    });
+  });
+
+  describe('the SDK jobs', () => {
+    it('has an sdks job that needs changes, runs the publish dry run, and that the gate waits for', async () => {
+      const workflow = await read('.github/workflows/verify.yml');
+      expect(jobNames(workflow)).toContain('sdks');
+      expect(gateNeeds(workflow)).toContain('sdks');
+      const block = jobBlock(workflow, 'sdks', 'commit-messages');
+      expect(block).toContain('needs: changes');
+      expect(block).toMatch(/^ {4}if: needs\.changes\.outputs\.server == 'true'$/mu);
+      expect(block).toContain('pnpm --filter "./sdks/*" --if-present run build');
+      expect(block).toContain('pnpm --filter "./sdks/*" --if-present run test');
+      expect(block).toContain('pnpm --filter @odudu/docs generate');
+      expect(block).toContain('pnpm sdks:generate');
+      expect(block).toContain('git diff --exit-code -- sdks');
+      expect(block).toContain('pnpm mcp:catalogue');
+      expect(block).toContain('git diff --exit-code -- sdks/mcp-stdio');
+      expect(block).toContain('npm pack --dry-run');
+      expect(block).toContain('npm publish --dry-run');
+      expect(block).toMatch(/python"? -m build/u);
+      expect(block).toMatch(/python"? -m twine check/u);
+    });
+
+    it('proves the packed odudu-mcp in the sdks job, and fails rather than skips without the registry', async () => {
+      const workflow = await read('.github/workflows/verify.yml');
+      const block = jobBlock(workflow, 'sdks', 'commit-messages');
+      const step = block.slice(block.indexOf('- name: Install the packed odudu-mcp and run it'));
+      expect(step).toContain("ODUDU_RUN_BIN_TEST: '1'");
+      expect(step).toContain("ODUDU_REQUIRE_REGISTRY: '1'");
+      expect(step).toContain('src/bin.test.ts');
+      const tests = block.slice(block.indexOf('- name: Test every SDK that has a test script'));
+      expect(tests).not.toContain('ODUDU_RUN_BIN_TEST');
+      expect(block.indexOf('run build')).toBeLessThan(block.indexOf('src/bin.test.ts'));
+    });
+
+    it('builds the stdio package before the server tests that spawn odudu mcp', async () => {
+      const turbo = JSON.parse(await read('turbo.json')) as {
+        tasks: Record<string, { dependsOn?: string[] }>;
+      };
+      for (const task of ['@odudu/server#test', '@odudu/server#typecheck', '@odudu/mcp#test']) {
+        expect(turbo.tasks[task]?.dependsOn, task).toContain('@odudu-io/mcp-stdio#build');
+      }
+      expect(turbo.tasks['@odudu-io/mcp-stdio#test']?.dependsOn).toContain('^build');
+      expect(turbo.tasks['@odudu-io/mcp-stdio#typecheck']?.dependsOn).toEqual([
+        '^typecheck',
+        '^build',
+      ]);
+      const dockerfile = await read('infra/docker/Dockerfile');
+      expect(dockerfile).toContain("pnpm --filter '@odudu-io/mcp-stdio...' build");
+      expect(dockerfile.match(/COPY sdks\/oidc sdks\/oidc/gu)).toHaveLength(2);
+    });
+
+    it('tests the Python package on 3.10 and 3.13 from a hashed requirements file', async () => {
+      const workflow = await read('.github/workflows/verify.yml');
+      const block = jobBlock(workflow, 'sdks', 'commit-messages');
+      expect(block).toMatch(/uses: actions\/setup-python@[0-9a-f]{40}/u);
+      expect(block).toMatch(/python-version: \|\n\s+3\.10\n\s+3\.13/u);
+      expect(block).toContain('for version in 3.10 3.13');
+      expect(block).toContain('--require-hashes -r sdks/python/requirements-dev.txt');
+      for (const tool of ['pytest', 'mypy', 'ruff check', 'ruff format --check']) {
+        expect(block, tool).toMatch(new RegExp(`python" -m ${tool}`, 'u'));
+      }
+      expect(await read('sdks/python/requirements-dev.txt')).toMatch(/--hash=sha256:/u);
+    });
+
+    it('fails, instead of skipping, the verifier tests that read the shared fixtures', async () => {
+      const verify = await read('.github/workflows/verify.yml');
+      expect(jobBlock(verify, 'sdks', 'commit-messages')).toContain("ODUDU_REQUIRE_FIXTURES: '1'");
+      expect(await read('.github/workflows/sdk-release.yml')).toContain(
+        "ODUDU_REQUIRE_FIXTURES: '1'",
+      );
+    });
+
+    it('runs the verifier extras tests rather than skipping them', async () => {
+      const verify = await read('.github/workflows/verify.yml');
+      expect(jobBlock(verify, 'sdks', 'commit-messages')).toContain("ODUDU_REQUIRE_EXTRAS: '1'");
+      expect(await read('.github/workflows/sdk-release.yml')).toContain(
+        "ODUDU_REQUIRE_EXTRAS: '1'",
+      );
+      const pins = await read('sdks/python/requirements-dev.txt');
+      for (const extra of ['fastapi', 'flask', 'pyjwt']) {
+        expect(pins, extra).toMatch(new RegExp(`^${extra}==`, 'mu'));
+      }
+    });
+
+    it('installs the release tooling for PyPI from the same hashed file', async () => {
+      const workflow = await read('.github/workflows/sdk-release.yml');
+      expect(workflow).toContain('--require-hashes -r "$DIRECTORY/requirements-dev.txt"');
+      expect(workflow).not.toMatch(/pip install build twine/u);
+      const pins = await read('sdks/python/requirements-dev.txt');
+      expect(pins).toMatch(/^build==/mu);
+      expect(pins).toMatch(/^twine==/mu);
+    });
+
+    it('runs the sdks job for a change under sdks/, and not for prose alone', async () => {
+      const { classifyChanges } = await import('../../tools/ci/src/changes.ts');
+      expect(classifyChanges(['sdks/oidc/src/index.ts']).server).toBe(true);
+      expect(classifyChanges(['sdks/python/pyproject.toml']).server).toBe(true);
+      expect(classifyChanges(['docs/NEXT.md', 'README.md']).server).toBe(false);
+    });
+
+    it('tells the owner what to set up once, and says which settings are unverified', async () => {
+      const text = await read('RELEASING.md');
+      const section = text.slice(text.indexOf('## Releasing an SDK'));
+      expect(section).toContain('### Owner setup, once');
+      for (const term of [
+        '<name>-vX.Y.Z',
+        '`sdk-release.yml`',
+        '`sdk-release`',
+        '@odudu-io',
+        'wizzywit/odudu',
+        'pending publisher',
+        'expires after 2 days',
+        'npm publish --access public',
+        'unverified',
+      ]) {
+        expect(section, term).toContain(term);
+      }
+    });
+
+    describe('sdk-release.yml', () => {
+      async function release(): Promise<string> {
+        return read('.github/workflows/sdk-release.yml');
+      }
+
+      it('starts on an SDK tag or by hand, and never on a version tag of the server', async () => {
+        const workflow = await release();
+        expect(workflow).toMatch(
+          /^on:\n {2}push:\n {4}tags: \['\*-v\[0-9\]\*'\]\n {2}workflow_dispatch:/mu,
+        );
+        expect(workflow).toContain('permissions: {}');
+      });
+
+      it('publishes only from a push of a tag, never on a manual run', async () => {
+        const workflow = await release();
+        const publishes = workflow
+          .split('\n')
+          .filter((line) => /\b(npm publish|pypi-publish)\b|gh-action-pypi-publish/u.test(line));
+        expect(publishes.length).toBeGreaterThan(1);
+        for (const name of ['publish-npm', 'publish-pypi']) {
+          const block = jobBlock(workflow, name);
+          expect(block, name).toMatch(/^ {4}if: github\.event_name == 'push' && /mu);
+          expect(block, name).toContain('environment: sdk-release');
+          expect(block, name).toContain('id-token: write');
+          expect(block, name).toContain('contents: read');
+        }
+        // The jobs that run on a manual run hold no registry credential.
+        for (const name of ['prepare', 'build']) {
+          const block = jobBlock(workflow, name, name === 'prepare' ? 'build' : 'publish-npm');
+          expect(block, name).not.toContain('id-token');
+          expect(block, name).not.toContain('environment:');
+          expect(block, name).not.toMatch(/npm publish|pypi-publish/u);
+        }
+      });
+
+      it('has the publish jobs wait for the build, and the build for prepare', async () => {
+        const workflow = await release();
+        expect(jobBlock(workflow, 'build', 'publish-npm')).toContain('needs: prepare');
+        for (const name of ['publish-npm', 'publish-pypi']) {
+          expect(jobBlock(workflow, name)).toMatch(/needs: \[prepare, build\]/u);
+        }
+      });
+
+      it('lets npm publish by trusted publishing, which needs npm 11.5.1 or later', async () => {
+        const workflow = await release();
+        const block = jobBlock(workflow, 'publish-npm', 'publish-pypi');
+        expect(block).toContain("node-version: '24'");
+        expect(block).toContain('npm install --global npm@11');
+        expect(block).toContain('npm publish');
+        expect(block).toContain('--access public');
+        expect(block).not.toMatch(/NODE_AUTH_TOKEN|NPM_TOKEN|secrets\./u);
+      });
+
+      it('installs an exact npm and fails the job when it is older than 11.5.1', async () => {
+        const block = jobBlock(await release(), 'publish-npm', 'publish-pypi');
+        expect(block).not.toMatch(/npm@11(?!\.\d)/u);
+        expect(block).toMatch(/npm install --global npm@11\.\d+\.\d+\b/u);
+        expect(block).toContain('11.5.1');
+        expect(block).toMatch(/npm --version/u);
+        expect(block).toMatch(/exit 1/u);
+        expect(block).not.toMatch(/provenance statement follows/u);
+      });
+
+      it('counts only a gate check run made by GitHub Actions', async () => {
+        const block = jobBlock(await release(), 'prepare', 'build');
+        expect(block).toContain('.app.slug == "github-actions"');
+        expect(block).toContain('.name == "gate"');
+      });
+
+      it('has RELEASING.md limit the environment to SDK tags and check the tagged commit', async () => {
+        const text = await read('RELEASING.md');
+        const section = text.slice(text.indexOf('## Releasing an SDK'));
+        expect(section).toContain('deployment rule');
+        expect(section).toContain('`*-v*`');
+        expect(section).toMatch(/tagged commit/u);
+        expect(section).toContain('unverified: `npm publish <tarball>`');
+        expect(section).toContain('unverified: the npm in the workflow');
+      });
+
+      it('refuses a tag that is not a package, a mismatched version, a private package and a missing changelog section', async () => {
+        const workflow = await release();
+        const block = jobBlock(workflow, 'prepare', 'build');
+        for (const name of [
+          'oidc',
+          'react',
+          'bff',
+          'next',
+          'node',
+          'admin-client',
+          'me-client',
+          'mcp-stdio',
+          'python',
+        ]) {
+          expect(block, name).toContain(name);
+        }
+        expect(block).toContain('.private');
+        expect(block).toContain('CHANGELOG.md');
+        expect(block).toContain('tools/release/src/index.ts notes');
+        expect(block).toContain('git merge-base --is-ancestor');
+        expect(block).toContain('The gate check has not passed');
+      });
+
+      it('checks out the tag a manual run was given, and the pushed tag otherwise', async () => {
+        const workflow = await release();
+        const checkouts = workflow.match(/uses: actions\/checkout@/gu) ?? [];
+        expect(checkouts).toHaveLength(2);
+        expect(
+          workflow.match(/^ {10}ref: \$\{\{ inputs\.tag \|\| github\.ref \}\}$/gmu),
+        ).toHaveLength(2);
+      });
+
+      it('holds the stable-tag and gate checks to a push, as release.yml does', async () => {
+        const block = jobBlock(await release(), 'prepare', 'build');
+        expect(block).toMatch(
+          /Require a stable tag[^\n]*\n {8}if: github\.event_name == 'push' && /u,
+        );
+        expect(block).toMatch(
+          /Require that CI passed[^\n]*\n {8}if: github\.event_name == 'push'/u,
+        );
+      });
     });
   });
 

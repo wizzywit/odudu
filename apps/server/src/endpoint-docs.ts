@@ -63,6 +63,11 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     auth: 'None',
     purpose: 'The OpenAPI document of the admin API, readable from any origin.',
   },
+  'GET /me/openapi.json': {
+    auth: 'None',
+    purpose:
+      'The OpenAPI document of the “me” API, readable from any origin; served at the base address only, not at a tenant’s own domain.',
+  },
   'GET /tenants/:tenant/.well-known/openid-configuration': {
     auth: 'None',
     purpose: 'The discovery document: the tenant’s issuer, endpoints and supported features.',

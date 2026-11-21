@@ -1,12 +1,10 @@
+import type { McpLogger } from '@odudu-io/mcp-stdio/internal';
 import type { MintAgentTokenInput } from '@odudu/protocol-oidc';
 import type { InjectOptions, LightMyRequestResponse } from 'fastify';
 import type { RequestScope } from '#/service/request-scope';
 import type { ValidatedMcpToken } from '#/service/validated-token';
 
-export interface McpLogger {
-  debug(context: Record<string, unknown>, message: string): void;
-  error(context: Record<string, unknown>, message: string): void;
-}
+export type { McpLogger };
 
 // What the server hands the MCP layer, once per process. The layer holds no
 // database or signing key: minting runs where those are, behind `mintAgentToken`.

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { callTool } from '#/service/call-tool';
+import { callTool } from '@odudu-io/mcp-stdio/internal';
 import { contentWriteTool, descriptionField, nameField } from '#/service/write-tool';
 import { ETAG, NEW_ETAG } from '#/testing/write-conformance';
 import { respondingWith } from '#/testing/fake-caller';

@@ -1,0 +1,18 @@
+{
+  "name": "@odudu/mcp-catalogue",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
+  },
+  "dependencies": {
+    "@odudu/mcp": "workspace:*",
+    "zod": "4.6.7"
+  }
+}

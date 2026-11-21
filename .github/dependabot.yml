@@ -99,6 +99,90 @@ updates:
         update-types: ['version-update:semver-major']
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
+  - package-ecosystem: npm
+    directory: /examples/next
+    schedule:
+      interval: weekly
+    # pnpm refuses a version younger than minimumReleaseAge (1440 minutes),
+    # so a pull request for one would fail to install.
+    cooldown:
+      default-days: 2
+    groups:
+      example-minor-patch:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+    # The examples follow the repository's Node and TypeScript majors.
+    ignore:
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: npm
+    directory: /examples/react-bff
+    schedule:
+      interval: weekly
+    # pnpm refuses a version younger than minimumReleaseAge (1440 minutes),
+    # so a pull request for one would fail to install.
+    cooldown:
+      default-days: 2
+    groups:
+      example-minor-patch:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+    # The examples follow the repository's Node and TypeScript majors.
+    ignore:
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: npm
+    directory: /examples/admin
+    schedule:
+      interval: weekly
+    # pnpm refuses a version younger than minimumReleaseAge (1440 minutes),
+    # so a pull request for one would fail to install.
+    cooldown:
+      default-days: 2
+    groups:
+      example-minor-patch:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+    # The examples follow the repository's Node and TypeScript majors.
+    ignore:
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: npm
+    directory: /examples/mcp
+    schedule:
+      interval: weekly
+    # pnpm refuses a version younger than minimumReleaseAge (1440 minutes),
+    # so a pull request for one would fail to install.
+    cooldown:
+      default-days: 2
+    groups:
+      example-minor-patch:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+    # The examples follow the repository's Node and TypeScript majors.
+    ignore:
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: pip
+    directory: /examples/python
+    schedule:
+      interval: weekly
+    # The dependencies are exact pins with hashes, made with a cutoff a day
+    # behind, so the proposals wait as the npm ones do.
+    cooldown:
+      default-days: 2
+    groups:
+      example-minor-patch:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
   - package-ecosystem: github-actions
     directory: /
     schedule:

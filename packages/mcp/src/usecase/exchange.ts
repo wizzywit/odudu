@@ -1,6 +1,6 @@
 import { AgentTokenRefused, MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '@odudu/protocol-oidc';
 import { type AdminBearer } from '#/service/request-scope';
-import { insufficientScopeProblem } from '#/service/admin-access';
+import { insufficientScopeProblem } from '@odudu-io/mcp-stdio/internal';
 import type { McpCallDeps } from '#/service/deps';
 import { ToolProblem } from '#/service/tool';
 import type { ValidatedMcpToken } from '#/service/validated-token';

@@ -1,11 +1,13 @@
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { describe, expect, it } from 'vitest';
 import { ADMIN_ROUTES } from '@odudu/protocol-admin';
+import { buildMeOpenApiDocument } from '@odudu/me/docs';
 import { buildAdminOpenApiDocument, type OpenApiDocument } from '@odudu/protocol-admin/docs';
 import {
   areaOf,
   operationSlug,
   operationsOf,
+  ME_PROFILE,
   parametersOf,
   renderOpenApiPages,
 } from './openapi-pages.ts';
@@ -410,5 +412,80 @@ describe('the admin API reference pages', () => {
     const again = renderOpenApiPages(buildAdminOpenApiDocument());
     expect([...again.entries()]).toEqual([...pages.entries()]);
     expect([...pages.keys()]).toEqual([...pages.keys()].sort());
+  });
+});
+
+describe('the me API reference', () => {
+  const me = buildMeOpenApiDocument();
+  const mePages = renderOpenApiPages(me, ME_PROFILE);
+  const text = [...mePages.values()].join('\n');
+
+  it('has an index and one folder per resource the document serves', () => {
+    expect([...mePages.keys()].every((name) => name.startsWith('me-api/'))).toBe(true);
+    const index = mePages.get('me-api/index.md') ?? '';
+    for (const area of ['profile', 'credentials', 'sessions', 'consents']) {
+      expect(index, area).toContain(`](./${area}/index.md)`);
+      expect(mePages.has(`me-api/${area}/index.md`), area).toBe(true);
+    }
+  });
+
+  it('has a section for every operation of the document', () => {
+    for (const [path, methods] of Object.entries(me.paths)) {
+      for (const method of Object.keys(methods)) {
+        expect(text, `${method} ${path}`).toContain(`\n## ${method.toUpperCase()} ${path}\n`);
+      }
+    }
+  });
+
+  it('names itself the me API and links its own document, never the admin one', () => {
+    expect(mePages.get('me-api/index.md')).toContain('# Me API');
+    expect(text).toContain('/me/openapi.json');
+    expect(text).not.toContain('openapi/admin.json');
+    expect(text).not.toMatch(/admin API|Admin API/u);
+  });
+
+  it('is deterministic', () => {
+    expect(renderOpenApiPages(buildMeOpenApiDocument(), ME_PROFILE)).toEqual(mePages);
+  });
+
+  it('links its own document where it stops expanding a nested schema', () => {
+    let nested: Record<string, unknown> = { type: 'string', description: 'The bottom.' };
+    for (let level = 0; level < 8; level += 1) {
+      nested = { type: 'object', properties: { inner: nested }, required: ['inner'] };
+    }
+    const path = '/tenants/{tenant}/me/profile';
+    const operation = me.paths[path]?.get;
+    if (operation === undefined) throw new Error('the profile read is gone');
+    const deep = {
+      ...me,
+      paths: {
+        [path]: {
+          get: {
+            ...operation,
+            responses: {
+              '200': { description: 'OK', content: { 'application/json': { schema: nested } } },
+            },
+          },
+        },
+      },
+    };
+    const deepText = [...renderOpenApiPages(deep, ME_PROFILE).values()].join('\n');
+    expect(deepText).toContain('[OpenAPI document](pathname:///openapi/me.json)');
+    expect(deepText).not.toContain('openapi/admin.json');
+  });
+
+  it('words an operation with no summary for the me API, never as an admin caller', () => {
+    const path = '/tenants/{tenant}/me/profile';
+    const operation = me.paths[path]?.get;
+    if (operation === undefined) throw new Error('the profile read is gone');
+    const bare = Object.fromEntries(Object.entries(operation).filter(([key]) => key !== 'summary'));
+    const plain = { ...me, paths: { [path]: { get: bare } } };
+    const bareText = [...renderOpenApiPages(plain, ME_PROFILE).values()].join('\n');
+    expect(bareText).not.toMatch(/admin/iu);
+    expect(ME_PROFILE.capabilityFallback).toBe('Requires a signed-in caller.');
+  });
+
+  it('places a path in an area by the profile it is read under', () => {
+    expect(areaOf('/tenants/{tenant}/me/sessions/{id}', ME_PROFILE)).toBe('sessions');
   });
 });

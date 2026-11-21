@@ -11,3 +11,5 @@ apps/docs/content/en/reference/generated
 apps/docs/static/openapi
 examples/*/package-lock.json
 apps/docs/src/features/landing/ui/Scene/travel.css
+sdks/*/src/generated
+sdks/mcp-stdio/src/mcp-tools.json

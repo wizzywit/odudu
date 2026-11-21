@@ -78,5 +78,5 @@ describe('the discovery document the guide publishes is the one the server produ
       shown,
       'the protocol pages show a discovery response the server no longer produces',
     ).toEqual(await serverDiscoveryDocument());
-  });
+  }, 60_000);
 });

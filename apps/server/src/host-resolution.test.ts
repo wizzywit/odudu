@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import http from 'node:http';
 import net from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
+import { registerMeOpenApiRoute } from '@odudu/me';
 import { configureHostResolution } from '#/host-resolution';
 
 const BASE = 'https://id.odudu.example';
@@ -528,5 +529,16 @@ describe('the previous address of a tenant', () => {
       await inject(app, '/protocol/openid-connect/auth', 'login.acme.com');
       expect(addressing).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('the me API document', () => {
+  it('is served at the base host, and not at a tenant’s own domain', async () => {
+    const { app } = build();
+    registerMeOpenApiRoute(app);
+    const base = await inject(app, '/me/openapi.json', 'id.odudu.example');
+    const domain = await inject(app, '/me/openapi.json', 'login.acme.com');
+    expect(base.statusCode).toBe(200);
+    expect(domain.statusCode).toBe(404);
   });
 });

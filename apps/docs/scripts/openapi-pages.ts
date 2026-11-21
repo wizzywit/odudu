@@ -1,4 +1,3 @@
-import type { OpenApiDocument } from '@odudu/protocol-admin/docs';
 import {
   cell,
   code,
@@ -12,7 +11,39 @@ import {
 
 type Json = Readonly<Record<string, unknown>>;
 
-const PAGE_DIR = 'admin-api';
+// The OpenAPI documents the pages are rendered from share this much shape.
+export interface ReferenceDocument {
+  readonly info: { readonly title: string };
+  readonly paths: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+  readonly components: {
+    readonly parameters: Readonly<Record<string, unknown>>;
+    readonly securitySchemes: Readonly<Record<string, unknown>>;
+    readonly responses: Readonly<Record<string, unknown>>;
+    readonly schemas: Readonly<Record<string, unknown>>;
+  };
+}
+
+// What differs between the APIs the pages describe: where they go, what they
+// are called, how a path falls into an area, and which schema is an error.
+export interface ReferenceProfile {
+  readonly pageDir: string;
+  readonly name: string;
+  readonly lowerName: string;
+  readonly openApiFile: string;
+  readonly servedAt: string;
+  readonly errorSchema: string;
+  readonly errorHeading: string;
+  readonly errorIntro: string;
+  readonly intro: string;
+  readonly authentication: string;
+  readonly areaOf: (path: string) => string;
+  // What a page says an operation needs when its document gives no summary.
+  readonly capabilityFallback: string;
+  // Whether the coverage count includes path parameters, as well as the
+  // query parameters and bodies every profile counts.
+  readonly countsPathParameters: boolean;
+  readonly tailOf: (path: string) => readonly string[];
+}
 const MAX_DEPTH = 5;
 // What the generator that wrote the document uses for an unbounded integer.
 const SAFE_INTEGER = 9_007_199_254_740_991;
@@ -123,19 +154,21 @@ function constraints(schema: Json, unknown: string[]): string[] {
   return found;
 }
 
-const OPENAPI_LINK = '[OpenAPI document](pathname:///openapi/admin.json)';
+function openApiLinkOf(profile: ReferenceProfile): string {
+  return `[OpenAPI document](pathname:///${profile.openApiFile})`;
+}
 
 function sentence(text: string): string {
   return /[.!?:)`]$/u.test(text) ? text : `${text}.`;
 }
 
-function detailsOf(schema: Json, unknown: string[], truncated = false): string {
+function detailsOf(schema: Json, unknown: string[], link: string, truncated = false): string {
   const description = str(schema.description);
   const limits = constraints(schema, unknown);
   const parts = [
     ...(description === undefined ? [] : [sentence(escapeProse(description.trim()))]),
     ...(limits.length === 0 ? [] : [`Constraints: ${limits.join(', ')}.`]),
-    ...(truncated ? [`The fields inside are not listed here; the ${OPENAPI_LINK} has them.`] : []),
+    ...(truncated ? [`The fields inside are not listed here; the ${link} has them.`] : []),
   ];
   return parts
     .join(' ')
@@ -178,9 +211,10 @@ function collect(
   required: boolean,
   depth: number,
   rows: Row[],
-  root: OpenApiDocument,
+  root: ReferenceDocument,
   unknown: string[],
   seen: Map<string, string>,
+  link: string,
 ): void {
   const ref = refOf(schema);
   const unwrapped = unwrapNullable(resolveRef(schema, root));
@@ -199,7 +233,7 @@ function collect(
       path: path === '' ? '(body)' : path,
       type: describeType(inner, nullable),
       required,
-      details: detailsOf(inner, own, truncated),
+      details: detailsOf(inner, own, link, truncated),
       described: (str(inner.description) ?? '').trim() !== '',
       patterns: own,
     });
@@ -232,18 +266,29 @@ function collect(
         root,
         unknown,
         seen,
+        link,
       );
     }
   } else if (items !== undefined && record(resolveRef(items, root).properties) !== undefined) {
-    collect(items, `${path === '' ? '' : path}[]`, true, depth + 1, rows, root, unknown, seen);
+    collect(
+      items,
+      `${path === '' ? '' : path}[]`,
+      true,
+      depth + 1,
+      rows,
+      root,
+      unknown,
+      seen,
+      link,
+    );
   }
 }
 
-function resolveRef(schema: Json, root: OpenApiDocument): Json {
+function resolveRef(schema: Json, root: ReferenceDocument): Json {
   const ref = str(schema.$ref);
   const prefix = '#/components/schemas/';
   if (ref?.startsWith(prefix) !== true) return schema;
-  const target = record((root.components.schemas as Json)[ref.slice(prefix.length)]);
+  const target = record(root.components.schemas[ref.slice(prefix.length)]);
   if (target === undefined) return schema;
   const description = str(schema.description);
   return description === undefined ? target : { ...target, description };
@@ -258,9 +303,14 @@ function refOf(schema: Json): string | undefined {
   return named.find((name) => name !== undefined);
 }
 
-export function fieldRows(schema: Json, root: OpenApiDocument, unknown: string[]): Row[] {
+export function fieldRows(
+  schema: Json,
+  root: ReferenceDocument,
+  unknown: string[],
+  link: string,
+): Row[] {
   const rows: Row[] = [];
-  collect(schema, '', true, 0, rows, root, unknown, new Map());
+  collect(schema, '', true, 0, rows, root, unknown, new Map(), link);
   return rows;
 }
 
@@ -276,8 +326,13 @@ function rowsTable(rows: readonly Row[]): string {
   );
 }
 
-function schemaTable(schema: Json, root: OpenApiDocument, unknown: string[]): string {
-  return rowsTable(fieldRows(schema, root, unknown));
+function schemaTable(
+  schema: Json,
+  root: ReferenceDocument,
+  unknown: string[],
+  link: string,
+): string {
+  return rowsTable(fieldRows(schema, root, unknown, link));
 }
 
 interface Parameter {
@@ -288,7 +343,7 @@ interface Parameter {
   readonly schema: Json;
 }
 
-export function parametersOf(operation: Json, root: OpenApiDocument): Parameter[] {
+export function parametersOf(operation: Json, root: ReferenceDocument): Parameter[] {
   return list(operation.parameters).flatMap((entry) => {
     const found = record(entry);
     if (found === undefined) return [];
@@ -296,7 +351,7 @@ export function parametersOf(operation: Json, root: OpenApiDocument): Parameter[
     const prefix = '#/components/parameters/';
     const parameter =
       ref?.startsWith(prefix) === true
-        ? record((root.components.parameters as Json)[ref.slice(prefix.length)])
+        ? record(root.components.parameters[ref.slice(prefix.length)])
         : found;
     const name = str(parameter?.name);
     if (parameter === undefined || name === undefined) return [];
@@ -312,7 +367,7 @@ export function parametersOf(operation: Json, root: OpenApiDocument): Parameter[
   });
 }
 
-function parameterTable(parameters: readonly Parameter[], unknown: string[]): string {
+function parameterTable(parameters: readonly Parameter[], unknown: string[], link: string): string {
   return table(
     ['Name', 'Type', 'Required', 'Details'],
     parameters.map((parameter) => {
@@ -323,6 +378,7 @@ function parameterTable(parameters: readonly Parameter[], unknown: string[]): st
           ...(parameter.description === undefined ? {} : { description: parameter.description }),
         },
         unknown,
+        link,
       );
       return [
         codeCell(parameter.name),
@@ -360,8 +416,9 @@ interface Part {
 }
 
 interface Context {
-  readonly root: OpenApiDocument;
+  readonly root: ReferenceDocument;
   readonly problemLink: string;
+  readonly openApiLink: string;
   readonly unknown: string[];
   readonly slug: string;
   readonly parts: Part[];
@@ -438,7 +495,7 @@ function mediaBlock(
     ];
   }
   const schema = record(media.schema);
-  const rows = schema === undefined ? [] : fieldRows(schema, ctx.root, []);
+  const rows = schema === undefined ? [] : fieldRows(schema, ctx.root, [], ctx.openApiLink);
   const split = ctx.inline.rows + rows.length > MAX_TABLE_ROWS;
   if (!split) ctx.inline.rows += rows.length;
   const listing = split ? partLines(ctx, section, heading, mediaType, rows) : [rowsTable(rows)];
@@ -450,10 +507,18 @@ function mediaBlock(
   ];
 }
 
+// An error status names a shared response under `components.responses`.
+function resolveResponse(response: Json, root: ReferenceDocument): Json {
+  const ref = str(response.$ref);
+  const prefix = '#/components/responses/';
+  if (ref?.startsWith(prefix) !== true) return response;
+  return record(root.components.responses[ref.slice(prefix.length)]) ?? response;
+}
+
 function responseBlocks(operation: Json, ctx: Context): string[] {
   const lines: string[] = [];
   for (const [status, response] of Object.entries(record(operation.responses) ?? {})) {
-    const found = record(response) ?? {};
+    const found = resolveResponse(record(response) ?? {}, ctx.root);
     const description = str(found.description) ?? '';
     lines.push(`${'#'.repeat(ctx.level + 1)} ${status} ${escapeProse(description)}`.trimEnd(), '');
     const content = Object.entries(record(found.content) ?? {});
@@ -495,7 +560,12 @@ function operationBody(operation: Json, ctx: Context): string {
   ] as const) {
     const ofPlace = parameters.filter((parameter) => parameter.in === place);
     if (ofPlace.length > 0) {
-      lines.push(`${heading} ${label}`, '', parameterTable(ofPlace, ctx.unknown), '');
+      lines.push(
+        `${heading} ${label}`,
+        '',
+        parameterTable(ofPlace, ctx.unknown, ctx.openApiLink),
+        '',
+      );
     }
   }
 
@@ -519,11 +589,15 @@ export interface Coverage {
 
 // The fields a reader of an operation meets: its query parameters, its request
 // body and the body of its success response, and how many carry a description.
-function coverageOf(operation: Json, root: OpenApiDocument): Coverage {
+function coverageOf(
+  operation: Json,
+  root: ReferenceDocument,
+  withPathParameters: boolean,
+): Coverage {
   const rows: boolean[] = [];
   const sink: string[] = [];
   for (const parameter of parametersOf(operation, root)) {
-    if (parameter.in !== 'query') continue;
+    if (parameter.in !== 'query' && !(withPathParameters && parameter.in === 'path')) continue;
     rows.push((parameter.description ?? str(parameter.schema.description) ?? '').trim() !== '');
   }
   const schemas: Json[] = [];
@@ -539,7 +613,7 @@ function coverageOf(operation: Json, root: OpenApiDocument): Coverage {
     }
   }
   for (const schema of schemas) {
-    for (const row of fieldRows(schema, root, sink)) {
+    for (const row of fieldRows(schema, root, sink, '')) {
       if (row.path !== '(body)' && !row.path.endsWith('[]')) rows.push(row.described);
     }
   }
@@ -548,11 +622,12 @@ function coverageOf(operation: Json, root: OpenApiDocument): Coverage {
 
 export function coverageOfArea(
   operations: readonly { readonly operation: Json }[],
-  root: OpenApiDocument,
+  root: ReferenceDocument,
+  withPathParameters = false,
 ): Coverage {
   return operations.reduce<Coverage>(
     (sum, { operation }) => {
-      const found = coverageOf(operation, root);
+      const found = coverageOf(operation, root, withPathParameters);
       return { described: sum.described + found.described, total: sum.total + found.total };
     },
     { described: 0, total: 0 },
@@ -598,7 +673,7 @@ function subjectArea(id: string | undefined, resource: string | undefined, path:
   return area;
 }
 
-export function areaOf(path: string): string {
+function adminAreaOf(path: string): string {
   const parts = path.split('/').filter((part) => part !== '');
   const [, first, second, third] = parts;
   if (first === 'tenant-imports') return 'tenants';
@@ -612,20 +687,27 @@ export function areaOf(path: string): string {
   return first ?? 'other';
 }
 
+export function areaOf(path: string, profile: ReferenceProfile = ADMIN_PROFILE): string {
+  return profile.areaOf(path);
+}
+
 interface Operation {
   readonly method: string;
   readonly path: string;
   readonly operation: Json;
 }
 
-export function operationsOf(doc: OpenApiDocument): Map<string, Operation[]> {
+export function operationsOf(
+  doc: ReferenceDocument,
+  profile: ReferenceProfile = ADMIN_PROFILE,
+): Map<string, Operation[]> {
   const areas = new Map<string, Operation[]>();
   for (const [path, methods] of Object.entries(doc.paths)) {
     const ordered = Object.entries(methods).sort(
       ([a], [b]) => METHOD_ORDER.indexOf(a) - METHOD_ORDER.indexOf(b),
     );
     for (const [method, operation] of ordered) {
-      const area = areaOf(path);
+      const area = profile.areaOf(path);
       areas.set(area, [
         ...(areas.get(area) ?? []),
         { method, path, operation: record(operation) ?? {} },
@@ -652,7 +734,7 @@ function titleOf(area: string): string {
 }
 
 // The path a reader sees under an area: what follows the tenant.
-function tailOf(path: string): readonly string[] {
+function adminTailOf(path: string): readonly string[] {
   const parts = path.split('/').filter((part) => part !== '');
   const [, ...rest] = parts;
   const [first, second, ...after] = rest;
@@ -660,8 +742,12 @@ function tailOf(path: string): readonly string[] {
   return rest;
 }
 
-export function operationSlug(method: string, path: string): string {
-  const words = tailOf(path).map((part) =>
+export function operationSlug(
+  method: string,
+  path: string,
+  profile: ReferenceProfile = ADMIN_PROFILE,
+): string {
+  const words = profile.tailOf(path).map((part) =>
     part
       .replace(/^\{(.+)\}$/u, '$1')
       .replace(/([a-z])([A-Z])/gu, '$1-$2')
@@ -670,12 +756,12 @@ export function operationSlug(method: string, path: string): string {
   return [method, ...words].join('-');
 }
 
-function operationShort(method: string, path: string): string {
-  return `${method.toUpperCase()} /${tailOf(path).join('/')}`;
+function operationShort(method: string, path: string, profile: ReferenceProfile): string {
+  return `${method.toUpperCase()} /${profile.tailOf(path).join('/')}`;
 }
 
-function capabilityOf(operation: Json): string {
-  return str(operation.summary) ?? 'Requires an authenticated admin caller.';
+function capabilityOf(operation: Json, profile: ReferenceProfile): string {
+  return str(operation.summary) ?? profile.capabilityFallback;
 }
 
 // A page holds operations up to this many table rows; an operation larger
@@ -689,13 +775,18 @@ interface Section {
   readonly parts: readonly Part[];
 }
 
-function sectionOf(operation: Operation, doc: OpenApiDocument): Section {
+function sectionOf(
+  operation: Operation,
+  doc: ReferenceDocument,
+  profile: ReferenceProfile,
+): Section {
   const { method, path } = operation;
   const ctx: Context = {
     root: doc,
     problemLink: '../index.md#problem-details',
+    openApiLink: openApiLinkOf(profile),
     unknown: [],
-    slug: operationSlug(method, path),
+    slug: operationSlug(method, path, profile),
     parts: [],
     level: 3,
     inline: { rows: 0 },
@@ -724,17 +815,22 @@ function anchorOf({ method, path }: Operation): string {
     .replaceAll(' ', '-');
 }
 
-function describeArea(area: string, operations: readonly Operation[]): string {
+function describeArea(
+  area: string,
+  operations: readonly Operation[],
+  profile: ReferenceProfile,
+): string {
   const noun = operations.length === 1 ? 'operation' : 'operations';
   const subject = AREA_SUBJECTS[area] ?? area.replaceAll('-', ' ');
   return (
-    `${String(operations.length)} ${noun} of the Odudu admin API on ${subject}, ` +
+    `${String(operations.length)} ${noun} of the Odudu ${profile.lowerName} on ${subject}, ` +
     'each with its method, path, required capability, parameters, request body and responses.'
   );
 }
 
-const BEARER =
-  'Every request carries a bearer token; the [admin API overview](../index.md) says which audience it needs and how a refusal is shaped.';
+function bearerOf(profile: ReferenceProfile): string {
+  return `Every request carries a bearer token; the [${profile.lowerName} overview](../index.md) says which audience it needs and how a refusal is shaped.`;
+}
 
 function addParts(
   pages: Map<string, string>,
@@ -742,22 +838,23 @@ function addParts(
   target: string,
   position: number,
   label: string,
+  profile: ReferenceProfile,
 ): void {
-  const where = `in the [${label}](./index.md) area of the [admin API](../index.md)`;
+  const where = `in the [${label}](./index.md) area of the [${profile.lowerName}](../index.md)`;
   for (const section of group) {
     for (const [number, part] of section.parts.entries()) {
       const { method, path } = section.operation;
-      const short = operationShort(method, path);
+      const short = operationShort(method, path, profile);
       const heading = `${short}: ${part.heading}`;
       pages.set(
         part.slug,
         [
           frontMatter(
-            `Admin API: ${heading}`,
-            `One page of the fields of ${short} in the Odudu admin API (${label}): its ${part.heading}.`,
+            `${profile.name}: ${heading}`,
+            `One page of the fields of ${short} in the Odudu ${profile.lowerName} (${label}): its ${part.heading}.`,
             { sidebar_position: position + (number + 1) / 100 },
           ),
-          `# Admin API: ${heading}`,
+          `# ${profile.name}: ${heading}`,
           '',
           `The fields of one body of [${code(`${method.toUpperCase()} ${path}`)}](./${target}.md#${anchorOf(section.operation)}), ${where}.`,
           '',
@@ -775,42 +872,43 @@ function addParts(
 function areaPages(
   area: string,
   operations: readonly Operation[],
-  doc: OpenApiDocument,
+  doc: ReferenceDocument,
+  profile: ReferenceProfile,
 ): Map<string, string> {
   const label = titleOf(area);
   const subject = AREA_SUBJECTS[area] ?? area.replaceAll('-', ' ');
-  const sections = operations.map((operation) => sectionOf(operation, doc));
+  const sections = operations.map((operation) => sectionOf(operation, doc, profile));
   const groups = pack(sections);
-  const footer = `${coverageLine(coverageOfArea(operations, doc))}\n`;
+  const footer = `${coverageLine(coverageOfArea(operations, doc, profile.countsPathParameters))}\n`;
   const pages = new Map<string, string>();
   if (groups.length === 1) {
     pages.set(
       'index',
       [
-        frontMatter(`Admin API: ${label}`, describeArea(area, operations)),
-        `# Admin API: ${label}`,
+        frontMatter(`${profile.name}: ${label}`, describeArea(area, operations, profile)),
+        `# ${profile.name}: ${label}`,
         '',
-        `Operations on ${subject} in the ${doc.info.title}, one section each. ${BEARER}`,
+        `Operations on ${subject} in the ${doc.info.title}, one section each. ${bearerOf(profile)}`,
         '',
         sections.map((section) => section.text).join('\n'),
         footer,
       ].join('\n'),
     );
-    addParts(pages, sections, 'index', 0, label);
+    addParts(pages, sections, 'index', 0, label, profile);
     return pages;
   }
-  const where = `in the [${label}](./index.md) area of the [admin API](../index.md)`;
+  const where = `in the [${label}](./index.md) area of the [${profile.lowerName}](../index.md)`;
   const items: string[] = [];
   for (const [index, group] of groups.entries()) {
     const name = `part-${String(index + 1)}`;
-    const title = `Admin API: ${label} (${String(index + 1)} of ${String(groups.length)})`;
+    const title = `${profile.name}: ${label} (${String(index + 1)} of ${String(groups.length)})`;
     const first = group[0]?.operation;
     const last = group.at(-1)?.operation;
     if (first === undefined || last === undefined) continue;
     for (const { operation } of group) {
       const { method, path } = operation;
       items.push(
-        `- [${code(`${method.toUpperCase()} ${path}`)}](./${name}.md#${anchorOf(operation)}): ${escapeProse(capabilityOf(operation.operation))}`,
+        `- [${code(`${method.toUpperCase()} ${path}`)}](./${name}.md#${anchorOf(operation)}): ${escapeProse(capabilityOf(operation.operation, profile))}`,
       );
     }
     pages.set(
@@ -818,25 +916,25 @@ function areaPages(
       [
         frontMatter(
           title,
-          `Part ${String(index + 1)} of ${String(groups.length)} of the Odudu admin API on ${subject}: ${String(group.length)} ${group.length === 1 ? 'operation' : 'operations'} with parameters, bodies and responses.`,
+          `Part ${String(index + 1)} of ${String(groups.length)} of the Odudu ${profile.lowerName} on ${subject}: ${String(group.length)} ${group.length === 1 ? 'operation' : 'operations'} with parameters, bodies and responses.`,
           { sidebar_position: index + 1 },
         ),
         `# ${title}`,
         '',
-        `Operations on ${subject}, ${where}. ${BEARER}`,
+        `Operations on ${subject}, ${where}. ${bearerOf(profile)}`,
         '',
         group.map((section) => section.text).join('\n'),
       ].join('\n'),
     );
-    addParts(pages, group, name, index + 1, label);
+    addParts(pages, group, name, index + 1, label, profile);
   }
   pages.set(
     'index',
     [
-      frontMatter(`Admin API: ${label}`, describeArea(area, operations)),
-      `# Admin API: ${label}`,
+      frontMatter(`${profile.name}: ${label}`, describeArea(area, operations, profile)),
+      `# ${profile.name}: ${label}`,
       '',
-      `Operations on ${subject} in the ${doc.info.title}, listed here and described on ${String(groups.length)} pages. ${BEARER}`,
+      `Operations on ${subject} in the ${doc.info.title}, listed here and described on ${String(groups.length)} pages. ${bearerOf(profile)}`,
       '',
       '## Operations',
       '',
@@ -848,28 +946,29 @@ function areaPages(
   return pages;
 }
 
-function indexPage(areas: ReadonlyMap<string, readonly Operation[]>, doc: OpenApiDocument): string {
+function indexPage(
+  areas: ReadonlyMap<string, readonly Operation[]>,
+  doc: ReferenceDocument,
+  profile: ReferenceProfile,
+): string {
   const scheme = record(doc.components.securitySchemes.bearerAuth);
   const tenant = record(doc.components.parameters.tenant);
   const total = [...areas.values()].reduce((sum, operations) => sum + operations.length, 0);
   const lines = [
     frontMatter(
-      'Admin API',
-      `The Odudu admin API: ${String(total)} operations over HTTP and JSON, grouped by area, with authentication and the shape of an error.`,
+      profile.name,
+      `The Odudu ${profile.lowerName}: ${String(total)} operations over HTTP and JSON, grouped by area, with authentication and the shape of an error.`,
     ),
-    '# Admin API',
+    `# ${profile.name}`,
     '',
-    `${escapeProse(doc.info.title)}. Every operation is a JSON request ` +
-      `under \`/admin/tenants\`. The pages are generated from the OpenAPI document the server ` +
-      `itself serves at \`/admin/openapi.json\`, so they list exactly the routes the build serves.`,
+    `${escapeProse(doc.info.title)}. ${profile.intro} The pages are generated from the OpenAPI document the server ` +
+      `itself serves at \`${profile.servedAt}\`, so they list exactly the routes the build serves.`,
     '',
     '## Authentication',
     '',
     escapeProse(str(scheme?.description) ?? 'Send a bearer token.'),
     '',
-    `Each operation names the capability it needs. A caller without it is refused with \`403\`; a missing or wrong token with \`401\`.`,
-    '',
-    'Text values in a request may not contain the NUL character.',
+    profile.authentication,
     '',
     '## The tenant in the path',
     '',
@@ -882,33 +981,95 @@ function indexPage(areas: ReadonlyMap<string, readonly Operation[]>, doc: OpenAp
         `- [${titleOf(area)}](./${area}/index.md): ${String(operations.length)} ${operations.length === 1 ? 'operation' : 'operations'}.`,
     ),
     '',
-    '## Problem details',
+    `## ${profile.errorHeading}`,
     '',
-    'A refusal is an `application/problem+json` document (RFC 9457) with these fields.',
+    profile.errorIntro,
     '',
-    schemaTable(record(doc.components.schemas.ProblemDetails) ?? {}, doc, []),
+    schemaTable(
+      record(doc.components.schemas[profile.errorSchema]) ?? {},
+      doc,
+      [],
+      openApiLinkOf(profile),
+    ),
     '',
   ];
   return lines.join('\n');
 }
 
+export const ADMIN_PROFILE: ReferenceProfile = {
+  pageDir: 'admin-api',
+  name: 'Admin API',
+  lowerName: 'admin API',
+  openApiFile: 'openapi/admin.json',
+  servedAt: '/admin/openapi.json',
+  errorSchema: 'ProblemDetails',
+  errorHeading: 'Problem details',
+  intro: 'Every operation is a JSON request under `/admin/tenants`.',
+  authentication:
+    'Each operation names the capability it needs. A caller without it is refused with `403`; a missing or wrong token with `401`.\n\nText values in a request may not contain the NUL character.',
+  errorIntro: 'A refusal is an `application/problem+json` document (RFC 9457) with these fields.',
+  areaOf: adminAreaOf,
+  capabilityFallback: 'Requires an authenticated admin caller.',
+  countsPathParameters: false,
+  tailOf: adminTailOf,
+};
+
+// /tenants/{tenant}/me/<resource>/...: the area is the resource.
+function meAreaOf(path: string): string {
+  const parts = path.split('/').filter((part) => part !== '');
+  return parts[3] ?? 'other';
+}
+
+function meTailOf(path: string): readonly string[] {
+  return path
+    .split('/')
+    .filter((part) => part !== '')
+    .slice(3);
+}
+
+export const ME_PROFILE: ReferenceProfile = {
+  pageDir: 'me-api',
+  name: 'Me API',
+  lowerName: 'me API',
+  openApiFile: 'openapi/me.json',
+  servedAt: '/me/openapi.json',
+  errorSchema: 'MeError',
+  errorHeading: 'Error body',
+  intro:
+    'Every operation is a JSON request under `/tenants/{tenant}/me`, made by the signed-in person about themselves; no path names a subject.',
+  authentication:
+    'Each operation names the scope it needs. A token without it is refused with `403`; a missing or unusable token with `401` and a `WWW-Authenticate` challenge.',
+  errorIntro:
+    'An error body, where there is one, is an `application/json` document with these fields.',
+  areaOf: meAreaOf,
+  capabilityFallback: 'Requires a signed-in caller.',
+  countsPathParameters: true,
+  tailOf: meTailOf,
+};
+
 export function adminApiAreas(
-  doc: OpenApiDocument,
+  doc: ReferenceDocument,
+  profile: ReferenceProfile = ADMIN_PROFILE,
 ): readonly (readonly [area: string, label: string])[] {
-  return [...operationsOf(doc).keys()].map(
-    (area) => [area, `Admin API: ${titleOf(area)}`] as const,
+  return [...operationsOf(doc, profile).keys()].map(
+    (area) => [area, `${profile.name}: ${titleOf(area)}`] as const,
   );
 }
 
 // An index, then per area either one page or an index and pages that hold
 // operations up to a table size, as Markdown by path relative to the generated
 // reference directory.
-export function renderOpenApiPages(doc: OpenApiDocument): ReadonlyMap<string, string> {
-  const areas = operationsOf(doc);
-  const pages = new Map<string, string>([[`${PAGE_DIR}/index.md`, indexPage(areas, doc)]]);
+export function renderOpenApiPages(
+  doc: ReferenceDocument,
+  profile: ReferenceProfile = ADMIN_PROFILE,
+): ReadonlyMap<string, string> {
+  const areas = operationsOf(doc, profile);
+  const pages = new Map<string, string>([
+    [`${profile.pageDir}/index.md`, indexPage(areas, doc, profile)],
+  ]);
   for (const [area, operations] of areas) {
-    for (const [name, page] of areaPages(area, operations, doc)) {
-      pages.set(`${PAGE_DIR}/${area}/${name}.md`, page);
+    for (const [name, page] of areaPages(area, operations, doc, profile)) {
+      pages.set(`${profile.pageDir}/${area}/${name}.md`, page);
     }
   }
   return new Map([...pages].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));

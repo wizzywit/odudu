@@ -396,7 +396,9 @@ module.exports = {
         'The MCP package sits above the protocol packages (ADR 0051) and reaches the admin API ' +
         'only through its HTTP surface, so of the workspace it may import the kernel, the ' +
         'contracts, the OIDC package and the admin API package, and no database, crypto or ' +
-        'domain package. The rule covers src/ minus its *.test.ts files.',
+        'domain package. The rule covers src/ minus its *.test.ts files. It names packages/ ' +
+        'only, so the stdio client in sdks/mcp-stdio, which the package shares code with ' +
+        '(ADR 0053), is outside it.',
       from: { path: '(^|/)packages/mcp/src/', pathNot: '\\.test\\.ts$' },
       to: {
         path: '(^|/)packages/',
@@ -412,6 +414,17 @@ module.exports = {
         'into it, a protocol package included.',
       from: { path: '(^|/)(?:packages|apps)/', pathNot: '(^|/)(?:packages/mcp|apps/server)/' },
       to: { path: '(^|/)packages/mcp/' },
+    },
+    {
+      name: 'sdks-import-no-server',
+      severity: 'error',
+      comment:
+        'The SDKs are Apache-2.0 and the server is AGPL-3.0 (ADR 0042), so the licence ' +
+        'boundary is a dependency edge: nothing under sdks/ imports a server package, an ' +
+        'app or a tool, by path or by the @odudu/ name a workspace link would resolve to ' +
+        '(an unresolved @odudu/ name is caught by its name). An SDK may import another SDK.',
+      from: { path: '(^|/)sdks/' },
+      to: { path: '(^|/)(?:packages|apps|tools)/|^@odudu/', pathNot: '(^|/)node_modules/' },
     },
     {
       name: 'me-allowlist',
@@ -433,9 +446,22 @@ module.exports = {
       severity: 'error',
       comment:
         'Only apps/server composes the me package (ADR 0052); no other package or app reaches ' +
-        'into it, a protocol package included.',
-      from: { path: '(^|/)(?:packages|apps)/', pathNot: '(^|/)(?:packages/me|apps/server)/' },
+        'into it, a protocol package included. The docs app is the one other reader, and ' +
+        'me-docs-entry-only holds it to the docs entry.',
+      from: {
+        path: '(^|/)(?:packages|apps)/',
+        pathNot: '(^|/)(?:packages/me|apps/server|apps/docs)/',
+      },
       to: { path: '(^|/)packages/me/' },
+    },
+    {
+      name: 'me-docs-entry-only',
+      severity: 'error',
+      comment:
+        'The docs app renders the me OpenAPI document and so reads the package, but only its ' +
+        'docs entry, which carries no server wiring (the same shape as protocol-admin/docs).',
+      from: { path: '(^|/)apps/docs/' },
+      to: { path: '(^|/)packages/me/', pathNot: '(^|/)packages/me/src/docs\\.ts$' },
     },
     // `/src/(.+/)?view/` fails dependency-cruiser's safe-regex check (star
     // height > 1: the optional group wraps a quantifier). The alternation

@@ -1,12 +1,21 @@
 import {
   meAmendProfileRequestSchema,
+  meConsentsResponseSchema,
+  meCredentialSchema,
+  meCredentialsResponseSchema,
+  meEmailVerificationSentSchema,
   meListQuerySchema,
   meNoQuerySchema,
+  meProfileSchema,
   meRenameCredentialRequestSchema,
+  meSessionEndedSchema,
+  meSessionsEndedSchema,
+  meSessionsResponseSchema,
 } from '@odudu/contracts/me';
 import { isUuid, tenantAddressOf } from '@odudu/kernel';
 import { normalizeOrigin } from '@odudu/protocol-oidc';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import {
   agentNotPermitted,
   conflict,
@@ -79,18 +88,143 @@ const BASE = '/tenants/:tenant/me';
 
 const NO_AUTHENTICATOR = 'No such authenticator';
 
+export interface MeRoute {
+  readonly method: 'GET' | 'PATCH' | 'DELETE';
+  readonly url: string;
+  readonly summary: string;
+  readonly scope: 'me:read' | 'me:write';
+  // The path members other than the tenant, which every route takes.
+  readonly params?: z.ZodType;
+  readonly query?: z.ZodType;
+  readonly body?: z.ZodType;
+  // A schema for a body, 'empty' for none, and 'error' for the shared answer
+  // the document gives that status.
+  readonly responses: Readonly<Record<number, z.ZodType | 'error' | 'empty'>>;
+}
+
+const idParams = z.object({
+  id: z.uuid().describe('The identifier of the session or credential, as listed in its `id`.'),
+});
+
+// What any route may answer before it reads its own input: a tenant that is
+// unknown or disabled is a 404, and a token that is missing or short a 401 or 403.
+const REFUSED = { 401: 'error', 403: 'error', 404: 'error', 429: 'error' } as const;
+
+// One source for what a route accepts and answers: the handlers validate with
+// these members and the OpenAPI document is generated from them.
+const PROFILE_GET = {
+  method: 'GET',
+  url: `${BASE}/profile`,
+  summary: 'The signed-in person’s own profile.',
+  scope: 'me:read',
+  query: meNoQuerySchema,
+  responses: { 200: meProfileSchema, 400: 'error', ...REFUSED },
+} as const satisfies MeRoute;
+
+const CREDENTIALS_GET = {
+  method: 'GET',
+  url: `${BASE}/credentials`,
+  summary: 'A page of the person’s own ways to sign in.',
+  scope: 'me:read',
+  query: meListQuerySchema,
+  responses: { 200: meCredentialsResponseSchema, 400: 'error', ...REFUSED },
+} as const satisfies MeRoute;
+
+const SESSIONS_GET = {
+  method: 'GET',
+  url: `${BASE}/sessions`,
+  summary: 'A page of the person’s own live sessions.',
+  scope: 'me:read',
+  query: meListQuerySchema,
+  responses: { 200: meSessionsResponseSchema, 400: 'error', ...REFUSED },
+} as const satisfies MeRoute;
+
+const CONSENTS_GET = {
+  method: 'GET',
+  url: `${BASE}/consents`,
+  summary: 'A page of the person’s own consents.',
+  scope: 'me:read',
+  query: meListQuerySchema,
+  responses: { 200: meConsentsResponseSchema, 400: 'error', ...REFUSED },
+} as const satisfies MeRoute;
+
+const PROFILE_PATCH = {
+  method: 'PATCH',
+  url: `${BASE}/profile`,
+  summary: 'Amends the person’s own profile; an email is changed by a mailed link.',
+  scope: 'me:write',
+  body: meAmendProfileRequestSchema,
+  responses: {
+    200: meProfileSchema,
+    202: meEmailVerificationSentSchema,
+    400: 'error',
+    ...REFUSED,
+    409: 'error',
+    503: 'error',
+  },
+} as const satisfies MeRoute;
+
+const SESSIONS_DELETE = {
+  method: 'DELETE',
+  url: `${BASE}/sessions`,
+  summary: 'Ends the person’s other sessions, a bounded number at a time.',
+  scope: 'me:write',
+  responses: { 200: meSessionsEndedSchema, ...REFUSED },
+} as const satisfies MeRoute;
+
+const SESSION_DELETE = {
+  method: 'DELETE',
+  url: `${BASE}/sessions/:id`,
+  summary: 'Ends one of the person’s own sessions.',
+  scope: 'me:write',
+  params: idParams,
+  responses: { 200: meSessionEndedSchema, ...REFUSED },
+} as const satisfies MeRoute;
+
+const CONSENT_DELETE = {
+  method: 'DELETE',
+  url: `${BASE}/consents/:client_id`,
+  summary: 'Withdraws the person’s consent to one client.',
+  scope: 'me:write',
+  params: z.object({
+    client_id: z
+      .string()
+      .describe('The `client_id` of the application whose consent to withdraw, as listed.'),
+  }),
+  responses: { 204: 'empty', ...REFUSED },
+} as const satisfies MeRoute;
+
+const CREDENTIAL_PATCH = {
+  method: 'PATCH',
+  url: `${BASE}/credentials/:id`,
+  summary: 'Renames one of the person’s own ways to sign in.',
+  scope: 'me:write',
+  params: idParams,
+  body: meRenameCredentialRequestSchema,
+  responses: { 200: meCredentialSchema, 400: 'error', ...REFUSED },
+} as const satisfies MeRoute;
+
+const CREDENTIAL_DELETE = {
+  method: 'DELETE',
+  url: `${BASE}/credentials/:id`,
+  summary: 'Removes one of the person’s own ways to sign in.',
+  scope: 'me:write',
+  params: idParams,
+  responses: { 204: 'empty', ...REFUSED, 409: 'error' },
+} as const satisfies MeRoute;
+
 // No route names a subject: the token's own is the only one any of them acts for.
-export const ME_ROUTES: readonly { readonly method: string; readonly url: string }[] = [
-  ...['profile', 'credentials', 'sessions', 'consents'].map((name) => ({
-    method: 'GET',
-    url: `${BASE}/${name}`,
-  })),
-  { method: 'PATCH', url: `${BASE}/profile` },
-  { method: 'DELETE', url: `${BASE}/sessions` },
-  { method: 'DELETE', url: `${BASE}/sessions/:id` },
-  { method: 'DELETE', url: `${BASE}/consents/:client_id` },
-  { method: 'PATCH', url: `${BASE}/credentials/:id` },
-  { method: 'DELETE', url: `${BASE}/credentials/:id` },
+export const ME_ROUTES: readonly MeRoute[] = [
+  PROFILE_GET,
+  CREDENTIALS_GET,
+  SESSIONS_GET,
+  CONSENTS_GET,
+  PROFILE_PATCH,
+  SESSIONS_DELETE,
+  SESSION_DELETE,
+  CONSENT_DELETE,
+  CREDENTIAL_PATCH,
+  CREDENTIAL_DELETE,
 ];
 
 function respond(reply: FastifyReply, status: number, body?: object): FastifyReply {
@@ -242,14 +376,14 @@ type Read<Ok> = (
 function listRoute<Ok extends { readonly kind: 'ok' }>(
   app: FastifyInstance,
   deps: MeDeps,
-  name: string,
+  route: { readonly url: string; readonly query: typeof meListQuerySchema },
   read: Read<Ok>,
   answer: (outcome: Ok) => object,
 ): void {
-  app.get<{ Params: { tenant: string } }>(`${BASE}/${name}`, async (request, reply) => {
+  app.get<{ Params: { tenant: string } }>(route.url, async (request, reply) => {
     const caller = await admit(deps, request, reply);
     if (caller === undefined) return reply;
-    const query = meListQuerySchema.safeParse(request.query);
+    const query = route.query.safeParse(request.query);
     if (!query.success) return respond(reply, 400, invalidRequest('The query is not valid'));
     const outcome = await read(deps, caller, query.data);
     if (outcome.kind === 'invalid_cursor') {
@@ -280,10 +414,10 @@ async function changeEmail(
 }
 
 function registerWrites(app: FastifyInstance, deps: MeDeps): void {
-  app.patch<{ Params: { tenant: string } }>(`${BASE}/profile`, async (request, reply) => {
+  app.patch<{ Params: { tenant: string } }>(PROFILE_PATCH.url, async (request, reply) => {
     const caller = await admitWrite(deps, request, reply);
     if (caller === undefined) return reply;
-    const body = meAmendProfileRequestSchema.safeParse(request.body);
+    const body = PROFILE_PATCH.body.safeParse(request.body);
     if (!body.success) return respond(reply, 400, invalidBody(body.error.issues));
     const asked = emailRequestOf(body.data);
     if (asked.kind !== 'not_email') return changeEmail(deps, caller, asked, reply);
@@ -304,7 +438,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
     return respond(reply, 200, profileDto(outcome.profile));
   });
 
-  app.delete<{ Params: { tenant: string } }>(`${BASE}/sessions`, async (request, reply) => {
+  app.delete<{ Params: { tenant: string } }>(SESSIONS_DELETE.url, async (request, reply) => {
     const caller = await admitWrite(deps, request, reply);
     if (caller === undefined) return reply;
     if (!(await signInIsFresh(deps, caller, reply))) return reply;
@@ -313,7 +447,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
   });
 
   app.delete<{ Params: { tenant: string; id: string } }>(
-    `${BASE}/sessions/:id`,
+    SESSION_DELETE.url,
     async (request, reply) => {
       if (!isUuid(request.params.id)) return respond(reply, 404, notFound('No such session'));
       const caller = await admitWrite(deps, request, reply);
@@ -326,7 +460,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
   );
 
   app.delete<{ Params: { tenant: string; client_id: string } }>(
-    `${BASE}/consents/:client_id`,
+    CONSENT_DELETE.url,
     async (request, reply) => {
       const caller = await admitWrite(deps, request, reply);
       if (caller === undefined) return reply;
@@ -338,13 +472,13 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
   );
 
   app.patch<{ Params: { tenant: string; id: string } }>(
-    `${BASE}/credentials/:id`,
+    CREDENTIAL_PATCH.url,
     async (request, reply) => {
       if (!isUuid(request.params.id)) return respond(reply, 404, notFound(NO_AUTHENTICATOR));
       const caller = await admitWrite(deps, request, reply);
       if (caller === undefined) return reply;
       if (!(await sessionIsLive(deps, caller, reply))) return reply;
-      const body = meRenameCredentialRequestSchema.safeParse(request.body);
+      const body = CREDENTIAL_PATCH.body.safeParse(request.body);
       if (!body.success) return respond(reply, 400, invalidBody(body.error.issues));
       const outcome = await renameCredential(deps, caller, request.params.id, body.data.label);
       if (outcome.kind === 'not_found') {
@@ -355,7 +489,7 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
   );
 
   app.delete<{ Params: { tenant: string; id: string } }>(
-    `${BASE}/credentials/:id`,
+    CREDENTIAL_DELETE.url,
     async (request, reply) => {
       if (!isUuid(request.params.id)) return respond(reply, 404, notFound(NO_AUTHENTICATOR));
       const caller = await admitWrite(deps, request, reply);
@@ -376,10 +510,10 @@ export const isMeRoute = (url: string | undefined): boolean => url?.startsWith(`
 export function registerMeRoutes(app: FastifyInstance, deps: MeDeps): void {
   registerPreflight(app, deps);
   registerWrites(app, deps);
-  app.get<{ Params: { tenant: string } }>(`${BASE}/profile`, async (request, reply) => {
+  app.get<{ Params: { tenant: string } }>(PROFILE_GET.url, async (request, reply) => {
     const caller = await admit(deps, request, reply);
     if (caller === undefined) return reply;
-    if (!meNoQuerySchema.safeParse(request.query).success) {
+    if (!PROFILE_GET.query.safeParse(request.query).success) {
       return respond(reply, 400, invalidRequest('The query is not valid'));
     }
     const outcome = await readProfile(deps, caller);
@@ -388,9 +522,9 @@ export function registerMeRoutes(app: FastifyInstance, deps: MeDeps): void {
     }
     return respond(reply, 200, profileDto(outcome.profile));
   });
-  listRoute(app, deps, 'credentials', listCredentials, (o) =>
+  listRoute(app, deps, CREDENTIALS_GET, listCredentials, (o) =>
     credentialsDto(o.items, o.next, o.recoveryCodesLeft, o.recoveryCodesLow),
   );
-  listRoute(app, deps, 'sessions', listSessions, (o) => sessionsDto(o.items, o.next));
-  listRoute(app, deps, 'consents', listConsents, (o) => consentsDto(o.items, o.next));
+  listRoute(app, deps, SESSIONS_GET, listSessions, (o) => sessionsDto(o.items, o.next));
+  listRoute(app, deps, CONSENTS_GET, listConsents, (o) => consentsDto(o.items, o.next));
 }

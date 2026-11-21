@@ -9,7 +9,7 @@ import {
   createOnlyOf,
   payloadOf,
   preconditionOf,
-} from '#/service/admin-request';
+} from '@odudu-io/mcp-stdio/internal';
 import type { AdminMethod, AdminRequestSpec } from '#/service/tool';
 
 function spec(method: AdminMethod, rest: Partial<AdminRequestSpec> = {}): AdminRequestSpec {

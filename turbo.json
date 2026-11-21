@@ -21,6 +21,82 @@
       "outputs": ["trace-report.json"],
       "env": ["ODUDU_TEST_SHARD"]
     },
+    "@odudu/sdk-generate#test": {
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "src/**",
+        "requirements.txt",
+        "package.json",
+        "tsconfig.json",
+        "$TURBO_ROOT$/sdks/*/src/generated/**",
+        "$TURBO_ROOT$/sdks/python/src/**",
+        "$TURBO_ROOT$/apps/docs/static/openapi/**"
+      ],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
+    "@odudu/mcp#typecheck": {
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"]
+    },
+    "@odudu/mcp-catalogue#typecheck": {
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"]
+    },
+    "@odudu/server#typecheck": {
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"]
+    },
+    "@odudu/mcp#test": {
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"],
+      "inputs": ["src/**", "tests/**", "drizzle/**", "package.json", "tsconfig.json"],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
+    "@odudu-io/mcp-stdio#typecheck": {
+      "dependsOn": ["^typecheck", "^build"]
+    },
+    "@odudu-io/mcp-stdio#test": {
+      "dependsOn": ["^build", "build"],
+      "inputs": ["src/**", "package.json", "tsconfig.json", "tsup.config.ts"],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
+    "@odudu/mcp-catalogue#test": {
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"],
+      "inputs": [
+        "src/**",
+        "package.json",
+        "tsconfig.json",
+        "$TURBO_ROOT$/sdks/mcp-stdio/src/mcp-tools.json"
+      ],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
+    "@odudu-io/bff#typecheck": {
+      "dependsOn": ["^typecheck", "^build"]
+    },
+    "@odudu-io/bff#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tests/**", "package.json", "tsconfig.json"],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
+    "@odudu-io/react#typecheck": {
+      "dependsOn": ["^typecheck", "^build"]
+    },
+    "@odudu-io/react#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "test/**", "package.json", "tsconfig.json"],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
+    "@odudu-io/next#typecheck": {
+      "dependsOn": ["^typecheck", "^build"]
+    },
+    "@odudu-io/next#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "test/**", "package.json", "tsconfig.json"],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
     "@odudu/db#test": {
       "dependsOn": ["^typecheck"],
       "inputs": [
@@ -67,14 +143,15 @@
       "env": ["ODUDU_TEST_SHARD"]
     },
     "@odudu/server#test": {
-      "dependsOn": ["^typecheck"],
+      "dependsOn": ["^typecheck", "@odudu-io/mcp-stdio#build"],
       "inputs": [
         "src/**",
         "tests/**",
         "drizzle/**",
         "package.json",
         "tsconfig.json",
-        "$TURBO_ROOT$/packages/console-gateway/tests/fixtures/**"
+        "$TURBO_ROOT$/packages/console-gateway/tests/fixtures/**",
+        "$TURBO_ROOT$/packages/protocol-oidc/src/service/client-assertion.ts"
       ],
       "outputs": ["trace-report.json"],
       "env": ["ODUDU_TEST_SHARD"]
@@ -185,6 +262,22 @@
         "$TURBO_ROOT$/examples/*/README.md",
         "$TURBO_ROOT$/examples/*/package.json",
         "$TURBO_ROOT$/examples/*/test.ts",
+        "$TURBO_ROOT$/examples/*/requirements.txt",
+        "$TURBO_ROOT$/examples/*/test_example.py",
+        "$TURBO_ROOT$/examples/*/*.ts",
+        "$TURBO_ROOT$/examples/*/*.py",
+        "$TURBO_ROOT$/examples/*/src/*.ts",
+        "$TURBO_ROOT$/examples/*/src/*.tsx",
+        "$TURBO_ROOT$/examples/*/lib/*.ts",
+        "$TURBO_ROOT$/sdks/*/package.json",
+        "$TURBO_ROOT$/sdks/*/pyproject.toml",
+        "$TURBO_ROOT$/sdks/*/tsup.config.ts",
+        "$TURBO_ROOT$/sdks/*/src/index.ts",
+        "$TURBO_ROOT$/sdks/*/src/shared.ts",
+        "$TURBO_ROOT$/sdks/*/src/adapter/*.ts",
+        "$TURBO_ROOT$/sdks/python/src/odudu/**/__init__.py",
+        "$TURBO_ROOT$/sdks/python/src/odudu/verify/*.py",
+        "$TURBO_ROOT$/sdks/python/src/odudu/_generated/*.py",
         "$TURBO_ROOT$/apps/server/src/**",
         "!$TURBO_ROOT$/apps/server/src/**/*.test.ts",
         "$TURBO_ROOT$/apps/server/package.json",

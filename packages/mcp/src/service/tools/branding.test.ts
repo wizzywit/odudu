@@ -9,7 +9,7 @@ import {
 } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { callTool } from '#/service/call-tool';
+import { callTool } from '@odudu-io/mcp-stdio/internal';
 import { brandingTools } from '#/service/tools/branding';
 import { describeReadTool } from '#/testing/conformance';
 import { exampleOf } from '#/testing/example-of';
