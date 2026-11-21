@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { bffRouter } from '#/adapter/express';
 import { registerBff } from '#/adapter/fastify';
 import { startFakeServer, type FakeServer } from '#/testing/fake-server';
+import { createMemoryStore } from '#/services/memory-store';
 import { makeBff, ORIGIN, signIn, START, type Clock } from '#/testing/harness';
 import { startUpstream, type FakeUpstream } from '#/testing/upstream';
 import type { Bff, BffOptions } from '#/types';
@@ -53,17 +54,29 @@ const bffOf = (overrides: Partial<BffOptions> = {}): Bff =>
     ...overrides,
   });
 
-async function fastifyApp(bff: Bff, prefix: string | null = '/auth'): Promise<Running> {
+interface Hooks {
+  onError?: (error: unknown) => void;
+}
+
+async function fastifyApp(
+  bff: Bff,
+  prefix: string | null = '/auth',
+  hooks: Hooks = {},
+): Promise<Running> {
   const app = Fastify();
-  registerBff(app, bff, prefix === null ? {} : { prefix });
+  registerBff(app, bff, { ...(prefix === null ? {} : { prefix }), ...hooks });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const { port } = app.server.address() as AddressInfo;
   return { base: `http://127.0.0.1:${String(port)}`, close: () => app.close() };
 }
 
-async function expressApp(bff: Bff, prefix: string | null = '/auth'): Promise<Running> {
+async function expressApp(
+  bff: Bff,
+  prefix: string | null = '/auth',
+  hooks: Hooks = {},
+): Promise<Running> {
   const app = express();
-  app.use(bffRouter(bff, prefix === null ? {} : { prefix }));
+  app.use(bffRouter(bff, { ...(prefix === null ? {} : { prefix }), ...hooks }));
   const server: Server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
@@ -79,7 +92,10 @@ async function expressApp(bff: Bff, prefix: string | null = '/auth'): Promise<Ru
   };
 }
 
-const frameworks: [string, (bff: Bff, prefix?: string | null) => Promise<Running>][] = [
+const frameworks: [
+  string,
+  (bff: Bff, prefix?: string | null, hooks?: Hooks) => Promise<Running>,
+][] = [
   ['fastify', fastifyApp],
   ['express', expressApp],
 ];
@@ -268,9 +284,68 @@ describe.each(frameworks)('the %s adapter', (_name, start) => {
     expect(received).toBeLessThanOrEqual(4096);
   });
 
+  it('hands a handler failure to onError, answers 500 and shows the browser nothing of it', async () => {
+    const outage = new Error('store is down');
+    const store = createMemoryStore();
+    store.set = () => Promise.reject(outage);
+    const seen: unknown[] = [];
+    const bff = bffOf({ store });
+    const app = await start(bff, '/auth', {
+      onError: (error) => {
+        seen.push(error);
+      },
+    });
+    running.push(app);
+    const response = await fetch(`${app.base}/auth/login`, { redirect: 'manual' });
+    expect(response.status).toBe(500);
+    expect(await response.text()).toBe('Internal error.');
+    expect(seen).toEqual([outage]);
+  });
+
+  it('still answers 500 when onError itself throws', async () => {
+    const store = createMemoryStore();
+    store.set = () => Promise.reject(new Error('store is down'));
+    const bff = bffOf({ store });
+    const app = await start(bff, '/auth', {
+      onError: () => {
+        throw new Error('the hook failed');
+      },
+    });
+    running.push(app);
+    const response = await fetch(`${app.base}/auth/login`, { redirect: 'manual' });
+    expect(response.status).toBe(500);
+  });
+
   it('answers 404 to a path the routes do not name', async () => {
     const { base } = await serve();
     expect((await fetch(`${base}/auth/nothing`)).status).toBe(404);
+  });
+});
+
+describe('the Fastify adapter without an onError hook', () => {
+  it('logs the failure with the app logger', async () => {
+    const lines: string[] = [];
+    const store = createMemoryStore();
+    store.set = () => Promise.reject(new Error('store is down'));
+    const app = Fastify({
+      logger: {
+        level: 'error',
+        stream: {
+          write: (line: string) => {
+            lines.push(line);
+          },
+        },
+      },
+    });
+    registerBff(app, bffOf({ store }), { prefix: '/auth' });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = app.server.address() as AddressInfo;
+    running.push({ base: '', close: () => app.close() });
+    const response = await fetch(`http://127.0.0.1:${String(port)}/auth/login`, {
+      redirect: 'manual',
+    });
+    expect(response.status).toBe(500);
+    expect(lines.join('')).toContain('store is down');
   });
 });
 

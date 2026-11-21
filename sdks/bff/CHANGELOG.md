@@ -9,6 +9,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `onError(error)` on `bffRouter` and `registerBff` receives the error of a handler that failed and was answered `500`, with nothing of the request, and an error the hook throws is ignored. `registerBff` logs to `app.log.error` when none is given. Neither adapter reported these errors before. A browser that leaves mid-answer is not reported.
 - `idTokenAlg` (`'RS256'` when omitted, or `'ES256'`) names the algorithm the client is registered for ID tokens, for the sign-in and for the refresh. A client registered for `ES256` could not sign in through the BFF or `@odudu-io/next`, which takes every BFF option.
 - `upstreamIdleMs` (30 seconds when omitted, a positive whole number or a `TypeError`) cuts a proxied response off, and the upstream request with it, when its body goes that long without a chunk once the upstream has started answering. `upstreamTimeoutMs` still bounds the wait for the answer to start.
 - `BffOptions.mountPath` (the root when omitted) is the default `prefix` of `bffRouter` and `registerBff` and puts the proxy at `${mountPath}/proxy` unless `proxyPath` is given, so `@odudu-io/react`'s `baseUrl` reaches the proxy as well as the login and the session.

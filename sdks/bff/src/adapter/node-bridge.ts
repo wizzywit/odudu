@@ -60,13 +60,27 @@ export async function writeWebResponse(res: ServerResponse, response: Response):
   await pipeline(Readable.fromWeb(response.body), res);
 }
 
+export type ErrorHook = (error: unknown) => void;
+
+// A hook that throws must not change what the browser is answered.
+function report(onError: ErrorHook | undefined, error: unknown): void {
+  try {
+    onError?.(error);
+  } catch {
+    // The failure being reported is the one that matters.
+  }
+}
+
 // Runs a handler for a Node request and writes what it answers. A failure
 // before anything is written answers 500; one after it cuts the connection.
+// `onError` gets the error, and only the error, unless the browser left first,
+// which is not a failure of the BFF.
 export async function serve(
   handler: Handler,
   req: IncomingMessage,
   res: ServerResponse,
   url: string,
+  onError?: ErrorHook,
 ): Promise<void> {
   // The request's signal aborts when the connection closes before the response
   // is complete, so a handler's upstream work stops with the browser.
@@ -76,7 +90,8 @@ export async function serve(
   });
   try {
     await writeWebResponse(res, await handler(toWebRequest(req, url, left.signal)));
-  } catch {
+  } catch (error) {
+    if (!left.signal.aborted) report(onError, error);
     if (res.headersSent) {
       res.destroy();
       return;
