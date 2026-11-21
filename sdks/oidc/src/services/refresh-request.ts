@@ -25,6 +25,10 @@ export function refreshedTokenSet(
   resource: string | undefined,
   now: number,
 ): TokenSet {
+  // OIDC Core section 12.2: a refreshed ID token names the same subject.
+  if (claims !== undefined && claims.sub !== previous.claims.sub) {
+    throw new OduduError('invalid_id_token', 'the refreshed ID token names another subject');
+  }
   const accessToken = response.access_token;
   const expiresAt = expiresAtOf(response, now);
   const audiences = resource === undefined ? Object.keys(previous.byAudience) : [resource];

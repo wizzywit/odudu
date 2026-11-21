@@ -197,6 +197,20 @@ describe('refresh', () => {
     expect(third?.refreshToken).toBe('refresh-token-1-rotated-rotated-rotated');
   });
 
+  it('refuses a refreshed ID token that names another subject', async () => {
+    const tokens = await signedIn();
+    fake.claims = { ...fake.claims, sub: 'someone-else' };
+    const error = await refresh(tokens, {}, deps).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(OduduError);
+    expect((error as OduduError).code).toBe('invalid_id_token');
+  });
+
+  it('accepts a refreshed ID token with the same subject', async () => {
+    const tokens = await signedIn();
+    const renewed = await refresh(tokens, {}, deps);
+    expect(renewed.claims.sub).toBe(tokens.claims.sub);
+  });
+
   it('refuses tokens that carry no refresh token', async () => {
     const tokens = await signedIn();
     const without: TokenSet = { ...tokens };
