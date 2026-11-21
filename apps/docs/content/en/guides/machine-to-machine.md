@@ -84,6 +84,8 @@ curl -sS -u "my-service:not-the-secret" --data-urlencode grant_type=client_crede
 
 To let a service ask for a scope, register it with `--client-credentials-scope`, once for each scope. The service then names the scope in its token request, and the token carries it.
 
+A service that calls the admin API also needs an admin capability on its account. `odudu seed client --capability manage-clients` gives it when the client is made, once for each capability; the admin API gives one only to a caller that already holds one, so this is how the first service gets its capability, and an administrator changes it afterwards.
+
 ## 7. Run a finished service
 
 [The machine-to-machine example](https://github.com/wizzywit/odudu/tree/main/examples/machine-to-machine) is this guide as a single file with no dependencies: it gets a token as itself and calls [the API example](https://github.com/wizzywit/odudu/tree/main/examples/api) with it. Its README says how to run it against your stack.

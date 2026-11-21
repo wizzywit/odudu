@@ -1931,6 +1931,96 @@ describe('seed admin', () => {
   });
 });
 
+describe('seed client --capability', () => {
+  const service = (tenant: string, clientId: string, ...extra: string[]) => [
+    'client',
+    '--tenant',
+    tenant,
+    '--client-id',
+    clientId,
+    '--client-secret',
+    'a-service-secret',
+    '--grant-type',
+    'client_credentials',
+    ...extra,
+  ];
+
+  async function capabilitiesOf(tenant: string, clientId: string): Promise<string[]> {
+    const rows = await owner.sql<{ name: string }[]>`
+      select r.name from subject_roles sr
+      join roles r on r.id = sr.role_id
+      join clients k on k.service_subject_id = sr.subject_id
+      join tenants t on t.id = k.tenant_id
+      where t.name = ${tenant} and k.client_id = ${clientId}
+      order by r.name`;
+    return rows.map((row) => row.name);
+  }
+
+  it('gives the service account each capability named, once', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(
+      service(
+        options.tenant,
+        'agent',
+        '--capability',
+        'manage-clients',
+        '--capability',
+        'view-users',
+        '--capability',
+        'manage-clients',
+      ),
+    );
+    expect(await capabilitiesOf(options.tenant, 'agent')).toEqual(['manage-clients', 'view-users']);
+  });
+
+  it('gives a service account nothing without the flag', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(service(options.tenant, 'plain'));
+    expect(await capabilitiesOf(options.tenant, 'plain')).toEqual([]);
+  });
+
+  it('refuses a name that is not an admin capability, and makes no client', async () => {
+    const options = uniqueOptions();
+    const made = await seed(options);
+    const before = await countClients(made.tenantId);
+    await expect(
+      seed(service(options.tenant, 'odd', '--capability', 'manage-everything')),
+    ).rejects.toThrow(/manage-everything.*manage-clients/su);
+    expect(await countClients(made.tenantId)).toBe(before);
+  });
+
+  it('refuses a client that has no service account', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await expect(
+      seed([
+        'client',
+        '--tenant',
+        options.tenant,
+        '--client-id',
+        'spa',
+        '--public',
+        '--redirect-uri',
+        'https://app.example/callback',
+        '--capability',
+        'manage-clients',
+      ]),
+    ).rejects.toThrow(/--capability.*service account/su);
+  });
+
+  it('gives a capability only to the client it was named for, in its own tenant', async () => {
+    const first = uniqueOptions();
+    const second = uniqueOptions();
+    await seed(first);
+    await seed(second);
+    await seed(service(first.tenant, 'agent', '--capability', 'manage-clients'));
+    await seed(service(second.tenant, 'agent'));
+    expect(await capabilitiesOf(second.tenant, 'agent')).toEqual([]);
+  });
+});
+
 describe('seed client --allow-action', () => {
   async function allowedActionsOf(tenantId: string, oauthClientId: string): Promise<string[]> {
     return withTenant(owner.db, tenantId, async (tx) => {
