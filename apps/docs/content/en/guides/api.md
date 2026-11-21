@@ -36,7 +36,7 @@ TOKEN=$(curl -fsS -u "my-api-caller:$CALLER_SECRET" --data-urlencode grant_type=
 
 ## 3. Protect a route with the SDK
 
-[`@odudu-io/node`](../sdks/node.md) decides whether to trust a token. It reads the tenant's published keys, checks the token, and answers a refusal with the status and the `WWW-Authenticate` challenge that [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750) describes. Give it the issuers you trust and the audience your API goes by.
+[`@odudu-io/node`](../sdks/node.md) decides whether to trust a token. It reads the tenant's published keys, checks the token, and answers a refusal with the status and the `WWW-Authenticate` challenge that RFC 6750 describes. Give it the issuers you trust and the audience your API goes by.
 
 ```text
 npm install @odudu-io/node
@@ -108,7 +108,7 @@ async def reports(
 
 `allowInsecureIssuers` and `allow_insecure_issuers` let the verifier trust an `http` issuer such as your stack on localhost. A real API trusts an https issuer and never sets them.
 
-By default the example's API goes by the tenant's own address, which Odudu puts in the audience of the access tokens here. [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068) wants the audience to name your API. The caller above is registered for `http://localhost:8082`, so start the example with that as its audience, in its folder:
+By default the example's API goes by the tenant's own address, which Odudu puts in the audience of the access tokens here. RFC 9068 wants the audience to name your API. The caller above is registered for `http://localhost:8082`, so start the example with that as its audience, in its folder:
 
 ```text
 API_AUDIENCE=http://localhost:8082 npm start
