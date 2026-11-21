@@ -22,6 +22,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `expiresAt` is counted from before the token request is sent in `clientCredentials`, `completeSignIn` and `refresh`, so a slow response no longer lengthens a token's life.
 - `refresh` runs the refreshes of one grant one at a time, so a call holding the rotated token no longer overlaps the queued call that uses it, and a call queued behind a refused one continues from the last tokens that came back instead of presenting the spent refresh token again.
 - `signOutUrl` rejects with `discovery_failed` an `end_session_endpoint` that is not https, before the ID token is put in the address; an http endpoint passes only with `allowInsecureRequests`.
 - `refresh` rejects with `invalid_id_token` a refreshed ID token whose `sub` differs from the sign-in's.

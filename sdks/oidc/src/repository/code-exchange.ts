@@ -9,6 +9,8 @@ export async function exchangeForTokens(
   deps: Deps,
   auth?: ClientAuth,
 ): Promise<TokenSet> {
+  // Read before the request: a slow answer must not lengthen the token's life.
+  const requestedAt = (deps.now ?? Date.now)();
   const { response, claims } = await exchangeCode(metadata, params, pending, deps, auth);
-  return tokenSetOf(response, claims, pending, (deps.now ?? Date.now)());
+  return tokenSetOf(response, claims, pending, requestedAt);
 }

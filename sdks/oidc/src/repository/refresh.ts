@@ -21,6 +21,8 @@ export function refreshTokens(
 ): Promise<TokenSet> {
   return flights.run(refreshTokenOf(tokens), options.resource ?? '', async (latest) => {
     const previous = latest ?? tokens;
+    // Read before the request: a slow answer must not lengthen the token's life.
+    const requestedAt = (deps.now ?? Date.now)();
     const { response, claims } = await refreshGrant(
       metadata,
       { client_id: previous.clientId, id_token_signed_response_alg: idTokenAlgOf(options) },
@@ -29,12 +31,6 @@ export function refreshTokens(
       deps,
       options.auth,
     );
-    return refreshedTokenSet(
-      previous,
-      response,
-      claims,
-      options.resource,
-      (deps.now ?? Date.now)(),
-    );
+    return refreshedTokenSet(previous, response, claims, options.resource, requestedAt);
   });
 }

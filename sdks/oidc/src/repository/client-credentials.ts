@@ -15,6 +15,8 @@ export async function requestClientToken(
   options: ClientCredentialsOptions,
   deps: Deps,
 ): Promise<AudienceToken> {
+  // Read before the request: a slow answer must not lengthen the token's life.
+  const requestedAt = (deps.now ?? Date.now)();
   const response = await clientCredentialsGrant(
     metadata,
     options.clientId,
@@ -22,5 +24,5 @@ export async function requestClientToken(
     grantParameters(options),
     deps,
   );
-  return audienceTokenOf(response, options.scope, (deps.now ?? Date.now)());
+  return audienceTokenOf(response, options.scope, requestedAt);
 }
