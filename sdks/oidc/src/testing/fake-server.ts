@@ -32,6 +32,8 @@ export interface FakeServer {
   // A refresh asking for this `resource` is refused with invalid_target before
   // its token is spent.
   refusedResource: string | undefined;
+  // Leaves the ID token out of a refresh response.
+  omitIdTokenOnRefresh: boolean;
   // Hangs up on a refresh after the server has spent its token, as a lost
   // connection does.
   dropAfterSpend: boolean;
@@ -87,6 +89,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
     reuseDetections: 0,
     refusedResource: undefined,
     tokenDelayMs: 0,
+    omitIdTokenOnRefresh: false,
     dropAfterSpend: false,
     refreshedAudience: undefined,
     discoveryRequests: 0,
@@ -189,14 +192,18 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
               form.get('grant_type') === 'refresh_token'
                 ? `${form.get('refresh_token') ?? ''}-rotated`
                 : 'refresh-token-1',
-            id_token: idToken({
-              iss: fake.issuer,
-              sub: 'subject-1',
-              aud: form.get('client_id') ?? basicClientId(request.headers.authorization),
-              iat: now,
-              exp: now + 300,
-              ...fake.claims,
-            }),
+            ...(form.get('grant_type') === 'refresh_token' && fake.omitIdTokenOnRefresh
+              ? {}
+              : {
+                  id_token: idToken({
+                    iss: fake.issuer,
+                    sub: 'subject-1',
+                    aud: form.get('client_id') ?? basicClientId(request.headers.authorization),
+                    iat: now,
+                    exp: now + 300,
+                    ...fake.claims,
+                  }),
+                }),
           });
         },
         () => {

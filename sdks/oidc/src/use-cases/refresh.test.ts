@@ -242,6 +242,15 @@ describe('refresh', () => {
     expect(renewed.claims.sub).toBe(tokens.claims.sub);
   });
 
+  it('accepts a refresh response with no ID token and keeps the claims and the ID token', async () => {
+    const tokens = await signedIn();
+    fake.omitIdTokenOnRefresh = true;
+    const renewed = await refresh(tokens, {}, deps);
+    expect(renewed.claims).toEqual(tokens.claims);
+    expect(renewed.idToken).toBe(tokens.idToken);
+    expect(renewed.refreshToken).toBe('refresh-token-1-rotated');
+  });
+
   it('refuses tokens that carry no refresh token', async () => {
     const tokens = await signedIn();
     const without: TokenSet = { ...tokens };
