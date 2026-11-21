@@ -978,7 +978,10 @@ built from the branch, with the SDKs installed from packed tarballs (and the
   that refusal as it does for every client. This replaced the `psql` insert
   the first version of `provision.sh` used. The script reads `ODUDU_BASE` for
   the audience of `example-admin-cli`; a rerun with another `ODUDU_BASE` keeps
-  the audience the client was made with, and its header says so.
+  the audience the client was made with, and its header says so. Likewise a client made without the flag, or by the first version
+  of the script with `psql`, is not repaired by a rerun, because `seed` does not
+  amend: reset the stack. The result of `seed client` names the capabilities
+  given (sorted, absent when none), as `seed` writes no audit event.
 - **Dependabot and CI.** `examples/next` had no Dependabot entry and gains one
   with the four new directories (npm, and pip for `python`). The `examples` job
   runs Playwright for `web-app`, `single-page-app`, `react-bff` and `admin`;

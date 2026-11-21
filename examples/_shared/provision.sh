@@ -3,7 +3,10 @@
 # quickstart stack: the people `ada` and `ben`, a web app, a single-page app,
 # a Next.js app, a React app behind a backend for frontend, services and a
 # command-line tool. Run it from the folder that holds compose.yaml, or set
-# COMPOSE_FILE. Running it again changes nothing.
+# COMPOSE_FILE. Running it again changes nothing: `seed` does not amend, so a
+# rerun with another ODUDU_BASE keeps the audience of the clients it made the
+# first time, and does not repair a client made without --capability or by an
+# older version of this script. Reset the stack for either.
 #
 # Every secret here is published in this repository. They are for a stack on
 # your own machine and must never be used anywhere else.

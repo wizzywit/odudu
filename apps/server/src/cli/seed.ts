@@ -856,6 +856,9 @@ export interface ClientCommandResult {
   tenantId: string;
   clientId: string;
   clientDbId: string;
+  // The admin capabilities given to the service account, sorted; absent when none.
+  // `seed` writes no audit event, so this is the command's only trace of the grant.
+  capabilities?: string[];
 }
 
 export interface UserCommandResult {
@@ -1419,7 +1422,7 @@ async function runClientCommand(
     );
   }
 
-  const capabilities = [...new Set(values.capability ?? [])];
+  const capabilities = [...new Set(values.capability ?? [])].sort();
   const unknownCapabilities = capabilities.filter(
     (name) => !(TENANT_CAPABILITIES as readonly string[]).includes(name),
   );
@@ -1574,6 +1577,7 @@ async function runClientCommand(
       tenantId,
       clientId,
       clientDbId: client.id,
+      ...(capabilities.length > 0 ? { capabilities } : {}),
     };
   });
 }

@@ -34,15 +34,17 @@ import {
   tenantLookupRepository,
 } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seed, seedAdmin, type SeedOptions } from '#/cli/seed';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
+let appHandle: DatabaseHandle | undefined;
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
+let app: DatabaseHandle;
 
 beforeAll(async () => {
   containerHandle = await startTestDatabase();
@@ -53,6 +55,8 @@ beforeAll(async () => {
   await runMigrations(owner.db, MIGRATIONS_DIR);
 
   const appUrl = await createAppRole(container.adminUrl);
+  appHandle = createDatabase(appUrl);
+  app = appHandle;
 
   process.env.ODUDU_DATABASE_URL = container.adminUrl;
   process.env.ODUDU_APP_DATABASE_URL = appUrl;
@@ -63,6 +67,7 @@ afterAll(async () => {
   delete process.env.ODUDU_DATABASE_URL;
   delete process.env.ODUDU_APP_DATABASE_URL;
   delete process.env.ODUDU_KEK;
+  await appHandle?.close();
   await ownerHandle?.close();
   await containerHandle?.stop();
 });
@@ -1956,28 +1961,39 @@ describe('seed client --capability', () => {
     return rows.map((row) => row.name);
   }
 
-  it('gives the service account each capability named, once', async () => {
+  async function serviceSubjects(tenantId: string): Promise<number> {
+    const rows = await owner.sql<{ n: string }[]>`
+      select count(*)::text as n from subjects where tenant_id = ${tenantId} and type = 'service'`;
+    return Number(rows[0]?.n);
+  }
+
+  it('gives the service account each capability named, once, and says which', async () => {
     const options = uniqueOptions();
     await seed(options);
-    await seed(
+    const result = await seed(
       service(
         options.tenant,
         'agent',
         '--capability',
-        'manage-clients',
-        '--capability',
         'view-users',
         '--capability',
         'manage-clients',
+        '--capability',
+        'view-users',
       ),
     );
+    expect(result).toMatchObject({
+      command: 'client',
+      capabilities: ['manage-clients', 'view-users'],
+    });
     expect(await capabilitiesOf(options.tenant, 'agent')).toEqual(['manage-clients', 'view-users']);
   });
 
-  it('gives a service account nothing without the flag', async () => {
+  it('gives a service account nothing without the flag, and reports no capabilities', async () => {
     const options = uniqueOptions();
     await seed(options);
-    await seed(service(options.tenant, 'plain'));
+    const result = await seed(service(options.tenant, 'plain'));
+    expect(result).not.toHaveProperty('capabilities');
     expect(await capabilitiesOf(options.tenant, 'plain')).toEqual([]);
   });
 
@@ -1990,6 +2006,19 @@ describe('seed client --capability', () => {
     ).rejects.toThrow(/manage-everything.*manage-clients/su);
     expect(await countClients(made.tenantId)).toBe(before);
   });
+
+  it.each(['manage-tenants', 'tenant-admin'])(
+    'refuses %s, which only the system tenant holds, and makes no client',
+    async (name) => {
+      const options = uniqueOptions();
+      const made = await seed(options);
+      const before = await countClients(made.tenantId);
+      await expect(seed(service(options.tenant, 'odd', '--capability', name))).rejects.toThrow(
+        /not an admin capability/u,
+      );
+      expect(await countClients(made.tenantId)).toBe(before);
+    },
+  );
 
   it('refuses a client that has no service account', async () => {
     const options = uniqueOptions();
@@ -2010,14 +2039,74 @@ describe('seed client --capability', () => {
     ).rejects.toThrow(/--capability.*service account/su);
   });
 
-  it('gives a capability only to the client it was named for, in its own tenant', async () => {
+  it('keeps each tenant to its own roles: a foreign tenant sees none of them', async () => {
     const first = uniqueOptions();
     const second = uniqueOptions();
-    await seed(first);
-    await seed(second);
+    const madeFirst = await seed(first);
+    const madeSecond = await seed(second);
     await seed(service(first.tenant, 'agent', '--capability', 'manage-clients'));
-    await seed(service(second.tenant, 'agent'));
-    expect(await capabilitiesOf(second.tenant, 'agent')).toEqual([]);
+    await seed(service(second.tenant, 'agent', '--capability', 'view-audit'));
+    expect(await capabilitiesOf(first.tenant, 'agent')).toEqual(['manage-clients']);
+    expect(await capabilitiesOf(second.tenant, 'agent')).toEqual(['view-audit']);
+
+    // Every row belongs to its own tenant, and so does the client the role belongs to.
+    for (const made of [madeFirst, madeSecond]) {
+      const rows = await owner.sql<{ row: string; role: string; client: string }[]>`
+        select sr.tenant_id as row, r.tenant_id as role, a.tenant_id as client
+        from subject_roles sr
+        join roles r on r.id = sr.role_id
+        join clients a on a.id = r.client_id
+        join clients k on k.service_subject_id = sr.subject_id
+        where k.tenant_id = ${made.tenantId} and k.client_id = 'agent'`;
+      expect(rows).toEqual([{ row: made.tenantId, role: made.tenantId, client: made.tenantId }]);
+    }
+
+    // Under the application's role, the other tenant's context does not show the grant.
+    const seen = await withTenant(app.db, madeSecond.tenantId, async (tx) =>
+      tx.execute(sql`
+        select r.name from subject_roles sr join roles r on r.id = sr.role_id
+        where sr.tenant_id = ${madeFirst.tenantId}`),
+    );
+    expect([...seen]).toEqual([]);
+  });
+
+  it('refuses a rerun as a repeated client and grants nothing new', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(service(options.tenant, 'agent', '--capability', 'view-users'));
+    await expect(
+      seed(service(options.tenant, 'agent', '--capability', 'manage-clients')),
+    ).rejects.toThrow(/already exists/u);
+    expect(await capabilitiesOf(options.tenant, 'agent')).toEqual(['view-users']);
+  });
+
+  it('makes nothing when a capability role is missing', async () => {
+    const options = uniqueOptions();
+    const made = await seed(options);
+    await owner.sql`
+      delete from roles where tenant_id = ${made.tenantId} and name = 'manage-clients'
+        and client_id = (select id from clients where tenant_id = ${made.tenantId} and client_id = ${ADMIN_CLIENT_ID})`;
+    const clientsBefore = await countClients(made.tenantId);
+    const accountsBefore = await serviceSubjects(made.tenantId);
+    await expect(
+      seed(service(options.tenant, 'agent', '--capability', 'manage-clients')),
+    ).rejects.toThrow(/no role named "manage-clients"/u);
+    expect(await countClients(made.tenantId)).toBe(clientsBefore);
+    expect(await serviceSubjects(made.tenantId)).toBe(accountsBefore);
+  });
+
+  it('makes nothing when the tenant has no odudu-admin client', async () => {
+    const options = uniqueOptions();
+    const made = await seed(options);
+    await owner.sql`
+      delete from clients where tenant_id = ${made.tenantId} and client_id = ${ADMIN_CLIENT_ID}`;
+    const clientsBefore = await countClients(made.tenantId);
+    const accountsBefore = await serviceSubjects(made.tenantId);
+    await expect(
+      seed(service(options.tenant, 'agent', '--capability', 'manage-clients')),
+    ).rejects.toThrow(/no client named "odudu-admin"/u);
+    expect(await countClients(made.tenantId)).toBe(clientsBefore);
+    expect(await serviceSubjects(made.tenantId)).toBe(accountsBefore);
   });
 });
 
