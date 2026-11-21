@@ -142,7 +142,21 @@ The last argument of most functions. Every member has a default that works in a 
 | `resource`   | An audience the first sign-in carries. Any other value rejects with `audience_not_granted`. |
 | `idTokenAlg` | The algorithm the client is registered for ID tokens; `RS256` when omitted.                 |
 
-Without `resource`, every audience of the sign-in is renewed.
+Without `resource`, the audiences the new access token names are renewed and the others are removed, so a later request for one rejects with `audience_not_granted`. That is best effort: an access token is opaque to a client, and one that is opaque or unreadable renews every audience.
+
+`refresh` rejects with `invalid_options` when the `TokenSet` holds no refresh token (the message says to sign in with the `offline_access` scope). A refresh response without `expires_in` is read as living 60 seconds, where `completeSignIn` refuses such a response with `request_failed`, because refusing it would throw away the rotated refresh token the response carries.
+
+### `AudienceRequest`, for `requestAudience`
+
+| Option        | Required | What it does                                                                                                                 |
+| ------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `issuer`      | yes      | The tenant's issuer.                                                                                                         |
+| `clientId`    | yes      | The client's ID.                                                                                                             |
+| `redirectUri` | yes      | Where Odudu sends the person back to.                                                                                        |
+| `scope`       | yes      | The scopes to ask for.                                                                                                       |
+| `resource`    | yes      | The new audience (RFC 8707), one string. The account API's audience adds the `me:read` scope.                                |
+| `silent`      | no       | Sends `prompt=none`. Off by default: whether Odudu then skips every interactive step for a new audience has not been tested. |
+| `idTokenAlg`  | no       | `'RS256'` (the default) or `'ES256'`.                                                                                        |
 
 ### `ClientCredentialsOptions` and `TokenSourceOptions`
 
@@ -180,15 +194,15 @@ Codes the SDK raises on its own account:
 
 ## Security notes
 
-- **What `completeSignIn` checks.** The redirect arrived at the redirect URI. The `state` is the one sent. The `iss` parameter is the issuer used (RFC 9207), and that holds for an error answer as much as for one carrying a code. The code exchange carries the PKCE verifier. The ID token's signature and `nonce` are valid.
+- **What `completeSignIn` checks.** The redirect arrived at the redirect URI. The `state` is the one sent. The `iss` parameter is the issuer used (RFC 9207), and that holds for an error answer as much as for one carrying a code. The code exchange carries the PKCE verifier. The ID token's issuer, audience, `azp`, expiry and `nonce` are valid. Its signature is not checked: the token comes straight from the token endpoint over TLS, which OpenID Connect Core section 3.1.3.7 accepts in place of a signature check.
 - **The record `beginSignIn` returns.** `pending` is plain JSON and holds the PKCE verifier, so keep it private to the person who is signing in: session storage, a cookie, a server session. An answer can be used once, so remove the record when you read it.
-- **Where tokens live.** The core returns tokens and keeps none. Where you put them is your decision. The single-page app example keeps them in a variable, so a reload signs the person out of the app, and registers the client without the `refresh_token` grant, so there is no refresh token to steal. An app that wants to stay signed in for hours needs a server that holds the tokens: see [`@odudu-io/bff`](./bff.md).
+- **Where tokens live.** The core returns tokens and keeps none. A browser can read the token endpoint's answer only if the page's origin is registered as a web origin of the client (`odudu seed client --web-origin <origin>`); without it the sign-in reaches the token address and the browser refuses to hand the answer to the app. Where you put them is your decision. The single-page app example keeps them in a variable, so a reload signs the person out of the app, and registers the client without the `refresh_token` grant, so there is no refresh token to steal. An app that wants to stay signed in for hours needs a server that holds the tokens: see [`@odudu-io/bff`](./bff.md).
 - **https.** An issuer must be https. `allowInsecureRequests: true` lets an `http` issuer through and is for a development server on localhost only. The same switch is what lets an `end_session_endpoint` that is not https through `signOutUrl`; without it that call rejects with `discovery_failed` before the ID token is put in the address.
 - **Time limits.** Every request the core makes is cut off after 30 seconds.
-- **Single flight.** Concurrent `refresh` calls with the same refresh token make one request and share its result or its error. A refresh that names another audience waits and continues with the rotated refresh token. Keep the `TokenSet` `refresh` returns, not the one you passed in: a rotated refresh token replaces the old one, and the server treats a spent one as a replay.
-- **After an uncertain refresh.** If a refresh fails in a way that may have spent the token (a lost connection, a server error, a refused ID token), the calls queued behind it reject with the same code and a message that the outcome is unknown. Use the tokens the last successful refresh returned, or sign in again.
+- **Single flight.** Concurrent `refresh` calls with the same refresh token and the same `resource` make one request and share its result or its error. The refreshes of one grant run one at a time: a call that names another audience, or that holds a token an earlier refresh already replaced, waits in the queue and continues with the newest tokens that came back. Keep the `TokenSet` `refresh` returns, not the one you passed in: a rotated refresh token replaces the old one, and the server treats a spent one as a replay.
+- **After an uncertain refresh.** If a refresh fails in a way that may have spent the token (a lost connection, a server error, a refused ID token), the calls queued behind it reject with the same code and a message that the outcome is unknown, instead of presenting a possibly spent token. A refusal made before the token is spent (`audience_not_granted`) lets the queue go on from the last good tokens. Use the tokens the last successful refresh returned, or sign in again.
 - **The token source.** `createTokenSource` holds one token and asks again 30 seconds before it expires, or after half its life when it lives less than twice the skew. Concurrent calls share one request. A failed request rejects every waiting call and is not kept, so the next call asks again. It holds no timer. A response whose `expires_in` is missing, not a number, zero or negative is taken to live 60 seconds.
-- **`signClientAssertion`.** The assertion is valid for 120 seconds and is signed with ES256, RS256 or the algorithm you name. A service that uses `clientCredentials` with a private key gets the same assertion without calling it.
+- **`signClientAssertion`.** The assertion is valid for 120 seconds and is signed with the algorithm you name, or by key: ES256 for a P-256 key, ES384 for P-384, ES512 for P-521 and RS256 for an RSA key. A service that uses `clientCredentials` with a private key gets the same assertion without calling it.
 
 ## Not in this package
 

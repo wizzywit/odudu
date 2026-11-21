@@ -93,6 +93,8 @@ A `VerifiedToken` is `{ sub, clientId, scope, audience, claims }`: the subject, 
 | `fetch`                | global     | The function that reads the discovery document and the keys.                                                           |
 | `allowInsecureIssuers` | `false`    | Accepts issuers that are not https. For a development server on loopback.                                              |
 
+`createVerifier` throws a `TypeError` when it is made with an empty `issuers` list or more than 256, an issuer with a trailing slash (write it as the server does), an issuer that is not https without `allowInsecureIssuers`, or an empty `audience`.
+
 ### The middleware
 
 `requireToken`, `app.requireToken` and `withToken` take `scope`, a scope the route needs; without it the route answers `403`. `withToken` also takes `onError`, told of an error that is not a refusal so you can log it; the caller gets a bare `500`. A `scope` or `requiredScope` that is not one RFC 6749 scope token (empty, or with a space, a quote, a backslash or a line break) throws a `TypeError` when the middleware or verifier is made.
@@ -137,6 +139,7 @@ Every answer carries `Cache-Control: no-store`.
 
 - **Strictness.** Only RS256 and ES256 are accepted, so `none` and any HMAC are refused before a key is looked up. The header `typ` must be exactly `at+jwt`. RFC 9068 also allows `application/at+jwt`; the server compares the header with `at+jwt` exactly and refuses the rest, and so does this package. The header must name a `kid`, and `exp` is required.
 - **Choices to know about.** The clock tolerance on `exp` and `nbf` is 5 seconds. The separator after `Bearer` is exactly one space: more than one is a `400`. A token in the query string is never read. A token that names the account API's audience beside the API's own is refused, as the server refuses it at every door but that one.
+- **Reading keys.** Each read of the discovery document or the key set is cut off after 5 seconds, refused above 1 MiB, and never follows a redirect.
 - **Keys.** They are read from the `jwks_uri` of the issuer's discovery document and cached for `jwksTtlMs`, shared between concurrent requests, and read again at most once every 10 seconds when a token names an unknown `kid`. Keys kept through a failed read are never served past twice `jwksTtlMs`. At most 20 keys are kept per issuer and 256 issuers. Only public keys meant for signing are used, and others in the set are ignored.
 - **https.** A `jwks_uri` that is not https is refused with `KeyFetchError` for an https issuer. An http issuer, allowed with `allowInsecureIssuers`, may name an http one only on its own origin. The issuer a token claims only selects among the configured issuers: it is never fetched or used as an address.
 - **What a local check cannot see.** A signature check cannot know that a session just ended or that a token was revoked. Until the token's `exp` it still passes. Keep access tokens short, as Odudu does, or ask Odudu through [token introspection](../reference/transcripts/request-paths/rp-initiated-logout.md#token-introspection-and-revocation) where that matters.

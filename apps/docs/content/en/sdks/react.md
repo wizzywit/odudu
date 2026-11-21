@@ -95,11 +95,11 @@ In `browser` mode `signIn` accepts `resource` (a list of APIs), `meAccess` (`'re
 
 ### `useBffFetch`
 
-The `path` is `<upstream name>/<path>`, the upstream being one the BFF's `upstreams` option names. The call goes to `<baseUrl>/proxy/<name>/<path>`. The BFF mounts its proxy at its own `proxyPath`, not under the `prefix` of its routes, so set `proxyPath` to `<baseUrl>/proxy` when you use this hook. A `401` answer means the session is over: the provider moves to signed out and the response is still returned to you.
+The `path` is `<upstream name>/<path>`, the upstream being one the BFF's `upstreams` option names. The call goes to `<baseUrl>/proxy/<name>/<path>`. This works while the BFF's proxy is at `<baseUrl>/proxy`, which is where `mountPath` puts it (`mountPath: '/bff'` with `baseUrl: '/bff'`); a custom `proxyPath` on the server is not known to the client. The BFF marks its own session-ended `401` answers with the header `X-Odudu-Session: ended` and the proxy removes that header from upstream answers. The provider moves to signed out only on a marked `401`: an upstream's own `401` passes through unmarked and does not sign the person out. The response is returned to you either way.
 
 ## Errors
 
-`useAuth().error` is an `OduduError` from [`@odudu-io/oidc`](./oidc.md), or `undefined`. It says why the last session check, sign-in, refresh or sign-out did not work. While it is set `<SignedOut>` renders nothing, so a failed check is never read as a person to sign in again. Only a `401` from the BFF is a clean signed-out.
+`useAuth().error` is an `OduduError` from [`@odudu-io/oidc`](./oidc.md), or `undefined`. It says why the last session check, sign-in, refresh or sign-out did not work. While it is set `<SignedOut>` renders nothing, so a failed check is never read as a person to sign in again. A clean signed-out is a `401` from the BFF's session route, or a `200` answer with `authenticated: false`.
 
 | Code                   | When                                                                                                                                                  |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -117,6 +117,7 @@ A sign-in the issuer refused or an ID token that failed its checks reports the c
 - **`bff` mode keeps the tokens out of the page.** The browser holds an `HttpOnly` cookie with an opaque id, and the session answer holds claims and never a token. A script running in the page can act as the person only while the page is open. [`@odudu-io/bff`](./bff.md) says what the server stores and how it protects the cookie. Use this mode wherever you have a server.
 - **`browser` mode keeps the tokens in memory.** They live in a reference inside the provider, in no storage and in no state a component can render. A script that runs in the page can still reach them while it is open. A reload signs the person out of the app, and Odudu still holds their own session, so signing in again usually returns at once.
 - **What the package writes to storage.** Only the record the redirect to Odudu needs (the PKCE verifier, the state and the nonce), in `sessionStorage` under the key `odudu.pending`, which stays in one tab and is removed when read. No token is ever stored.
+- **Web origin.** In `browser` mode the page reads the token endpoint's answer, and a browser allows that only if the page's origin is registered as a web origin of the client (`odudu seed client --web-origin <origin>`). Without it the sign-in reaches the token address and the browser refuses to hand the answer to the app.
 - **Renewal in `browser` mode.** `useAccessToken` renews a token within 30 seconds of expiry through `refresh` of the core. A refresh needs a refresh token, which Odudu issues only to a client that has the `refresh_token` grant.
 
 ## Not in this package

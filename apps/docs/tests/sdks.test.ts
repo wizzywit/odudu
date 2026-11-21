@@ -253,6 +253,26 @@ describe('the SDKs section', () => {
     },
   );
 
+  // Statements a later edit must not reverse: each was once written the wrong way round.
+  it.each([
+    ['oidc.md', /signature is not checked/u],
+    ['bff.md', /store with no `lock` is never asked/u],
+    ['react.md', /only on a marked `401`/u],
+    ['react.md', /X-Odudu-Session: ended/u],
+    ['bff.md', /X-Odudu-Session: ended/u],
+    ['admin-client.md', /RequestTimeoutError/u],
+  ])('%s keeps a corrected statement (%s)', (file, statement) => {
+    expect(pageText(file).replace(/\s+/gu, ' ')).toMatch(statement);
+  });
+
+  it.each([
+    ['oidc.md', /ID token's signature and `nonce` are valid/u],
+    ['bff.md', /no `lock` and a session needs a refresh, the read answers `503`/u],
+    ['react.md', /A `401` answer means the session is over/u],
+  ])('%s does not say what was false (%s)', (file, statement) => {
+    expect(pageText(file).replace(/\s+/gu, ' ')).not.toMatch(statement);
+  });
+
   it.each(pages.map((file) => [file] as const))('%s has a title and a description', (file) => {
     const front = /^---\n([\s\S]*?)\n---\n/u.exec(pageText(file))?.[1] ?? '';
     expect(front).toMatch(/^title: .+/mu);

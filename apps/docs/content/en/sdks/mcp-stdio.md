@@ -66,7 +66,7 @@ To make the service account's key, run the command with `--keygen`. It prints a 
 | `--key-file <file>`, `--client-id <id>` | Sign in as a service account instead of in a browser. `ODUDU_MCP_KEY` and `ODUDU_MCP_CLIENT_ID` hold the same values. |
 | `--keygen`                              | Print a new `ODUDU_MCP_KEY` line, and the public key set to register, then exit.                                      |
 | `--logout`                              | Forget the stored sign-in for this instance and tenant, then exit.                                                    |
-| `--help`                                | Print the options.                                                                                                    |
+| `--help`                                | Print the options. Only as the first argument.                                                                        |
 
 Give the key once: `ODUDU_MCP_KEY` or `--key-file`, not both. An argument that is not an option is refused.
 

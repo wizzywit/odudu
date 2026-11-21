@@ -18,7 +18,7 @@ It needs Node 24 or later and depends on `openapi-fetch`. The token for it comes
 
 ## The shortest use
 
-This is the second half of [the admin example](https://github.com/wizzywit/odudu/tree/main/examples/admin). A person signs in at a loopback address, as a command-line tool does, and the script reads their profile. The sign-in asks for the person's own account with `meAccess: 'read'`, and the access token for it is filed under the me audience, the issuer's address plus `/me`.
+This is the second half of [the admin example](https://github.com/wizzywit/odudu/tree/main/examples/admin). A person signs in at a loopback address, as a command-line tool does, and the script reads their profile. The sign-in asks for the person's own account with `meAccess: 'read'`, and the access token for it is filed under the me audience, the issuer's address plus `/me`. The client the person signs in with must be registered with that audience (`odudu seed client --audience <issuer>/me`).
 
 ```ts
 import { createMeClient } from '@odudu-io/me-client';
@@ -64,18 +64,18 @@ The routes are profile, credentials, sessions and consents, listed in [the me AP
 
 ## Options
 
-The options of `createMeClient` and `iterate` are those of [`@odudu-io/admin-client`](./admin-client.md#options): `baseUrl`, `tenant`, `token` (a string, or a function that returns one and is called for every request), `fetch` and `sleep`, and for `iterate` `pageLimit` and `maxItems`.
+The options of `createMeClient` and `iterate` are those of [`@odudu-io/admin-client`](./admin-client.md#options): `baseUrl`, `tenant`, `token` (a string, or a function that returns one and is called for every request), `fetch`, `timeoutMs` and `sleep`, and for `iterate` `pageLimit` and `maxItems`.
 
 The `token` is an access token whose audience is the tenant's `/me` URL, with the scope the operation names. A token for another audience is refused with `401`, and one without the scope with `403`.
 
 ## Errors
 
-A call rejects with a `ProblemError`, as in [`@odudu-io/admin-client`](./admin-client.md#errors). The `code` of a me API refusal is the `error` field of its body: `invalid_request`, `not_found`, `conflict`, `agent_not_permitted` or `mail_unavailable`, and `last_sign_in_method` or `last_second_factor` for a refused removal of a credential. The `detail` is the `error_description`, a sentence for a person to read: match on `code`, not on the text.
+A call that runs out of time raises a `RequestTimeoutError`, as in the admin client. A call rejects with a `ProblemError`, as in [`@odudu-io/admin-client`](./admin-client.md#errors). The `code` of a me API refusal is the `error` field of its body: `invalid_request`, `not_found`, `conflict`, `agent_not_permitted` or `mail_unavailable`, and `last_sign_in_method` or `last_second_factor` for a refused removal of a credential. The `detail` is the `error_description`, a sentence for a person to read: match on `code`, not on the text.
 
 ## Security notes
 
 - **The same transport rules as the admin client.** The token goes to one origin. Redirects are never followed and a 3xx is a `ProblemError`. A call cannot name its own origin, `fetch`, redirect policy or middleware.
-- **Retries** follow the admin client: at most two repeats, only for `GET`, `HEAD`, `OPTIONS`, `PUT` and `DELETE`, or a call that carries an `Idempotency-Key`.
+- **Retries** follow the admin client: at most two repeats, only for `GET`, `HEAD`, `OPTIONS`, `PUT` and `DELETE`, or a call that carries an `Idempotency-Key`. The me client adds no key itself, because the me API's document marks no operation as idempotent, so a `POST` or `PATCH` is retried only if you give it one.
 - **A person's token.** It stands for the person, so keep it as you would any access token: in memory, or on a server that holds it for them. A service has no profile to read, so a token from the client credentials grant is not what this client is for.
 
 ## Not in this package
