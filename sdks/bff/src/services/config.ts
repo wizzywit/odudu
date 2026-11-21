@@ -10,6 +10,7 @@ export interface BffConfig extends BffOptions {
   sessionTtlMs: number;
   upstreams: Upstream[];
   proxyPath: string;
+  mountPath: string;
   maxBodyBytes: number;
   upstreamTimeoutMs: number;
 }
@@ -33,15 +34,17 @@ export function resolveConfig(options: BffOptions): BffConfig {
   if (!isLocalPath(afterSignInPath)) {
     throw new TypeError('afterSignInPath must be a path on this origin');
   }
+  const mountPath = checkPrefix(options.mountPath ?? '', 'mountPath');
   return {
     ...options,
+    mountPath,
     cookieName,
     loginCookieName: `${cookieName}-login`,
     allowedOrigins: options.allowedOrigins ?? [new URL(options.redirectUri).origin],
     afterSignInPath,
     sessionTtlMs: options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS,
     upstreams: checkUpstreams(options.upstreams ?? []),
-    proxyPath: checkProxyPath(options.proxyPath ?? DEFAULT_PROXY_PATH),
+    proxyPath: checkProxyPath(options.proxyPath ?? `${mountPath}${DEFAULT_PROXY_PATH}`),
     maxBodyBytes: positiveInteger(options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES, 'maxBodyBytes'),
     upstreamTimeoutMs: positiveInteger(
       options.upstreamTimeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS,

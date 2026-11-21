@@ -4,8 +4,8 @@ import { serve } from '#/adapter/node-bridge';
 import type { Bff } from '#/types';
 
 export interface BffRouterOptions {
-  // Put before `/login`, `/callback`, `/logout` and `/session`; none when
-  // omitted. The proxy is mounted at the `proxyPath` of the BFF.
+  // Put before `/login`, `/callback`, `/logout` and `/session`; the `mountPath`
+  // of the BFF when omitted. The proxy is mounted at the `proxyPath` of the BFF.
   prefix?: string;
 }
 
@@ -14,7 +14,7 @@ export interface BffRouterOptions {
 // taken the body.
 export function bffRouter(bff: Bff, options: BffRouterOptions = {}): Router {
   const router = Router();
-  for (const route of routesOf(bff, options.prefix ?? '')) {
+  for (const route of routesOf(bff, options.prefix ?? bff.mountPath)) {
     const handle = (req: Request, res: Response): Promise<void> =>
       serve(route.handler, req, res, req.originalUrl);
     router.all(route.path, handle);

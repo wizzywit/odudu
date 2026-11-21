@@ -15,6 +15,18 @@ const withUpstream = (patch: Partial<Upstream>): BffOptions => ({
 });
 
 describe('proxy configuration', () => {
+  it('puts the proxy below the mountPath unless proxyPath is given', () => {
+    expect(resolveConfig(base).mountPath).toBe('');
+    expect(resolveConfig({ ...base, mountPath: '/bff' })).toMatchObject({
+      mountPath: '/bff',
+      proxyPath: '/bff/proxy',
+    });
+    expect(resolveConfig({ ...base, mountPath: '/bff', proxyPath: '/p' }).proxyPath).toBe('/p');
+    for (const mountPath of ['bff', '/bff/', '/b ff', '/a/../b']) {
+      expect(() => resolveConfig({ ...base, mountPath })).toThrow(TypeError);
+    }
+  });
+
   it('applies the defaults', () => {
     const config = resolveConfig(base);
     expect(config).toMatchObject({

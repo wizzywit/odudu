@@ -82,6 +82,10 @@ export interface BffOptions {
   sessionTtlMs?: number;
   // Servers the `proxy` route may call. None, and the proxy answers 404.
   upstreams?: Upstream[];
+  // Where the routes are mounted, as a path of this origin: `''` (the root) when
+  // omitted. The framework adapters take it as their default `prefix`, and the
+  // proxy defaults to `${mountPath}/proxy`.
+  mountPath?: string;
   // Where the browser reaches the proxy, as a path of this origin; `/proxy`
   // when omitted. The framework adapters mount the route here.
   proxyPath?: string;
@@ -105,4 +109,5 @@ export interface Bff {
   // for every method at `${proxyPath}/*`.
   proxy: Handler;
   proxyPath: string;
+  mountPath: string;
 }

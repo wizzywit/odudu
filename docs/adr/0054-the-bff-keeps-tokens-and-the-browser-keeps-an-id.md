@@ -83,7 +83,10 @@ answers are in `docs/protocols/rfc10017.md`.
   is optional so development against a public client works. Without it the BFF
   is not the architecture the RFC describes, and the guide says that.
 - **The proxy.** `proxy` calls an allowlisted upstream with the session's
-  access token, mounted at `proxyPath` (`/proxy`) as `/proxy/<name>/<path>`.
+  access token, mounted at `proxyPath` as `<proxyPath>/<name>/<path>`. `proxyPath` defaults to
+  `${mountPath}/proxy`, and `mountPath` (the root when omitted) is where the
+  adapters mount every route unless they are given a `prefix`, so the React
+  hooks' one `baseUrl` reaches the login, the session and the proxy alike.
   - _Allowlist._ An `Upstream` is a `name`, an exact `origin` and `pathPrefixes`,
     and optionally `methods` (default `GET`, `POST`, `PUT`, `PATCH`, `DELETE`)
     and a `resource`, the audience whose token is sent (the issuer's own when
@@ -130,7 +133,7 @@ answers are in `docs/protocols/rfc10017.md`.
     of proxied calls near expiry spends one refresh.
 - **Framework adapters.** `@odudu-io/bff/fastify` (`registerBff`) and
   `@odudu-io/bff/express` (`bffRouter`) mount `login`, `callback`, `logout` and
-  `session` at an optional `prefix`, and the proxy at `proxyPath`, answering
+  `session` at a `prefix` (the BFF's `mountPath` when omitted), and the proxy at `proxyPath`, answering
   every method Fastify supports, so the handler's own `405` reaches the browser. They hand the
   socket's stream to the handler unparsed (Fastify answers from `onRequest`;
   Express's router must come before a body parser) and write every

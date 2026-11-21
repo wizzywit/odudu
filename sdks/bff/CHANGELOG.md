@@ -9,6 +9,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `BffOptions.mountPath` (the root when omitted) is the default `prefix` of `bffRouter` and `registerBff` and puts the proxy at `${mountPath}/proxy` unless `proxyPath` is given, so `@odudu-io/react`'s `baseUrl` reaches the proxy as well as the login and the session.
 - `SessionStore` takes an optional `lock(id, ttlMs)`. A store shared by several instances that implements it keeps two instances from refreshing one session at the same time, which the issuer treats as a replayed refresh token and answers by ending the session. The lock is taken on `lock:<session id>`, lapses after 120 s, and its release function must release only its holder's own lock. When the lock is not granted the session read answers `503` and keeps the session.
 
 ### Fixed

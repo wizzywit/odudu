@@ -53,6 +53,7 @@ export function createBff(options: BffOptions): Bff {
     session: guarded('GET', createSession(browser, access), true),
     proxy: createProxy(browser, access, createUpstreams(config), config),
     proxyPath: config.proxyPath,
+    mountPath: config.mountPath,
     logout: guarded('POST', createLogout(browser, sessions, identity)),
   };
 }

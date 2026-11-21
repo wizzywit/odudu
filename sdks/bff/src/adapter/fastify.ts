@@ -4,8 +4,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Bff } from '#/types';
 
 export interface RegisterBffOptions {
-  // Put before `/login`, `/callback`, `/logout` and `/session`; none when
-  // omitted. The proxy is mounted at the `proxyPath` of the BFF.
+  // Put before `/login`, `/callback`, `/logout` and `/session`; the `mountPath`
+  // of the BFF when omitted. The proxy is mounted at the `proxyPath` of the BFF.
   prefix?: string;
 }
 
@@ -17,7 +17,7 @@ export function registerBff(
   bff: Bff,
   options: RegisterBffOptions = {},
 ): void {
-  for (const route of routesOf(bff, options.prefix ?? '')) {
+  for (const route of routesOf(bff, options.prefix ?? bff.mountPath)) {
     const onRequest = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
       reply.hijack();
       await serve(route.handler, request.raw, reply.raw, request.url);

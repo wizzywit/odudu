@@ -52,17 +52,17 @@ const bffOf = (overrides: Partial<BffOptions> = {}): Bff =>
     ...overrides,
   });
 
-async function fastifyApp(bff: Bff): Promise<Running> {
+async function fastifyApp(bff: Bff, prefix: string | null = '/auth'): Promise<Running> {
   const app = Fastify();
-  registerBff(app, bff, { prefix: '/auth' });
+  registerBff(app, bff, prefix === null ? {} : { prefix });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const { port } = app.server.address() as AddressInfo;
   return { base: `http://127.0.0.1:${String(port)}`, close: () => app.close() };
 }
 
-async function expressApp(bff: Bff): Promise<Running> {
+async function expressApp(bff: Bff, prefix: string | null = '/auth'): Promise<Running> {
   const app = express();
-  app.use(bffRouter(bff, { prefix: '/auth' }));
+  app.use(bffRouter(bff, prefix === null ? {} : { prefix }));
   const server: Server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
@@ -78,7 +78,7 @@ async function expressApp(bff: Bff): Promise<Running> {
   };
 }
 
-const frameworks: [string, (bff: Bff) => Promise<Running>][] = [
+const frameworks: [string, (bff: Bff, prefix?: string | null) => Promise<Running>][] = [
   ['fastify', fastifyApp],
   ['express', expressApp],
 ];
@@ -91,6 +91,27 @@ describe.each(frameworks)('the %s adapter', (_name, start) => {
     return { base: app.base, bff };
   }
   const guard = { 'x-odudu-bff': '1', origin: ORIGIN };
+
+  it('mounts every route under the BFF mountPath, the proxy included, with no prefix given', async () => {
+    const bff = bffOf({ mountPath: '/bff' });
+    const app = await start(bff, null);
+    running.push(app);
+    expect(bff.proxyPath).toBe('/bff/proxy');
+    expect((await fetch(`${app.base}/bff/login`, { redirect: 'manual' })).status).toBe(302);
+    const session = await fetch(`${app.base}/bff/session`, { headers: guard });
+    expect(session.status).toBe(200);
+    const proxied = await fetch(`${app.base}/bff/proxy/api/v1/x`, { headers: guard });
+    expect(proxied.status).toBe(401);
+    expect((await fetch(`${app.base}/proxy/api/v1/x`, { headers: guard })).status).toBe(404);
+  });
+
+  it('lets an explicit prefix win over the mountPath', async () => {
+    const bff = bffOf({ mountPath: '/bff' });
+    const app = await start(bff, '/other');
+    running.push(app);
+    expect((await fetch(`${app.base}/other/login`, { redirect: 'manual' })).status).toBe(302);
+    expect((await fetch(`${app.base}/bff/login`, { redirect: 'manual' })).status).toBe(404);
+  });
 
   it('serves login and session', async () => {
     const { base } = await serve();
