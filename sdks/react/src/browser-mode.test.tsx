@@ -176,6 +176,51 @@ describe('browser mode', () => {
     expect(refreshes[0]?.get('refresh_token')).toBe('refresh-token-1');
   });
 
+  describe('what ends the session on a refresh', () => {
+    async function signedInWithExpiringToken() {
+      fake.expiresIn = 5;
+      await comeBackSignedIn();
+      const hooks = renderHook(() => ({ auth: useAuth(), token: useAccessToken() }), {
+        wrapper: providerFor(mode),
+      });
+      await waitFor(() => {
+        expect(hooks.result.current.auth.status).toBe('signedIn');
+      });
+      return hooks;
+    }
+
+    it('signs the person out when the issuer refuses the refresh token', async () => {
+      const { result } = await signedInWithExpiringToken();
+      fake.refreshError = 'invalid_grant';
+      const failure = await result.current.token().catch((error: unknown) => error);
+      expect(failure).toMatchObject({ code: 'invalid_grant' });
+      await waitFor(() => {
+        expect(result.current.auth.status).toBe('signedOut');
+      });
+    });
+
+    it('signs the person out when the refreshed ID token names another subject', async () => {
+      const { result } = await signedInWithExpiringToken();
+      fake.claims = { sub: 'someone-else' };
+      const failure = await result.current.token().catch((error: unknown) => error);
+      expect(failure).toMatchObject({ code: 'invalid_id_token' });
+      await waitFor(() => {
+        expect(result.current.auth.status).toBe('signedOut');
+      });
+    });
+
+    it('keeps the person signed in when the issuer cannot be reached', async () => {
+      const { result } = await signedInWithExpiringToken();
+      fake.refreshError = 'temporarily_unavailable';
+      await result.current.token().catch((error: unknown) => error);
+      expect(result.current.auth.status).toBe('signedIn');
+    });
+
+    afterEach(() => {
+      fake.refreshError = undefined;
+    });
+  });
+
   it('hands out the held token while it is fresh', async () => {
     await comeBackSignedIn();
     const { result } = renderHook(() => ({ auth: useAuth(), token: useAccessToken() }), {

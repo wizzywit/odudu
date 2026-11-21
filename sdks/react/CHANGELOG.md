@@ -13,4 +13,5 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `browser` mode signs the person out when a refresh returns an ID token for another subject (`invalid_id_token`), as the BFF ends its session, and not only for `invalid_grant`.
 - `useBffFetch` signs the UI out only on a `401` that carries the BFF's `X-Odudu-Session: ended` header, so an API's own `401` leaves the person signed in.

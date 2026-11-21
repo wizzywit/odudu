@@ -111,7 +111,7 @@ The `path` is `<upstream name>/<path>`, the upstream being one the BFF's `upstre
 | `request_failed`       | The BFF answered the sign-out or the session check with a status the package does not expect, or a request could not be completed at all, a network failure among them.                                                                                 |
 | `invalid_request`      | An address to navigate to was not an http or https address, so it was not followed.                                                                                                                                                                     |
 
-A refresh the issuer refuses with `invalid_grant` signs the person out. A sign-in the issuer refused or an ID token that failed its checks reports the codes of [`@odudu-io/oidc`](./oidc.md#errors).
+A refresh the issuer refuses with `invalid_grant`, or one whose ID token names another person (`invalid_id_token`), signs the person out; in `bff` mode the BFF ends the session for the same two codes. Any other failure of a refresh, an unreachable issuer for one, keeps the person signed in. A sign-in the issuer refused or an ID token that failed its checks reports the codes of [`@odudu-io/oidc`](./oidc.md#errors).
 
 ## Security notes
 

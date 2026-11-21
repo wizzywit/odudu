@@ -8,6 +8,8 @@ export interface FakeIssuer {
   expiresIn: number;
   // A refresh grant waits for this before it is answered.
   holdRefresh: Promise<void> | undefined;
+  // Answers a refresh grant with this OAuth error instead of tokens.
+  refreshError: string | undefined;
   tokenRequests: URLSearchParams[];
   close: () => Promise<void>;
 }
@@ -34,6 +36,7 @@ export async function startFakeIssuer(): Promise<FakeIssuer> {
     claims: {},
     expiresIn: 900,
     holdRefresh: undefined,
+    refreshError: undefined,
     tokenRequests: [],
     close: () => Promise.resolve(),
   };
@@ -67,6 +70,10 @@ export async function startFakeIssuer(): Promise<FakeIssuer> {
           (form) => {
             const now = Math.floor(Date.now() / 1000);
             const refreshing = form.get('grant_type') === 'refresh_token';
+            if (refreshing && fake.refreshError !== undefined) {
+              send(400, { error: fake.refreshError });
+              return;
+            }
             send(200, {
               access_token: refreshing ? 'access-token-2' : 'access-token-1',
               token_type: 'Bearer',

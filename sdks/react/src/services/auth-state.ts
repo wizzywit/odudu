@@ -18,9 +18,13 @@ export function asOduduError(error: unknown): OduduError {
     : new OduduError('request_failed', 'the request could not be completed', { cause: error });
 }
 
-// The refresh token was refused: the session is over for good.
+// The session is over for good: the issuer refused the refresh token, or it
+// answered with an ID token for another person, which the BFF treats the same.
 export function endsSession(error: unknown): boolean {
-  return error instanceof OduduError && error.code === 'invalid_grant';
+  return (
+    error instanceof OduduError &&
+    (error.code === 'invalid_grant' || error.code === 'invalid_id_token')
+  );
 }
 
 // A failure that leaves the person where they were, with its reason.
