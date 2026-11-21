@@ -153,3 +153,47 @@ export function importProblems(blocks: readonly Fence[], found: readonly Pkg[]):
   }
   return problems;
 }
+
+export const squash = (text: string): string => text.replace(/\s+/gu, ' ').trim();
+
+// What is wrong with a code excerpt that says it comes from `caption`, a path
+// in the repository: the file is missing, does not hold the excerpt, or the
+// excerpt starts directly below a comment, which belongs to the line under it
+// and so has been dropped.
+export function excerptProblems(caption: string, value: string): string[] {
+  const file = path.join(REPO_ROOT, caption);
+  if (!existsSync(file)) return [`${caption} does not exist`];
+  const text = readFileSync(file, 'utf8');
+  if (!squash(text).includes(squash(value))) {
+    return [`${caption} does not hold the excerpt that starts "${value.slice(0, 50)}"`];
+  }
+  const lines = text.split('\n');
+  const first = value.split('\n')[0]?.trim() ?? '';
+  const problems: string[] = [];
+  lines.forEach((line, at) => {
+    if (line.trim() !== first || !squash(lines.slice(at).join('\n')).startsWith(squash(value))) {
+      return;
+    }
+    const above =
+      lines
+        .slice(0, at)
+        .reverse()
+        .find((candidate) => candidate.trim() !== '')
+        ?.trim() ?? '';
+    if (/^(\/\/|\/\*|\*|#)/u.test(above)) {
+      problems.push(`${caption}: the excerpt "${first.slice(0, 40)}" drops "${above}"`);
+    }
+  });
+  return problems;
+}
+
+// The caption a fenced block carries, when the paragraph before it reads
+// "From `path`:" and nothing else.
+export function captionOf(
+  before: { type: string; children?: { type: string; value?: string }[] } | undefined,
+): string | undefined {
+  const first = before?.type === 'paragraph' ? (before.children ?? []) : [];
+  return first[0]?.type === 'text' && first[0].value === 'From ' && first[1]?.type === 'inlineCode'
+    ? first[1].value
+    : undefined;
+}

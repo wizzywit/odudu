@@ -110,7 +110,7 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) before you send a change, and the
 
 ## Licence
 
-The server, console and tools are AGPL-3.0-only. The guides and the examples are
-Apache-2.0. [LICENSING.md](LICENSING.md) says which directory is which.
+The server, console and tools are AGPL-3.0-only. The SDKs, the guides and the
+examples are Apache-2.0. [LICENSING.md](LICENSING.md) says which directory is which.
 
 Odudu and the staff mark are the property of Wisdom Praise. The software is licensed under the AGPL; the name and the mark are used under the trademark policy. The policy is [TRADEMARK.md](TRADEMARK.md).

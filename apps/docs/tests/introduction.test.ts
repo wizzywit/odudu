@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { globSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DOCS_ROOT } from '#docs/tests/support/dist.ts';
@@ -34,6 +34,22 @@ describe('the introduction', () => {
     for (const name of ['Keycloak', 'Ory', 'Zitadel', 'Authentik']) {
       expect(text, name).not.toMatch(new RegExp(`${name} (?:has|does|supports|is)\\b`, 'u'));
     }
+  });
+
+  it('names the SDKs, and no page of the site or the README says there is none', () => {
+    expect(page('index.md')).toContain('(../sdks/index.md)');
+    const root = path.join(DOCS_ROOT, '../..');
+    const files = [
+      ...globSync('apps/docs/content/en/**/*.{md,mdx}', { cwd: root }),
+      'README.md',
+      'tests/docs/questions.md',
+    ];
+    const claims = files.filter((file) =>
+      /\b(?:has|have) no (?:official )?(?:SDK|librar)|no SDK of (?:its|their) own|use any OpenID Connect library, as the/iu.test(
+        readFileSync(path.join(root, file), 'utf8'),
+      ),
+    );
+    expect(claims).toEqual([]);
   });
 
   it('says what Odudu is not', () => {

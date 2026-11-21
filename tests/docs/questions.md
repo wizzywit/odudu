@@ -625,8 +625,8 @@ Real questions a newcomer asks, each answered strictly from the built documentat
 - Role: Security reviewer
 - Before: not
 - Status: answered
-- Pages: introduction/index, guides/index
-- Note: Fixed: no SDK of its own; the guides use openid-client and oauth4webapi.
+- Pages: introduction/index, sdks/index, guides/index
+- Note: Fixed: eight npm packages and one Python package, listed on the SDKs page and used by the guides; any OpenID Connect library works too.
 
 ## S09. How do I contribute?
 

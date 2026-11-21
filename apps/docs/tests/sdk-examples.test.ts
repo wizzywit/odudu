@@ -4,9 +4,12 @@ import { fromMarkdown } from 'mdast-util-from-markdown';
 import { describe, expect, it } from 'vitest';
 import { DOCS_ROOT } from '#docs/tests/support/dist.ts';
 import {
+  captionOf,
+  excerptProblems,
   importProblems,
   packages,
   REPO_ROOT,
+  squash,
   type Fence,
 } from '#docs/tests/support/sdk-sources.ts';
 
@@ -65,12 +68,7 @@ function sections(): Section[] {
       const fence = { lang: child.lang ?? '', meta: child.meta ?? '', value: child.value };
       fences.push(fence);
       if (fence.lang === 'text') return;
-      const before = body[at - 1];
-      const first = before?.type === 'paragraph' ? before.children : [];
-      const caption =
-        first[0]?.type === 'text' && first[0].value === 'From ' && first[1]?.type === 'inlineCode'
-          ? first[1].value
-          : undefined;
+      const caption = captionOf(body[at - 1]);
       excerpts.push({ caption, fence });
     });
     found.push({ name: textOf(node), raw: source.slice(from, to), fences, excerpts });
@@ -96,8 +94,6 @@ function sectionOf(example: string): Section {
   if (section === undefined) throw new Error(`the page has no section for ${example}`);
   return section;
 }
-
-const squash = (text: string): string => text.replace(/\s+/gu, ' ').trim();
 
 // The command the example's own README gives for its test.
 function testCommand(example: string): string {
@@ -224,7 +220,7 @@ describe('the examples page', () => {
     },
   );
 
-  it('every code excerpt appears in the example source file its caption names', () => {
+  it('every code excerpt appears in the example source file its caption names, below no dropped comment', () => {
     const problems: string[] = [];
     let count = 0;
     for (const section of onPage) {
@@ -238,48 +234,10 @@ describe('the examples page', () => {
           problems.push(`${section.name}: ${caption} is not in the example's folder`);
           continue;
         }
-        const file = path.join(REPO_ROOT, caption);
-        if (!existsSync(file)) {
-          problems.push(`${caption} does not exist`);
-          continue;
-        }
-        if (!squash(readFileSync(file, 'utf8')).includes(squash(fence.value))) {
-          problems.push(
-            `${caption} does not hold the excerpt that starts "${fence.value.slice(0, 50)}"`,
-          );
-        }
+        problems.push(...excerptProblems(caption, fence.value));
       }
     }
     expect(count).toBeGreaterThan(onPage.length);
-    expect(problems).toEqual([]);
-  });
-
-  // A comment directly above a line belongs to it, so an excerpt that starts below
-  // one has dropped what the example says about the line it shows.
-  it('no excerpt starts directly below a comment of its source', () => {
-    const problems: string[] = [];
-    for (const section of onPage) {
-      for (const { caption, fence } of section.excerpts) {
-        if (caption === undefined || !existsSync(path.join(REPO_ROOT, caption))) continue;
-        const lines = readFileSync(path.join(REPO_ROOT, caption), 'utf8').split('\n');
-        const first = fence.value.split('\n')[0]?.trim() ?? '';
-        const starts = lines.flatMap((line, at) => (line.trim() === first ? [at] : []));
-        const held = starts.filter((at) =>
-          squash(lines.slice(at).join('\n')).startsWith(squash(fence.value)),
-        );
-        for (const at of held) {
-          const above =
-            lines
-              .slice(0, at)
-              .reverse()
-              .find((line) => line.trim() !== '')
-              ?.trim() ?? '';
-          if (/^(\/\/|\/\*|\*|#)/u.test(above)) {
-            problems.push(`${caption}: the excerpt "${first.slice(0, 40)}" drops "${above}"`);
-          }
-        }
-      }
-    }
     expect(problems).toEqual([]);
   });
 
