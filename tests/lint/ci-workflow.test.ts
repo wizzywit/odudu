@@ -762,6 +762,15 @@ describe('the CI workflow', () => {
         expect(block).toContain('The gate check has not passed');
       });
 
+      it('checks out the tag a manual run was given, and the pushed tag otherwise', async () => {
+        const workflow = await release();
+        const checkouts = workflow.match(/uses: actions\/checkout@/gu) ?? [];
+        expect(checkouts).toHaveLength(2);
+        expect(
+          workflow.match(/^ {10}ref: \$\{\{ inputs\.tag \|\| github\.ref \}\}$/gmu),
+        ).toHaveLength(2);
+      });
+
       it('holds the stable-tag and gate checks to a push, as release.yml does', async () => {
         const block = jobBlock(await release(), 'prepare', 'build');
         expect(block).toMatch(
