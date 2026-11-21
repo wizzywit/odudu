@@ -42,7 +42,7 @@ The TypeScript packages need Node 24 or later. The Python package needs Python 3
 | A tool that reads or changes a person's own account           | [`@odudu-io/me-client`](./me-client.md), or [`odudu`](./python.md).                                         |
 | An AI client that should read, or change, a tenant's settings | [`@odudu-io/mcp-stdio`](./mcp-stdio.md).                                                                    |
 
-If your app sits behind a server you control, prefer a backend for frontend to tokens in the page: a script that runs in the page can read anything the page holds. [`@odudu-io/bff`](./bff.md) explains what the server stores and how it protects the cookie.
+If your app sits behind a server you control, prefer a backend for frontend to tokens in the page: a script that runs in the page can read anything the page holds. [Backend for frontend](../concepts/backend-for-frontend.mdx) explains the pattern, and [`@odudu-io/bff`](./bff.md) says what the server stores and how it protects the cookie. To sign a person in with the core and no framework, read [the core without React](./core-without-react.md).
 
 ## What the code blocks on these pages are
 
@@ -56,4 +56,4 @@ The SDKs are licensed under Apache-2.0, and each package carries its own `LICENS
 
 ## Where the code is
 
-Every package is in [`sdks/`](https://github.com/wizzywit/odudu/tree/main/sdks) in the repository, with the example that uses it in [`examples/`](https://github.com/wizzywit/odudu/tree/main/examples).
+Every package is in [`sdks/`](https://github.com/wizzywit/odudu/tree/main/sdks) in the repository, with the example that uses it in [`examples/`](https://github.com/wizzywit/odudu/tree/main/examples). [Examples](./examples.md) shows all nine, with how to run each and what its test checks.

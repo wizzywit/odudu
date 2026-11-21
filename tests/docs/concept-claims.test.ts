@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { AUDIT_REFUSAL_ROWS_PER_CLIENT } from '../../apps/server/src/app.js';
@@ -29,6 +29,7 @@ const PAGES = [
   'tokens',
   'consent-and-audit',
   'branding',
+  'backend-for-frontend',
 ] as const;
 
 function body(page: string): string {
@@ -204,5 +205,150 @@ describe('the clients page on how a client proves who it is', () => {
   it('says client_secret_jwt is not supported, as discovery does', () => {
     expect(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED).not.toContain('client_secret_jwt');
     expect(clients()).toContain('`client_secret_jwt` is not supported');
+  });
+});
+
+const BFF = 'sdks/bff/src';
+
+// The page's words, without the diagram and its description, so a claim has to
+// be made in the text a reader reads.
+function prose(page: string): string {
+  return body(page).replace(
+    /<Diagram\s+name="[^"]+"\s+title="[^"]+"\s+desc="[^"]+"\s*\/>\n\n[*_]In words: [^\n]+[*_]/gu,
+    '',
+  );
+}
+
+function repoText(file: string): string {
+  return readFileSync(path.join(REPO_ROOT, file), 'utf8');
+}
+
+// A claim the page makes in prose and the place in the SDK's source that settles it.
+interface Fact {
+  readonly page: string;
+  readonly says: string;
+  readonly file: string;
+  readonly holds: RegExp;
+}
+
+const BFF_FACTS: readonly Fact[] = [
+  {
+    page: 'backend-for-frontend',
+    says: '__Host-odudu',
+    file: `${BFF}/services/config.ts`,
+    holds: /export const DEFAULT_COOKIE_NAME = '__Host-odudu';/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: 'HttpOnly',
+    file: `${BFF}/services/cookies.ts`,
+    holds: /const FIXED = 'Path=\/; HttpOnly; Secure; SameSite=Lax';/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: 'SameSite=Lax',
+    file: `${BFF}/services/cookies.ts`,
+    holds: /const FIXED = 'Path=\/; HttpOnly; Secure; SameSite=Lax';/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: '10 minutes',
+    file: `${BFF}/services/session-policy.ts`,
+    holds: /export const LOGIN_TTL_MS = 10 \* 60 \* 1000;/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: '30 seconds',
+    file: `${BFF}/services/session-policy.ts`,
+    holds: /export const REFRESH_SKEW_MS = 30_000;/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: 'seven days',
+    file: `${BFF}/services/config.ts`,
+    holds: /const DEFAULT_SESSION_TTL_MS = 7 \* 24 \* 60 \* 60 \* 1000;/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: '10,000',
+    file: `${BFF}/services/memory-store.ts`,
+    holds: /maxSessions = 10_000, idleMs = 1_800_000/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: '30 minutes',
+    file: `${BFF}/services/memory-store.ts`,
+    holds: /maxSessions = 10_000, idleMs = 1_800_000/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: '120 seconds',
+    file: `${BFF}/services/session-policy.ts`,
+    holds: /export const REFRESH_LOCK_TTL_MS = 120_000;/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: 'lock:',
+    file: `${BFF}/services/session-id.ts`,
+    holds: /export const lockKey = \(id: string\): string => `lock:\$\{id\}`;/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: 'X-Odudu-Session: ended',
+    file: `${BFF}/services/config.ts`,
+    holds: /SESSION_HEADER = 'x-odudu-session';\nexport const SESSION_ENDED = 'ended';/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: '10 MiB',
+    file: `${BFF}/services/config.ts`,
+    holds: /const DEFAULT_MAX_BODY_BYTES = 10 \* 1024 \* 1024;/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: '`session`',
+    file: `${BFF}/adapter/routes.ts`,
+    holds: /path: `\$\{prefix\}\/session`/u,
+  },
+  {
+    page: 'backend-for-frontend',
+    says: '`callback`',
+    file: `${BFF}/adapter/routes.ts`,
+    holds: /path: `\$\{prefix\}\/callback`/u,
+  },
+];
+
+describe('the numbers and names the backend for frontend page states are the ones the SDK holds', () => {
+  it.each(BFF_FACTS)('$page says "$says", and $file holds it', ({ page, says, file, holds }) => {
+    expect(prose(page)).toContain(says);
+    expect(repoText(file)).toMatch(holds);
+  });
+
+  it('names the request header as the SDK spells it, ignoring case', () => {
+    expect(prose('backend-for-frontend')).toContain('X-Odudu-BFF');
+    expect(repoText(`${BFF}/services/config.ts`)).toContain(
+      "export const BFF_HEADER = 'x-odudu-bff';",
+    );
+  });
+
+  it('names no X-Odudu header the SDK does not set or read', () => {
+    const sdk = readdirSync(path.join(REPO_ROOT, BFF), { recursive: true, withFileTypes: true })
+      .filter(
+        (entry) => entry.isFile() && entry.name.endsWith('.ts') && !entry.name.includes('.test.'),
+      )
+      .map((entry) => readFileSync(path.join(entry.parentPath, entry.name), 'utf8'))
+      .join('\n')
+      .toLowerCase();
+    const named = [...prose('backend-for-frontend').matchAll(/X-Odudu-[A-Za-z]+/gu)].map((match) =>
+      match[0].toLowerCase(),
+    );
+    expect(named.length).toBeGreaterThan(0);
+    for (const header of named) expect(sdk, header).toContain(header);
+  });
+
+  it('says the issuer is asked without an ID token hint, as the SDK builds the address', () => {
+    expect(prose('backend-for-frontend')).toContain('`id_token_hint`');
+    expect(repoText(`${BFF}/services/config.ts`)).not.toMatch(/set\('id_token_hint'/u);
+    expect(repoText(`${BFF}/services/config.ts`)).toMatch(/set\('client_id'/u);
   });
 });

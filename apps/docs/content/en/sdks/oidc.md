@@ -214,4 +214,4 @@ Codes the SDK raises on its own account:
 
 The repository holds three examples that use this package: [the web app](https://github.com/wizzywit/odudu/tree/main/examples/web-app) (a server with sessions), [the single-page app](https://github.com/wizzywit/odudu/tree/main/examples/single-page-app) and [the machine-to-machine client](https://github.com/wizzywit/odudu/tree/main/examples/machine-to-machine). The source is in [`sdks/oidc`](https://github.com/wizzywit/odudu/tree/main/sdks/oidc), with its changelog.
 
-The guides explain what happens underneath: [Sign people in to a web app](../guides/web-app.md), [Sign people in to a single-page app](../guides/single-page-app.md) and [Call an API as a service](../guides/machine-to-machine.md).
+[The core without React](./core-without-react.md) walks through a sign-in with these functions in a browser, a server and a script, and [Examples](./examples.md) shows all nine examples. The guides explain what happens underneath: [Sign people in to a web app](../guides/web-app.md), [Sign people in to a single-page app](../guides/single-page-app.md) and [Call an API as a service](../guides/machine-to-machine.md).

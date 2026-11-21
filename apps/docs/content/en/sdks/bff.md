@@ -6,7 +6,7 @@ sidebar_position: 4
 
 # @odudu-io/bff
 
-This package is the server half of the backend for frontend pattern in RFC 10017. A server you run is the OAuth client: it signs the person in, keeps the tokens in a session store, and gives the browser a cookie that holds an opaque id and nothing else. Its handlers are built on `Request` and `Response`, so the Express and Fastify adapters are thin, and [`@odudu-io/next`](./next.md) builds on it.
+This package is the server half of the backend for frontend pattern in RFC 10017 ([what the pattern is and when to choose it](../concepts/backend-for-frontend.mdx)). A server you run is the OAuth client: it signs the person in, keeps the tokens in a session store, and gives the browser a cookie that holds an opaque id and nothing else. Its handlers are built on `Request` and `Response`, so the Express and Fastify adapters are thin, and [`@odudu-io/next`](./next.md) builds on it.
 
 ## Install
 
@@ -138,6 +138,6 @@ A cookie that is not an id the BFF could have made, or that names no record, is 
 
 ## Examples and neighbours
 
-[The React and BFF example](https://github.com/wizzywit/odudu/tree/main/examples/react-bff) runs this package behind Express with `@odudu-io/react`. The source is in [`sdks/bff`](https://github.com/wizzywit/odudu/tree/main/sdks/bff), and [ADR 0054](https://github.com/wizzywit/odudu/blob/main/docs/adr/0054-the-bff-keeps-tokens-and-the-browser-keeps-an-id.md) records every decision above with the alternatives it rejected.
+[The React and BFF example](https://github.com/wizzywit/odudu/tree/main/examples/react-bff) runs this package behind Express with `@odudu-io/react`, and [Examples](./examples.md#react-bff) shows its key lines. The source is in [`sdks/bff`](https://github.com/wizzywit/odudu/tree/main/sdks/bff), and [ADR 0054](https://github.com/wizzywit/odudu/blob/main/docs/adr/0054-the-bff-keeps-tokens-and-the-browser-keeps-an-id.md) records every decision above with the alternatives it rejected.
 
 Next: [`@odudu-io/react`](./react.md) for the page, [`@odudu-io/next`](./next.md) for a Next app, and [`@odudu-io/oidc`](./oidc.md) for the core underneath.

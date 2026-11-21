@@ -17,6 +17,7 @@ const PAGES = [
   'tokens',
   'consent-and-audit',
   'branding',
+  'backend-for-frontend',
 ] as const;
 
 interface Drawn {

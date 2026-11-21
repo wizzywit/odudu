@@ -63,7 +63,7 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
     ],
   },
   {
-    file: 'apps/docs/tests/sdks.test.ts',
+    file: 'apps/docs/tests/support/sdk-sources.ts',
     targets: [
       'sdks/*/package.json',
       'sdks/*/pyproject.toml',
@@ -74,7 +74,17 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
       'sdks/python/src/odudu/**/__init__.py',
       'sdks/python/src/odudu/verify/*.py',
       'sdks/python/src/odudu/_generated/*.py',
+      'examples/README.md',
+      'examples/_shared/**',
       'examples/*/README.md',
+      'examples/*/package.json',
+      'examples/*/test.ts',
+      'examples/*/test_example.py',
+      'examples/*/*.ts',
+      'examples/*/*.py',
+      'examples/*/src/*.ts',
+      'examples/*/src/*.tsx',
+      'examples/*/lib/*.ts',
     ],
   },
   {

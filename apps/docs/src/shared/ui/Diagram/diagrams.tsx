@@ -558,6 +558,57 @@ function brandingParts(): Drawing {
   };
 }
 
+function backendForFrontend(): Drawing {
+  const lines = (x: number, y: number, rows: string[]): ReactElement[] =>
+    rows.map((row, index) => (
+      <DiagramText key={row} x={x} y={y + index * 18} ink="muted">
+        {row}
+      </DiagramText>
+    ));
+  return {
+    height: 372,
+    draw: (head) => (
+      <>
+        <DiagramBox x={14} y={10} w={312} h={62} />
+        <DiagramText x={MID} y={34} bold size={15}>
+          The page in the browser
+        </DiagramText>
+        <DiagramText x={MID} y={56} ink="muted">
+          one HttpOnly cookie, no token
+        </DiagramText>
+        <DiagramArrow head={head} d={vertical(60, 76, 112)} />
+        <DiagramText x={74} y={99} anchor="start" ink="muted">
+          cookie and X-Odudu-BFF
+        </DiagramText>
+        <DiagramBox x={14} y={116} w={312} h={96} tone="accent" />
+        <DiagramText x={MID} y={140} bold size={15}>
+          Backend for frontend
+        </DiagramText>
+        {lines(MID, 162, [
+          'keeps the session and the tokens',
+          'renews the access token',
+          'calls only allowlisted servers',
+        ])}
+        <DiagramArrow head={head} d={vertical(90, 216, 254)} />
+        <DiagramArrow head={head} d={vertical(250, 216, 254)} />
+        <DiagramBox x={14} y={258} w={152} h={70} />
+        <DiagramText x={90} y={282} bold size={15}>
+          Odudu
+        </DiagramText>
+        {lines(90, 302, ['signs the person in', 'issues the tokens'])}
+        <DiagramBox x={174} y={258} w={152} h={70} />
+        <DiagramText x={250} y={282} bold size={15}>
+          Your API
+        </DiagramText>
+        {lines(250, 302, ['gets a bearer token', 'never the cookie'])}
+        <DiagramText x={MID} y={356} ink="muted">
+          the page never sees a token
+        </DiagramText>
+      </>
+    ),
+  };
+}
+
 export const DRAWINGS = {
   tenants: tenants(),
   clients: clients(),
@@ -569,6 +620,7 @@ export const DRAWINGS = {
   branding: branding(),
   'branding-publishing': brandingPublishing(),
   'branding-parts': brandingParts(),
+  'backend-for-frontend': backendForFrontend(),
 } satisfies Record<string, Drawing>;
 
 export type DiagramName = keyof typeof DRAWINGS;

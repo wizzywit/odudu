@@ -84,12 +84,12 @@ describe('the information architecture', () => {
     expect(links.slice(start + 1, start + 1 + journeys.length)).toEqual(journeys);
   });
 
-  it('opens the SDKs to the package pages, in order', () => {
+  it('opens the SDKs to the package pages, the examples and the core guide, in order', () => {
     const links = sidebarLinks('sdks/index.html');
     const start = links.indexOf(`${PAGES_DOCS_BASE}sdks/`);
     expect(
       links
-        .slice(start + 1, start + 10)
+        .slice(start + 1, start + 12)
         .map((href) => href.slice(`${PAGES_DOCS_BASE}sdks/`.length)),
     ).toEqual([
       'oidc/',
@@ -101,15 +101,17 @@ describe('the information architecture', () => {
       'me-client/',
       'mcp-stdio/',
       'python/',
+      'examples/',
+      'core-without-react/',
     ]);
   });
 
-  it('opens the concepts to their eight pages, in order', () => {
+  it('opens the concepts to their nine pages, in order', () => {
     const links = sidebarLinks('concepts/index.html');
     const start = links.indexOf(`${PAGES_DOCS_BASE}concepts/`);
     expect(
       links
-        .slice(start + 1, start + 9)
+        .slice(start + 1, start + 10)
         .map((href) => href.slice(`${PAGES_DOCS_BASE}concepts/`.length)),
     ).toEqual([
       'tenants/',
@@ -120,6 +122,7 @@ describe('the information architecture', () => {
       'tokens/',
       'consent-and-audit/',
       'branding/',
+      'backend-for-frontend/',
     ]);
   });
 

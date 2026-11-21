@@ -124,4 +124,4 @@ An app with a `basePath` is untested and not supported yet.
 
 [The Next.js example](https://github.com/wizzywit/odudu/tree/main/examples/next) runs this package end to end. The source is in [`sdks/next`](https://github.com/wizzywit/odudu/tree/main/sdks/next).
 
-Next: [`@odudu-io/bff`](./bff.md), which it builds on, and [`@odudu-io/oidc`](./oidc.md) for the core.
+[Backend for frontend](../concepts/backend-for-frontend.mdx) explains the pattern, and [Examples](./examples.md#next) shows the key lines. Next: [`@odudu-io/bff`](./bff.md), which it builds on, and [`@odudu-io/oidc`](./oidc.md) for the core.

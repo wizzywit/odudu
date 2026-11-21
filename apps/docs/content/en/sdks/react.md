@@ -114,7 +114,7 @@ A refresh the issuer refuses with `invalid_grant` signs the person out. A sign-i
 
 ## Security notes
 
-- **`bff` mode keeps the tokens out of the page.** The browser holds an `HttpOnly` cookie with an opaque id, and the session answer holds claims and never a token. A script running in the page can act as the person only while the page is open. [`@odudu-io/bff`](./bff.md) says what the server stores and how it protects the cookie. Use this mode wherever you have a server.
+- **`bff` mode keeps the tokens out of the page.** The browser holds an `HttpOnly` cookie with an opaque id, and the session answer holds claims and never a token. A script running in the page can act as the person only while the page is open. [`@odudu-io/bff`](./bff.md) says what the server stores and how it protects the cookie. Use this mode wherever you have a server. [Backend for frontend](../concepts/backend-for-frontend.mdx) explains why.
 - **`browser` mode keeps the tokens in memory.** They live in a reference inside the provider, in no storage and in no state a component can render. A script that runs in the page can still reach them while it is open. A reload signs the person out of the app, and Odudu still holds their own session, so signing in again usually returns at once.
 - **What the package writes to storage.** Only the record the redirect to Odudu needs (the PKCE verifier, the state and the nonce), in `sessionStorage` under the key `odudu.pending`, which stays in one tab and is removed when read. No token is ever stored.
 - **Web origin.** In `browser` mode the page reads the token endpoint's answer, and a browser allows that only if the page's origin is registered as a web origin of the client (`odudu seed client --web-origin <origin>`). Without it the sign-in reaches the token address and the browser refuses to hand the answer to the app.
@@ -130,4 +130,4 @@ A refresh the issuer refuses with `invalid_grant` signs the person out. A sign-i
 
 [The React and BFF example](https://github.com/wizzywit/odudu/tree/main/examples/react-bff) uses this package in `bff` mode with a small Express server. The source is in [`sdks/react`](https://github.com/wizzywit/odudu/tree/main/sdks/react).
 
-Next: [`@odudu-io/bff`](./bff.md) is the server for `bff` mode, [`@odudu-io/next`](./next.md) is the same for a Next app, and [`@odudu-io/oidc`](./oidc.md) is the core underneath.
+`browser` mode runs the core's sign-in in the page; [the core without React](./core-without-react.md) shows those calls without the provider. Next: [`@odudu-io/bff`](./bff.md) is the server for `bff` mode, [`@odudu-io/next`](./next.md) is the same for a Next app, and [`@odudu-io/oidc`](./oidc.md) is the core underneath.
