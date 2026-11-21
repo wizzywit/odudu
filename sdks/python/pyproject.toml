@@ -25,6 +25,10 @@ classifiers = [
   "Typing :: Typed",
 ]
 
+[project.urls]
+Repository = "https://github.com/wizzywit/odudu"
+Source = "https://github.com/wizzywit/odudu/tree/main/sdks/python"
+
 # `odudu.verify` needs PyJWT and cryptography; the admin and me clients do not, so they are an
 # extra and importing `odudu` or `odudu.admin` never loads them.
 [project.optional-dependencies]
