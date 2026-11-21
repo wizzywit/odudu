@@ -174,7 +174,7 @@ describe('the SDKs section', () => {
     (_dir, pkg) => {
       const installs = fences(`${pkg.dir}.md`)
         .flatMap((fence) => fence.value.split('\n'))
-        .filter((line) => /^(npm install|pip install) /u.test(line));
+        .filter((line) => /^(npm install|npx|pip install) /u.test(line));
       expect(installs.length).toBeGreaterThan(0);
       expect(installs.some((line) => line.includes(pkg.name))).toBe(true);
     },
