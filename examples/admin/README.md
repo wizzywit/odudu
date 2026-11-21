@@ -13,7 +13,7 @@ The two halves use different tokens because they are different callers: the admi
 
 ## Run it
 
-You need Node 24 or later and the quick start stack. Run `../_shared/provision.sh` once: it makes the service `example-admin`, gives its account `manage-clients`, makes the client `example-admin-cli` the person signs in with, and makes the person `ada`.
+You need Node 24 or later and the quick start stack. Run `../_shared/provision.sh` once: it makes the service `example-admin` with `odudu seed client --capability manage-clients`, which gives its account that capability, makes the client `example-admin-cli` the person signs in with, and makes the person `ada`.
 
 The SDKs are not on npm yet, so install them from this repository: `../_shared/install.sh . oidc admin-client me-client` builds and packs them and installs the result, and needs `pnpm install` run once at the repository root. Once they are published, `npm install` is all a copy of this folder needs. Then:
 
@@ -22,6 +22,10 @@ npm start
 ```
 
 Open the address it prints and sign in as `ada`, whose password is `a long and unremarkable passphrase`. `npm test` runs the script and signs the person in with the repository's Playwright, then checks what it printed and that the client it made is gone.
+
+## In a real tenant
+
+`--capability` is how the first service gets a capability, because the admin API gives one only to a caller that already holds one. After that an administrator changes what an account holds with an admin token: `PUT /admin/tenants/<tenant>/subjects/<id>/roles`, which replaces the subject's roles and needs the `If-Match` header of the matching `GET`. The `id` is the subject of the client's service account, and the roles are those of the `odudu-admin` client, one for each capability.
 
 ## What is only for the example
 

@@ -553,6 +553,13 @@ jobs:
         working-directory: examples/${{ matrix.example }}
         run: npm test
 
+      - name: Lint the Python example
+        if: matrix.example == 'python'
+        working-directory: examples/python
+        run: |
+          .venv/bin/python -m ruff check .
+          .venv/bin/python -m ruff format --check .
+
       - name: Run the Python example's test
         if: matrix.example == 'python'
         working-directory: examples/python

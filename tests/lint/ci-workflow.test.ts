@@ -416,12 +416,26 @@ describe('the CI workflow', () => {
       expect(block).toContain('run: examples/_shared/install-python.sh examples/python');
       expect(block).toContain('.venv/bin/python -m pytest');
       expect(block).toContain('.venv/bin/python -m mypy');
+      expect(block).toContain('.venv/bin/python -m ruff check .');
+      expect(block).toContain('.venv/bin/python -m ruff format --check .');
       const install = await read('examples/_shared/install-python.sh');
       expect(install).toContain('pip install --require-hashes -r');
       expect(install).toContain('pip wheel --no-deps');
       const project = await read('examples/python/pyproject.toml');
       expect(project).toMatch(/"odudu\[fastapi\]>=0\.1,<0\.2"/u);
-      expect(await read('examples/python/requirements.txt')).toContain('--hash=sha256:');
+      const locked = await read('examples/python/requirements.txt');
+      expect(locked).toContain('--hash=sha256:');
+      // One version of uvicorn and ruff, in the lock, the input and the project.
+      const pinned = (name: string): string =>
+        /^[\w-]+==([\d.]+)/mu.exec(
+          locked.split('\n').find((line) => line.startsWith(`${name}==`)) ?? '',
+        )?.[1] ?? '';
+      const input = await read('examples/python/requirements.in');
+      for (const name of ['uvicorn', 'ruff']) {
+        expect(pinned(name), name).not.toBe('');
+        expect(input).toContain(`${name}==${pinned(name)}`);
+      }
+      expect(project).toContain(`"uvicorn==${pinned('uvicorn')}"`);
     });
 
     it('has one matrix leg per example directory with a lockfile and a test', async () => {

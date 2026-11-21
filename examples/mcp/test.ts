@@ -13,7 +13,10 @@ let key = '';
 
 before(async () => {
   // The line to keep goes to standard output, the key set to register to standard error.
-  const made = spawnSync('npx', ['odudu-mcp', '--keygen'], { encoding: 'utf8' });
+  const made = spawnSync('npx', ['--no-install', 'odudu-mcp', '--keygen'], {
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
   key = /^ODUDU_MCP_KEY=(\S+)$/mu.exec(made.stdout)?.[1] ?? '';
   const jwks: unknown = JSON.parse(/\{.*\}/u.exec(made.stderr)?.[0] ?? 'null');
   assert.ok(key !== '' && jwks !== null, 'odudu-mcp --keygen printed no key');
@@ -48,6 +51,7 @@ function runClient(env: Record<string, string>) {
   return spawnSync(process.execPath, ['client.ts'], {
     env: { ...process.env, ODUDU_MCP_KEY: '', ...env },
     encoding: 'utf8',
+    timeout: 60_000,
   });
 }
 

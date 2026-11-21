@@ -7,7 +7,7 @@ license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
   "odudu[fastapi]>=0.1,<0.2",
-  "uvicorn>=0.54",
+  "uvicorn==0.54.0",
 ]
 
 [tool.pytest.ini_options]

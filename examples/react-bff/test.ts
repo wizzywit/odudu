@@ -11,7 +11,7 @@ const PORT = '8083';
 const APP = `http://localhost:${PORT}`;
 const PASSWORD = 'a long and unremarkable passphrase';
 const VITE = ['node_modules/vite/bin/vite.js'];
-let server: ChildProcess;
+let server: ChildProcess | undefined;
 
 before(async () => {
   execFileSync(process.execPath, [...VITE, 'build'], { stdio: 'inherit' });
@@ -28,10 +28,13 @@ before(async () => {
 });
 
 after(() => {
-  server.kill();
+  server?.kill();
 });
 
-test('starts signed out, and the session route says so without a cookie', async () => {
+// A browser test that hangs fails after a minute, not when the job times out.
+const BROWSER = { timeout: 60_000 };
+
+test('starts signed out, and the session route says so without a cookie', BROWSER, async () => {
   const session = await fetch(`${APP}/bff/session`, { headers: { 'x-odudu-bff': '1' } });
   assert.deepEqual(await session.json(), { authenticated: false });
   await browse(async (page) => {
@@ -40,32 +43,36 @@ test('starts signed out, and the session route says so without a cookie', async 
   });
 });
 
-test('signs a person in, shows their claims and holds no token the page can read', async () => {
-  await browse(async (page) => {
-    await signInAndWaitForApp(page, APP, 'ada', PASSWORD, 'button');
-    await page.locator('text=Signed in as ada').waitFor();
-    assert.match(await page.innerText('body'), /"preferred_username": "ada"/u);
+test(
+  'signs a person in, shows their claims and holds no token the page can read',
+  BROWSER,
+  async () => {
+    await browse(async (page) => {
+      await signInAndWaitForApp(page, APP, 'ada', PASSWORD, 'button');
+      await page.locator('text=Signed in as ada').waitFor();
+      assert.match(await page.innerText('body'), /"preferred_username": "ada"/u);
 
-    const session = await page.evaluate(async () => {
-      const response = await fetch('/bff/session', { headers: { 'x-odudu-bff': '1' } });
-      return response.text();
+      const session = await page.evaluate(async () => {
+        const response = await fetch('/bff/session', { headers: { 'x-odudu-bff': '1' } });
+        return response.text();
+      });
+      assert.equal(JSON.parse(session).authenticated, true);
+      assert.doesNotMatch(session, /eyJ[\w-]+\.[\w-]+\./u);
+
+      const stored = await page.evaluate(async () =>
+        JSON.stringify([
+          { ...localStorage },
+          { ...sessionStorage },
+          document.cookie,
+          await indexedDB.databases(),
+        ]),
+      );
+      assert.equal(stored, '[{},{},"",[]]');
     });
-    assert.equal(JSON.parse(session).authenticated, true);
-    assert.doesNotMatch(session, /eyJ[\w-]+\.[\w-]+\./u);
+  },
+);
 
-    const stored = await page.evaluate(async () =>
-      JSON.stringify([
-        { ...localStorage },
-        { ...sessionStorage },
-        document.cookie,
-        await indexedDB.databases(),
-      ]),
-    );
-    assert.equal(stored, '[{},{},"",[]]');
-  });
-});
-
-test('signs out of the app and of Odudu', async () => {
+test('signs out of the app and of Odudu', BROWSER, async () => {
   await browse(async (page) => {
     await signInAndWaitForApp(page, APP, 'ben', PASSWORD, 'button');
     await page.locator('text=Signed in as ben').waitFor();

@@ -966,13 +966,19 @@ built from the branch, with the SDKs installed from packed tarballs (and the
   no private key is committed. The test therefore uses `admin-client` and `oidc`
   as development dependencies, which `ci-workflow.test.ts` now counts.
   `@modelcontextprotocol/client` is pinned to `2.4.0`, as the server's tests do.
-- **Provisioning.** `odudu seed` has no command that gives a service account an
-  admin capability, so `provision.sh` inserts the `manage-clients` row for
-  `example-admin` and `example-mcp` with `psql` as the quickstart's database
-  owner, as the `odudu mcp over stdio` transcript does. It needs `ODUDU_BASE`
-  when the stack is not on port 3000, because `example-admin-cli` is registered
-  with the audience `<issuer>/me`. Whether `seed` should gain that command is a
-  decision for the CLI's owner, not for the examples.
+- **Provisioning, and `seed client --capability`.** The admin API can give a
+  subject roles (`PUT /admin/tenants/{tenant}/subjects/{id}/roles`, needs
+  `manage-users` and `If-Match`), so a tenant that has one administrator can
+  grant a service account a capability. The first credential cannot come from
+  there, and `odudu seed client` is the command that makes a service account,
+  so it takes `--capability <name>` once for each one (validated against
+  `TENANT_CAPABILITIES`, refused for a client with no service account, given in
+  the transaction that makes the client, in that tenant only). `seed client`
+  already refuses a repeat, so a rerun changes nothing; `provision.sh` swallows
+  that refusal as it does for every client. This replaced the `psql` insert
+  the first version of `provision.sh` used. The script reads `ODUDU_BASE` for
+  the audience of `example-admin-cli`; a rerun with another `ODUDU_BASE` keeps
+  the audience the client was made with, and its header says so.
 - **Dependabot and CI.** `examples/next` had no Dependabot entry and gains one
   with the four new directories (npm, and pip for `python`). The `examples` job
   runs Playwright for `web-app`, `single-page-app`, `react-bff` and `admin`;

@@ -5,16 +5,25 @@
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
+// The command's environment is what it needs to run and the key, and nothing else.
+const env: Record<string, string> = { ODUDU_MCP_KEY: process.env.ODUDU_MCP_KEY ?? '' };
+for (const name of ['PATH', 'HOME', 'TMPDIR', 'SystemRoot']) {
+  const value = process.env[name];
+  if (value !== undefined) env[name] = value;
+}
+
 const transport = new StdioClientTransport({
+  // `--no-install` runs the command this folder installed and never fetches a package by that name.
   command: 'npx',
   args: [
+    '--no-install',
     'odudu-mcp',
     // The address is accepted over http because it is a loopback address.
     ...['--base-url', process.env.ODUDU_BASE ?? 'http://localhost:3000'],
     ...['--tenant', process.env.TENANT ?? 'demo'],
     ...['--client-id', process.env.ODUDU_MCP_CLIENT_ID ?? 'example-mcp'],
   ],
-  env: { PATH: process.env.PATH ?? '', ODUDU_MCP_KEY: process.env.ODUDU_MCP_KEY ?? '' },
+  env,
   // What the command says about a failure goes to this terminal.
   stderr: 'inherit',
 });

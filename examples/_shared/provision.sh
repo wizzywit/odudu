@@ -54,28 +54,11 @@ seed client --tenant demo --client-id example-admin-cli --public --grant-type au
   --allow-action verify-email
 
 # A service that calls the admin API asks for its audience, and what it may do
-# there is the admin capabilities its account holds. `odudu seed` has no command
-# that gives a service account one, so this writes the row as the database
-# owner, in the demo tenant.
-grant_manage_clients() {
-  docker compose exec -T postgres psql -U odudu -d odudu -v ON_ERROR_STOP=1 -q -c \
-    "insert into subject_roles (tenant_id, subject_id, role_id)
-     select k.tenant_id, k.service_subject_id, r.id
-     from clients k
-     join tenants t on t.id = k.tenant_id
-     join clients a on a.tenant_id = k.tenant_id and a.client_id = 'odudu-admin'
-     join roles r on r.client_id = a.id
-     where t.name = 'demo' and k.client_id = '$1' and r.name = 'manage-clients'
-     on conflict do nothing;"
-}
-
+# there is the admin capabilities its account holds, which --capability gives it.
 seed client --tenant demo --client-id example-admin --client-secret example-admin-secret \
-  --grant-type client_credentials --audience "$ADMIN_API_AUDIENCE"
-grant_manage_clients example-admin
+  --grant-type client_credentials --audience "$ADMIN_API_AUDIENCE" --capability manage-clients
 # The key an MCP client signs in with is made by whoever runs it and registered
-# on this client; the secret here is never used again after that. The account
-# holds the capability the tools it is offered need.
+# on this client; the secret here is never used again after that.
 seed client --tenant demo --client-id example-mcp --client-secret example-mcp-secret \
   --grant-type client_credentials --client-credentials-scope mcp:read \
-  --audience "$ADMIN_API_AUDIENCE"
-grant_manage_clients example-mcp
+  --audience "$ADMIN_API_AUDIENCE" --capability manage-clients

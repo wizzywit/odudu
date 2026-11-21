@@ -21,6 +21,7 @@ from odudu.admin.operations import (
 )
 
 T = TypeVar("T")
+CREATED = "example-python-created"
 
 BASE = os.environ.get("ODUDU_BASE", "http://localhost:3000")
 TENANT = os.environ.get("TENANT", "demo")
@@ -83,15 +84,33 @@ def success(parsed: object, model: type[T]) -> T:
     return parsed
 
 
+def new_client() -> PostAdminTenantsTenantClientsBody:
+    body = PostAdminTenantsTenantClientsBody(client_id=CREATED)
+    body.additional_properties = {
+        "name": "Made by the Python example",
+        "grant_types": ["client_credentials"],
+    }
+    return body
+
+
+def remove_leftover(admin: AdminClient) -> None:
+    """Deletes the client a run that was stopped before its last step may have left behind."""
+    for item in iterate_pages(
+        lambda page: (
+            admin.call(
+                get_admin_tenants_tenant_clients.sync_detailed, limit=page.limit, cursor=page.cursor
+            ).parsed
+        )
+    ):
+        if getattr(item, "client_id", None) == CREATED:
+            admin.call(delete_admin_tenants_tenant_clients_id.sync_detailed, getattr(item, "id"))  # noqa: B009
+
+
 def main() -> None:
     with admin_client() as admin:
-        body = PostAdminTenantsTenantClientsBody(client_id="example-python-created")
-        body.additional_properties = {
-            "name": "Made by the Python example",
-            "grant_types": ["client_credentials"],
-        }
+        remove_leftover(admin)
         created = success(
-            admin.call(post_admin_tenants_tenant_clients.sync_detailed, body=body).parsed,
+            admin.call(post_admin_tenants_tenant_clients.sync_detailed, body=new_client()).parsed,
             PostAdminTenantsTenantClientsResponse201,
         )
         try:

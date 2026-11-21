@@ -7,6 +7,7 @@ are the stack's own.
 
 import pytest
 from fastapi.testclient import TestClient
+from odudu.admin.operations import post_admin_tenants_tenant_clients
 
 import admin
 from app import app
@@ -26,6 +27,17 @@ def test_the_script_makes_a_client_reads_it_back_and_deletes_it(
     assert "read it back: example-python-created, Made by the Python example\n" in printed
     assert "deleted client example-python-created\n" in printed
     assert admin.count_clients() == before
+
+
+def test_a_client_left_by_a_crashed_run_is_removed_first(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with admin.admin_client() as client:
+        client.call(post_admin_tenants_tenant_clients.sync_detailed, body=admin.new_client())
+    before = admin.count_clients()
+    admin.main()
+    assert "created client example-python-created\n" in capsys.readouterr().out
+    assert admin.count_clients() == before - 1
 
 
 def test_a_request_without_a_token_is_refused_with_a_challenge() -> None:
