@@ -97,8 +97,8 @@ A confidential client passes its secret, or a private key, as the last argument:
 From `examples/web-app/app.ts`:
 
 ```ts
-// Checks state, the issuer, the code's PKCE proof and the ID token's issuer, audience,
-// expiry and nonce. The signature is not checked.
+// Checks state, the issuer and the ID token's issuer, audience, expiry and nonce, and
+// sends the PKCE verifier with the code. The signature is not checked.
 completeSignIn(url.href, pending, deps, { auth: { secret: SECRET } }).then(
 ```
 
