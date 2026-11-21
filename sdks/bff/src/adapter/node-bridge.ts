@@ -28,15 +28,17 @@ function hasBody(req: IncomingMessage): boolean {
 
 // The request as a Web `Request`. Its body is the socket's stream, read only
 // when something reads it, so no framework or handler buffers it first.
-export function toWebRequest(req: IncomingMessage, url: string): Request {
+export function toWebRequest(req: IncomingMessage, url: string, signal?: AbortSignal): Request {
   const method = req.method ?? 'GET';
   const headers = webHeaders(req);
-  if (!hasBody(req)) return new Request(new URL(url, BASE), { method, headers });
+  const own = signal === undefined ? {} : { signal };
+  if (!hasBody(req)) return new Request(new URL(url, BASE), { method, headers, ...own });
   return new Request(new URL(url, BASE), {
     method,
     headers,
     body: Readable.toWeb(req),
     duplex: 'half',
+    ...own,
   });
 }
 
@@ -66,8 +68,14 @@ export async function serve(
   res: ServerResponse,
   url: string,
 ): Promise<void> {
+  // The request's signal aborts when the connection closes before the response
+  // is complete, so a handler's upstream work stops with the browser.
+  const left = new AbortController();
+  res.on('close', () => {
+    if (!res.writableFinished) left.abort();
+  });
   try {
-    await writeWebResponse(res, await handler(toWebRequest(req, url)));
+    await writeWebResponse(res, await handler(toWebRequest(req, url, left.signal)));
   } catch {
     if (res.headersSent) {
       res.destroy();

@@ -6,11 +6,15 @@ export interface UpstreamCall {
   method: string;
   headers: Headers;
   body: ReadableStream<Uint8Array> | null;
+  // Aborts the call in every phase: the browser left.
+  signal: AbortSignal;
 }
 
 export interface UpstreamLimits {
   maxBodyBytes: number;
   timeoutMs: number;
+  // The longest an answer's body may go without a chunk.
+  idleMs: number;
   fetch: typeof fetch;
 }
 
@@ -34,12 +38,48 @@ function limited(source: ReadableStream<Uint8Array>, budget: Budget): ReadableSt
   );
 }
 
-function forBrowser(response: Response, limit: number): UpstreamOutcome {
+// Cuts the body off, and the upstream request with it, when no chunk arrives
+// for `idleMs`. The clock runs from the moment the headers arrived.
+function withIdleLimit(
+  source: ReadableStream<Uint8Array>,
+  idleMs: number,
+  abort: () => void,
+): ReadableStream<Uint8Array> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = (): void => {
+    clearTimeout(timer);
+    timer = setTimeout(abort, idleMs);
+  };
+  arm();
+  return source.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        arm();
+        controller.enqueue(chunk);
+      },
+      flush() {
+        clearTimeout(timer);
+      },
+      cancel() {
+        clearTimeout(timer);
+      },
+    }),
+  );
+}
+
+function forBrowser(
+  response: Response,
+  limit: number,
+  idle: { ms: number; abort: () => void },
+): UpstreamOutcome {
   if (declaresMoreThan(response.headers.get('content-length'), limit)) {
     response.body?.cancel().catch(() => undefined);
     return { kind: 'answer-too-large' };
   }
-  const body = response.body === null ? null : limited(response.body, createBudget(limit));
+  const body =
+    response.body === null
+      ? null
+      : withIdleLimit(limited(response.body, createBudget(limit)), idle.ms, idle.abort);
   return {
     kind: 'response',
     response: new Response(body, {
@@ -71,10 +111,15 @@ export async function sendUpstream(
       headers: call.headers,
       body: call.body === null ? null : limited(call.body, budget),
       redirect: 'manual',
-      signal: controller.signal,
+      signal: AbortSignal.any([controller.signal, call.signal]),
       duplex: 'half',
     });
-    return forBrowser(response, limits.maxBodyBytes);
+    return forBrowser(response, limits.maxBodyBytes, {
+      ms: limits.idleMs,
+      abort: () => {
+        controller.abort();
+      },
+    });
   } catch {
     if (budget.exceeded()) return { kind: 'too-large' };
     return { kind: controller.signal.aborted ? 'timeout' : 'failed' };

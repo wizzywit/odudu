@@ -23,6 +23,7 @@ const running: Running[] = [];
 beforeEach(async () => {
   fake = await startFakeServer();
   upstream = await startUpstream((_request, response, seen) => {
+    if (seen.url.startsWith('/v1/silent')) return;
     if (seen.url.startsWith('/v1/stream')) {
       response.writeHead(200);
       const timer = setInterval(() => response.write(Buffer.alloc(512)), 2);
@@ -166,6 +167,35 @@ describe.each(frameworks)('the %s adapter', (_name, start) => {
     const { redirectTo } = (await response.json()) as { redirectTo: string };
     expect(redirectTo).toContain('/logout');
   });
+
+  it.each(['silent', 'stream'])(
+    'takes the upstream request with it when the browser leaves a call to /v1/%s',
+    async (path) => {
+      const { base, bff } = await serve();
+      const { cookie } = await signIn(bff, fake);
+      const controller = new AbortController();
+      const pending = fetch(`${base}/proxy/api/v1/${path}`, {
+        headers: { ...guard, cookie },
+        signal: controller.signal,
+      }).then(
+        async (response) => {
+          await response.body?.getReader().read();
+          return response;
+        },
+        (error: unknown) => error,
+      );
+      const until = Date.now() + 5_000;
+      while (upstream.started < 1 && Date.now() < until) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      controller.abort();
+      await pending.catch(() => undefined);
+      while (upstream.hungUp < 1 && Date.now() < until) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(upstream.hungUp).toBe(1);
+    },
+  );
 
   it('proxies a streamed request body and drops the upstream cookies', async () => {
     const { base, bff } = await serve();

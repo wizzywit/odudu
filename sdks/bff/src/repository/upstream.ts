@@ -9,6 +9,7 @@ export function createUpstreams(config: BffConfig): Upstreams {
   const limits = {
     maxBodyBytes: config.maxBodyBytes,
     timeoutMs: config.upstreamTimeoutMs,
+    idleMs: config.upstreamIdleMs,
     fetch: config.deps?.fetch ?? ((input, init) => fetch(input, init)),
   };
   return { forward: (call) => sendUpstream(call, limits) };

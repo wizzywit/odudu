@@ -39,6 +39,7 @@ export function createProxy(
         method: request.method,
         headers: upstreamRequestHeaders(request.headers, token.value),
         body: request.body,
+        signal: request.signal,
       }),
     );
   };

@@ -19,6 +19,8 @@ export interface FakeUpstream {
   started: number;
   // Request body bytes received, finished or not.
   bytesReceived: number;
+  // Responses cut off before they ended: the caller hung up or aborted.
+  hungUp: number;
   close: () => Promise<void>;
 }
 
@@ -33,6 +35,7 @@ export async function startUpstream(respond: Responder = ok): Promise<FakeUpstre
     seen: [],
     started: 0,
     bytesReceived: 0,
+    hungUp: 0,
     close: () => Promise.resolve(),
   };
   const server = createServer((request, response) => {
@@ -51,6 +54,9 @@ export async function startUpstream(respond: Responder = ok): Promise<FakeUpstre
       };
       upstream.seen.push(seen);
       respond(request, response, seen);
+    });
+    response.on('close', () => {
+      if (!response.writableEnded) upstream.hungUp += 1;
     });
     request.on('error', () => undefined);
     response.on('error', () => undefined);

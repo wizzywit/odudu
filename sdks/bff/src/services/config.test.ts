@@ -33,6 +33,7 @@ describe('proxy configuration', () => {
       proxyPath: '/proxy',
       maxBodyBytes: 10 * 1024 * 1024,
       upstreamTimeoutMs: 30_000,
+      upstreamIdleMs: 30_000,
       upstreams: [],
     });
   });
@@ -78,6 +79,9 @@ describe('proxy configuration', () => {
   it('refuses limits that are not positive whole numbers', () => {
     expect(() => resolveConfig({ ...base, maxBodyBytes: 0 })).toThrow(TypeError);
     expect(() => resolveConfig({ ...base, upstreamTimeoutMs: 1.5 })).toThrow(TypeError);
+    for (const upstreamIdleMs of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => resolveConfig({ ...base, upstreamIdleMs })).toThrow(/upstreamIdleMs/u);
+    }
   });
 
   it('upper-cases the methods an upstream names', () => {

@@ -13,6 +13,7 @@ export interface BffConfig extends BffOptions {
   mountPath: string;
   maxBodyBytes: number;
   upstreamTimeoutMs: number;
+  upstreamIdleMs: number;
 }
 
 export const DEFAULT_COOKIE_NAME = '__Host-odudu';
@@ -26,6 +27,7 @@ const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_PROXY_PATH = '/proxy';
 const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 30_000;
+const DEFAULT_UPSTREAM_IDLE_MS = 30_000;
 
 // The options with their defaults applied, or a TypeError for one that would
 // weaken the cookie or leave the CSRF check with nothing to compare.
@@ -50,6 +52,10 @@ export function resolveConfig(options: BffOptions): BffConfig {
     upstreams: checkUpstreams(options.upstreams ?? []),
     proxyPath: checkProxyPath(options.proxyPath ?? `${mountPath}${DEFAULT_PROXY_PATH}`),
     maxBodyBytes: positiveInteger(options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES, 'maxBodyBytes'),
+    upstreamIdleMs: positiveInteger(
+      options.upstreamIdleMs ?? DEFAULT_UPSTREAM_IDLE_MS,
+      'upstreamIdleMs',
+    ),
     upstreamTimeoutMs: positiveInteger(
       options.upstreamTimeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS,
       'upstreamTimeoutMs',

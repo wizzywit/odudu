@@ -95,6 +95,10 @@ export interface BffOptions {
   // How long the proxy waits for an upstream to start answering; 30 seconds when
   // omitted.
   upstreamTimeoutMs?: number;
+  // How long a response body may go without a chunk once the upstream has
+  // started answering; the proxy then cuts the response off. 30 seconds when
+  // omitted.
+  upstreamIdleMs?: number;
   // Passed to the OIDC core: a fetch, a clock, `allowInsecureRequests`. The
   // proxy calls its upstreams with the same fetch.
   deps?: Deps;
