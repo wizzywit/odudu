@@ -23,13 +23,11 @@ export interface SingleFlightRules<T> {
 
 // Runs the operations of a chain one at a time. A chain starts at its first
 // caller's key and takes in each key a settled operation names through
-// `successorKeys`, so a caller holding a value an earlier operation produced
-// joins the same queue. A caller whose tag matches the last operation queued
-// shares its promise; any other caller queues behind the tail. It starts with
-// the latest value that settled well when the predecessor failed retryably,
-// and is rejected when the outcome of the predecessor is unknown. A chain is
-// dropped when its last operation settles, so the map is bounded by the
-// operations in flight.
+// `successorKeys`, so a caller holding a produced value joins the same queue.
+// A caller whose tag matches the last operation queued shares its promise; any
+// other queues behind the tail, starting from the latest good value after a
+// retryable failure and rejected after any other. A chain is dropped when its
+// last operation settles, so the map is bounded by the operations in flight.
 export class SingleFlight<T> {
   private readonly chains = new Map<string, Chain<T>>();
   private readonly rules: SingleFlightRules<T>;
