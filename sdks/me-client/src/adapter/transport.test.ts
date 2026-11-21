@@ -77,24 +77,55 @@ describe('the transport', () => {
   });
 });
 
+// A fetch that answers only when told to: with the next scripted response, or
+// never, until the request's own signal aborts it. No network, so what these
+// tests wait for is the timeout and nothing else.
+function scripted(script: ('hang' | Response)[]): {
+  fetch: (request: Request) => Promise<Response>;
+  calls: () => number;
+} {
+  let calls = 0;
+  return {
+    calls: () => calls,
+    fetch: (request) => {
+      const step = script[calls++] ?? 'hang';
+      if (step !== 'hang') return Promise.resolve(step);
+      return new Promise<Response>((_resolve, reject) => {
+        const fail = (): void => {
+          reject(request.signal.reason as Error);
+        };
+        if (request.signal.aborted) fail();
+        else request.signal.addEventListener('abort', fail, { once: true });
+      });
+    },
+  };
+}
+
+async function eventually(condition: () => boolean, deadlineMs = 5_000): Promise<void> {
+  const until = Date.now() + deadlineMs;
+  while (!condition() && Date.now() < until)
+    await new Promise((resolve) => setTimeout(resolve, 10));
+}
+
 describe('the per-attempt timeout', () => {
   const sleep = (): Promise<void> => Promise.resolve();
-  const sendTo = (origin: string, timeoutMs: number) =>
-    createTransport({ fetch: (request) => fetch(request), sleep, timeoutMs });
+  const timed = (fetcher: (request: Request) => Promise<Response>, timeoutMs: number) =>
+    createTransport({ fetch: fetcher, sleep, timeoutMs });
+  const get = (): Request => new Request('http://api.test/x');
 
   it('fails a call to a server that never answers with a RequestTimeoutError', async () => {
     const api = await startFakeApi(() => ({ status: 200, hang: true }));
     try {
-      const started = Date.now();
-      const failure = await sendTo(
-        api.origin,
-        80,
+      const failure = await timed(
+        (request) => fetch(request),
+        500,
       )(new Request(`${api.origin}/x`, { method: 'POST', body: '{}' })).catch(
         (error: unknown) => error,
       );
       expect(failure).toBeInstanceOf(RequestTimeoutError);
-      expect((failure as Error).message).toContain('80 ms');
-      expect(Date.now() - started).toBeLessThan(1500);
+      expect((failure as Error).message).toContain('500 ms');
+      // What the server saw is a separate question, asked after the fact.
+      await eventually(() => api.requests.length > 0);
       expect(api.requests).toHaveLength(1);
     } finally {
       await api.close();
@@ -102,51 +133,45 @@ describe('the per-attempt timeout', () => {
   });
 
   it('retries a GET whose first attempt timed out, and the repeat answers', async () => {
-    const api = await startFakeApi((_request, index) =>
-      index === 0 ? { status: 200, hang: true } : { status: 200, body: 'fast' },
-    );
-    try {
-      const response = await sendTo(api.origin, 80)(new Request(`${api.origin}/x`));
-      expect(await response.text()).toBe('fast');
-      expect(api.requests).toHaveLength(2);
-    } finally {
-      await api.close();
-    }
+    const { fetch: send, calls } = scripted(['hang', new Response('fast')]);
+    const response = await timed(send, 40)(get());
+    expect(await response.text()).toBe('fast');
+    expect(calls()).toBe(2);
   });
 
   it('stops after the bounded retries when every attempt times out', async () => {
-    const api = await startFakeApi(() => ({ status: 200, hang: true }));
-    try {
-      const failure = await sendTo(
-        api.origin,
-        50,
-      )(new Request(`${api.origin}/x`)).catch((error: unknown) => error);
-      expect(failure).toBeInstanceOf(RequestTimeoutError);
-      expect(api.requests).toHaveLength(3);
-    } finally {
-      await api.close();
-    }
+    const { fetch: send, calls } = scripted(['hang', 'hang', 'hang', 'hang']);
+    const failure = await timed(send, 30)(get()).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(RequestTimeoutError);
+    expect(calls()).toBe(3);
+  });
+
+  it('does not repeat a POST without a key', async () => {
+    const { fetch: send, calls } = scripted(['hang', new Response('late')]);
+    const failure = await timed(
+      send,
+      30,
+    )(new Request('http://api.test/x', { method: 'POST', body: '{}' })).catch(
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(RequestTimeoutError);
+    expect(calls()).toBe(1);
   });
 
   it('still lets the caller abort, and says nothing about a timeout then', async () => {
-    const api = await startFakeApi(() => ({ status: 200, hang: true }));
-    try {
-      const controller = new AbortController();
-      const pending = sendTo(
-        api.origin,
-        5_000,
-      )(new Request(`${api.origin}/x`, { signal: controller.signal })).catch(
-        (error: unknown) => error,
-      );
-      setTimeout(() => {
-        controller.abort();
-      }, 30);
-      const failure = await pending;
-      expect(failure).not.toBeInstanceOf(RequestTimeoutError);
-      expect((failure as Error).name).toBe('AbortError');
-      expect(api.requests).toHaveLength(1);
-    } finally {
-      await api.close();
-    }
+    const { fetch: send, calls } = scripted(['hang']);
+    const controller = new AbortController();
+    const pending = timed(
+      send,
+      60_000,
+    )(new Request('http://api.test/x', { signal: controller.signal })).catch(
+      (error: unknown) => error,
+    );
+    await eventually(() => calls() === 1);
+    controller.abort();
+    const failure = await pending;
+    expect(failure).not.toBeInstanceOf(RequestTimeoutError);
+    expect((failure as Error).name).toBe('AbortError');
+    expect(calls()).toBe(1);
   });
 });
