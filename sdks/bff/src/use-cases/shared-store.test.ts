@@ -22,7 +22,9 @@ const refreshRequests = (): number =>
 
 // What a database or cache shared by two servers would do: one record store,
 // and locks that a second taker waits for.
-function sharedStore(withLock: boolean): SessionStore & { held: number; taken: number } {
+function sharedStore(
+  withLock: boolean,
+): SessionStore & { held: number; taken: number; keys: string[] } {
   const records = createMemoryStore({ now: () => clock.now });
   const tails = new Map<string, Promise<void>>();
   const store = {
@@ -31,7 +33,9 @@ function sharedStore(withLock: boolean): SessionStore & { held: number; taken: n
     get: (id: string) => records.get(id),
     set: (...args: Parameters<SessionStore['set']>) => records.set(...args),
     delete: (id: string) => records.delete(id),
+    keys: [] as string[],
     async lock(id: string): Promise<() => Promise<void>> {
+      store.keys.push(id);
       const previous = tails.get(id) ?? Promise.resolve();
       let open: () => void = () => undefined;
       tails.set(
@@ -102,6 +106,14 @@ describe('two instances over one shared store', () => {
     expect(await Promise.all(responses.map((response) => response.json()))).toContainEqual({
       authenticated: false,
     });
+  });
+
+  it('lock a key of its own, never the session key', async () => {
+    const store = sharedStore(true);
+    const { cookie, first } = await twoInstances(store);
+    await first.session(sessionRequest(cookie));
+    expect(store.keys).toHaveLength(1);
+    expect(store.keys[0]).toMatch(/^lock:/u);
   });
 
   it('release the lock when the refresh fails', async () => {

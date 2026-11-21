@@ -4,7 +4,10 @@ import type { TokenSet } from '@odudu-io/oidc';
 export const REFRESH_SKEW_MS = 30_000;
 export const LOGIN_TTL_MS = 10 * 60 * 1000;
 // How long a store keeps the lock taken for one refresh if it is never released.
-export const REFRESH_LOCK_TTL_MS = 30_000;
+// A refresh makes at most two requests (the issuer's metadata, then the token
+// endpoint), each cut off after 30 s by the OIDC core, so it ends within 60 s;
+// the lock outlives that twice over.
+export const REFRESH_LOCK_TTL_MS = 120_000;
 
 // Another instance holds the session's refresh lock and the session still needs
 // the refresh it is making; nothing is wrong with the grant.
@@ -42,14 +45,19 @@ const TRANSIENT = new Set([
   'unrecognized_error',
 ]);
 
-// True only when the issuer says the refresh token is no longer good, so the
-// session cannot be renewed (RFC 10017 section 6.1.2.2). Every other failure,
+// True when the session cannot be renewed: the issuer says the refresh token is
+// no longer good (RFC 10017 section 6.1.2.2), or it answered with an ID token
+// for another subject, which means the token it rotated is spent and the issuer
+// is not to be believed. Every other failure,
 // including a refused client secret, is the BFF's or the network's trouble and
 // must not end a person's session. The core surfaces `invalid_grant` for a
 // revoked, expired or replayed refresh token; the server answers nothing else
 // for one.
 export function refreshWasRefused(error: unknown): boolean {
-  return error instanceof OduduError && error.code === 'invalid_grant';
+  return (
+    error instanceof OduduError &&
+    (error.code === 'invalid_grant' || error.code === 'invalid_id_token')
+  );
 }
 
 export function remainingTtlMs(createdAt: number, ttlMs: number, now: number): number {

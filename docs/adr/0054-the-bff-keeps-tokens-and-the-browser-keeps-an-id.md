@@ -51,7 +51,9 @@ answers are in `docs/protocols/rfc10017.md`.
   core shares one request per refresh token, and a per-session guard in the BFF
   re-reads the stored session inside it, so a read that began before an earlier
   refresh finished does not present the refresh token that refresh replaced.
-  Only `invalid_grant` ends the session: the cookie is cleared, the record is
+  Only `invalid_grant` and `invalid_id_token` (a refreshed ID token naming
+  another subject, which means the issuer rotated the token and cannot be
+  believed) end the session: the cookie is cleared, the record is
   deleted and the answer is `401`. Every other failure (a refused client
   secret, a malformed request, an unreachable issuer, a code nobody knows)
   keeps the session and answers `503` with `Retry-After`, so a rotated secret
@@ -158,7 +160,10 @@ server exists.
   implement the optional `lock(id, ttlMs)` of `SessionStore`: the BFF then takes
   the lock for a session before it refreshes it, reads the session again once it
   holds it, and uses the tokens another instance saved meanwhile instead of
-  spending the refresh token a second time. When the store gives no lock and
+  spending the refresh token a second time. The lock key is `lock:<session id>`
+  and it lapses after 120 s, twice the longest a refresh can take (two requests
+  of 30 s each at most); the release function must release only the holder's
+  own lock, for instance by comparing a random value stored with it. When the store gives no lock and
   the session still needs a refresh, the read answers `503` and the session is
   kept. Without `lock`, two instances over one shared store can each refresh
   once; the issuer's reuse detection then refuses the second and revokes the

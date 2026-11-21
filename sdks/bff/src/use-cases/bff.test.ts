@@ -410,16 +410,20 @@ describe('refresh failures', () => {
     expect(fake.tokenRequests).toHaveLength(requests);
   });
 
-  it('never adopts the subject a refresh response names when it is another one', async () => {
+  it('ends the session at once when a refresh returns another subject', async () => {
     const bff = makeBff(fake, clock);
     const { cookie } = await signIn(bff, fake);
     clock.now += 890_000;
     fake.claims = { ...fake.claims, sub: 'someone-else' };
     const swapped = await bff.session(sessionRequest(cookie));
-    expect(swapped.status).toBe(503);
+    expect(swapped.status).toBe(401);
+    expect(JSON.stringify(await swapped.text())).not.toContain('someone-else');
     fake.claims = { ...fake.claims, sub: 'subject-1' };
     const after = await bff.session(sessionRequest(cookie));
-    expect(JSON.stringify(await after.json())).not.toContain('someone-else');
+    expect(await after.json()).toEqual({ authenticated: false });
+    expect(fake.tokenRequests.filter((f) => f.get('grant_type') === 'refresh_token')).toHaveLength(
+      1,
+    );
   });
 
   it('keeps the session when the client secret is refused (invalid_client)', async () => {

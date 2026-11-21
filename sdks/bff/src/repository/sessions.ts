@@ -1,4 +1,4 @@
-import { loginKey, sessionKey } from '#/services/session-id';
+import { lockKey, loginKey, sessionKey } from '#/services/session-id';
 import { LOGIN_TTL_MS, REFRESH_LOCK_TTL_MS } from '#/services/session-policy';
 import type { LoginInProgress, SessionStore, SignedInSession } from '#/types';
 
@@ -35,7 +35,7 @@ export function createSessions(
     dropSession: (id) => stores.sessions.delete(sessionKey(id)),
     async lockSession(id) {
       if (stores.sessions.lock === undefined) return NO_LOCK;
-      const release = await stores.sessions.lock(sessionKey(id), REFRESH_LOCK_TTL_MS);
+      const release = await stores.sessions.lock(lockKey(id), REFRESH_LOCK_TTL_MS);
       // A lock that cannot be released lapses with its TTL.
       return release === undefined ? undefined : () => release().catch(() => undefined);
     },

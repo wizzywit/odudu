@@ -22,3 +22,4 @@ export function isSessionId(value: string | undefined): value is string {
 
 export const sessionKey = (id: string): string => `session:${id}`;
 export const loginKey = (id: string): string => `login:${id}`;
+export const lockKey = (id: string): string => `lock:${id}`;
