@@ -257,6 +257,10 @@ until a release has used it, and the two that the pages leave open are marked.
    SDK, with the published `^0.1.0` ranges, commit the lockfiles, and re-check
    Dependabot: its pull requests for those folders fail to resolve `@odudu-io/*`
    until the packages exist.
+8. **After the first publish of all SDKs: the documentation.** In
+   `apps/docs/content/en/sdks/index.md`, remove the paragraph that says the
+   first release has not been published, and add the npm and PyPI version
+   badges to `README.md` (see the SDK plan's follow-up) in the same change.
 
 ## Owner settings
 

@@ -91,7 +91,7 @@ The page calls `<baseUrl>/session` and `<baseUrl>/logout`, and `signIn()` naviga
 
 ### `signIn(choices?)`
 
-In `browser` mode `signIn` accepts `resource` (a list of APIs), `meAccess` (`'read'` or `'write'`), and either `prompt: 'create'` or an `action`, as `beginSignIn` of [`@odudu-io/oidc`](./oidc.md) does. In `bff` mode every sign-in starts at `<baseUrl>/login` and `signIn` with any choice throws an `OduduError` with `invalid_options`: configure the BFF instead.
+In `browser` mode `signIn` accepts `resource` (a list of APIs), `meAccess` (`'read'` or `'write'`; the client must hold the scope `me:read`, and `me:write` to write), and either `prompt: 'create'` or an `action`, as `beginSignIn` of [`@odudu-io/oidc`](./oidc.md) does. In `bff` mode every sign-in starts at `<baseUrl>/login` and `signIn` with any choice throws an `OduduError` with `invalid_options`: configure the BFF instead.
 
 ### `useBffFetch`
 
@@ -101,16 +101,16 @@ The `path` is `<upstream name>/<path>`, the upstream being one the BFF's `upstre
 
 `useAuth().error` is an `OduduError` from [`@odudu-io/oidc`](./oidc.md), or `undefined`. It says why the last session check, sign-in, refresh or sign-out did not work. While it is set `<SignedOut>` renders nothing, so a failed check is never read as a person to sign in again. A clean signed-out is a `401` from the BFF's session route, or a `200` answer with `authenticated: false`.
 
-| Code                   | When                                                                                                                                                  |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `invalid_options`      | A hook is used outside an `<OduduProvider>`, `useAccessToken` in `bff` mode, `useBffFetch` in `browser` mode, or `signIn` with choices in `bff` mode. |
-| `login_required`       | `useAccessToken` was called with nobody signed in.                                                                                                    |
-| `audience_not_granted` | The sign-in carries no access token for the audience asked for. Call `signIn({ resource: [...] })` to ask for it.                                     |
-| `invalid_state`        | The redirect answers a sign-in that is gone from this browser tab.                                                                                    |
-| `request_failed`       | The BFF answered the sign-out or the session check with a status the package does not expect.                                                         |
-| `invalid_request`      | An address to navigate to was not an http or https address, so it was not followed.                                                                   |
+| Code                   | When                                                                                                                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invalid_options`      | A hook is used outside an `<OduduProvider>`, `useAccessToken` in `bff` mode, `useBffFetch` in `browser` mode, `signIn` with choices in `bff` mode, or `useAccessToken` needing a refresh when there is no refresh token (the person is not signed out). |
+| `login_required`       | `useAccessToken` was called with nobody signed in.                                                                                                                                                                                                      |
+| `audience_not_granted` | The sign-in carries no access token for the audience asked for. Call `signIn({ resource: [...] })` to ask for it.                                                                                                                                       |
+| `invalid_state`        | The redirect answers a sign-in that is gone from this browser tab.                                                                                                                                                                                      |
+| `request_failed`       | The BFF answered the sign-out or the session check with a status the package does not expect, or a request could not be completed at all, a network failure among them.                                                                                 |
+| `invalid_request`      | An address to navigate to was not an http or https address, so it was not followed.                                                                                                                                                                     |
 
-A sign-in the issuer refused or an ID token that failed its checks reports the codes of [`@odudu-io/oidc`](./oidc.md#errors).
+A refresh the issuer refuses with `invalid_grant` signs the person out. A sign-in the issuer refused or an ID token that failed its checks reports the codes of [`@odudu-io/oidc`](./oidc.md#errors).
 
 ## Security notes
 

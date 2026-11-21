@@ -14,7 +14,7 @@ This package calls the admin API of one tenant from code. Its paths and types ar
 npm install @odudu-io/admin-client
 ```
 
-It needs Node 24 or later and depends on `openapi-fetch`. To get a token as a service, use the token source of [`@odudu-io/oidc`](./oidc.md).
+It needs Node 24 or later and depends on `openapi-fetch`. To get a token as a service, use the token source of [`@odudu-io/oidc`](./oidc.md), which the example below imports: install it too.
 
 ## The shortest use
 
@@ -58,12 +58,12 @@ The block is illustrative. The example it comes from is run by the repository's 
 
 ## What it exports
 
-| Export                              | What it does                                                                                                                        |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `createAdminClient(options)`        | Returns an object with `GET`, `POST`, `PUT`, `PATCH` and `DELETE`. Each takes a path from the document, written without the tenant. |
-| `iterate(listCall, options?)`       | An async generator that walks a list by cursor, one request per page.                                                               |
-| `ProblemError`                      | The error every response that is not a success becomes.                                                                             |
-| `paths`, `operations`, `components` | The generated types of the document. `ProblemDetails` and `FieldError` are exported types.                                          |
+| Export                              | What it does                                                                                                                                                     |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createAdminClient(options)`        | Returns an object with `GET`, `POST`, `PUT`, `PATCH` and `DELETE`. Each takes a path as the document writes it, with `{tenant}`; the client fills the tenant in. |
+| `iterate(listCall, options?)`       | An async generator that walks a list by cursor, one request per page.                                                                                            |
+| `ProblemError`                      | The error every response that is not a success becomes.                                                                                                          |
+| `paths`, `operations`, `components` | The generated types of the document. `ProblemDetails` and `FieldError` are exported types.                                                                       |
 
 A call resolves with the success response (`{ data, response }`) and rejects with a `ProblemError` for any other. Reference pages for every route are in [the admin API reference](../reference/generated/admin-api/index.md).
 
@@ -71,14 +71,14 @@ A call resolves with the success response (`{ data, response }`) and rejects wit
 
 ### `createAdminClient`
 
-| Option      | Required | What it does                                                                                                                                                                                                    |
-| ----------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `baseUrl`   | yes      | The origin and base path of the server, such as `https://id.example.com`. An absolute http or https URL.                                                                                                        |
-| `tenant`    | yes      | The tenant every call is made in. A path never repeats it.                                                                                                                                                      |
-| `token`     | yes      | An access token, or a function that returns one. The function is called for every request.                                                                                                                      |
-| `fetch`     | no       | The function every request goes through.                                                                                                                                                                        |
-| `timeoutMs` | no       | The longest one attempt may take, in milliseconds: a finite number above zero, `30000` when omitted. A timed-out attempt is retried like a network error, and the call then fails with a `RequestTimeoutError`. |
-| `sleep`     | no       | Waits between retries; replaced in tests.                                                                                                                                                                       |
+| Option      | Required | What it does                                                                                                                                                                                                                   |
+| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `baseUrl`   | yes      | The origin and base path of the server, such as `https://id.example.com`. An absolute http or https URL. Use https: an `http` base URL sends the token in the clear.                                                           |
+| `tenant`    | yes      | The tenant every call is made in. A path never repeats it.                                                                                                                                                                     |
+| `token`     | yes      | An access token, or a function that returns a promise of one (`() => Promise<string>`). The function is called for every request.                                                                                              |
+| `fetch`     | no       | The function every request goes through.                                                                                                                                                                                       |
+| `timeoutMs` | no       | The longest one attempt may wait for the answer, in milliseconds: a finite number above zero, `30000` when omitted. A timed-out attempt is retried like a network error, and the call then fails with a `RequestTimeoutError`. |
+| `sleep`     | no       | Waits between retries; replaced in tests.                                                                                                                                                                                      |
 
 ### `iterate`
 

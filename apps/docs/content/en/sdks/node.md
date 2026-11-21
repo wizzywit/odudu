@@ -65,7 +65,7 @@ app.get('/reports', requireToken(verifier, { scope: 'reports:read' }), (req, res
 });
 ```
 
-These blocks are illustrative. The first one is run by the repository's CI as the API example.
+These blocks are illustrative. The first is the API example, which the repository's CI runs; the Express block is written for this page and no example uses it.
 
 ## What it exports
 
@@ -97,7 +97,7 @@ A `VerifiedToken` is `{ sub, clientId, scope, audience, claims }`: the subject, 
 
 ### The middleware
 
-`requireToken`, `app.requireToken` and `withToken` take `scope`, a scope the route needs; without it the route answers `403`. `withToken` also takes `onError`, told of an error that is not a refusal so you can log it; the caller gets a bare `500`. A `scope` or `requiredScope` that is not one RFC 6749 scope token (empty, or with a space, a quote, a backslash or a line break) throws a `TypeError` when the middleware or verifier is made.
+`requireToken`, `app.requireToken` and `withToken` take `scope`, a scope the route needs. A token that lacks it gets `403`. `withToken` also takes `onError`, told of an error that is not a refusal so you can log it; the caller gets a bare `500`. A `scope` or `requiredScope` that is not one RFC 6749 scope token (empty, or with a space, a quote, a backslash or a line break) throws a `TypeError` when the middleware or verifier is made.
 
 ## Errors
 

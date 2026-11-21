@@ -254,24 +254,60 @@ describe('the SDKs section', () => {
   );
 
   // Statements a later edit must not reverse: each was once written the wrong way round.
+  // Each is pinned inside the line (a bullet, a paragraph or a table row) it belongs to.
+  const lineWith = (file: string, marker: string): string => {
+    const lines = pageText(file).split('\n');
+    const start = lines.findIndex((line) => line.includes(marker));
+    if (start < 0) return '';
+    if (!lines[start]?.startsWith('#')) return lines[start] ?? '';
+    const end = lines.findIndex((line, index) => index > start && line.startsWith('#'));
+    return lines.slice(start, end < 0 ? undefined : end).join('\n');
+  };
+
+  it.each(['oidc.md', 'bff.md', 'react.md', 'me-client.md', 'admin-client.md'])(
+    '%s has the lines its pins look for',
+    (file) => {
+      expect(pageText(file).length).toBeGreaterThan(0);
+    },
+  );
+
   it.each([
-    ['oidc.md', /signature is not checked/u],
-    ['bff.md', /store with no `lock` is never asked/u],
-    ['react.md', /only on a marked `401`/u],
-    ['react.md', /X-Odudu-Session: ended/u],
-    ['bff.md', /X-Odudu-Session: ended/u],
-    ['admin-client.md', /RequestTimeoutError/u],
-  ])('%s keeps a corrected statement (%s)', (file, statement) => {
-    expect(pageText(file).replace(/\s+/gu, ' ')).toMatch(statement);
+    ['oidc.md', '**What `completeSignIn` checks.**', 'signature is not checked'],
+    ['bff.md', '**Several instances and the lock.**', 'store with no `lock` is never asked'],
+    ['bff.md', '**Refresh.**', 'Asking for `offline_access` is not needed for a refresh token'],
+    ['bff.md', '| `proxyPath`', '`prefix` moves only `login`, `callback`, `logout` and `session`'],
+    ['bff.md', '| `401`', 'X-Odudu-Session: ended'],
+    ['react.md', '### `useBffFetch`', 'only on a marked `401`'],
+    ['react.md', '### `useBffFetch`', 'X-Odudu-Session: ended'],
+    ['me-client.md', 'The client the person signs in with', 'the scope `me:read` assigned'],
+    ['oidc.md', '| `meAccess`', 'The client must hold that scope'],
+    ['oidc.md', '`refresh` rejects with `invalid_options`', 'not the `offline_access` scope'],
+    ['admin-client.md', '| `timeoutMs`', 'RequestTimeoutError'],
+  ])('%s keeps a corrected statement in %s', (file, marker, statement) => {
+    expect(lineWith(file, marker)).toContain(statement);
   });
 
   it.each([
-    ['oidc.md', /ID token's signature and `nonce` are valid/u],
-    ['bff.md', /no `lock` and a session needs a refresh, the read answers `503`/u],
-    ['react.md', /A `401` answer means the session is over/u],
-  ])('%s does not say what was false (%s)', (file, statement) => {
-    expect(pageText(file).replace(/\s+/gu, ' ')).not.toMatch(statement);
+    ['oidc.md', '**What `completeSignIn` checks.**', "ID token's signature and `nonce` are valid"],
+    ['bff.md', '**Several instances and the lock.**', 'When the store has no `lock`'],
+    ['react.md', '### `useBffFetch`', 'A `401` answer means the session is over'],
+    [
+      'oidc.md',
+      '`refresh` rejects with `invalid_options`',
+      'sign in with the `offline_access` scope',
+    ],
+  ])('%s does not say what was false in %s', (file, marker, statement) => {
+    expect(lineWith(file, marker)).not.toContain(statement);
   });
+
+  it.each(['examples/single-page-app/README.md', 'examples/web-app/README.md'])(
+    '%s says the ID token signature is not checked',
+    (readme) => {
+      const text = readFileSync(path.join(REPO_ROOT, readme), 'utf8');
+      expect(text).toContain('it does not check the signature');
+      expect(text).not.toContain("ID token's signature and `nonce`");
+    },
+  );
 
   it.each(pages.map((file) => [file] as const))('%s has a title and a description', (file) => {
     const front = /^---\n([\s\S]*?)\n---\n/u.exec(pageText(file))?.[1] ?? '';

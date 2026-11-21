@@ -105,17 +105,17 @@ The last argument of most functions. Every member has a default that works in a 
 
 ### `SignInOptions`, for `beginSignIn`
 
-| Option        | Required | What it does                                                                                                                  |
-| ------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `issuer`      | yes      | The tenant's issuer, such as `https://id.example.com/tenants/acme`.                                                           |
-| `clientId`    | yes      | The client's ID.                                                                                                              |
-| `redirectUri` | yes      | Where Odudu sends the person back to. `completeSignIn` refuses an answer that did not arrive there.                           |
-| `scope`       | yes      | The scopes to ask for, separated by spaces.                                                                                   |
-| `resource`    | no       | The APIs the access token is for (RFC 8707), as a list.                                                                       |
-| `meAccess`    | no       | `'read'` or `'write'`. Adds the account API's audience and the scope `me:read` or `me:write`.                                 |
-| `idTokenAlg`  | no       | `'RS256'` (the default) or `'ES256'`: the algorithm the client is registered for ID tokens.                                   |
-| `prompt`      | no       | `'create'` starts at the registration page.                                                                                   |
-| `action`      | no       | Starts at a credential change: `'update-password'`, `'configure-totp'`, `'configure-passkey'` or `'generate-recovery-codes'`. |
+| Option        | Required | What it does                                                                                                                   |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `issuer`      | yes      | The tenant's issuer, such as `https://id.example.com/tenants/acme`.                                                            |
+| `clientId`    | yes      | The client's ID.                                                                                                               |
+| `redirectUri` | yes      | Where Odudu sends the person back to. `completeSignIn` refuses an answer that did not arrive there.                            |
+| `scope`       | yes      | The scopes to ask for, separated by spaces. `openid` is always added.                                                          |
+| `resource`    | no       | The APIs the access token is for (RFC 8707), as a list.                                                                        |
+| `meAccess`    | no       | `'read'` or `'write'`. Adds the account API's audience and the scope `me:read` or `me:write`. The client must hold that scope. |
+| `idTokenAlg`  | no       | `'RS256'` (the default) or `'ES256'`: the algorithm the client is registered for ID tokens.                                    |
+| `prompt`      | no       | `'create'` starts at the registration page.                                                                                    |
+| `action`      | no       | Starts at a credential change: `'update-password'`, `'configure-totp'`, `'configure-passkey'` or `'generate-recovery-codes'`.  |
 
 `prompt` and `action` are exclusive: giving both rejects with `invalid_options`.
 
@@ -144,7 +144,7 @@ The last argument of most functions. Every member has a default that works in a 
 
 Without `resource`, the audiences the new access token names are renewed and the others are removed, so a later request for one rejects with `audience_not_granted`. That is best effort: an access token is opaque to a client, and one that is opaque or unreadable renews every audience.
 
-`refresh` rejects with `invalid_options` when the `TokenSet` holds no refresh token (the message says to sign in with the `offline_access` scope). A refresh response without `expires_in` is read as living 60 seconds, where `completeSignIn` refuses such a response with `request_failed`, because refusing it would throw away the rotated refresh token the response carries.
+`refresh` rejects with `invalid_options` when the `TokenSet` holds no refresh token (the message says Odudu issues a refresh token to a client that has the `refresh_token` grant; the grant decides, not the `offline_access` scope). A refresh response without `expires_in` is read as living 60 seconds, where `completeSignIn` refuses such a response with `request_failed`, because refusing it would throw away the rotated refresh token the response carries.
 
 ### `AudienceRequest`, for `requestAudience`
 

@@ -21,4 +21,4 @@ Open `http://localhost:8083` and sign in as `ada`, whose password is `a long and
 
 ## What is only for the example
 
-The sessions live in the memory of one process, so several server processes need a `store` of their own. The server listens on plain http and lets the SDK reach an http issuer, which a production server never does. The session cookie is `Secure`, which Chrome accepts on `localhost` and Safari does not.
+The sessions live in the memory of one process, so several server processes need a `store` of their own. The server listens on plain http and lets the SDK reach an http issuer, which a production server never does. The session cookie is `Secure`, which Chrome accepts on `localhost` and Safari may not.

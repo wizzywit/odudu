@@ -81,7 +81,7 @@ These blocks are illustrative: the example they come from is run by the reposito
 
 ### `createOduduHandlers`
 
-It takes every option of [`@odudu-io/bff`](./bff.md#options) and one more.
+It takes every option of [`@odudu-io/bff`](./bff.md#options). `mountPath` defaults to `/api/auth` and must be where the catch-all route is mounted.
 
 | Option      | Default     | What it does                                                                                                                                                                         |
 | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -109,9 +109,10 @@ An app with a `basePath` is untested and not supported yet.
 
 - **Where tokens live.** In the session store on the server. The cookie holds an opaque id, `getSession()` returns claims and never a token, and the session answer holds no token. The cookie and CSRF rules are those of [`@odudu-io/bff`](./bff.md#security-notes).
 - **`getSession()` only reads.** It never refreshes, deletes or writes, so it is safe where a response can no longer set a cookie. A single Next process has several module graphs, each with its own refresh guard, so a refresh from a render could spend a rotating refresh token twice and end the session. Refreshing stays with the route handlers and the proxy. A session whose access token is stale is still returned; the route handlers renew it.
+- **Sessions end with the access token** unless the client has the `refresh_token` grant, as under [the BFF's refresh](./bff.md#security-notes).
 - **`withAuth` is a gate and not authorization.** Without a `store` it sees only that a cookie shaped like a session id is there, and anyone can send one. Authorize with `getSession()` in the server component or handler. An app with private data must check it there.
-- **The default store.** Without a `store`, sessions live in one per-process registry on `globalThis`, because a Next build gives each route and page its own copy of a module. It is lost on restart and is not shared across processes or serverless instances. The package emits one warning per production process with the code `ODUDU_NEXT_DEFAULT_STORE`. An app that runs more than one process passes its own `store`, as described under [the BFF's store](./bff.md#security-notes), and passes the same store to `withAuth`, because the default one is not visible from `proxy.ts`.
-- **`returnTo`.** The login route takes a `returnTo` path and sends the person there after the sign-in. Only a path that starts with one slash qualifies: a scheme, a host, `//host`, a backslash, an escaped slash and a path under the BFF's own routes are refused. It travels in a cookie that is checked again when read.
+- **The default store.** Without a `store`, sessions live in one per-process registry on `globalThis`, because a Next build gives each route and page its own copy of a module. It is lost on restart and is not shared across processes or serverless instances. The package emits one warning per production process with the code `ODUDU_NEXT_DEFAULT_STORE`. An app that runs more than one process passes its own `store`, as described under [the BFF's store](./bff.md#security-notes), and passes the same store to `withAuth`, because Next's documentation says `proxy.ts` should not rely on shared modules or globals, so it cannot assume it sees the default store.
+- **`returnTo`.** The login route takes a `returnTo` path and sends the person there after the sign-in. Only a path that starts with one slash qualifies: a scheme, a host, `//host`, a backslash, an escaped slash and a path under the BFF's own routes are refused. A target over 2,048 characters, or with a space or a non-ASCII character, is refused too. It travels in a cookie named `<cookieName>-return`, with a `Max-Age` of 600 seconds and the same attributes as the session cookie, and it is checked again when read.
 
 ## Not in this package
 

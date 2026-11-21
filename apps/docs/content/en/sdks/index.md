@@ -36,7 +36,7 @@ The TypeScript packages need Node 24 or later. The Python package needs Python 3
 | A React app with a server that can keep the tokens            | [`@odudu-io/react`](./react.md) with [`@odudu-io/bff`](./bff.md). The browser never holds a token.          |
 | A Next.js app                                                 | [`@odudu-io/next`](./next.md).                                                                              |
 | An API in Node that receives access tokens                    | [`@odudu-io/node`](./node.md).                                                                              |
-| An API in Python that receives access tokens                  | [`odudu`](./python.md) with the `verify` extra, and `fastapi` or `flask` for the helpers.                   |
+| An API in Python that receives access tokens                  | [`odudu`](./python.md) with the `fastapi` or `flask` extra, each of which includes `verify`.                |
 | A service or a job that calls an API as itself                | [`@odudu-io/oidc`](./oidc.md): its token source keeps a token and renews it.                                |
 | A script or service that manages clients, users or settings   | [`@odudu-io/admin-client`](./admin-client.md), or [`odudu`](./python.md).                                   |
 | A tool that reads or changes a person's own account           | [`@odudu-io/me-client`](./me-client.md), or [`odudu`](./python.md).                                         |
@@ -46,13 +46,13 @@ If your app sits behind a server you control, prefer a backend for frontend to t
 
 ## What the code blocks on these pages are
 
-A block tagged as TypeScript, Python or `text` is shown and not run by the documentation's own checks, because the packages cannot be installed from a registry until they are published. Each is taken from the source of an example in the repository, which the repository's CI does run against a live stack. The documentation's tests check that every name a block imports from an SDK is exported by that package, that every package has a page, that this table names each package's version, and that each page links an example folder that exists.
+A block tagged as TypeScript, Python or `text` is shown and not run by the documentation's own checks, because the packages cannot be installed from a registry until they are published. Most are taken from the source of an example in the repository, which the repository's CI does run against a live stack; `node.md` and `me-client.md` say where a block is not. The documentation's tests check that every name a block imports from an SDK is exported by that package, that every package has a page, that this table names each package's version, and that each page links an example folder that exists.
 
 The commands in the [guides](../guides/index.md) are the ones that run against the quick start stack.
 
 ## Licence
 
-The SDKs are licensed under Apache-2.0, and each package carries its own `LICENSE`. The server, the console, the gateway and the command line are licensed under AGPL-3.0. The directory a file lives in decides which licence covers it: `sdks/*` and `examples/*` are Apache-2.0. An application that only talks to Odudu over OpenID Connect, OAuth 2.0 or the admin API is not a derivative work of Odudu, whatever its own licence is, so a closed-source application may use the SDKs. [`LICENSING.md`](https://github.com/wizzywit/odudu/blob/main/LICENSING.md) has the table, and [ADR 0053](https://github.com/wizzywit/odudu/blob/main/docs/adr/0053-sdks-live-in-sdks-and-are-apache.md) records why the SDKs live in `sdks/` and are Apache-2.0 while the server is AGPL.
+The SDKs are licensed under Apache-2.0, and each package carries its own `LICENSE`. The server, the console, the gateway and the command line are licensed under AGPL-3.0. The directory a file lives in decides which licence covers it: `sdks/*` and `examples/*` are Apache-2.0. `LICENSING.md` says an application that only talks to Odudu over OpenID Connect, OAuth 2.0 or the admin API is not a derivative work of Odudu, whatever its own licence is, and ADR 0053 gives the SDKs Apache-2.0 so that a closed-source application may use them. [`LICENSING.md`](https://github.com/wizzywit/odudu/blob/main/LICENSING.md) has the table, and [ADR 0053](https://github.com/wizzywit/odudu/blob/main/docs/adr/0053-sdks-live-in-sdks-and-are-apache.md) records why the SDKs live in `sdks/` and are Apache-2.0 while the server is AGPL.
 
 ## Where the code is
 

@@ -14,11 +14,11 @@ This package calls the me API: the operations a signed-in person makes about the
 npm install @odudu-io/me-client
 ```
 
-It needs Node 24 or later and depends on `openapi-fetch`. The token for it comes from a person's sign-in with [`@odudu-io/oidc`](./oidc.md).
+It needs Node 24 or later and depends on `openapi-fetch`. The token for it comes from a person's sign-in with [`@odudu-io/oidc`](./oidc.md), which the example below imports: install it too.
 
 ## The shortest use
 
-This is the second half of [the admin example](https://github.com/wizzywit/odudu/tree/main/examples/admin). A person signs in at a loopback address, as a command-line tool does, and the script reads their profile. The sign-in asks for the person's own account with `meAccess: 'read'`, and the access token for it is filed under the me audience, the issuer's address plus `/me`. The client the person signs in with must be registered with that audience (`odudu seed client --audience <issuer>/me`).
+This is the second half of [the admin example](https://github.com/wizzywit/odudu/tree/main/examples/admin). A person signs in at a loopback address, as a command-line tool does, and the script reads their profile. The sign-in asks for the person's own account with `meAccess: 'read'`, and the access token for it is filed under the me audience, the issuer's address plus `/me`. The client the person signs in with must be registered with that audience (`odudu seed client --audience <issuer>/me`). It also needs the scope `me:read` assigned, and `me:write` to write. An administrator assigns it, and `odudu seed client --allow-action <action>` assigns `me:read` as well (the example's `provision.sh` relies on that).
 
 ```ts
 import { createMeClient } from '@odudu-io/me-client';
@@ -49,16 +49,16 @@ const profile = await me.GET('/tenants/{tenant}/me/profile');
 console.log(`profile: ${profile.data.username}`);
 ```
 
-The block is illustrative. The example it comes from is run by the repository's CI, which signs the person in with a browser.
+The block is illustrative. It follows the example, which the repository's CI runs by signing the person in with a browser, but `waitForCallback` stands in for the example's loopback listener.
 
 ## What it exports
 
-| Export                              | What it does                                                                                                                |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `createMeClient(options)`           | Returns an object with `GET`, `POST`, `PUT`, `PATCH` and `DELETE`. Each takes a path from the document, without the tenant. |
-| `iterate(listCall, options?)`       | An async generator that walks a list by cursor. It reads `next_cursor`, which is what the me API calls it.                  |
-| `ProblemError`                      | The error every response that is not a success becomes.                                                                     |
-| `paths`, `operations`, `components` | The generated types of the document. `MeError` and `FieldError` are exported types.                                         |
+| Export                              | What it does                                                                                                                                                     |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createMeClient(options)`           | Returns an object with `GET`, `POST`, `PUT`, `PATCH` and `DELETE`. Each takes a path as the document writes it, with `{tenant}`; the client fills the tenant in. |
+| `iterate(listCall, options?)`       | An async generator that walks a list by cursor. It reads `next_cursor`, which is what the me API calls it.                                                       |
+| `ProblemError`                      | The error every response that is not a success becomes.                                                                                                          |
+| `paths`, `operations`, `components` | The generated types of the document. `MeError` and `FieldError` are exported types.                                                                              |
 
 The routes are profile, credentials, sessions and consents, listed in [the me API reference](../reference/generated/me-api/index.md).
 
@@ -66,7 +66,7 @@ The routes are profile, credentials, sessions and consents, listed in [the me AP
 
 The options of `createMeClient` and `iterate` are those of [`@odudu-io/admin-client`](./admin-client.md#options): `baseUrl`, `tenant`, `token` (a string, or a function that returns one and is called for every request), `fetch`, `timeoutMs` and `sleep`, and for `iterate` `pageLimit` and `maxItems`.
 
-The `token` is an access token whose audience is the tenant's `/me` URL, with the scope the operation names. A token for another audience is refused with `401`, and one without the scope with `403`.
+Use https: an `http` base URL sends the token in the clear. The `token` is an access token whose audience is the tenant's `/me` URL, with the scope the operation names. A token for another audience is refused with `401`, and one without the scope with `403`.
 
 ## Errors
 
