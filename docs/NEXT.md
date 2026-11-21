@@ -2,7 +2,7 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d, P4e, P4f, P4j, P4k and P5a are complete, and the
+**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d, P4e, P4f, P4i, P4j, P4k and P5a are complete, and the
 tenant rename is done. P4g has closed, and `0.1.0` is released.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
 "P4 became four phases, then five" subsection has the reasoning.
@@ -49,11 +49,15 @@ between them is safe in both directions. What it found, what proves the domain
 path and what it left is in [`docs/phases/p4j.md`](phases/p4j.md); the argument
 is [ADR 0049](adr/0049-a-tenant-has-one-canonical-address.md).
 
-**What is next, in this order: P4h, P4i, P5, P5b**, then the
+**P4i, the SDKs, is built:** eight npm packages, a Python package, the "me"
+API's OpenAPI document and nine examples, none published yet (the owner's
+checklist is in `RELEASING.md`). What it found and placed is in
+[`docs/phases/p4i.md`](phases/p4i.md); the licence rule is ADR 0053.
+
+**What is next, in this order: P4h, P5, P5b**, then the
 phases the roadmap page lists as "Later", P6 to P14. The letters do not read
 in execution order. P4h is
-console localization ([ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md));
-P4i the SDKs.
+console localization ([ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md)).
 
 **`gate` is required on `main`**, beside `verify`, `container`,
 `commit-messages` and `query-plans`. It covers every job, `e2e` and
@@ -79,6 +83,7 @@ open.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P4i — the SDKs](phases/p4i.md)
 - [P4f — self-service: the "me" API and application-initiated actions](phases/p4f.md)
 - [P5a — the MCP server, first release](phases/p5a.md)
 - [P4j — a custom domain for each tenant](phases/p4j.md)
@@ -269,8 +274,8 @@ that should hold it, which is usually false.
 | The domain verification throttle and the check endpoint's limiter are per process, no global cap bounds the DNS lookups a verification makes across tenants, and a verification holds its transaction across the lookup (5 s timeout, ten a minute per tenant)                                                                                                                                                                                                                                                                                                                                                                    | [`phases/p4j.md`](phases/p4j.md), "Left, and where it went"                                                       | **P11**, many instances, with the other in-process bounds                                                      |
 | The edge reads the tenant's address once per request on a non-base host and on a path address, and the admin API one tenant-scoped read per request for a tenant other than `system`, with no host-to-tenant cache; a cache has to state its bound and be invalidated on a switch, and would blur "refused at its expiry"                                                                                                                                                                                                                                                                                                         | [ADR 0049](adr/0049-a-tenant-has-one-canonical-address.md), "Consequences"                                        | **P11**, when a measurement of the p99 asks for it                                                             |
 | The MCP endpoint's request limits, the `mcp` registration budget, the metadata fetch limiter and the keyed-request gate are per process, and a request with a garbage token costs a key read before it is refused                                                                                                                                                                                                                                                                                                                                                                                                                 | [p5a.md](phases/p5a.md), "The MCP endpoint", "Not done, and where it goes"                                        | **P11**, with the other in-process bounds                                                                      |
-| `odudu mcp` runs only from the container image or a checkout, so an AI tool on a machine with neither cannot install it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | [p5a.md](phases/p5a.md), "What the phase leaves"                                                                  | **P4i**, which publishes packages versioned apart from the server                                              |
-| The admin API's OpenAPI document grew from about 700 to 800 KB with `Idempotency-Key`, each `POST` inlining its problem schema once per status; shared components would shrink it                                                                                                                                                                                                                                                                                                                                                                                                                                                 | [p5a.md](phases/p5a.md), "What the phase leaves"                                                                  | **P4i**, which generates a typed client from that document                                                     |
+| The backend-for-frontend package ships only an in-memory session store, so several instances of an app need a `SessionStore` of their own, with `lock` to keep a refresh from spending a refresh token twice                                                                                                                                                                                                                                                                                                                                                                                                                      | [ADR 0054](adr/0054-the-bff-keeps-tokens-and-the-browser-keeps-an-id.md), "Consequences"                          | **P14**, when an adopter runs the package on more than one instance and asks for a shared store                |
+| The backend-for-frontend proxy bounds the wait for an upstream's headers and the size of a body, not the gap between chunks after the headers, and a browser that leaves during the header wait does not cancel the upstream request                                                                                                                                                                                                                                                                                                                                                                                              | [p4i.md](phases/p4i.md), "Closing pass"                                                                           | **P11**, with the other deadlines and bounds on a wait                                                         |
 
 ### Argued here, because there is nowhere else
 

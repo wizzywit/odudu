@@ -1007,3 +1007,97 @@ whole route registry in the first load. The budget is raised to 186 KB
 (190,464 bytes), by decision and with this cause, as the 184 and 185 KB steps
 were. The slack is 602 bytes, enough for the three pages still to come in this
 phase; the next page beyond that needs the same decision, or fewer pages.
+
+## Closing pass
+
+The six checks of `CLAUDE.md`, run in order on 2026-11-21 against the branch
+as it stood after the closing increment.
+
+### 1. The roadmap's gaps
+
+`apps/docs/content/en/roadmap.md` has no section called "What is not
+implemented"; its gaps are the bullets under "Next", "Later" and "Decided
+against", which `tests/docs/not-implemented-placement.test.ts` holds to a phase,
+a decision or an ADR. Each was read against what this phase shipped.
+
+- The P4i bullet is gone from "Next" and a "SDKs" section is in "Shipped". It
+  says the packages are not on a registry yet, because "Shipped" otherwise
+  promises what the latest stable release does.
+- Still true, unchanged: "No sign-in form that runs in an app's own page" (the
+  SDKs only redirect), P14's Vue, Svelte and Angular bindings, native mobile and
+  the Go, Java, .NET, PHP and Ruby verifiers (Node and Python ship), and the
+  `odudu seed` bullet, whose `--capability` clause this phase added and which
+  still says seed does not amend.
+- Added, with an owner: a session store several instances of the BFF share,
+  on P14 (see the NEXT rows below). Nothing else was added without one.
+
+### 2. `git grep -n 'P4i\|P14' -- ':!docs/archive'`
+
+Every hit was read. The roadmap's P14 bullet and the "Decided against" line that
+names P14's flow API are true. `docs/phases/p5a.md` and `p4g.md` name P4i as the
+phase to come, in the past tense of a phase note, and stay. Section 11's order
+line and the "SDKs had no phase" subsection are history and true. Changed: the
+roadmap (P4i moved to Shipped), the P4i and P14 rows of section 11, the
+header and list of `docs/NEXT.md`, and the P4i mappings in
+`tests/docs/roadmap-section-11.test.ts`, `roadmap-shape.test.ts` and
+`phase-references.test.ts`.
+
+### 3. `docs/NEXT.md`
+
+No heading is addressed to a closed phase: "What P4h inherits" is for a phase
+still ahead, and P4i had no section of its own. The two P4i rows are deleted
+(`odudu mcp` runs only from the image, and the admin document grew), because
+`@odudu-io/mcp-stdio` and the shared components shipped; the file is 399 lines.
+
+Rows added, each under its argument's address:
+
+| Row                                                                                   | Owner | Why that phase                                                                                     |
+| ------------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------- |
+| The BFF package ships only an in-memory session store                                 | P14   | an adopter-facing SDK addition, which P14's "SDK breadth" owns; `lock` is already in the interface |
+| The BFF proxy has no gap-between-chunks timeout and no cancel when the browser leaves | P11   | P11 owns the deadlines and bounds on waits; no product capability of its own                       |
+
+Ledger items that are not gaps, one line each:
+
+| Item                                                                                                  | Outcome                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A person's token for the "me" audience has no password-less path                                      | Not a gap: the password grant is "Decided against", and the `admin` example signs a person in at a loopback address as RFC 8252 describes                                              |
+| `odudu seed client --capability` cannot amend an existing client                                      | Not a gap: "`odudu seed` creates the first of everything and does not amend" is in "Decided against" and says so                                                                       |
+| The React package is not compiled by the React Compiler                                               | Not a gap: the compiler rule in `CLAUDE.md` is for the consoles; a consumer's build can compile the plain functions the package ships                                                  |
+| `useBffFetch` calls `<baseUrl>/proxy`, so a custom server `proxyPath` is not known to the client      | Not a gap by `mountPath`, which sets both sides; `sdks/react.md` says a custom `proxyPath` is not known to the client. A cheap option would remove the limit: for the owner to rule on |
+| A refresh without `resource` keeps the audiences the new access token names, read best-effort from it | Not a gap: an access token is opaque to a client, and an unreadable one renews every audience, the safe direction; `sdks/oidc.md` says so                                              |
+| The Python verifier's timed-out sync fetch leaves a worker                                            | Not a gap: the verifier closes the client it made, which ends the worker's socket, and a caller-supplied client is outside it, which the package README says                           |
+| The shared `Idempotency-Key` and `SessionStore.lock` shipped stores                                   | Same row as the BFF store above                                                                                                                                                        |
+| SDK publication follow-ups (live badges, example lockfiles, marker sentences)                         | Not NEXT items: `RELEASING.md`, items 7 and 8, and the plan's "After the first publish"                                                                                                |
+
+### 4. The roadmap against section 11
+
+`tests/docs/roadmap-section-11.test.ts` checks both directions. Its six P4i
+sentence mappings went with the bullet, and seven `SHIPPED_CLAIMS` entries now
+hold the "Shipped" SDK section to words of the P4i criterion; the criterion was
+brought up to what was built (the "me" API's own OpenAPI document, the shrunk admin
+document, the Python verifier, nine examples), so the two agree. The P14 bullet
+gained the shared-store sentence and the P14 row the matching words.
+
+Hours: the row said 60 to 90 and was written before the SDKs had a design.
+Section 11 holds estimates only and no record of hours spent, so the row is
+re-estimated from the plan: 33 tasks (1 to 30, 6b, 14a and 14b, 30a) at the three
+to four hours a task the section already uses is 99 to 132, written 100 to 130. The total moves from 2117 to 3139 hours to 2157 to 3179, summed from the
+column, and a paragraph at the end of the list of moves says so. This is an
+estimate from the task count, not a measurement.
+
+### 5. The public surface
+
+`git grep -n -i -E 'planned|\bP4i\b|sdk' -- apps/docs README.md` was read. The
+landing page's two "Planned" items are MCP access tools and agent identity, both
+still planned. The guides, the introduction, the concepts and the SDKs section
+describe the packages as they are. `README.md` called `examples/` "four small
+apps" and now says nine. The landing page does not name the SDKs; adding them
+would cost bundle bytes the first-load budget (about 180 bytes of slack) does
+not have, so it is left for the phase that next raises the budget.
+
+### 6. `CHANGELOG.md`
+
+`Unreleased` now lists the packages, clients, the "me" API's OpenAPI document,
+`odudu mcp` as a package, the smaller admin document and the examples, under
+Added and Changed, and the 204 correction under Fixed: version 0.1.0's admin
+document did describe `204` responses as JSON with an empty schema.
