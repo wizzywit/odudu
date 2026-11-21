@@ -27,7 +27,7 @@ function slowDeps(): Deps {
     now: () => clock,
     fetch: async (input, init) => {
       const response = await fetch(input, init);
-      if (String(input).endsWith('/token')) clock += SLOW_BY;
+      if (response.url.endsWith('/token')) clock += SLOW_BY;
       return response;
     },
   };

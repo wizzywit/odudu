@@ -159,16 +159,46 @@ describe('refresh', () => {
     );
   });
 
-  it('throws audience_not_granted when the grant lacks the resource', async () => {
+  it('throws audience_not_granted for a resource the sign-in lacks, before any request', async () => {
     const tokens = await signedIn();
-    fake.tokenError = { error: 'invalid_target', error_description: 'not available' };
+    const discoveries = fake.discoveryRequests;
     const error = await refresh(tokens, { resource: 'https://other.example/api' }, deps).catch(
       (e: unknown) => e,
     );
     expect(error).toBeInstanceOf(OduduError);
     expect((error as OduduError).code).toBe('audience_not_granted');
-    expect((error as OduduError).error).toBe('invalid_target');
     expect((error as OduduError).message).toContain('requestAudience');
+    expect(refreshRequests()).toHaveLength(0);
+    expect(fake.discoveryRequests).toBe(discoveries);
+  });
+
+  it('maps a server invalid_target to audience_not_granted', async () => {
+    const a = 'https://a.example/api';
+    const tokens = await signedIn({ resource: [a] });
+    fake.tokenError = { error: 'invalid_target', error_description: 'not available' };
+    const error = await refresh(tokens, { resource: a }, deps).catch((e: unknown) => e);
+    expect((error as OduduError).code).toBe('audience_not_granted');
+    expect((error as OduduError).error).toBe('invalid_target');
+  });
+
+  it('replaces only the audiences the new access token names', async () => {
+    const a = 'https://a.example/api';
+    const b = 'https://b.example/api';
+    const tokens = await signedIn({ resource: [a, b] });
+    fake.refreshedAudience = [a];
+    const renewed = await refresh(tokens, {}, deps);
+    expect(renewed.byAudience[a]?.accessToken).toContain('.');
+    expect(renewed.byAudience[b]).toEqual(tokens.byAudience[b]);
+  });
+
+  it('replaces every audience when the access token names none of them', async () => {
+    const a = 'https://a.example/api';
+    const b = 'https://b.example/api';
+    const tokens = await signedIn({ resource: [a, b] });
+    fake.refreshedAudience = ['https://unrelated.example'];
+    const renewed = await refresh(tokens, {}, deps);
+    expect(renewed.byAudience[a]?.accessToken).toBe(renewed.byAudience[b]?.accessToken);
+    expect(renewed.byAudience[a]?.accessToken).not.toBe(tokens.byAudience[a]?.accessToken);
   });
 
   it('a response without scope leaves the stored scope unchanged', async () => {

@@ -32,6 +32,9 @@ export interface FakeServer {
   // A refresh asking for this `resource` is refused with invalid_target before
   // its token is spent.
   refusedResource: string | undefined;
+  // Makes the access token of a refresh a JWT whose `aud` is this list; an
+  // opaque string when unset.
+  refreshedAudience: string[] | undefined;
   // Milliseconds every token endpoint answer is held, to overlap requests.
   tokenDelayMs: number;
   discoveryRequests: number;
@@ -81,6 +84,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
     reuseDetections: 0,
     refusedResource: undefined,
     tokenDelayMs: 0,
+    refreshedAudience: undefined,
     discoveryRequests: 0,
     close: () => Promise.resolve(),
   };
@@ -166,7 +170,10 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
           }
           const now = Math.floor(Date.now() / 1000);
           send(200, {
-            access_token: 'access-token-1',
+            access_token:
+              form.get('grant_type') === 'refresh_token' && fake.refreshedAudience !== undefined
+                ? `${base64url({ alg: 'ES256', typ: 'at+jwt' })}.${base64url({ aud: fake.refreshedAudience })}.c2ln`
+                : 'access-token-1',
             token_type: 'Bearer',
             ...(fake.expiresIn === undefined ? {} : { expires_in: fake.expiresIn }),
             ...(fake.scope === undefined ? {} : { scope: fake.scope }),
