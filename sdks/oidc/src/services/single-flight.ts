@@ -11,33 +11,46 @@ interface Chain<T> {
   pending: number;
 }
 
+export interface SingleFlightRules<T> {
+  successorKeys: (value: T) => string[];
+  // Whether an operation that failed with this error certainly changed
+  // nothing, so the next one may go ahead from the last good value.
+  retryable: (error: unknown) => boolean;
+  // The error a queued operation is rejected with when its predecessor failed
+  // in a way that is not retryable.
+  abandoned: (error: unknown) => Error;
+}
+
 // Runs the operations of a chain one at a time. A chain starts at its first
 // caller's key and takes in each key a settled operation names through
 // `successorKeys`, so a caller holding a value an earlier operation produced
 // joins the same queue. A caller whose tag matches the last operation queued
-// shares its promise; any other caller queues behind the tail and starts with
-// the latest value that settled well (undefined before one has): a failure
-// leaves it as it was. A chain is dropped when its last operation settles, so
-// the map is bounded by the operations in flight.
+// shares its promise; any other caller queues behind the tail. It starts with
+// the latest value that settled well when the predecessor failed retryably,
+// and is rejected when the outcome of the predecessor is unknown. A chain is
+// dropped when its last operation settles, so the map is bounded by the
+// operations in flight.
 export class SingleFlight<T> {
   private readonly chains = new Map<string, Chain<T>>();
+  private readonly rules: SingleFlightRules<T>;
 
-  private readonly successorKeys: (value: T) => string[];
-
-  constructor(successorKeys: (value: T) => string[]) {
-    this.successorKeys = successorKeys;
+  constructor(rules: SingleFlightRules<T>) {
+    this.rules = rules;
   }
 
   run(key: string, tag: string, start: (latest: T | undefined) => Promise<T>): Promise<T> {
     const chain = this.chains.get(key) ?? this.open(key);
     if (chain.tail?.tag === tag) return chain.tail.promise;
-    const turn = chain.tail?.promise.then(noop, noop) ?? Promise.resolve();
+    const turn =
+      chain.tail?.promise.then(noop, (error: unknown) => {
+        if (!this.rules.retryable(error)) throw this.rules.abandoned(error);
+      }) ?? Promise.resolve();
     chain.pending += 1;
     const promise: Promise<T> = turn
       .then(() => start(chain.latest))
       .then((value) => {
         chain.latest = value;
-        for (const successor of this.successorKeys(value)) {
+        for (const successor of this.rules.successorKeys(value)) {
           chain.keys.add(successor);
           this.chains.set(successor, chain);
         }
@@ -70,5 +83,5 @@ export class SingleFlight<T> {
 }
 
 function noop(): void {
-  // A predecessor's outcome only orders the queue; its caller handles it.
+  // A predecessor that succeeded only orders the queue.
 }

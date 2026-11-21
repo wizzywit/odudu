@@ -13,6 +13,32 @@ export function refreshTokenOf(tokens: TokenSet): string {
   return tokens.refreshToken;
 }
 
+const UNKNOWN_OUTCOME =
+  ' The outcome of that refresh is unknown, so this one was not sent: use the tokens the last successful refresh returned, or sign in again.';
+
+// Only a refusal the server makes before it spends the refresh token leaves
+// the token good. Any other failure (a lost connection, a 5xx, an ID token
+// that is refused after the server rotated) may have spent it.
+export function isRefusedBeforeSpending(error: unknown): boolean {
+  return error instanceof OduduError && error.code === 'audience_not_granted';
+}
+
+// What a call queued behind such a failure is rejected with: the same code,
+// and the words that say why nothing was sent.
+export function abandoned(error: unknown): OduduError {
+  if (error instanceof OduduError) {
+    if (error.message.endsWith(UNKNOWN_OUTCOME)) return error;
+    return new OduduError(error.code, `${error.message}${UNKNOWN_OUTCOME}`, {
+      cause: error,
+      ...(error.error === undefined ? {} : { error: error.error }),
+      ...(error.errorDescription === undefined ? {} : { errorDescription: error.errorDescription }),
+    });
+  }
+  return new OduduError('request_failed', `The refresh before this one failed.${UNKNOWN_OUTCOME}`, {
+    cause: error,
+  });
+}
+
 // A refresh for an audience the sign-in did not carry is refused here: the
 // server would refuse it too, and asking costs a request and a rotation.
 export function checkResource(tokens: TokenSet, resource: string | undefined): void {

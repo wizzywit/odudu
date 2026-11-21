@@ -63,20 +63,19 @@ describe('refresh', () => {
     expect(Object.keys(second.byAudience).sort()).toEqual([a, b]);
   });
 
-  it('a waiter whose predecessor was refused uses the original refresh token', async () => {
+  it('a waiter whose predecessor failed with an unknown outcome is rejected, not replayed', async () => {
     const a = 'https://a.example/api';
     const b = 'https://b.example/api';
     const tokens = await signedIn({ resource: [a, b] });
     fake.tokenError = { error: 'server_error' };
-    const failing = refresh(tokens, { resource: a }, deps).catch(() => undefined);
-    const waiting = refresh(tokens, { resource: b }, deps);
-    await failing;
-    fake.tokenError = undefined;
-    await waiting;
-    expect(refreshRequests().map((form) => form.get('refresh_token'))).toEqual([
-      'refresh-token-1',
-      'refresh-token-1',
-    ]);
+    const failing = refresh(tokens, { resource: a }, deps).catch((e: unknown) => e);
+    const waiting = refresh(tokens, { resource: b }, deps).catch((e: unknown) => e);
+    expect(((await failing) as OduduError).code).toBe('server_error');
+    const rejected = (await waiting) as OduduError;
+    expect(rejected).toBeInstanceOf(OduduError);
+    expect(rejected.code).toBe('server_error');
+    expect(rejected.message).toContain('outcome of that refresh is unknown');
+    expect(refreshRequests()).toHaveLength(1);
   });
 
   it('keeps the issuer and the client on the result', async () => {
@@ -312,5 +311,52 @@ describe('refresh against a server that revokes a family on reuse', () => {
     const again = await refresh(rotated, { resource: b }, deps);
     expect(fake.reuseDetections).toBe(0);
     expect(again.refreshToken).toBe('refresh-token-1-rotated-rotated');
+  });
+
+  it('rejects the waiters of a flight whose connection dropped after the server spent the token', async () => {
+    const tokens = await signedIn({ resource: [a, b] });
+    fake.dropAfterSpend = true;
+    const outcomes = await Promise.allSettled([
+      refresh(tokens, { resource: a }, deps),
+      refresh(tokens, { resource: b }, deps),
+      refresh(tokens, { resource: a }, deps),
+    ]);
+    expect(outcomes.map((o) => o.status)).toEqual(['rejected', 'rejected', 'rejected']);
+    const second = outcomes[1];
+    expect(second.status === 'rejected' ? (second.reason as OduduError).message : '').toContain(
+      'outcome of that refresh is unknown',
+    );
+    expect(refreshRequests()).toHaveLength(1);
+    expect(fake.reuseDetections).toBe(0);
+  });
+
+  it('rejects the waiters of a flight refused for another subject', async () => {
+    const tokens = await signedIn({ resource: [a, b] });
+    fake.claims = { ...fake.claims, sub: 'someone-else' };
+    const outcomes = await Promise.allSettled([
+      refresh(tokens, { resource: a }, deps),
+      refresh(tokens, { resource: b }, deps),
+    ]);
+    const [first, second] = outcomes;
+    expect(first.status === 'rejected' ? (first.reason as OduduError).code : '').toBe(
+      'invalid_id_token',
+    );
+    expect(second.status === 'rejected' ? (second.reason as OduduError).message : '').toContain(
+      'outcome of that refresh is unknown',
+    );
+    expect(refreshRequests()).toHaveLength(1);
+    expect(fake.reuseDetections).toBe(0);
+  });
+
+  it('starts a later call, after the chain went idle, from the tokens the caller holds', async () => {
+    const tokens = await signedIn({ resource: [a, b] });
+    fake.tokenError = { error: 'server_error' };
+    await refresh(tokens, { resource: a }, deps).catch(() => undefined);
+    fake.tokenError = undefined;
+    await refresh(tokens, { resource: a }, deps);
+    expect(refreshRequests().map((form) => form.get('refresh_token'))).toEqual([
+      'refresh-token-1',
+      'refresh-token-1',
+    ]);
   });
 });

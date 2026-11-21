@@ -1,12 +1,19 @@
 import { refreshGrant } from '#/adapter/refresh';
-import { refreshedTokenSet, refreshTokenOf } from '#/services/refresh-request';
+import {
+  abandoned,
+  isRefusedBeforeSpending,
+  refreshedTokenSet,
+  refreshTokenOf,
+} from '#/services/refresh-request';
 import { idTokenAlgOf } from '#/services/sign-in-request';
 import { SingleFlight } from '#/services/single-flight';
 import type { Deps, RefreshOptions, ServerMetadata, TokenSet } from '#/types';
 
-const flights = new SingleFlight<TokenSet>((tokens) =>
-  tokens.refreshToken === undefined ? [] : [tokens.refreshToken],
-);
+const flights = new SingleFlight<TokenSet>({
+  successorKeys: (tokens) => (tokens.refreshToken === undefined ? [] : [tokens.refreshToken]),
+  retryable: isRefusedBeforeSpending,
+  abandoned,
+});
 
 // Renews the tokens. A rotating server refuses a refresh token it has already
 // seen, and revokes the grant when it does, so the refreshes of one grant run

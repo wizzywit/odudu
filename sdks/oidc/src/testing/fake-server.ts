@@ -32,6 +32,9 @@ export interface FakeServer {
   // A refresh asking for this `resource` is refused with invalid_target before
   // its token is spent.
   refusedResource: string | undefined;
+  // Hangs up on a refresh after the server has spent its token, as a lost
+  // connection does.
+  dropAfterSpend: boolean;
   // Makes the access token of a refresh a JWT whose `aud` is this list; an
   // opaque string when unset.
   refreshedAudience: string[] | undefined;
@@ -84,6 +87,7 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
     reuseDetections: 0,
     refusedResource: undefined,
     tokenDelayMs: 0,
+    dropAfterSpend: false,
     refreshedAudience: undefined,
     discoveryRequests: 0,
     close: () => Promise.resolve(),
@@ -167,6 +171,10 @@ export async function startFakeServer(tenant = 'demo'): Promise<FakeServer> {
               return;
             }
             fake.spentRefreshTokens.add(presented);
+            if (fake.dropAfterSpend) {
+              response.destroy();
+              return;
+            }
           }
           const now = Math.floor(Date.now() / 1000);
           send(200, {
