@@ -70,10 +70,11 @@ This block is illustrative: the example it comes from is run by the repository's
 
 ### `bff` mode
 
-| Option    | Required | What it does                                            |
-| --------- | -------- | ------------------------------------------------------- |
-| `kind`    | yes      | `'bff'`.                                                |
-| `baseUrl` | yes      | Where the server mounts the BFF routes, such as `/bff`. |
+| Option      | Required | What it does                                                                                          |
+| ----------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `kind`      | yes      | `'bff'`.                                                                                              |
+| `baseUrl`   | yes      | Where the server mounts the BFF routes, such as `/bff`.                                               |
+| `proxyPath` | no       | Where the BFF's proxy is, a path of this origin such as `/api/proxy`; `<baseUrl>/proxy` when omitted. |
 
 The page calls `<baseUrl>/session` and `<baseUrl>/logout`, and `signIn()` navigates to `<baseUrl>/login`. The calls to `session`, `logout` and the proxy carry the header `X-Odudu-BFF` and the cookie, to the same origin only.
 
@@ -95,7 +96,7 @@ In `browser` mode `signIn` accepts `resource` (a list of APIs), `meAccess` (`'re
 
 ### `useBffFetch`
 
-The `path` is `<upstream name>/<path>`, the upstream being one the BFF's `upstreams` option names. The call goes to `<baseUrl>/proxy/<name>/<path>`. This works while the BFF's proxy is at `<baseUrl>/proxy`, which is where `mountPath` puts it (`mountPath: '/bff'` with `baseUrl: '/bff'`); a custom `proxyPath` on the server is not known to the client. The BFF marks its own session-ended `401` answers with the header `X-Odudu-Session: ended` and the proxy removes that header from upstream answers. The provider moves to signed out only on a marked `401`: an upstream's own `401` passes through unmarked and does not sign the person out. The response is returned to you either way.
+The `path` is `<upstream name>/<path>`, the upstream being one the BFF's `upstreams` option names. The call goes to `<baseUrl>/proxy/<name>/<path>`, which is where the BFF's `mountPath` puts the proxy (`mountPath: '/bff'` with `baseUrl: '/bff'`), or to `<proxyPath>/<name>/<path>` when the mode names a `proxyPath` that matches the server's. A `proxyPath` that is not a path of this origin makes the provider throw `invalid_options` when it mounts. The BFF marks its own session-ended `401` answers with the header `X-Odudu-Session: ended` and the proxy removes that header from upstream answers. The provider moves to signed out only on a marked `401`: an upstream's own `401` passes through unmarked and does not sign the person out. The response is returned to you either way.
 
 ## Errors
 

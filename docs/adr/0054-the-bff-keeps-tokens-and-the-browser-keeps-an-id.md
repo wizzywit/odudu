@@ -131,8 +131,12 @@ answers are in `docs/protocols/rfc10017.md`.
     that declares more is `502`; one that outgrows it mid-stream is cut, so the
     browser's connection errors rather than ending as if complete.
     `upstreamTimeoutMs` (30 s) bounds the wait for the upstream to start
-    answering (`504`); a body then streams for as long as it takes, within the
-    limit. An upstream that cannot be reached is `502`.
+    answering (`504`); a body then streams within the limit, and is cut off,
+    the upstream request with it, when it goes `upstreamIdleMs` (30 s) without a
+    chunk. A browser that leaves aborts the upstream request in every phase,
+    through the request's `signal` (the adapters abort it when the connection
+    closes before the response is complete). An upstream that cannot be reached
+    is `502`.
   - _Refresh._ The proxy asks the same session access as `session`, so a burst
     of proxied calls near expiry spends one refresh.
 - **Framework adapters.** `@odudu-io/bff/fastify` (`registerBff`) and

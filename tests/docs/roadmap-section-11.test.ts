@@ -401,11 +401,6 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       ['P14'],
       ['session store for the backend-for-frontend package'],
     ],
-    [
-      'The backend-for-frontend proxy bounds the wait',
-      ['P11'],
-      'an SDK bound on a wait, owed with the deadlines of P11 and no product capability of its own',
-    ],
     ['The injection suite drives a scripted agent', ['P5b'], ['a model that is measured']],
     ['Which confirmation step', ['P5b'], ['confirmation step']],
     [
