@@ -1,6 +1,6 @@
 import type { IDToken, TokenEndpointResponse } from 'oauth4webapi';
 import { OduduError } from '#/services/odudu-error';
-import { expiresAtOf } from '#/services/token-set';
+import { refreshExpiresAtOf } from '#/services/token-set';
 import type { TokenSet } from '#/types';
 
 export function refreshTokenOf(tokens: TokenSet): string {
@@ -69,7 +69,7 @@ export function refreshedTokenSet(
     throw new OduduError('invalid_id_token', 'the refreshed ID token names another subject');
   }
   const accessToken = response.access_token;
-  const expiresAt = expiresAtOf(response, now);
+  const expiresAt = refreshExpiresAtOf(response, now);
   const audiences = resource === undefined ? renewedAudiences(previous, accessToken) : [resource];
   const refreshToken = response.refresh_token ?? previous.refreshToken;
   return {

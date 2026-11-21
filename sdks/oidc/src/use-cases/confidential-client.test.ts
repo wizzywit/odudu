@@ -146,19 +146,21 @@ describe('confidential clients', () => {
     expect(fake.tokenRequests).toHaveLength(0);
   });
 
-  it('a code exchange or refresh response without expires_in is refused, not read as expired', async () => {
-    const tokens = await signedIn();
+  it('a code exchange response without expires_in is refused, not read as expired', async () => {
     fake.expiresIn = undefined;
-    const refreshed = await refresh(tokens, {}, deps).then(
-      () => undefined,
-      (e: unknown) => e,
-    );
-    expect((refreshed as OduduError).code).toBe('request_failed');
     const { pending, callback } = await begin();
     const exchanged = await completeSignIn(callback, pending, deps).then(
       () => undefined,
       (e: unknown) => e,
     );
     expect((exchanged as OduduError).code).toBe('request_failed');
+  });
+
+  it('a refresh response without expires_in keeps the rotated refresh token and lives 60 s', async () => {
+    const tokens = await signedIn();
+    fake.expiresIn = undefined;
+    const renewed = await refresh(tokens, {}, deps);
+    expect(renewed.refreshToken).toBe('refresh-token-1-rotated');
+    expect(renewed.byAudience[tokens.issuer]?.expiresAt).toBe(deps.now() + 60_000);
   });
 });

@@ -1,4 +1,5 @@
 import type { IDToken, TokenEndpointResponse } from 'oauth4webapi';
+import { DEFAULT_LIFETIME_SECONDS } from '#/services/client-credentials-request';
 import { OduduError } from '#/services/odudu-error';
 import type { Pending, TokenSet } from '#/types';
 
@@ -10,6 +11,13 @@ export function expiresAtOf(response: TokenEndpointResponse, now: number): numbe
     throw new OduduError('request_failed', 'the token response carries no expires_in');
   }
   return now + response.expires_in * 1000;
+}
+
+// A refresh response without a lifetime is read as a short one, not refused:
+// refusing it would throw away the rotated refresh token that the same
+// response carries, and the caller would be left holding a spent one.
+export function refreshExpiresAtOf(response: TokenEndpointResponse, now: number): number {
+  return now + (response.expires_in ?? DEFAULT_LIFETIME_SECONDS) * 1000;
 }
 
 // One token comes back from the token endpoint; it is filed under every
