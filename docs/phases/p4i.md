@@ -512,13 +512,14 @@ tests, and a test in the package (`package-contents.test.ts`) fails on any
 - **Left for the next increment, done below.** `apps/server/src/cli/mcp.ts` still took
   the service-account key helpers from `@odudu/crypto` and the audience and
   client names from `@odudu/domain-tenant`.
-- **Owed by P4i, in its closing increment.** Rename the package's `usecase`,
-  `service` and `view` folders to the SDKs' `use-cases`, `services` and
-  `adapter`, in one commit apart from any other change, and bring the three
-  functions the SDKs' complexity rule would flag under it (`callMcpTool`,
-  `storedSignIn` and `bearer` of the token source). Kept out of the move so the
-  moved code stayed as it was. Placed here and not in `docs/NEXT.md`, which
-  would need a roadmap line for a placement inside the phase that owns it.
+- **Done in the closing increment.** The package's `usecase`, `service` and
+  `view` folders are now `use-cases`, `services` and `adapter` (commit "use the
+  SDKs' folder names", a rename and import paths only). `serveMcpStdio` imports
+  the SDK transport and Node streams and nothing of the package, so it went to
+  `adapter/stdio.ts`. The three functions over the SDKs' complexity cap
+  (`callMcpTool` 11, `storedSignIn` 12, `bearer` 9) are at 7 each, their
+  decisions moved into pure functions in `services/` with tests of their own
+  (commit "move the call and token rules into services"). No behaviour changed.
 - **Cost, by ADR 0041.** Start-up parses one 312 KB JSON file, once. A call does
   the one HTTP request and, for a signed-in run, a read of the credential file;
   nothing else is read. The bundle is 335 KB of which the catalogue is most.
