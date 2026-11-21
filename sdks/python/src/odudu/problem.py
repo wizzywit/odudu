@@ -12,7 +12,7 @@ __all__ = ["FieldError", "ProblemError"]
 class ProblemError(Exception):
     """Raised for every response that is not a 2xx, a redirect included.
 
-    `code` is the part after `#` of the problem `type` (`about:blank#idempotency-in-progress`)
+    `code` is the part after `#` of the problem `type` (`about:blank#idempotency-in-flight`)
     on the admin API, and the `error` of a refusal on the account API. `response` carries the
     status and headers; its body is empty, because a body that is not a problem document is
     never kept.

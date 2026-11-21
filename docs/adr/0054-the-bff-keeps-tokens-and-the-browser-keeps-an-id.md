@@ -170,9 +170,9 @@ server exists.
   spending the refresh token a second time. The lock key is `lock:<session id>`
   and it lapses after 120 s, twice the longest a refresh can take (two requests
   of 30 s each at most); the release function must release only the holder's
-  own lock, for instance by comparing a random value stored with it. When the store gives no lock and
-  the session still needs a refresh, the read answers `503` and the session is
-  kept. Without `lock`, two instances over one shared store can each refresh
+  own lock, for instance by comparing a random value stored with it. When the store's `lock` does not
+  grant the lock and the session still needs a refresh, the read answers `503`
+  and the session is kept. A store with no `lock` is never asked, so without it, two instances over one shared store can each refresh
   once; the issuer's reuse detection then refuses the second and revokes the
   grant, so that session ends with `401`. Such a deployment runs one instance, or
   routes a session to one instance, until its store implements `lock`. The
