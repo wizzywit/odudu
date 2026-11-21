@@ -9,6 +9,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `idTokenAlg` (`'RS256'` when omitted, or `'ES256'`) names the algorithm the client is registered for ID tokens, for the sign-in and for the refresh. A client registered for `ES256` could not sign in through the BFF or `@odudu-io/next`, which takes every BFF option.
 - `upstreamIdleMs` (30 seconds when omitted, a positive whole number or a `TypeError`) cuts a proxied response off, and the upstream request with it, when its body goes that long without a chunk once the upstream has started answering. `upstreamTimeoutMs` still bounds the wait for the answer to start.
 - `BffOptions.mountPath` (the root when omitted) is the default `prefix` of `bffRouter` and `registerBff` and puts the proxy at `${mountPath}/proxy` unless `proxyPath` is given, so `@odudu-io/react`'s `baseUrl` reaches the proxy as well as the login and the session.
 - `SessionStore` takes an optional `lock(id, ttlMs)`. A store shared by several instances that implements it keeps two instances from refreshing one session at the same time, which the issuer treats as a replayed refresh token and answers by ending the session. The lock is taken on `lock:<session id>`, lapses after 120 s, and its release function must release only its holder's own lock. When the lock is not granted the session read answers `503` and keeps the session.

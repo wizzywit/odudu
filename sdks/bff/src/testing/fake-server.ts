@@ -13,6 +13,8 @@ export interface FakeServer {
   // front of the issuer does.
   tokenRaw: { status: number; contentType?: string; body: string } | undefined;
   expiresIn: number;
+  // The `alg` header of the ID tokens it mints.
+  idTokenAlg: 'RS256' | 'ES256';
   // Whether the token endpoint issues a refresh token.
   issueRefreshToken: boolean;
   // How long a refresh takes to answer, so concurrent callers overlap.
@@ -29,8 +31,8 @@ function base64url(value: unknown): string {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
 
-function idToken(claims: Record<string, unknown>): string {
-  return `${base64url({ alg: 'RS256', typ: 'JWT' })}.${base64url(claims)}.c2ln`;
+function idToken(claims: Record<string, unknown>, alg: string): string {
+  return `${base64url({ alg, typ: 'JWT' })}.${base64url(claims)}.c2ln`;
 }
 
 function basicClientId(authorization: string | undefined): string | undefined {
@@ -53,6 +55,7 @@ export async function startFakeServer(): Promise<FakeServer> {
     tokenChallenge: false,
     tokenRaw: undefined,
     expiresIn: 900,
+    idTokenAlg: 'RS256',
     issueRefreshToken: true,
     refreshDelayMs: 0,
     refreshedAudience: undefined,
@@ -130,14 +133,17 @@ export async function startFakeServer(): Promise<FakeServer> {
             ...(fake.issueRefreshToken
               ? { refresh_token: refreshing ? `${presented}-rotated` : 'refresh-token-1' }
               : {}),
-            id_token: idToken({
-              iss: fake.issuer,
-              sub: 'subject-1',
-              aud: form.get('client_id') ?? basicClientId(request.headers.authorization),
-              iat: now,
-              exp: now + 300,
-              ...fake.claims,
-            }),
+            id_token: idToken(
+              {
+                iss: fake.issuer,
+                sub: 'subject-1',
+                aud: form.get('client_id') ?? basicClientId(request.headers.authorization),
+                iat: now,
+                exp: now + 300,
+                ...fake.claims,
+              },
+              fake.idTokenAlg,
+            ),
           });
         };
         if (refreshing && fake.refreshDelayMs > 0) setTimeout(answer, fake.refreshDelayMs);

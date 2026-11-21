@@ -64,6 +64,10 @@ export interface BffOptions {
   // The address of the `callback` route as the browser reaches it.
   redirectUri: string;
   scope: string;
+  // The algorithm the client is registered for ID tokens: `'RS256'` when
+  // omitted. A client registered for `'ES256'` is refused at the callback
+  // without it.
+  idTokenAlg?: 'RS256' | 'ES256';
   // Audiences the sign-in asks access tokens for (RFC 8707), for upstreams that
   // name a `resource`.
   resource?: string[];

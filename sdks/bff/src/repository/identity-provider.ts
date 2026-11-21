@@ -20,12 +20,21 @@ export function createIdentityProvider(config: BffConfig): IdentityProvider {
           redirectUri: config.redirectUri,
           scope: config.scope,
           ...(config.resource === undefined ? {} : { resource: config.resource }),
+          ...(config.idTokenAlg === undefined ? {} : { idTokenAlg: config.idTokenAlg }),
         },
         deps,
       ),
     complete: (requestUrl, pending) =>
       completeSignIn(callbackUrlOf(config.redirectUri, requestUrl), pending, authOf(config), deps),
-    refresh: (tokens) => refresh(tokens, authOf(config), deps),
+    refresh: (tokens) =>
+      refresh(
+        tokens,
+        {
+          ...authOf(config),
+          ...(config.idTokenAlg === undefined ? {} : { idTokenAlg: config.idTokenAlg }),
+        },
+        deps,
+      ),
     signOut: async () => {
       const { end_session_endpoint: endpoint } = await discover(config.issuer, deps);
       if (endpoint === undefined) {
