@@ -1,0 +1,31 @@
+[project]
+name = "odudu-example-python"
+version = "0.0.0"
+description = "The Odudu admin client and token verifier in a small FastAPI app"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+  "odudu[fastapi]>=0.1,<0.2",
+  "uvicorn>=0.54",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "T20", "ANN", "BLE", "PT", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"admin.py" = ["T201"]
+"test_example.py" = ["S101", "S105", "S106", "ANN"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["app.py", "admin.py", "test_example.py"]
