@@ -188,7 +188,8 @@ that touches code, for each package that is not private.
 ### Owner setup, once
 
 These settings are only the owner's to make, and the first release needs them.
-Nothing here is done yet except the two accounts. The registries' pages were
+Done so far: the two accounts, two-factor authentication on npm and the pending
+publisher for `odudu` on PyPI (reported by the owner 2026-11-23, not checked here). The registries' pages were
 read on 2026-11-20 and nothing was configured, so a setting below is unverified
 until a release has used it, and the two that the pages leave open are marked.
 `docs/phases/p4i.md` has what was read.
@@ -215,8 +216,11 @@ until a release has used it, and the two that the pages leave open are marked.
    depend on `@odudu-io/oidc` (and `next` on `@odudu-io/bff`) as `workspace:^`,
    which `npm publish` would ship as it stands and `pnpm pack` rewrites to a
    `^` range. A published version can
-   never be replaced, so check first. For each package, `oidc` first and then
-   the packages that depend on it (the same commands, run per package):
+   never be replaced, so check first. `tools/release/publish-first.sh` does the
+   steps below for all eight packages in dependency order and asks before each
+   publish; `--dry-run` publishes nothing, and a package already on npm is
+   skipped. By hand, for each package, `oidc` first and then the packages that
+   depend on it (the same commands, run per package):
    1. `pnpm install --frozen-lockfile`, then build the package and what it
       depends on: `pnpm --filter "./sdks/<name>..." run build`. (`prepack` also
       builds the package itself, so its `dist/`, which is not committed, is
