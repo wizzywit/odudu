@@ -7,6 +7,14 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-23
+
+### Changed
+
+- No code change. The first version published from the release workflow, which checks that releases from CI reach npm.
+
+## [0.1.0] - 2026-11-23
+
 ### Added
 
 - `createOduduHandlers` makes the route handlers (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) that run the sign-in, the session and the proxy of `@odudu-io/bff` in a Next.js App Router catch-all route, and `getSession()`, which reads the signed-in person on the server. `withAuth` sends a request for a protected path with no session to the login route.

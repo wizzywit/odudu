@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installs an example's dependencies from this repository while the SDKs are not
-# on npm yet: builds and packs each SDK named, then installs the tarballs beside
+# Installs an example's dependencies from this repository, for a change that is
+# not released yet, in place of npm: builds and packs each SDK named, then installs the tarballs beside
 # the example's other dependencies. The example's package.json and lockfile are
 # not changed, so they stay as a reader who copies the folder gets them.
 #

@@ -42,7 +42,7 @@ npm install @odudu-io/oidc
 
 The package needs Node 24 or later.
 
-Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc` in the folder of [the web app example](https://github.com/wizzywit/odudu/tree/main/examples/web-app) (it needs pnpm, and `pnpm install` run once at the repository root).
+Install it with `npm install @odudu-io/oidc`. The code below is [the web app example](https://github.com/wizzywit/odudu/tree/main/examples/web-app), which runs from its folder after `npm install`.
 
 The example is one file, `app.ts`. It keeps each person's session on the server, in a cookie that holds only an opaque id. This is the session it keeps. It lives in memory and never expires, which is fine for an example and not for an app you ship. The cookie is `HttpOnly` and `SameSite=Lax` but not `Secure`, because the example runs on http; set `Secure` in an app you ship.
 

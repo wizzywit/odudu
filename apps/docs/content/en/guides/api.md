@@ -44,7 +44,7 @@ npm install @odudu-io/node
 
 The package needs Node 24 or later.
 
-Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . node` in the folder of [the API example](https://github.com/wizzywit/odudu/tree/main/examples/api) (it needs pnpm, and `pnpm install` run once at the repository root).
+Install it with `npm install @odudu-io/node`. The code below is [the API example](https://github.com/wizzywit/odudu/tree/main/examples/api), which runs from its folder after `npm install`.
 
 The example is one file, `server.ts`. The verifier is made once, and it keeps the keys between requests.
 
@@ -88,7 +88,7 @@ pip install 'odudu[fastapi]'
 
 The package needs Python 3.10 or later.
 
-Until the first release is published, the package is not on PyPI. Install it from a checkout of this repository by running `../_shared/install-python.sh .` in the folder of [the Python example](https://github.com/wizzywit/odudu/tree/main/examples/python).
+Install it with `pip install 'odudu[fastapi]>=0.1,<0.2'`. The code below is [the Python example](https://github.com/wizzywit/odudu/tree/main/examples/python), whose README gives the steps to run it.
 
 From `examples/python/app.py`:
 

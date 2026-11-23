@@ -6,9 +6,11 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-23
+
 ### Added
 
-- SDKs, in this repository under `sdks/` and licensed Apache-2.0, each with its own version and changelog. None is on npm or PyPI until the first SDK release is published; until then the guides say to install from a checkout. Eight npm packages under the scope `@odudu-io`:
+- SDKs, in this repository under `sdks/` and licensed Apache-2.0, each with its own version and changelog. Published to npm and PyPI at 0.1.0. Eight npm packages under the scope `@odudu-io`:
   - `@odudu-io/oidc` is the core without a framework: discovery, the authorization code flow with PKCE, refresh, `prompt=create`, sign-out, a token for the "me" API's audience, and a service's own sign-in with a client secret or a `private_key_jwt` key that renews its token before it expires.
   - `@odudu-io/react` puts the signed-in person into a React app, with a provider, components and hooks, in a mode where a server keeps the tokens or one where the page does and holds them in memory.
   - `@odudu-io/bff` is a backend for frontend (RFC 10017), with adapters for Express and Fastify: the tokens stay on the server, the browser holds one `__Host-` cookie, and a proxy adds the token to calls to the APIs you list. `@odudu-io/next` is the same for Next.js.
@@ -334,7 +336,8 @@ The first release candidate. Odudu is not production ready: it has had no securi
 - Cookies are `Secure` and `__Host-` prefixed under `ODUDU_TLS`, from one setting; before, the session cookie ignored it.
 - Characters that change the direction of text are refused in names and usernames.
 
-[Unreleased]: https://github.com/wizzywit/odudu/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/wizzywit/odudu/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/wizzywit/odudu/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.6...v0.1.0
 [0.1.0-rc.6]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.5...v0.1.0-rc.6
 [0.1.0-rc.5]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.4...v0.1.0-rc.5

@@ -7,6 +7,14 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-23
+
+### Changed
+
+- No code change. The first version published from the release workflow, which checks that releases from CI reach npm.
+
+## [0.1.0] - 2026-11-23
+
 ### Added
 
 - `odudu-mcp`, the command, installable with `npx @odudu-io/mcp-stdio --base-url … --tenant …` on a machine with neither the Odudu image nor a checkout. It takes the options of `odudu mcp`, signs a person in through the browser or a service account through a private key, and writes only the protocol to standard output. `--help` prints the options.

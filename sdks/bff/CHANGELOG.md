@@ -7,6 +7,14 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-23
+
+### Changed
+
+- No code change. The first version published from the release workflow, which checks that releases from CI reach npm.
+
+## [0.1.0] - 2026-11-23
+
 ### Added
 
 - `onError(error)` on `bffRouter` and `registerBff` receives the error of a handler that failed and was answered `500`, with nothing of the request, and an error the hook throws is ignored. `registerBff` logs to `app.log.error` when none is given. Neither adapter reported these errors before. A browser that leaves mid-answer is not reported.

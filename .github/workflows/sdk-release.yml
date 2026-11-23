@@ -184,7 +184,9 @@ jobs:
         env:
           DIRECTORY: ${{ needs.prepare.outputs.directory }}
         run: |
-          pnpm --filter "./$DIRECTORY..." --if-present run build
+          # {./dir}... selects the package and what it depends on; ./dir... selects
+          # only the package, so an SDK built on another would find no dist.
+          pnpm --filter "{./$DIRECTORY}..." --if-present run build
           pnpm --filter "./$DIRECTORY" --if-present run test
 
       # pnpm rewrites a `workspace:` dependency on another SDK to its version
@@ -266,7 +268,8 @@ jobs:
         run: |
           tag=latest
           if [ "$PRERELEASE" = "true" ]; then tag=rc; fi
-          npm publish package/*.tgz --access public --tag "$tag"
+          # The leading ./ matters: npm reads package/x.tgz as a GitHub shorthand.
+          npm publish ./package/*.tgz --access public --tag "$tag"
 
   # A pending publisher for the project `odudu` makes the first publish create
   # it, and the same publisher serves later ones.

@@ -12,7 +12,7 @@ A client that starts `odudu-mcp`, the Odudu admin tools as a Model Context Proto
 
 You need Node 24 or later and the quick start stack. Run `../_shared/provision.sh` once: it makes the service account `example-mcp`, which may ask for `mcp:read` and holds `manage-clients`, given with `odudu seed client --capability manage-clients`.
 
-The SDKs are not on npm yet, so install them from this repository: `../_shared/install.sh . mcp-stdio oidc admin-client` builds and packs them and installs the result, and needs `pnpm install` run once at the repository root. Once they are published, `npm install` is all a copy of this folder needs, apart from the two packages the test uses. Then make the key and register it:
+Run `npm install`, apart from the two packages the test uses. To run it against a checkout of this repository instead, for a change that is not released yet, use `../_shared/install.sh . mcp-stdio oidc admin-client` in place of `npm install`; it builds and packs the SDKs and installs the result, and needs `pnpm install` run once at the repository root. Then make the key and register it:
 
 ```text
 npx odudu-mcp --keygen
