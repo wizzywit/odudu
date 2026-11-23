@@ -8,6 +8,7 @@ import { STAFF_FLOW_ID } from '#/testing/flowFixtures';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
+import { containing } from '#/testing/containing';
 
 afterEach(() => {
   resetConsole();
@@ -316,7 +317,7 @@ it("refuses a key set carrying a private member, with the server's reason in the
   await user.paste('{"keys":[{"kty":"RSA","n":"abc","e":"AQAB","d":"private"}]}');
   await user.click(within(section).getByRole('button', { name: 'Save Client keys' }));
   expect(await within(section).findByText(reason)).toBeVisible();
-  expect(box).toHaveAccessibleDescription(expect.stringContaining(reason));
+  expect(box).toHaveAccessibleDescription(containing(reason));
   expect(box).toHaveAttribute('aria-invalid', 'true');
   expect(box).toHaveValue('{"keys":[{"kty":"RSA","n":"abc","e":"AQAB","d":"private"}]}');
   expect(sent.filter((s) => s.method === 'PATCH')).toHaveLength(1);
