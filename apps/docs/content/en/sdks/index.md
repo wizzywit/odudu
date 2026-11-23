@@ -9,7 +9,7 @@ Odudu speaks OpenID Connect and OAuth 2.0, so a library for them can talk to it.
 
 There are eight npm packages under the scope `@odudu-io` and one Python package, `odudu` on PyPI. All of them are at the version in the table, and each has its own `CHANGELOG.md` and its own release.
 
-The first release has not been published yet. Until it is, an example installs the packages from a checkout of the repository: its README says how, with `examples/_shared/install.sh`.
+An example's README also shows how to run it against a checkout of the repository, with `examples/_shared/install.sh`, for a change that is not released yet.
 
 ## The packages
 
@@ -46,7 +46,7 @@ If your app sits behind a server you control, prefer a backend for frontend to t
 
 ## What the code blocks on these pages are
 
-A block tagged as TypeScript, Python or `text` is shown and not run by the documentation's own checks, because the packages cannot be installed from a registry until they are published. Most are taken from the source of an example in the repository, which the repository's CI does run against a live stack; `node.md` and `me-client.md` say where a block is not. The documentation's tests check that every name a block imports from an SDK is exported by that package, that every package has a page, that this table names each package's version, and that each page links an example folder that exists.
+A block tagged as TypeScript, Python or `text` is shown and not run by the documentation's own checks, because a block cannot be run on its own without a stack to sign in to. Most are taken from the source of an example in the repository, which the repository's CI does run against a live stack; `node.md` and `me-client.md` say where a block is not. The documentation's tests check that every name a block imports from an SDK is exported by that package, that every package has a page, that this table names each package's version, and that each page links an example folder that exists.
 
 The commands in the [guides](../guides/index.md) are the ones that run against the quick start stack.
 

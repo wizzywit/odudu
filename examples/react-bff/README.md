@@ -11,7 +11,7 @@ A React 19 page that signs a person in through a backend for frontend (BFF). The
 
 You need Node 24 or later and the quick start stack. Run `../_shared/provision.sh` once: it makes the client `example-react-bff` (confidential, redirect address `http://localhost:8083/bff/callback`) and the person `ada`.
 
-The SDKs are not on npm yet, so install them from this repository: `../_shared/install.sh . oidc bff react` builds and packs them and installs the result, and needs `pnpm install` run once at the repository root. Once they are published, `npm install` is all a copy of this folder needs. Then:
+Run `npm install`. To run it against a checkout of this repository instead, for a change that is not released yet, use `../_shared/install.sh . oidc bff react` in place of `npm install`; it builds and packs the SDKs and installs the result, and needs `pnpm install` run once at the repository root. Then:
 
 ```text
 npm start

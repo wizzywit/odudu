@@ -52,7 +52,7 @@ npm install @odudu-io/oidc
 
 The package runs in a browser or an edge runtime, and in Node 24 or later.
 
-Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc` in the folder of [the single-page app example](https://github.com/wizzywit/odudu/tree/main/examples/single-page-app) (it needs pnpm, and `pnpm install` run once at the repository root). For the React block below, also build React's package: `../_shared/install.sh . oidc react`.
+Install it with `npm install @odudu-io/oidc`, and for the React block below `npm install @odudu-io/react` too. The code below is [the single-page app example](https://github.com/wizzywit/odudu/tree/main/examples/single-page-app), which runs from its folder after `npm install`.
 
 The example is one file, `src/main.ts`, built and served by Vite. When the person chooses **Sign in**, `beginSignIn` returns the address to send the browser to and `pending`, the record that holds the verifier, the state and the nonce. The page is replaced when the browser leaves, so the record waits in session storage, which stays in one tab.
 

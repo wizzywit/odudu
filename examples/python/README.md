@@ -11,7 +11,7 @@ The Python package `odudu` in two small files. `admin.py` is a script that uses 
 
 You need Python 3.10 or later and the quick start stack. Run `../_shared/provision.sh` once: it makes the services `example-admin`, which holds `manage-clients` (`odudu seed client --capability manage-clients`), and `example-m2m`, which may ask for `reports:read`.
 
-The package is not on PyPI yet, so install it from this repository: `../_shared/install-python.sh .` makes a virtual environment in `.venv` from the hashed `requirements.txt`, builds the package from `sdks/python` into a wheel and installs it. Once it is published, a copy of this folder needs `pip install --require-hashes -r requirements.txt` and then `pip install 'odudu[fastapi]>=0.1,<0.2'`, in a virtual environment; the folder is a set of scripts and is not itself installable. Then:
+In a virtual environment, run `pip install --require-hashes -r requirements.txt` and then `pip install 'odudu[fastapi]>=0.1,<0.2'`; the folder is a set of scripts and is not itself installable. To run it against a checkout of this repository instead, for a change that is not released yet, `../_shared/install-python.sh .` makes the virtual environment in `.venv` from the hashed `requirements.txt`, builds the package from `sdks/python` into a wheel and installs it. Then:
 
 ```text
 .venv/bin/python admin.py

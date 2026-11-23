@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installs the Python example's dependencies from this repository while the
-# `odudu` package is not on PyPI yet: a virtual environment with the pinned,
+# Installs the Python example's dependencies from this repository, for a change
+# that is not released yet, in place of PyPI: a virtual environment with the pinned,
 # hashed requirements, and the package built into a wheel from sdks/python and
 # installed beside them. The example's own files are not changed.
 #

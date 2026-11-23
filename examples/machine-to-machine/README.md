@@ -13,11 +13,11 @@ A service that is not a person: a nightly job, or a backend calling another back
 You need Node 24 or later, the quick start stack and the API example running. Run `../_shared/provision.sh` once, start the API in `../api` (see its README), then here:
 
 ```text
-../_shared/install.sh . oidc
+npm install
 npm start
 ```
 
-The SDKs are not on npm yet, so `../_shared/install.sh` builds them from this repository and installs the packed result (it needs `pnpm install` run once at the repository root); `npm test` also needs the API installed, with `../_shared/install.sh ../api node`. Once the SDKs are published, `npm install` is all a copy of this folder needs.
+`npm test` also needs the API installed: run `npm install` in `../api` too. To run it against a checkout of this repository instead, for a change that is not released yet, use `../_shared/install.sh . oidc` in place of `npm install`; it builds and packs the SDKs and installs the result, and needs `pnpm install` run once at the repository root. The API takes `../_shared/install.sh ../api node`.
 
 `npm test` starts the API itself, runs the client and checks that it is answered, checks that a wrong secret is refused, and checks that the token is asked for once and asked for again only when it is nearly expired.
 

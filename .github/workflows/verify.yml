@@ -522,8 +522,7 @@ jobs:
         with:
           python-version: '3.13'
 
-      # The SDKs are not on npm yet, so each example gets the ones it uses from
-      # this commit: built, packed and installed beside its other dependencies,
+      # Each example gets the SDKs it uses from this commit, not from npm: built, packed and installed beside its other dependencies,
       # with its package.json and lockfile left as a reader copies them. An
       # example whose test uses an SDK its app does not lists that one too.
       - name: Install the example
