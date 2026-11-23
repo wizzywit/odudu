@@ -274,6 +274,6 @@ describe('the examples page', () => {
     for (const script of ['provision.sh', 'install.sh', 'install-python.sh']) {
       expect(existsSync(path.join(EXAMPLES, '_shared', script)), script).toBe(true);
     }
-    expect(intro).toMatch(/not on npm or PyPI|not been published/u);
+    expect(intro).toMatch(/not released yet/u);
   });
 });

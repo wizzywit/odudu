@@ -16,14 +16,14 @@ The redirect address the app sends is built from its own address, so it equals t
 
 ## Run it
 
-You need Node 24 or later and the quick start stack. Run `../_shared/provision.sh` once. The SDK is not on npm yet, so install it from this repository, which builds it and installs the packed result (it needs `pnpm install` run once at the repository root):
+You need Node 24 or later and the quick start stack. Run `../_shared/provision.sh` once. Then:
 
 ```text
-../_shared/install.sh . oidc
+npm install
 npm start
 ```
 
-Once `@odudu-io/oidc` is published, `npm install` is all a copy of this folder needs.
+To run it against a checkout of this repository instead, for a change that is not released yet, use `../_shared/install.sh . oidc` in place of `npm install`; it builds and packs the SDKs and installs the result, and needs `pnpm install` run once at the repository root.
 
 Open `http://localhost:8081` and sign in as `ada`, whose password is `a long and unremarkable passphrase`: `../_shared/provision.sh` sets it. Choose **Sign out** to end the session here, then confirm at Odudu to end it there too. `npm test` drives a browser through the sign-in, through each check below with a deliberately altered request, and through the sign-out; it needs Chromium from this repository's Playwright.
 

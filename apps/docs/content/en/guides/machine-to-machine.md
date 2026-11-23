@@ -42,7 +42,7 @@ npm install @odudu-io/oidc
 
 The package needs Node 24 or later.
 
-Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc` in the folder of [the machine-to-machine example](https://github.com/wizzywit/odudu/tree/main/examples/machine-to-machine) (it needs pnpm, and `pnpm install` run once at the repository root).
+Install it with `npm install @odudu-io/oidc`. The code below is [the machine-to-machine example](https://github.com/wizzywit/odudu/tree/main/examples/machine-to-machine), which runs from its folder after `npm install`.
 
 The example is one file, `client.ts`. It makes the token source once and calls the source before each request.
 
@@ -150,7 +150,13 @@ odudu seed client --tenant demo --client-id example-admin --client-secret exampl
 npm install @odudu-io/admin-client
 ```
 
-Until the first release is published, the package is not on npm. Install it from a checkout of this repository by running `../_shared/install.sh . oidc admin-client me-client` in the folder of [the admin example](https://github.com/wizzywit/odudu/tree/main/examples/admin), which uses all three (it needs pnpm, and `pnpm install` run once at the repository root).
+Install them:
+
+```text
+npm install @odudu-io/oidc @odudu-io/admin-client @odudu-io/me-client
+```
+
+The code below is [the admin example](https://github.com/wizzywit/odudu/tree/main/examples/admin), which uses all three and runs from its folder after `npm install`.
 
 From `examples/admin/admin.ts`:
 
@@ -199,8 +205,6 @@ No MCP client we looked at signs in this way. Claude Code, claude.ai, Claude Des
 ```text
 npx @odudu-io/mcp-stdio --keygen
 ```
-
-Until the first release is published, `npx` cannot find the package. From a checkout of this repository, with Node 24 or later, run `pnpm install` and `pnpm --filter "@odudu-io/mcp-stdio..." build` once, and replace `npx @odudu-io/mcp-stdio` with `node /path/to/odudu/sdks/mcp-stdio/dist/bin.js` in every command here.
 
 Register a client the way this guide does, with the `client_credentials` grant, `token_endpoint_auth_method` set to `private_key_jwt`, that key set as its `jwks`, the audience `urn:odudu:params:admin-api` and the scope `mcp:read` in its `client_credentials_scopes`. The tools can then do what the service account's roles let it do, and no more. Start the command with the key in the environment:
 

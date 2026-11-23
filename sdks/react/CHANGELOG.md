@@ -7,6 +7,8 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-23
+
 ### Added
 
 - `{ kind: 'bff', baseUrl, proxyPath? }`: `useBffFetch` calls `proxyPath` (a path of this origin such as `/api/proxy`; no host, dot segment, escape or trailing slash, or the provider throws `invalid_options` when it mounts) in place of `<baseUrl>/proxy`, for a server whose BFF has a custom `proxyPath`.

@@ -87,7 +87,7 @@ As a person, the command opens your browser to sign in, listens for the answer o
 }
 ```
 
-Until the first release is published, `npx` cannot find the package, so use the entry below instead. It runs the same code from a checkout of this repository, with Node 24 and `pnpm install` done and `pnpm --filter "@odudu-io/mcp-stdio..." build` run once, and it is the form that was run in Claude Desktop, as the section "What was checked, and what was not" says:
+The `npx` entry above was not itself run in Claude Desktop (the section "What was checked, and what was not" says so). The form that was run starts the same code from a checkout of this repository, with Node 24 and `pnpm install` done and `pnpm --filter "@odudu-io/mcp-stdio..." build` run once:
 
 ```text
 {
@@ -125,8 +125,6 @@ For a service account, which needs no browser, the key travels in the entry's en
   }
 }
 ```
-
-Until the first release is published, replace `"npx"` and `"-y", "@odudu-io/mcp-stdio"` with `"node"` and `"/path/to/odudu/sdks/mcp-stdio/dist/bin.js"` (after the build above).
 
 The same command runs in the container, which already holds it, when you would rather not install anything. The key is passed from the environment there too:
 

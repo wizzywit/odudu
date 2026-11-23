@@ -7,6 +7,8 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-23
+
 ### Added
 
 - `createVerifier` checks an Odudu access token for an API: the signature against the issuer's keys (RS256 or ES256, read from the `jwks_uri` of its discovery document), the issuer, the audience, `typ` `at+jwt`, the expiry and the required scope. A refusal is a `VerificationError` carrying the HTTP status (401 or 403) and the `WWW-Authenticate` challenge to send.

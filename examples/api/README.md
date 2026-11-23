@@ -20,11 +20,11 @@ A token that fails the first five is a `401`, and the body says only `invalid_to
 You need Node 24 or later and the quick start stack. Run `../_shared/provision.sh` once, then:
 
 ```text
-../_shared/install.sh . node
+npm install
 npm start
 ```
 
-The SDK is not on npm yet, so `../_shared/install.sh` builds it from this repository and installs the packed result (it needs `pnpm install` run once at the repository root). Once `@odudu-io/node` is published, `npm install` is all a copy of this folder needs.
+To run it against a checkout of this repository instead, for a change that is not released yet, use `../_shared/install.sh . node` in place of `npm install`; it builds and packs the SDKs and installs the result, and needs `pnpm install` run once at the repository root.
 
 Get a token the way [`../machine-to-machine`](../machine-to-machine) does and call `http://localhost:8082/reports` with it. `npm test` does that against your stack: a service with the scope, a service without it, a person, no token, another audience and an ID token. The ways a token can be wrong that need keys made on the spot are tried by the SDK's own tests.
 
