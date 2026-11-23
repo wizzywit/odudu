@@ -290,7 +290,7 @@
     },
     "@odudu/repo-checks#test": {
       "cache": false,
-      "dependsOn": ["^typecheck", "@odudu/admin-console#build"],
+      "dependsOn": ["^typecheck", "@odudu/admin-console#build", "@odudu-io/oidc#build"],
       "env": ["ODUDU_TEST_SHARD"]
     }
   }

@@ -6,6 +6,8 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-23
+
 ### Added
 
 - SDKs, in this repository under `sdks/` and licensed Apache-2.0, each with its own version and changelog. Published to npm and PyPI at 0.1.0. Eight npm packages under the scope `@odudu-io`:
@@ -334,7 +336,8 @@ The first release candidate. Odudu is not production ready: it has had no securi
 - Cookies are `Secure` and `__Host-` prefixed under `ODUDU_TLS`, from one setting; before, the session cookie ignored it.
 - Characters that change the direction of text are refused in names and usernames.
 
-[Unreleased]: https://github.com/wizzywit/odudu/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/wizzywit/odudu/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/wizzywit/odudu/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.6...v0.1.0
 [0.1.0-rc.6]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.5...v0.1.0-rc.6
 [0.1.0-rc.5]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.4...v0.1.0-rc.5
