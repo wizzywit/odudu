@@ -162,3 +162,9 @@ tested script, and one more thing to pin and trust.
 
 **One job per package.** Fine-grained, but the cold-install cost repeats
 twenty-five times; slicing only the four large packages gets most of it.
+
+## Amendment (2026-11-20): the `sdks` job
+
+A change under `sdks/` is not prose, so `changes` already sets `server` for it
+and no filter changed: the `sdks` job runs when `server` is true, and a change
+confined to prose skips it as it skips the others. `gate` waits for it.

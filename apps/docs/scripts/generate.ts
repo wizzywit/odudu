@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { buildMeOpenApiDocument } from '@odudu/me/docs';
 import { ADMIN_ROUTES } from '@odudu/protocol-admin';
 import { buildAdminOpenApiDocument } from '@odudu/protocol-admin/docs';
 import { CLI_COMMANDS } from '@odudu/server/src/cli/registry.ts';
@@ -11,7 +12,7 @@ import { renderConfigPage } from './config-page.ts';
 import { renderEndpointsPage } from './endpoints-page.ts';
 import { renderErrorsPage } from './errors-page.ts';
 import { renderEventsPage } from './events-page.ts';
-import { adminApiAreas, renderOpenApiPages } from './openapi-pages.ts';
+import { ADMIN_PROFILE, adminApiAreas, ME_PROFILE, renderOpenApiPages } from './openapi-pages.ts';
 
 const APP_ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -62,7 +63,11 @@ export async function sources(): Promise<readonly Source[]> {
   return [
     {
       name: 'the OpenAPI document of @odudu/protocol-admin',
-      pages: renderOpenApiPages(buildAdminOpenApiDocument()),
+      pages: renderOpenApiPages(buildAdminOpenApiDocument(), ADMIN_PROFILE),
+    },
+    {
+      name: 'the OpenAPI document of @odudu/me',
+      pages: renderOpenApiPages(buildMeOpenApiDocument(), ME_PROFILE),
     },
     {
       name: 'the command registry of @odudu/server',
@@ -100,9 +105,15 @@ export async function generatedFiles(commit: string): Promise<ReadonlyMap<string
     }
   }
   const admin = buildAdminOpenApiDocument();
+  const me = buildMeOpenApiDocument();
   const categories: [string, string][] = [
     ['admin-api', 'Admin API'],
     ...adminApiAreas(admin).map(([area, label]): [string, string] => [`admin-api/${area}`, label]),
+    ['me-api', 'Me API'],
+    ...adminApiAreas(me, ME_PROFILE).map(([area, label]): [string, string] => [
+      `me-api/${area}`,
+      label,
+    ]),
   ];
   for (const [dir, label] of categories) {
     files.set(`${REFERENCE_DIR}/${dir}/_category_.json`, `${JSON.stringify({ label }, null, 2)}\n`);
@@ -111,6 +122,7 @@ export async function generatedFiles(commit: string): Promise<ReadonlyMap<string
     'static/openapi/admin.json',
     `${JSON.stringify(buildAdminOpenApiDocument(), null, 2)}\n`,
   );
+  files.set('static/openapi/me.json', `${JSON.stringify(me, null, 2)}\n`);
   return new Map([...files].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 

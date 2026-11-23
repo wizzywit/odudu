@@ -131,7 +131,7 @@ test('refuses an answer that names another issuer', async () => {
     await signIn(page, APP, 'ben', PASSWORD, 'button');
     await refused(page);
     const reason = logged.join('\n');
-    assert.match(reason, /unexpected "iss" \(issuer\) response parameter/u);
+    assert.match(reason, /invalid_issuer/u);
     assert.doesNotMatch(reason, /state|nonce|invalid_grant/u);
   });
 });

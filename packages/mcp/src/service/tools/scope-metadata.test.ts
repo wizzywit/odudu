@@ -1,6 +1,6 @@
 import { clientScopeSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { callTool } from '#/service/call-tool';
+import { callTool } from '@odudu-io/mcp-stdio/internal';
 import { respondingWith } from '#/testing/fake-caller';
 import { scopeMetadataTool } from '#/service/tools/scope-metadata';
 import { describeWriteTool, ETAG } from '#/testing/write-conformance';

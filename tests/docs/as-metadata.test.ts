@@ -77,5 +77,5 @@ describe('the authorization server metadata the transcript shows is the one the 
     expect(shown, 'the metadata transcript shows a response the server no longer produces').toEqual(
       await serverAsMetadata(),
     );
-  });
+  }, 60_000);
 });

@@ -22,6 +22,10 @@ const MAY_LINK_TO_THE_SITE = new Set([
   'RELEASING.md',
   '.github/ISSUE_TEMPLATE/config.yml',
   '.github/ISSUE_TEMPLATE/feature_request.yml',
+  // A package's README is what its npm page shows, so its links cannot be relative.
+  ...['admin-client', 'bff', 'me-client', 'next', 'node', 'oidc', 'react'].map(
+    (name) => `sdks/${name}/README.md`,
+  ),
   CONFIG,
 ]);
 

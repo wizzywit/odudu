@@ -81,7 +81,7 @@ Every directory of the workspace, grouped by what it is for.
 - `packages/account` holds registration, email verification and password reset.
 - `packages/protocol-oidc` holds the OAuth 2.1 and OpenID Connect endpoints.
 - `packages/protocol-admin` holds the admin API and its OpenAPI description.
-- `packages/mcp` holds the Model Context Protocol server: the endpoint each tenant serves, its tools and their catalogue, the token checks and the metadata and challenge a client is answered with, and the stdio server `odudu mcp` runs. It reaches the admin API through a caller and is composed only by `apps/server` ([ADR 0051](https://github.com/wizzywit/odudu/blob/main/docs/adr/0051-the-mcp-package-sits-above-the-protocol-packages.md)).
+- `packages/mcp` holds the Model Context Protocol server: the endpoint each tenant serves, its tools and their catalogue, the token checks and the metadata and challenge a client is answered with. The stdio server `odudu mcp` runs is `sdks/mcp-stdio` ([ADR 0053](https://github.com/wizzywit/odudu/blob/main/docs/adr/0053-sdks-live-in-sdks-and-are-apache.md)), which the package shares its call code with. It reaches the admin API through a caller and is composed only by `apps/server` ([ADR 0051](https://github.com/wizzywit/odudu/blob/main/docs/adr/0051-the-mcp-package-sits-above-the-protocol-packages.md)).
 - `packages/me` holds the "me" API, where a signed-in person reads their own account with their own access token: the profile, credentials, sessions and consents routes and the checks of the token they are read with. It sits above `packages/protocol-oidc` and is composed only by `apps/server` ([ADR 0052](https://github.com/wizzywit/odudu/blob/main/docs/adr/0052-the-me-package-sits-above-protocol-oidc.md)).
 - `packages/console-gateway` holds the server side of the console, which keeps its tokens out of the browser.
 
@@ -98,7 +98,9 @@ Every directory of the workspace, grouped by what it is for.
 - `tools/ci` works out which CI jobs a change needs.
 - `tools/commit-message` checks commit messages.
 - `tools/docs-run` runs the commands in the guides against a live stack.
+- `tools/mcp-catalogue` generates the stdio MCP tool catalogue (`sdks/mcp-stdio/src/mcp-tools.json`) from the server's tool definitions.
 - `tools/release` works out a release's version and image tags, and writes its notes and its compose file.
+- `tools/sdk-generate` generates the admin and me clients, in TypeScript and in Python, from the OpenAPI documents.
 - `tools/trace` checks every requirement in a protocol note has a test.
 - `tools/turbo-cache` prunes the build cache.
 

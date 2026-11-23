@@ -1522,12 +1522,12 @@ error and config tables from `@odudu/kernel`, the audit vocabulary from
 | `groups`              | 62        | 67     |
 | `keys`                | 31        | 31     |
 | `lockouts`            | 3         | 3      |
-| `mail`                | 49        | 52     |
+| `mail`                | 34        | 37     |
 | `message-catalogue`   | 5         | 5      |
 | `message-overrides`   | 14        | 14     |
 | `registration-tokens` | 14        | 14     |
 | `roles`               | 65        | 65     |
-| `scopes`              | 102       | 107    |
+| `scopes`              | 100       | 105    |
 | `sessions`            | 18        | 18     |
 | `settings`            | 0         | 0      |
 | `smtp`                | 22        | 24     |
@@ -1539,6 +1539,9 @@ error and config tables from `@odudu/kernel`, the audit vocabulary from
 | `theme`               | 238       | 238    |
 | `whoami`              | 4         | 4      |
 
+- `mail` and `scopes` were lowered when the admin document began naming every object schema that occurs three or
+  more times: a shape a response repeats is listed once and pointed at again, so the duplicate rows, all described,
+  are no longer counted. No field lost its description.
 - The `generate.test.ts` comparison of the files on disk with a fresh generation guards a stale local tree; in CI
   the build regenerates just before the tests run, so it is not a drift check there. What keeps the reference from
   drifting is derivation, and the typed tables above.

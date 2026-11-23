@@ -1,0 +1,162 @@
+import {
+  decodeJwt,
+  decodeProtectedHeader,
+  errors,
+  importJWK,
+  jwtVerify,
+  type JWK,
+  type JWTPayload,
+} from 'jose';
+import { SIGNING_ALGORITHMS, type SigningAlgorithm } from '#/services/jwks';
+import { VerificationError } from '#/services/verification-error';
+import type { VerifiedToken } from '#/types';
+
+// RFC 9068 §4 allows `at+jwt` and `application/at+jwt` and RFC 7515 §4.1.9
+// makes the media type case-insensitive. The server compares the header with
+// `at+jwt` exactly and refuses the rest, and so does this.
+const ACCESS_TOKEN_TYPE = 'at+jwt';
+// Seconds of leeway on `exp` and `nbf`.
+export const CLOCK_TOLERANCE_SECONDS = 5;
+// A token longer than this is refused before it is decoded.
+export const MAX_TOKEN_LENGTH = 16_384;
+
+export interface TokenHeader {
+  alg: SigningAlgorithm;
+  kid: string;
+}
+
+// The issuer a token claims, read before anything is trusted. It only selects
+// among the configured issuers: it is never fetched or used as an address.
+export function claimedIssuer(token: string, issuers: readonly string[]): string {
+  if (token.length > MAX_TOKEN_LENGTH) throw new VerificationError('malformed');
+  let iss: unknown;
+  try {
+    iss = decodeJwt(token).iss;
+  } catch {
+    throw new VerificationError('malformed');
+  }
+  const configured = issuers.find((issuer) => issuer === iss);
+  if (configured === undefined) throw new VerificationError('wrong_issuer');
+  return configured;
+}
+
+function isSigningAlgorithm(alg: unknown): alg is SigningAlgorithm {
+  return (SIGNING_ALGORITHMS as readonly unknown[]).includes(alg);
+}
+
+// The checks that need no key: the token is an access token, signed with an
+// algorithm the server uses (so `none` and any HMAC are refused before a key
+// is looked up) and names the key it was signed with.
+export function checkHeader(token: string): TokenHeader {
+  let header;
+  try {
+    header = decodeProtectedHeader(token);
+  } catch {
+    throw new VerificationError('malformed');
+  }
+  if (header.typ !== ACCESS_TOKEN_TYPE) throw new VerificationError('wrong_type');
+  const { alg, kid } = header;
+  if (!isSigningAlgorithm(alg)) throw new VerificationError('unsupported_algorithm');
+  if (typeof kid !== 'string' || kid === '') throw new VerificationError('invalid_header');
+  return { alg, kid };
+}
+
+function failure(error: unknown): VerificationError {
+  if (error instanceof errors.JWTExpired) return new VerificationError('expired');
+  if (error instanceof errors.JWTClaimValidationFailed) {
+    if (error.claim === 'nbf') return new VerificationError('not_yet_valid');
+    if (error.claim === 'aud') return new VerificationError('wrong_audience');
+    if (error.claim === 'iss') return new VerificationError('wrong_issuer');
+    return new VerificationError('invalid_claims');
+  }
+  if (error instanceof errors.JWSSignatureVerificationFailed) {
+    return new VerificationError('bad_signature');
+  }
+  return new VerificationError('malformed');
+}
+
+type ImportedKey = Awaited<ReturnType<typeof importJWK>>;
+
+// A key set holds JWK objects that live as long as the set does, and importing
+// one into a CryptoKey costs about as much as the signature check it serves.
+// The import is kept per JWK object (and per algorithm, for a key that names
+// none), so it is dropped with the key set that held it, and its size is
+// bounded by the key set's own cap. A failed import is not kept.
+const imports = new WeakMap<JWK, Map<string, Promise<ImportedKey>>>();
+
+function importedKey(jwk: JWK, alg: string): Promise<ImportedKey> {
+  const forKey = imports.get(jwk) ?? new Map<string, Promise<ImportedKey>>();
+  imports.set(jwk, forKey);
+  const held = forKey.get(alg);
+  if (held !== undefined) return held;
+  const made = importJWK(jwk, alg);
+  forKey.set(alg, made);
+  made.catch(() => forKey.delete(alg));
+  return made;
+}
+
+export async function verifySigned(
+  token: string,
+  jwk: JWK,
+  header: TokenHeader,
+  expected: { issuer: string; audience: string; nowMs: number },
+): Promise<JWTPayload> {
+  if (jwk.alg !== undefined && jwk.alg !== header.alg) {
+    throw new VerificationError('unsupported_algorithm');
+  }
+  try {
+    const key = await importedKey(jwk, header.alg);
+    const { payload } = await jwtVerify(token, key, {
+      algorithms: SIGNING_ALGORITHMS.filter((alg) => alg === header.alg),
+      issuer: expected.issuer,
+      audience: expected.audience,
+      requiredClaims: ['exp'],
+      currentDate: new Date(expected.nowMs),
+      clockTolerance: CLOCK_TOLERANCE_SECONDS,
+    });
+    return payload;
+  } catch (error) {
+    throw failure(error);
+  }
+}
+
+const strings = (value: unknown): string[] =>
+  typeof value === 'string'
+    ? [value]
+    : Array.isArray(value)
+      ? value.filter((v): v is string => typeof v === 'string')
+      : [];
+
+// The "me" API's audience is the issuer's address plus `/me`. A token for it
+// names it beside its issuer; an API that is not that one refuses any token
+// that names it, as the server does at every door but the "me" API.
+function namesMeAudience(audience: readonly string[], issuers: readonly string[]): boolean {
+  return issuers.some((issuer) => audience.includes(`${issuer}/me`));
+}
+
+// What the verified claims say, once they are known to be well formed.
+export function readClaims(
+  payload: JWTPayload,
+  issuers: readonly string[],
+  requiredScope: string | undefined,
+): VerifiedToken {
+  const audience = strings(payload.aud);
+  if (namesMeAudience(audience, issuers)) throw new VerificationError('me_audience');
+  if (typeof payload.sub !== 'string' || payload.sub === '') {
+    throw new VerificationError('invalid_claims');
+  }
+  if (payload.scope !== undefined && typeof payload.scope !== 'string') {
+    throw new VerificationError('invalid_claims');
+  }
+  const scope = (payload.scope ?? '').split(' ').filter((s) => s !== '');
+  if (requiredScope !== undefined && !scope.includes(requiredScope)) {
+    throw new VerificationError('insufficient_scope', requiredScope);
+  }
+  return {
+    sub: payload.sub,
+    clientId: typeof payload.client_id === 'string' ? payload.client_id : undefined,
+    scope,
+    audience,
+    claims: { ...payload },
+  };
+}

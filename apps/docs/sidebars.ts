@@ -50,6 +50,7 @@ export const SIDEBAR_ITEMS: SidebarItemConfig[] = [
   directory(section('introduction/index').label, 'introduction'),
   page('quick-start/index'),
   directory(section('guides/index').label, 'guides'),
+  directory(section('sdks/index').label, 'sdks'),
   directory(section('concepts/index').label, 'concepts'),
   directory(section('admin-console/index').label, 'admin-console'),
   directory(section('operating/index').label, 'operating'),

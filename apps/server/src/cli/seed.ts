@@ -65,6 +65,7 @@ import {
   ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
   MCP_CLIENT_ID,
   ME_READ_SCOPE,
+  TENANT_CAPABILITIES,
   clientRegistrationTokenRepository,
   clientRepository,
   ClientScopeLimitError,
@@ -855,6 +856,9 @@ export interface ClientCommandResult {
   tenantId: string;
   clientId: string;
   clientDbId: string;
+  // The admin capabilities given to the service account, sorted; absent when none.
+  // `seed` writes no audit event, so this is the command's only trace of the grant.
+  capabilities?: string[];
 }
 
 export interface UserCommandResult {
@@ -1287,6 +1291,26 @@ function defaultGrantsFor(type: 'confidential' | 'public'): string[] {
     : ['authorization_code', 'refresh_token'];
 }
 
+// An admin capability is a role of the tenant's `odudu-admin` client. The
+// admin API can give one to any subject, but only to a caller that already
+// holds one, so the first credential has to be made here.
+async function grantCapabilities(
+  tx: TenantScopedDatabase,
+  subjectId: string | null,
+  capabilities: readonly string[],
+): Promise<void> {
+  if (capabilities.length === 0) return;
+  if (subjectId === null) throw new Error('the service account has no subject');
+  const admin = await requireClientDbId(tx, ADMIN_CLIENT_ID);
+  for (const capability of capabilities) {
+    const role = await roleRepository(tx).byName(capability, admin);
+    if (role === null) {
+      throw new OduduError('seed_not_found', `no role named ${JSON.stringify(capability)}`);
+    }
+    await roleRepository(tx).assignToSubject(subjectId, role.id);
+  }
+}
+
 async function runClientCommand(
   ownerDb: Database,
   runtimeDb: Database,
@@ -1395,6 +1419,28 @@ async function runClientCommand(
     throw new OduduError(
       'seed_unknown_grant_type',
       `--grant-type names ${unknownGrantTypes.join(', ')}, which this server does not implement`,
+    );
+  }
+
+  const capabilities = [...new Set(values.capability ?? [])].sort();
+  const unknownCapabilities = capabilities.filter(
+    (name) => !(TENANT_CAPABILITIES as readonly string[]).includes(name),
+  );
+  if (unknownCapabilities.length > 0) {
+    throw new OduduError(
+      'seed_invalid_options',
+      `--capability names ${unknownCapabilities.join(', ')}, which is not an admin capability: ` +
+        TENANT_CAPABILITIES.join(', '),
+    );
+  }
+  if (
+    capabilities.length > 0 &&
+    (type === 'public' || !grantTypes.includes('client_credentials'))
+  ) {
+    throw new OduduError(
+      'seed_invalid_options',
+      '--capability needs a confidential client that may use the client_credentials grant, ' +
+        'because only its service account can hold one',
     );
   }
 
@@ -1519,7 +1565,10 @@ async function runClientCommand(
       allowedActions,
       flowId,
     });
-    if (needsServiceAccount(type, grantTypes)) await ensureServiceAccount(tx, client);
+    if (needsServiceAccount(type, grantTypes)) {
+      const account = await ensureServiceAccount(tx, client);
+      await grantCapabilities(tx, account.serviceSubjectId, capabilities);
+    }
 
     return {
       command: 'client',
@@ -1528,6 +1577,7 @@ async function runClientCommand(
       tenantId,
       clientId,
       clientDbId: client.id,
+      ...(capabilities.length > 0 ? { capabilities } : {}),
     };
   });
 }

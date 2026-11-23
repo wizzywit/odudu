@@ -27,6 +27,7 @@ const SOURCE_TREES = [
   'apps/*/src/**/*.{ts,tsx}',
   'apps/*/tests/**/*.{ts,tsx}',
   'tools/*/src/**/*.ts',
+  'sdks/*/src/**/*.{ts,tsx}',
   'tests/**/*.ts',
   '*.ts',
 ];
@@ -36,7 +37,9 @@ async function scannedFiles(): Promise<string[]> {
   for (const pattern of SOURCE_TREES) {
     for await (const file of glob(pattern, {
       cwd: REPO_ROOT,
-      exclude: (entry) => path.basename(entry) === 'node_modules',
+      exclude: (entry) =>
+        path.basename(entry) === 'node_modules' ||
+        /(^|[\\/])sdks[\\/][^\\/]+[\\/]src[\\/]generated$/u.test(entry),
     })) {
       files.push(file.split(path.sep).join('/'));
     }

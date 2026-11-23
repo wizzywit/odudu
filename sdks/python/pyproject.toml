@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "odudu"
+version = "0.1.0"
+description = "Typed clients for the Odudu admin API and the account (me) API"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+  "attrs>=23.1",
+  "httpx>=0.27,<1",
+  "typing-extensions>=4.0",
+]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Repository = "https://github.com/wizzywit/odudu"
+Source = "https://github.com/wizzywit/odudu/tree/main/sdks/python"
+
+# `odudu.verify` needs PyJWT and cryptography; the admin and me clients do not, so they are an
+# extra and importing `odudu` or `odudu.admin` never loads them.
+[project.optional-dependencies]
+verify = ["PyJWT[crypto]>=2.8,<3"]
+fastapi = ["PyJWT[crypto]>=2.8,<3", "fastapi>=0.110"]
+flask = ["PyJWT[crypto]>=2.8,<3", "flask>=2.3"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/odudu"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/odudu", "tests", "README.md", "LICENSE", "CHANGELOG.md", "requirements-dev.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["src/odudu/_generated"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "T20", "ANN", "BLE", "PT", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "SIM300", "ANN"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src/odudu", "tests"]

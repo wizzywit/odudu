@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INSTANCE_READS } from '@odudu/protocol-admin';
-import { expandPattern, INSTANCE_PATTERNS } from '#/service/admin-path';
+import { expandPattern, INSTANCE_PATTERNS } from '@odudu-io/mcp-stdio/internal';
 
 describe('expandPattern', () => {
   it('fills the tenant and the parameters, each as one encoded segment', () => {

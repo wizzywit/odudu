@@ -12,20 +12,21 @@ which one covers it.
 | `tests`             | AGPL-3.0-only |
 | `apps/docs/content` | Apache-2.0    |
 | `examples/*`        | Apache-2.0    |
+| `sdks/*`            | Apache-2.0    |
 
-The `.` row is the root `package.json`. The two Apache-2.0 rows are the example applications under `examples/` and the
-site's prose under `apps/docs/content`.
+The `.` row is the root `package.json`. The Apache-2.0 rows are the example applications under `examples/`, the client
+SDKs under `sdks/` and the site's prose under `apps/docs/content`.
 A `package.json` that appears under either path without `Apache-2.0` fails
 `tests/lint/licence-fields.test.ts`.
 
 Anything not listed, including the repository's own documentation under
 `docs/`, follows the root [`LICENSE`](LICENSE), which is the AGPL-3.0 text.
 The Apache-2.0 text is in [`LICENSES/Apache-2.0.txt`](LICENSES/Apache-2.0.txt),
-and each example application carries its own copy as `LICENSE`.
+and each example application and each SDK carries its own copy as `LICENSE`.
 
 The server, the console, the gateway and the command line are AGPL-3.0: they
 are the service, and anyone who modifies Odudu and offers it over a network
-must publish their changes. The site's prose and the example applications are Apache-2.0,
+must publish their changes. The client SDKs, the site's prose and the example applications are Apache-2.0,
 so that copying a guide or starting from an example is never constrained.
 [ADR 0042](docs/adr/0042-distribution-licensing-and-the-paid-boundary.md)
 has the reasoning and the alternatives rejected.

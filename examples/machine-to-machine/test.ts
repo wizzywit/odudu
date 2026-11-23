@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { after, before, test } from 'node:test';
-import { createTokenSource } from './client.ts';
+import { createTokenSource } from '@odudu-io/oidc';
 
 const API_PORT = '8082';
 let api: ChildProcess;
@@ -53,17 +53,23 @@ test('asks for a token once, and again only when the one it holds is about to ex
   const base = process.env.ODUDU_BASE ?? 'http://localhost:3000';
   let requests = 0;
   let clock = Date.now();
-  const source = createTokenSource({
-    issuer: `${base}/tenants/demo`,
-    clientId: 'example-m2m',
-    clientSecret: 'example-m2m-secret',
-    scope: 'reports:read',
-    fetch: (input, init) => {
-      requests += 1;
-      return fetch(input, init);
+  const source = createTokenSource(
+    {
+      issuer: `${base}/tenants/demo`,
+      clientId: 'example-m2m',
+      auth: { secret: 'example-m2m-secret' },
+      scope: 'reports:read',
     },
-    now: () => clock,
-  });
+    {
+      allowInsecureRequests: true,
+      // The SDK reads the tenant's metadata through the same fetch; only token requests count.
+      fetch: (input, init) => {
+        if (String(input).endsWith('/token')) requests += 1;
+        return fetch(input, init);
+      },
+      now: () => clock,
+    },
+  );
   const first = await source();
   assert.equal(await source(), first);
   assert.equal(requests, 1);
@@ -79,16 +85,22 @@ test('asks for a token once, and again only when the one it holds is about to ex
 test('makes one token request when two calls arrive together', async () => {
   const base = process.env.ODUDU_BASE ?? 'http://localhost:3000';
   let requests = 0;
-  const source = createTokenSource({
-    issuer: `${base}/tenants/demo`,
-    clientId: 'example-m2m',
-    clientSecret: 'example-m2m-secret',
-    scope: 'reports:read',
-    fetch: (input, init) => {
-      requests += 1;
-      return fetch(input, init);
+  const source = createTokenSource(
+    {
+      issuer: `${base}/tenants/demo`,
+      clientId: 'example-m2m',
+      auth: { secret: 'example-m2m-secret' },
+      scope: 'reports:read',
     },
-  });
+    {
+      allowInsecureRequests: true,
+      // The SDK reads the tenant's metadata through the same fetch; only token requests count.
+      fetch: (input, init) => {
+        if (String(input).endsWith('/token')) requests += 1;
+        return fetch(input, init);
+      },
+    },
+  );
   const [first, second] = await Promise.all([source(), source()]);
   assert.equal(first, second);
   assert.equal(requests, 1);

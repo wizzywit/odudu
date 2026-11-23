@@ -65,6 +65,7 @@ const SOURCE_TREES = [
   'apps/*/src/**/*.{ts,tsx}',
   'apps/*/tests/**/*.{ts,tsx}',
   'tools/*/src/**/*.ts',
+  'sdks/*/src/**/*.{ts,tsx}',
   'tests/**/*.ts',
 ];
 

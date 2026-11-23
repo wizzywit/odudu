@@ -18,13 +18,18 @@ describe('links from the documentation to the examples', () => {
     })),
   );
 
-  it('is made by the integration guides', () => {
+  it('is made by the integration guides and the SDKs pages', () => {
     expect(new Set(linked.map(({ directory }) => directory))).toEqual(
       new Set([
         'examples/web-app',
         'examples/single-page-app',
         'examples/api',
         'examples/machine-to-machine',
+        'examples/react-bff',
+        'examples/next',
+        'examples/admin',
+        'examples/python',
+        'examples/mcp',
       ]),
     );
   });
@@ -37,14 +42,22 @@ describe('links from the documentation to the examples', () => {
     expect(linked).toContainEqual({ page, directory });
   });
 
+  // The Python example is a set of scripts with a requirements file and a pytest file.
+  const manifests = ['package.json', 'requirements.txt'];
+  const tests = ['test.ts', 'test_example.py'];
+
   it.each(linked.map(({ page, directory }) => [page, directory] as const))(
     '%s links %s, which exists with a README, a manifest and a test',
     (_page, directory) => {
       expect(existsSync(repoPath(`${directory}/README.md`)), `${directory}/README.md`).toBe(true);
-      expect(existsSync(repoPath(`${directory}/package.json`)), `${directory}/package.json`).toBe(
-        true,
-      );
-      expect(existsSync(repoPath(`${directory}/test.ts`)), `${directory}/test.ts`).toBe(true);
+      expect(
+        manifests.some((name) => existsSync(repoPath(`${directory}/${name}`))),
+        `${directory} manifest`,
+      ).toBe(true);
+      expect(
+        tests.some((name) => existsSync(repoPath(`${directory}/${name}`))),
+        `${directory} test`,
+      ).toBe(true);
     },
   );
 });

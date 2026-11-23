@@ -62,3 +62,12 @@ usecase import neither an adapter nor `@odudu/db`, and `me` may not import
 wire shapes are pure mappings in `service/wire.ts`. The reads are a port,
 `MeReads` in `repository/reads.ts`, implemented in `apps/server/src/me-deps.ts`,
 where the database is already in reach.
+
+## Amendment — 2026-11-20 — the docs app reads the docs entry
+
+`apps/docs` renders the me OpenAPI document into the reference, so it imports
+`packages/me/src/docs.ts`, the entry that carries the document builder and no
+server wiring. `me-imported-only-by-server` therefore exempts `apps/docs`, and
+`me-docs-entry-only` holds that app to that one file: anything else in `me`
+fails the build. "Nothing but `apps/server` imports `me`" above reads with this
+one exception. `tests/boundaries/boundaries.test.ts` asserts both edges.

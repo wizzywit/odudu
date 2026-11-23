@@ -71,6 +71,7 @@ jobs:
 
       - run: pnpm format:check
       - run: pnpm typecheck
+      # Type-aware: it reads the built dist of @odudu-io/mcp-stdio, which the typecheck above builds.
       - run: pnpm lint
       - run: pnpm test:node-esm
       - run: pnpm boundaries
@@ -197,7 +198,7 @@ jobs:
         if: success()
         run: |
           mkdir -p reports/rest
-          for f in packages/*/trace-report.json apps/*/trace-report.json tools/*/trace-report.json tests/trace-report.json; do
+          for f in packages/*/trace-report.json apps/*/trace-report.json sdks/*/trace-report.json tools/*/trace-report.json tests/trace-report.json; do
             [ -f "$f" ] || continue
             mkdir -p "reports/rest/$(dirname "$f")"
             cp "$f" "reports/rest/$f"
@@ -357,6 +358,11 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      # The server's MCP code imports the SDK's source, which imports the
+      # oidc package's built output.
+      - name: Build the oidc SDK
+        run: pnpm --filter @odudu-io/oidc... run build
+
       - name: Check the query plans at volume
         run: pnpm test:plans
 
@@ -463,8 +469,8 @@ jobs:
 
   # Runs each example app against the quickstart stack built from this commit:
   # provisions the tenant, client and person the examples share, installs the
-  # example from its own lockfile and runs its test, which signs a person in or
-  # calls a protected API and asserts the result.
+  # example with the SDKs it uses packed from this commit and runs its test,
+  # which signs a person in or calls a protected API and asserts the result.
   examples:
     needs: changes
     if: needs.changes.outputs.buildImage == 'true'
@@ -473,7 +479,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [web-app, single-page-app, api, machine-to-machine]
+        example:
+          [web-app, single-page-app, api, machine-to-machine, next, react-bff, admin, python, mcp]
     env:
       ODUDU_BASE: http://localhost:3205
       COMPOSE_FILE: ${{ github.workspace }}/quickstart/compose.yaml
@@ -486,10 +493,10 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      # The two apps that sign a person in drive a browser, and borrow the docs
-      # app's Playwright.
+      # The examples that sign a person in at a page drive a browser, and borrow
+      # the docs app's Playwright.
       - uses: ./.github/actions/playwright
-        if: matrix.example == 'web-app' || matrix.example == 'single-page-app'
+        if: matrix.example == 'web-app' || matrix.example == 'single-page-app' || matrix.example == 'react-bff' || matrix.example == 'admin'
         with:
           package: '@odudu/docs'
 
@@ -510,23 +517,58 @@ jobs:
       - name: Make the tenant, the clients and the person
         run: examples/_shared/provision.sh
 
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: matrix.example == 'python'
+        with:
+          python-version: '3.13'
+
+      # The SDKs are not on npm yet, so each example gets the ones it uses from
+      # this commit: built, packed and installed beside its other dependencies,
+      # with its package.json and lockfile left as a reader copies them. An
+      # example whose test uses an SDK its app does not lists that one too.
       - name: Install the example
-        working-directory: examples/${{ matrix.example }}
-        run: npm ci --ignore-scripts
+        if: matrix.example != 'python'
+        env:
+          SDKS: ${{ matrix.example == 'web-app' && 'oidc' || matrix.example == 'single-page-app' && 'oidc' || matrix.example == 'machine-to-machine' && 'oidc' || matrix.example == 'api' && 'node' || matrix.example == 'next' && 'oidc bff next' || matrix.example == 'react-bff' && 'oidc bff react' || matrix.example == 'admin' && 'oidc admin-client me-client' || matrix.example == 'mcp' && 'mcp-stdio oidc admin-client' || '' }}
+        run: examples/_shared/install.sh "examples/${{ matrix.example }}" $SDKS
+
+      # The Python package is built into a wheel and installed into a virtual
+      # environment with the example's hashed requirements.
+      - name: Install the Python example
+        if: matrix.example == 'python'
+        run: examples/_shared/install-python.sh examples/python
 
       - name: Type-check the example
+        if: matrix.example != 'python'
         working-directory: examples/${{ matrix.example }}
         run: npm run typecheck
 
-      # The client's test starts the API example, which has its own lockfile.
+      - name: Type-check the Python example
+        if: matrix.example == 'python'
+        working-directory: examples/python
+        run: .venv/bin/python -m mypy
+
+      # The client's test starts the API example, which has its own install.
       - name: Install the API the client calls
         if: matrix.example == 'machine-to-machine'
-        working-directory: examples/api
-        run: npm ci --ignore-scripts
+        run: examples/_shared/install.sh examples/api node
 
       - name: Run the example's test
+        if: matrix.example != 'python'
         working-directory: examples/${{ matrix.example }}
         run: npm test
+
+      - name: Lint the Python example
+        if: matrix.example == 'python'
+        working-directory: examples/python
+        run: |
+          .venv/bin/python -m ruff check .
+          .venv/bin/python -m ruff format --check .
+
+      - name: Run the Python example's test
+        if: matrix.example == 'python'
+        working-directory: examples/python
+        run: .venv/bin/python -m pytest
 
       - name: Stop the stack
         if: always()
@@ -621,6 +663,11 @@ jobs:
       - uses: ./.github/actions/playwright
         with:
           package: '@odudu/docs'
+
+      # The server's MCP code imports the SDK's source, which imports the
+      # oidc package's built output.
+      - name: Build the oidc SDK
+        run: pnpm --filter @odudu-io/oidc... run build
 
       - name: Build the Pages target
         timeout-minutes: 5
@@ -718,6 +765,112 @@ jobs:
         env:
           MCP_PREBUILT: '1'
 
+  # What publishing an SDK would need, run on every change that can affect one:
+  # each package's build and tests, then the same pack and publish checks the
+  # registries' tools run without sending anything. A package still marked
+  # private is skipped, so the job passes while there is nothing to publish.
+  # sdk-release.yml does the publishing, from a tag.
+  sdks:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          turbo-cache-key: sdks
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: |
+            3.10
+            3.13
+
+      # The server's MCP code imports the SDK's source, which imports the
+      # oidc package's built output.
+      - name: Build the oidc SDK
+        run: pnpm --filter @odudu-io/oidc... run build
+
+      # The OpenAPI documents are generated, not committed; regenerating the
+      # clients from fresh ones and finding no diff proves the committed
+      # generated types are what the server's routes describe. The Python
+      # clients come from the same documents, through a generator installed
+      # with hashes into node_modules/.cache.
+      - name: Regenerate the API clients and fail on any diff
+        run: |
+          pnpm --filter @odudu/docs generate
+          pnpm sdks:generate
+          git diff --exit-code -- sdks
+          pnpm mcp:catalogue
+          git diff --exit-code -- sdks/mcp-stdio
+
+      - name: Build every SDK that has a build script
+        run: pnpm --filter "./sdks/*" --if-present run build
+
+      # The command's own proof: the packed tarballs are installed into an
+      # empty directory and run with a PATH that holds only Node. It needs the
+      # registry for the dependencies, and fails rather than skips without it.
+      - name: Install the packed odudu-mcp and run it
+        env:
+          ODUDU_RUN_BIN_TEST: '1'
+          ODUDU_REQUIRE_REGISTRY: '1'
+        run: pnpm --filter @odudu-io/mcp-stdio exec vitest run --config ../../vitest.config.ts src/bin.test.ts
+
+      - name: Test every SDK that has a test script
+        run: pnpm --filter "./sdks/*" --if-present run test
+
+      # `pnpm pack` writes the tarball a release would publish, with `workspace:`
+      # dependencies on other SDKs rewritten; the registry's own client then
+      # checks it without logging in.
+      - name: Pack and dry-run the publish of each public npm package
+        run: |
+          mkdir "$RUNNER_TEMP/tarballs"
+          for manifest in sdks/*/package.json; do
+            directory="$(dirname "$manifest")"
+            if [ "$(node -p "require('./$manifest').private === true")" = "true" ]; then
+              echo "skipping $directory: private"
+              continue
+            fi
+            echo "::group::$directory"
+            (cd "$directory" && npm pack --dry-run)
+            (cd "$directory" && pnpm pack --pack-destination "$RUNNER_TEMP/tarballs")
+            echo "::endgroup::"
+          done
+          for tarball in "$RUNNER_TEMP"/tarballs/*.tgz; do
+            [ -e "$tarball" ] || continue
+            npm publish --dry-run "$tarball" --access public --provenance=false
+          done
+
+      # Both interpreters stay on the PATH as python3.10 and python3.13: the
+      # package supports 3.10 and the newest stable is the one people install on.
+      # sdks/python/requirements-dev.txt pins every tool with hashes, the FastAPI
+      # and Flask extras of the verifier among them, so their tests must run here
+      # and not skip.
+      - name: Test, lint and type-check the Python package
+        env:
+          ODUDU_REQUIRE_EXTRAS: '1'
+          ODUDU_REQUIRE_FIXTURES: '1'
+        run: |
+          for version in 3.10 3.13; do
+            venv="$RUNNER_TEMP/venv-$version"
+            "python$version" -m venv "$venv"
+            "$venv/bin/python" -m pip install --require-hashes -r sdks/python/requirements-dev.txt
+            "$venv/bin/python" -m pip install --no-deps ./sdks/python
+            (cd sdks/python && "$venv/bin/python" -m pytest)
+            (cd sdks/python && "$venv/bin/python" -m mypy)
+            (cd sdks/python && "$venv/bin/python" -m ruff check .)
+            (cd sdks/python && "$venv/bin/python" -m ruff format --check .)
+          done
+
+      - name: Build and check the Python distributions
+        run: |
+          "$RUNNER_TEMP/venv-3.13/bin/python" -m build --outdir "$RUNNER_TEMP/dist" sdks/python
+          "$RUNNER_TEMP/venv-3.13/bin/python" -m twine check "$RUNNER_TEMP/dist"/*
+
   commit-messages:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -773,6 +926,7 @@ jobs:
       - quickstart
       - conformance
       - mcp
+      - sdks
       - commit-messages
     if: always()
     runs-on: ubuntu-latest

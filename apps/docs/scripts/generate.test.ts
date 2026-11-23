@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { buildMeOpenApiDocument } from '@odudu/me/docs';
 import { buildAdminOpenApiDocument } from '@odudu/protocol-admin/docs';
 import { GENERATED_DIRS, generatedFiles, writeGenerated } from './generate.ts';
 
@@ -76,6 +77,13 @@ describe('writing the generated reference', () => {
     expect(files.has('static/openapi/admin.json')).toBe(true);
     const written = JSON.parse(files.get('static/openapi/admin.json') ?? 'null') as unknown;
     expect(written).toEqual(JSON.parse(JSON.stringify(buildAdminOpenApiDocument())));
+  });
+
+  it('writes the me OpenAPI document the server builds, and a reference page set for it', () => {
+    const written = JSON.parse(files.get('static/openapi/me.json') ?? 'null') as unknown;
+    expect(written).toEqual(JSON.parse(JSON.stringify(buildMeOpenApiDocument())));
+    expect(files.has('content/en/reference/generated/me-api/index.md')).toBe(true);
+    expect(files.has('content/en/reference/generated/me-api/_category_.json')).toBe(true);
   });
 });
 

@@ -21,6 +21,7 @@ const SECTION_ORDER = [
   'Introduction',
   'Quick start',
   'Guides',
+  'SDKs',
   'Concepts',
   'Admin console',
   'Operating Odudu',
@@ -34,6 +35,7 @@ const SIDEBAR_ORDER = [
   'Introduction',
   'Quick start',
   'Guides',
+  'SDKs',
   'Concepts',
   'Admin console',
   'Operating Odudu',
@@ -52,7 +54,7 @@ function sidebarLinks(page: string): string[] {
 }
 
 describe('the information architecture', () => {
-  it('has the nine sections, in the order the design gives', () => {
+  it('has the ten sections, in the order the design gives', () => {
     expect(SECTIONS.map((section) => section.label)).toEqual(SECTION_ORDER);
   });
 
@@ -82,12 +84,34 @@ describe('the information architecture', () => {
     expect(links.slice(start + 1, start + 1 + journeys.length)).toEqual(journeys);
   });
 
-  it('opens the concepts to their eight pages, in order', () => {
+  it('opens the SDKs to the package pages, the examples and the core guide, in order', () => {
+    const links = sidebarLinks('sdks/index.html');
+    const start = links.indexOf(`${PAGES_DOCS_BASE}sdks/`);
+    expect(
+      links
+        .slice(start + 1, start + 12)
+        .map((href) => href.slice(`${PAGES_DOCS_BASE}sdks/`.length)),
+    ).toEqual([
+      'oidc/',
+      'react/',
+      'bff/',
+      'next/',
+      'node/',
+      'admin-client/',
+      'me-client/',
+      'mcp-stdio/',
+      'python/',
+      'examples/',
+      'core-without-react/',
+    ]);
+  });
+
+  it('opens the concepts to their nine pages, in order', () => {
     const links = sidebarLinks('concepts/index.html');
     const start = links.indexOf(`${PAGES_DOCS_BASE}concepts/`);
     expect(
       links
-        .slice(start + 1, start + 9)
+        .slice(start + 1, start + 10)
         .map((href) => href.slice(`${PAGES_DOCS_BASE}concepts/`.length)),
     ).toEqual([
       'tenants/',
@@ -98,6 +122,7 @@ describe('the information architecture', () => {
       'tokens/',
       'consent-and-audit/',
       'branding/',
+      'backend-for-frontend/',
     ]);
   });
 
@@ -176,15 +201,18 @@ describe('the information architecture', () => {
         }
       }
     }
-    // A recorded transcript and an operation page of the admin API are looked
-    // up from a group index the reference links, so each is one click further
-    // than the sections' own pages. The admin API overview and the index of
+    // A recorded transcript and an operation page of the admin or me API are
+    // looked up from a group index the reference links, so each is one click
+    // further than the sections' own pages. An API overview and the index of
     // an area are not: the reference links them.
     const transcripts = `${PAGES_DOCS_BASE}reference/transcripts/`;
-    const adminApi = `${PAGES_DOCS_BASE}reference/generated/admin-api/`;
+    const apis = ['admin-api', 'me-api'].map(
+      (name) => `${PAGES_DOCS_BASE}reference/generated/${name}/`,
+    );
     const allowed = (route: string): number => {
       if (route.startsWith(transcripts)) return 3;
-      const inside = route.startsWith(adminApi) ? route.slice(adminApi.length) : '';
+      const api = apis.find((prefix) => route.startsWith(prefix));
+      const inside = api === undefined ? '' : route.slice(api.length);
       return inside.split('/').filter((part) => part !== '').length >= 2 ? 3 : 2;
     };
     const tooFar = [...pages.keys()].filter(

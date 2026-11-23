@@ -1,0 +1,44 @@
+{
+  "name": "@odudu-io/admin-client",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wizzywit/odudu.git",
+    "directory": "sdks/admin-client"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "imports": {
+    "#/generated/schema": "./src/generated/schema.d.ts",
+    "#/*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepack": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
+  },
+  "devDependencies": {
+    "tsup": "9.0.0"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  }
+}

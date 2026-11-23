@@ -1,6 +1,7 @@
 import { generateClientKey, loadClientKey, verifyJwtAgainstJwkSet } from '@odudu/crypto';
 import { MCP_CLIENT_ID, ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
-import { TOOLS, type RunTool } from '@odudu/mcp';
+import { TOOLS } from '@odudu/mcp';
+import type { RunTool } from '@odudu-io/mcp-stdio/internal';
 import { chmod, mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -486,7 +487,7 @@ describe('odudu mcp --keygen and --logout', () => {
       });
     expect(typeof signIn).toBe('function');
     // Seed both tenants' files through the store itself.
-    const { createCredentialStore } = await import('@odudu/mcp');
+    const { createCredentialStore } = await import('@odudu-io/mcp-stdio/internal');
     for (const tenant of ['acme', 'other']) {
       await createCredentialStore({
         account: `${BASE}/tenants/${tenant}`,
@@ -643,7 +644,7 @@ describe('odudu mcp with a browser sign-in', () => {
 
   it('[MCP-AUTH-REFRESH-01] refuses a stored sign-in that group or others can read, before serving anything', async () => {
     const configDir = await privateConfigDirectory();
-    const { createCredentialStore } = await import('@odudu/mcp');
+    const { createCredentialStore } = await import('@odudu-io/mcp-stdio/internal');
     await createCredentialStore({
       account: ISSUER,
       directory: configDir,

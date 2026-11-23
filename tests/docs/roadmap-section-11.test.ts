@@ -95,23 +95,6 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ['P4h', 'Lists sort by', '`intl.collator`', 'machine-readable `code`'],
   ['P4h', "A client's base name", 'carry a language of their own'],
   ['P4h', 'It also sends the failure screen', "failure screen's error id sent to the server"],
-  [
-    'P4i',
-    'Official libraries',
-    'framework-neutral javascript core',
-    'a react package',
-    'a next.js package',
-    'node middleware',
-  ],
-  ['P4i', 'A single-page app can run', 'backend-for-frontend option', 'rfc 10017'],
-  [
-    'P4i',
-    'A typed admin API client',
-    'typed admin api client generated from the published openapi',
-  ],
-  ['P4i', 'Each ships with a guide', 'a runnable example in ci', 'a version of its own'],
-  ['P4i', 'They wrap what exists', 'the "me" api wrapped'],
-  ['P4i', 'The `odudu mcp` command', '`odudu mcp` published as a package of its own'],
   ['P5', 'Budgets across a delegation, attenuation and approval', 'ciba approvals'],
   ['P5', 'Delegation depth becomes a setting', '`max_depth`'],
   [
@@ -207,6 +190,11 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ['P14', 'More platforms', 'vue, svelte and angular', 'rfc 8252', 'go, java, .net, php and ruby'],
   ['P14', 'Headless sign-in components', 'flow api', 'headless sign-in components'],
   ['P14', 'An agent library', 'agent library for delegation'],
+  [
+    'P14',
+    'A session store for the backend-for-frontend',
+    'session store for the backend-for-frontend package that several instances share',
+  ],
 ];
 
 // What the roadmap's Shipped section says a finished phase built, and the
@@ -234,6 +222,25 @@ const SHIPPED_CLAIMS: readonly (readonly [
     'a service account only while it holds the `client_credentials` grant',
     "create a client's service account when its client credentials grant is switched on",
   ],
+  [
+    'P4i',
+    'signing a person in: `@odudu-io/oidc`',
+    'framework-neutral javascript core',
+    'a react package',
+    'a next.js package',
+  ],
+  ['P4i', 'a backend-for-frontend, `@odudu-io/bff`', 'a backend-for-frontend option', 'rfc 10017'],
+  ['P4i', 'checking the access token an api receives', 'node middleware', 'a python verifier'],
+  [
+    'P4i',
+    'typed clients for the admin api and the "me" api',
+    'typed admin api client generated from the published openapi',
+    'from an openapi document of its own',
+    'shrunk by shared components',
+  ],
+  ['P4i', '`@odudu-io/mcp-stdio`', '`odudu mcp` published as a package of its own'],
+  ['P4i', 'nine runnable examples', 'a runnable example in ci', 'nine runnable examples in ci'],
+  ['P4i', 'each with its own version and changelog', 'a version of its own'],
   ['P4f', 'a "me" api', '"me" api'],
   ['P4f', 'application-initiated actions', 'application-initiated actions'],
   ['P4f', 'recovery_code_warn_below', 'warning when fewer'],
@@ -389,8 +396,11 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ],
     ['The edge reads the tenant', ['P11'], ['documented p99']],
     ["The MCP endpoint's request limits", ['P11'], ["the mcp endpoint's request limits"]],
-    ['`odudu mcp` runs only from', ['P4i'], ['`odudu mcp` command']],
-    ["The admin API's OpenAPI document grew", ['P4i'], ['the published openapi document']],
+    [
+      'The backend-for-frontend package ships only',
+      ['P14'],
+      ['session store for the backend-for-frontend package'],
+    ],
     ['The injection suite drives a scripted agent', ['P5b'], ['a model that is measured']],
     ['Which confirmation step', ['P5b'], ['confirmation step']],
     [

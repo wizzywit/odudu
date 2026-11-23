@@ -1,0 +1,12 @@
+# What the example needs besides the odudu package, which install-python.sh
+# builds from this repository until it is published, with the dependencies
+# that package names. Versions match sdks/python/requirements-dev.in.
+attrs==26.1.0
+fastapi==0.162.5
+httpx==0.28.1
+mypy==2.4.1
+PyJWT[crypto]==2.15.1
+pytest==9.2.0
+ruff==0.17.5
+typing-extensions==4.16.0
+uvicorn==0.54.0

@@ -1,10 +1,10 @@
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import type { AdminCapability } from '@odudu/protocol-admin';
 import { z } from 'zod';
-import { problemOf } from '#/service/call-tool';
+import { problemOf } from '@odudu-io/mcp-stdio/internal';
 import { defineTool } from '#/service/define-tool';
-import { ETAG_PATTERN, isEtag } from '#/service/etag-shape';
-import { cleanData, LONG_TEXT_CAP, type CleanStats } from '#/service/sanitize';
+import { ETAG_PATTERN, isEtag } from '@odudu-io/mcp-stdio/internal';
+import { cleanData, LONG_TEXT_CAP, type CleanStats } from '@odudu-io/mcp-stdio/internal';
 import {
   ToolProblem,
   type AdminCaller,
@@ -185,6 +185,7 @@ export function pageTool<S extends Shape, Item extends z.ZodType>(
     capability: cfg.capability,
     access: 'read',
     annotations: READ_ANNOTATIONS,
+    wire: { kind: 'page', pathParams: cfg.pathParams ?? [] },
     input: inputOf(cfg.shape),
     response: cfg.response,
     output,
@@ -224,6 +225,12 @@ export function valueTool<S extends Shape>(
     capability: cfg.capability,
     access: 'read',
     annotations: READ_ANNOTATIONS,
+    wire: {
+      kind: 'value',
+      pathParams: cfg.pathParams ?? [],
+      etag: cfg.etag === true,
+      longText: long,
+    },
     input: inputOf(cfg.shape),
     response: cfg.response,
     output: z.object({

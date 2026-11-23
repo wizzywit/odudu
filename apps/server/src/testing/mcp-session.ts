@@ -2,7 +2,7 @@ import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import type { RunTool } from '@odudu/mcp';
+import type { RunTool } from '@odudu-io/mcp-stdio/internal';
 import { mcpCommand, type McpIo } from '#/cli/mcp';
 
 // A credential directory laid out as production's is, <config>/odudu/mcp, where

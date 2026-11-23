@@ -31,7 +31,7 @@ export type { McpRefusalAudit, McpRouteDeps } from '#/view/routes/mcp';
 export type { McpExchange, McpPrincipal, McpRequestInfo, OpenExchange } from '#/service/endpoint';
 export { validateMcpToken } from '#/usecase/validate-mcp-token';
 export type { ValidateMcpTokenDeps } from '#/usecase/validate-mcp-token';
-export { callMcpTool } from '#/usecase/call-mcp-tool';
+export { callMcpTool } from '@odudu-io/mcp-stdio/internal';
 export {
   memoryWriteBudget,
   renewableWriteBudget,
@@ -39,31 +39,12 @@ export {
   type BudgetKind,
   type BudgetLimits,
   type WriteBudget,
-} from '#/service/write-budget';
-export type { CallMcpToolDeps, RecordedToolCall } from '#/usecase/call-mcp-tool';
+} from '@odudu-io/mcp-stdio/internal';
+export type { CallMcpToolDeps, RecordedToolCall } from '@odudu-io/mcp-stdio/internal';
 export { createToolLimiter, DEFAULT_TOOL_LIMITS } from '#/service/rate-limit';
 export type { ToolLimiter, ToolLimiterOptions } from '#/service/rate-limit';
 export { TOOLS } from '#/service/catalogue';
 export { contentWriteTool, descriptionField, nameField } from '#/service/write-tool';
 export { directCallerTools, visibleTools, toolVisible } from '#/service/visible-tools';
-export { createHttpCaller, type HttpCallerOptions } from '#/adapter/http-caller';
-export { createOauthClient, type OauthClientDeps } from '#/adapter/oauth-client';
-export { listenOnLoopback, type LoopbackOptions } from '#/adapter/loopback-listener';
-export { createBrowserOpener } from '#/adapter/browser';
-export { createCredentialStore, type CredentialStoreDeps } from '#/adapter/credential-store';
-export { runTool, type RunTool, type ToolRun } from '#/adapter/run-tool';
 export { toolServer } from '#/adapter/tool-server';
-export { loopbackLogin, type LoopbackLoginDeps } from '#/usecase/loopback-login';
-export { createTokenSource, type Credential, type TokenSourceDeps } from '#/usecase/token-source';
-export { serveMcpStdio, type StdioConnection, type StdioDeps } from '#/view/stdio';
-export { stdioTarget, type StdioTarget } from '#/service/stdio-target';
-export { StdioError } from '#/service/stdio-error';
-export type { CredentialStore, OauthClient } from '#/service/ports';
-export type { TokenSource } from '#/service/token-source';
-export type { TokenSet } from '#/service/token-set';
 export type { RegisteredTool } from '#/service/tool';
-export { fileModeProblem } from '#/service/file-mode';
-export { createFileLock, type FileLockOptions } from '#/adapter/file-lock';
-export { configDirectory } from '#/service/config-dir';
-export { failureLine } from '#/service/failure-line';
-export type { RefreshLock } from '#/service/ports';
