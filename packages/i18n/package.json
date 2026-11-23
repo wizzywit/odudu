@@ -16,9 +16,9 @@
   },
   "dependencies": {
     "@odudu/contracts": "workspace:*",
-    "intl-messageformat": "12.1.5"
+    "intl-messageformat": "12.2.0"
   },
   "devDependencies": {
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   }
 }
