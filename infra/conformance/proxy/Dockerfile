@@ -7,7 +7,7 @@
 # throwaway, valid only for the lifetime of this conformance run, and
 # never used outside this compose stack.
 # digest of the multi-arch index; Dependabot moves it
-FROM nginx:1.31-alpine@sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417
+FROM nginx:1.31-alpine@sha256:fb4658584bd9a916ffb6f6e365f97c25cfdb2923801f551ea08356e695f14ff7
 RUN apk add --no-cache openssl \
   && openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
        -keyout /etc/nginx/conformance.key \
