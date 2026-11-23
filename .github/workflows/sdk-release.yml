@@ -266,7 +266,8 @@ jobs:
         run: |
           tag=latest
           if [ "$PRERELEASE" = "true" ]; then tag=rc; fi
-          npm publish package/*.tgz --access public --tag "$tag"
+          # The leading ./ matters: npm reads package/x.tgz as a GitHub shorthand.
+          npm publish ./package/*.tgz --access public --tag "$tag"
 
   # A pending publisher for the project `odudu` makes the first publish create
   # it, and the same publisher serves later ones.
