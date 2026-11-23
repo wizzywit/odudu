@@ -222,7 +222,7 @@ until a release has used it, and the two that the pages leave open are marked.
    skipped. By hand, for each package, `oidc` first and then the packages that
    depend on it (the same commands, run per package):
    1. `pnpm install --frozen-lockfile`, then build the package and what it
-      depends on: `pnpm --filter "./sdks/<name>..." run build`. (`prepack` also
+      depends on: `pnpm --filter "{./sdks/<name>}..." run build`. (`prepack` also
       builds the package itself, so its `dist/`, which is not committed, is
       never missing.)
    2. `cd sdks/<name> && pnpm pack --pack-destination "$TMPDIR/tarball"`.

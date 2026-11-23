@@ -184,7 +184,9 @@ jobs:
         env:
           DIRECTORY: ${{ needs.prepare.outputs.directory }}
         run: |
-          pnpm --filter "./$DIRECTORY..." --if-present run build
+          # {./dir}... selects the package and what it depends on; ./dir... selects
+          # only the package, so an SDK built on another would find no dist.
+          pnpm --filter "{./$DIRECTORY}..." --if-present run build
           pnpm --filter "./$DIRECTORY" --if-present run test
 
       # pnpm rewrites a `workspace:` dependency on another SDK to its version
