@@ -312,8 +312,8 @@ importers:
         specifier: 1.2.0
         version: 1.2.0
       docusaurus-plugin-llms:
-        specifier: 0.6.2
-        version: 0.6.2(@docusaurus/core@3.10.2(38acf14d53401eaee859f56bfa8d7643))
+        specifier: 0.6.1
+        version: 0.6.1(@docusaurus/core@3.10.2(38acf14d53401eaee859f56bfa8d7643))
       fastify:
         specifier: 5.12.8
         version: 5.12.8
@@ -6329,8 +6329,8 @@ packages:
     resolution: {integrity: sha512-avsq/xk4YPIrn0CgleX5bjT9Y8IT1p9PxrNQ++RBQ2WEyFfHCTDsT9kmyxz+H/axnjAwg8wJWEIuPGOUuNupiA==}
     engines: {node: '>= 14.17'}
 
-  docusaurus-plugin-llms@0.6.2:
-    resolution: {integrity: sha512-Qf0Hq96chaOQ+vq8w115xrRb2bfqPQO0j3YJGpvXFNeqjvd1nDAT8lZAsSEpOXfDUhi4UFqaQ1oCkb9e6p0Law==}
+  docusaurus-plugin-llms@0.6.1:
+    resolution: {integrity: sha512-elqTn7httrRG20g1mfzTtWZjLVpXMNKO2IS9R84dxiIp7QjAcDuubLp6/bvpe3umHdPnEXHJKhNOpTY+wnQa1Q==}
     engines: {node: '>=18.0'}
     peerDependencies:
       '@docusaurus/core': ^3.0.0
@@ -17118,7 +17118,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  docusaurus-plugin-llms@0.6.2(@docusaurus/core@3.10.2(38acf14d53401eaee859f56bfa8d7643)):
+  docusaurus-plugin-llms@0.6.1(@docusaurus/core@3.10.2(38acf14d53401eaee859f56bfa8d7643)):
     dependencies:
       '@docusaurus/core': 3.10.2(38acf14d53401eaee859f56bfa8d7643)
       gray-matter: 4.0.3
