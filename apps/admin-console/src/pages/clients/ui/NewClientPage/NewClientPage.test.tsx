@@ -6,6 +6,7 @@ import { BILLING, C, clientRoutes, PORTAL } from '#/testing/clientsFixtures';
 import { json, offline, problem, whoamiReads } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
+import { containing } from '#/testing/containing';
 
 afterEach(() => {
   resetConsole();
@@ -120,7 +121,7 @@ it("puts the server's refusal of a redirect URI under that field, in the server'
   await user.click(screen.getByRole('button', { name: 'Create client' }));
   expect(await screen.findByText(refusal)).toBeVisible();
   expect(screen.getByRole('group', { name: 'Redirect URIs' })).toHaveAccessibleDescription(
-    expect.stringContaining(refusal),
+    containing(refusal),
   );
 });
 
