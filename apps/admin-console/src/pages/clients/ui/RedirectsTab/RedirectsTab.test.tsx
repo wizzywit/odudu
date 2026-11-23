@@ -6,6 +6,7 @@ import { BILLING, C, clientRoutes, client } from '#/testing/clientsFixtures';
 import { json, problem } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
+import { containing } from '#/testing/containing';
 
 afterEach(() => {
   resetConsole();
@@ -123,7 +124,7 @@ it("shows the server's refusal of a non-canonical origin under web origins, in i
   await user.click(within(origins).getByRole('button', { name: 'Save Web origins' }));
   expect(await within(origins).findByText(refusal)).toBeVisible();
   expect(within(origins).getByRole('group', { name: 'Web origins' })).toHaveAccessibleDescription(
-    expect.stringContaining(refusal),
+    containing(refusal),
   );
   // The list stays as typed, to correct; the other section is untouched.
   expect(within(origins).getByRole('textbox', { name: 'Web origin 2' })).toHaveValue(

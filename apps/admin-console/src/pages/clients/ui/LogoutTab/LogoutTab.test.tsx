@@ -6,6 +6,7 @@ import { ADMIN, BILLING, C, clientRoutes } from '#/testing/clientsFixtures';
 import { inTurn, json, problem } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
+import { containing } from '#/testing/containing';
 
 afterEach(() => {
   resetConsole();
@@ -141,11 +142,11 @@ it("reads the hint and the warning as the switch's description, off and on", asy
   renderConsoleAt(AT, clientRoutes());
   const toggle = await screen.findByRole('switch', { name: SKIP });
   expect(toggle).toHaveAccessibleDescription(
-    expect.stringContaining('Off: the person is always asked to confirm sign-out.'),
+    containing('Off: the person is always asked to confirm sign-out.'),
   );
-  expect(toggle).toHaveAccessibleDescription(expect.stringContaining(WARNING));
+  expect(toggle).toHaveAccessibleDescription(containing(WARNING));
   await user.click(toggle);
-  expect(toggle).toHaveAccessibleDescription(expect.stringContaining(WARNING));
+  expect(toggle).toHaveAccessibleDescription(containing(WARNING));
 });
 
 it('changes the hint with the switch and keeps the warning described, off and on', async () => {
@@ -160,8 +161,8 @@ it('changes the hint with the switch and keeps the warning described, off and on
   await user.click(toggle);
   expect(within(section).getByText(on)).toBeVisible();
   expect(within(section).queryByText(off)).toBeNull();
-  expect(toggle).toHaveAccessibleDescription(expect.stringContaining(on));
-  expect(toggle).toHaveAccessibleDescription(expect.stringContaining(WARNING));
+  expect(toggle).toHaveAccessibleDescription(containing(on));
+  expect(toggle).toHaveAccessibleDescription(containing(WARNING));
   expect(within(section).getByText(WARNING)).toBeVisible();
   await user.click(toggle);
   expect(within(section).getByText(off)).toBeVisible();
