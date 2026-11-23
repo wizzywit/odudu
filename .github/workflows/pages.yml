@@ -41,6 +41,11 @@ jobs:
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
+      # The site generates its pages from the server, whose MCP code imports the
+      # oidc package's built output.
+      - name: Build the oidc SDK
+        run: pnpm --filter @odudu-io/oidc... run build
+
       - name: Build the site
         run: pnpm --filter @odudu/docs build:pages
 
