@@ -22,10 +22,20 @@ for arg in "$@"; do
     *) PACKAGES+=("$arg") ;;
   esac
 done
-if [ ${#PACKAGES[@]} -eq 0 ]; then PACKAGES=("${ORDER[@]}"); fi
 
-for name in "${PACKAGES[@]}"; do
+for name in ${PACKAGES[@]+"${PACKAGES[@]}"}; do
   case " ${ORDER[*]} " in *" $name "*) ;; *) echo "not an npm SDK: $name" >&2; exit 2 ;; esac
+done
+
+# Whatever order the packages were named in, a package goes out after the ones
+# it depends on.
+SELECTED=()
+for name in "${ORDER[@]}"; do
+  if [ ${#PACKAGES[@]} -eq 0 ]; then
+    SELECTED+=("$name")
+  else
+    case " ${PACKAGES[*]} " in *" $name "*) SELECTED+=("$name") ;; esac
+  fi
 done
 
 if [ "$DRY" -eq 0 ]; then
@@ -50,7 +60,7 @@ trap 'rm -rf "$TARBALLS"' EXIT
 # may need a dependency that is not on npm yet.
 published() { npm view "@odudu-io/$1@$2" version >/dev/null 2>&1; }
 
-for name in "${PACKAGES[@]}"; do
+for name in "${SELECTED[@]}"; do
   dir="sdks/$name"
   version=$(node -p "require('./$dir/package.json').version")
   echo
@@ -94,10 +104,15 @@ for name in "${PACKAGES[@]}"; do
   esac
 
   # npm answers with a version a moment before the registry serves it.
+  visible=0
   for _ in 1 2 3 4 5 6; do
-    published "$name" "$version" && break
+    if published "$name" "$version"; then visible=1; break; fi
     sleep 5
   done
+  if [ "$visible" -eq 0 ]; then
+    echo "@odudu-io/$name $version is not visible on npm after publishing; check npmjs.com before going on" >&2
+    exit 1
+  fi
 done
 
 echo
