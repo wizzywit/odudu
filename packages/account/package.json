@@ -30,6 +30,6 @@
     "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
     "@odudu/testkit": "workspace:*",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   }
 }

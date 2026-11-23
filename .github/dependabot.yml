@@ -27,6 +27,9 @@ updates:
         update-types: ['version-update:semver-major']
       - dependency-name: '@babel/core'
         update-types: ['version-update:semver-major']
+      # 0.6.2 resolves the links of the Pages build twice under /docs/docs/.
+      - dependency-name: docusaurus-plugin-llms
+        versions: ['0.6.2']
   - package-ecosystem: npm
     directory: /examples/web-app
     schedule:
