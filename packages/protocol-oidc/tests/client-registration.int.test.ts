@@ -544,10 +544,12 @@ describe('[ODUDU-CLIENT-REGISTRATION-CAP-01] the tenant client cap', () => {
       http.inject({ method: 'POST', url: URL_FOR(name), payload: MINIMAL }),
     ]);
 
-    // The second either finds the ceiling reached and removes the first, which
-    // nobody has used yet, or is refused: never a thousand and one.
-    expect(first.statusCode).toBe(201);
-    expect([201, 403]).toContain(second.statusCode);
+    // Whichever takes the lock first is registered. The other either finds the
+    // ceiling reached and removes it, since nobody has used it yet, or is
+    // refused: never a thousand and one.
+    const codes = [first.statusCode, second.statusCode];
+    expect(codes).toContain(201);
+    for (const code of codes) expect([201, 403]).toContain(code);
     expect(await anonymousCount(id)).toBe(WIRE_CLIENTS_PER_TENANT);
   });
 });
