@@ -71,7 +71,7 @@ for name in "${SELECTED[@]}"; do
     continue
   fi
 
-  pnpm --filter "./$dir..." run build
+  pnpm --filter "{./$dir}..." run build
   out="$TARBALLS/$name"
   mkdir -p "$out"
   (cd "$dir" && pnpm pack --pack-destination "$out" >/dev/null)
