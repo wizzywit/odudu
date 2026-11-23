@@ -13,6 +13,7 @@ OpenID Connect and OAuth 2.0, many tenants, one container and PostgreSQL.
 [![docs](https://img.shields.io/badge/docs-read%20them-0b7a5a)](https://wizzywit.github.io/odudu/docs/)
 [![SDKs](https://img.shields.io/badge/SDKs-TypeScript%20and%20Python-0b7a5a)](https://wizzywit.github.io/odudu/docs/sdks/)
 [![npm](https://img.shields.io/npm/v/@odudu-io/oidc)](https://www.npmjs.com/org/odudu-io)
+[![PyPI](https://img.shields.io/pypi/v/odudu)](https://pypi.org/project/odudu/)
 [![SDKs licence](https://img.shields.io/badge/SDKs%20licence-Apache--2.0-blue)](LICENSING.md)
 [![release](https://img.shields.io/github/v/release/wizzywit/odudu?include_prereleases)](https://github.com/wizzywit/odudu/releases)
 [![image](https://img.shields.io/badge/image-ghcr.io%2Fwizzywit%2Fodudu-0b7a5a)](https://github.com/wizzywit/odudu/pkgs/container/odudu)

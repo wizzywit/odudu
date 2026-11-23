@@ -89,7 +89,7 @@ services:
   mailpit:
     profiles: ['mail']
     # digest of the multi-arch index; Dependabot moves it
-    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+    image: axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e
     ports:
       - '127.0.0.1:${ODUDU_MAIL_PORT:-8025}:8025'
 

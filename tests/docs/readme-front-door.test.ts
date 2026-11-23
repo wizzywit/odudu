@@ -122,6 +122,7 @@ describe('the badges are the ones that can be checked', () => {
       'https://img.shields.io/badge/docs-read%20them-0b7a5a',
       'https://img.shields.io/badge/SDKs-TypeScript%20and%20Python-0b7a5a',
       'https://img.shields.io/npm/v/@odudu-io/oidc',
+      'https://img.shields.io/pypi/v/odudu',
       'https://img.shields.io/badge/SDKs%20licence-Apache--2.0-blue',
       ...(released
         ? [
