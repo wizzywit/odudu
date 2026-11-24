@@ -70,7 +70,8 @@ async function ownerEnabled(tx: TenantScopedDatabase, grant: TokenGrantRecord | 
   return grant !== null && subjectIsEnabled(await subjectRepository(tx).byId(grant.subjectId));
 }
 
-type RunInstance = { kind: 'ok'; id: string } | { kind: 'owner_ended' } | { kind: 'refused' };
+type RunInstance =
+  { kind: 'ok'; id: string; expiresAt: Date } | { kind: 'owner_ended' } | { kind: 'refused' };
 
 // The instance for one run of the owner's grant: the one the run's key already
 // has, kept alive by this use, or a new one minted through the same agent layer
@@ -108,7 +109,7 @@ async function instanceForRun(
         session?.expiresAt ?? existing.expiresAt,
       );
     }
-    return { kind: 'ok', id: existing.id };
+    return { kind: 'ok', id: existing.id, expiresAt: existing.expiresAt };
   }
 
   const parent = input.run?.parentInstanceId;
@@ -137,7 +138,7 @@ async function instanceForRun(
     },
   );
   return layer.kind === 'ok' && layer.instance !== null
-    ? { kind: 'ok', id: layer.instance.id }
+    ? { kind: 'ok', id: layer.instance.id, expiresAt: layer.instance.expiresAt }
     : { kind: 'refused' };
 }
 
@@ -195,6 +196,7 @@ export async function mintAgentToken(
 
   const runId = await runIdFor(tx, input, grant, client);
   let actSub = client.clientId;
+  let expCeiling = input.notAfter;
   if (runId !== null) {
     const instance = await instanceForRun(tx, deps, grant, client, input, runId);
     if (instance.kind === 'owner_ended') {
@@ -203,6 +205,7 @@ export async function mintAgentToken(
     }
     if (instance.kind === 'refused') throw new AgentTokenRefused('run_refused');
     actSub = instance.id;
+    expCeiling = new Date(Math.min(expCeiling.getTime(), instance.expiresAt.getTime()));
   }
 
   const { accessToken, exp } = await mintSubjectAccessToken(
@@ -219,7 +222,7 @@ export async function mintAgentToken(
       grantId: grant.id,
       act: { sub: actSub },
       endpointMinted: true,
-      expCeiling: input.notAfter,
+      expCeiling,
     },
     input.now,
   );

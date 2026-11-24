@@ -594,6 +594,28 @@ describe('a run whose owner has ended', () => {
   });
 });
 
+describe('the expiry of a run token', () => {
+  it('never outlives the instance it names', async () => {
+    const w = await newWorld({ agentType: true });
+    const id = actOf((await mint(w, { run: { key: 'conv-1' } })).accessToken);
+    const near = new Date(NOW.getTime() + 60_000);
+    await owner.db.execute(
+      sql`update agent_instances set expires_at = ${near.toISOString()}::timestamptz where id = ${id}`,
+    );
+    const { accessToken, expiresAt } = await mint(w, { run: { key: 'conv-1' } });
+    expect(expiresAt.getTime()).toBeLessThanOrEqual(near.getTime());
+    expect(Number(claimsOf(accessToken).exp) * 1000).toBeLessThanOrEqual(near.getTime());
+  });
+
+  it('never outlives a new instance either', async () => {
+    const w = await newWorld({ agentType: true });
+    await setSessionEnd(w, new Date(NOW.getTime() + 60_000));
+    const { expiresAt } = await mint(w, { run: { key: 'conv-1' } });
+    const [row] = await instancesOf(w);
+    expect(expiresAt.getTime()).toBeLessThanOrEqual(new Date(String(row?.expires_at)).getTime());
+  });
+});
+
 describe('a foreign tenant and the run instance', () => {
   it('cannot be reached with the id of an instance from another tenant', async () => {
     const a = await newWorld({ agentType: true });
