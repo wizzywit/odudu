@@ -53,7 +53,7 @@ async function orphans(): Promise<number> {
 }
 
 describe('an exchange from a revoked grant', () => {
-  it('is refused invalid_grant and creates no grant', async () => {
+  it('is refused invalid_request, as for any already revoked token, and creates no grant', async () => {
     const owner = await login(stack, AGENT);
     await withTenant(stack.app.db, stack.tenantId, (tx) =>
       tokenGrantRepository(tx).revoke(owner.grantId, new Date()),

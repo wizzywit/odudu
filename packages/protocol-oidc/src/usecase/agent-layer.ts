@@ -152,8 +152,7 @@ interface Parent {
 // there, so two exchanges at the last free slot cannot both be admitted.
 // Lock order, here and in every transaction that touches both: the grant
 // first, the instance second, which is the order a revoke takes them in.
-// A
-// head that looks like an instance id must be a live instance of this client
+// A head that looks like an instance id must be a live instance of this client
 // in this tenant; only no head, or the client's own id, starts a new lineage.
 async function resolveParent(
   tx: TenantScopedDatabase,
