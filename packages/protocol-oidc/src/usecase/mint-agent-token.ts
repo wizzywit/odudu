@@ -135,13 +135,11 @@ async function instanceForRun(
 
 // The admin-audience token an agent acts with for the person whose grant it
 // holds. Its only caller is the MCP layer, which has already validated the
-// MCP-audience token; there is no client authentication and no /token
-// request. The token carries the owner's grant id, so ending that grant,
-// its session, the agent client or the subject ends the token with it (the
-// admin API reads all four), and nothing is written. With a `run` and an agent
-// type the instance for that run is written and its id is `act.sub`. An ended
-// owner refuses a run 'owner_ended' after revoking its instance; only a caller
-// that commits on a refusal keeps that write.
+// MCP-audience token, so there is no client authentication and no /token
+// request. The token carries the owner's grant id: ending that grant, its
+// session, the agent client or the subject ends it. With a `run` and an agent
+// type the run's instance is written and is `act.sub`; an ended owner refuses
+// 'owner_ended' after revoking it, kept only by a caller that commits.
 export async function mintAgentToken(
   tx: TenantScopedDatabase,
   deps: MintAgentTokenDeps,
