@@ -21,6 +21,7 @@
     "//trace": "reads every package's trace-report.json, which only `pnpm test` produces \u2014 run that first; strict is the default, so a MUST with no test fails the build",
     "trace": "ODUDU_TRACE_STRICT=1 node tools/trace/src/index.ts",
     "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test:node-esm && pnpm boundaries && ODUDU_COMMIT=${ODUDU_COMMIT:-$(git rev-parse --short HEAD)} turbo run build && pnpm test && pnpm trace",
+    "mutate:agents": "stryker run packages/domain-agents/stryker.config.json",
     "mutate:crypto": "stryker run packages/crypto/stryker.config.json",
     "conformance:config-op": "bash infra/conformance/run-config-op.sh",
     "conformance:dynamic-op": "bash infra/conformance/run-dynamic-op.sh",

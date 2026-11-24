@@ -1,0 +1,12 @@
+{
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": { "configFile": "packages/domain-agents/vitest.config.ts", "related": false },
+  "mutate": [
+    "packages/domain-agents/src/service/**/*.ts",
+    "!packages/domain-agents/src/**/*.test.ts"
+  ],
+  "thresholds": { "high": 90, "low": 80, "break": 90 },
+  "reporters": ["progress", "clear-text"]
+}
