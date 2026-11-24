@@ -1,5 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { and, count, eq, gt, lte, sql } from 'drizzle-orm';
+import { and, count, eq, gt, lte } from 'drizzle-orm';
 import {
   agentApprovals,
   type AgentApprovalChannel,
@@ -78,7 +78,7 @@ export function agentApprovalRepository(tx: TenantScopedDatabase) {
       return rows.length > 0;
     },
 
-    async pendingCount(subjectId: string): Promise<number> {
+    async pendingCount(subjectId: string, now: Date): Promise<number> {
       const rows = await tx
         .select({ n: count() })
         .from(agentApprovals)
@@ -86,7 +86,7 @@ export function agentApprovalRepository(tx: TenantScopedDatabase) {
           and(
             eq(agentApprovals.subjectId, subjectId),
             eq(agentApprovals.state, 'pending'),
-            gt(agentApprovals.expiresAt, sql`now()`),
+            gt(agentApprovals.expiresAt, now),
           ),
         );
       return rows[0]?.n ?? 0;

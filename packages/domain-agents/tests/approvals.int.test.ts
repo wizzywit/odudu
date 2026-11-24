@@ -74,7 +74,7 @@ describe('agentApprovalRepository', () => {
         instanceId: null,
       });
       expect(await repo.byId(record.id)).toEqual(record);
-      expect(await repo.pendingCount(seeded.ownerId)).toBe(1);
+      expect(await repo.pendingCount(seeded.ownerId, NOW)).toBe(1);
     });
   });
 
@@ -88,7 +88,7 @@ describe('agentApprovalRepository', () => {
         decidedVia: 'console',
         decidedAt: NOW,
       });
-      expect(await repo.pendingCount(seeded.ownerId)).toBe(0);
+      expect(await repo.pendingCount(seeded.ownerId, NOW)).toBe(0);
     });
   });
 
@@ -207,7 +207,7 @@ describe('agentApprovalRepository across tenants', () => {
       verifySeeded: stillApproved,
       attempt: async (tx, s) => {
         const repo = agentApprovalRepository(tx);
-        return [await repo.pendingCount(s.subjectId), await repo.expireDue(IN_AN_HOUR)];
+        return [await repo.pendingCount(s.subjectId, NOW), await repo.expireDue(IN_AN_HOUR)];
       },
       expectBlocked: (result) => {
         expect(result).toEqual([0, 0]);

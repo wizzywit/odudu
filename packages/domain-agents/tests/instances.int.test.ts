@@ -102,13 +102,13 @@ describe('agentInstanceRepository', () => {
         input(seeded, {
           parentInstanceId: parent.id,
           depth: 2,
-          expiresAt: new Date('2020-01-01T00:00:00Z'),
+          expiresAt: new Date(NOW.getTime() - 3_600_000),
         }),
       );
       await repo.revoke(gone.id, NOW);
-      expect(await repo.liveChildren(parent.id)).toBe(1);
-      expect(await repo.liveChildren(live.id)).toBe(0);
-      expect(await repo.liveCount()).toBe(2);
+      expect(await repo.liveChildren(parent.id, NOW)).toBe(1);
+      expect(await repo.liveChildren(live.id, NOW)).toBe(0);
+      expect(await repo.liveCount(NOW)).toBe(2);
     });
   });
 
@@ -177,6 +177,64 @@ describe('agentInstanceRepository', () => {
   });
 });
 
+describe('agentInstanceRepository tombstones', () => {
+  const DAY = 86_400_000;
+  const tombstoneBefore = new Date(NOW.getTime() - 7 * DAY);
+  const longAgo = new Date(NOW.getTime() - 8 * DAY);
+
+  async function counts(tx: Parameters<Parameters<typeof withTenant>[2]>[0]) {
+    const rows = (await tx.execute(sql`
+      select
+        (select count(*)::int from subjects where type = 'agent_instance') as subjects,
+        (select count(*)::int from agent_instances) as instances,
+        (select count(*)::int from agent_instances i
+          join subjects s on s.id = i.id and s.type = 'agent_instance') as paired`)) as unknown as {
+      subjects: number;
+      instances: number;
+      paired: number;
+    }[];
+    return rows[0];
+  }
+
+  it('keeps a parent until its later-revoked child is removable, then removes both', async () => {
+    await inTenant(async (repo, seeded, tx) => {
+      const parent = await repo.mint(input(seeded));
+      const child = await repo.mint(input(seeded, { parentInstanceId: parent.id, depth: 2 }));
+      await repo.mint(input(seeded, { parentInstanceId: child.id, depth: 3 }));
+      await repo.revoke(parent.id, longAgo);
+      await tx.execute(
+        sql`update agent_instances set revoked_at = ${NOW.toISOString()}::timestamptz
+             where id <> ${parent.id}`,
+      );
+
+      expect(await repo.expireDue(NOW, tombstoneBefore)).toEqual({ expired: 0, deleted: 0 });
+      expect(await repo.byId(parent.id)).not.toBeNull();
+      expect(await counts(tx)).toEqual({ subjects: 3, instances: 3, paired: 3 });
+
+      const later = new Date(NOW.getTime() + 8 * DAY);
+      expect(await repo.expireDue(later, new Date(later.getTime() - 7 * DAY))).toEqual({
+        expired: 0,
+        deleted: 3,
+      });
+      expect(await counts(tx)).toEqual({ subjects: 0, instances: 0, paired: 0 });
+    });
+  });
+
+  it('removes a chain leaf first in one pass and counts every row removed', async () => {
+    await inTenant(async (repo, seeded, tx) => {
+      const root = await repo.mint(input(seeded));
+      const mid = await repo.mint(input(seeded, { parentInstanceId: root.id, depth: 2 }));
+      await repo.mint(input(seeded, { parentInstanceId: mid.id, depth: 3 }));
+      const survivor = await repo.mint(input(seeded));
+      await repo.revoke(root.id, longAgo);
+
+      expect(await repo.expireDue(NOW, tombstoneBefore)).toEqual({ expired: 0, deleted: 3 });
+      expect(await counts(tx)).toEqual({ subjects: 1, instances: 1, paired: 1 });
+      expect(await repo.byId(survivor.id)).not.toBeNull();
+    });
+  });
+});
+
 describe('agentInstanceRepository across tenants', () => {
   const seedInstance = async (
     tx: Parameters<Parameters<typeof withTenant>[2]>[0],
@@ -216,11 +274,11 @@ describe('agentInstanceRepository across tenants', () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: seedInstance,
       verifySeeded: async (tx, s) => {
-        expect(await agentInstanceRepository(tx).liveChildren(s.parentId)).toBe(1);
+        expect(await agentInstanceRepository(tx).liveChildren(s.parentId, NOW)).toBe(1);
       },
       attempt: async (tx, s) => {
         const repo = agentInstanceRepository(tx);
-        return [await repo.liveChildren(s.parentId), await repo.liveCount()];
+        return [await repo.liveChildren(s.parentId, NOW), await repo.liveCount(NOW)];
       },
       expectBlocked: (result) => {
         expect(result).toEqual([0, 0]);

@@ -11,7 +11,9 @@ export interface Seeded {
   grantId: string;
 }
 
-export const NOW = new Date('2026-12-01T10:00:00Z');
+// Relative to the run, so no fixture ages out; the repositories take their clock
+// as an argument and never read the database's.
+export const NOW = new Date(Math.floor(Date.now() / 1000) * 1000);
 export const IN_AN_HOUR = new Date(NOW.getTime() + 3_600_000);
 
 export async function seedOwner(tx: TenantScopedDatabase, tenantId: string): Promise<Seeded> {

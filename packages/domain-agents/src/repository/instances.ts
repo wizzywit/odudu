@@ -1,6 +1,20 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { subjects } from '@odudu/domain-identity';
-import { and, count, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { agentInstances, type AgentInstanceRecord } from '#/schema/agent-instances';
 
 export type { AgentInstanceRecord } from '#/schema/agent-instances';
@@ -18,13 +32,20 @@ export interface NewAgentInstance {
   idleExpiresAt: Date | null;
 }
 
-// Not revoked, not past its fixed expiry and not past its idle expiry, by the
-// database's clock.
-const LIVE = and(
-  isNull(agentInstances.revokedAt),
-  gt(agentInstances.expiresAt, sql`now()`),
-  or(isNull(agentInstances.idleExpiresAt), gt(agentInstances.idleExpiresAt, sql`now()`)),
-);
+// Not revoked, not past its fixed expiry and not past its idle expiry at `now`.
+function live(now: Date) {
+  return and(
+    isNull(agentInstances.revokedAt),
+    gt(agentInstances.expiresAt, now),
+    or(isNull(agentInstances.idleExpiresAt), gt(agentInstances.idleExpiresAt, now)),
+  );
+}
+
+const children = alias(agentInstances, 'children');
+
+// The deepest chain an instance can sit in, which bounds how many leaf-first
+// rounds a tombstone pass needs.
+const MAX_ROUNDS = 8;
 
 export function agentInstanceRepository(tx: TenantScopedDatabase) {
   return {
@@ -61,16 +82,16 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
       return rows[0] ?? null;
     },
 
-    async liveChildren(parentId: string): Promise<number> {
+    async liveChildren(parentId: string, now: Date): Promise<number> {
       const rows = await tx
         .select({ n: count() })
         .from(agentInstances)
-        .where(and(eq(agentInstances.parentInstanceId, parentId), LIVE));
+        .where(and(eq(agentInstances.parentInstanceId, parentId), live(now)));
       return rows[0]?.n ?? 0;
     },
 
-    async liveCount(): Promise<number> {
-      const rows = await tx.select({ n: count() }).from(agentInstances).where(LIVE);
+    async liveCount(now: Date): Promise<number> {
+      const rows = await tx.select({ n: count() }).from(agentInstances).where(live(now));
       return rows[0]?.n ?? 0;
     },
 
@@ -111,7 +132,10 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
     },
 
     // Revokes what lapsed, then deletes instances revoked before
-    // `tombstoneBefore` together with their subjects.
+    // `tombstoneBefore` together with their subjects. An instance is deleted
+    // only once it has no child left, so deleting never cascades to a child
+    // that is still live or inside its own tombstone window; the rounds
+    // remove a chain from the leaves up.
     async expireDue(
       now: Date,
       tombstoneBefore: Date,
@@ -126,21 +150,30 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
           ),
         )
         .returning({ id: agentInstances.id });
-      const gone = await tx
-        .delete(agentInstances)
-        .where(
-          and(isNotNull(agentInstances.revokedAt), lt(agentInstances.revokedAt, tombstoneBefore)),
-        )
-        .returning({ id: agentInstances.id });
-      if (gone.length > 0) {
-        await tx.delete(subjects).where(
-          inArray(
-            subjects.id,
-            gone.map((row) => row.id),
-          ),
-        );
+      const removed: string[] = [];
+      for (let round = 0; round < MAX_ROUNDS; round += 1) {
+        const gone = await tx
+          .delete(agentInstances)
+          .where(
+            and(
+              isNotNull(agentInstances.revokedAt),
+              lt(agentInstances.revokedAt, tombstoneBefore),
+              notExists(
+                tx
+                  .select({ one: sql`1` })
+                  .from(children)
+                  .where(eq(children.parentInstanceId, agentInstances.id)),
+              ),
+            ),
+          )
+          .returning({ id: agentInstances.id });
+        if (gone.length === 0) break;
+        removed.push(...gone.map((row) => row.id));
       }
-      return { expired: expired.length, deleted: gone.length };
+      if (removed.length > 0) {
+        await tx.delete(subjects).where(inArray(subjects.id, removed));
+      }
+      return { expired: expired.length, deleted: removed.length };
     },
   };
 }
