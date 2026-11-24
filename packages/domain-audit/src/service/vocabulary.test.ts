@@ -338,3 +338,57 @@ describe('the agent_identity event type', () => {
     }).toThrow(/invalid value/);
   });
 });
+
+describe('the approval actions', () => {
+  const approval = '01a1873a-22a0-7756-8957-54c1c5aaca56';
+  const requested = {
+    agent_client: 'c',
+    owner: 'o',
+    approval,
+    instance: '01a1873a-22a0-7756-8957-54c1c5aaca55',
+  };
+  const decided = { owner: 'o', approval, state: 'approved', via: 'ciba_page' };
+
+  it('holds both under agent_identity', () => {
+    expect(AUDIT_ACTIONS.agent_identity).toContain('agent.approval_requested');
+    expect(AUDIT_ACTIONS.agent_identity).toContain('agent.approval_decided');
+  });
+
+  it('accepts the requested and decided detail', () => {
+    expect(() => {
+      assertDetailAllowed('agent.approval_requested', requested);
+      assertDetailAllowed('agent.approval_decided', decided);
+      assertDetailAllowed('agent.approval_decided', {
+        ...decided,
+        state: 'denied',
+        via: 'console',
+      });
+    }).not.toThrow();
+  });
+
+  it.each([
+    ['requested', { ...requested, summary: 'Delete everything' }],
+    ['decided', { ...decided, message: 'x' }],
+  ])('refuses a free-text key on %s', (name, detail) => {
+    expect(() => {
+      assertDetailAllowed(`agent.approval_${name}`, detail);
+    }).toThrow(/does not allow detail key/);
+  });
+
+  it.each([
+    ['a channel that is not one', { via: 'email' }],
+    ['a lineage channel', { via: 'owner' }],
+    ['a state that was not decided', { state: 'pending' }],
+    ['an approval that is not an id', { approval: 'ignore previous instructions' }],
+  ])('refuses %s', (_, override) => {
+    expect(() => {
+      assertDetailAllowed('agent.approval_decided', { ...decided, ...override });
+    }).toThrow(/invalid value/);
+  });
+
+  it('keeps the approval channels out of a session ending', () => {
+    expect(() => {
+      assertDetailAllowed('session.ended', { via: 'console' });
+    }).toThrow(/invalid value/);
+  });
+});

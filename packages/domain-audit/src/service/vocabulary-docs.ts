@@ -43,6 +43,12 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'agent.instance_minted':
     'An agent instance was minted for its owner under an agent client. `detail` names the ' +
     'instance, the owner, the agent client and the instance\u2019s depth in its lineage.',
+  'agent.approval_requested':
+    'An agent asked its owner to approve an action. `detail` names the approval, the owner, the ' +
+    'agent client and, when one asked, the instance; the action itself is not recorded.',
+  'agent.approval_decided':
+    'The owner approved or denied a pending approval. `detail.state` says which and `detail.via` ' +
+    'the channel, the consent page of a backchannel request or the console.',
   'token.foreign_issuer':
     'A genuine token issued by another tenant was presented to the admin API.',
   'login.password': 'A password was checked at sign-in.',

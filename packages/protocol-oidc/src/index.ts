@@ -1390,6 +1390,17 @@ export {
   type MintAgentTokenDeps,
   type MintAgentTokenInput,
 } from '#/usecase/mint-agent-token';
+export {
+  ApprovalLimitReached,
+  consumeApproval,
+  decideApproval,
+  PENDING_APPROVALS_PER_SUBJECT,
+  requestApproval,
+  type ApprovalDecision,
+  type ApprovalDecisionOutcome,
+  type ApprovalDeps,
+  type ApprovalRequest,
+} from '#/usecase/approvals';
 export { type AgentTokenRefusal } from '#/service/agent-token-rules';
 export { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
 export { cimdClientRepository } from '#/repository/cimd-clients';

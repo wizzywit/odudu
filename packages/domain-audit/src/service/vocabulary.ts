@@ -6,7 +6,7 @@ import { type AdminMutationAction } from '#/service/admin-mutation-actions';
 // audit-detail.ts.
 export const AUDIT_ACTIONS = {
   admin_access: ['capability.refused', 'token.foreign_issuer', 'agent.tool_call'],
-  agent_identity: ['agent.instance_minted'],
+  agent_identity: ['agent.instance_minted', 'agent.approval_requested', 'agent.approval_decided'],
   authentication: [
     'login.password',
     'login.otp',
@@ -136,16 +136,37 @@ type AdminAccessInput =
       }>;
     });
 
-type AgentIdentityInput = EventCommon & {
-  readonly eventType: 'agent_identity';
-  readonly action: 'agent.instance_minted';
-  readonly detail: WithReason<{
-    agent_client: string;
-    owner: string;
-    instance: string;
-    depth: number;
-  }>;
-};
+type AgentIdentityInput =
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.instance_minted';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        instance: string;
+        depth: number;
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.approval_requested';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        approval: string;
+        instance?: string;
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.approval_decided';
+      readonly detail: WithReason<{
+        owner: string;
+        approval: string;
+        state: 'approved' | 'denied';
+        via: 'ciba_page' | 'console';
+      }>;
+    });
 
 type AuthenticationInput =
   | (EventCommon & {
@@ -321,6 +342,8 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'capability.refused': ['capability', 'also_admits'],
   'agent.tool_call': ['agent_client', 'owner', 'tool', 'route'],
   'agent.instance_minted': ['agent_client', 'owner', 'instance', 'depth'],
+  'agent.approval_requested': ['agent_client', 'owner', 'approval', 'instance'],
+  'agent.approval_decided': ['owner', 'approval', 'state', 'via'],
   'login.password': ['factor'],
   'login.otp': ['factor'],
   'login.recovery_code': ['factor'],
@@ -375,6 +398,7 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const SESSION_ENDED_VIA = ['logout', 'admin', 'self', 'evicted'];
 const AGENT_VIA = ['owner', 'admin', 'cascade', 'reaper'];
+const APPROVAL_VIA = ['ciba_page', 'console'];
 const AGENT_APPROVAL_STATES = ['approved', 'denied'];
 
 const TOOL_NAME = /^[a-z0-9_.-]{1,64}$/u;
@@ -390,7 +414,12 @@ function isValidDetailValue(action: string, key: string, value: unknown): boolea
   if (key === 'via') {
     return (
       typeof value === 'string' &&
-      (action === 'session.ended' ? SESSION_ENDED_VIA : AGENT_VIA).includes(value)
+      (action === 'session.ended'
+        ? SESSION_ENDED_VIA
+        : action === 'agent.approval_decided'
+          ? APPROVAL_VIA
+          : AGENT_VIA
+      ).includes(value)
     );
   }
   if (key === 'instance' || key === 'approval') return typeof value === 'string' && ID.test(value);
