@@ -3,6 +3,7 @@ import {
   instanceExpiry,
   mayActClaim,
   mintRefusal,
+  narrowMayAct,
   narrowestCeiling,
   normaliseScope,
 } from '#/service/agent-mint';
@@ -68,6 +69,7 @@ describe('instanceExpiry', () => {
 describe('mintRefusal', () => {
   it.each([
     ['scope_widened', 'invalid_scope'],
+    ['parent_not_live', 'invalid_request'],
     ['ttl_exceeds_parent', 'invalid_request'],
     ['ttl_exceeds_session', 'invalid_request'],
     ['depth_exceeded', 'invalid_target'],
@@ -75,5 +77,23 @@ describe('mintRefusal', () => {
     ['live_instances_exceeded', 'invalid_target'],
   ] as const)('answers %s with %s', (invariant, error) => {
     expect(mintRefusal(invariant).error).toBe(error);
+  });
+});
+
+describe('narrowMayAct', () => {
+  it('reads back what mayActClaim wrote', () => {
+    const one = { sub: 'a', iss: 'https://i' };
+    expect(narrowMayAct(one)).toEqual(one);
+    expect(narrowMayAct([one, { sub: 'b', iss: 'https://i' }])).toHaveLength(2);
+  });
+
+  it('has no claim for null and undefined', () => {
+    expect(narrowMayAct(null)).toBeUndefined();
+    expect(narrowMayAct(undefined)).toBeUndefined();
+  });
+
+  it('turns anything damaged into a claim that permits nobody', () => {
+    expect(narrowMayAct('actor')).toEqual([]);
+    expect(narrowMayAct([{ sub: 1 }])).toEqual([]);
   });
 });

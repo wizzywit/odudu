@@ -140,7 +140,7 @@ async function resolveRefreshToken(
       clientDbId: grant.clientId,
       requestedUserinfoClaims: grant.requestedUserinfoClaims,
       act: grant.actChain ?? undefined,
-      mayAct: undefined,
+      mayAct: grant.mayAct ?? undefined,
       expiresAt: record.expiresAt,
     },
   };
