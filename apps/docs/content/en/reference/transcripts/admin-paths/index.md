@@ -7,7 +7,7 @@ description: 'The admin API, route by route: the request each endpoint takes and
 
 The admin API, one route at a time: the request each endpoint takes and the response it answers. They sit behind the [admin API reference](../../generated/admin-api/index.md), which lists every endpoint and field; these pages show a real run of each.
 
-Each block is a command that was run and the output it printed. Ids, `ETag` values and timestamps belong to one run and refer to each other within a page.
+Each block is a command that was run and the output it printed, except on the one page, about a tenant's agents, that says it was not run and shows no output. Ids, `ETag` values and timestamps belong to one run and refer to each other within a page.
 
 How they were captured is in [How the transcripts are captured and checked](../../../contributing/transcripts.md).
 
@@ -34,6 +34,7 @@ How they were captured is in [How the transcripts are captured and checked](../.
 - [GET /clients/:id/evaluate](./get-clientsidevaluate.md)
 - [GET /clients/:id/installation](./get-clientsidinstallation.md)
 - [GET /registration-tokens, POST /registration-tokens and…](./get-registration-tokens-post-registration-tokens-and-delete-registration.md)
+- [A tenant's agents and approvals: list, read and revoke](./get-agents-get-agentsid-delete-agentsid-and-get-agent-approvals.md)
 - [Domains: register, verify, switch, remove](./get-domains-post-domains-and-the-domain-routes.md)
 - [GET /whoami](./get-whoami.md)
 - [GET /subjects](./get-subjects.md)
