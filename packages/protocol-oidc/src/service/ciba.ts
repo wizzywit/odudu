@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { containsBidiControl } from '@odudu/contracts';
 
 export const CIBA_GRANT = 'urn:openid:params:grant-type:ciba';
 
@@ -64,7 +65,8 @@ const CONTROL_CHARACTER = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 // What a login hint refuses: control characters, line and paragraph separators and
 // the bidirectional overrides and isolates a username may not hold. Other format
 // characters, the zero-width joiners some scripts need, a username may hold.
-const HINT_REFUSED = /[\p{Cc}\p{Zl}\p{Zp}\u202A-\u202E\u2066-\u2069]/u;
+const hintIsRefused = (value: string): boolean =>
+  /[\p{Cc}\p{Zl}\p{Zp}]/u.test(value) || containsBidiControl(value);
 
 export function parseBackchannelRequest(body: Body): BackchannelParse {
   if (UNSUPPORTED_PARAMETERS.some((name) => single(body, name).text !== undefined)) {
@@ -86,7 +88,7 @@ export function parseBackchannelRequest(body: Body): BackchannelParse {
         : undefined;
   if (hint === undefined) return refuse('invalid_request');
   const longest = hint.kind === 'login_hint' ? LOGIN_HINT_MAX_LENGTH : ID_TOKEN_HINT_MAX_LENGTH;
-  if (hint.value.length > longest || HINT_REFUSED.test(hint.value)) {
+  if (hint.value.length > longest || hintIsRefused(hint.value)) {
     return refuse('invalid_request');
   }
 
