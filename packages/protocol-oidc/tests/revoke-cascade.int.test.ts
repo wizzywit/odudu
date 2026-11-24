@@ -11,6 +11,7 @@ import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { tokenGrantRepository } from '#/repository/grants';
+import { waitForLockWaiters } from '#/testing/agent-fixture';
 
 function nth<T>(list: readonly T[], index: number): T {
   const item = list[index];
@@ -621,5 +622,49 @@ describe('a child made while its parent is being revoked', () => {
     const outcome = await (await exchangeHolding(w, parent, Promise.resolve())).done;
     expect(outcome).toBe(false);
     expect(await orphans(w)).toBe(0);
+  });
+});
+
+describe('a cascade takes the grants before any instance', () => {
+  // A transaction of the test holds a grant under the one revoked, so the
+  // cascade has to wait for it. An exchange takes a grant and then an
+  // instance; a cascade that has already taken the instance would deadlock
+  // against it.
+  it('leaves the instances unlocked while it waits for a grant', async () => {
+    const w = await newWorld();
+    const { top, below, instance } = await withTenant(app.db, w.tenantId, async (tx) => {
+      const [top, below] = await twoOf(tx, w);
+      return { top, below, instance: await instanceAt(tx, w, below) };
+    });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked!: () => void;
+    const gotLock = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const holder = withTenant(app.db, w.tenantId, async (tx) => {
+      await tx.execute(sql`select id from token_grants where id = ${below} for update`);
+      locked();
+      await held;
+    });
+    await gotLock;
+    const cascading = withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeCascade([top], LATER),
+    );
+    await waitForLockWaiters(owner);
+    const probe = await owner.db
+      .transaction((tx) =>
+        tx.execute(sql`select id from agent_instances where id = ${instance} for update nowait`),
+      )
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    release();
+    await Promise.all([cascading, holder]);
+    expect(probe).toBeNull();
+    expect(await instanceRevoked([instance])).toEqual([true]);
   });
 });

@@ -171,9 +171,11 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
   // statement. The first `cap` rows by depth are taken. A node whose grant is
   // revoked and has no live instance is walked through but takes no place in
   // the cap, which is what lets a second call reach what the first left.
-  // The updates are handed their ids sorted, so concurrent cascades lock rows
-  // in id order; an index scan over a sorted array visits them that way, but
-  // the planner does not promise it.
+  // The grants are locked first, in id order, and both updates read their ids
+  // from that lock, so no instance is touched before every grant is held, as
+  // an exchange takes them. The lock is the update's own (`for no key update`):
+  // a foreign key's key share still gets through. The planner does not promise
+  // the instances' order, which is why they are handed their ids sorted.
   async function pass(ids: readonly string[], at: Date, cap: number): Promise<CascadePass> {
     const stamp = at.toISOString();
     const rows = (await tx.execute(sql`
@@ -192,13 +194,18 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
          limit ${cap + 1}
       ),
       picked as (select id from pending order by depth, id limit ${cap}),
+      locked as (
+        select g.id from token_grants g
+         where g.id = any(array(select id from picked))
+         order by g.id for no key update
+      ),
       ended_grants as (
         update token_grants set revoked_at = ${stamp}::timestamptz
-         where id = any(array(select id from picked order by id)) and revoked_at is null
+         where id = any(array(select id from locked)) and revoked_at is null
         returning id
       ),
       instance_tree(id, depth) as (
-        select i.id, 0 from agent_instances i where i.root_grant_id = any(array(select id from picked))
+        select i.id, 0 from agent_instances i where i.root_grant_id = any(array(select id from locked))
         union all
         select c.id, t.depth + 1 from agent_instances c join instance_tree t on c.parent_instance_id = t.id
          where t.depth < ${STRUCTURAL_MAX_DEPTH}

@@ -84,7 +84,7 @@ describe('an exchange from a revoked grant', () => {
     });
     await gotLock;
     const exchanging = exchange(stack, AGENT, owner.accessToken);
-    await waitForLockWaiters(stack);
+    await waitForLockWaiters(stack.owner);
     release();
     const [res] = await Promise.all([exchanging, holder]);
     expect(res.statusCode).toBe(400);
@@ -128,14 +128,14 @@ describe('an exchange from an instance racing a revoke', () => {
         await gotLock;
 
         const exchanging = exchange(stack, AGENT, token);
-        await waitForLockWaiters(stack);
+        await waitForLockWaiters(stack.owner);
         const revoking = withTenant(stack.app.db, stack.tenantId, (tx) =>
           tokenGrantRepository(tx).revoke(target, new Date()),
         ).then(
           () => null,
           (error: unknown) => error,
         );
-        await waitForLockWaiters(stack, 2);
+        await waitForLockWaiters(stack.owner, 2);
         release();
         const [res, revokeError] = await Promise.all([exchanging, revoking, holder]);
 

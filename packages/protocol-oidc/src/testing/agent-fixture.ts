@@ -277,11 +277,11 @@ export function exchange(
   });
 }
 
-// Returns once `waiting` backends of the stack's database are blocked on a lock,
+// Returns once `waiting` backends of the owner's database are blocked on a lock,
 // which is the evidence that a request reached the row a test holds.
-export async function waitForLockWaiters(stack: AgentStack, waiting = 1): Promise<void> {
+export async function waitForLockWaiters(owner: DatabaseHandle, waiting = 1): Promise<void> {
   for (let attempt = 0; attempt < 400; attempt += 1) {
-    const rows = await stack.owner.db.execute(
+    const rows = await owner.db.execute(
       sql`select count(*)::int as n from pg_stat_activity
            where wait_event_type = 'Lock' and datname = current_database()`,
     );
