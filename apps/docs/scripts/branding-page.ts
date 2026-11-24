@@ -38,6 +38,9 @@ export const PART_DESCRIPTIONS: Readonly<Record<string, string>> = {
   submit: 'The button that sends the form.',
   'submit.allow': 'The button that approves the request.',
   'submit.deny': 'The button that refuses it.',
+  'submit.approve': 'The button that approves what the agent asks for.',
+  details:
+    'Who is asking, what for, the message it sent and when the request ends; the page’s own text, so a template places it and cannot drop it.',
   'submit.other': 'The button that signs in as someone else.',
   error: 'The refusal message for the form; empty when there is none.',
   intro: 'The heading and the tenant’s name.',
