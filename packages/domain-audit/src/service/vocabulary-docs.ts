@@ -167,6 +167,8 @@ export const AUDIT_OUTCOME_DOCS: Record<AuditOutcome, string> = {
 };
 
 export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
+  'agent.instance_revoke':
+    'An administrator revoked an agent instance, with everything beneath it and the grants it acted in, or was refused because the instance’s owner holds an admin capability the administrator does not. `detail` carries the numbers; the lineage row `agent.instance_revoked` names the instance.',
   'audit.export': 'The audit trail was exported.',
   'client.amend': 'A client was amended.',
   'client.create': 'A client was created.',

@@ -2,6 +2,7 @@
 // or by a command on an admin's behalf. Typed, so recording an action not
 // listed here does not compile.
 export const ADMIN_MUTATION_ACTIONS = [
+  'agent.instance_revoke',
   'audit.export',
   'client.amend',
   'client.create',
