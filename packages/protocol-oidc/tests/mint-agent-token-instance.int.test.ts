@@ -71,6 +71,7 @@ async function grantFor(
   w: Pick<World, 'tenantId' | 'subjectId' | 'sessionId'>,
   clientDbId: string,
   scope: string,
+  sessionless = false,
 ): Promise<string> {
   const id = newId();
   await tokenGrantRepository(tx).create({
@@ -80,13 +81,13 @@ async function grantFor(
     subjectId: w.subjectId,
     scope,
     audience: [MCP_AUDIENCE],
-    sessionId: w.sessionId,
+    sessionId: sessionless ? null : w.sessionId,
   });
   return id;
 }
 
 async function newWorld(
-  options: { agentType?: boolean; grantScope?: string } = {},
+  options: { agentType?: boolean; grantScope?: string; sessionless?: boolean } = {},
 ): Promise<World> {
   const grantScope = options.grantScope ?? 'mcp:read mcp:write';
   const tenantId = newId();
@@ -128,7 +129,7 @@ async function newWorld(
       secretHash: SessionEntry.issue(sessionId).secretHash(),
     });
     const base = { tenantId, subjectId: subject.id, sessionId };
-    const grantId = await grantFor(tx, base, agent.id, grantScope);
+    const grantId = await grantFor(tx, base, agent.id, grantScope, options.sessionless ?? false);
     return {
       ...base,
       issuer,
@@ -231,6 +232,35 @@ describe('mintAgentToken without an instance', () => {
     const claims = claimsOf((await mint(w)).accessToken);
     expect(claims.act).toEqual({ sub: AGENT });
     expect(await instancesOf(w)).toHaveLength(0);
+  });
+});
+
+describe('the OIDC configuration read', () => {
+  // Scans of the configuration table made by this transaction while it mints,
+  // read from the statistics a transaction keeps for itself.
+  async function configScans(w: World, over: Partial<MintAgentTokenInput>): Promise<number> {
+    return withTenant(app.db, w.tenantId, async (tx) => {
+      const scans = async (): Promise<number> => {
+        const found = (await tx.execute(
+          sql`select coalesce(sum(seq_scan + idx_scan), 0)::int as n from pg_stat_xact_user_tables
+               where relname = 'client_oidc_config'`,
+        )) as unknown as { n: number }[];
+        return found[0]?.n ?? 0;
+      };
+      const before = await scans();
+      await mintAgentToken(tx, w.deps, input(w, over));
+      return (await scans()) - before;
+    });
+  }
+
+  it('is not made by a call with no run', async () => {
+    const w = await newWorld({ agentType: true });
+    expect(await configScans(w, {})).toBe(0);
+  });
+
+  it('is made by a call with a run', async () => {
+    const w = await newWorld({ agentType: true });
+    expect(await configScans(w, { run: { key: 'conv-1' } })).toBeGreaterThan(0);
   });
 });
 
@@ -378,6 +408,27 @@ describe('the idle lifetime of a run instance', () => {
     expect(new Date(String(row?.expires_at)).getTime()).toBe(end.getTime());
   });
 
+  it('stays usable past 24 hours of activity inside a session of three days', async () => {
+    const w = await newWorld({ agentType: true });
+    const end = new Date(NOW.getTime() + 3 * 86_400_000);
+    await setSessionEnd(w, end);
+    const id = actOf((await mint(w, { run: { key: 'conv-1' } })).accessToken);
+    const [first] = await instancesOf(w);
+    expect(new Date(String(first?.expires_at)).getTime()).toBe(end.getTime());
+    let at = NOW;
+    for (let step = 0; step < 62; step += 1) {
+      at = new Date(at.getTime() + 25 * 60_000);
+      const minted = await mint(w, {
+        run: { key: 'conv-1' },
+        now: at,
+        notAfter: new Date(at.getTime() + 3600_000),
+      });
+      expect(actOf(minted.accessToken)).toBe(id);
+    }
+    expect(at.getTime() - NOW.getTime()).toBeGreaterThan(86_400_000);
+    expect(await idleOf(w)).toBe(at.getTime() + 1800_000);
+  });
+
   it('refuses a call after the instance idled out', async () => {
     const w = await newWorld({ agentType: true });
     await mint(w, { run: { key: 'conv-1' } });
@@ -400,6 +451,27 @@ describe('the idle lifetime of a run instance', () => {
     const [row] = await instancesOf(w);
     expect(row?.idle_expires_at).toBeNull();
     expect(row?.revoked_at).toBeNull();
+  });
+});
+
+describe('a run on a grant with no session', () => {
+  it('expires 24 hours after the mint and is refused after that', async () => {
+    const w = await newWorld({ agentType: true, sessionless: true });
+    const id = actOf((await mint(w, { run: { key: 'conv-1' } })).accessToken);
+    const [row] = await instancesOf(w);
+    expect(new Date(String(row?.expires_at)).getTime()).toBe(NOW.getTime() + 86_400_000);
+    await owner.db.execute(
+      sql`update agent_instances set idle_expires_at = ${new Date(NOW.getTime() + 9e8).toISOString()}::timestamptz
+           where id = ${id}`,
+    );
+    const late = new Date(NOW.getTime() + 86_401_000);
+    expect(
+      await refusedWith(w, {
+        run: { key: 'conv-1' },
+        now: late,
+        notAfter: new Date(late.getTime() + 3600_000),
+      }),
+    ).toBe('run_refused');
   });
 });
 

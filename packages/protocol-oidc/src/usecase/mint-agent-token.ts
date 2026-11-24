@@ -18,7 +18,7 @@ import {
 } from '#/service/agent-token-rules';
 import { runInstanceId } from '#/service/agent-mint';
 import { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
-import { applyAgentLayer, isLive } from '#/usecase/agent-layer';
+import { applyAgentLayer, isLive, SESSIONLESS_RUN_SECONDS } from '#/usecase/agent-layer';
 import { mintSubjectAccessToken, type AccessTokenDeps } from '#/usecase/token-issuance';
 
 // A refusal names its reason for a log and a test; the MCP layer answers its
@@ -122,7 +122,8 @@ async function instanceForRun(
         requestedUserinfoClaims: null,
         act: parent === undefined ? undefined : { sub: parent },
         mayAct: undefined,
-        expiresAt: session?.expiresAt ?? null,
+        expiresAt:
+          session?.expiresAt ?? new Date(input.now.getTime() + SESSIONLESS_RUN_SECONDS * 1000),
       },
       actorSubject: client.clientId,
       requestedScope: grant.scope.split(' ').filter((entry) => entry !== ''),
@@ -131,6 +132,19 @@ async function instanceForRun(
     },
   );
   return layer.kind === 'ok' ? (layer.instance?.id ?? null) : null;
+}
+
+// The instance id of the call's run, or null when it has no run or the client
+// is not an agent type. The configuration is read only for a call with a run.
+async function runIdFor(
+  tx: TenantScopedDatabase,
+  input: MintAgentTokenInput,
+  grant: TokenGrantRecord,
+  client: ClientRecord,
+): Promise<string | null> {
+  if (input.run === undefined) return null;
+  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+  return config?.agentType === true ? runInstanceId(grant.tenantId, grant.id, input.run.key) : null;
 }
 
 // The admin-audience token an agent acts with for the person whose grant it
@@ -160,20 +174,19 @@ export async function mintAgentToken(
     sessionLive: await sessionLiveness(tx, deps, grant, input.now),
     subjectEnabled: await ownerEnabled(tx, grant),
   });
-  const config =
-    client === null ? null : await clientOidcConfigRepository(tx).byClientId(client.id);
-  const runId =
-    input.run !== undefined && grant !== null && config?.agentType === true
-      ? runInstanceId(deps.tenantId, grant.id, input.run.key)
-      : null;
   if (refusal !== null || grant === null || client === null) {
-    if (runId !== null && (refusal === 'session_ended' || refusal === 'subject_disabled')) {
-      await agentInstanceRepository(tx).revoke(runId, input.now);
+    const ended = refusal === 'session_ended' || refusal === 'subject_disabled';
+    const endedRun =
+      ended && grant !== null && client !== null ? await runIdFor(tx, input, grant, client) : null;
+    if (endedRun !== null) {
+      // The instance-revoked audit event is recorded here by a later change.
+      await agentInstanceRepository(tx).revoke(endedRun, input.now);
       throw new AgentTokenRefused('owner_ended');
     }
     throw new AgentTokenRefused(refusal ?? 'grant_not_found');
   }
 
+  const runId = await runIdFor(tx, input, grant, client);
   let actSub = client.clientId;
   if (runId !== null) {
     const instance = await instanceForRun(tx, deps, grant, client, input, runId);

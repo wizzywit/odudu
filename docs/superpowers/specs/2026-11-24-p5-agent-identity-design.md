@@ -132,7 +132,9 @@ An instance has no credentials, no session and no token of its own. It exists as
 is fixed when it is minted. Its lifetime is the shorter of its parent's and the
 owner's session, and either a fixed TTL (exchange, default 15 minutes) or a
 sliding idle TTL (a run that keeps making calls, default 30 minutes), extended on
-use and never past the session. An approval's expiry never outlives its instance.
+use and never past the session. A run on a session lasts as long as the session;
+a run on a grant with no session is bounded at 24 hours from its mint. An
+approval's expiry never outlives its instance.
 
 `act` on the issued token is the chain it already is (RFC 8693 §4.4), now with
 instance ids as `sub`. `token_grants.actor_subject_id` and `act_chain` already

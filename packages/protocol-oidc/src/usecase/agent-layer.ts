@@ -40,8 +40,9 @@ export interface AgentLayerInput {
   requestedScope: readonly string[];
   now: Date;
   // A run's instance: it keeps the id the caller derived for the run and
-  // lives until the owner's session ends, sliding its idle expiry with use,
-  // rather than for the fixed lifetime an exchange's instance gets.
+  // lasts as long as the owner's session and its parent, with an idle expiry
+  // that slides on use, rather than the fixed lifetime an exchange's gets.
+  // A grant with no session bounds it at SESSIONLESS_RUN_SECONDS.
   run?: { instanceId: string; idleSeconds: number };
 }
 
@@ -78,8 +79,9 @@ export function isLive(instance: AgentInstanceRecord, now: Date): boolean {
   );
 }
 
-// The longest a run's instance can live when no session bounds it.
-const RUN_LIFETIME_SECONDS = 86_400;
+// The absolute lifetime of a run's instance on a grant with no session, fixed
+// when it is minted.
+export const SESSIONLESS_RUN_SECONDS = 86_400;
 
 // The most exchange hops walked back to the grant a person signed in with.
 const MAX_GRANT_HOPS = 16;
@@ -192,6 +194,19 @@ async function resolveParent(
   };
 }
 
+// An exchange's instance lives for the tenant's TTL. A run's is bounded by the
+// session and the parent alone, which `instanceExpiry` applies, so its TTL is
+// only as long as the session has left.
+function lifetimeSeconds(
+  input: AgentLayerInput,
+  tenantTtlSeconds: number,
+  sessionEndsAt: Date | null,
+): number {
+  if (input.run === undefined) return tenantTtlSeconds;
+  if (sessionEndsAt === null) return SESSIONLESS_RUN_SECONDS;
+  return (sessionEndsAt.getTime() - input.now.getTime()) / 1000;
+}
+
 // Stage 4 for an agent-type client: mints the instance that becomes `act.sub`.
 // A client that is not an agent type is returned unchanged and nothing is read.
 export async function applyAgentLayer(
@@ -227,8 +242,7 @@ export async function applyAgentLayer(
   if (sessionEndsAt === 'gone') return refuse('parent_not_live');
   const expiresAt = instanceExpiry({
     now: input.now,
-    ttlSeconds:
-      input.run === undefined ? settings.agentInstanceTtlSeconds : RUN_LIFETIME_SECONDS,
+    ttlSeconds: lifetimeSeconds(input, settings.agentInstanceTtlSeconds, sessionEndsAt),
     parentExpiresAt: parent.expiresAt,
     sessionEndsAt,
   });
