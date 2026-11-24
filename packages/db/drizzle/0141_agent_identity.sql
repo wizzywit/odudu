@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS agent_instances (
 
 CREATE INDEX IF NOT EXISTS agent_instances_owner_live
   ON agent_instances (tenant_id, owner_subject_id) WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS agent_instances_owner ON agent_instances (tenant_id, owner_subject_id);
+CREATE INDEX IF NOT EXISTS agent_instances_client ON agent_instances (tenant_id, agent_client_id);
 CREATE INDEX IF NOT EXISTS agent_instances_parent ON agent_instances (tenant_id, parent_instance_id);
 CREATE INDEX IF NOT EXISTS agent_instances_root_grant ON agent_instances (root_grant_id);
 CREATE INDEX IF NOT EXISTS agent_instances_expires_at ON agent_instances (expires_at);
@@ -64,6 +66,8 @@ CREATE TABLE IF NOT EXISTS agent_delegations (
 
 CREATE INDEX IF NOT EXISTS agent_delegations_subject
   ON agent_delegations (tenant_id, subject_id, client_id);
+CREATE INDEX IF NOT EXISTS agent_delegations_client ON agent_delegations (tenant_id, client_id);
+CREATE INDEX IF NOT EXISTS agent_delegations_actor ON agent_delegations (tenant_id, actor_client_id);
 
 -- instance_id names an instance without a foreign key: an approval outlives
 -- the instance's tombstone, and must keep naming it.
@@ -91,6 +95,8 @@ CREATE TABLE IF NOT EXISTS agent_approvals (
     REFERENCES clients (tenant_id, id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS agent_approvals_subject ON agent_approvals (tenant_id, subject_id);
+CREATE INDEX IF NOT EXISTS agent_approvals_client ON agent_approvals (tenant_id, requesting_client_id);
 CREATE INDEX IF NOT EXISTS agent_approvals_subject_pending
   ON agent_approvals (tenant_id, subject_id) WHERE state = 'pending';
 CREATE INDEX IF NOT EXISTS agent_approvals_expires_at
@@ -109,6 +115,8 @@ CREATE TABLE IF NOT EXISTS agent_budget_windows (
     REFERENCES clients (tenant_id, id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS agent_budget_windows_client
+  ON agent_budget_windows (tenant_id, agent_client_id);
 CREATE INDEX IF NOT EXISTS agent_budget_windows_window_start ON agent_budget_windows (window_start);
 
 ALTER TABLE agent_instances ENABLE ROW LEVEL SECURITY;
