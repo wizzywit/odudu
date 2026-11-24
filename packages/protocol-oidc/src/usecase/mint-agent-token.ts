@@ -139,9 +139,9 @@ async function instanceForRun(
 // request. The token carries the owner's grant id, so ending that grant,
 // its session, the agent client or the subject ends the token with it (the
 // admin API reads all four), and nothing is written. With a `run` and an agent
-// type the instance for that run is written, and its id is `act.sub`. The
-// owner having ended refuses a run with 'owner_ended' after revoking its
-// instance; that write is kept only by a caller that commits on a refusal.
+// type the instance for that run is written and its id is `act.sub`. An ended
+// owner refuses a run 'owner_ended' after revoking its instance; only a caller
+// that commits on a refusal keeps that write.
 export async function mintAgentToken(
   tx: TenantScopedDatabase,
   deps: MintAgentTokenDeps,
