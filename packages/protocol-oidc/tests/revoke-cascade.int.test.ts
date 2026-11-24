@@ -452,7 +452,9 @@ describe('revokeForActors', () => {
 
   it('revokes what each actor acted in, what was exchanged from it and the instances rooted there', async () => {
     const w = await newWorld();
-    const [a, b] = await actors(w, 2);
+    const made = await actors(w, 2);
+    const a = nth(made, 0);
+    const b = nth(made, 1);
     const held = await withTenant(app.db, w.tenantId, async (tx) => {
       const first = await grant(tx, w, { actor: a });
       const below = await grant(tx, w, { from: first });
@@ -461,7 +463,7 @@ describe('revokeForActors', () => {
       return { first, below, second, untouched, instance: await instanceAt(tx, w, below) };
     });
     const result = await withTenant(app.db, w.tenantId, (tx) =>
-      tokenGrantRepository(tx).revokeForActors([nth([a, b], 0), nth([a, b], 1)], LATER),
+      tokenGrantRepository(tx).revokeForActors([a, b], LATER),
     );
     expect(result).toEqual({ grants: 3, instances: 1 });
     expect(await grantRevoked([held.first, held.below, held.second, held.untouched])).toEqual([
@@ -472,7 +474,7 @@ describe('revokeForActors', () => {
     ]);
     expect(await instanceRevoked([held.instance])).toEqual([true]);
     const again = await withTenant(app.db, w.tenantId, (tx) =>
-      tokenGrantRepository(tx).revokeForActors([nth([a, b], 0)], LATER),
+      tokenGrantRepository(tx).revokeForActors([a], LATER),
     );
     expect(again).toEqual({ grants: 0, instances: 0 });
   });

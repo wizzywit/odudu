@@ -43,11 +43,19 @@ import { type Audit as SmtpAudit } from '#/usecase/smtp';
 import { type Audit as AccountRecoveryAudit } from '#/usecase/account-recovery';
 import { type Audit as ConsentAudit } from '#/usecase/consents';
 import {
+  listAgentApprovalsHandler,
+  listAgentsHandler,
+  readAgentHandler,
+  revokeAgentHandler,
+  type AgentsRouteDeps,
+} from '#/view/routes/agents';
+import {
   listTermsAcceptancesHandler,
   type TermsAcceptancesRouteDeps,
 } from '#/view/routes/terms-acceptances';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as GrantAudit } from '#/usecase/grants';
+import { type Audit as AgentAudit } from '#/usecase/agents';
 import { type EndTenantSessionsDeps } from '#/usecase/tenant-sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
 import { type Audit } from '#/usecase/tenants';
@@ -532,6 +540,7 @@ function buildAdminRoutes(
     const subjectAudit: SubjectAudit = recordAudit;
     const sessionAudit: SessionAudit = recordAudit;
     const grantAudit: GrantAudit = recordAudit;
+    const agentAudit: AgentAudit = recordAudit;
     const tenantSessionsAudit: EndTenantSessionsDeps['audit'] = recordAudit;
     const consentAudit: ConsentAudit = recordAudit;
     const accountRecoveryAudit: AccountRecoveryAudit = recordAudit;
@@ -770,6 +779,13 @@ function buildAdminRoutes(
       callerCapabilities,
       now: () => clock.now(),
     };
+    const agentsDeps: AgentsRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: agentAudit,
+      callerCapabilities,
+      now: () => clock.now(),
+    };
     const consentsDeps: ConsentsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
@@ -819,6 +835,10 @@ function buildAdminRoutes(
       'DELETE /admin/tenants/:tenant/subjects/:id/credentials/:credentialId':
         deleteCredentialHandler(subjectsDeps, sessionsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/consents': listConsentsHandler(consentsDeps),
+      'GET /admin/tenants/:tenant/agents': listAgentsHandler(agentsDeps),
+      'GET /admin/tenants/:tenant/agents/:id': readAgentHandler(agentsDeps),
+      'DELETE /admin/tenants/:tenant/agents/:id': revokeAgentHandler(agentsDeps),
+      'GET /admin/tenants/:tenant/agent-approvals': listAgentApprovalsHandler(agentsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/terms-acceptances':
         listTermsAcceptancesHandler(termsAcceptancesDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/consents/:clientId':
