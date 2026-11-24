@@ -11,7 +11,7 @@ import {
 } from '@odudu/db';
 import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
-import { FakeClock, newId } from '@odudu/kernel';
+import { type ClaimMapperRegistry, FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
@@ -19,6 +19,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { type ClaimContext } from '#/service/claims';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { noBreachedLookup } from '#/testing/breached-check';
@@ -40,7 +41,9 @@ export interface AgentStack {
   stop: () => Promise<void>;
 }
 
-export async function startAgentStack(): Promise<AgentStack> {
+export async function startAgentStack(
+  options: { claimMappers?: ClaimMapperRegistry<ClaimContext> } = {},
+): Promise<AgentStack> {
   const container: TestDatabase = await startTestDatabase();
   const owner = createDatabase(container.adminUrl);
   await runMigrations(owner.db, MIGRATIONS_DIR);
@@ -59,6 +62,7 @@ export async function startAgentStack(): Promise<AgentStack> {
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
+      ...(options.claimMappers === undefined ? {} : { claimMappers: options.claimMappers }),
     }),
   );
   await http.ready();

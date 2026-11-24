@@ -1361,11 +1361,15 @@ async function issueExchangedTokens(
     const reachable = await reachableRoleIds(tx, scope);
     const key = await signingKeyRepository(tx).active();
     const assigned = await clientScopeRepository(tx).forClient(client.id);
-    const mapped = await mappedClaims(
-      deps.claimMappers,
-      idTokenScopeOf(assigned, scope),
-      claimContext,
-      { reachableRoleIds: reachable, fullScopeAllowed: client.fullScopeAllowed },
+    // `may_act` is the issuer's own, carried from the subject token, so a
+    // mapper's is dropped as it is for an access token.
+    const mapped = Object.fromEntries(
+      Object.entries(
+        await mappedClaims(deps.claimMappers, idTokenScopeOf(assigned, scope), claimContext, {
+          reachableRoleIds: reachable,
+          fullScopeAllowed: client.fullScopeAllowed,
+        }),
+      ).filter(([name]) => name !== 'may_act'),
     );
     const iat = Math.floor(now.getTime() / 1000);
     const ttlExp = iat + config.idTokenTtlSeconds;
@@ -1387,6 +1391,7 @@ async function issueExchangedTokens(
       ...(session === null ? {} : { auth_time: Math.floor(session.createdAt.getTime() / 1000) }),
       ...(subject.token.sessionId !== null ? { sid: subject.token.sessionId } : {}),
       ...(act === undefined ? {} : { act }),
+      ...(carriedMayAct === undefined ? {} : { may_act: carriedMayAct }),
     });
     const idToken = await signJwt(idTokenClaims, {
       key: await idTokenKey(tx, config, key),
