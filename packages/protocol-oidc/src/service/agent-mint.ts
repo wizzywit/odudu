@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { type Invariant } from '@odudu/domain-agents';
 
 export type MintInvariant =
@@ -30,6 +31,19 @@ export function mayActClaim(actors: readonly string[], issuer: string): MayActCl
 export function combinedCeiling(ceilings: readonly string[]): string[] | null {
   if (ceilings.length === 0) return null;
   return [...new Set(ceilings.flatMap((ceiling) => ceiling.split(' ').filter((s) => s !== '')))];
+}
+
+// The id of the instance for one run of an owner's grant, derived so that the
+// same run finds its instance again and two grants never share one. The
+// fields are hashed as a JSON array so a key cannot shift into its neighbour.
+export function runInstanceId(tenantId: string, grantId: string, key: string): string {
+  const bytes = createHash('sha256')
+    .update(JSON.stringify([tenantId, grantId, key]))
+    .digest();
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = bytes.subarray(0, 16).toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
 export function normaliseScope(scope: readonly string[]): string[] | null {

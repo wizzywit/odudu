@@ -6,6 +6,7 @@ import {
   mintRefusal,
   narrowMayAct,
   combinedCeiling,
+  runInstanceId,
   normaliseScope,
 } from '#/service/agent-mint';
 
@@ -155,5 +156,27 @@ describe('narrowMayAct', () => {
   it('turns anything damaged into a claim that permits nobody', () => {
     expect(narrowMayAct('actor')).toEqual([]);
     expect(narrowMayAct([{ sub: 1 }])).toEqual([]);
+  });
+});
+
+describe('runInstanceId', () => {
+  const grant = '8f0d6a54-2c61-4b7a-9d0b-6a9d5f1a2b3c';
+  const tenant = '0b3f7a1c-5d2e-4f8a-8c4d-1e2f3a4b5c6d';
+
+  it('is a UUID, the same for the same run', () => {
+    const id = runInstanceId(tenant, grant, 'conv-1');
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u);
+    expect(runInstanceId(tenant, grant, 'conv-1')).toBe(id);
+  });
+
+  it('differs by key, grant and tenant', () => {
+    const id = runInstanceId(tenant, grant, 'conv-1');
+    expect(runInstanceId(tenant, grant, 'conv-2')).not.toBe(id);
+    expect(runInstanceId(tenant, tenant, 'conv-1')).not.toBe(id);
+    expect(runInstanceId(grant, grant, 'conv-1')).not.toBe(id);
+  });
+
+  it('does not let a key move across the fields it is hashed with', () => {
+    expect(runInstanceId(tenant, grant, 'a:b')).not.toBe(runInstanceId(tenant, `${grant}:a`, 'b'));
   });
 });
