@@ -13,6 +13,7 @@ import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { type ClaimMapperRegistry, FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { sql } from 'drizzle-orm';
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { oidcRoutes } from '#/index';
@@ -274,4 +275,18 @@ export function exchange(
       authorization: basic(clientId),
     },
   });
+}
+
+// Returns once `waiting` backends of the stack's database are blocked on a lock,
+// which is the evidence that a request reached the row a test holds.
+export async function waitForLockWaiters(stack: AgentStack, waiting = 1): Promise<void> {
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    const rows = await stack.owner.db.execute(
+      sql`select count(*)::int as n from pg_stat_activity
+           where wait_event_type = 'Lock' and datname = current_database()`,
+    );
+    if (Number((rows as unknown as { n: number }[])[0]?.n) >= waiting) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`fewer than ${String(waiting)} backends waited on a lock`);
 }

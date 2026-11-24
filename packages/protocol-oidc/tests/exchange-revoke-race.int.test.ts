@@ -8,6 +8,7 @@ import {
   exchange,
   login,
   startAgentStack,
+  waitForLockWaiters,
   type AgentStack,
 } from '#/testing/agent-fixture';
 
@@ -23,8 +24,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await stack.stop();
 });
-
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function count(query: ReturnType<typeof sql>): Promise<number> {
   const rows = await stack.owner.db.execute(query);
@@ -85,7 +84,7 @@ describe('an exchange from a revoked grant', () => {
     });
     await gotLock;
     const exchanging = exchange(stack, AGENT, owner.accessToken);
-    await pause(300);
+    await waitForLockWaiters(stack);
     release();
     const [res] = await Promise.all([exchanging, holder]);
     expect(res.statusCode).toBe(400);
@@ -129,14 +128,14 @@ describe('an exchange from an instance racing a revoke', () => {
         await gotLock;
 
         const exchanging = exchange(stack, AGENT, token);
-        await pause(250);
+        await waitForLockWaiters(stack);
         const revoking = withTenant(stack.app.db, stack.tenantId, (tx) =>
           tokenGrantRepository(tx).revoke(target, new Date()),
         ).then(
           () => null,
           (error: unknown) => error,
         );
-        await pause(250);
+        await waitForLockWaiters(stack, 2);
         release();
         const [res, revokeError] = await Promise.all([exchanging, revoking, holder]);
 
