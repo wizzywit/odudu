@@ -15,6 +15,7 @@ const TEST = /\.test\.tsx?$/u;
 
 // A member named `decide` read by dot, by bracket or by destructuring.
 function reachesDecide(fileName: string, source: string): boolean {
+  if (!source.includes('decide')) return false;
   const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
   let found = false;
   const visit = (node: ts.Node): void => {
