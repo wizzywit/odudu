@@ -1,33 +1,12 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { withSavepoint, type TenantScopedDatabase } from '@odudu/db';
-import { agentInstanceRepository } from '@odudu/domain-agents';
 import { auditRepository } from '@odudu/domain-audit';
-import { subjectRepository } from '@odudu/domain-identity';
-import { clientRepository } from '@odudu/domain-tenant';
 import { type Logger } from '@odudu/kernel';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { narrowActClaim } from '#/service/token-exchange';
-import { isLive } from '#/usecase/agent-layer';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
-
-// Whether the actor at the head of the grant's `act` chain is an agent
-// instance that has been revoked, has lapsed or has been deleted. An id that
-// names a client or a subject other than an instance is an ordinary actor.
-async function actingInstanceEnded(
-  tx: TenantScopedDatabase,
-  grant: TokenGrantRecord,
-  now: Date,
-): Promise<boolean> {
-  const head = narrowActClaim(grant.actChain)?.sub;
-  if (head === undefined || !UUID.test(head)) return false;
-  const instance = await agentInstanceRepository(tx).byId(head);
-  if (instance !== null) return !isLive(instance, now);
-  if ((await subjectRepository(tx).byId(head)) !== null) return false;
-  return (await clientRepository(tx).byClientId(head)) === null;
-}
+import { actingInstanceEnded } from '#/usecase/agent-layer';
 
 export type RotationOutcome =
   | { readonly kind: 'rotated'; readonly grant: TokenGrantRecord; readonly next: string }
@@ -108,7 +87,8 @@ export async function rotateRefreshToken(
 
   // An instance that ended takes the family's refresh with it, as its
   // session ending would: the token was consumed above and stays consumed.
-  if (await actingInstanceEnded(tx, grant, now)) return { kind: 'revoked' };
+  if (await actingInstanceEnded(tx, narrowActClaim(grant.actChain)?.sub, now))
+    return { kind: 'revoked' };
 
   // A session-bound family lives exactly as long as its session: an idle
   // timeout that a refresh could out-live would not be an idle timeout. An

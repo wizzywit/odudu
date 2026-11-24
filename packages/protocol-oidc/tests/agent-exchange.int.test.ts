@@ -467,50 +467,50 @@ describe('minting under concurrency and refusal', () => {
   });
 });
 
+async function grantActedBy(head: string, actorSubjectId: string | null) {
+  const owner = await login(stack, AGENT);
+  const raw = `refresh-${newId()}`;
+  await withTenant(stack.app.db, stack.tenantId, async (tx) => {
+    const grantId = newId();
+    await tokenGrantRepository(tx).create({
+      id: grantId,
+      tenantId: stack.tenantId,
+      clientId: agentDbId,
+      subjectId: owner.subjectId,
+      scope: 'openid',
+      audience: ['https://api.example'],
+      actChain: { sub: head },
+      ...(actorSubjectId === null ? {} : { actorSubjectId }),
+    });
+    await refreshTokenRepository(tx).create({
+      tokenHash: hashRefreshToken(raw),
+      tenantId: stack.tenantId,
+      grantId,
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
+  });
+  return { owner, raw };
+}
+
+async function instanceFor(owner: { grantId: string; subjectId: string }): Promise<string> {
+  return withTenant(stack.app.db, stack.tenantId, async (tx) => {
+    const instance = await agentInstanceRepository(tx).mint({
+      id: newId(),
+      tenantId: stack.tenantId,
+      ownerSubjectId: owner.subjectId,
+      agentClientId: agentDbId,
+      parentInstanceId: null,
+      rootGrantId: owner.grantId,
+      depth: 1,
+      scope: 'openid',
+      expiresAt: new Date(Date.now() + 3_600_000),
+      idleExpiresAt: null,
+    });
+    return instance.id;
+  });
+}
+
 describe('a refresh whose grant names an instance as its actor', () => {
-  async function grantActedBy(head: string, actorSubjectId: string | null) {
-    const owner = await login(stack, AGENT);
-    const raw = `refresh-${newId()}`;
-    await withTenant(stack.app.db, stack.tenantId, async (tx) => {
-      const grantId = newId();
-      await tokenGrantRepository(tx).create({
-        id: grantId,
-        tenantId: stack.tenantId,
-        clientId: agentDbId,
-        subjectId: owner.subjectId,
-        scope: 'openid',
-        audience: ['https://api.example'],
-        actChain: { sub: head },
-        ...(actorSubjectId === null ? {} : { actorSubjectId }),
-      });
-      await refreshTokenRepository(tx).create({
-        tokenHash: hashRefreshToken(raw),
-        tenantId: stack.tenantId,
-        grantId,
-        expiresAt: new Date(Date.now() + 3_600_000),
-      });
-    });
-    return { owner, raw };
-  }
-
-  async function instanceFor(owner: { grantId: string; subjectId: string }): Promise<string> {
-    return withTenant(stack.app.db, stack.tenantId, async (tx) => {
-      const instance = await agentInstanceRepository(tx).mint({
-        id: newId(),
-        tenantId: stack.tenantId,
-        ownerSubjectId: owner.subjectId,
-        agentClientId: agentDbId,
-        parentInstanceId: null,
-        rootGrantId: owner.grantId,
-        depth: 1,
-        scope: 'openid',
-        expiresAt: new Date(Date.now() + 3_600_000),
-        idleExpiresAt: null,
-      });
-      return instance.id;
-    });
-  }
-
   function refresh(raw: string) {
     return stack.http.inject({
       method: 'POST',
@@ -587,5 +587,62 @@ describe('a refresh whose grant names an instance as its actor', () => {
     const owner = await login(stack, AGENT);
     const { raw } = await grantActedBy(owner.subjectId, owner.subjectId);
     expect((await refresh(raw)).statusCode).toBe(200);
+  });
+});
+
+describe('an exchange of a token whose act head is an agent instance', () => {
+  const ended: [string, string][] = [
+    ['revoked', 'revoked_at = now()'],
+    ['lapsed', "expires_at = now() - interval '1 minute'"],
+  ];
+
+  async function end(id: string, change: string): Promise<void> {
+    await stack.owner.db.execute(
+      sql`update agent_instances set ${sql.raw(change)} where id = ${id}`,
+    );
+  }
+
+  const refusedAsInvalidRequest = (res: { statusCode: number; json: <T>() => T }): void => {
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_request');
+  };
+
+  it.each(ended)('refuses an access token whose head instance is %s', async (_name, change) => {
+    const owner = await login(stack, AGENT);
+    const { token, id } = await firstInstance(owner);
+    await end(id, change);
+    refusedAsInvalidRequest(await exchange(stack, PLAIN, token));
+  });
+
+  it.each(ended)('refuses a refresh token whose head instance is %s', async (_name, change) => {
+    const owner = await login(stack, AGENT);
+    const id = await instanceFor(owner);
+    const { raw } = await grantActedBy(id, id);
+    await end(id, change);
+    refusedAsInvalidRequest(await exchange(stack, PLAIN, raw, { type: 'refresh' }));
+  });
+
+  it('carries a live head instance into the new token', async () => {
+    const owner = await login(stack, AGENT);
+    const { token, id } = await firstInstance(owner);
+    const res = await exchange(stack, PLAIN, token);
+    expect(res.statusCode).toBe(200);
+    expect(decode(res.json<{ access_token: string }>().access_token).act).toEqual({ sub: id });
+  });
+
+  it('leaves a head that is a client id unchanged', async () => {
+    const { raw } = await grantActedBy('some-client', null);
+    const res = await exchange(stack, PLAIN, raw, { type: 'refresh' });
+    expect(res.statusCode).toBe(200);
+    expect(decode(res.json<{ access_token: string }>().access_token).act).toEqual({
+      sub: 'some-client',
+    });
+  });
+
+  it('leaves a head that is a client with a UUID-shaped client_id unchanged', async () => {
+    const clientId = newId();
+    await addClient(stack, { clientId });
+    const { raw } = await grantActedBy(clientId, null);
+    expect((await exchange(stack, PLAIN, raw, { type: 'refresh' })).statusCode).toBe(200);
   });
 });

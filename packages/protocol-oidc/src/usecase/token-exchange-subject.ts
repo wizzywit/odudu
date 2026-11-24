@@ -8,7 +8,8 @@ import { tokenGrantRepository } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { clientIsLive } from '#/service/client-enabled';
 import { hashRefreshToken } from '#/service/refresh';
-import { type ExchangeTokenType } from '#/service/token-exchange';
+import { narrowActClaim, type ExchangeTokenType } from '#/service/token-exchange';
+import { actingInstanceEnded } from '#/usecase/agent-layer';
 import { subjectOfIdTokenHint } from '#/usecase/authorization-request';
 
 export interface ResolvedExchangeToken {
@@ -95,6 +96,10 @@ async function resolveAccessToken(
     return { kind: 'refused' };
   }
 
+  if (await actingInstanceEnded(tx, narrowActClaim(payload.act)?.sub, deps.now)) {
+    return { kind: 'refused' };
+  }
+
   return {
     kind: 'ok',
     token: {
@@ -127,6 +132,10 @@ async function resolveRefreshToken(
   if (grant?.revokedAt !== null) return { kind: 'refused' };
   if (!(await grantClientIsLive(tx, grant.clientId))) return { kind: 'refused' };
   if (grant.sessionId !== null && !(await sessionIsLive(tx, deps, grant.sessionId))) {
+    return { kind: 'refused' };
+  }
+
+  if (await actingInstanceEnded(tx, narrowActClaim(grant.actChain)?.sub, deps.now)) {
     return { kind: 'refused' };
   }
 
