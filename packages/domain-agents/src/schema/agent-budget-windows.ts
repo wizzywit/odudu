@@ -1,4 +1,4 @@
-import { pgTable, primaryKey, smallint, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { integer, pgTable, primaryKey, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
@@ -14,7 +14,7 @@ export const agentBudgetWindows = pgTable(
     ownerSubjectId: uuid('owner_subject_id').notNull(),
     agentClientId: uuid('agent_client_id').notNull(),
     windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
-    writes: smallint('writes').notNull().default(0),
+    writes: integer('writes').notNull().default(0),
   },
   (table) => [
     primaryKey({

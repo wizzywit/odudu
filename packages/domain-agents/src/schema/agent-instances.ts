@@ -1,4 +1,4 @@
-import { pgTable, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { integer, pgTable, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
@@ -22,6 +22,12 @@ export const agentInstances = pgTable('agent_instances', {
   // Set only on an instance whose life slides with use.
   idleExpiresAt: timestamp('idle_expires_at', { withTimezone: true }),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  // The writes the instance may spend and what it has spent; a nested
+  // instance's limits are what its parent had left when it was minted.
+  sliceMutating: integer('slice_mutating').notNull().default(20),
+  sliceCreates: integer('slice_creates').notNull().default(10),
+  spentMutating: integer('spent_mutating').notNull().default(0),
+  spentCreates: integer('spent_creates').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 

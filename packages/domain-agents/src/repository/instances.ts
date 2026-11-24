@@ -30,6 +30,8 @@ export interface NewAgentInstance {
   scope: string;
   expiresAt: Date;
   idleExpiresAt: Date | null;
+  // Left out, the column defaults (the tenant defaults) apply.
+  slice?: { mutating: number; creates: number };
 }
 
 // Not revoked, not past its fixed expiry and not past its idle expiry at `now`.
@@ -68,6 +70,9 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
           scope: input.scope,
           expiresAt: input.expiresAt,
           idleExpiresAt: input.idleExpiresAt,
+          ...(input.slice === undefined
+            ? {}
+            : { sliceMutating: input.slice.mutating, sliceCreates: input.slice.creates }),
         })
         .returning();
       const row = rows[0];

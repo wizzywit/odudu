@@ -1002,6 +1002,13 @@
       "when": 1791840183737,
       "tag": "0142_agent_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1791926583737,
+      "tag": "0145_agent_instance_budget",
+      "breakpoints": true
     }
   ]
 }
