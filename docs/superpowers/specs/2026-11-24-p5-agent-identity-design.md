@@ -14,15 +14,15 @@ server that spends a per-sign-in write budget. What nothing reads yet:
 
 Paths below are under `packages/protocol-oidc/src/` unless a package is named.
 
-| Gap | Where it stands today (checked 2026-11-24) |
-| --- | --- |
-| No agent instance | `subjects.type` allows `agent_instance`; no row is ever made, no table holds an owner, parent, budget or expiry (`packages/domain-identity/src/schema/subjects.ts`) |
-| `may_act` is never minted | `mayActPermits` allows an exchange when the claim is absent (`service/token-exchange.ts:142`) |
-| `may_act` is lost on refresh | the refresh branch sets `mayAct: undefined` (`usecase/token-exchange-subject.ts:143`); no grant column holds it |
+| Gap                                | Where it stands today (checked 2026-11-24)                                                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No agent instance                  | `subjects.type` allows `agent_instance`; no row is ever made, no table holds an owner, parent, budget or expiry (`packages/domain-identity/src/schema/subjects.ts`)      |
+| `may_act` is never minted          | `mayActPermits` allows an exchange when the claim is absent (`service/token-exchange.ts:142`)                                                                            |
+| `may_act` is lost on refresh       | the refresh branch sets `mayAct: undefined` (`usecase/token-exchange-subject.ts:143`); no grant column holds it                                                          |
 | Revoking a grant is not transitive | `tokenGrantRepository.revoke` updates one row (`repository/grants.ts:161`); `exchanged_from_grant_id` and its index exist (migrations 0059, 0095) and nothing walks them |
-| Depth is a constant | `MAX_DELEGATION_DEPTH = 8` (`service/token-exchange.ts`) |
-| Budget is per sign-in only | `reserveAgentWrite` on `token_grants.agent_writes` / `agent_creates` (`repository/grants.ts`) |
-| No CIBA | no `backchannel_authentication_endpoint` anywhere |
+| Depth is a constant                | `MAX_DELEGATION_DEPTH = 8` (`service/token-exchange.ts`)                                                                                                                 |
+| Budget is per sign-in only         | `reserveAgentWrite` on `token_grants.agent_writes` / `agent_creates` (`repository/grants.ts`)                                                                            |
+| No CIBA                            | no `backchannel_authentication_endpoint` anywhere                                                                                                                        |
 
 Two decisions made since the umbrella spec shape this design:
 
@@ -79,23 +79,23 @@ layer consumes the exchange and introduces no grant of its own.
 
 **Where an instance lives.**
 
-- *A. No table: lineage only, on `token_grants`.* Least schema. Nothing names the
+- _A. No table: lineage only, on `token_grants`._ Least schema. Nothing names the
   instance, so there is no per-instance revocation, budget slice or audit
   identity, which is what ADR 0003 exists to provide.
-- *B. A `subjects` row of type `agent_instance` plus an `agent_instances` detail
-  row (chosen).* The subject row is what `act.sub`, sessions, grants and
+- _B. A `subjects` row of type `agent_instance` plus an `agent_instances` detail
+  row (chosen)._ The subject row is what `act.sub`, sessions, grants and
   revocation already point at, as P0 intended. The detail row holds owner, type,
   parent, root, depth, scope, budget slice and expiry.
-- *C. One row per instance in `clients`.* ADR 0003 rejected this: unbounded
+- _C. One row per instance in `clients`._ ADR 0003 rejected this: unbounded
   client growth and configuration, not directory entries.
 
 **How `may_act` gets minted.**
 
-- *A. Per client only (operator names who may act).* Simple, no new person-facing
+- _A. Per client only (operator names who may act)._ Simple, no new person-facing
   surface; the owner never decides.
-- *B. Per person only, through the "me" API.* The owner decides; needs a new
+- _B. Per person only, through the "me" API._ The owner decides; needs a new
   public surface, SDK and docs.
-- *C. Both (chosen):* a client's configured actors, and a person's own delegation
+- _C. Both (chosen):_ a client's configured actors, and a person's own delegation
   records. The narrower of the two applies when both exist. The person-facing half
   is the first increment to split if the phase runs long, and is named for P5c if
   it is.
@@ -122,7 +122,7 @@ instance, so nothing existing changes.
 2. `mintAgentToken` (`usecase/mint-agent-token.ts`), the in-process path the MCP
    endpoint and the console assistant use. Today it signs a short token for the
    owner's grant with `act: { sub: <agent client id> }` and writes nothing. For an
-   agent type it first finds or mints the instance for the caller's *run* (the
+   agent type it first finds or mints the instance for the caller's _run_ (the
    assistant's conversation) and puts the instance id in `act.sub` instead, so the
    audit row names the instance. It stays a token bound to the owner's grant: it
    makes no grant, and a client that is not an agent type is unchanged.
@@ -154,10 +154,10 @@ beside `crypto`.
 
 Persisted as `token_grants.may_act jsonb`, set when the owner's grant is made,
 and read by the refresh branch of `resolveExchangeToken` in place of
-`undefined`. Minted into the owner's access token. *Who* may act is the union of the client's
+`undefined`. Minted into the owner's access token. _Who_ may act is the union of the client's
 configured actors and the owner's active delegations (`agent_delegations(tenant_id,
 id, subject_id, client_id, actor_client_id, scope_ceiling, expires_at,
-revoked_at)`); for an actor both name, the *scope ceiling* is the narrower of the
+revoked_at)`); for an actor both name, the _scope ceiling_ is the narrower of the
 two. With neither source, behaviour is unchanged: no claim, exchange permitted by
 today's rule.
 
@@ -269,7 +269,7 @@ rate-limited per request so a client cannot turn it into a load generator.
 6. CIBA: endpoint, grant, discovery, rate limits, approval page, mail.
 7. Admin API, console "Agents" area, settings, audit vocabulary.
 8. Documentation and conformance: concept and guide pages, transcripts re-run,
-   `docs/protocols/oidc-ciba.md` and the RFC 8693 note, the CIBA conformance plan
+   the CIBA reading note `oidc-ciba.md` in `docs/protocols/` and the RFC 8693 note, the CIBA conformance plan
    in `conformance`, `CHANGELOG.md`, and the closing pass of CLAUDE.md.
 
 Estimate 100 to 130 hours, within the umbrella's 80 to 120 once the per-person
