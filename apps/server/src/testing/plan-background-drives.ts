@@ -359,9 +359,12 @@ export async function driveRepositories(
     await grants.create({ ...base, id: newId(), exchangedFromGrantId: cascadeRoot });
   });
   await capture('grants: a revoked grant takes everything exchanged from it', 'oidc', () =>
-    withTenant(database, world.tenantId, (tx) =>
-      tokenGrantRepository(tx).revokeCascade([cascadeRoot], new Date()),
-    ),
+    withTenant(database, world.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      await grants.lockLive(cascadeRoot);
+      await grants.revokeCascade([cascadeRoot], new Date());
+      await grants.revoke(cascadeRoot, new Date());
+    }),
   );
   await capture('themes: what a sign-in render and an asset route read', 'authn', () =>
     withTenant(database, world.tenantId, async (tx) => {

@@ -72,3 +72,13 @@ result field; a task that depends on one cites its result here.
     the indexes `0141_agent_identity.sql` and its foreign-key repair create.
   - One statement: the cascade test counts the statements a transaction
     sends for a root with 1,000 grants exchanged from it and finds one.
+  - The `agent.instance_revoked` row of a cascade is written inside the grants
+    repository, not by each caller: at least twelve callers revoke, and a hook
+    would be forgotten at one of them. This bends the rule that a repository
+    writes no audit rows, on purpose. Its actor is the instance's owner and
+    agent client, not the party that triggered the revoke.
+  - A chain of any length is revoked: each pass walks to the structural depth
+    and the next starts from the grants it left at that depth, and a revoke
+    ends with a pass in a new statement that must find nothing, so a child
+    committed while an earlier pass waited on a lock is found. The exchange
+    takes the parent `for share` and refuses `invalid_grant` if it was revoked.

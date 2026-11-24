@@ -248,21 +248,40 @@ describe('revokeCascade over a chain of exchanged grants', () => {
     expect(result).toMatchObject({ grants: 0, instances: 0, capped: false });
   });
 
-  it('does not walk past the structural depth', async () => {
+  it.each([STRUCTURAL_MAX_DEPTH + 3, 40])(
+    'revokes a chain of %i grants and the instances rooted along it',
+    async (length) => {
+      const w = await newWorld();
+      const { ids, rooted } = await withTenant(app.db, w.tenantId, async (tx) => {
+        const ids = await chain(tx, w, length);
+        const rooted = [
+          await instanceAt(tx, w, nth(ids, 0)),
+          await instanceAt(tx, w, nth(ids, STRUCTURAL_MAX_DEPTH + 1)),
+          await instanceAt(tx, w, nth(ids, length - 1)),
+        ];
+        return { ids, rooted };
+      });
+      const result = await withTenant(app.db, w.tenantId, (tx) =>
+        tokenGrantRepository(tx).revokeCascade([nth(ids, 0)], LATER),
+      );
+      expect(result).toMatchObject({ grants: length, instances: 3, capped: false });
+      expect(await grantRevoked(ids)).toEqual(Array(length).fill(true));
+      expect(await instanceRevoked(rooted)).toEqual([true, true, true]);
+    },
+  );
+
+  it('revokes a chain of 40 through revoke(), however deep it runs', async () => {
     const w = await newWorld();
-    const ids = await withTenant(app.db, w.tenantId, (tx) =>
-      chain(tx, w, STRUCTURAL_MAX_DEPTH + 3),
+    const ids = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 40));
+    await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(nth(ids, 0), LATER),
     );
-    const result = await withTenant(app.db, w.tenantId, (tx) =>
-      tokenGrantRepository(tx).revokeCascade([nth(ids, 0)], LATER),
-    );
-    expect(result.grants).toBe(STRUCTURAL_MAX_DEPTH + 1);
-    expect((await grantRevoked(ids)).filter(Boolean)).toHaveLength(STRUCTURAL_MAX_DEPTH + 1);
+    expect(await grantRevoked(ids)).toEqual(Array(40).fill(true));
   });
 });
 
 describe('revokeCascade over a fan-out', () => {
-  it('revokes 1,000 grants in one statement', async () => {
+  it('revokes a shallow fan-out of 1,000 grants in one pass, one statement', async () => {
     const w = await newWorld();
     const root = await withTenant(app.db, w.tenantId, (tx) => grant(tx, w));
     await owner.db.execute(sql`
@@ -494,14 +513,16 @@ describe('revokeCascade over random delegation trees', () => {
     const w = await newWorld();
     await fc.assert(
       fc.asyncProperty(
-        fc.array(fc.nat(), { minLength: 1, maxLength: 12 }),
+        fc.array(fc.tuple(fc.integer({ min: 0, max: 3 }), fc.nat()), {
+          minLength: 14,
+          maxLength: 30,
+        }),
         fc.nat(),
         async (picks, pick) => {
           const parentIdx: number[] = [-1];
           const depth = [0];
-          for (const p of picks) {
-            const open = parentIdx.map((_, i) => i).filter((i) => nth(depth, i) < 7);
-            const parent = nth(open, p % open.length);
+          for (const [deepen, p] of picks) {
+            const parent = deepen > 0 ? parentIdx.length - 1 : p % parentIdx.length;
             parentIdx.push(parent);
             depth.push(nth(depth, parent) + 1);
           }
@@ -532,4 +553,73 @@ describe('revokeCascade over random delegation trees', () => {
       { numRuns: 25 },
     );
   }, 120_000);
+});
+
+describe('a child made while its parent is being revoked', () => {
+  async function orphans(w: World): Promise<number> {
+    const rows = await owner.db.execute(
+      sql`select count(*)::int as n from token_grants c join token_grants p on p.id = c.exchanged_from_grant_id
+           where c.tenant_id = ${w.tenantId} and c.revoked_at is null and p.revoked_at is not null`,
+    );
+    return (rows as unknown as { n: number }[])[0]?.n ?? -1;
+  }
+
+  // What the exchange does for the grant it derives from: lock the parent
+  // live, make the child, and commit only when told.
+  async function exchangeHolding(w: World, parent: string, release: Promise<void>) {
+    let made!: () => void;
+    const madeChild = new Promise<void>((resolve) => {
+      made = resolve;
+    });
+    const done = withTenant(app.db, w.tenantId, async (tx) => {
+      try {
+        if (!(await tokenGrantRepository(tx).lockLive(parent))) return false;
+        await grant(tx, w, { from: parent, sessionless: true });
+        made();
+        await release;
+        return true;
+      } finally {
+        made();
+      }
+    });
+    await madeChild;
+    return { done };
+  }
+
+  it.each([
+    ['the parent', 0],
+    ['an ancestor of the parent', 1],
+  ])(
+    'leaves no live child under a revoked grant when revoking %s',
+    async (_, up) => {
+      for (let round = 0; round < 6; round += 1) {
+        const w = await newWorld();
+        const ids = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 3));
+        const parent = nth(ids, 2);
+        const target = nth(ids, 2 - up);
+        let release!: () => void;
+        const held = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const exchange = (await exchangeHolding(w, parent, held)).done;
+        const revoking = withTenant(app.db, w.tenantId, (tx) =>
+          tokenGrantRepository(tx).revoke(target, LATER),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        release();
+        await Promise.all([exchange, revoking]);
+        expect(await orphans(w)).toBe(0);
+      }
+    },
+    60_000,
+  );
+
+  it('refuses the exchange once the parent was revoked first', async () => {
+    const w = await newWorld();
+    const parent = nth(await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 1)), 0);
+    await withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(parent, LATER));
+    const outcome = await (await exchangeHolding(w, parent, Promise.resolve())).done;
+    expect(outcome).toBe(false);
+    expect(await orphans(w)).toBe(0);
+  });
 });

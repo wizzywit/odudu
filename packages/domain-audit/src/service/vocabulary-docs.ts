@@ -48,7 +48,8 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'instance, the owner, the agent client and its depth, `count` is how many instances ' +
     'the revocation ended, and `via` is `cascade` when the grant it was rooted at was revoked, ' +
     '`owner_ended` when its run was refused because the owner\u2019s session or account had ended, ' +
-    'or `admin`.',
+    'or `admin`. The row\u2019s actor is the instance\u2019s owner and agent client, not the party that ' +
+    'triggered the revocation.',
   'token.foreign_issuer':
     'A genuine token issued by another tenant was presented to the admin API.',
   'login.password': 'A password was checked at sign-in.',

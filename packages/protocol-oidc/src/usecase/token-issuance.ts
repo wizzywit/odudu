@@ -95,6 +95,14 @@ import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange
 // tenant's, so issuance never sees a lifetime the client left unset.
 type IssuingConfig = ClientOidcConfig & TokenLifetimes;
 
+// The grant a derived grant comes from is locked and found live before the
+// child is made, so a revoke of it waits for the child or the exchange fails.
+async function requireLiveParent(tx: TenantScopedDatabase, grantId: string | null): Promise<void> {
+  if (grantId !== null && !(await tokenGrantRepository(tx).lockLive(grantId))) {
+    throw invalidGrant();
+  }
+}
+
 // The client's `id_token_signed_response_alg` (OIDC Dynamic Client
 // Registration §2), or the active key it signs with when it named none.
 // Never another algorithm in its place: a client that registered one may
@@ -1307,6 +1315,7 @@ async function issueExchangedTokens(
   if (issuedType === 'refresh_token') {
     if (!refreshAllowedForScope(scope)) throw invalidScope();
     const grantId = newId();
+    await requireLiveParent(tx, subject.token.grantId);
     await tokenGrantRepository(tx).create({
       id: grantId,
       tenantId: deps.tenantId,
@@ -1418,6 +1427,7 @@ async function issueExchangedTokens(
     now,
   );
 
+  await requireLiveParent(tx, subject.token.grantId);
   await tokenGrantRepository(tx).create({
     id: grantId,
     tenantId: deps.tenantId,
