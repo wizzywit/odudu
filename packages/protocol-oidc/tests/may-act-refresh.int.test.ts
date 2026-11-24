@@ -1,8 +1,10 @@
 import { withTenant } from '@odudu/db';
+import { clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { tokenGrantRepository } from '#/repository/grants';
+import { applyAgentLayer } from '#/usecase/agent-layer';
 import {
   addClient,
   basic,
@@ -139,12 +141,74 @@ describe('the owner delegations', () => {
   });
 
   it('bound the scope of an instance minted for the delegated actor', async () => {
+    await delegate('openid', delegateDbId);
     const owner = await login(stack, OWNER_CLIENT, 'openid profile');
     const broad = await exchange(stack, DELEGATE, owner.accessToken, { scope: 'openid profile' });
     expect(broad.statusCode).toBe(400);
     expect(broad.json<{ error: string }>().error).toBe('invalid_scope');
     const narrow = await exchange(stack, DELEGATE, owner.accessToken, { scope: 'openid' });
     expect(narrow.statusCode).toBe(200);
+  });
+});
+
+describe('an owner with more delegations than one read returns', () => {
+  it('still admits the actor whose delegation is the oldest', async () => {
+    const clientId = 'crowded-owner';
+    const dbId = await addClient(stack, { clientId });
+    const crowd = await addClient(stack, { clientId: 'crowd-actor' });
+    const signedIn = await login(stack, clientId, 'openid profile');
+    await withTenant(stack.app.db, stack.tenantId, async (tx) => {
+      await tx.execute(
+        sql`insert into agent_delegations
+              (tenant_id, id, subject_id, client_id, actor_client_id, scope_ceiling,
+               expires_at, created_at)
+            values (${stack.tenantId}, ${newId()}, ${signedIn.subjectId}, ${dbId},
+                    ${delegateDbId}, 'openid', now() + interval '1 day', now() - interval '2 days')`,
+      );
+      await tx.execute(
+        sql`insert into agent_delegations
+              (tenant_id, id, subject_id, client_id, actor_client_id, scope_ceiling,
+               expires_at, created_at)
+            select ${stack.tenantId}, gen_random_uuid(), ${signedIn.subjectId}, ${dbId},
+                   ${crowd}, 'profile', now() + interval '1 day', now() - make_interval(secs => n)
+              from generate_series(1, 201) as n`,
+      );
+    });
+    const outcome = await withTenant(stack.app.db, stack.tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(DELEGATE);
+      if (client === null) throw new Error('no delegate client');
+      return applyAgentLayer(
+        tx,
+        {
+          tenantId: stack.tenantId,
+          lifespans: {
+            ssoSessionIdleSeconds: 3600,
+            ssoSessionMaxSeconds: 3600,
+            rememberMeIdleSeconds: 3600,
+            rememberMeMaxSeconds: 3600,
+          },
+        },
+        {
+          client,
+          agentType: true,
+          subject: {
+            subjectId: signedIn.subjectId,
+            scope: ['openid', 'profile'],
+            sessionId: null,
+            grantId: signedIn.grantId,
+            clientDbId: dbId,
+            requestedUserinfoClaims: null,
+            act: undefined,
+            mayAct: undefined,
+            expiresAt: new Date(stack.clock.now().getTime() + 300_000),
+          },
+          actorSubject: DELEGATE,
+          requestedScope: ['openid'],
+          now: stack.clock.now(),
+        },
+      );
+    });
+    expect(outcome).toMatchObject({ kind: 'ok', scope: ['openid'] });
   });
 });
 

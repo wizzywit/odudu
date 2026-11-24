@@ -129,17 +129,18 @@ async function liveCeiling(
   if (source === null) return { kind: 'refused' };
   const config = await clientOidcConfigRepository(tx).byClientId(source.id);
   const configured = config?.delegatedActors ?? [];
-  const delegations = await agentDelegationRepository(tx).activeFor(
+  const delegations = agentDelegationRepository(tx);
+  const own = await delegations.activeForActor(
     input.subject.subjectId,
     source.id,
+    input.client.id,
     input.now,
   );
+  const anyLive = await delegations.hasActive(input.subject.subjectId, source.id, input.now);
   return actorAdmission({
     namedByConfig: configured.includes(input.client.clientId),
-    ceilings: delegations
-      .filter((delegation) => delegation.actorClientId === input.client.id)
-      .map((delegation) => delegation.scopeCeiling),
-    liveActors: configured.length + delegations.length,
+    ceilings: own.map((delegation) => delegation.scopeCeiling),
+    liveActors: configured.length + (anyLive ? 1 : 0),
     claimPresent: input.subject.mayAct !== undefined,
   });
 }
@@ -317,7 +318,9 @@ export async function applyAgentLayer(
 
 // Who may act for `subjectId` in a grant made through `clientDbId`: the
 // client's configured actors and the subject's active delegations together.
-// Without either, no claim is made and today's rule (anyone may) stands.
+// Without either, no claim is made and today's rule (anyone may) stands. Past
+// the newest 200 delegations an older actor is left out of the claim, which
+// refuses it rather than admitting it.
 export async function mayActFor(
   tx: TenantScopedDatabase,
   input: {

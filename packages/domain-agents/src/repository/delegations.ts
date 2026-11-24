@@ -17,6 +17,17 @@ export interface NewAgentDelegation {
 // The most delegations one subject's list returns.
 const LIST_LIMIT = 200;
 
+// A delegation `subjectId` made through `clientId` that is neither revoked nor
+// expired at `now`.
+function active(subjectId: string, clientId: string, now: Date) {
+  return and(
+    eq(agentDelegations.subjectId, subjectId),
+    eq(agentDelegations.clientId, clientId),
+    isNull(agentDelegations.revokedAt),
+    gt(agentDelegations.expiresAt, now),
+  );
+}
+
 export function agentDelegationRepository(tx: TenantScopedDatabase) {
   return {
     async create(input: NewAgentDelegation): Promise<AgentDelegationRecord> {
@@ -37,6 +48,8 @@ export function agentDelegationRepository(tx: TenantScopedDatabase) {
       return rows.length > 0;
     },
 
+    // The newest `LIST_LIMIT` of them, which is a claim's whole population: an
+    // older actor falls off it and so is refused, never admitted.
     async activeFor(
       subjectId: string,
       clientId: string,
@@ -45,16 +58,36 @@ export function agentDelegationRepository(tx: TenantScopedDatabase) {
       return tx
         .select()
         .from(agentDelegations)
+        .where(active(subjectId, clientId, now))
+        .orderBy(desc(agentDelegations.createdAt))
+        .limit(LIST_LIMIT);
+    },
+
+    // The ones naming one actor, filtered in SQL so that however many others
+    // the subject has made, none of this actor's is left out.
+    async activeForActor(
+      subjectId: string,
+      clientId: string,
+      actorClientId: string,
+      now: Date,
+    ): Promise<AgentDelegationRecord[]> {
+      return tx
+        .select()
+        .from(agentDelegations)
         .where(
-          and(
-            eq(agentDelegations.subjectId, subjectId),
-            eq(agentDelegations.clientId, clientId),
-            isNull(agentDelegations.revokedAt),
-            gt(agentDelegations.expiresAt, now),
-          ),
+          and(active(subjectId, clientId, now), eq(agentDelegations.actorClientId, actorClientId)),
         )
         .orderBy(desc(agentDelegations.createdAt))
         .limit(LIST_LIMIT);
+    },
+
+    async hasActive(subjectId: string, clientId: string, now: Date): Promise<boolean> {
+      const rows = await tx
+        .select({ id: agentDelegations.id })
+        .from(agentDelegations)
+        .where(active(subjectId, clientId, now))
+        .limit(1);
+      return rows.length > 0;
     },
 
     async list(subjectId: string): Promise<AgentDelegationRecord[]> {
