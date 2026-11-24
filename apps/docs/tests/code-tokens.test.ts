@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { themes } from 'prism-react-renderer';
 import * as prettier from 'prettier';
@@ -157,11 +157,17 @@ describe('the legibility of the code colours', () => {
 
 describe('the highlighting in a built page', () => {
   it('is in the static markup, and the attribute that carried it is not', () => {
-    const $ = load(
-      path.join(docsDir('pages'), 'reference/generated/admin-api/clients/part-2/index.html'),
-    );
-    expect($('pre.language-json span.tok-property').length).toBeGreaterThan(0);
-    expect($('[data-tokens]').length).toBe(0);
-    expect($('pre span[class=""]').length).toBe(0);
+    const area = path.join(docsDir('pages'), 'reference/generated/admin-api/clients');
+    const pages = readdirSync(area)
+      .filter((name) => /^part-\d+$/u.test(name))
+      .map((name) => load(path.join(area, name, 'index.html')));
+    expect(pages.length).toBeGreaterThan(0);
+    expect(
+      pages.reduce((sum, $) => sum + $('pre.language-json span.tok-property').length, 0),
+    ).toBeGreaterThan(0);
+    for (const $ of pages) {
+      expect($('[data-tokens]').length).toBe(0);
+      expect($('pre span[class=""]').length).toBe(0);
+    }
   });
 });

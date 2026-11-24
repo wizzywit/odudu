@@ -31,6 +31,16 @@ function sectionText(area: string, method: string, path: string): string {
   return '';
 }
 
+// The section and the pages of its own that a body too long to list inline is
+// moved to, which hold the rows the section links to.
+function sectionWithParts(area: string, method: string, path: string): string {
+  const slug = operationSlug(method.toLowerCase(), path);
+  const parts = [...pages.keys()]
+    .filter((key) => key.startsWith(`admin-api/${area}/${slug}-`) && key.includes('-part-'))
+    .sort();
+  return [sectionText(area, method, path), ...parts.map((key) => pages.get(key) ?? '')].join('\n');
+}
+
 function allText(): string {
   return [...pages.values()].join('\n');
 }
@@ -204,8 +214,19 @@ describe('the admin API reference pages', () => {
     expect(section).toContain('| `client_id` | string | yes |');
     expect(section).toContain('\n### Responses\n');
     expect(section).toContain('\n#### 201 Created\n');
-    expect(section).toContain('| `token_endpoint_auth_method` |');
+    expect(sectionWithParts('clients', 'POST', '/admin/tenants/{tenant}/clients')).toContain(
+      '| `token_endpoint_auth_method` |',
+    );
     expect(section).toContain('\n#### 401');
+  });
+
+  // The site appends " | Odudu" to a page's title, and a search result shows 70.
+  it('titles every page so that its title and the site name fit 70 characters', () => {
+    const long = [...pages.entries()]
+      .map(([name, page]) => [name, /^title: (?<title>".*")$/mu.exec(page)?.groups?.title] as const)
+      .filter(([, title]) => title !== undefined && (JSON.parse(title) as string).length > 62)
+      .map(([name]) => name);
+    expect(long).toEqual([]);
   });
 
   it('names every route ADMIN_ROUTES lists', () => {
