@@ -18,15 +18,16 @@ appears in it, whichever of the two it would have been, and a field on
 neither list is absent rather than shown.
 
 **Which event types are stored is the tenant's `audit_event_types` setting**, a
-list drawn from the six types `?event_type=` filters on, every one by default.
+list drawn from six of the seven types `?event_type=` filters on (`agent_identity` is
+not one of them, because it is always stored), every one by default.
 `PATCH /settings` takes it as an array (and `odudu seed tenant --set
 audit_event_types=…` comma-separated), and it is answered in the order the types
 are listed here: `admin_mutation`, `admin_access`, `authentication`, `session`,
 `token`, `credential`. The audit writer (`auditRepository`) reads it in the
 transaction that writes each row, so **a change applies from the moment it is
 saved**, to the next event on, and **it never deletes a row already stored** —
-those stay until `audit_retention_days` takes them. `admin_mutation` and
-`admin_access` are always stored: a value leaving either out is refused with
+those stay until `audit_retention_days` takes them. `admin_mutation`,
+`admin_access` and `agent_identity` are always stored: a value leaving either of the first two out is refused with
 `400`, the error naming `audit_event_types`, and a CHECK on the column refuses
 it again underneath. A security trail an attacker holding an administrator's
 token could switch off is no trail.
@@ -177,9 +178,9 @@ Paginated the same way every other list here is, over `(occurred_at, id)`
 descending rather than ascending `id`: newest first. Filters narrow the page
 rather than requiring one: `event_type`, `actor_subject_id`, `resource_type`,
 `resource_id`, `action`, `outcome`, and a `from`/`to` range on `occurred_at`
-(ISO 8601, with an offset). `event_type` must be one of the vocabulary's own six
-values (`admin_mutation`, `admin_access`, `authentication`, `session`, `token`,
-`credential`) and `actor_subject_id` must be a UUID, since the column is one —
+(ISO 8601, with an offset). `event_type` must be one of the vocabulary's own seven
+values (`admin_mutation`, `admin_access`, `agent_identity`, `authentication`,
+`session`, `token`, `credential`) and `actor_subject_id` must be a UUID, since the column is one —
 either answers `400` rather than reaching Postgres and failing there.
 `resource_id` is text, not a UUID: a reserved-`client_id` refusal names it by
 the string the caller sent, and an `authentication_session` row by a sha256

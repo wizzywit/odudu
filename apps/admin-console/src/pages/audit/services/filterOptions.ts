@@ -5,6 +5,7 @@ export const EVENT_TYPE_OPTIONS: readonly Choice[] = [
   { id: ANY_STATUS, label: 'Any event type' },
   { id: 'admin_mutation', label: 'Admin change' },
   { id: 'admin_access', label: 'Admin access' },
+  { id: 'agent_identity', label: 'Agent identity' },
   { id: 'authentication', label: 'Authentication' },
   { id: 'session', label: 'Session' },
   { id: 'token', label: 'Token' },
