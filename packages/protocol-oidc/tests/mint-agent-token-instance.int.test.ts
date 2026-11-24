@@ -198,6 +198,37 @@ async function setSessionEnd(w: World, at: Date): Promise<void> {
   );
 }
 
+// Runs a mint that blocks on a row lock another transaction holds, applies
+// `during` while it waits, then lets it continue: the way to change the world
+// between two reads one mint makes.
+async function refusedWhileLocked(
+  w: World,
+  over: Partial<MintAgentTokenInput>,
+  lock: ReturnType<typeof sql>,
+  during: () => Promise<void>,
+): Promise<string> {
+  let release = (): void => undefined;
+  let locked = (): void => undefined;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const isLocked = new Promise<void>((resolve) => (locked = resolve));
+  const holder = owner.db.transaction(async (tx) => {
+    await tx.execute(lock);
+    locked();
+    await held;
+  });
+  await isLocked;
+  const attempt = refusedWith(w, over);
+  for (;;) {
+    const waiting = await rows(sql`select 1 from pg_locks where not granted`);
+    if (waiting.length > 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  await during();
+  release();
+  await holder;
+  return attempt;
+}
+
 beforeAll(async () => {
   containerHandle = await startTestDatabase();
   container = containerHandle;
@@ -516,6 +547,34 @@ describe('a run whose owner has ended', () => {
     const all = await instancesOf(w);
     expect(all).toHaveLength(2);
     expect(all.every((entry) => entry.revoked_at !== null)).toBe(true);
+  });
+
+  it('is refused owner_ended and its instance revoked when the session vanishes mid-mint', async () => {
+    const w = await newWorld({ agentType: true });
+    const id = actOf((await mint(w, { run: { key: 'conv-1' } })).accessToken);
+    const reason = await refusedWhileLocked(
+      w,
+      { run: { key: 'conv-1' } },
+      sql`select id from token_grants where id = ${w.grantId} for update`,
+      () => setSessionEnd(w, new Date(NOW.getTime() - 1000)),
+    );
+    expect(reason).toBe('owner_ended');
+    const [row] = await instancesOf(w);
+    expect(row).toMatchObject({ id });
+    expect(Number.isNaN(Date.parse(String(row?.revoked_at)))).toBe(false);
+  });
+
+  it('is refused run_refused for a new run whose session vanishes while its parent is read', async () => {
+    const w = await newWorld({ agentType: true });
+    const parent = actOf((await mint(w, { run: { key: 'conv-1' } })).accessToken);
+    const reason = await refusedWhileLocked(
+      w,
+      { run: { key: 'sub-1', parentInstanceId: parent } },
+      sql`select id from agent_instances where id = ${parent} for update`,
+      () => setSessionEnd(w, new Date(NOW.getTime() - 1000)),
+    );
+    expect(reason).toBe('run_refused');
+    expect(await instancesOf(w)).toHaveLength(1);
   });
 
   it('leaves the refusals of a call with no run as they were', async () => {
