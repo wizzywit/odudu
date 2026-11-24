@@ -6,6 +6,7 @@ from enum import Enum
 class GetAdminTenantsTenantAuditEventType(str, Enum):
     ADMIN_ACCESS = "admin_access"
     ADMIN_MUTATION = "admin_mutation"
+    AGENT_IDENTITY = "agent_identity"
     AUTHENTICATION = "authentication"
     CREDENTIAL = "credential"
     SESSION = "session"

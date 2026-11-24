@@ -265,6 +265,29 @@ describe('a page render and the tenant’s message overrides', () => {
   });
 });
 
+// Every mint counts the tenant's live instances. That is bounded by the tenant's
+// own limit (at most 100,000), never by what other tenants hold, so the count
+// is read through an index on the tenant.
+describe('the count of a tenant’s live agent instances', () => {
+  it('is an indexed read of the tenant, not a scan of every tenant’s instances', async () => {
+    const run = log.runs.find(
+      (candidate) => candidate.path === 'agents: what a mint counts and reads',
+    );
+    const count = run?.statements
+      .filter(isWork)
+      .find(
+        (statement) =>
+          statement.query.includes('count(*)') && statement.query.includes('"agent_instances"'),
+      );
+    expect(count).toBeDefined();
+    if (count === undefined) return;
+    expect(budget.largeTables.has('agent_instances')).toBe(true);
+    const own = scansOf(await planned(count)).filter((scan) => scan.relation === 'agent_instances');
+    expect(own.length).toBeGreaterThan(0);
+    expect(own.filter((scan) => scan.node === 'Seq Scan')).toEqual([]);
+  });
+});
+
 // What the registration form costs with a cached theme and no return_to: a
 // statement added to every registration path moves this number.
 const PLAIN_REGISTRATION_STATEMENTS = 1;

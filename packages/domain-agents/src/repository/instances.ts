@@ -9,7 +9,6 @@ import {
   isNotNull,
   isNull,
   lt,
-  lte,
   notExists,
   or,
   sql,
@@ -90,18 +89,57 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
       return rows[0]?.n ?? 0;
     },
 
+    // Takes the row lock a mint serialises on, so the children counted next
+    // are the children that exist once this transaction commits.
+    async lockForUpdate(id: string): Promise<AgentInstanceRecord | null> {
+      const rows = await tx
+        .select()
+        .from(agentInstances)
+        .where(eq(agentInstances.id, id))
+        .for('update');
+      return rows[0] ?? null;
+    },
+
+    // The same lock for an instance minted straight under a grant, which has
+    // no parent instance row to take it on.
+    async lockGrant(grantId: string): Promise<boolean> {
+      const rows = await tx.execute(
+        sql`select id from token_grants where id = ${grantId} for update`,
+      );
+      return (rows as unknown as unknown[]).length > 0;
+    },
+
+    async liveRoots(rootGrantId: string, now: Date): Promise<number> {
+      const rows = await tx
+        .select({ n: count() })
+        .from(agentInstances)
+        .where(
+          and(
+            eq(agentInstances.rootGrantId, rootGrantId),
+            isNull(agentInstances.parentInstanceId),
+            live(now),
+          ),
+        );
+      return rows[0]?.n ?? 0;
+    },
+
+    // Every live instance of the tenant, counted on each mint. It reads at most
+    // as many rows as the tenant may hold (`agent_max_live_instances`, 100,000
+    // at the most), through the tenant's own index.
     async liveCount(now: Date): Promise<number> {
       const rows = await tx.select({ n: count() }).from(agentInstances).where(live(now));
       return rows[0]?.n ?? 0;
     },
 
-    // Slides the idle expiry of an instance that has one; a fixed-lifetime
-    // instance has nothing to slide, so it and a lapsed one return false.
+    // Slides the idle expiry of an instance that has one, never backwards: a
+    // request carrying an earlier `now` can take the lock after a later one. A
+    // fixed-lifetime instance has nothing to slide, so it and a lapsed one
+    // return false.
     async touch(id: string, now: Date, idleSeconds: number, sessionEndsAt: Date): Promise<boolean> {
       const rows = await tx
         .update(agentInstances)
         .set({
-          idleExpiresAt: sql`least(${now.toISOString()}::timestamptz + make_interval(secs => ${idleSeconds}), ${sessionEndsAt.toISOString()}::timestamptz)`,
+          idleExpiresAt: sql`least(greatest(idle_expires_at, ${now.toISOString()}::timestamptz + make_interval(secs => ${idleSeconds})), ${sessionEndsAt.toISOString()}::timestamptz)`,
         })
         .where(
           and(
@@ -131,25 +169,27 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
       return (rows as unknown as unknown[]).length;
     },
 
-    // Revokes what lapsed, then deletes instances revoked before
-    // `tombstoneBefore` together with their subjects. An instance is deleted
-    // only once it has no child left, so deleting never cascades to a child
-    // that is still live or inside its own tombstone window; the rounds
-    // remove a chain from the leaves up.
+    // Revokes what lapsed and everything beneath it, as `revoke` does, then
+    // deletes instances revoked before `tombstoneBefore` together with their
+    // subjects. An instance is deleted only once it has no child left, so
+    // deleting never cascades to a child that is still live or inside its
+    // own tombstone window; the rounds remove a chain from the leaves up.
     async expireDue(
       now: Date,
       tombstoneBefore: Date,
     ): Promise<{ expired: number; deleted: number }> {
-      const expired = await tx
-        .update(agentInstances)
-        .set({ revokedAt: now })
-        .where(
-          and(
-            isNull(agentInstances.revokedAt),
-            or(lte(agentInstances.expiresAt, now), lte(agentInstances.idleExpiresAt, now)),
-          ),
+      const expired = (await tx.execute(sql`
+        with recursive tree as (
+          select id from agent_instances
+           where revoked_at is null
+             and (expires_at <= ${now.toISOString()}::timestamptz
+                  or idle_expires_at <= ${now.toISOString()}::timestamptz)
+          union all
+          select c.id from agent_instances c join tree t on c.parent_instance_id = t.id
         )
-        .returning({ id: agentInstances.id });
+        update agent_instances set revoked_at = ${now.toISOString()}::timestamptz
+         where id in (select id from tree) and revoked_at is null
+        returning id`)) as unknown as unknown[];
       const removed: string[] = [];
       for (let round = 0; round < MAX_ROUNDS; round += 1) {
         const gone = await tx

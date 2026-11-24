@@ -94,7 +94,11 @@ function validatedRow(event: AuditEventInput): PgInsertValue<typeof auditEvents>
   };
 }
 
-const ALWAYS_STORED: ReadonlySet<AuditEventType> = new Set(['admin_mutation', 'admin_access']);
+const ALWAYS_STORED: ReadonlySet<AuditEventType> = new Set([
+  'admin_mutation',
+  'admin_access',
+  'agent_identity',
+]);
 
 // The tenant's `audit_event_types` (0091_audit_event_types.sql), read where the
 // row is written so a change applies from the next event on. A tenant this

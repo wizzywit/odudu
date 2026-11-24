@@ -30,6 +30,7 @@ import {
   verifyTenantAccessToken,
 } from '@odudu/protocol-admin';
 import {
+  AgentTokenRefused,
   MCP_WRITE_SCOPE,
   mintAgentToken,
   tenantLookupRepository,
@@ -69,24 +70,33 @@ export function mcpDepsFor(parts: McpDepsParts): McpDeps {
       if (tenant?.id !== token.tenant.id) {
         throw new ToolProblem('mcp:access_ended', 'The tenant is not available', 401);
       }
-      return withTenant(parts.database.db, tenant.id, (tx) =>
-        mintAgentToken(
-          tx,
-          {
-            tenantId: tenant.id,
-            issuer: token.issuer,
-            kek: parts.kek,
-            claimMappers: parts.claimMappers,
-            lifespans: {
-              ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
-              ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
-              rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
-              rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+      // A refusal is returned out of the transaction so it commits: a run
+      // whose owner ended has its instance revoked in that same transaction.
+      const outcome = await withTenant(parts.database.db, tenant.id, async (tx) => {
+        try {
+          return await mintAgentToken(
+            tx,
+            {
+              tenantId: tenant.id,
+              issuer: token.issuer,
+              kek: parts.kek,
+              claimMappers: parts.claimMappers,
+              lifespans: {
+                ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+                ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+                rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+                rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+              },
             },
-          },
-          input,
-        ),
-      );
+            input,
+          );
+        } catch (error) {
+          if (error instanceof AgentTokenRefused) return error;
+          throw error;
+        }
+      });
+      if (outcome instanceof AgentTokenRefused) throw outcome;
+      return outcome;
     },
     inject: (options) => parts.app.inject(options),
     now: () => new Date(),

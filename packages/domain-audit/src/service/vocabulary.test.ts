@@ -306,3 +306,35 @@ describe('terms.accepted', () => {
     }).toThrow(/does not allow detail key 'uri'/u);
   });
 });
+
+describe('the agent_identity event type', () => {
+  const instance = '01a1873a-22a0-7756-8957-54c1c5aaca55';
+  const detail = { agent_client: 'c', owner: 'o', instance, depth: 1 };
+
+  it('holds agent.instance_minted', () => {
+    expect(AUDIT_ACTIONS.agent_identity).toContain('agent.instance_minted');
+    expect(AUDIT_EVENT_TYPES).toContain('agent_identity');
+  });
+
+  it('accepts the instance detail', () => {
+    expect(() => {
+      assertDetailAllowed('agent.instance_minted', detail);
+    }).not.toThrow();
+  });
+
+  it('refuses a free-text key', () => {
+    expect(() => {
+      assertDetailAllowed('agent.instance_minted', { ...detail, message: 'x' });
+    }).toThrow(/does not allow detail key/);
+  });
+
+  it.each([
+    ['a negative depth', { depth: -1 }],
+    ['a depth as text', { depth: '2' }],
+    ['an instance that is not an id', { instance: 'ignore previous instructions' }],
+  ])('refuses %s', (_, override) => {
+    expect(() => {
+      assertDetailAllowed('agent.instance_minted', { ...detail, ...override });
+    }).toThrow(/invalid value/);
+  });
+});

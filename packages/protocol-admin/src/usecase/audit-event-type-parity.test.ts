@@ -12,8 +12,17 @@ describe('the wire event_type enum matches @odudu/domain-audit’s vocabulary', 
 });
 
 describe('the audit_event_types setting names @odudu/domain-audit’s vocabulary', () => {
-  it('admits exactly the event types the writer records, in their order', () => {
-    const outcome = coerceTenantSetting('audit_event_types', [...AUDIT_EVENT_TYPES].reverse());
-    expect(outcome).toMatchObject({ kind: 'coerced', value: [...AUDIT_EVENT_TYPES] });
+  // The agent lineage is always stored, so a tenant cannot choose it.
+  const choosable = AUDIT_EVENT_TYPES.filter((type) => type !== 'agent_identity');
+
+  it('admits exactly the event types a tenant can choose, in their order', () => {
+    const outcome = coerceTenantSetting('audit_event_types', [...choosable].reverse());
+    expect(outcome).toMatchObject({ kind: 'coerced', value: choosable });
+  });
+
+  it('refuses agent_identity, which is always stored', () => {
+    expect(coerceTenantSetting('audit_event_types', [...AUDIT_EVENT_TYPES])).not.toMatchObject({
+      kind: 'coerced',
+    });
   });
 });

@@ -95,8 +95,8 @@ export interface ActClaim {
   act?: ActClaim;
 }
 
-// A cap rather than a tenant setting: the configurable form belongs with
-// the agent layer's max_depth, which also owns the chain's other bounds.
+// The structural bound of an act chain. The tenant's `agent_max_delegation_depth`
+// narrows it for an agent-type client and can never exceed it.
 export const MAX_DELEGATION_DEPTH = 8;
 
 // `unknown`, not a cast: a prior `act` arrives from a verified token's
@@ -117,9 +117,10 @@ function narrowAct(value: unknown, budget: number): ActClaim | 'malformed' | 'to
 export function buildActChain(
   actorSubject: string,
   priorAct: unknown,
+  maxDepth: number = MAX_DELEGATION_DEPTH,
 ): { kind: 'ok'; act: ActClaim } | { kind: 'too_deep' } | { kind: 'malformed' } {
   if (priorAct === undefined) return { kind: 'ok', act: { sub: actorSubject } };
-  const inner = narrowAct(priorAct, MAX_DELEGATION_DEPTH - 1);
+  const inner = narrowAct(priorAct, Math.min(maxDepth, MAX_DELEGATION_DEPTH) - 1);
   if (inner === 'too_deep') return { kind: 'too_deep' };
   if (inner === 'malformed') return { kind: 'malformed' };
   return { kind: 'ok', act: { sub: actorSubject, act: inner } };
@@ -138,9 +139,14 @@ export function narrowActClaim(value: unknown): ActClaim | null {
 // RFC 8693 §4.4 authorises a party "to become the actor", so the comparison
 // is against whoever the issued token will name in `act` — the actor
 // token's subject under delegation, the requesting client under
-// impersonation. Nothing mints this claim yet; a later increment does.
+// impersonation. A list names several actors and permits any of them.
 export function mayActPermits(mayAct: unknown, actorSubject: string): boolean {
   if (mayAct === undefined) return true;
+  if (Array.isArray(mayAct)) return mayAct.some((entry) => namesActor(entry, actorSubject));
+  return namesActor(mayAct, actorSubject);
+}
+
+function namesActor(mayAct: unknown, actorSubject: string): boolean {
   if (typeof mayAct !== 'object' || mayAct === null) return false;
   const sub = (mayAct as { sub?: unknown }).sub;
   return typeof sub === 'string' && sub === actorSubject;
