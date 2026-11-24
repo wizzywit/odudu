@@ -24,6 +24,17 @@ describe('grantOptions', () => {
   });
 });
 
+describe('the CIBA grant', () => {
+  const ciba = 'urn:openid:params:grant-type:ciba';
+
+  it('[ODUDU-CIBA-CONF-07] is not offered to a public client that does not hold it', () => {
+    const options = grantOptions({ type: 'public', grant_types: ['authorization_code'] });
+    expect(options.find((each) => each.id === ciba)?.unavailable).toMatch(/no secret/u);
+    const confidential = grantOptions({ type: 'confidential', grant_types: [] });
+    expect(confidential.find((each) => each.id === ciba)?.unavailable).toBeNull();
+  });
+});
+
 describe('grantsBlock', () => {
   it('lets client credentials alone stand with no redirect URI', () => {
     expect(grantsBlock(['client_credentials'], 0)).toBeUndefined();

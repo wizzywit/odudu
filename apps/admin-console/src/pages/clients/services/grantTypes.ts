@@ -19,6 +19,12 @@ const GRANT_NOTES: Readonly<Record<string, string>> = {
     'Asks a person to approve on another device and polls for the result (OpenID CIBA, poll mode).',
 };
 
+// Grants a client proves itself for; a public client cannot hold one.
+const NEEDS_SECRET: ReadonlySet<string> = new Set([
+  'client_credentials',
+  'urn:openid:params:grant-type:ciba',
+]);
+
 const NO_SECRET = 'A public client has no secret to authenticate with, so it cannot hold this.';
 
 // One grant as a checklist draws it.
@@ -35,7 +41,7 @@ export function grantOptions(client: Pick<Client, 'type' | 'grant_types'>): Gran
     label: GRANT_LABELS[id] ?? id,
     description: GRANT_NOTES[id] ?? '',
     unavailable:
-      id === 'client_credentials' && client.type === 'public' && !client.grant_types.includes(id)
+      NEEDS_SECRET.has(id) && client.type === 'public' && !client.grant_types.includes(id)
         ? NO_SECRET
         : null,
   }));

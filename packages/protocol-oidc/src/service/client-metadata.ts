@@ -1,3 +1,4 @@
+import { CIBA_GRANT } from '#/service/ciba';
 import {
   CLIENT_AUTH_METHODS,
   CLIENT_GRANT_TYPES,
@@ -297,6 +298,16 @@ export function parseClientMetadata(
   // "unset means the method is unavailable and a client registering
   // tls_client_auth is refused" — a registration nobody could ever
   // authenticate with is worse than none, since it looks configured.
+  // The grant is a client proving itself to be the one a person was asked about;
+  // a client with no secret proves nothing.
+  if (tokenEndpointAuthMethod === 'none' && grantTypes.includes(CIBA_GRANT)) {
+    return invalid(
+      'invalid_client_metadata',
+      'the backchannel authentication grant needs a client that authenticates',
+      'grant_types',
+    );
+  }
+
   if (tokenEndpointAuthMethod === 'tls_client_auth' && !options.tlsClientAuthEnabled) {
     return invalid(
       'invalid_client_metadata',
