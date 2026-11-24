@@ -345,6 +345,24 @@ export async function driveRepositories(
       await grants.releaseAgentWrite(agentGrant, 'create');
     }),
   );
+  const cascadeRoot = newId();
+  await withTenant(database, world.tenantId, async (tx) => {
+    const grants = tokenGrantRepository(tx);
+    const base = {
+      tenantId: world.tenantId,
+      clientId: world.clientDbId,
+      subjectId,
+      scope: 'mcp:read',
+      audience: ['https://plans1.example.com/mcp'],
+    };
+    await grants.create({ ...base, id: cascadeRoot });
+    await grants.create({ ...base, id: newId(), exchangedFromGrantId: cascadeRoot });
+  });
+  await capture('grants: a revoked grant takes everything exchanged from it', 'oidc', () =>
+    withTenant(database, world.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeCascade([cascadeRoot], new Date()),
+    ),
+  );
   await capture('themes: what a sign-in render and an asset route read', 'authn', () =>
     withTenant(database, world.tenantId, async (tx) => {
       const themes = themeRepository(tx);

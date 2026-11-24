@@ -47,4 +47,28 @@ result field; a task that depends on one cites its result here.
 - **Command:** `EXPLAIN (ANALYZE, BUFFERS)` of the cascade statement on the
   `query-plans` fixture, as the application role with `app.tenant_id` set by
   `SET LOCAL`, through `.superpowers/sdd/tools/heavy-slot -p int --`.
-- **Result:** (to be filled in by the increment that adds cascade revocation)
+- **Result (2026-11-24): yes, with one change to how the statement is
+  written; no new index.**
+  - The plans project drives the cascade on the large-volume fixture
+    (`apps/server/src/testing/plan-background-drives.ts`, "grants: a revoked
+    grant takes everything exchanged from it") and through every admin and
+    console path that revokes. Its recursive step reads
+    `token_grants_by_exchanged_from`, the partial index of
+    `0095_lookup_indexes.sql`, one index scan for each level; the seeds and
+    the grants it revokes are found by `token_grants_tenant_id_unique` and
+    `token_grants_pkey`; the clients lookup by `clients_pkey`. The
+    row-level-security predicate sits on every scan and none is a sequential
+    scan of `token_grants`, so a composite `(tenant_id, exchanged_from_grant_id)`
+    index would add nothing and none was made.
+  - The first version, with `id in (select id from picked)` in the two
+    `update`s and the seed lookup, was planned as a semi-join that scanned the
+    tenant's whole `token_grants` (about 301,000 rows estimated) and failed
+    the plans test's wide-scan check. `id = any(array(select ...))` cannot be
+    planned as a join, so each id is an index lookup, and that is what the
+    statement uses.
+  - `agent_instances` is read by a sequential scan in this fixture because it
+    holds no rows there; the table is not large, so the check does not flag
+    it. Its lookups by `root_grant_id` and `parent_instance_id` are served by
+    the indexes `0141_agent_identity.sql` and its foreign-key repair create.
+  - One statement: the cascade test counts the statements a transaction
+    sends for a root with 1,000 grants exchanged from it and finds one.
