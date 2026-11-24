@@ -144,7 +144,11 @@ export function grantWriteBudget(
   token: Pick<ValidatedMcpToken, 'tenant' | 'grantId'>,
   request?: RequestContext,
   logger?: Pick<PinoLogger, 'info'>,
+  clock: () => Date = () => new Date(),
 ): WriteBudget {
+  // The time each held reservation was spent at, so a release lands in the
+  // daily window that was charged even when midnight UTC has passed since.
+  const spentAt: Record<'mutating' | 'create', Date[]> = { mutating: [], create: [] };
   // The owner and the agent client the daily window is kept for are the grant's.
   const keysOf = async (tx: Parameters<Parameters<typeof withTenant>[2]>[0]) => {
     const grant = await tokenGrantRepository(tx).byId(token.grantId);
@@ -161,12 +165,13 @@ export function grantWriteBudget(
           await tx.execute(sql`select set_config('lock_timeout', ${LOCK_WAIT_MS}, true)`);
           const keys = await keysOf(tx);
           const settings = await readAgentSettings(tx, token.tenant.id);
+          const now = clock();
           const outcome = await agentBudgetRepository(tx).spend({
             ...keys,
             grantId: token.grantId,
             instanceId: null,
             kind,
-            now: new Date(),
+            now,
             limits: {
               grant: {
                 mutating: settings.agentWritesPerGrant,
@@ -176,7 +181,10 @@ export function grantWriteBudget(
               windowWrites: settings.agentWindowWrites,
             },
           });
-          if (outcome.kind === 'ok') return true;
+          if (outcome.kind === 'ok') {
+            spentAt[kind].push(now);
+            return true;
+          }
           if (
             outcome.level === 'grant' &&
             !(await tokenGrantRepository(tx).isLive(token.grantId))
@@ -198,7 +206,7 @@ export function grantWriteBudget(
             grantId: token.grantId,
             instanceId: null,
             kind,
-            now: new Date(),
+            now: spentAt[kind].pop() ?? clock(),
           }),
         request,
       ),
