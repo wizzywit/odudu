@@ -96,12 +96,36 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ['P4h', "A client's base name", 'carry a language of their own'],
   ['P4h', 'It also sends the failure screen', "failure screen's error id sent to the server"],
   ['P5', 'Budgets across a delegation, attenuation and approval', 'ciba approvals'],
-  ['P5', 'Delegation depth becomes a setting', '`max_depth`'],
+  ['P5', 'Delegation depth becomes a setting', '`max_delegation_depth`'],
   [
     'P5',
     'A restriction on a grant holds',
     'persisted on the grant',
     'revoking every grant exchanged from it',
+  ],
+  [
+    'P5c',
+    'An assistant in the admin console',
+    'with no provider configured the console is unchanged',
+  ],
+  [
+    'P5c',
+    'A person asks it to read',
+    'a person completes each task profile with every step visible',
+  ],
+  [
+    'P5c',
+    'A change it proposes is an approval card',
+    'a write never runs without the person',
+    "through p5's approval object",
+    'a model cannot approve',
+  ],
+  [
+    'P5c',
+    'Its turns are budgeted',
+    'budgets atomic under concurrent turns',
+    'an audit row and a trace that the activity screen replays',
+    'swapping the provider a configuration change',
   ],
   [
     'P5b',

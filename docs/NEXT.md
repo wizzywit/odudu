@@ -19,13 +19,10 @@ What it placed on later phases is on
 tools (two for the system tenant's agent alone) and 12 write tools (descriptive text, the display name, languages and message overrides, drafts of a theme that a person publishes, and roles, groups and scopes that grant nothing; the three creates, the two that set or clear an override and the two that save a theme draft only through that endpoint, not through `odudu mcp --allow-writes`), `odudu mcp` serves the rest over stdio,
 and nothing that changes who can sign in, handles a secret or deletes what grants or authenticates is offered to an agent (that is P5b's, below), and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
 client ID metadata documents, `mcp:read` and `mcp:write`) is in place. What it found
-is in [`docs/phases/p5a.md`](phases/p5a.md). Claude Code 2.1.319 and Claude Desktop 3.6556.2
-were run by the owner on 2026-11-06, before the parity increments: the 42 reads of that
-release and its two writes (`update_client_metadata`, `update_scope_metadata`) worked. The
-other reads, the ten later write tools and the write budget ran only against integration
-tests and replays, not a real client. Still to run, and no CI job can: those, the claude.ai
-connectors and Cursor, and `odudu mcp` on Windows and with the Linux Secret Service (the
-note's "Hand run (owner)" has the record).
+is in [`docs/phases/p5a.md`](phases/p5a.md). The owner ran Claude Code 2.1.319 and Claude Desktop 3.6556.2 on 2026-11-06, before the parity
+increments: the 42 reads of that release and its two writes (`update_client_metadata`, `update_scope_metadata`) worked. Still to run, and no CI job can:
+the other reads, the ten later write tools and the write budget (so far only integration tests and replays), the claude.ai connectors, Cursor, and
+`odudu mcp` on Windows and with the Linux Secret Service (the note's "Hand run (owner)").
 
 **P4f, self-service, is built:** a "me" API, application-initiated actions, several sign-in
 flows, per-tenant authenticator rules and sessions shown by device. What it found and left is
@@ -54,7 +51,7 @@ API's OpenAPI document and nine examples, none published yet (the owner's
 checklist is in `RELEASING.md`). What it found and placed is in
 [`docs/phases/p4i.md`](phases/p4i.md); the licence rule is ADR 0053.
 
-**What is next, in this order: P4h, P5, P5b**, then the
+**What is next, in this order: P4h, P5, P5c, P5b**, then the
 phases the roadmap page lists as "Later", P6 to P14. The letters do not read
 in execution order. P4h is
 console localization ([ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md)).
@@ -157,7 +154,7 @@ reset limiters), all **P11**, which also owes the Helm chart or manifests.
 `actorSubjectId` and `exchangedFromGrantId` (migration
 `0059_token_exchange.sql`) so a delegated or impersonated grant records who
 it came from, but nothing reads either column to decide anything yet — the
-agent identity layer's own instance, budget and `max_depth` (design spec
+agent identity layer's own instance, budget and `max_depth` (now `agent_max_delegation_depth`; design spec
 §9) are still to build. Three things specifically wait on it:
 
 - **`may_act` minting.** `mayActPermits`
@@ -204,6 +201,10 @@ sign-in, counted on `token_grants` by the endpoint alone (`budget_grant_id` name
 an exchanged grant spends); P5 reuses it. Still absent, and P5's: a budget across a delegation
 (depth, narrowing, what an agent may spend over several sign-ins), `may_act` minting and
 approval, which the write tools' ten-minute token and per-sign-in consent only stand in for.
+
+## What P5c inherits
+
+P5c, **a console assistant**, is [specified](superpowers/specs/2026-11-24-p5c-console-assistant-design.md), decided in ADRs 0055 to 0059, and writes through P5's approvals.
 
 ## What P5b inherits
 

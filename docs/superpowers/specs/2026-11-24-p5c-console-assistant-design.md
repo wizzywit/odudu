@@ -22,6 +22,7 @@ one product. That combination is the claim this phase makes true.
 ## 2. Goals, non-goals, anti-goals
 
 **Goals.**
+
 1. A chat panel with Ask and Act modes, a visible activity feed, an approval card,
    a token meter and a stop button.
 2. A provider port with Amazon Bedrock (the owner's bearer key first), Anthropic
@@ -47,19 +48,19 @@ that shows AI to a person whose operator never configured it.
 
 ## 3. What already exists and is reused
 
-| Need | Reused (checked 2026-11-24) |
-| --- | --- |
-| Tools | `@odudu/mcp` catalogue: 76 tools with zod schemas and annotations (`packages/mcp/src/service/tool.ts`) mapped into the SDK's `tool()` |
-| Acting as the administrator | `mintAgentToken` (`packages/protocol-oidc/src/usecase/mint-agent-token.ts`), the admin API door's scope and capability checks (ADR 0040, 0050) |
-| One audit row per tool call | `agent.tool_call` (`packages/protocol-admin/src/usecase/access-audit.ts`) |
-| Loop, step cap, per-step model and tool choice | AI SDK 7 `ToolLoopAgent`, `stopWhen`, `prepareStep`, `activeTools` (`verified:` read in the `ai@7.0.181` package docs, 03-agents/04-loop-control) |
-| Approval statuses, history-aware policy, signed approvals | `toolApproval` (03-agents/06-tool-approvals; signing is `experimental_toolApprovalSecret`, marked experimental) |
-| Sub-agent pattern | 03-agents/06-subagents: a tool whose `execute` runs another agent, summarised with `toModelOutput` |
-| Lifecycle events and OpenTelemetry spans | `Telemetry` interface and `@ai-sdk/otel` 1.0.181 (03-ai-sdk-core/60-telemetry) |
-| Streaming | `useChat` (client) and `pipeAgentUIStreamToResponse` (server) |
-| Budget pattern | P5a's `reserveAgentWrite` and P5's budget levels |
-| Evals and red-team | promptfoo (MIT, Node) in CI |
-| Prefilled forms | the console's `creation-draft` entity |
+| Need                                                      | Reused (checked 2026-11-24)                                                                                                                       |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tools                                                     | `@odudu/mcp` catalogue: 76 tools with zod schemas and annotations (`packages/mcp/src/service/tool.ts`) mapped into the SDK's `tool()`             |
+| Acting as the administrator                               | `mintAgentToken` (`packages/protocol-oidc/src/usecase/mint-agent-token.ts`), the admin API door's scope and capability checks (ADR 0040, 0050)    |
+| One audit row per tool call                               | `agent.tool_call` (`packages/protocol-admin/src/usecase/access-audit.ts`)                                                                         |
+| Loop, step cap, per-step model and tool choice            | AI SDK 7 `ToolLoopAgent`, `stopWhen`, `prepareStep`, `activeTools` (`verified:` read in the `ai@7.0.181` package docs, 03-agents/04-loop-control) |
+| Approval statuses, history-aware policy, signed approvals | `toolApproval` (03-agents/06-tool-approvals; signing is `experimental_toolApprovalSecret`, marked experimental)                                   |
+| Sub-agent pattern                                         | 03-agents/06-subagents: a tool whose `execute` runs another agent, summarised with `toModelOutput`                                                |
+| Lifecycle events and OpenTelemetry spans                  | `Telemetry` interface and `@ai-sdk/otel` 1.0.181 (03-ai-sdk-core/60-telemetry)                                                                    |
+| Streaming                                                 | `useChat` (client) and `pipeAgentUIStreamToResponse` (server)                                                                                     |
+| Budget pattern                                            | P5a's `reserveAgentWrite` and P5's budget levels                                                                                                  |
+| Evals and red-team                                        | promptfoo (MIT, Node) in CI                                                                                                                       |
+| Prefilled forms                                           | the console's `creation-draft` entity                                                                                                             |
 
 Built here because nothing off the shelf fits our tenancy and audit rules: the
 budget ledger, the approval and conversation tables under row-level security, the
@@ -120,7 +121,7 @@ product never depends on the paid implementation.
 
 ### 5.3 The engine
 
-A conversation is one agent *instance* of P5, owned by the signed-in administrator,
+A conversation is one agent _instance_ of P5, owned by the signed-in administrator,
 with a sliding idle lifetime that never passes their session; each model-driven tool
 call gets a short admin token from `mintAgentToken` (P5 section 5.1), whose `act.sub`
 is that instance, so its scopes, expiry and budget slice are P5's invariants and a
@@ -160,7 +161,7 @@ Three slots, **fast** (titles, summaries, sub-agent reads), **standard** (the lo
 **deep** (planning and hard reasoning). A person sees a model picker only when the
 operator allowed more than one standard model.
 
-A *task profile* is data: `{ id, mode, slot, tools, subagents: allowed|required|never,
+A _task profile_ is data: `{ id, mode, slot, tools, subagents: allowed|required|never,
 maxSteps, maxTokens }`. Free chat starts on standard. A button starts its profile.
 A sub-agent is used when a profile asks for it or a result would otherwise be large:
 reading an audit range, reviewing several objects in parallel, or isolating a
@@ -185,17 +186,17 @@ apply. Open defaults are conservative; the paid layer sets tier numbers.
 
 ### 5.6 Task profiles in the first scope
 
-| Where | Profile | Mode | Notes |
-| --- | --- | --- | --- |
-| Anywhere (⌘K) | Ask anything | Ask or Act | page context passed in |
-| Subject | Why can't this person sign in? | Ask | lockout, required actions, sessions, factors, roles |
-| Audit | Explain this event; what happened here | Ask | sub-agent for ranges |
-| Client | Review this client | Ask | redirects, grants, PKCE, scopes |
-| Clients | Prepare a client for my app | Ask | returns a pre-filled form |
-| Roles, groups, scopes | Design these for … | Act | uses the three create tools, each approved |
-| Branding | Draft a theme from a brand colour | Act | `update_theme_draft`, a person publishes |
-| Settings, messages | Translate my wording | Act | message overrides |
-| Flows | Build this flow from a description | Ask | only if the flow editor accepts a pre-filled draft; otherwise dropped from this scope |
+| Where                 | Profile                                | Mode       | Notes                                                                                 |
+| --------------------- | -------------------------------------- | ---------- | ------------------------------------------------------------------------------------- |
+| Anywhere (⌘K)         | Ask anything                           | Ask or Act | page context passed in                                                                |
+| Subject               | Why can't this person sign in?         | Ask        | lockout, required actions, sessions, factors, roles                                   |
+| Audit                 | Explain this event; what happened here | Ask        | sub-agent for ranges                                                                  |
+| Client                | Review this client                     | Ask        | redirects, grants, PKCE, scopes                                                       |
+| Clients               | Prepare a client for my app            | Ask        | returns a pre-filled form                                                             |
+| Roles, groups, scopes | Design these for …                     | Act        | uses the three create tools, each approved                                            |
+| Branding              | Draft a theme from a brand colour      | Act        | `update_theme_draft`, a person publishes                                              |
+| Settings, messages    | Translate my wording                   | Act        | message overrides                                                                     |
+| Flows                 | Build this flow from a description     | Ask        | only if the flow editor accepts a pre-filled draft; otherwise dropped from this scope |
 
 Open versus paid (ADR 0055): per object, on demand, started by a person is open;
 whole-tenant, scheduled and proactive is paid.

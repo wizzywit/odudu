@@ -1,6 +1,6 @@
 # 0057 — One agent, with modes, model slots and sub-agents chosen by task profile
 
-**Status:** Proposed · 2026-11-24
+**Status:** Accepted · 2026-11-24
 
 ## Context
 
@@ -21,7 +21,7 @@ with models chosen by difficulty.
 ## Decision
 
 **One agent loop and one tool catalogue.** A screen's button starts the same loop with
-that screen's context and a *task profile*.
+that screen's context and a _task profile_.
 
 **A task profile is data:** mode, model slot, tool subset, whether a sub-agent is
 allowed, required or never, a step cap and a token cap. Specialisation is a fixture,

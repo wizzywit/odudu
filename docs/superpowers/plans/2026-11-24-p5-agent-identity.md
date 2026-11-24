@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Fastify, Drizzle and hand-written SQL migrations, PostgreSQL with Testcontainers, Vitest, fast-check 4.11.0 (MIT) for property tests, Stryker, React console.
 
-**Spec:** [P5 spec](2026-11-24-p5-agent-identity-design.md) at `docs/superpowers/specs/2026-11-24-p5-agent-identity-design.md`; ADRs 0003, 0050, 0059. Read the spec first: it carries the reasoning; this plan carries the decisions an implementer cannot make alone.
+**Spec:** [P5 spec](../specs/2026-11-24-p5-agent-identity-design.md) at `docs/superpowers/specs/2026-11-24-p5-agent-identity-design.md`; ADRs 0003, 0050, 0059. Read the spec first: it carries the reasoning; this plan carries the decisions an implementer cannot make alone.
 
 ## Global Constraints
 
@@ -38,6 +38,7 @@
 ### Task 1: Place P5 and P5c, accept the ADRs, list the spikes
 
 **Files:**
+
 - Modify: `docs/superpowers/specs/2026-09-10-odudu-design.md` (section 11 rows near line 449; section 9 and ADR 0003 amendments), `apps/docs/content/en/roadmap.md` (line 99 and the "Later" list), `docs/NEXT.md` ("Start here", "What P5 inherits", add "What P5c inherits"), `docs/adr/0003-hybrid-agent-model.md`, `docs/adr/0055`–`0059` (status to Accepted), `docs/adr/README.md` if it indexes.
 - Test: `tests/docs/roadmap-section-11.test.ts`, `phase-references.test.ts`, `next-budget.test.ts`, `not-implemented-placement.test.ts` (run, do not edit unless a new mapping is required).
 - Create: `docs/phases/p5-spikes.md`.
@@ -57,10 +58,12 @@
 ### Task 2: `@odudu/domain-agents` package and the invariant service
 
 **Files:**
+
 - Create: `packages/domain-agents/{package.json,tsconfig.json,stryker.config.json}`, `packages/domain-agents/src/index.ts`, `src/service/admit-child.ts`, `src/service/admit-child.test.ts`, `src/service/admit-child.property.test.ts`, `src/service/defaults.ts`.
 - Modify: root `package.json` (script `"mutate:agents": "stryker run packages/domain-agents/stryker.config.json"`), `.dependency-cruiser.cjs` only if a new package needs registering (copy how `domain-audit` is covered).
 
 **Interfaces:**
+
 - Produces, from `@odudu/domain-agents`:
   - `interface AgentNode { readonly scope: readonly string[]; readonly expiresAt: Date; readonly depth: number; readonly liveChildren: number }`
   - `interface ChildRequest { readonly scope: readonly string[]; readonly expiresAt: Date }`
@@ -82,6 +85,7 @@
 ### Task 3: Audit vocabulary for the layer
 
 **Files:**
+
 - Modify: `packages/domain-audit/src/service/vocabulary.ts` (`AUDIT_ACTIONS` line 7, typed events near 128, `ACTION_DETAIL_KEYS` line 302, `STRING_DETAIL_KEYS` line 339 if a new key is a string), `vocabulary-docs.ts`.
 - Test: `vocabulary-docs.test.ts`, `tests/docs/audit-actions.test.ts`.
 
@@ -92,11 +96,13 @@
 ### Task 4: Tables, migrations and repositories
 
 **Files:**
+
 - Create: `packages/domain-agents/src/schema/{agent-instances,agent-delegations,agent-approvals,agent-budget-windows}.ts`, `src/repository/{instances,delegations,approvals}.ts`, `packages/db/drizzle/0141_agent_identity.sql` (confirm the next free number first: `ls packages/db/drizzle | tail -2`), journal entry; tests `packages/domain-agents/tests/{instances,approvals,delegations}.int.test.ts`.
 - Modify: `packages/domain-agents/src/index.ts`, `packages/protocol-oidc/src/schema/token-grants.ts` (add `mayAct: jsonb('may_act')`) and `NewTokenGrant`/`TokenGrantRecord` in `repository/grants.ts`; `packages/protocol-oidc/src/schema/client-oidc-config.ts` (add `agentType: boolean('agent_type').notNull().default(false)`).
 - Test: `packages/db/tests/schema-drift.int.test.ts` (must stay green).
 
 **Interfaces (Produces):**
+
 - Tables, all tenant-scoped with the isolation policy above: `agent_instances(tenant_id, id, owner_subject_id, agent_client_id, parent_instance_id, root_grant_id, depth smallint, scope text, expires_at, idle_expires_at null, revoked_at null, created_at)` with `id` also a `subjects` row of type `agent_instance`, composite FKs to `subjects` and `token_grants` on `(tenant_id, id)`, indexes on `(tenant_id, owner_subject_id) WHERE revoked_at IS NULL`, `(tenant_id, parent_instance_id)`, `(root_grant_id)`, `(expires_at)`; `agent_delegations(tenant_id, id, subject_id, client_id, actor_client_id, scope_ceiling, expires_at, revoked_at, created_at)`; `agent_approvals(tenant_id, id, subject_id, requesting_client_id, instance_id null, kind, summary, action_digest, state, decided_at null, decided_via null, expires_at, created_at)` with a CHECK on `state in ('pending','approved','denied','expired','consumed')`; `agent_budget_windows(tenant_id, owner_subject_id, agent_client_id, window_start, writes smallint, PRIMARY KEY (tenant_id, owner_subject_id, agent_client_id, window_start))`; `token_grants.may_act jsonb`; `client_oidc_config.agent_type boolean` and `client_oidc_config.delegated_actors text[] NOT NULL DEFAULT '{}'` (client ids allowed to act for subjects who use this client; the operator-configured source of `may_act`).
 - `agentInstanceRepository(tx: TenantScopedDatabase)`: `mint(input: NewAgentInstance): Promise<AgentInstanceRecord>`, `byId(id)`, `liveChildren(parentId): Promise<number>`, `liveCount(): Promise<number>`, `touch(id, now, idleSeconds, sessionEndsAt): Promise<boolean>`, `revoke(id, at): Promise<number>`, `expireDue(now, tombstoneBefore): Promise<{ expired: number; deleted: number }>`.
 - `agentApprovalRepository(tx)`: `create(input)`, `byId(id)`, `decide(id, state: 'approved'|'denied', via: 'ciba_page'|'console', now): Promise<boolean>` (one conditional `UPDATE … WHERE state = 'pending' AND expires_at > now RETURNING`), `consume(id, digest, now): Promise<boolean>` (`approved → consumed` only when the digest equals), `pendingCount(subjectId): Promise<number>`, `expireDue(now)`.
@@ -109,6 +115,7 @@
 ### Task 5: Tenant settings and the `agent_type` client field, end to end
 
 **Files:**
+
 - Modify: `packages/db/src/schema/tenants.ts` (columns `agent_max_delegation_depth`, `agent_max_children`, `agent_max_live_instances`, `agent_instance_ttl_seconds`, `agent_instance_idle_seconds`, `agent_approval_ttl_seconds`, `agent_writes_per_grant`, `agent_creates_per_grant`, `agent_window_writes`, each `NOT NULL` with the spec default and a CHECK range) with migration `0142_agent_settings.sql`; `packages/domain-tenant/src/service/tenant-settings.ts` (the name-to-column map, line 49 pattern); `packages/contracts/src/admin/settings.ts` (ranges beside line 41: depth 1 to 8, children 1 to 200, live 1 to 100000, ttl and idle 60 to 86400, approval 60 to 900, writes and creates 1 to 1000, window writes 1 to 10000) and `docs.ts`, `tenant-document.ts`; `apps/admin-console/src/pages/settings/services/accessSections.ts` plus the fixtures `apps/admin-console/src/entities/tenant/adapter/fixtures/settings.json` and `src/testing/settingsFixtures.ts`; `apps/docs/content/en/admin-console/settings.mdx`; and for `agent_type` and `delegated_actors` (a list of client ids, each of which must exist in the tenant, at most 20): `packages/contracts/src/admin/clients.ts` (lines 59-61 pattern), `tenant-document.ts` (227-231 pattern), `docs.ts`, `packages/protocol-admin/src/usecase/clients.ts` (wire mapping 844-846, patch field list 1090-1108, 1245-1255), `service/audit-detail.ts:20-22`, `usecase/tenant-export.ts:446`, `tenant-import.ts:210`, console `AdvancedTab.tsx:247`, `useClientAdvanced.ts:207`, `useClientConfigSaves.ts:76,157`, `adapter/clients.ts:116`, `entities/client/types/client.ts:43`.
 - Test: `packages/domain-tenant/tests/tenant-setting-checks.int.test.ts` (ranges agree with CHECKs), `tests/docs/config-defaults.test.ts`, `admin-paths.test.ts`, console area tests.
 
@@ -125,10 +132,12 @@
 ### Task 6: `may_act` minted, persisted and read; instance minted at stage 4
 
 **Files:**
+
 - Modify: `packages/protocol-oidc/src/usecase/token-issuance.ts` (`issueExchangedTokens`, line 1088; hook between `mayActPermits` at 1169 and `attenuateScope` near 1179; grant creation near 1238-1251 and 1355-1357), `usecase/token-exchange-subject.ts` (line 143: read `grant.mayAct`), `service/token-exchange.ts` (`buildActChain` reads the tenant depth setting instead of `MAX_DELEGATION_DEPTH`; the constant stays as the structural bound), `usecase/authorization-request.ts` (where the owner's access token is minted: add `may_act`), `usecase/refresh-rotation.ts` (reapply `may_act`).
 - Create: `packages/protocol-oidc/src/usecase/agent-layer.ts` (stage 4 facade), `agent-layer.test.ts`; int tests `packages/protocol-oidc/tests/agent-exchange.int.test.ts`, `may-act-refresh.int.test.ts`.
 
 **Interfaces:**
+
 - Consumes: `admitChild`, repositories (Task 4), `readAgentSettings` (Task 5).
 - Produces: `async function applyAgentLayer(tx, deps, input: { client: ClientRecord; subject: ResolvedExchangeSubject; actorSubject: string; requestedScope: readonly string[]; now: Date }): Promise<{ kind: 'ok'; actorSub: string; instance: AgentInstanceRecord | null; scope: readonly string[] } | { kind: 'refused'; error: 'invalid_request' | 'invalid_target' | 'access_denied'; invariant: Invariant }>`. For a client with `agentType === false` it returns `{ kind: 'ok', actorSub: actorSubject, instance: null, scope: requestedScope }` unchanged. For an agent type it calls `admitChild`, mints the instance and its `subjects` row, records `agent.instance_minted`, and returns the instance id as `actorSub`.
 - `mayActFor(tx, { subjectId, clientId, now }): Promise<{ sub: string; iss: string } | undefined>`: the union of the client's configured actors and the owner's active delegations; with neither it returns `undefined`.
@@ -140,6 +149,7 @@
 ### Task 7: Instances for `mintAgentToken`, owner-ended refusal
 
 **Files:**
+
 - Modify: `packages/protocol-oidc/src/usecase/mint-agent-token.ts` (line 66; `act: { sub: client.clientId }` at its end), `mcp` callers only through the existing `MintAgentTokenInput`.
 - Test: `packages/protocol-oidc/tests/mint-agent-token-instance.int.test.ts`; the existing `mint-agent-token` tests stay unchanged.
 
@@ -156,6 +166,7 @@
 ### Task 8: Transitive revocation and the reaper passes
 
 **Files:**
+
 - Modify: `packages/protocol-oidc/src/repository/grants.ts` (`revoke` 161, `revokeForSession` 239, `revokeForSessions` 251, `revokeForSubjectClient` 269, `revokeForSubject` 291, `revokeForActor` 303), `apps/server/src/cli/reap.ts` (`TableName` 25-48, the pass table near 297, `REAP_ORDER` near 520), `tests/docs/retention-schedule.test.ts`, `apps/server/src/cli/reap.test.ts`, `packages/db/drizzle/0143_agent_cascade_index.sql` only if the plan check below needs it.
 - Create: `packages/protocol-oidc/tests/revoke-cascade.int.test.ts`.
 
@@ -167,6 +178,7 @@
 ### Task 9: Budgets across a delegation
 
 **Files:**
+
 - Create: `packages/protocol-oidc/src/repository/agent-budget.ts`, `tests/agent-budget.int.test.ts`.
 - Modify: `apps/server/src/mcp-deps.ts:139` (replace `WRITE_BUDGET` with the tenant's `agentWritesPerGrant` and `agentCreatesPerGrant` from `readAgentSettings`), `packages/mcp/src/index.ts` (keep `WRITE_BUDGET` exported as the default values, 20 and 10), `apps/server/src/testing/plan-background-drives.ts:344`.
 
@@ -191,18 +203,20 @@
 ### Task 11: CIBA endpoint, grant and discovery
 
 **Files:**
-- Create: `packages/protocol-oidc/src/usecase/ciba.ts` (+ `ciba.test.ts`), `src/view/routes/bc-authorize.ts`, `src/service/ciba-throttle.ts`, `docs/protocols/oidc-ciba.md` (reading notes and clause table, written first), `tests/ciba.int.test.ts`, `tests/ciba.adversarial.int.test.ts`.
+
+- Create: `packages/protocol-oidc/src/usecase/ciba.ts` (+ `ciba.test.ts`), `src/view/routes/bc-authorize.ts`, `src/service/ciba-throttle.ts`, the CIBA reading note `oidc-ciba.md` in `docs/protocols/` (reading notes and clause table, written first), `tests/ciba.int.test.ts`, `tests/ciba.adversarial.int.test.ts`.
 - Modify: `packages/contracts/src/discovery.ts` (type at 75; metadata near line 166), `packages/protocol-oidc/src/index.ts` (register the route beside the others), `usecase/token-issuance.ts` (`parseStructure` 261, dispatch 1468, `'token.…'` map 1415: add the CIBA grant), `service/errors.ts`, `view/routes/token.ts` (limiter wiring like `clientSecretLimiter`), `apps/server/src/throttle.ts`, `apps/server/src/app.ts` (limiter instance), the client `grant_types` allow-list wherever grant types are validated (grep `token-exchange` in `packages/contracts/src/admin/clients.ts`).
 
 **Interfaces:** Produces `POST /:tenant/bc-authorize` accepting `login_hint` or `id_token_hint`, `scope`, `binding_message` (max 140 characters, stored escaped), `requested_expiry` (capped by `agent_approval_ttl_seconds`), authenticating the client as the token endpoint does, returning `{ auth_req_id, expires_in, interval: 5 }`; token endpoint grant `urn:openid:params:grant-type:ciba` returning `authorization_pending`, `slow_down` (when polled before `interval`), `expired_token`, `access_denied`, or tokens for the approving subject to that client, recording `ciba.token_issued`; discovery adds `backchannel_authentication_endpoint`, `backchannel_token_delivery_modes_supported: ['poll']`, `backchannel_user_code_parameter_supported: false`, and the grant in `grant_types_supported`. `bc-authorize` creates the approval through `requestApproval` (kind `'ciba'`).
 
-- [ ] **Step 1:** write `docs/protocols/oidc-ciba.md` with the OpenID CIBA Core 1.0 clauses this implements as a requirement table keyed for `pnpm trace` (follow `oidc-backchannel.md`).
+- [ ] **Step 1:** write the CIBA reading note `oidc-ciba.md` in `docs/protocols/` with the OpenID CIBA Core 1.0 clauses this implements as a requirement table keyed for `pnpm trace` (follow `oidc-backchannel.md`).
 - [ ] **Step 2: Failing tests:** full flow request, approve through `decideApproval`, poll, tokens; poll before approval `authorization_pending`; poll twice inside `interval` `slow_down`; deny `access_denied`; expiry `expired_token`; a reused `auth_req_id` after tokens is `invalid_grant`; **an unknown `login_hint` and a known one return the same status, body shape and the same call count of password-hash or lookup work** (Review Focus 2); `binding_message` is escaped; a client lacking the grant is `unauthorized_client`; no client credential changes an approval's state (adversarial); rate limit per `auth_req_id` returns `slow_down`; discovery contains the three fields and `tests/docs/discovery.test.ts` is updated and green.
 - [ ] **Step 3:** FAIL. **Step 4:** implement. **Step 5:** PASS; `pnpm trace` green. **Step 6:** commit `feat(oidc): CIBA poll mode`.
 
 ### Task 12: Approval page and mail
 
 **Files:**
+
 - Create: `packages/protocol-oidc/src/view/approval-html.ts` (+ test), `src/view/routes/approval.ts`, `packages/email/src/usecase/approval-notice.ts` (+ test) modelled on `reset-completed-notice.ts` (`queueApprovalNotice(tx, input, resolveMailLook): Promise<'sent' | 'skipped_none'>`), the mail renderer beside `packages/email/src/service/`.
 - Modify: `view/messages.ts` and `messages.ar.ts` (new keys), `packages/protocol-oidc/src/index.ts`, `tests/lint/server-page-literals.test.ts` stays green (no literals).
 
@@ -219,6 +233,7 @@
 ### Task 13: Admin API for instances and approvals
 
 **Files:**
+
 - Create: `packages/contracts/src/admin/agents.ts`, `packages/protocol-admin/src/usecase/agents.ts`, `src/view/routes/agents.ts`, tests beside each.
 - Modify: `packages/contracts/src/admin/index.ts`, `docs.ts`, `packages/protocol-admin/src/index.ts` (register near 897-902), `service/capability.ts` (route table entries), `view/routes/openapi.ts`/`operations.ts`, `apps/docs/content/en/reference/transcripts/admin-paths/` (new pages, re-run on a live stack), `packages/mcp` route-class table `docs/protocols/mcp-route-classes.md` (each new route gets a class row; the test holds it).
 
@@ -250,7 +265,7 @@
 
 ### Task 16: Documents, conformance and the phase's closing pass
 
-**Files:** Create `apps/docs/content/en/concepts/agents.md`, a guide `apps/docs/content/en/guides/agent-delegation.md` (runnable blocks executed by `tools/docs-run`), transcripts for `bc-authorize`, the CIBA token poll, approval page and the admin routes (each re-run on a live stack, fenced response blocks carry no language tag), `docs/phases/p5.md`. Modify `docs/protocols/rfc8693.md` (stage 4, `may_act`), `apps/docs/content/en/concepts/tokens.md`, `reference/` generated pages, `README.md`, `CHANGELOG.md` under `## [Unreleased]` (Added, Changed, Security in the installer's words), `.github/workflows` conformance plan for CIBA poll if the OIDF suite has one (closes spec assumption 1; if it has none, record that and keep the integration tests as the proof, saying so in `docs/phases/p5.md`), `docs/NEXT.md` ("What P5c inherits", delete "What P5 inherits"), the roadmap's "What is not implemented".
+**Files:** Create `apps/docs/content/en/concepts/agents.md`, a guide `apps/docs/content/en/guides/agent-delegation.md` (runnable blocks executed by `tools/docs-run`), transcripts for `bc-authorize`, the CIBA token poll, approval page and the admin routes (each re-run on a live stack, fenced response blocks carry no language tag), the phase note `p5.md` in `docs/phases/`. Modify `docs/protocols/rfc8693.md` (stage 4, `may_act`), `apps/docs/content/en/concepts/tokens.md`, `reference/` generated pages, `README.md`, `CHANGELOG.md` under `## [Unreleased]` (Added, Changed, Security in the installer's words), `.github/workflows` conformance plan for CIBA poll if the OIDF suite has one (closes spec assumption 1; if it has none, record that and keep the integration tests as the proof, saying so in the phase note `p5.md` in `docs/phases/`), `docs/NEXT.md` ("What P5c inherits", delete "What P5 inherits"), the roadmap's "What is not implemented".
 
 - [ ] **Step 1:** Run the closing pass of CLAUDE.md in order: gaps in "What is not implemented" still true; `git grep -n -E '\bP5\b'` and the numbers moved; NEXT headings against closed phases; section 11 against the roadmap in both directions (`roadmap-section-11.test.ts`); the capability's words across the public surface (`git grep -n -i -E 'planned|agent|delegation' -- apps/docs README.md`); `CHANGELOG.md`. Fix each hit.
 - [ ] **Step 2:** `pnpm verify`; whole-branch review by a fresh Sonnet reviewer (spec compliance and quality); fix loop until clean.
