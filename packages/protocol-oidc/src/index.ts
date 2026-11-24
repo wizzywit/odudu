@@ -98,7 +98,10 @@ import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';
 import { type LiveClientLookup, type LiveSubjectLookup } from '#/service/client-enabled';
 import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
-import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
+import {
+  UNLIMITED_CLIENT_SECRET_LIMITER,
+  type ClientSecretLimiter,
+} from '#/service/client-secret-throttle';
 import {
   USERINFO_ENCRYPTION_ENC_DEFAULT,
   USERINFO_ENCRYPTION_ENCS_PERMITTED,
@@ -126,6 +129,7 @@ import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
 import { registerRequiredActionRoute } from '#/view/routes/required-action';
 import { registerLogoutRoute } from '#/view/routes/logout';
+import { registerBackchannelAuthenticationRoute } from '#/view/routes/bc-authorize';
 import { registerRevokeRoute } from '#/view/routes/revoke';
 import { registerTokenRoute } from '#/view/routes/token';
 import { registerUserinfoRoute } from '#/view/routes/userinfo';
@@ -168,6 +172,10 @@ export interface OidcRoutesDeps {
   // A caller that genuinely wants no budget says so explicitly with
   // `UNLIMITED_CLIENT_SECRET_LIMITER` (#/service/client-secret-throttle.ts).
   clientSecretLimiter: ClientSecretLimiter;
+  // The budget per client on the backchannel authentication endpoint. Left
+  // out, that endpoint takes no budget beyond the pending limit per person;
+  // `apps/server/src/app.ts` always supplies one.
+  cibaLimiter?: ClientSecretLimiter;
   // RFC 7523 §2.2's fetcher for a client's jwks_uri, consulted only by
   // private_key_jwt authentication at /token. Required for the same
   // reason `clientSecretLimiter` above is (see its comment); a caller
@@ -668,6 +676,20 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
       verifyPassword,
       clientSecretLimiter,
+      auditRefusalBudget: deps.auditRefusalBudget,
+      clock,
+    });
+    registerBackchannelAuthenticationRoute(app, {
+      database: deps.database,
+      findTenant,
+      listPublishableKeys,
+      acceptedIssuers: acceptedIssuersFor,
+      clientKeySet,
+      trustProxy: deps.trustProxy ?? false,
+      tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
+      verifyPassword,
+      clientSecretLimiter,
+      cibaLimiter: deps.cibaLimiter ?? UNLIMITED_CLIENT_SECRET_LIMITER,
       auditRefusalBudget: deps.auditRefusalBudget,
       clock,
     });

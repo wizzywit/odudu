@@ -14,6 +14,9 @@ export interface AsMetadataDocument {
   readonly jwks_uri: string;
   readonly introspection_endpoint: string;
   readonly revocation_endpoint: string;
+  readonly backchannel_authentication_endpoint: string;
+  readonly backchannel_token_delivery_modes_supported: readonly string[];
+  readonly backchannel_user_code_parameter_supported: boolean;
   readonly response_types_supported: readonly string[];
   readonly response_modes_supported: readonly string[];
   readonly grant_types_supported: readonly string[];
@@ -45,6 +48,10 @@ export function asMetadataDocument(
     jwks_uri: discovery.jwks_uri,
     introspection_endpoint: discovery.introspection_endpoint,
     revocation_endpoint: discovery.revocation_endpoint,
+    backchannel_authentication_endpoint: discovery.backchannel_authentication_endpoint,
+    backchannel_token_delivery_modes_supported:
+      discovery.backchannel_token_delivery_modes_supported,
+    backchannel_user_code_parameter_supported: discovery.backchannel_user_code_parameter_supported,
     response_types_supported: discovery.response_types_supported,
     response_modes_supported: discovery.response_modes_supported,
     grant_types_supported: discovery.grant_types_supported,

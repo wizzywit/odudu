@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { grantOptions, grantsBlock } from '#/pages/clients/services/grantTypes';
 
 describe('grantOptions', () => {
-  it('offers the four grants the server takes, in its order', () => {
+  it('offers the five grants the server takes, in its order', () => {
     const options = grantOptions({ type: 'confidential', grant_types: ['authorization_code'] });
     expect(options.map((each) => each.id)).toEqual([
       'authorization_code',
       'refresh_token',
       'client_credentials',
       'urn:ietf:params:oauth:grant-type:token-exchange',
+      'urn:openid:params:grant-type:ciba',
     ]);
     expect(options.every((each) => each.unavailable === null)).toBe(true);
   });

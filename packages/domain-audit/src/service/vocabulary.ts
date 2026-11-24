@@ -6,7 +6,14 @@ import { type AdminMutationAction } from '#/service/admin-mutation-actions';
 // audit-detail.ts.
 export const AUDIT_ACTIONS = {
   admin_access: ['capability.refused', 'token.foreign_issuer', 'agent.tool_call'],
-  agent_identity: ['agent.instance_minted', 'agent.approval_requested', 'agent.approval_decided'],
+  agent_identity: [
+    'agent.instance_minted',
+    'agent.approval_requested',
+    'agent.approval_decided',
+    'ciba.requested',
+    'ciba.poll_refused',
+    'ciba.token_issued',
+  ],
   authentication: [
     'login.password',
     'login.otp',
@@ -82,6 +89,10 @@ export const AUDIT_REASONS = [
   'already_registered',
   'timeout_outcome_unknown',
   'write_budget',
+  'approval_limit',
+  'polled_early',
+  'expired',
+  'denied',
 ] as const;
 
 export type AuditReason = (typeof AUDIT_REASONS)[number];
@@ -165,6 +176,24 @@ type AgentIdentityInput =
         approval: string;
         state: 'approved' | 'denied';
         via: 'ciba_page' | 'console';
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'ciba.requested' | 'ciba.poll_refused';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner?: string;
+        approval?: string;
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'ciba.token_issued';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        approval: string;
       }>;
     });
 
@@ -344,6 +373,9 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'agent.instance_minted': ['agent_client', 'owner', 'instance', 'depth'],
   'agent.approval_requested': ['agent_client', 'owner', 'approval', 'instance'],
   'agent.approval_decided': ['owner', 'approval', 'state', 'via'],
+  'ciba.requested': ['agent_client', 'owner', 'approval'],
+  'ciba.poll_refused': ['agent_client', 'owner', 'approval'],
+  'ciba.token_issued': ['agent_client', 'owner', 'approval'],
   'login.password': ['factor'],
   'login.otp': ['factor'],
   'login.recovery_code': ['factor'],

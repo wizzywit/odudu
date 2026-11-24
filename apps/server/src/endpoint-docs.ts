@@ -183,6 +183,11 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     auth: 'Client authentication',
     purpose: 'Token introspection (RFC 7662): says whether a token is active and what it carries.',
   },
+  [`POST ${OIDC}/bc-authorize`]: {
+    auth: 'Client authentication',
+    purpose:
+      'The backchannel authentication endpoint (OpenID CIBA, poll mode): a client holding the CIBA grant asks a named person to approve a request, and polls the token endpoint with the `auth_req_id` it gets back.',
+  },
   [`POST ${OIDC}/revoke`]: {
     auth: 'Client authentication',
     purpose: 'Token revocation (RFC 7009).',

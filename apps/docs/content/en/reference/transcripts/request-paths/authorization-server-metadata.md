@@ -37,7 +37,7 @@ HTTP/1.1 200 OK
 x-request-id: 01a1cb3b-f92e-7897-934d-ee1391e114a0
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 1535
+content-length: 1787
 Date: Wed, 11 Nov 2026 15:31:07 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
@@ -56,6 +56,9 @@ curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/de
   "jwks_uri": "http://localhost:3000/tenants/demo/protocol/openid-connect/certs",
   "introspection_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token/introspect",
   "revocation_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/revoke",
+  "backchannel_authentication_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/bc-authorize",
+  "backchannel_token_delivery_modes_supported": ["poll"],
+  "backchannel_user_code_parameter_supported": false,
   "response_types_supported": [
     "code"
   ],
@@ -66,7 +69,8 @@ curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/de
     "authorization_code",
     "refresh_token",
     "client_credentials",
-    "urn:ietf:params:oauth:grant-type:token-exchange"
+    "urn:ietf:params:oauth:grant-type:token-exchange",
+    "urn:openid:params:grant-type:ciba"
   ],
   "token_endpoint_auth_methods_supported": [
     "client_secret_basic",

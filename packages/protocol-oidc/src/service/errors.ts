@@ -4,11 +4,13 @@ import { type AuditAction, type AuditReason } from '@odudu/domain-audit';
 export interface TokenRefusalAudit {
   readonly action:
     | Extract<AuditAction<'authentication'>, `client.${string}`>
-    | Exclude<AuditAction<'token'>, `grant.${string}`>;
+    | Exclude<AuditAction<'token'>, `grant.${string}`>
+    | Extract<AuditAction<'agent_identity'>, 'ciba.requested' | 'ciba.poll_refused'>;
   readonly reason: AuditReason;
   readonly clientDbId: string;
   readonly subjectId?: string;
   readonly grantId?: string;
+  readonly approvalId?: string;
   readonly method?: string;
 }
 
@@ -73,6 +75,33 @@ export function invalidScope(): TokenError {
 // client is, not what it's allowed to do).
 export function unauthorizedClient(): TokenError {
   return new TokenError('unauthorized_client', 400);
+}
+
+// OpenID CIBA §11 and §13. Each answers 400 (§13's 403 for `access_denied` at
+// the backchannel authentication endpoint is `refusedByServer` below).
+export function authorizationPending(): TokenError {
+  return new TokenError('authorization_pending', 400);
+}
+
+export function slowDown(audit?: TokenRefusalAudit): TokenError {
+  return new TokenError('slow_down', 400, undefined, audit);
+}
+
+export function expiredToken(audit?: TokenRefusalAudit): TokenError {
+  return new TokenError('expired_token', 400, undefined, audit);
+}
+
+export function accessDenied(audit?: TokenRefusalAudit): TokenError {
+  return new TokenError('access_denied', 400, undefined, audit);
+}
+
+// §13: the server declines to create a request.
+export function refusedByServer(audit: TokenRefusalAudit): TokenError {
+  return new TokenError('access_denied', 403, undefined, audit);
+}
+
+export function invalidBindingMessage(): TokenError {
+  return new TokenError('invalid_binding_message', 400);
 }
 
 // RFC 8707 §2: a `resource` named at /token that the redeemed code (or, on
