@@ -64,6 +64,8 @@ approval settles as `expired` once its window has passed and is deleted thirty d
 days after it was revoked or lapsed, and only once every instance beneath it can go too, together
 with its `agent_instance` subject.
 
+The four new keys in each `deleted` line of the blocks on this page were added without a live run, so those lines are not real output until this page is run again on a live stack, which is still to be done.
+
 `client_registration_tokens` is on the same footing as `action_tokens`: a
 spent or expired one carries no detection value — a replayed unknown token
 and a replayed spent one are refused identically — so
