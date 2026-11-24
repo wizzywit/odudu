@@ -171,11 +171,9 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
   // statement. The first `cap` rows by depth are taken. A node whose grant is
   // revoked and has no live instance is walked through but takes no place in
   // the cap, which is what lets a second call reach what the first left.
-  // The grants are locked first, in id order, and both updates read their ids
-  // from that lock, so no instance is touched before every grant is held, as
-  // an exchange takes them. The lock is the update's own (`for no key update`):
-  // a foreign key's key share still gets through. The planner does not promise
-  // the instances' order, which is why they are handed their ids sorted.
+  // The grants are locked first, in id order, with the update's own lock (`for
+  // no key update`, which a foreign key's key share passes), and both updates
+  // read their ids from it, so no instance is touched before every grant is held.
   async function pass(ids: readonly string[], at: Date, cap: number): Promise<CascadePass> {
     const stamp = at.toISOString();
     const rows = (await tx.execute(sql`
