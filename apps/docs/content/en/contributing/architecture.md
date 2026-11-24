@@ -74,6 +74,7 @@ Every directory of the workspace, grouped by what it is for.
 - `packages/domain-theme` holds theme versions and uploaded assets, the theme model and the checks on templates and stylesheets.
 - `packages/domain-authz` holds roles, groups and scopes.
 - `packages/domain-audit` holds the audit trail and its vocabulary.
+- `packages/domain-agents` holds the agent identity rules: the invariants that bound a delegation chain.
 
 **Flows and protocols**
 
