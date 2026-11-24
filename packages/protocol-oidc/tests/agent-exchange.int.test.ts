@@ -6,6 +6,7 @@ import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
+import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { tokenGrantRepository } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
@@ -338,7 +339,7 @@ describe('an agent-type client whose client_id looks like an instance id', () =>
 });
 
 describe('the depth of an exchange whose token names the client as its actor', () => {
-  async function exchangeMarked(): Promise<{ statusCode: number; json: <T>() => T }> {
+  async function exchangeMarked(): Promise<LightMyRequestResponse> {
     const owner = await login(stack, AGENT);
     return exchange(stack, AGENT, await withActHead(owner.accessToken, AGENT));
   }
@@ -671,7 +672,7 @@ describe('an exchange of a token whose act head is an agent instance', () => {
     );
   }
 
-  const refusedAsInvalidRequest = (res: { statusCode: number; json: <T>() => T }): void => {
+  const refusedAsInvalidRequest = (res: LightMyRequestResponse): void => {
     expect(res.statusCode).toBe(400);
     expect(res.json<{ error: string }>().error).toBe('invalid_request');
   };
