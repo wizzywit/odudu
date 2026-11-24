@@ -147,22 +147,24 @@ function instanceRoots(rows: readonly CascadeRow[]): RevokedInstanceRoot[] {
     }));
 }
 
+// The grant whose counters this one spends: the root named on it, or its own
+// when no exchange made it. A grant that was exchanged and names no root has
+// none and is refused, as is one whose id matches no grant. An exchanged grant
+// from before the column whose parent was deleted before the backfill cannot be
+// told from a sign-in's own grant and keeps a budget of its own.
+export async function budgetGrantId(tx: TenantScopedDatabase, id: string): Promise<string | null> {
+  const rows = await tx
+    .select({ root: tokenGrants.budgetGrantId, parent: tokenGrants.exchangedFromGrantId })
+    .from(tokenGrants)
+    .where(eq(tokenGrants.id, id));
+  const row = rows[0];
+  if (row === undefined) return null;
+  if (row.root !== null) return row.root;
+  return row.parent === null ? id : null;
+}
+
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
-  // The grant whose counters this one spends: the root named on it, or its own
-  // when no exchange made it. A grant that was exchanged and names no root has
-  // none and is refused, as is one whose id matches no grant. An exchanged grant
-  // from before the column whose parent was deleted before the backfill cannot be
-  // told from a sign-in's own grant and keeps a budget of its own.
-  async function budgetGrant(id: string): Promise<string | null> {
-    const rows = await tx
-      .select({ root: tokenGrants.budgetGrantId, parent: tokenGrants.exchangedFromGrantId })
-      .from(tokenGrants)
-      .where(eq(tokenGrants.id, id));
-    const row = rows[0];
-    if (row === undefined) return null;
-    if (row.root !== null) return row.root;
-    return row.parent === null ? id : null;
-  }
+  const budgetGrant = (id: string): Promise<string | null> => budgetGrantId(tx, id);
 
   // One pass: the grants exchanged from `ids` down to the structural depth,
   // and every agent instance rooted at any of them, revoked by one recursive

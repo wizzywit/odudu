@@ -146,6 +146,9 @@ interface Parent {
   instanceId: string | null;
   rootGrantId: string;
   expiresAt: Date;
+  // What the parent instance has left to spend; null for a lineage that starts
+  // at a grant, whose limits come from the tenant's settings.
+  remaining: { mutating: number; creates: number } | null;
 }
 
 // Takes the row lock a mint serialises on, then counts what is already
@@ -180,6 +183,10 @@ async function resolveParent(
       instanceId: parent.id,
       rootGrantId: parent.rootGrantId,
       expiresAt: parent.expiresAt,
+      remaining: {
+        mutating: Math.max(parent.sliceMutating - parent.spentMutating, 0),
+        creates: Math.max(parent.sliceCreates - parent.spentCreates, 0),
+      },
     };
   }
   if (head !== null && head !== client.clientId) return null;
@@ -196,6 +203,7 @@ async function resolveParent(
     instanceId: null,
     rootGrantId: subject.grantId,
     expiresAt,
+    remaining: null,
   };
 }
 
@@ -279,6 +287,10 @@ export async function applyAgentLayer(
     depth: admission.node.depth,
     scope: scope.join(' '),
     expiresAt,
+    slice: parent.remaining ?? {
+      mutating: settings.agentWritesPerGrant,
+      creates: settings.agentCreatesPerGrant,
+    },
     idleExpiresAt:
       input.run === undefined
         ? null
