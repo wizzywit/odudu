@@ -10,7 +10,7 @@ import {
   isNotNull,
   isNull,
   lt,
-  not,
+  lte,
   notExists,
   or,
   sql,
@@ -52,6 +52,17 @@ function live(now: Date) {
     isNull(agentInstances.revokedAt),
     gt(agentInstances.expiresAt, now),
     or(isNull(agentInstances.idleExpiresAt), gt(agentInstances.idleExpiresAt, now)),
+  );
+}
+
+// Not revoked, and past its fixed expiry or its idle expiry at `now`.
+function lapsed(now: Date) {
+  return and(
+    isNull(agentInstances.revokedAt),
+    or(
+      lte(agentInstances.expiresAt, now),
+      and(isNotNull(agentInstances.idleExpiresAt), lte(agentInstances.idleExpiresAt, now)),
+    ),
   );
 }
 
@@ -116,13 +127,24 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
             filter.afterId === undefined ? undefined : gt(agentInstances.id, filter.afterId),
             state === 'revoked' ? isNotNull(agentInstances.revokedAt) : undefined,
             state === 'live' ? live(filter.now) : undefined,
-            state === 'expired'
-              ? and(isNull(agentInstances.revokedAt), not(live(filter.now)))
-              : undefined,
+            state === 'expired' ? lapsed(filter.now) : undefined,
           ),
         )
         .orderBy(asc(agentInstances.id))
         .limit(filter.limit);
+    },
+
+    // The instance and every instance minted beneath it, revoked or not.
+    // `depth` is capped at 8, which bounds the walk.
+    async subtree(id: string): Promise<string[]> {
+      const rows = await tx.execute(sql`
+        with recursive tree as (
+          select id from agent_instances where id = ${id}
+          union all
+          select c.id from agent_instances c join tree t on c.parent_instance_id = t.id
+        )
+        select id from tree`);
+      return (rows as unknown as { id: string }[]).map((row) => row.id);
     },
 
     async liveChildren(parentId: string, now: Date): Promise<number> {

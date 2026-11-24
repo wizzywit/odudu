@@ -287,7 +287,7 @@ describe('agentInstanceRepository page', () => {
       const ids = made.map((record) => record.id).sort();
       const first = await repo.page({ limit: 3, now: NOW });
       expect(first.map((row) => row.id)).toEqual(ids.slice(0, 3));
-      const second = await repo.page({ afterId: ids[2], limit: 3, now: NOW });
+      const second = await repo.page({ afterId: ids[2] ?? '', limit: 3, now: NOW });
       expect(second.map((row) => row.id)).toEqual(ids.slice(3));
     });
   });
@@ -336,6 +336,24 @@ describe('agentInstanceRepository page', () => {
         now: NOW,
       });
       expect(rows.map((row) => row.id)).toEqual([revoked.id]);
+    });
+  });
+});
+
+describe('agentInstanceRepository subtree', () => {
+  it('names the instance and everything minted beneath it, revoked or not', async () => {
+    await inTenant(async (repo, seeded) => {
+      const root = await repo.mint(input(seeded));
+      const child = await repo.mint(input(seeded, { parentInstanceId: root.id, depth: 2 }));
+      const grandchild = await repo.mint(input(seeded, { parentInstanceId: child.id, depth: 3 }));
+      const sibling = await repo.mint(input(seeded));
+      await repo.revoke(grandchild.id, NOW);
+      expect((await repo.subtree(root.id)).sort()).toEqual(
+        [root.id, child.id, grandchild.id].sort(),
+      );
+      expect(await repo.subtree(grandchild.id)).toEqual([grandchild.id]);
+      expect(await repo.subtree(sibling.id)).toEqual([sibling.id]);
+      expect(await repo.subtree(newId())).toEqual([]);
     });
   });
 });
@@ -421,7 +439,7 @@ describe('agentInstanceRepository across tenants', () => {
         const owner = (await agentInstanceRepository(tx).byId(seeded.id))?.ownerSubjectId;
         return { ...seeded, owner: owner ?? '' };
       },
-      verifySeeded: async (tx, s) => {
+      verifySeeded: async (tx) => {
         expect(await agentInstanceRepository(tx).page({ limit: 10, now: NOW })).toHaveLength(2);
       },
       attempt: async (tx, s) => {
@@ -434,6 +452,19 @@ describe('agentInstanceRepository across tenants', () => {
       },
       expectBlocked: (result) => {
         expect(result).toEqual([[], [], []]);
+      },
+    });
+  });
+
+  it('subtree names nothing', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedInstance,
+      verifySeeded: async (tx, s) => {
+        expect(await agentInstanceRepository(tx).subtree(s.parentId)).toHaveLength(2);
+      },
+      attempt: async (tx, s) => agentInstanceRepository(tx).subtree(s.parentId),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
       },
     });
   });

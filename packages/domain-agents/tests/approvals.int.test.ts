@@ -165,7 +165,7 @@ describe('agentApprovalRepository page', () => {
         .reverse();
       const first = await repo.page({ limit: 3 });
       expect(first.map((row) => row.id)).toEqual(ids.slice(0, 3));
-      const second = await repo.page({ beforeId: ids[2], limit: 3 });
+      const second = await repo.page({ beforeId: ids[2] ?? '', limit: 3 });
       expect(second.map((row) => row.id)).toEqual(ids.slice(3));
     });
   });
