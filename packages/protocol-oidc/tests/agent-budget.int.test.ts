@@ -15,6 +15,7 @@ import {
   exchange,
   login,
   startAgentStack,
+  waitForLockWaiters,
   type AgentStack,
 } from '#/testing/agent-fixture';
 
@@ -346,6 +347,45 @@ describe('a call with no instance', () => {
       level: 'grant',
     });
     expect((await counters(w, null)).grantWrites).toBe(2);
+  });
+});
+
+describe('an exchanged grant revoked between the liveness check and the spend', () => {
+  it('is refused at the grant, and nothing is counted', async () => {
+    const w = await world();
+    const child = await withTenant(stack.app.db, stack.tenantId, async (tx) =>
+      tokenGrantRepository(tx).create({
+        id: newId(),
+        tenantId: stack.tenantId,
+        clientId: w.clientId,
+        subjectId: w.ownerId,
+        scope: 'mcp:write',
+        audience: ['https://id.example/mcp'],
+        exchangedFromGrantId: w.grantId,
+        actorSubjectId: w.ownerId,
+      }),
+    );
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked!: () => void;
+    const gotLock = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const revoking = withTenant(stack.app.db, stack.tenantId, async (tx) => {
+      await tx.execute(sql`select id from token_grants where id = ${child.id} for update`);
+      locked();
+      await held;
+      await tokenGrantRepository(tx).revoke(child.id, NOON);
+    });
+    await gotLock;
+    const spending = spend(w, null, { grantId: child.id });
+    await waitForLockWaiters(stack.owner);
+    release();
+    const [outcome] = await Promise.all([spending, revoking]);
+    expect(outcome).toEqual({ kind: 'refused', level: 'grant' });
+    expect(await counters(w, null)).toMatchObject({ grantWrites: 0, window: 0 });
   });
 });
 

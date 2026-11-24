@@ -46,6 +46,18 @@ function over(spent: Caps, caps: Caps, create: boolean): boolean {
   return spent.mutating >= caps.mutating || (create && spent.creates >= caps.creates);
 }
 
+// Whether the grant a call carries is live, read under a share lock so that a
+// revoke in flight is waited for and its outcome seen. Taken after the root's
+// lock: a cascade holds a grant before the ones exchanged from it.
+async function liveUnderLock(tx: TenantScopedDatabase, id: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ revokedAt: tokenGrants.revokedAt })
+    .from(tokenGrants)
+    .where(eq(tokenGrants.id, id))
+    .for('share');
+  return row?.revokedAt === null;
+}
+
 export function agentBudgetRepository(tx: TenantScopedDatabase) {
   return {
     // Spends one write at every level a call counts at: the root grant it
@@ -54,7 +66,8 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
     // take theirs in, and each is checked before any is written, so a refusal at
     // one level leaves the other two untouched and calls made at once between
     // them never pass a limit. A create is also a mutating call, and counts once
-    // in the window. A grant that is missing or revoked is refused at the grant.
+    // in the window. A grant that is missing or revoked, the root or the exchanged
+    // one the call carries, is refused at the grant.
     async spend(input: SpendInput): Promise<SpendOutcome> {
       const create = input.kind === 'create';
       const root = await budgetGrantId(tx, input.grantId);
@@ -72,6 +85,9 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
         .for('update');
       if (grant?.revokedAt !== null) return refused('grant');
       if (over({ mutating: grant.writes, creates: grant.creates }, input.limits.grant, create)) {
+        return refused('grant');
+      }
+      if (input.grantId !== root && !(await liveUnderLock(tx, input.grantId))) {
         return refused('grant');
       }
 
