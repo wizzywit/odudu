@@ -3,6 +3,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { agentApprovalRepository } from '@odudu/domain-agents';
 import { clientRepository } from '@odudu/domain-tenant';
 import { cibaRequestRepository } from '#/repository/ciba-requests';
+import { type TenantLookup } from '#/repository/tenant-lookup';
 import { decideApproval } from '#/usecase/approvals';
 
 // What the decision form's token is bound to besides the session and the
@@ -12,6 +13,20 @@ export const APPROVAL_DECISION = 'approval-decision';
 
 // A browser can present many; the owner's is among the few it signed in last.
 const MOST_SESSIONS_CONSIDERED = 10;
+
+// What the page route reads of a tenant: whether it answers, the lifespans its
+// sessions are judged by and the languages it offers.
+export type ApprovalTenant = Pick<
+  TenantLookup,
+  | 'id'
+  | 'enabled'
+  | 'ssoSessionIdleSeconds'
+  | 'ssoSessionMaxSeconds'
+  | 'rememberMeIdleSeconds'
+  | 'rememberMeMaxSeconds'
+  | 'supportedLocales'
+  | 'defaultLocale'
+>;
 
 export interface ApprovalDetails {
   readonly approvalId: string;
@@ -33,8 +48,7 @@ async function pendingFor(
 ): Promise<ApprovalDetails | null> {
   const approval = await agentApprovalRepository(tx).byId(approvalId);
   if (
-    approval === null ||
-    approval.kind !== 'ciba' ||
+    approval?.kind !== 'ciba' ||
     approval.subjectId !== subjectId ||
     approval.state !== 'pending' ||
     approval.expiresAt <= now

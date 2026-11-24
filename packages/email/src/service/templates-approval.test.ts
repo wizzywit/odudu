@@ -20,9 +20,9 @@ describe('renderApprovalNotice', () => {
     expect(msg.subject).toContain('Demo');
     expect(msg.text).toContain('Calendar Agent');
     expect(msg.text).toContain(LINK);
-    expect(msg.text).toContain(en['approval.ignore']);
+    expect(msg.text).toContain(en['approvalNotice.ignore']);
     expect(msg.html).toContain(`href="${LINK}"`);
-    expect(msg.html).toContain(en['approval.ignore']);
+    expect(msg.html).toContain(en['approvalNotice.ignore']);
   });
 
   it('carries the approval link and nothing else that looks like a secret', () => {
@@ -40,12 +40,12 @@ describe('renderApprovalNotice', () => {
     expect(msg.text).not.toContain('‮');
   });
 
-  it('is worded in Arabic, right to left, with every approval.* sentence translated', () => {
-    const keys = Object.keys(en).filter((id) => id.startsWith('approval.'));
+  it('is worded in Arabic, right to left, with every approvalNotice.* sentence translated', () => {
+    const keys = Object.keys(en).filter((id) => id.startsWith('approvalNotice.'));
     expect(keys.length).toBeGreaterThan(5);
     for (const key of keys) expect(Object.hasOwn(ar, key), key).toBe(true);
     const msg = renderApprovalNotice({ ...input, locale: 'ar' });
     expect(msg.html).toContain('dir="rtl"');
-    expect(msg.text).toContain(ar['approval.ignore']);
+    expect(msg.text).toContain(ar['approvalNotice.ignore']);
   });
 });

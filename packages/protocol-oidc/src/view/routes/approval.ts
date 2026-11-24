@@ -1,10 +1,17 @@
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
-import { isDomainAddress, isUuid, systemClock, tenantAddressOf, type Clock } from '@odudu/kernel';
+import {
+  addressPath,
+  isDomainAddress,
+  isUuid,
+  pathAddress,
+  systemClock,
+  tenantAddressOf,
+  type Clock,
+} from '@odudu/kernel';
 import { type PresentedSession } from '@odudu/authn-flows';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import { type TenantLookup } from '#/repository/tenant-lookup';
-import { showApproval, submitApproval } from '#/usecase/approval-page';
+import { showApproval, submitApproval, type ApprovalTenant } from '#/usecase/approval-page';
 import {
   renderApprovalDecidedPage,
   renderApprovalPage,
@@ -26,7 +33,7 @@ export interface ApprovalRouteDeps extends Pick<
   'resolveBranding' | 'resolveOverrides'
 > {
   database: DatabaseHandle;
-  findTenant(name: string): Promise<TenantLookup | null>;
+  findTenant(name: string): Promise<ApprovalTenant | null>;
   // The browser's session cookies, resolved to their live rows.
   resolveSessions(
     tenant: {
@@ -68,7 +75,7 @@ async function signIn(
   // a domain of its own, whose session cookie lives on that domain, has none.
   const location = isDomainAddress(tenantAddressOf(request))
     ? null
-    : deps.signIn(tenant, `/tenants/${encodeURIComponent(tenant)}/approval/${id}`);
+    : deps.signIn(tenant, addressPath(pathAddress('', tenant), `/approval/${id}`));
   if (location === null) {
     const locale = await brandedRequestLocale(deps, reply, tenant);
     return sendHtml(reply, 401, renderApprovalSignInPage(locale));

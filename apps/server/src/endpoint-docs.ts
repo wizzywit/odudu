@@ -8,6 +8,7 @@ export const ENDPOINT_AUTH = [
   'Access token',
   'Initial access token (optional)',
   'Session cookie or ID token hint',
+  'Session cookie',
   'Console session',
 ] as const;
 
@@ -29,6 +30,7 @@ export function endpointKey(endpoint: ServedEndpoint): string {
 
 const OIDC = '/tenants/:tenant/protocol/openid-connect';
 const LOGIN = '/tenants/:tenant/login-actions';
+const APPROVAL = '/tenants/:tenant/approval/:id';
 
 // Routes that exist only so a path nothing else claims answers `404` rather than
 // falling through to a shallower wildcard (`claimPrefix` in the console gateway), and
@@ -216,6 +218,16 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   [`POST ${LOGIN}/authenticate`]: {
     auth: 'Sign-in session',
     purpose: 'Submits the sign-in form: one step of the tenant’s authentication flow.',
+  },
+  [`GET ${APPROVAL}`]: {
+    auth: 'Session cookie',
+    purpose:
+      'The page a mailed link opens for a CIBA request: shows the signed-in owner what an agent asks for, with Approve and Deny. Anyone else, and an approval that is gone or answered, gets one and the same `404` page; with no session it redirects to sign-in.',
+  },
+  [`POST ${APPROVAL}`]: {
+    auth: 'Session cookie',
+    purpose:
+      'Submits the approval page: `decision=approve` or `decision=deny` with the form’s CSRF token, which is bound to the session and the approval. Only the owner’s session decides.',
   },
   [`POST ${LOGIN}/consent`]: {
     auth: 'Sign-in session',

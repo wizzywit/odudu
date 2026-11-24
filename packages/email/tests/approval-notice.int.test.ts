@@ -41,6 +41,17 @@ async function tenant(): Promise<string> {
   return id;
 }
 
+// What a statement does and to which table, so a decoy that touched another
+// table could not pass for the real one.
+function shapeOf(query: string): string | null {
+  const match = /^\s*(select|insert|update|delete)\b[\s\S]*?\b(?:from|into)\s+"?([a-z_]+)"?/iu.exec(
+    query,
+  );
+  return match === null
+    ? null
+    : `${(match[1] ?? '').toLowerCase()} ${(match[2] ?? '').toLowerCase()}`;
+}
+
 function mailOf(tenantId: string) {
   return owner.db.select().from(emailOutbox).where(eq(emailOutbox.tenantId, tenantId));
 }
@@ -67,7 +78,7 @@ describe('queueApprovalNotice', () => {
     expect(rows[0]?.toAddress).toBe('ada@example.test');
     expect(rows[0]?.bodyText).toContain(LINK);
     expect(rows[0]?.bodyText).toContain('Calendar Agent');
-    expect(rows[0]?.bodyText + (rows[0]?.bodyHtml ?? '')).not.toMatch(/token|key=/iu);
+    expect(`${rows[0]?.bodyText ?? ''}${rows[0]?.bodyHtml ?? ''}`).not.toMatch(/token|key=/iu);
   });
 
   it.each([
@@ -108,11 +119,8 @@ describe('queueApprovalNoticeDecoy', () => {
         max: 2,
         onQueryForTests: (query) => {
           if (!recording || query.includes('set_config')) return;
-          const match =
-            /^\s*(select|insert|update|delete)\b[\s\S]*?\b(?:from|into)\s+"?([a-z_]+)"?/iu.exec(
-              query,
-            );
-          if (match !== null) seen.push(`${match[1]?.toLowerCase()} ${match[2]?.toLowerCase()}`);
+          const shape = shapeOf(query);
+          if (shape !== null) seen.push(shape);
         },
       });
       try {
@@ -121,7 +129,7 @@ describe('queueApprovalNoticeDecoy', () => {
           const input = notice(id, { email: 'ada@example.test', verified: true });
           return decoy
             ? queueApprovalNoticeDecoy(tx, input, undefined)
-            : queueApprovalNotice(tx, input, undefined);
+            : queueApprovalNotice(tx, input, undefined).then(() => undefined);
         });
       } finally {
         await db.close();
@@ -149,11 +157,8 @@ describe('queueApprovalNoticeDecoy', () => {
         max: 2,
         onQueryForTests: (query) => {
           if (!recording || query.includes('set_config')) return;
-          const match =
-            /^\s*(select|insert|update|delete)\b[\s\S]*?\b(?:from|into)\s+"?([a-z_]+)"?/iu.exec(
-              query,
-            );
-          if (match !== null) seen.push(`${match[1]?.toLowerCase()} ${match[2]?.toLowerCase()}`);
+          const shape = shapeOf(query);
+          if (shape !== null) seen.push(shape);
         },
       });
       try {

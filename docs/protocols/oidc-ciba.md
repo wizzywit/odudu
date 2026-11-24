@@ -93,6 +93,18 @@ unknown person has no approval and can only run to `expired_token`, polled as
 statement, the same verb and table for a known person, a known person at the
 per-person limit and an unknown one. Timing is not claimed to be equal.
 
+### How the person is told
+
+§7.3 leaves the channel to the OP. A real approval queues one mail to the
+person's verified address, linking `/tenants/<tenant>/approval/<id>` on the
+tenant's canonical address (the configured base URL, never the request's
+`Host`), and nothing else: not the `auth_req_id`, which is the client's poll
+secret. The mail is part of what a request does, so a request for nobody, one
+for a person at the limit and one for a person with no verified address read
+the same rows and insert into `email_outbox`, the insert matching nothing and
+no mail written (`ODUDU-CIBA-UNKNOWN-01` and `-05`). The page answers one `404`
+for every approval that is not the signed-in owner's and pending (ADR 0059).
+
 ### Two limits, one visible and one silent
 
 The visible limit is per authenticated client and hint: a client holds at most

@@ -450,31 +450,31 @@ export function renderApprovalNotice(input: ApprovalNoticeInput): EmailMessage {
   return {
     to: input.to,
     subject: inSubject(
-      t(locale, 'approval.subject', { tenant: inSubject(tenant), agent: inSubject(agent) }),
+      t(locale, 'approvalNotice.subject', { tenant: inSubject(tenant), agent: inSubject(agent) }),
     ),
-    text: `${t(locale, 'approval.text', { tenant: inText(tenant), agent: inText(agent) })}\n\n${link}\n\n${t(locale, 'approval.ignore')}\n\n${textFooter(locale, 'approval.reason', tenant, input.now)}`,
+    text: `${t(locale, 'approvalNotice.text', { tenant: inText(tenant), agent: inText(agent) })}\n\n${link}\n\n${t(locale, 'approvalNotice.ignore')}\n\n${textFooter(locale, 'approvalNotice.reason', tenant, input.now)}`,
     html: renderShell({
       ...page({
         locale,
         tenant,
         now: input.now,
-        heading: 'approval.heading',
-        preheader: 'approval.preheader',
-        reason: 'approval.reason',
+        heading: 'approvalNotice.heading',
+        preheader: 'approvalNotice.preheader',
+        reason: 'approvalNotice.reason',
         branding: input.branding,
       }),
       blocks: [
         paragraph(
           tHtml(
             locale,
-            'approval.body',
+            'approvalNotice.body',
             {},
             { tenant: stripBidiControls(tenant), agent: stripBidiControls(agent) },
           ),
         ),
       ],
-      action: { label: t(locale, 'approval.button'), href: link },
-      closing: [tHtml(locale, 'approval.ignore')],
+      action: { label: t(locale, 'approvalNotice.button'), href: link },
+      closing: [tHtml(locale, 'approvalNotice.ignore')],
     }),
   };
 }

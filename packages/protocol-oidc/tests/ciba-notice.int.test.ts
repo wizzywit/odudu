@@ -100,7 +100,7 @@ describe('the mail a CIBA request sends', () => {
     expect(sent[0]?.body_text).toContain(link);
     expect(sent[0]?.body_html).toContain(link);
     expect(sent[0]?.body_text).toContain('Client agent');
-    const everything = `${sent[0]?.subject}${sent[0]?.body_text}${sent[0]?.body_html}`;
+    const everything = `${sent[0]?.subject ?? ''}${sent[0]?.body_text ?? ''}${sent[0]?.body_html ?? ''}`;
     expect(everything).not.toContain(authReqId);
     expect(everything).not.toContain(world.agent.secret);
     const links = everything.match(/https?:\/\/[^\s"<]+/gu) ?? [];
