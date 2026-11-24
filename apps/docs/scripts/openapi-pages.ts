@@ -406,6 +406,9 @@ function examplesOf(media: Json): string[] {
 // page past it, is listed on pages of its own, so that no page carries more
 // table than a browser lays out in one piece.
 const MAX_TABLE_ROWS = 55;
+// A last page of this many rows or fewer joins the page before it: a page of
+// its own costs the site more than the rows it would spare a reader.
+const ORPHAN_ROWS = 3;
 
 interface Part {
   readonly slug: string;
@@ -445,6 +448,13 @@ function chunkRows(rows: readonly Row[]): Row[][] {
     const last = chunks.at(-1);
     if (last !== undefined && last.length + group.length <= MAX_TABLE_ROWS) last.push(...group);
     else chunks.push([...group]);
+  }
+  const last = chunks.at(-1);
+  const before = chunks.at(-2);
+  if (last !== undefined && before !== undefined && last.length <= ORPHAN_ROWS) {
+    if (before.length + last.length <= MAX_TABLE_ROWS + ORPHAN_ROWS) {
+      chunks.splice(-2, 2, [...before, ...last]);
+    }
   }
   return chunks;
 }
