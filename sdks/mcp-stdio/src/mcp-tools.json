@@ -22,7 +22,6 @@
             "enum": [
               "admin_mutation",
               "admin_access",
-              "agent_identity",
               "authentication",
               "session",
               "token",
@@ -5206,7 +5205,6 @@
             "enum": [
               "admin_mutation",
               "admin_access",
-              "agent_identity",
               "authentication",
               "session",
               "token",
