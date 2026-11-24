@@ -68,6 +68,9 @@ CREATE INDEX IF NOT EXISTS agent_delegations_subject
   ON agent_delegations (tenant_id, subject_id, client_id);
 CREATE INDEX IF NOT EXISTS agent_delegations_client ON agent_delegations (tenant_id, client_id);
 CREATE INDEX IF NOT EXISTS agent_delegations_actor ON agent_delegations (tenant_id, actor_client_id);
+CREATE INDEX IF NOT EXISTS agent_delegations_expires_at ON agent_delegations (expires_at);
+CREATE INDEX IF NOT EXISTS agent_delegations_revoked_at
+  ON agent_delegations (revoked_at) WHERE revoked_at IS NOT NULL;
 
 -- instance_id names an instance without a foreign key: an approval outlives
 -- the instance's tombstone, and must keep naming it.
@@ -99,8 +102,7 @@ CREATE INDEX IF NOT EXISTS agent_approvals_subject ON agent_approvals (tenant_id
 CREATE INDEX IF NOT EXISTS agent_approvals_client ON agent_approvals (tenant_id, requesting_client_id);
 CREATE INDEX IF NOT EXISTS agent_approvals_subject_pending
   ON agent_approvals (tenant_id, subject_id) WHERE state = 'pending';
-CREATE INDEX IF NOT EXISTS agent_approvals_expires_at
-  ON agent_approvals (expires_at) WHERE state = 'pending';
+CREATE INDEX IF NOT EXISTS agent_approvals_expires_at ON agent_approvals (expires_at);
 
 CREATE TABLE IF NOT EXISTS agent_budget_windows (
   tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
