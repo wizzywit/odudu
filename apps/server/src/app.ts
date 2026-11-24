@@ -368,6 +368,20 @@ export const DEFAULT_ME_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, window
 // many an origin a minute get it.
 export const DEFAULT_ME_REFUSAL_THROTTLE: ThrottleSettings = { limit: 60, windowSeconds: 60 };
 
+// Where a person with no session signs in to reach an approval page: the
+// console's sign-in, which sends them back to the page. Only where the console
+// is on; elsewhere there is nowhere to send them.
+function approvalSignIn(
+  consoleBaseUrl: string | undefined,
+): (tenant: string, returnPath: string) => string | null {
+  return (tenant, returnPath) => {
+    if (consoleBaseUrl === undefined) return null;
+    const url = new URL('/console/auth/login', consoleBaseUrl);
+    url.search = new URLSearchParams({ tenant, return_to: returnPath }).toString();
+    return url.toString();
+  };
+}
+
 function tenantParam(request: { readonly params: unknown }): string | undefined {
   const params = request.params;
   return typeof params === 'object' &&
@@ -849,6 +863,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       resolveBranding: branding.resolveBranding,
       resolveOverrides: messageOverrides.resolveOverrides,
       resolveMailLook: mailLook,
+      approvalSignIn: approvalSignIn(deps.consoleBaseUrl),
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,

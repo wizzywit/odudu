@@ -696,6 +696,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       clientSecretLimiter,
       cibaLimiter: deps.cibaLimiter ?? UNLIMITED_CLIENT_SECRET_LIMITER,
       auditRefusalBudget: deps.auditRefusalBudget,
+      ...(deps.publicBaseUrl === undefined
+        ? {}
+        : {
+            mail: {
+              issuerBase: deps.publicBaseUrl,
+              lookupDomain: deps.canonicalDomain,
+              resolveMailLook: deps.resolveMailLook,
+            },
+          }),
       clock,
     });
     registerApprovalRoute(app, {

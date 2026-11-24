@@ -8,6 +8,7 @@ import { TokenError, TokenRateLimited } from '#/service/errors';
 import { OAUTH_ERROR_DESCRIPTIONS } from '#/service/oauth-errors';
 import { type AcceptedIssuersLookup } from '#/service/issuer';
 import { acknowledgeBackchannelRequest, type BackchannelDeps } from '#/usecase/ciba';
+import { type ApprovalMail } from '#/usecase/ciba-notice';
 import { keepingSpend, tokenEndpointOf, unsettle } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
 import { type ClientKeySet } from '#/usecase/token-issuance';
@@ -27,6 +28,8 @@ export interface BackchannelRouteDeps {
   // Per client, on requests to this endpoint.
   cibaLimiter: ClientSecretLimiter;
   auditRefusalBudget: AuditRefusalBudget;
+  // What the mail that tells a person an approval waits is built from.
+  mail?: ApprovalMail;
   clock?: Clock;
 }
 
@@ -61,6 +64,8 @@ export function registerBackchannelAuthenticationRoute(
       clientSecretLimiter: deps.clientSecretLimiter,
       cibaLimiter: deps.cibaLimiter,
       loginWithEmail: tenant.loginWithEmail,
+      tenantName: request.params.tenant,
+      mail: deps.mail,
       logger: request.log,
       now: () => now,
       acceptedIssuers,

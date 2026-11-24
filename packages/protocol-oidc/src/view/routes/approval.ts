@@ -1,6 +1,6 @@
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
-import { isUuid, systemClock, tenantAddressOf, type Clock } from '@odudu/kernel';
+import { isDomainAddress, isUuid, systemClock, tenantAddressOf, type Clock } from '@odudu/kernel';
 import { type PresentedSession } from '@odudu/authn-flows';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { type TenantLookup } from '#/repository/tenant-lookup';
@@ -64,7 +64,11 @@ async function signIn(
   request: FastifyRequest<{ Params: Params }>,
 ): Promise<FastifyReply> {
   const { tenant, id } = request.params;
-  const location = deps.signIn(tenant, `/tenants/${encodeURIComponent(tenant)}/approval/${id}`);
+  // The way back is a path on the console's own origin, so a tenant served at
+  // a domain of its own, whose session cookie lives on that domain, has none.
+  const location = isDomainAddress(tenantAddressOf(request))
+    ? null
+    : deps.signIn(tenant, `/tenants/${encodeURIComponent(tenant)}/approval/${id}`);
   if (location === null) {
     const locale = await brandedRequestLocale(deps, reply, tenant);
     return sendHtml(reply, 401, renderApprovalSignInPage(locale));

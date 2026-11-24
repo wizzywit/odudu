@@ -32,6 +32,7 @@ import {
 import { CIBA_REQUEST_LIMIT_DESCRIPTION } from '#/service/oauth-errors';
 import { resolveScope } from '#/service/scope';
 import { ApprovalLimitReached, requestApproval } from '#/usecase/approvals';
+import { noticeOfApproval, type ApprovalMail } from '#/usecase/ciba-notice';
 import {
   authenticateEndpointClient,
   type ClientRequest,
@@ -44,6 +45,9 @@ export interface BackchannelDeps extends EndpointAuthenticationDeps {
   readonly cibaLimiter: ClientSecretLimiter;
   // Whether the tenant lets a person sign in with a verified address.
   readonly loginWithEmail: boolean;
+  readonly tenantName: string;
+  // How the person is told an approval waits; absent, they are not.
+  readonly mail?: ApprovalMail | undefined;
 }
 
 export interface BackchannelAcknowledgement {
@@ -121,6 +125,12 @@ async function acknowledge(
       ? await requestForNobody(tx, deps, digestOfHint, asked.requestedExpiry, now)
       : await openApproval(tx, deps, client, subjectId, asked, now);
   const { approvalId } = opened;
+
+  await noticeOfApproval(
+    tx,
+    { tenantId: deps.tenantId, tenantName: deps.tenantName, mail: deps.mail, now },
+    { agent: client.name, subjectId, approvalId },
+  );
 
   const authReqId = generateAuthReqId();
   await cibaRequestRepository(tx).create({

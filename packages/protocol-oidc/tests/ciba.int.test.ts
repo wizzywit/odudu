@@ -64,6 +64,7 @@ async function startApp(db: DatabaseHandle): Promise<FastifyInstance> {
       ownerDatabase: owner,
       kek: CIBA_KEK,
       clock,
+      publicBaseUrl: 'https://idp.example',
       clientSecretLimiter: { check: () => ({ allowed: true, retryAfterSeconds: 0 }) },
       auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
@@ -698,12 +699,20 @@ describe('a person the hint does not identify', () => {
     expect(unknown.res.headers['content-type']).toBe(known.res.headers['content-type']);
     expect(unknown.res.headers['cache-control']).toBe(known.res.headers['cache-control']);
     expect(unknown.verbs.length).toBeGreaterThan(5);
+    expect(known.verbs).toContain('insert email_outbox');
     expect(unknown.verbs).toEqual(known.verbs);
 
     await fillApprovals(world, world.bob.subjectId, 20);
     const atCap = await counted({ login_hint: 'bob' });
     expect(atCap.res.statusCode).toBe(known.res.statusCode);
     expect(atCap.verbs).toEqual(known.verbs);
+  });
+
+  it('[ODUDU-CIBA-UNKNOWN-05] runs the same statements for a known person whose address cannot be mailed', async () => {
+    const mailed = await counted({ login_hint: 'alice' });
+    const unmailed = await counted({ login_hint: 'bob' });
+    expect(unmailed.res.statusCode).toBe(200);
+    expect(unmailed.verbs).toEqual(mailed.verbs);
   });
 
   it('[ODUDU-CIBA-UNKNOWN-02] polls as authorization_pending until it expires, creates no approval and sends nothing', async () => {

@@ -27,6 +27,7 @@
     "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-tenant": "workspace:*",
+    "@odudu/email": "workspace:*",
     "@odudu/i18n": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.4",

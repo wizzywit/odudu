@@ -36,3 +36,22 @@ describe('safeReturnTo', () => {
     expect(safeReturnTo(value)).toBe('/console/');
   });
 });
+
+describe('safeReturnTo for an approval page', () => {
+  const ID = '7d0e5c6a-3b0c-4f0e-9d9a-4a8f3c1b2d10';
+
+  it('accepts the approval page of a tenant, which is where a mailed link signs a person in', () => {
+    expect(safeReturnTo(`/tenants/acme/approval/${ID}`)).toBe(`/tenants/acme/approval/${ID}`);
+  });
+
+  it.each([
+    ['a query', `/tenants/acme/approval/${ID}?x=1`],
+    ['an id that is not one', '/tenants/acme/approval/not-an-id'],
+    ['a tenant name that is not one', `/tenants/Ac%2Fme/approval/${ID}`],
+    ['another page of the tenant', `/tenants/acme/protocol/openid-connect/logout`],
+    ['a traversal', `/tenants/acme/approval/${ID}/../../x`],
+    ['a trailing path', `/tenants/acme/approval/${ID}/x`],
+  ])('refuses %s', (_label, value) => {
+    expect(safeReturnTo(value)).toBe('/console/');
+  });
+});
