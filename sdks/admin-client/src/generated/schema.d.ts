@@ -3548,7 +3548,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                     scheme?: "light" | "dark";
                 };
                 header?: never;
@@ -3595,7 +3595,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                     scheme?: "light" | "dark";
                 };
                 header?: never;
@@ -3618,7 +3618,7 @@ export interface paths {
                              * @description The page kind the preview shows.
                              * @enum {string}
                              */
-                            kind: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                            kind: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                             /**
                              * @description Where the scope’s own layer comes from: its `draft`, its `published` version when it has no draft, or `none` when it has neither.
                              * @enum {string}
@@ -3911,7 +3911,7 @@ export interface paths {
                             /** @description One section per package that fills pages, each with the page kinds it fills, and last the section of mail messages, which has no page kinds. The list is the same for every tenant and holds a few hundred messages in all. */
                             sections: {
                                 /** @description The page kinds filled from this section; empty for the mail messages. A template of one of them may name, in `{{t "key"}}`, only a key of its own section. */
-                                kinds: ("sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice")[];
+                                kinds: ("sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice")[];
                                 /** @description Every message of the section in key order. A message override may name the key of any section, mail included. */
                                 messages: {
                                     /** @description The key a template names in `{{t "key"}}` and an override is set under. */
@@ -5473,7 +5473,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                     scheme?: "light" | "dark";
                 };
                 header?: never;
@@ -5522,7 +5522,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                     scheme?: "light" | "dark";
                 };
                 header?: never;
@@ -5547,7 +5547,7 @@ export interface paths {
                              * @description The page kind the preview shows.
                              * @enum {string}
                              */
-                            kind: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                            kind: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                             /**
                              * @description Where the scope’s own layer comes from: its `draft`, its `published` version when it has no draft, or `none` when it has neither.
                              * @enum {string}
@@ -9176,7 +9176,7 @@ export interface paths {
                 query?: {
                     cursor?: string;
                     limit?: number;
-                    event_type?: "admin_mutation" | "admin_access" | "authentication" | "session" | "token" | "credential";
+                    event_type?: "admin_mutation" | "admin_access" | "agent_identity" | "authentication" | "session" | "token" | "credential";
                     actor_subject_id?: string;
                     resource_type?: string;
                     resource_id?: string;
@@ -9270,7 +9270,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    event_type?: "admin_mutation" | "admin_access" | "authentication" | "session" | "token" | "credential";
+                    event_type?: "admin_mutation" | "admin_access" | "agent_identity" | "authentication" | "session" | "token" | "credential";
                     actor_subject_id?: string;
                     resource_type?: string;
                     resource_id?: string;
@@ -9323,7 +9323,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    event_type?: "admin_mutation" | "admin_access" | "authentication" | "session" | "token" | "credential";
+                    event_type?: "admin_mutation" | "admin_access" | "agent_identity" | "authentication" | "session" | "token" | "credential";
                     actor_subject_id?: string;
                     resource_type?: string;
                     resource_id?: string;

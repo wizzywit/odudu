@@ -9,6 +9,7 @@ export const KIND_DESCRIPTIONS: Record<PageKind, string> = {
   consent: 'The page that asks a person to approve what an app requests.',
   'select-account': 'The page that offers the accounts already signed in at this browser.',
   'logout-confirm': 'The question asked before ending a session at the end-session address.',
+  approval: 'The page a mailed link opens, where a person approves or denies what an agent asks.',
   'totp-enrolment': 'Adding an authenticator app.',
   'passkey-enrolment': 'Adding a passkey.',
   'recovery-codes': 'Showing the new recovery codes once.',
