@@ -128,13 +128,15 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
       return rows[0]?.n ?? 0;
     },
 
-    // Slides the idle expiry of an instance that has one; a fixed-lifetime
-    // instance has nothing to slide, so it and a lapsed one return false.
+    // Slides the idle expiry of an instance that has one, never backwards: a
+    // request carrying an earlier `now` can take the lock after a later one. A
+    // fixed-lifetime instance has nothing to slide, so it and a lapsed one
+    // return false.
     async touch(id: string, now: Date, idleSeconds: number, sessionEndsAt: Date): Promise<boolean> {
       const rows = await tx
         .update(agentInstances)
         .set({
-          idleExpiresAt: sql`least(${now.toISOString()}::timestamptz + make_interval(secs => ${idleSeconds}), ${sessionEndsAt.toISOString()}::timestamptz)`,
+          idleExpiresAt: sql`least(greatest(idle_expires_at, ${now.toISOString()}::timestamptz + make_interval(secs => ${idleSeconds})), ${sessionEndsAt.toISOString()}::timestamptz)`,
         })
         .where(
           and(

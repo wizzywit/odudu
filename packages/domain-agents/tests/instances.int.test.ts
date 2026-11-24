@@ -127,6 +127,20 @@ describe('agentInstanceRepository', () => {
     });
   });
 
+  it('touch never moves the idle expiry backwards when an earlier request lands last', async () => {
+    await inTenant(async (repo, seeded) => {
+      const idle = await repo.mint(
+        input(seeded, { idleExpiresAt: new Date(NOW.getTime() + 60_000) }),
+      );
+      const later = new Date(NOW.getTime() + 10_000);
+      expect(await repo.touch(idle.id, later, 1_800, IN_AN_HOUR)).toBe(true);
+      expect(await repo.touch(idle.id, NOW, 1_800, IN_AN_HOUR)).toBe(true);
+      expect((await repo.byId(idle.id))?.idleExpiresAt).toEqual(
+        new Date(later.getTime() + 1_800_000),
+      );
+    });
+  });
+
   it('touch refuses a revoked, an idle-expired and a fixed-lifetime instance', async () => {
     await inTenant(async (repo, seeded) => {
       const revoked = await repo.mint(input(seeded, { idleExpiresAt: IN_AN_HOUR }));
