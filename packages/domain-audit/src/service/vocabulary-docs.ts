@@ -16,6 +16,10 @@ export const AUDIT_EVENT_TYPE_DOCS: Record<AuditEventType, string> = {
   admin_access:
     'A refusal at the admin API door: an authenticated caller without the capability, or a ' +
     'genuine token from another tenant.',
+  agent_identity:
+    'The life of an agent instance and its delegations: minted, expired or revoked, a delegation ' +
+    'created or revoked, and the approvals and backchannel (CIBA) requests an owner is asked to ' +
+    'answer. Always stored, whatever the tenant\u2019s `audit_event_types` says.',
   authentication:
     'An answer to a sign-in step or to client authentication: a password, one-time code, ' +
     'recovery code or passkey, a second factor offered, a lockout tripped.',
@@ -37,6 +41,33 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'The MCP endpoint writes it for a call it serves; for a call made straight to the admin API ' +
     'with a token the endpoint did not sign (`odudu mcp`, or an exchanged token), the admin API writes it before the call runs, ' +
     'and the tool is the route (`admin.get.clients`).',
+  'agent.instance_minted':
+    'An agent instance was minted for its owner under an agent client. `detail` names the ' +
+    'instance, the owner, the agent client and the instance\u2019s depth in its lineage.',
+  'agent.instance_expired':
+    'An agent instance reached its time to live or went idle and stopped being usable.',
+  'agent.instance_revoked':
+    'An agent instance was revoked. `detail.count` is the number of instances the revocation ' +
+    'reached including the cascade to its descendants, and `detail.via` says who revoked it.',
+  'agent.delegation_created':
+    'An owner delegated authority to an agent client, and `detail.depth` is the delegation\u2019s depth.',
+  'agent.delegation_revoked':
+    'A delegation to an agent client was revoked. `detail.count` is the number of delegations ' +
+    'the revocation reached, and `detail.via` says who revoked it.',
+  'agent.approval_requested':
+    'An agent asked its owner to approve an action it may not take unattended. `detail` names the ' +
+    'approval, the instance, the owner and the agent client, never what the action would do.',
+  'agent.approval_decided':
+    'An owner approved or denied a pending approval. `detail.state` says which, and ' +
+    '`detail.via` says where the answer was given.',
+  'agent.approval_expired':
+    'A pending approval passed its time to live with no answer and can no longer be decided.',
+  'ciba.requested':
+    'An agent client started a backchannel authentication request (CIBA, poll mode) for an owner.',
+  'ciba.poll_refused':
+    'A poll of the token endpoint for a backchannel authentication request was refused; `detail.reason` says why.',
+  'ciba.token_issued':
+    'The token endpoint answered a poll of an approved backchannel authentication request with tokens.',
   'token.foreign_issuer':
     'A genuine token issued by another tenant was presented to the admin API.',
   'login.password': 'A password was checked at sign-in.',
