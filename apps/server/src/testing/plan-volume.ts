@@ -56,6 +56,8 @@ export const PLAN_VOLUME = {
   // Live agent instances of other tenants, a hundred grants' worth, above the
   // large-table threshold.
   agentInstancesPerGrant: 60,
+  // Approvals held by tenants other than the plan tenant, above the same threshold.
+  agentApprovals: 6_000,
   consoleRows: 6_000,
   // What a set the admin API replaces whole holds, at the most it may.
   assignments: ASSIGNMENT_LIMIT,
@@ -173,6 +175,14 @@ select id, tenant_id, owner, client, root_grant, 1, 'openid', now() + interval '
   from vol_instances;
 analyze agent_instances;
 drop table vol_instances;
+insert into agent_approvals
+  (id, tenant_id, subject_id, requesting_client_id, kind, summary, action_digest, state, expires_at)
+select gen_random_uuid(), d.id,
+       (select s.id from subjects s where s.tenant_id = d.id limit 1),
+       (select c.id from clients c where c.tenant_id = d.id limit 1),
+       'tool_call', 'Volume ' || g, md5(g::text) || md5('v' || g), 'pending', now() + interval '1 hour'
+  from vol_dynamic_tenant d cross join generate_series(1, ${v.agentApprovals}) g;
+analyze agent_approvals;
 -- Confidential clients that hold an account without the grant, one per tenant
 -- for the first fifty, as the boot check reads them.
 with picked as (
@@ -307,6 +317,50 @@ select ${t}, s.id, r.id
   join roles r on r.client_id = (select id from clients where tenant_id = ${t} and client_id = 'odudu-admin')
               and r.name = 'view-users'
  where s.n % 5 = 3;
+
+-- The plan tenant's own agents and approvals, more than a page of each, held by
+-- three owners in every state, and one lineage, with the grants its instances
+-- acted in, for the revocation to walk.
+create temp table vol_plan_grant as select gen_random_uuid() id;
+insert into token_grants (id, tenant_id, client_id, subject_id, scope)
+select id, ${t}, ${c0}, (select id from vol_subjects where n = 1), 'openid' from vol_plan_grant;
+create temp table vol_plan_instances as
+select gen_random_uuid() id, g, (select id from vol_subjects where n = 1 + g % 3) owner
+  from generate_series(1, ${v.fanOut}) g;
+insert into subjects (id, tenant_id, type) select id, ${t}, 'agent_instance' from vol_plan_instances;
+insert into agent_instances
+  (id, tenant_id, owner_subject_id, agent_client_id, root_grant_id, depth, scope, expires_at, revoked_at)
+select p.id, ${t}, p.owner, ${c0}, (select id from vol_plan_grant), 1, 'openid',
+       case when p.g % 7 = 0 then now() - interval '1 hour' else now() + interval '1 hour' end,
+       case when p.g % 5 = 0 then now() - interval '2 hours' end
+  from vol_plan_instances p;
+create temp table vol_victim as
+select gen_random_uuid() root, gen_random_uuid() a, gen_random_uuid() b, gen_random_uuid() leaf,
+       gen_random_uuid() actor_grant, (select id from vol_subjects where n = 1) owner,
+       (select id from vol_plan_grant) root_grant;
+insert into subjects (id, tenant_id, type)
+select unnest(array[root, a, b, leaf]), ${t}, 'agent_instance' from vol_victim;
+insert into agent_instances
+  (id, tenant_id, owner_subject_id, agent_client_id, parent_instance_id, root_grant_id, depth, scope, expires_at)
+select root, ${t}::uuid, owner, ${c0}::uuid, null::uuid, root_grant, 1, 'victim', now() + interval '1 hour' from vol_victim
+union all select a, ${t}::uuid, owner, ${c0}::uuid, root, root_grant, 2, 'victim', now() + interval '1 hour' from vol_victim
+union all select b, ${t}::uuid, owner, ${c0}::uuid, root, root_grant, 2, 'victim', now() + interval '1 hour' from vol_victim
+union all select leaf, ${t}::uuid, owner, ${c0}::uuid, a, root_grant, 3, 'victim', now() + interval '1 hour' from vol_victim;
+insert into token_grants (id, tenant_id, client_id, subject_id, scope, actor_subject_id)
+select actor_grant, ${t}, ${c0}, owner, 'openid', a from vol_victim;
+insert into token_grants (id, tenant_id, client_id, subject_id, scope, exchanged_from_grant_id)
+select gen_random_uuid(), ${t}, ${c0}, owner, 'openid', actor_grant from vol_victim;
+insert into agent_approvals
+  (id, tenant_id, subject_id, requesting_client_id, kind, summary, action_digest, state,
+   decided_at, decided_via, expires_at)
+select gen_random_uuid(), ${t}, (select id from vol_subjects where n = 1 + g % 3), ${c0},
+       'tool_call', 'Plan ' || g, md5(g::text) || md5('p' || g), s.state,
+       case when s.state in ('approved', 'denied', 'consumed') then now() end,
+       case when s.state in ('approved', 'denied', 'consumed') then 'console' end,
+       now() + interval '1 hour'
+  from generate_series(1, ${v.fanOut}) g
+ cross join lateral
+   (select (array['pending', 'approved', 'denied', 'expired', 'consumed'])[1 + g % 5] state) s;
 
 insert into client_scope_assignments (tenant_id, client_id, client_scope_id, assignment)
 select ${t}, c.id, a.client_scope_id, a.assignment
@@ -570,10 +624,17 @@ async function assertVolume(connection: {
              where t.name = '${NEAR_LIMIT_TENANT}') near_limit_roles,
            (select count(*) from flows f join tenants t on t.id = f.tenant_id
              where t.name = '${NEAR_LIMIT_TENANT}') near_limit_flows,
-           (select count(*) from agent_instances) agent_instances`);
+           (select count(*) from agent_instances) agent_instances,
+           (select count(*) from agent_approvals) agent_approvals`);
   const row = rows[0];
   if (row === undefined) throw new Error('the volume check read nothing');
-  for (const table of ['role_composites', 'group_roles', 'client_scope_roles', 'agent_instances']) {
+  for (const table of [
+    'role_composites',
+    'group_roles',
+    'client_scope_roles',
+    'agent_instances',
+    'agent_approvals',
+  ]) {
     if (Number(row[table]) <= LARGE_TABLE_ROWS) {
       throw new Error(
         `${table} holds ${String(row[table])} rows, under the ${String(LARGE_TABLE_ROWS)} a scan of it is judged at`,

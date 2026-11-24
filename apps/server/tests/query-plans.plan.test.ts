@@ -19,6 +19,7 @@ import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { ADMIN_ROUTES, COUNT_CAP } from '@odudu/protocol-admin';
 import {
   adminIds,
+  type AdminIds,
   BOUNDED_PAIR,
   adminTokens,
   driveAdmin,
@@ -43,7 +44,7 @@ import { BRANDING_PATHS, driveBranding } from '#/testing/plan-branding-drives';
 import { driveOidc } from '#/testing/plan-oidc-drives';
 import { pathLog, type PathRun } from '#/testing/plan-paths';
 import { LARGE_TABLE_ROWS, ROWS_PER_READ } from '#/testing/plan-volume';
-import { startPlanWorld, type PlanWorld } from '#/testing/plan-world';
+import { startPlanWorld, TARGET_TENANT, type PlanWorld } from '#/testing/plan-world';
 
 // A listing's batched lookups (a page's clients' names, say) are skipped by a
 // page whose rows need none, so the two sizes may differ by a few; a query per
@@ -53,6 +54,7 @@ const BATCHED_LOOKUPS = 2;
 const recorder = new StatementRecorder();
 const log = pathLog(recorder);
 let world: PlanWorld;
+let planIds: AdminIds;
 let budget: PlanBudget;
 let counts: QueryCount[] = [];
 let sizes: ReadSize[] = [];
@@ -77,6 +79,7 @@ beforeAll(async () => {
   await driveAccount(world, log.capture);
   await driveRequiredActions(world, log.capture);
   const ids = await adminIds(world);
+  planIds = ids;
   await driveRepositories(world, world.app.db, ids.subject, log.capture);
   await driveBackground(world, log.capture);
   await driveClientMetadataCache(world, log.capture);
@@ -285,6 +288,55 @@ describe('the count of a tenant’s live agent instances', () => {
     const own = scansOf(await planned(count)).filter((scan) => scan.relation === 'agent_instances');
     expect(own.length).toBeGreaterThan(0);
     expect(own.filter((scan) => scan.node === 'Seq Scan')).toEqual([]);
+  });
+});
+
+// The pages of a tenant's agents and approvals walk an index from the tenant in
+// the order the page is in, so each reads a page and nothing is sorted, whichever
+// of the filters narrows it but one.
+const hasNode = (plan: PlanNode, nodeType: string): boolean =>
+  plan.nodeType === nodeType || plan.children.some((child) => hasNode(child, nodeType));
+
+describe('the lists of agent instances and approvals', () => {
+  const T = `/admin/tenants/${TARGET_TENANT}`;
+  const listed = (query: (ids: AdminIds) => string, table: string): Statement => {
+    const path = `GET ${T}/${query(planIds)}`;
+    const statement = runOf(path).find(
+      (candidate) =>
+        candidate.query.includes(`from "${table}"`) && candidate.query.includes('limit'),
+    );
+    if (statement === undefined) throw new Error(`${path} sent no read of ${table}`);
+    return statement;
+  };
+  const AGENTS: readonly [string, (ids: AdminIds) => string][] = [
+    ['all', () => 'agents'],
+    ['of one state', () => 'agents?state=live'],
+    ['revoked', () => 'agents?state=revoked'],
+    ['expired', () => 'agents?state=expired'],
+    ['of one owner', (ids) => `agents?owner=${ids.subject}`],
+    ['of one owner and state', (ids) => `agents?owner=${ids.subject}&state=live`],
+  ];
+  const APPROVALS: readonly [string, (ids: AdminIds) => string][] = [
+    ['all', () => 'agent-approvals'],
+    ['in one state', () => 'agent-approvals?state=pending'],
+    ['decided', () => 'agent-approvals?state=denied'],
+  ];
+
+  // The lapsed instances are read through the index on their expiry and put in id
+  // order afterwards, a sort of the rows that lapsed and the retention pass has not
+  // yet revoked, which is few unless the pass is scheduled far apart.
+  const SORTS = new Set(['agents expired']);
+  it.each([
+    ...AGENTS.map(([name, query]) => [`agents ${name}`, query, 'agent_instances'] as const),
+    ...APPROVALS.map(([name, query]) => [`approvals ${name}`, query, 'agent_approvals'] as const),
+  ])('reads %s by an index, however many rows other tenants hold', async (name, query, table) => {
+    expect(budget.largeTables.has(table)).toBe(true);
+    const plan = await planned(listed(query, table));
+    const own = scansOf(plan).filter((scan) => scan.relation === table);
+    expect(own.length).toBeGreaterThan(0);
+    expect(own.filter((scan) => scan.node === 'Seq Scan')).toEqual([]);
+    expect(own.every((scan) => scan.index !== undefined)).toBe(true);
+    if (!SORTS.has(name)) expect(hasNode(plan, 'Sort')).toBe(false);
   });
 });
 
