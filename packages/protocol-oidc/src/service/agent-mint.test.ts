@@ -5,7 +5,7 @@ import {
   mayActClaim,
   mintRefusal,
   narrowMayAct,
-  narrowestCeiling,
+  combinedCeiling,
   normaliseScope,
 } from '#/service/agent-mint';
 
@@ -28,13 +28,13 @@ describe('mayActClaim', () => {
   });
 });
 
-describe('narrowestCeiling', () => {
-  it('is unbounded when no delegation names the actor', () => {
-    expect(narrowestCeiling([])).toBeNull();
+describe('combinedCeiling', () => {
+  it('is no ceiling when no delegation names the actor', () => {
+    expect(combinedCeiling([])).toBeNull();
   });
 
   it('is the union of the delegations naming the actor', () => {
-    expect(narrowestCeiling(['a b', 'b c'])).toEqual(['a', 'b', 'c']);
+    expect(combinedCeiling(['a b', 'b c'])).toEqual(['a', 'b', 'c']);
   });
 });
 

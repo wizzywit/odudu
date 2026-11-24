@@ -24,9 +24,10 @@ export function mayActClaim(actors: readonly string[], issuer: string): MayActCl
   return named.map((sub) => ({ sub, iss: issuer }));
 }
 
-// What the subject's delegations to one actor allow together: any of them
-// authorises the actor, so the ceiling is their union. Null is no ceiling.
-export function narrowestCeiling(ceilings: readonly string[]): string[] | null {
+// What the subject's delegations to one actor allow together. Separate
+// delegations are separate permissions, so the ceiling is their union, and
+// the client's own configuration sets no ceiling of its own. Null is none.
+export function combinedCeiling(ceilings: readonly string[]): string[] | null {
   if (ceilings.length === 0) return null;
   return [...new Set(ceilings.flatMap((ceiling) => ceiling.split(' ').filter((s) => s !== '')))];
 }
@@ -111,7 +112,7 @@ export function actorAdmission(input: {
   liveActors: number;
   claimPresent: boolean;
 }): { kind: 'ok'; ceiling: string[] | null } | { kind: 'refused' } {
-  if (input.ceilings.length > 0) return { kind: 'ok', ceiling: narrowestCeiling(input.ceilings) };
+  if (input.ceilings.length > 0) return { kind: 'ok', ceiling: combinedCeiling(input.ceilings) };
   if (input.namedByConfig) return { kind: 'ok', ceiling: null };
   if (input.liveActors === 0 && !input.claimPresent) return { kind: 'ok', ceiling: null };
   return { kind: 'refused' };
