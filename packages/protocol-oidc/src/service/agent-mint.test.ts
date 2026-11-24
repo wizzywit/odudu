@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  actorAdmission,
   instanceExpiry,
   mayActClaim,
   mintRefusal,
@@ -66,10 +67,69 @@ describe('instanceExpiry', () => {
   });
 });
 
+describe('instanceExpiry with a time that is not a time', () => {
+  const now = new Date('2026-01-01T00:00:00Z');
+  const later = new Date(now.getTime() + 5_000_000);
+  const base = { now, ttlSeconds: 900, parentExpiresAt: later, sessionEndsAt: null };
+
+  it.each([
+    ['an Invalid Date parent expiry', { ...base, parentExpiresAt: new Date(Number.NaN) }],
+    ['an Invalid Date session end', { ...base, sessionEndsAt: new Date(Number.NaN) }],
+    ['an Invalid Date now', { ...base, now: new Date(Number.NaN) }],
+    ['an infinite ttl', { ...base, ttlSeconds: Number.POSITIVE_INFINITY }],
+    ['a NaN ttl', { ...base, ttlSeconds: Number.NaN }],
+    ['a zero ttl', { ...base, ttlSeconds: 0 }],
+    ['a negative ttl', { ...base, ttlSeconds: -1 }],
+  ])('has no expiry for %s', (_, input) => {
+    expect(instanceExpiry(input)).toBeNull();
+  });
+});
+
+describe('actorAdmission', () => {
+  const none = { namedByConfig: false, ceilings: [] as string[], liveActors: 0 };
+
+  it('permits any actor when no claim was made and no live source exists', () => {
+    expect(actorAdmission({ ...none, claimPresent: false })).toEqual({ kind: 'ok', ceiling: null });
+  });
+
+  it('refuses an actor a persisted claim names when no live source does', () => {
+    expect(actorAdmission({ ...none, claimPresent: true })).toEqual({ kind: 'refused' });
+  });
+
+  it('refuses an actor no live source names while others are named', () => {
+    expect(actorAdmission({ ...none, liveActors: 2, claimPresent: false })).toEqual({
+      kind: 'refused',
+    });
+  });
+
+  it('has no ceiling when the client configuration alone names the actor', () => {
+    expect(
+      actorAdmission({ ...none, namedByConfig: true, liveActors: 1, claimPresent: true }),
+    ).toEqual({ kind: 'ok', ceiling: null });
+  });
+
+  it('bounds by the delegations alone, whether or not the configuration also names the actor', () => {
+    for (const namedByConfig of [false, true]) {
+      expect(
+        actorAdmission({ namedByConfig, ceilings: ['a b'], liveActors: 1, claimPresent: true }),
+      ).toEqual({ kind: 'ok', ceiling: ['a', 'b'] });
+    }
+  });
+
+  it('keeps an empty ceiling empty rather than unbounded', () => {
+    expect(actorAdmission({ ...none, ceilings: [''], liveActors: 1, claimPresent: true })).toEqual({
+      kind: 'ok',
+      ceiling: [],
+    });
+  });
+});
+
 describe('mintRefusal', () => {
   it.each([
     ['scope_widened', 'invalid_scope'],
     ['parent_not_live', 'invalid_request'],
+    ['invalid_expiry', 'invalid_request'],
+    ['actor_not_permitted', 'access_denied'],
     ['ttl_exceeds_parent', 'invalid_request'],
     ['ttl_exceeds_session', 'invalid_request'],
     ['depth_exceeded', 'invalid_target'],

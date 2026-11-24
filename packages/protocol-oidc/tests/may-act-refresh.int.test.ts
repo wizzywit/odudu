@@ -117,6 +117,27 @@ describe('the owner delegations', () => {
     ]);
   });
 
+  it('name every delegated actor once, however many delegations there are', async () => {
+    const clientId = 'many-delegations-owner';
+    const dbId = await addClient(stack, { clientId, delegatedActors: [PERMITTED] });
+    const second = await addClient(stack, { clientId: 'second-delegate' });
+    const subject = (await login(stack, OPEN_CLIENT)).subjectId;
+    for (const actor of [delegateDbId, second, second]) {
+      await withTenant(stack.app.db, stack.tenantId, (tx) =>
+        tx.execute(
+          sql`insert into agent_delegations
+                (tenant_id, id, subject_id, client_id, actor_client_id, scope_ceiling, expires_at)
+              values (${stack.tenantId}, ${newId()}, ${subject}, ${dbId},
+                      ${actor}, 'openid', now() + interval '1 day')`,
+        ),
+      );
+    }
+    const claims = decode((await login(stack, clientId)).accessToken);
+    expect(claims.may_act).toEqual(
+      [DELEGATE, PERMITTED, 'second-delegate'].sort().map((sub) => ({ sub, iss: claims.iss })),
+    );
+  });
+
   it('bound the scope of an instance minted for the delegated actor', async () => {
     const owner = await login(stack, OWNER_CLIENT, 'openid profile');
     const broad = await exchange(stack, DELEGATE, owner.accessToken, { scope: 'openid profile' });
@@ -126,3 +147,97 @@ describe('the owner delegations', () => {
     expect(narrow.statusCode).toBe(200);
   });
 });
+
+describe.each(['access', 'refresh'] as const)(
+  'an actor needs a live source at the exchange (%s subject token)',
+  (kind) => {
+    let counter = 0;
+
+    async function ownerWith(delegatedActors: string[], scope = 'openid profile') {
+      counter += 1;
+      const clientId = `live-owner-${kind}-${String(counter)}`;
+      const dbId = await addClient(stack, { clientId, delegatedActors });
+      return { clientId, dbId, scope };
+    }
+
+    async function delegation(ownerDbId: string, ceiling: string): Promise<string> {
+      const subjectId = (await login(stack, OPEN_CLIENT)).subjectId;
+      const id = newId();
+      await withTenant(stack.app.db, stack.tenantId, (tx) =>
+        tx.execute(
+          sql`insert into agent_delegations
+                (tenant_id, id, subject_id, client_id, actor_client_id, scope_ceiling, expires_at)
+              values (${stack.tenantId}, ${id}, ${subjectId}, ${ownerDbId},
+                      ${delegateDbId}, ${ceiling}, now() + interval '1 day')`,
+        ),
+      );
+      return id;
+    }
+
+    async function exchangeAsDelegate(owner: { clientId: string; scope: string }) {
+      const signedIn = await login(stack, owner.clientId, owner.scope);
+      return {
+        signedIn,
+        send: (requested?: string) =>
+          exchange(
+            stack,
+            DELEGATE,
+            kind === 'access' ? signedIn.accessToken : signedIn.refreshToken,
+            {
+              type: kind,
+              ...(requested === undefined ? {} : { scope: requested }),
+            },
+          ),
+      };
+    }
+
+    it('refuses once the delegation that named the actor is revoked', async () => {
+      const owner = await ownerWith([]);
+      const id = await delegation(owner.dbId, 'openid');
+      const { signedIn, send } = await exchangeAsDelegate(owner);
+      expect(decode(signedIn.accessToken).may_act).toBeDefined();
+      await withTenant(stack.app.db, stack.tenantId, (tx) =>
+        tx.execute(sql`update agent_delegations set revoked_at = now() where id = ${id}`),
+      );
+      const res = await send();
+      expect(res.statusCode).toBe(400);
+      expect(res.json<{ error: string }>().error).toBe('invalid_request');
+    });
+
+    it('refuses once the delegation that named the actor has expired', async () => {
+      const owner = await ownerWith([]);
+      const id = await delegation(owner.dbId, 'openid');
+      const { send } = await exchangeAsDelegate(owner);
+      const lapsed = new Date(stack.clock.now().getTime() - 3_600_000);
+      await withTenant(stack.app.db, stack.tenantId, (tx) =>
+        tx.execute(
+          sql`update agent_delegations
+                 set expires_at = ${lapsed.toISOString()}::timestamptz,
+                     created_at = ${lapsed.toISOString()}::timestamptz - interval '1 day'
+               where id = ${id}`,
+        ),
+      );
+      const res = await send();
+      expect(res.statusCode).toBe(400);
+      expect(res.json<{ error: string }>().error).toBe('invalid_request');
+    });
+
+    it('lets an actor the client configuration names mint within the subject scope', async () => {
+      const owner = await ownerWith([DELEGATE]);
+      const { send } = await exchangeAsDelegate(owner);
+      const res = await send('openid profile');
+      expect(res.statusCode).toBe(200);
+      expect(res.json<{ scope: string }>().scope).toBe('openid profile');
+    });
+
+    it('applies the delegation ceiling when the configuration names the actor too', async () => {
+      const owner = await ownerWith([DELEGATE]);
+      await delegation(owner.dbId, 'openid');
+      const { send } = await exchangeAsDelegate(owner);
+      const broad = await send('openid profile');
+      expect(broad.statusCode).toBe(400);
+      expect(broad.json<{ error: string }>().error).toBe('invalid_scope');
+      expect((await send('openid')).statusCode).toBe(200);
+    });
+  },
+);

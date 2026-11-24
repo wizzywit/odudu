@@ -1,10 +1,17 @@
-import { withTenant } from '@odudu/db';
+import { signingKeyRepository, signJwt } from '@odudu/crypto';
+import { tenants, withTenant } from '@odudu/db';
+import { agentInstanceRepository } from '@odudu/domain-agents';
+import { subjectRepository } from '@odudu/domain-identity';
+import { clientRepository, clients } from '@odudu/domain-tenant';
+import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { tokenGrantRepository } from '#/repository/grants';
+import { applyAgentLayer } from '#/usecase/agent-layer';
 import {
   addClient,
   decode,
+  KEK,
   exchange,
   login,
   startAgentStack,
@@ -192,5 +199,206 @@ describe('an agent-type client exchanging', () => {
     } finally {
       await setting('agent_max_children', 20);
     }
+  });
+});
+
+async function count(query: ReturnType<typeof sql>): Promise<number> {
+  const rows = await stack.owner.db.execute(query);
+  return Number((rows as unknown as { n: string }[])[0]?.n);
+}
+
+const instanceCount = () => count(sql`select count(*) as n from agent_instances`);
+const instanceSubjectCount = () =>
+  count(sql`select count(*) as n from subjects where type = 'agent_instance'`);
+
+async function firstInstance(owner: { accessToken: string }) {
+  const res = await exchange(stack, AGENT, owner.accessToken);
+  const token = res.json<{ access_token: string }>().access_token;
+  return { token, id: (decode(token).act as { sub: string }).sub };
+}
+
+// The same token, signed by the tenant's own key, naming another actor.
+async function withActHead(token: string, head: string): Promise<string> {
+  const key = await withTenant(stack.app.db, stack.tenantId, (tx) =>
+    signingKeyRepository(tx).active(),
+  );
+  return signJwt({ ...decode(token), act: { sub: head } }, { key, kek: KEK, typ: 'at+jwt' });
+}
+
+async function foreignInstance(): Promise<string> {
+  const tenantId = newId();
+  return withTenant(stack.app.db, tenantId, async (tx) => {
+    await tx.insert(tenants).values({ id: tenantId, name: `foreign-${tenantId}` });
+    const clientDbId = newId();
+    await tx.insert(clients).values({
+      id: clientDbId,
+      tenantId,
+      clientId: `foreign-${clientDbId}`,
+      name: 'foreign',
+      type: 'confidential',
+      secretHash: 'hashed:secret',
+    });
+    const ownerSubject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    const grantId = newId();
+    await tx.execute(
+      sql`insert into token_grants (id, tenant_id, client_id, subject_id, scope)
+          values (${grantId}, ${tenantId}, ${clientDbId}, ${ownerSubject.id}, 'openid')`,
+    );
+    const instance = await agentInstanceRepository(tx).mint({
+      id: newId(),
+      tenantId,
+      ownerSubjectId: ownerSubject.id,
+      agentClientId: clientDbId,
+      parentInstanceId: null,
+      rootGrantId: grantId,
+      depth: 1,
+      scope: 'openid',
+      expiresAt: new Date(Date.now() + 3_600_000),
+      idleExpiresAt: null,
+    });
+    return instance.id;
+  });
+}
+
+describe('a nested exchange whose act head is not a live instance of this client', () => {
+  async function refusedWithNoNewInstance(token: string): Promise<void> {
+    const before = await instanceCount();
+    const res = await exchange(stack, AGENT, token);
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_request');
+    expect(await instanceCount()).toBe(before);
+  }
+
+  it('is refused when the instance row is gone', async () => {
+    const owner = await login(stack, AGENT);
+    const { token, id } = await firstInstance(owner);
+    await stack.owner.db.execute(sql`delete from agent_instances where id = ${id}`);
+    await refusedWithNoNewInstance(token);
+  });
+
+  it('is refused when the instance was revoked', async () => {
+    const owner = await login(stack, AGENT);
+    const { token, id } = await firstInstance(owner);
+    await stack.owner.db.execute(
+      sql`update agent_instances set revoked_at = now() where id = ${id}`,
+    );
+    await refusedWithNoNewInstance(token);
+  });
+
+  it('is refused when the instance belongs to another tenant', async () => {
+    const owner = await login(stack, AGENT);
+    const { token } = await firstInstance(owner);
+    await refusedWithNoNewInstance(await withActHead(token, await foreignInstance()));
+  });
+
+  it('is refused when the head is neither an instance id nor this client', async () => {
+    const owner = await login(stack, AGENT);
+    const { token } = await firstInstance(owner);
+    await refusedWithNoNewInstance(await withActHead(token, PLAIN));
+  });
+});
+
+describe('the lifetime of a minted instance', () => {
+  async function expiryOf(id: string): Promise<Date> {
+    const row = await instanceRow(id);
+    return new Date(String(row?.expires_at));
+  }
+
+  it('ends with the subject token when that is the earliest bound', async () => {
+    const owner = await login(stack, AGENT);
+    const { id } = await firstInstance(owner);
+    const exp = Number(decode(owner.accessToken).exp) * 1000;
+    expect((await expiryOf(id)).getTime()).toBe(exp);
+  });
+
+  it('ends with the owner session when that is earlier', async () => {
+    const owner = await login(stack, AGENT);
+    const end = new Date(stack.clock.now().getTime() + 100_000);
+    await stack.owner.db.execute(
+      sql`update sessions set expires_at = ${end.toISOString()}::timestamptz
+           where id = (select session_id from token_grants where id = ${owner.grantId})`,
+    );
+    const { id } = await firstInstance(owner);
+    expect((await expiryOf(id)).getTime()).toBe(end.getTime());
+  });
+
+  it('never outlives its parent instance', async () => {
+    const owner = await login(stack, AGENT);
+    const first = await firstInstance(owner);
+    const res = await exchange(stack, AGENT, first.token);
+    const child = (decode(res.json<{ access_token: string }>().access_token).act as { sub: string })
+      .sub;
+    expect((await expiryOf(child)).getTime()).toBeLessThanOrEqual(
+      (await expiryOf(first.id)).getTime(),
+    );
+  });
+});
+
+describe('minting under concurrency and refusal', () => {
+  it('lets exactly one of two concurrent nested exchanges take the last child slot', async () => {
+    await setting('agent_max_children', 2);
+    try {
+      const owner = await login(stack, AGENT);
+      const first = await firstInstance(owner);
+      expect((await exchange(stack, AGENT, first.token)).statusCode).toBe(200);
+      const [a, b] = await Promise.all([
+        exchange(stack, AGENT, first.token),
+        exchange(stack, AGENT, first.token),
+      ]);
+      expect([a.statusCode, b.statusCode].sort()).toEqual([200, 400]);
+    } finally {
+      await setting('agent_max_children', 20);
+    }
+  });
+
+  it('leaves no instance and no instance subject when the exchange is refused after the mint', async () => {
+    const owner = await login(stack, AGENT);
+    const instances = await instanceCount();
+    const subjects = await instanceSubjectCount();
+    const res = await exchange(stack, AGENT, owner.accessToken, {
+      extra: { audience: 'https://not-registered.example' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(await instanceCount()).toBe(instances);
+    expect(await instanceSubjectCount()).toBe(subjects);
+  });
+
+  it('refuses to mint when the owner session is gone before the mint', async () => {
+    const owner = await login(stack, AGENT);
+    const outcome = await withTenant(stack.app.db, stack.tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(AGENT);
+      if (client === null) throw new Error('no agent client');
+      return applyAgentLayer(
+        tx,
+        {
+          tenantId: stack.tenantId,
+          lifespans: {
+            ssoSessionIdleSeconds: 3600,
+            ssoSessionMaxSeconds: 3600,
+            rememberMeIdleSeconds: 3600,
+            rememberMeMaxSeconds: 3600,
+          },
+        },
+        {
+          client,
+          agentType: true,
+          subject: {
+            subjectId: owner.subjectId,
+            scope: ['openid'],
+            sessionId: newId(),
+            grantId: owner.grantId,
+            clientDbId: client.id,
+            requestedUserinfoClaims: null,
+            act: undefined,
+            mayAct: undefined,
+            expiresAt: new Date(stack.clock.now().getTime() + 300_000),
+          },
+          actorSubject: AGENT,
+          requestedScope: ['openid'],
+          now: stack.clock.now(),
+        },
+      );
+    });
+    expect(outcome).toMatchObject({ kind: 'refused', invariant: 'parent_not_live' });
   });
 });

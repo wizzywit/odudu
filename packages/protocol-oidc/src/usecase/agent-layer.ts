@@ -11,11 +11,13 @@ import {
 import { auditRepository } from '@odudu/domain-audit';
 import { clientRepository, readAgentSettings, type ClientRecord } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
+import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { tokenGrantRepository } from '#/repository/grants';
 import {
+  actorAdmission,
   instanceExpiry,
   mayActClaim,
   mintRefusal,
-  narrowestCeiling,
   normaliseScope,
   type MayActClaim,
   type MintInvariant,
@@ -50,7 +52,7 @@ export type AgentLayerOutcome =
     }
   | { kind: 'refused'; error: MintRefusalError; invariant: MintInvariant };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 function refuse(invariant: MintInvariant): AgentLayerOutcome {
   return { kind: 'refused', error: mintRefusal(invariant).error, invariant };
@@ -72,33 +74,62 @@ function isLive(instance: AgentInstanceRecord, now: Date): boolean {
   );
 }
 
-// What the subject's delegations to the exchanging client allow, or null when
-// no delegation names it and the client's own configuration is the only grant.
-async function delegationCeiling(
+// The most exchange hops walked back to the grant a person signed in with.
+const MAX_GRANT_HOPS = 16;
+
+// The client the person signed in through: the grant at the root of the
+// exchange chain, whose configured actors and delegations bound who may act.
+async function signInClient(
   tx: TenantScopedDatabase,
-  input: AgentLayerInput,
-): Promise<string[] | null> {
-  const delegations = await agentDelegationRepository(tx).activeFor(
-    input.subject.subjectId,
-    input.subject.clientDbId,
-    input.now,
-  );
-  return narrowestCeiling(
-    delegations
-      .filter((delegation) => delegation.actorClientId === input.client.id)
-      .map((delegation) => delegation.scopeCeiling),
-  );
+  grantId: string,
+): Promise<ClientRecord | null> {
+  let id = grantId;
+  for (let hop = 0; hop < MAX_GRANT_HOPS; hop += 1) {
+    const grant = await tokenGrantRepository(tx).byId(id);
+    if (grant === null) return null;
+    if (grant.exchangedFromGrantId === null) return clientRepository(tx).byId(grant.clientId);
+    id = grant.exchangedFromGrantId;
+  }
+  return null;
 }
 
+// Whether the exchanging client may act now, from the sign-in client's own
+// configuration and the owner's live delegations, never from a claim alone.
+async function liveCeiling(
+  tx: TenantScopedDatabase,
+  input: AgentLayerInput,
+  rootGrantId: string,
+): Promise<{ kind: 'ok'; ceiling: string[] | null } | { kind: 'refused' }> {
+  const source = await signInClient(tx, rootGrantId);
+  if (source === null) return { kind: 'refused' };
+  const config = await clientOidcConfigRepository(tx).byClientId(source.id);
+  const configured = config?.delegatedActors ?? [];
+  const delegations = await agentDelegationRepository(tx).activeFor(
+    input.subject.subjectId,
+    source.id,
+    input.now,
+  );
+  return actorAdmission({
+    namedByConfig: configured.includes(input.client.clientId),
+    ceilings: delegations
+      .filter((delegation) => delegation.actorClientId === input.client.id)
+      .map((delegation) => delegation.scopeCeiling),
+    liveActors: configured.length + delegations.length,
+    claimPresent: input.subject.mayAct !== undefined,
+  });
+}
+
+// Null for a grant no session bounds; 'gone' when the session it names has
+// ended or vanished, in which case nothing may be minted from it.
 async function sessionEnd(
   tx: TenantScopedDatabase,
   deps: AgentLayerDeps,
   subject: ResolvedExchangeToken,
   now: Date,
-): Promise<Date | null> {
+): Promise<Date | null | 'gone'> {
   if (subject.sessionId === null) return null;
   const session = await sessionRepository(tx).liveById(subject.sessionId, deps.lifespans, now);
-  return session?.expiresAt ?? now;
+  return session?.expiresAt ?? 'gone';
 }
 
 interface Parent {
@@ -109,23 +140,20 @@ interface Parent {
 }
 
 // Takes the row lock a mint serialises on, then counts what is already
-// there, so two exchanges at the last free slot cannot both be admitted.
+// there, so two exchanges at the last free slot cannot both be admitted. A
+// head that looks like an instance id must be a live instance of this client
+// in this tenant; only no head, or the client's own id, starts a new lineage.
 async function resolveParent(
   tx: TenantScopedDatabase,
   input: AgentLayerInput,
-  ceiling: string[] | null,
 ): Promise<Parent | null> {
   const repo = agentInstanceRepository(tx);
   const { subject, client, now } = input;
-  const scope =
-    ceiling === null
-      ? [...subject.scope]
-      : subject.scope.filter((entry) => ceiling.includes(entry));
   const head = headOfAct(subject.act);
-  const named = head !== null && UUID.test(head) ? await repo.byId(head) : null;
+  if (subject.act !== undefined && head === null) return null;
 
-  if (named !== null) {
-    const parent = await repo.lockForUpdate(named.id);
+  if (head !== null && UUID.test(head)) {
+    const parent = await repo.lockForUpdate(head);
     if (parent?.agentClientId !== client.id || !isLive(parent, now)) return null;
     return {
       node: {
@@ -139,11 +167,17 @@ async function resolveParent(
       expiresAt: parent.expiresAt,
     };
   }
+  if (head !== null && head !== client.clientId) return null;
 
   if (subject.grantId === null || !(await repo.lockGrant(subject.grantId))) return null;
   const expiresAt = subject.expiresAt ?? new Date(now.getTime() + 3_600_000);
   return {
-    node: { scope, expiresAt, depth: 0, liveChildren: await repo.liveRoots(subject.grantId, now) },
+    node: {
+      scope: [...subject.scope],
+      expiresAt,
+      depth: 0,
+      liveChildren: await repo.liveRoots(subject.grantId, now),
+    },
     instanceId: null,
     rootGrantId: subject.grantId,
     expiresAt,
@@ -169,21 +203,30 @@ export async function applyAgentLayer(
   const scope = normaliseScope(input.requestedScope);
   if (scope === null) return refuse('scope_widened');
 
-  const ceiling = await delegationCeiling(tx, input);
-  const parent = await resolveParent(tx, input, ceiling);
+  const parent = await resolveParent(tx, input);
   if (parent === null) return refuse('parent_not_live');
+
+  const actor = await liveCeiling(tx, input, parent.rootGrantId);
+  if (actor.kind === 'refused') return refuse('actor_not_permitted');
+  const ceiling = actor.ceiling;
+  const bounded: AgentNode =
+    ceiling === null
+      ? parent.node
+      : { ...parent.node, scope: parent.node.scope.filter((entry) => ceiling.includes(entry)) };
 
   const settings = await readAgentSettings(tx, deps.tenantId);
   const sessionEndsAt = await sessionEnd(tx, deps, input.subject, input.now);
+  if (sessionEndsAt === 'gone') return refuse('parent_not_live');
   const expiresAt = instanceExpiry({
     now: input.now,
     ttlSeconds: settings.agentInstanceTtlSeconds,
     parentExpiresAt: parent.expiresAt,
     sessionEndsAt,
   });
+  if (expiresAt === null) return refuse('invalid_expiry');
   const maxDepth = Math.min(settings.agentMaxDelegationDepth, STRUCTURAL_MAX_DEPTH);
   const admission = admitChild(
-    parent.node,
+    bounded,
     { scope, expiresAt },
     {
       maxDepth,
@@ -246,14 +289,9 @@ export async function mayActFor(
     input.clientDbId,
     input.now,
   );
-  const named = await Promise.all(
-    delegations.map(async (delegation) => {
-      const actor = await clientRepository(tx).byId(delegation.actorClientId);
-      return actor?.clientId ?? null;
-    }),
+  const actors = await clientRepository(tx).byIds(
+    delegations.map((delegation) => delegation.actorClientId),
   );
-  return mayActClaim(
-    [...input.delegatedActors, ...named.filter((id): id is string => id !== null)],
-    input.issuer,
-  );
+  const named = actors.map((actor) => actor.clientId);
+  return mayActClaim([...input.delegatedActors, ...named], input.issuer);
 }

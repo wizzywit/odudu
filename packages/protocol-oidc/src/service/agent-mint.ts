@@ -1,6 +1,11 @@
 import { type Invariant } from '@odudu/domain-agents';
 
-export type MintInvariant = Invariant | 'live_instances_exceeded' | 'parent_not_live';
+export type MintInvariant =
+  | Invariant
+  | 'live_instances_exceeded'
+  | 'parent_not_live'
+  | 'invalid_expiry'
+  | 'actor_not_permitted';
 
 export interface MayActActor {
   sub: string;
@@ -32,12 +37,21 @@ export function normaliseScope(scope: readonly string[]): string[] | null {
   return [...new Set(scope)];
 }
 
+// Null when any input is not a usable time: every comparison with an Invalid
+// Date is false, so one would be admitted by a check written as `a > b`.
 export function instanceExpiry(input: {
   now: Date;
   ttlSeconds: number;
   parentExpiresAt: Date;
   sessionEndsAt: Date | null;
-}): Date {
+}): Date | null {
+  const usable =
+    Number.isFinite(input.ttlSeconds) &&
+    input.ttlSeconds > 0 &&
+    [input.now, input.parentExpiresAt, input.sessionEndsAt].every(
+      (time) => time === null || Number.isFinite(time.getTime()),
+    );
+  if (!usable) return null;
   const bounds = [
     input.now.getTime() + input.ttlSeconds * 1000,
     input.parentExpiresAt.getTime(),
@@ -46,7 +60,8 @@ export function instanceExpiry(input: {
   return new Date(Math.min(...bounds));
 }
 
-export type MintRefusalError = 'invalid_request' | 'invalid_target' | 'invalid_scope';
+export type MintRefusalError =
+  'invalid_request' | 'invalid_target' | 'invalid_scope' | 'access_denied';
 
 // The OAuth answer for an invariant the mint refused. A caller never learns
 // more than the invariant's name, and no row of another tenant is involved.
@@ -55,9 +70,12 @@ export function mintRefusal(invariant: MintInvariant): { error: MintRefusalError
     case 'scope_widened':
       return { error: 'invalid_scope' };
     case 'parent_not_live':
+    case 'invalid_expiry':
     case 'ttl_exceeds_parent':
     case 'ttl_exceeds_session':
       return { error: 'invalid_request' };
+    case 'actor_not_permitted':
+      return { error: 'access_denied' };
     case 'depth_exceeded':
     case 'fanout_exceeded':
     case 'live_instances_exceeded':
@@ -80,4 +98,21 @@ export function narrowMayAct(value: unknown): MayActClaim | undefined {
     return actors.every((entry) => entry !== null) ? actors : [];
   }
   return actor(value) ?? [];
+}
+
+// Whether the exchanging client may act, from what is live now rather than
+// from the `may_act` a token or grant carries. A claim naming the actor with
+// no live source behind it is refused: the source was revoked or lapsed, and
+// treating that as "no ceiling" would widen the scope the delegation bounded.
+// A null ceiling means the client configuration alone names the actor.
+export function actorAdmission(input: {
+  namedByConfig: boolean;
+  ceilings: readonly string[];
+  liveActors: number;
+  claimPresent: boolean;
+}): { kind: 'ok'; ceiling: string[] | null } | { kind: 'refused' } {
+  if (input.ceilings.length > 0) return { kind: 'ok', ceiling: narrowestCeiling(input.ceilings) };
+  if (input.namedByConfig) return { kind: 'ok', ceiling: null };
+  if (input.liveActors === 0 && !input.claimPresent) return { kind: 'ok', ceiling: null };
+  return { kind: 'refused' };
 }

@@ -1225,6 +1225,7 @@ async function issueExchangedTokens(
       invalid_scope: [invalidScope(), 'invalid_scope'],
       invalid_target: [invalidTarget(), 'invalid_target'],
       invalid_request: [invalidRequest(), 'invalid_grant'],
+      access_denied: [invalidRequest(), 'subject_mismatch'],
     } as const;
     const [error, reason] = failure[layer.error];
     throw withAudit(error, {
