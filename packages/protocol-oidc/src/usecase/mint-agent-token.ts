@@ -76,9 +76,9 @@ type RunInstance =
 // The instance for one run of the owner's grant: the one the run's key already
 // has, kept alive by this use, or a new one minted through the same agent layer
 // an exchange uses. The grant row is locked first so two first calls with one
-// key cannot both mint. A key whose instance has ended is spent and refused.
-// A session the grant names that is gone by now is an ended owner, not a run
-// without a session.
+// key cannot both mint. A key whose instance has ended is spent until its
+// tombstone is reaped, and refused. A session the grant names that is gone by
+// now is an ended owner, not a run without a session.
 async function instanceForRun(
   tx: TenantScopedDatabase,
   deps: MintAgentTokenDeps,
@@ -187,7 +187,7 @@ export async function mintAgentToken(
     const endedRun =
       ended && grant !== null && client !== null ? await runIdFor(tx, input, grant, client) : null;
     if (endedRun !== null) {
-      // The instance-revoked audit event is recorded here by a later change.
+      // The run's instance ends with its owner.
       await agentInstanceRepository(tx).revoke(endedRun, input.now);
       throw new AgentTokenRefused('owner_ended');
     }

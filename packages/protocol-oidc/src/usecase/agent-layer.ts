@@ -41,9 +41,10 @@ export interface AgentLayerInput {
   requestedScope: readonly string[];
   now: Date;
   // A run's instance: it keeps the id the caller derived for the run and
-  // lasts as long as the owner's session and its parent, with an idle expiry
-  // that slides on use, rather than the fixed lifetime an exchange's gets.
-  // A grant with no session bounds it at SESSIONLESS_RUN_SECONDS.
+  // lasts at most as long as the session, subject to the idle limit and the
+  // parent's expiry, with an idle expiry that slides on use, rather than the
+  // fixed lifetime an exchange's gets. A grant with no session bounds it at
+  // SESSIONLESS_RUN_SECONDS.
   run?: { instanceId: string; idleSeconds: number };
 }
 
@@ -166,7 +167,9 @@ interface Parent {
 }
 
 // Takes the row lock a mint serialises on, then counts what is already
-// there, so two exchanges at the last free slot cannot both be admitted. A
+// there, so two exchanges under the same parent cannot both take its last
+// free slot. The tenant's live-instance cap is checked without a lock of its
+// own and can be exceeded by the number of mints in flight at once. A
 // head that looks like an instance id must be a live instance of this client
 // in this tenant; only no head, or the client's own id, starts a new lineage.
 async function resolveParent(

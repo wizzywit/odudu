@@ -86,7 +86,8 @@ export async function rotateRefreshToken(
   }
 
   // An instance that ended takes the family's refresh with it, as its
-  // session ending would: the token was consumed above and stays consumed.
+  // session ending would: the token was consumed above and stays consumed. A
+  // named actor that no longer exists fails closed the same way.
   if (await actingInstanceEnded(tx, narrowActClaim(grant.actChain)?.sub, now))
     return { kind: 'revoked' };
 
