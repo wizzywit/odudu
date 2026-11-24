@@ -23,6 +23,7 @@ import {
   type MintInvariant,
   type MintRefusalError,
 } from '#/service/agent-mint';
+import { isLive } from '#/usecase/acting-instance';
 import { type ResolvedExchangeToken } from '#/usecase/token-exchange-subject';
 
 export interface AgentLayerDeps {
@@ -40,9 +41,10 @@ export interface AgentLayerInput {
   requestedScope: readonly string[];
   now: Date;
   // A run's instance: it keeps the id the caller derived for the run and
-  // lasts as long as the owner's session and its parent, with an idle expiry
-  // that slides on use, rather than the fixed lifetime an exchange's gets.
-  // A grant with no session bounds it at SESSIONLESS_RUN_SECONDS.
+  // lasts at most as long as the session, subject to the idle limit and the
+  // parent's expiry, with an idle expiry that slides on use, rather than the
+  // fixed lifetime an exchange's gets. A grant with no session bounds it at
+  // SESSIONLESS_RUN_SECONDS.
   run?: { instanceId: string; idleSeconds: number };
 }
 
@@ -69,14 +71,6 @@ function headOfAct(act: unknown): string | null {
   if (typeof act !== 'object' || act === null) return null;
   const sub = (act as { sub?: unknown }).sub;
   return typeof sub === 'string' ? sub : null;
-}
-
-export function isLive(instance: AgentInstanceRecord, now: Date): boolean {
-  return (
-    instance.revokedAt === null &&
-    instance.expiresAt.getTime() > now.getTime() &&
-    (instance.idleExpiresAt === null || instance.idleExpiresAt.getTime() > now.getTime())
-  );
 }
 
 // The absolute lifetime of a run's instance on a grant with no session, fixed
@@ -113,17 +107,18 @@ async function liveCeiling(
   if (source === null) return { kind: 'refused' };
   const config = await clientOidcConfigRepository(tx).byClientId(source.id);
   const configured = config?.delegatedActors ?? [];
-  const delegations = await agentDelegationRepository(tx).activeFor(
+  const delegations = agentDelegationRepository(tx);
+  const own = await delegations.activeForActor(
     input.subject.subjectId,
     source.id,
+    input.client.id,
     input.now,
   );
+  const anyLive = await delegations.hasActive(input.subject.subjectId, source.id, input.now);
   return actorAdmission({
     namedByConfig: configured.includes(input.client.clientId),
-    ceilings: delegations
-      .filter((delegation) => delegation.actorClientId === input.client.id)
-      .map((delegation) => delegation.scopeCeiling),
-    liveActors: configured.length + delegations.length,
+    ceilings: own.map((delegation) => delegation.scopeCeiling),
+    liveActors: configured.length + (anyLive ? 1 : 0),
     claimPresent: input.subject.mayAct !== undefined,
   });
 }
@@ -152,7 +147,9 @@ interface Parent {
 }
 
 // Takes the row lock a mint serialises on, then counts what is already
-// there, so two exchanges at the last free slot cannot both be admitted.
+// there, so two exchanges under the same parent cannot both take its last
+// free slot. The tenant's live-instance cap is checked without a lock of its
+// own and can be exceeded by the number of mints in flight at once.
 // Lock order, here and in every transaction that touches both: the grant
 // first, the instance second, which is the order a revoke takes them in.
 // A head that looks like an instance id must be a live instance of this client
@@ -166,7 +163,7 @@ async function resolveParent(
   const head = headOfAct(subject.act);
   if (subject.act !== undefined && head === null) return null;
 
-  if (head !== null && UUID.test(head)) {
+  if (head !== null && head !== client.clientId && UUID.test(head)) {
     if (subject.grantId !== null && !(await tokenGrantRepository(tx).lockLive(subject.grantId))) {
       return null;
     }
@@ -193,11 +190,13 @@ async function resolveParent(
 
   if (subject.grantId === null || !(await repo.lockGrant(subject.grantId))) return null;
   const expiresAt = subject.expiresAt ?? new Date(now.getTime() + 3_600_000);
+  // The client's own marker is a link of the `act` chain the new instance joins,
+  // so it counts as a level, as `buildActChain` counts it.
   return {
     node: {
       scope: [...subject.scope],
       expiresAt,
-      depth: 0,
+      depth: head === null ? 0 : 1,
       liveChildren: await repo.liveRoots(subject.grantId, now),
     },
     instanceId: null,
@@ -318,7 +317,9 @@ export async function applyAgentLayer(
 
 // Who may act for `subjectId` in a grant made through `clientDbId`: the
 // client's configured actors and the subject's active delegations together.
-// Without either, no claim is made and today's rule (anyone may) stands.
+// Without either, no claim is made and today's rule (anyone may) stands. Past
+// the newest 200 delegations an older actor is left out of the claim, which
+// refuses it rather than admitting it.
 export async function mayActFor(
   tx: TenantScopedDatabase,
   input: {

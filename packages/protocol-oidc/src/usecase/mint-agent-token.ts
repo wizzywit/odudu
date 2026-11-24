@@ -19,7 +19,8 @@ import {
 } from '#/service/agent-token-rules';
 import { runInstanceId } from '#/service/agent-mint';
 import { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
-import { applyAgentLayer, isLive, SESSIONLESS_RUN_SECONDS } from '#/usecase/agent-layer';
+import { isLive } from '#/usecase/acting-instance';
+import { applyAgentLayer, SESSIONLESS_RUN_SECONDS } from '#/usecase/agent-layer';
 import { mintSubjectAccessToken, type AccessTokenDeps } from '#/usecase/token-issuance';
 
 // A refusal names its reason for a log and a test; the MCP layer answers its
@@ -71,10 +72,15 @@ async function ownerEnabled(tx: TenantScopedDatabase, grant: TokenGrantRecord | 
   return grant !== null && subjectIsEnabled(await subjectRepository(tx).byId(grant.subjectId));
 }
 
+type RunInstance =
+  { kind: 'ok'; id: string; expiresAt: Date } | { kind: 'owner_ended' } | { kind: 'refused' };
+
 // The instance for one run of the owner's grant: the one the run's key already
 // has, kept alive by this use, or a new one minted through the same agent layer
 // an exchange uses. The grant row is locked first so two first calls with one
-// key cannot both mint. A key whose instance has ended is spent and refused.
+// key cannot both mint. A key whose instance has ended is spent until its
+// tombstone is reaped, and refused. A session the grant names that is gone by
+// now is an ended owner, not a run without a session.
 async function instanceForRun(
   tx: TenantScopedDatabase,
   deps: MintAgentTokenDeps,
@@ -82,7 +88,7 @@ async function instanceForRun(
   client: ClientRecord,
   input: MintAgentTokenInput,
   instanceId: string,
-): Promise<string | null> {
+): Promise<RunInstance> {
   const repo = agentInstanceRepository(tx);
   await repo.lockGrant(grant.id);
   const { agentInstanceIdleSeconds } = await readAgentSettings(tx, deps.tenantId);
@@ -90,10 +96,11 @@ async function instanceForRun(
     grant.sessionId === null
       ? null
       : await sessionRepository(tx).liveById(grant.sessionId, deps.lifespans, input.now);
+  if (grant.sessionId !== null && session === null) return { kind: 'owner_ended' };
 
   const existing = await repo.lockForUpdate(instanceId);
   if (existing !== null) {
-    if (!isLive(existing, input.now)) return null;
+    if (!isLive(existing, input.now)) return { kind: 'refused' };
     // Only an instance with an idle expiry slides; a fixed-lifetime one is live
     // as it is and has nothing to extend.
     if (existing.idleExpiresAt !== null) {
@@ -104,7 +111,7 @@ async function instanceForRun(
         session?.expiresAt ?? existing.expiresAt,
       );
     }
-    return existing.id;
+    return { kind: 'ok', id: existing.id, expiresAt: existing.expiresAt };
   }
 
   const parent = input.run?.parentInstanceId;
@@ -132,7 +139,9 @@ async function instanceForRun(
       run: { instanceId, idleSeconds: agentInstanceIdleSeconds },
     },
   );
-  return layer.kind === 'ok' ? (layer.instance?.id ?? null) : null;
+  return layer.kind === 'ok' && layer.instance !== null
+    ? { kind: 'ok', id: layer.instance.id, expiresAt: layer.instance.expiresAt }
+    : { kind: 'refused' };
 }
 
 // The instance id of the call's run, or null when it has no run or the client
@@ -210,7 +219,7 @@ export async function mintAgentToken(
     const ended = refusal === 'session_ended' || refusal === 'subject_disabled';
     const endedRun =
       ended && grant !== null && client !== null ? await runIdFor(tx, input, grant, client) : null;
-    if (endedRun !== null && client !== null) {
+    if (endedRun !== null) {
       await revokeEndedRun(tx, endedRun, client, input.now);
       throw new AgentTokenRefused('owner_ended');
     }
@@ -219,10 +228,16 @@ export async function mintAgentToken(
 
   const runId = await runIdFor(tx, input, grant, client);
   let actSub = client.clientId;
+  let expCeiling = input.notAfter;
   if (runId !== null) {
     const instance = await instanceForRun(tx, deps, grant, client, input, runId);
-    if (instance === null) throw new AgentTokenRefused('run_refused');
-    actSub = instance;
+    if (instance.kind === 'owner_ended') {
+      await revokeEndedRun(tx, runId, client, input.now);
+      throw new AgentTokenRefused('owner_ended');
+    }
+    if (instance.kind === 'refused') throw new AgentTokenRefused('run_refused');
+    actSub = instance.id;
+    expCeiling = new Date(Math.min(expCeiling.getTime(), instance.expiresAt.getTime()));
   }
 
   const { accessToken, exp } = await mintSubjectAccessToken(
@@ -239,7 +254,7 @@ export async function mintAgentToken(
       grantId: grant.id,
       act: { sub: actSub },
       endpointMinted: true,
-      expCeiling: input.notAfter,
+      expCeiling,
     },
     input.now,
   );

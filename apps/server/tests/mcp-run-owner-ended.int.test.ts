@@ -22,6 +22,10 @@ import { mcpDepsFor } from '#/mcp-deps';
 // A run whose owner ended is refused through the server's own mint, and the
 // revocation it made is kept.
 
+let containerHandle: TestDatabase | undefined;
+let ownerHandle: DatabaseHandle | undefined;
+let appDbHandle: DatabaseHandle | undefined;
+let appHandle: FastifyInstance | undefined;
 let container: TestDatabase;
 let owner: DatabaseHandle;
 let appDb: DatabaseHandle;
@@ -32,17 +36,20 @@ const KEK = Buffer.alloc(32, 7);
 const BASE = 'https://id.example.com';
 
 beforeAll(async () => {
-  container = await startTestDatabase();
-  owner = createDatabase(container.adminUrl);
+  containerHandle = await startTestDatabase();
+  container = containerHandle;
+  ownerHandle = createDatabase(container.adminUrl);
+  owner = ownerHandle;
   await runMigrations(owner.db, MIGRATIONS_DIR);
   const appUrl = await createAppRole(container.adminUrl);
-  appDb = createDatabase(appUrl, { max: 5 });
+  appDbHandle = createDatabase(appUrl, { max: 5 });
+  appDb = appDbHandle;
   process.env.ODUDU_DATABASE_URL = container.adminUrl;
   process.env.ODUDU_APP_DATABASE_URL = appUrl;
   process.env.ODUDU_KEK = KEK.toString('base64');
   const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' });
   const logger = createLogger(config);
-  app = buildApp({
+  appHandle = buildApp({
     database: appDb,
     ownerDatabase: owner,
     kek: KEK,
@@ -51,6 +58,7 @@ beforeAll(async () => {
     publicBaseUrl: BASE,
     throttle: { limit: 100_000, windowSeconds: 60 },
   });
+  app = appHandle;
   await app.ready();
   const real = mcpDepsFor({
     app,
@@ -65,13 +73,22 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await app.close();
   delete process.env.ODUDU_DATABASE_URL;
   delete process.env.ODUDU_APP_DATABASE_URL;
   delete process.env.ODUDU_KEK;
-  await appDb.close();
-  await owner.close();
-  await container.stop();
+  try {
+    await appHandle?.close();
+  } finally {
+    try {
+      await appDbHandle?.close();
+    } finally {
+      try {
+        await ownerHandle?.close();
+      } finally {
+        await containerHandle?.stop();
+      }
+    }
+  }
 });
 
 const world = () => mcpWorld(appDb, BASE, ['manage-clients']);
@@ -140,6 +157,7 @@ describe('the server mint of an agent run', () => {
     const [before] = (await owner.db.execute(
       sql`select id, revoked_at from agent_instances where tenant_id = ${w.tenantId}`,
     )) as unknown as { id: string; revoked_at: Date | null }[];
+    expect(before).toBeDefined();
     expect(before?.revoked_at).toBeNull();
 
     await endSession(w);
@@ -153,7 +171,8 @@ describe('the server mint of an agent run', () => {
       );
       return (rows as unknown as { revoked_at: Date | null }[])[0];
     });
-    expect(after?.revoked_at).not.toBeNull();
+    expect(after).toBeDefined();
+    expect(Number.isNaN(Date.parse(String(after?.revoked_at)))).toBe(false);
   });
 
   it('writes nothing for a refusal of a call with no run', async () => {

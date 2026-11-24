@@ -1127,7 +1127,7 @@ describeFields(tenantSettingsDocumentSchema, {
   agent_max_children:
     'How many live child instances one instance may have, 1 to 200. 20 by default.',
   agent_max_live_instances:
-    'How many live agent instances the tenant may hold at once, 1 to 100000. 1000 by default.',
+    'How many live agent instances the tenant may hold at once, 1 to 100000. 1000 by default. Approximate: mints in flight at the same moment can pass it by their number.',
   agent_instance_ttl_seconds:
     'How long an agent instance lives, in seconds, 60 to 86400, and never past the owner’s session. 900 by default.',
   agent_instance_idle_seconds:

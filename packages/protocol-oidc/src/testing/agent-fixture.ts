@@ -11,7 +11,7 @@ import {
 } from '@odudu/db';
 import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
-import { FakeClock, newId } from '@odudu/kernel';
+import { type ClaimMapperRegistry, FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
@@ -19,6 +19,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { type ClaimContext } from '#/service/claims';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { noBreachedLookup } from '#/testing/breached-check';
@@ -40,13 +41,45 @@ export interface AgentStack {
   stop: () => Promise<void>;
 }
 
-export async function startAgentStack(): Promise<AgentStack> {
+// Runs every closer, the first to the last, even when one throws, and rethrows
+// the first failure.
+async function stopAll(closers: readonly (() => Promise<unknown>)[]): Promise<void> {
+  const [first, ...rest] = closers;
+  if (first === undefined) return;
+  try {
+    await first();
+  } finally {
+    await stopAll(rest);
+  }
+}
+
+export async function startAgentStack(
+  options: { claimMappers?: ClaimMapperRegistry<ClaimContext> } = {},
+): Promise<AgentStack> {
+  // Newest first, so a failed setup stops what it acquired in reverse.
+  const closers: (() => Promise<unknown>)[] = [];
+  try {
+    return await buildStack(options, closers);
+  } catch (error) {
+    await stopAll(closers).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function buildStack(
+  options: { claimMappers?: ClaimMapperRegistry<ClaimContext> },
+  closers: (() => Promise<unknown>)[],
+): Promise<AgentStack> {
   const container: TestDatabase = await startTestDatabase();
+  closers.unshift(() => container.stop());
   const owner = createDatabase(container.adminUrl);
+  closers.unshift(() => owner.close());
   await runMigrations(owner.db, MIGRATIONS_DIR);
   const app = createDatabase(await createAppRole(container.adminUrl), { max: 8 });
+  closers.unshift(() => app.close());
   const clock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
   const http = Fastify();
+  closers.unshift(() => http.close());
   await http.register(formbody);
   await http.register(
     oidcRoutes({
@@ -59,6 +92,7 @@ export async function startAgentStack(): Promise<AgentStack> {
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
+      ...(options.claimMappers === undefined ? {} : { claimMappers: options.claimMappers }),
     }),
   );
   await http.ready();
@@ -96,12 +130,7 @@ export async function startAgentStack(): Promise<AgentStack> {
     clock,
     tenantName,
     tenantId,
-    stop: async () => {
-      await http.close();
-      await app.close();
-      await owner.close();
-      await container.stop();
-    },
+    stop: () => stopAll(closers),
   };
 }
 

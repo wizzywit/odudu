@@ -131,7 +131,7 @@ class GetAdminTenantsTenantExportResponse200Settings:
         agent_max_children (int): How many live child instances one instance may have, 1 to 200. 20 by default. Default:
             20.
         agent_max_live_instances (int): How many live agent instances the tenant may hold at once, 1 to 100000. 1000 by
-            default. Default: 1000.
+            default. Approximate: mints in flight at the same moment can pass it by their number. Default: 1000.
         agent_instance_ttl_seconds (int): How long an agent instance lives, in seconds, 60 to 86400, and never past the
             owner’s session. 900 by default. Default: 900.
         agent_instance_idle_seconds (int): How long an agent instance may sit idle before it ends, in seconds, 60 to
