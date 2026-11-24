@@ -2,7 +2,6 @@ import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import {
   addressPath,
-  isDomainAddress,
   isUuid,
   pathAddress,
   systemClock,
@@ -65,20 +64,18 @@ function unavailable(reply: FastifyReply, deps: ApprovalRouteDeps, tenant: strin
   );
 }
 
+// 403 and not 401 for a deployment with nowhere to send the person: there is
+// no scheme to challenge with, the session is a cookie another door sets.
 async function signIn(
   reply: FastifyReply,
   deps: ApprovalRouteDeps,
   request: FastifyRequest<{ Params: Params }>,
 ): Promise<FastifyReply> {
   const { tenant, id } = request.params;
-  // The way back is a path on the console's own origin, so a tenant served at
-  // a domain of its own, whose session cookie lives on that domain, has none.
-  const location = isDomainAddress(tenantAddressOf(request))
-    ? null
-    : deps.signIn(tenant, addressPath(pathAddress('', tenant), `/approval/${id}`));
+  const location = deps.signIn(tenant, addressPath(pathAddress('', tenant), `/approval/${id}`));
   if (location === null) {
     const locale = await brandedRequestLocale(deps, reply, tenant);
-    return sendHtml(reply, 401, renderApprovalSignInPage(locale));
+    return sendHtml(reply, 403, renderApprovalSignInPage(locale));
   }
   return reply.header('cache-control', 'no-store').redirect(location, 302);
 }
@@ -118,7 +115,7 @@ export function registerApprovalRoute(app: FastifyInstance, routeDeps: ApprovalR
           address: tenantAddressOf(request),
           approvalId: shown.details.approvalId,
           csrf: shown.csrf,
-          tenant: request.params.tenant,
+          tenant: shown.details.tenant,
           agent: shown.details.agent,
           summary: shown.details.summary,
           bindingMessage: shown.details.bindingMessage,

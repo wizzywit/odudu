@@ -1,7 +1,8 @@
 import { type PresentedSession } from '@odudu/authn-flows';
-import { type TenantScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { agentApprovalRepository } from '@odudu/domain-agents';
 import { clientRepository } from '@odudu/domain-tenant';
+import { eq } from 'drizzle-orm';
 import { cibaRequestRepository } from '#/repository/ciba-requests';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { decideApproval } from '#/usecase/approvals';
@@ -11,7 +12,8 @@ import { decideApproval } from '#/usecase/approvals';
 // confirmation's, proves nothing here.
 export const APPROVAL_DECISION = 'approval-decision';
 
-// A browser can present many; the owner's is among the few it signed in last.
+// A browser can present many sessions; showing considers this many of them,
+// while a decision searches all, for the one that proves the form's token.
 const MOST_SESSIONS_CONSIDERED = 10;
 
 // What the page route reads of a tenant: whether it answers, the lifespans its
@@ -30,6 +32,8 @@ export type ApprovalTenant = Pick<
 
 export interface ApprovalDetails {
   readonly approvalId: string;
+  // The tenant's display name, or its name where it has none.
+  readonly tenant: string;
   readonly agent: string;
   readonly summary: string;
   readonly bindingMessage: string | null;
@@ -55,10 +59,15 @@ async function pendingFor(
   ) {
     return null;
   }
+  const [tenant] = await tx
+    .select({ name: tenants.name, displayName: tenants.displayName })
+    .from(tenants)
+    .where(eq(tenants.id, approval.tenantId));
   const client = await clientRepository(tx).byId(approval.requestingClientId);
   const request = await cibaRequestRepository(tx).byApprovalId(approval.id);
   return {
     approvalId: approval.id,
+    tenant: tenant?.displayName ?? tenant?.name ?? '',
     agent: client?.name ?? '',
     summary: approval.summary,
     bindingMessage: request?.bindingMessage ?? null,

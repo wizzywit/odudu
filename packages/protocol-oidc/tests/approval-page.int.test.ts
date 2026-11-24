@@ -20,6 +20,7 @@ import { CIBA_GRANT, hashAuthReqId } from '#/service/ciba';
 import { noBreachedLookup } from '#/testing/breached-check';
 import { seedCibaWorld, CIBA_KEK, type CibaClient, type CibaWorld } from '#/testing/ciba-fixture';
 import { signedInCookie } from '#/testing/signed-in-cookie';
+import { requestApproval } from '#/usecase/approvals';
 import { APPROVAL_DECISION } from '#/usecase/approval-page';
 
 let container: TestDatabase;
@@ -173,6 +174,16 @@ describe('the approval page', () => {
     expect(res.headers['x-frame-options']).toBe('DENY');
     expect(res.headers['content-security-policy']).not.toContain('script-src');
     expect(res.headers['cache-control']).toContain('no-store');
+  });
+
+  it('[ODUDU-APPROVAL-PAGE-02b] names the tenant by its display name, escaped', async () => {
+    await owner.db.execute(
+      sql`update tenants set display_name = 'Pages & Co <Ltd>' where id = ${world.tenantId}`,
+    );
+    const opened = await open(world);
+    const res = await get(opened.path, aliceCookie);
+    expect(res.body).toContain('Pages &amp; Co &lt;Ltd&gt;');
+    expect(res.body).not.toContain(`<bdi>${world.tenant}</bdi>`);
   });
 
   it('[ODUDU-APPROVAL-PAGE-03] escapes a message with markup once and carries no script', async () => {
@@ -337,5 +348,112 @@ describe('the approval page', () => {
     const both = `${world.tenant}-session=${bobCookie.split('=')[1] ?? ''}.${aliceCookie.split('=')[1] ?? ''}`;
     const res = await get(opened.path, both);
     expect(res.statusCode).toBe(200);
+  });
+});
+
+describe('the approval page for a person at the pending limit', () => {
+  it('[ODUDU-APPROVAL-PAGE-16] still shows and decides an approval they already hold', async () => {
+    const full = await seedCibaWorld(app, 'page-cap');
+    const cookie = await signedInCookie(app, full, full.alice.subjectId, clock.now());
+    const held = await open(full);
+    for (let i = 0; i < 19; i += 1) {
+      await withTenant(app.db, full.tenantId, (tx) =>
+        requestApproval(
+          tx,
+          { tenantId: full.tenantId },
+          {
+            subjectId: full.alice.subjectId,
+            requestingClientId: full.other.dbId,
+            instanceId: null,
+            kind: 'tool_call',
+            summary: 'Something else',
+            actionDigest: 'b'.repeat(64),
+            now: clock.now(),
+          },
+        ),
+      );
+    }
+    const refused = await http.inject({
+      method: 'POST',
+      url: `/tenants/${full.tenant}/protocol/openid-connect/bc-authorize`,
+      headers: { ...FORM, ...basic(full.agent) },
+      payload: form({ scope: 'openid', login_hint: 'alice' }),
+    });
+    expect(refused.statusCode).toBe(200);
+    const page = await get(`/tenants/${full.tenant}/approval/${held.approvalId}`, cookie);
+    expect(page.statusCode).toBe(200);
+    const res = await post(
+      `/tenants/${full.tenant}/approval/${held.approvalId}`,
+      { decision: 'approve', csrf: csrfOf(page) },
+      cookie,
+    );
+    expect(res.statusCode).toBe(200);
+    expect((await stateOf(held.approvalId))[0]?.state).toBe('approved');
+  });
+});
+
+describe('what the generic page leaves out', () => {
+  it('[ODUDU-APPROVAL-PAGE-18] is one whole response, headers included, for every approval that is not the signed-in owner’s pending one', async () => {
+    const decided = await open(world);
+    const token = csrfOf(await get(decided.path, aliceCookie));
+    await post(decided.path, { decision: 'deny', csrf: token }, aliceCookie);
+    const expiring = await open(world, { requested_expiry: '30' });
+    const theirs = await open(await seedCibaWorld(app, 'page-foreign'));
+    const mine = await open(world);
+    clock.advance(31_000);
+    const answers = [
+      await get(MISSING, aliceCookie),
+      await get(`/tenants/${world.tenant}/approval/not-an-id`, aliceCookie),
+      await get(mine.path, bobCookie),
+      await get(`/tenants/${world.tenant}/approval/${theirs.approvalId}`, aliceCookie),
+      await get(expiring.path, aliceCookie),
+      await get(decided.path, aliceCookie),
+    ];
+    const whole = (res: LightMyRequestResponse) => {
+      const headers = Object.fromEntries(
+        Object.entries(res.headers).filter(([name]) => name !== 'date'),
+      );
+      return { status: res.statusCode, headers, body: res.body };
+    };
+    const [first] = answers;
+    if (first === undefined) throw new Error('no answers');
+    for (const res of answers) {
+      expect(whole(res)).toEqual(whole(first));
+      expect(res.headers['set-cookie']).toBeUndefined();
+    }
+  });
+});
+
+describe('a deployment with no sign-in to send a person to', () => {
+  it('[ODUDU-APPROVAL-PAGE-17] answers a person with no session with 403 and a page that says to sign in, naming no approval', async () => {
+    const bare = Fastify();
+    await bare.register(formbody);
+    await bare.register(
+      oidcRoutes({
+        breachedPasswordCheck: noBreachedLookup,
+        tls: false,
+        database: app,
+        ownerDatabase: owner,
+        kek: CIBA_KEK,
+        clock,
+        clientSecretLimiter: { check: () => ({ allowed: true, retryAfterSeconds: 0 }) },
+        auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
+        clientKeySet: NO_CLIENT_KEY_FETCHER,
+        cibaLimiter: { check: () => ({ allowed: true, retryAfterSeconds: 0 }) },
+      }),
+    );
+    await bare.ready();
+    try {
+      const opened = await open(world);
+      for (const method of ['GET', 'POST'] as const) {
+        const res = await bare.inject({ method, url: opened.path, payload: '' });
+        expect(res.statusCode).toBe(403);
+        expect(res.headers.location).toBeUndefined();
+        expect(res.body).toContain('Sign in to continue');
+        expect(res.body).not.toContain(opened.approvalId);
+      }
+    } finally {
+      await bare.close();
+    }
   });
 });

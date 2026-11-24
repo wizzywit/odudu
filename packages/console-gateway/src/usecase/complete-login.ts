@@ -1,12 +1,12 @@
 import { unwrapSecret, verifyJwtClaims, wrapSecret } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
-import { ADMIN_CLIENT_ID } from '@odudu/domain-tenant';
+import { ADMIN_CLIENT_ID, baseIsTls } from '@odudu/domain-tenant';
 import { consoleLoginRepository, type ConsoleLoginRecord } from '#/repository/console-logins';
 import { consoleSessionRepository } from '#/repository/console-sessions';
-import { tenantNameRepository } from '#/repository/tenants';
+import { canonicalHostById, tenantNameRepository } from '#/repository/tenants';
 import { subjectOfIdToken } from '#/service/id-token';
 import { type Caller, type TokenSet } from '#/service/odudu-port';
-import { safeReturnTo } from '#/service/return-to';
+import { signInDestination } from '#/service/return-to';
 import {
   bindToTenant,
   randomSecret,
@@ -237,6 +237,11 @@ async function admitTokens(
   return {
     kind: 'signed-in',
     sessionCookie: bindToTenant(login.tenantId, secret),
-    location: safeReturnTo(login.returnTo),
+    location: await signInDestination(
+      login.returnTo,
+      tenantName,
+      () => canonicalHostById(deps.database.db, login.tenantId),
+      baseIsTls(deps.base.origin),
+    ),
   };
 }
