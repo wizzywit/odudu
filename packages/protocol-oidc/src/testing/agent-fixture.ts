@@ -41,15 +41,45 @@ export interface AgentStack {
   stop: () => Promise<void>;
 }
 
+// Runs every closer, the first to the last, even when one throws, and rethrows
+// the first failure.
+async function stopAll(closers: readonly (() => Promise<unknown>)[]): Promise<void> {
+  const [first, ...rest] = closers;
+  if (first === undefined) return;
+  try {
+    await first();
+  } finally {
+    await stopAll(rest);
+  }
+}
+
 export async function startAgentStack(
   options: { claimMappers?: ClaimMapperRegistry<ClaimContext> } = {},
 ): Promise<AgentStack> {
+  // Newest first, so a failed setup stops what it acquired in reverse.
+  const closers: (() => Promise<unknown>)[] = [];
+  try {
+    return await buildStack(options, closers);
+  } catch (error) {
+    await stopAll(closers).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function buildStack(
+  options: { claimMappers?: ClaimMapperRegistry<ClaimContext> },
+  closers: (() => Promise<unknown>)[],
+): Promise<AgentStack> {
   const container: TestDatabase = await startTestDatabase();
+  closers.unshift(() => container.stop());
   const owner = createDatabase(container.adminUrl);
+  closers.unshift(() => owner.close());
   await runMigrations(owner.db, MIGRATIONS_DIR);
   const app = createDatabase(await createAppRole(container.adminUrl), { max: 8 });
+  closers.unshift(() => app.close());
   const clock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
   const http = Fastify();
+  closers.unshift(() => http.close());
   await http.register(formbody);
   await http.register(
     oidcRoutes({
@@ -100,12 +130,7 @@ export async function startAgentStack(
     clock,
     tenantName,
     tenantId,
-    stop: async () => {
-      await http.close();
-      await app.close();
-      await owner.close();
-      await container.stop();
-    },
+    stop: () => stopAll(closers),
   };
 }
 

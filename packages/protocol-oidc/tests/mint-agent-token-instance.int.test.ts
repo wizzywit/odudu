@@ -521,16 +521,17 @@ describe('a run whose owner has ended', () => {
     ).toBe('owner_ended');
     const [row] = await instancesOf(w);
     expect(row).toMatchObject({ id });
-    expect(row?.revoked_at).not.toBeNull();
+    expect(Number.isNaN(Date.parse(String(row?.revoked_at)))).toBe(false);
   });
 
   it('is refused owner_ended and its instance revoked once the owner is disabled', async () => {
     const w = await newWorld({ agentType: true });
-    await mint(w, { run: { key: 'conv-1' } });
+    const id = actOf((await mint(w, { run: { key: 'conv-1' } })).accessToken);
     await owner.db.execute(sql`update subjects set disabled_at = now() where id = ${w.subjectId}`);
     expect(await refusedWith(w, { run: { key: 'conv-1' } })).toBe('owner_ended');
     const [row] = await instancesOf(w);
-    expect(row?.revoked_at).not.toBeNull();
+    expect(row).toMatchObject({ id });
+    expect(Number.isNaN(Date.parse(String(row?.revoked_at)))).toBe(false);
   });
 
   it('revokes the instances beneath the run too', async () => {
