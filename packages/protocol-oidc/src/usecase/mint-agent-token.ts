@@ -18,7 +18,8 @@ import {
 } from '#/service/agent-token-rules';
 import { runInstanceId } from '#/service/agent-mint';
 import { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
-import { applyAgentLayer, isLive, SESSIONLESS_RUN_SECONDS } from '#/usecase/agent-layer';
+import { isLive } from '#/usecase/acting-instance';
+import { applyAgentLayer, SESSIONLESS_RUN_SECONDS } from '#/usecase/agent-layer';
 import { mintSubjectAccessToken, type AccessTokenDeps } from '#/usecase/token-issuance';
 
 // A refusal names its reason for a log and a test; the MCP layer answers its

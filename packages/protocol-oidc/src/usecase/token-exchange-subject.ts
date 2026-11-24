@@ -9,7 +9,7 @@ import { refreshTokenRepository } from '#/repository/refresh';
 import { clientIsLive } from '#/service/client-enabled';
 import { hashRefreshToken } from '#/service/refresh';
 import { narrowActClaim, type ExchangeTokenType } from '#/service/token-exchange';
-import { actingInstanceEnded } from '#/usecase/agent-layer';
+import { actingInstanceEnded } from '#/usecase/acting-instance';
 import { subjectOfIdTokenHint } from '#/usecase/authorization-request';
 
 export interface ResolvedExchangeToken {

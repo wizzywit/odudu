@@ -6,7 +6,7 @@ import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants
 import { refreshTokenRepository } from '#/repository/refresh';
 import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { narrowActClaim } from '#/service/token-exchange';
-import { actingInstanceEnded } from '#/usecase/agent-layer';
+import { actingInstanceEnded } from '#/usecase/acting-instance';
 
 export type RotationOutcome =
   | { readonly kind: 'rotated'; readonly grant: TokenGrantRecord; readonly next: string }
