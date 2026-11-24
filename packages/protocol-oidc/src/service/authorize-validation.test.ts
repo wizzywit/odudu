@@ -67,6 +67,8 @@ const config: ClientOidcConfig = {
   requireAuthTime: false,
   allowedActions: [],
   flowId: null,
+  agentType: false,
+  delegatedActors: [],
 };
 
 // One list stands for both halves of the rule these tests exercise: the

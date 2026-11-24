@@ -55,6 +55,10 @@ export const tokenGrants = pgTable('token_grants', {
   // the root's id for a grant an exchange made. No foreign key on purpose: a
   // root deleted by the reaper must leave a name that matches nothing.
   budgetGrantId: uuid('budget_grant_id'),
+  // Who may act for the subject of this grant, as the `may_act` claim
+  // (RFC 8693 §4.4); an untyped boundary, narrowed at the point of use.
+  // Null when nothing named an actor.
+  mayAct: jsonb('may_act'),
 }).enableRLS();
 
 export interface TokenGrantRecord {
@@ -75,4 +79,5 @@ export interface TokenGrantRecord {
   actChain: unknown;
   expCeiling: Date | null;
   requestedUserinfoClaims: string[] | null;
+  mayAct: unknown;
 }
