@@ -1,5 +1,6 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { agentInstanceRepository } from '@odudu/domain-agents';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
 import {
@@ -147,6 +148,37 @@ async function runIdFor(
   return config?.agentType === true ? runInstanceId(grant.tenantId, grant.id, input.run.key) : null;
 }
 
+// Revokes a run's instance and what was minted beneath it, and says so in the
+// audit trail unless the run had already been revoked.
+async function revokeEndedRun(
+  tx: TenantScopedDatabase,
+  instanceId: string,
+  client: ClientRecord,
+  now: Date,
+): Promise<void> {
+  const instances = agentInstanceRepository(tx);
+  const instance = await instances.byId(instanceId);
+  const count = await instances.revoke(instanceId, now);
+  if (instance === null || count === 0) return;
+  await auditRepository(tx).record({
+    eventType: 'agent_identity',
+    action: 'agent.instance_revoked',
+    outcome: 'allowed',
+    actorSubjectId: instance.ownerSubjectId,
+    actorClientId: client.id,
+    resourceType: 'agent_instance',
+    resourceId: instance.id,
+    detail: {
+      agent_client: client.clientId,
+      owner: instance.ownerSubjectId,
+      instance: instance.id,
+      depth: instance.depth,
+      count,
+      via: 'owner_ended',
+    },
+  });
+}
+
 // The admin-audience token an agent acts with for the person whose grant it
 // holds. Its only caller is the MCP layer, which has already validated the
 // MCP-audience token, so there is no client authentication and no /token
@@ -178,9 +210,8 @@ export async function mintAgentToken(
     const ended = refusal === 'session_ended' || refusal === 'subject_disabled';
     const endedRun =
       ended && grant !== null && client !== null ? await runIdFor(tx, input, grant, client) : null;
-    if (endedRun !== null) {
-      // The instance-revoked audit event is recorded here by a later change.
-      await agentInstanceRepository(tx).revoke(endedRun, input.now);
+    if (endedRun !== null && client !== null) {
+      await revokeEndedRun(tx, endedRun, client, input.now);
       throw new AgentTokenRefused('owner_ended');
     }
     throw new AgentTokenRefused(refusal ?? 'grant_not_found');

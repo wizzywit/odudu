@@ -518,6 +518,38 @@ describe('a run whose owner has ended', () => {
     expect(all.every((entry) => entry.revoked_at !== null)).toBe(true);
   });
 
+  it('writes agent.instance_revoked for the run, counting what was beneath it', async () => {
+    const w = await newWorld({ agentType: true });
+    const parent = actOf((await mint(w, { run: { key: 'conv-1' } })).accessToken);
+    await mint(w, { run: { key: 'sub-1', parentInstanceId: parent } });
+    await setSessionEnd(w, new Date(NOW.getTime() + 10_000));
+    const later = new Date(NOW.getTime() + 20_000);
+    const args = {
+      run: { key: 'conv-1' },
+      now: later,
+      notAfter: new Date(later.getTime() + 3600_000),
+    };
+    await refusedWith(w, args);
+    await refusedWith(w, args);
+    const audit = await rows(
+      sql`select event_type, resource_id, detail from audit_events
+           where tenant_id = ${w.tenantId} and action = 'agent.instance_revoked'`,
+    );
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      event_type: 'agent_identity',
+      resource_id: parent,
+      detail: {
+        agent_client: AGENT,
+        owner: w.subjectId,
+        instance: parent,
+        depth: 1,
+        count: 2,
+        via: 'owner_ended',
+      },
+    });
+  });
+
   it('leaves the refusals of a call with no run as they were', async () => {
     const w = await newWorld({ agentType: true });
     await setSessionEnd(w, new Date(NOW.getTime() + 10_000));

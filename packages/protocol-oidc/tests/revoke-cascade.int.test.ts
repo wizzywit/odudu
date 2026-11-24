@@ -1,0 +1,535 @@
+import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants, withTenant } from '@odudu/db';
+import type { DatabaseHandle, TenantScopedDatabase } from '@odudu/db';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
+import { provisionTenant, SessionEntry, sessionRepository } from '@odudu/authn-flows';
+import { agentInstanceRepository, STRUCTURAL_MAX_DEPTH } from '@odudu/domain-agents';
+import { subjectRepository } from '@odudu/domain-identity';
+import { clientRepository, provisionClientDefaults } from '@odudu/domain-tenant';
+import { newId } from '@odudu/kernel';
+import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { sql } from 'drizzle-orm';
+import fc from 'fast-check';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { tokenGrantRepository } from '#/repository/grants';
+
+function nth<T>(list: readonly T[], index: number): T {
+  const item = list[index];
+  if (item === undefined) throw new Error(`no item at ${String(index)}`);
+  return item;
+}
+
+const NOW = new Date(Math.floor(Date.now() / 1000) * 1000);
+const LATER = new Date(NOW.getTime() + 60_000);
+
+let containerHandle: TestDatabase | undefined;
+let ownerHandle: DatabaseHandle | undefined;
+let appHandle: DatabaseHandle | undefined;
+let countedHandle: DatabaseHandle | undefined;
+let owner: DatabaseHandle;
+let app: DatabaseHandle;
+let counted: DatabaseHandle;
+let statements: string[] = [];
+
+interface World {
+  tenantId: string;
+  clientDbId: string;
+  subjectId: string;
+  sessionId: string;
+}
+
+async function newWorld(): Promise<World> {
+  const tenantId = newId();
+  return withTenant(app.db, tenantId, (tx) => worldIn(tx, tenantId));
+}
+
+async function worldIn(tx: TenantScopedDatabase, tenantId: string): Promise<World> {
+  {
+    await tx.insert(tenants).values({ id: tenantId, name: `cascade-${newId()}` });
+    await provisionTenant(tx, tenantId);
+    const client = await clientRepository(tx).create({
+      tenantId,
+      clientId: `c-${newId()}`,
+      name: 'c',
+      type: 'public',
+      secretHash: null,
+    });
+    await provisionClientDefaults(tx, client.id);
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    const sessionId = newId();
+    await sessionRepository(tx).create({
+      id: sessionId,
+      tenantId,
+      subjectId: subject.id,
+      expiresAt: new Date(NOW.getTime() + 24 * 3600 * 1000),
+      authenticators: ['pwd'],
+      secretHash: SessionEntry.issue(sessionId).secretHash(),
+    });
+    return { tenantId, clientDbId: client.id, subjectId: subject.id, sessionId };
+  }
+}
+
+async function grant(
+  tx: TenantScopedDatabase,
+  w: World,
+  over: { from?: string | undefined; sessionless?: boolean; actor?: string | undefined } = {},
+): Promise<string> {
+  const id = newId();
+  await tokenGrantRepository(tx).create({
+    id,
+    tenantId: w.tenantId,
+    clientId: w.clientDbId,
+    subjectId: w.subjectId,
+    scope: 'mcp:read',
+    audience: ['https://odudu.test/mcp'],
+    sessionId: over.from === undefined && over.sessionless !== true ? w.sessionId : null,
+    exchangedFromGrantId: over.from ?? null,
+    actorSubjectId: over.actor ?? null,
+  });
+  return id;
+}
+
+async function chain(tx: TenantScopedDatabase, w: World, length: number): Promise<string[]> {
+  const ids: string[] = [];
+  for (let i = 0; i < length; i += 1) {
+    ids.push(await grant(tx, w, { from: ids[i - 1] }));
+  }
+  return ids;
+}
+
+async function twoOf(tx: TenantScopedDatabase, w: World): Promise<[string, string]> {
+  const [a, b] = await chain(tx, w, 2);
+  if (a === undefined || b === undefined) throw new Error('chain is short');
+  return [a, b];
+}
+
+async function instanceAt(
+  tx: TenantScopedDatabase,
+  w: World,
+  rootGrantId: string,
+  parentInstanceId: string | null = null,
+): Promise<string> {
+  const id = newId();
+  await agentInstanceRepository(tx).mint({
+    id,
+    tenantId: w.tenantId,
+    ownerSubjectId: w.subjectId,
+    agentClientId: w.clientDbId,
+    parentInstanceId,
+    rootGrantId,
+    depth: parentInstanceId === null ? 1 : 2,
+    scope: 'mcp:read',
+    expiresAt: new Date(NOW.getTime() + 900_000),
+    idleExpiresAt: null,
+  });
+  return id;
+}
+
+async function grantRevoked(ids: readonly string[]): Promise<boolean[]> {
+  const rows = await owner.db.execute(
+    sql`select id, revoked_at is not null as revoked from token_grants`,
+  );
+  const byId = new Map(
+    (rows as unknown as { id: string; revoked: boolean }[]).map((r) => [r.id, r.revoked]),
+  );
+  return ids.map((id) => byId.get(id) === true);
+}
+
+async function instanceRevoked(ids: readonly string[]): Promise<boolean[]> {
+  const rows = await owner.db.execute(
+    sql`select id, revoked_at is not null as revoked from agent_instances`,
+  );
+  const byId = new Map(
+    (rows as unknown as { id: string; revoked: boolean }[]).map((r) => [r.id, r.revoked]),
+  );
+  return ids.map((id) => byId.get(id) === true);
+}
+
+async function auditRows(w: World) {
+  const rows = await owner.db.execute(
+    sql`select action, event_type, resource_id, detail from audit_events
+         where tenant_id = ${w.tenantId} and action = 'agent.instance_revoked'
+         order by resource_id`,
+  );
+  return rows as unknown as {
+    action: string;
+    event_type: string;
+    resource_id: string;
+    detail: Record<string, unknown>;
+  }[];
+}
+
+beforeAll(async () => {
+  containerHandle = await startTestDatabase();
+  ownerHandle = createDatabase(containerHandle.adminUrl);
+  owner = ownerHandle;
+  await runMigrations(owner.db, MIGRATIONS_DIR);
+  const appUrl = await createAppRole(containerHandle.adminUrl);
+  appHandle = createDatabase(appUrl, { max: 5 });
+  app = appHandle;
+  countedHandle = createDatabase(appUrl, {
+    max: 1,
+    onQueryForTests: (query) => {
+      statements.push(query);
+    },
+  });
+  counted = countedHandle;
+}, 120_000);
+
+afterAll(async () => {
+  await countedHandle?.close();
+  await appHandle?.close();
+  await ownerHandle?.close();
+  await containerHandle?.stop();
+});
+
+describe('revokeCascade over a chain of exchanged grants', () => {
+  it('revokes the root, all five below it and every instance rooted at any of them', async () => {
+    const w = await newWorld();
+    const { ids, rooted } = await withTenant(app.db, w.tenantId, async (tx) => {
+      const ids = await chain(tx, w, 6);
+      const rooted = [await instanceAt(tx, w, nth(ids, 0)), await instanceAt(tx, w, nth(ids, 3))];
+      return { ids, rooted };
+    });
+    const result = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeCascade([nth(ids, 0)], LATER),
+    );
+    expect(result).toMatchObject({ grants: 6, instances: 2, capped: false });
+    expect(await grantRevoked(ids)).toEqual(Array(6).fill(true));
+    expect(await instanceRevoked(rooted)).toEqual([true, true]);
+  });
+
+  it('revokes the instances beneath a rooted instance as well', async () => {
+    const w = await newWorld();
+    const { id, instances } = await withTenant(app.db, w.tenantId, async (tx) => {
+      const id = await grant(tx, w);
+      const top = await instanceAt(tx, w, id);
+      return { id, instances: [top, await instanceAt(tx, w, id, top)] };
+    });
+    const result = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeCascade([id], LATER),
+    );
+    expect(result).toMatchObject({ grants: 1, instances: 2 });
+    expect(await instanceRevoked(instances)).toEqual([true, true]);
+  });
+
+  it('leaves the ancestors of a middle grant live', async () => {
+    const w = await newWorld();
+    const ids = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 6));
+    const result = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeCascade([nth(ids, 3)], LATER),
+    );
+    expect(result).toMatchObject({ grants: 3, capped: false });
+    expect(await grantRevoked(ids)).toEqual([false, false, false, true, true, true]);
+  });
+
+  it('does not count a descendant that was already revoked', async () => {
+    const w = await newWorld();
+    const ids = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 4));
+    await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeCascade([nth(ids, 2)], NOW),
+    );
+    const result = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeCascade([nth(ids, 0)], LATER),
+    );
+    expect(result).toMatchObject({ grants: 2, instances: 0 });
+    const stamps = await owner.db.execute(
+      sql`select id, revoked_at from token_grants where id = ${nth(ids, 3)}`,
+    );
+    expect(new Date(nth(stamps as unknown as { revoked_at: Date }[], 0).revoked_at).getTime()).toBe(
+      NOW.getTime(),
+    );
+  });
+
+  it('revokes nothing for an id that is not a grant', async () => {
+    const w = await newWorld();
+    const result = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeCascade([newId()], LATER),
+    );
+    expect(result).toMatchObject({ grants: 0, instances: 0, capped: false });
+  });
+
+  it('does not walk past the structural depth', async () => {
+    const w = await newWorld();
+    const ids = await withTenant(app.db, w.tenantId, (tx) =>
+      chain(tx, w, STRUCTURAL_MAX_DEPTH + 3),
+    );
+    const result = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeCascade([nth(ids, 0)], LATER),
+    );
+    expect(result.grants).toBe(STRUCTURAL_MAX_DEPTH + 1);
+    expect((await grantRevoked(ids)).filter(Boolean)).toHaveLength(STRUCTURAL_MAX_DEPTH + 1);
+  });
+});
+
+describe('revokeCascade over a fan-out', () => {
+  it('revokes 1,000 grants in one statement', async () => {
+    const w = await newWorld();
+    const root = await withTenant(app.db, w.tenantId, (tx) => grant(tx, w));
+    await owner.db.execute(sql`
+      insert into token_grants (id, tenant_id, client_id, subject_id, scope, audience, exchanged_from_grant_id)
+      select gen_random_uuid(), ${w.tenantId}::uuid, ${w.clientDbId}::uuid, ${w.subjectId}::uuid,
+             'mcp:read', array['https://odudu.test/mcp'], ${root}::uuid
+        from generate_series(1, 1000)`);
+    statements = [];
+    const result = await withTenant(counted.db, w.tenantId, async (tx) => {
+      statements = [];
+      return tokenGrantRepository(tx).revokeCascade([root], LATER);
+    });
+    expect(result).toMatchObject({ grants: 1001, capped: false });
+    expect(statements.filter((query) => query !== 'commit')).toHaveLength(1);
+  });
+
+  it('revokes what fits under the cap, reports capped and leaves the rest live', async () => {
+    const w = await newWorld();
+    const root = await withTenant(app.db, w.tenantId, (tx) => grant(tx, w));
+    await owner.db.execute(sql`
+      insert into token_grants (id, tenant_id, client_id, subject_id, scope, audience, exchanged_from_grant_id)
+      select gen_random_uuid(), ${w.tenantId}::uuid, ${w.clientDbId}::uuid, ${w.subjectId}::uuid,
+             'mcp:read', array['https://odudu.test/mcp'], ${root}::uuid
+        from generate_series(1, 50)`);
+    const first = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeCascade([root], LATER, 20),
+    );
+    expect(first).toMatchObject({ grants: 20, capped: true });
+    const live = await owner.db.execute(
+      sql`select count(*)::int as n from token_grants where tenant_id = ${w.tenantId} and revoked_at is null`,
+    );
+    expect((live as unknown as { n: number }[])[0]?.n).toBe(31);
+  });
+
+  it('finishes the rest when called again, each pass making progress', async () => {
+    const w = await newWorld();
+    const root = await withTenant(app.db, w.tenantId, (tx) => grant(tx, w));
+    await owner.db.execute(sql`
+      insert into token_grants (id, tenant_id, client_id, subject_id, scope, audience, exchanged_from_grant_id)
+      select gen_random_uuid(), ${w.tenantId}::uuid, ${w.clientDbId}::uuid, ${w.subjectId}::uuid,
+             'mcp:read', array['https://odudu.test/mcp'], ${root}::uuid
+        from generate_series(1, 50)`);
+    let total = 0;
+    for (let pass = 0; pass < 10; pass += 1) {
+      const r = await withTenant(app.db, w.tenantId, (tx) =>
+        tokenGrantRepository(tx).revokeCascade([root], LATER, 20),
+      );
+      total += r.grants;
+      if (!r.capped) break;
+    }
+    expect(total).toBe(51);
+  });
+});
+
+describe('every revoke method cascades and keeps its return value', () => {
+  async function exchanged(w: World, over: { actor?: string | undefined } = {}) {
+    return withTenant(app.db, w.tenantId, async (tx) => {
+      const root = await grant(tx, w, { actor: over.actor });
+      const ids = [root, await grant(tx, w, { from: root }), await grant(tx, w, { from: root })];
+      const child = nth(ids, 1);
+      const grandchild = await grant(tx, w, { from: child });
+      ids.push(grandchild);
+      const instance = await instanceAt(tx, w, grandchild);
+      return { root, ids, instance };
+    });
+  }
+
+  it('revoke(id) returns true once, then false, and ends what was exchanged from it', async () => {
+    const w = await newWorld();
+    const { root, ids, instance } = await exchanged(w);
+    const first = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(root, LATER),
+    );
+    const second = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(root, LATER),
+    );
+    expect([first, second]).toEqual([true, false]);
+    expect(await grantRevoked(ids)).toEqual(Array(4).fill(true));
+    expect(await instanceRevoked([instance])).toEqual([true]);
+  });
+
+  it('revokeForSession returns the grants bound to the session', async () => {
+    const w = await newWorld();
+    const { ids, instance } = await exchanged(w);
+    const n = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSession(w.sessionId, LATER),
+    );
+    expect(n).toBe(1);
+    expect(await grantRevoked(ids)).toEqual(Array(4).fill(true));
+    expect(await instanceRevoked([instance])).toEqual([true]);
+  });
+
+  it('revokeForSessions returns the grants bound to the sessions', async () => {
+    const w = await newWorld();
+    const { ids, instance } = await exchanged(w);
+    const n = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSessions([w.sessionId], LATER),
+    );
+    expect(n).toBe(1);
+    expect(await grantRevoked(ids)).toEqual(Array(4).fill(true));
+    expect(await instanceRevoked([instance])).toEqual([true]);
+  });
+
+  it('revokeForSubjectClient returns the live grants of the pair, descendants not counted', async () => {
+    const w = await newWorld();
+    const { ids, instance } = await exchanged(w);
+    const n = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSubjectClient(w.subjectId, w.clientDbId, LATER),
+    );
+    expect(n).toBe(4);
+    expect(await grantRevoked(ids)).toEqual(Array(4).fill(true));
+    expect(await instanceRevoked([instance])).toEqual([true]);
+  });
+
+  it('revokeForSubject ends the exchanged grants of a client the subject holds', async () => {
+    const w = await newWorld();
+    const { ids, instance } = await exchanged(w);
+    const n = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSubject(w.subjectId, LATER),
+    );
+    expect(n).toBe(4);
+    expect(await grantRevoked(ids)).toEqual(Array(4).fill(true));
+    expect(await instanceRevoked([instance])).toEqual([true]);
+  });
+
+  it('revokeForActor returns the grants the actor acted in and ends what came from them', async () => {
+    const w = await newWorld();
+    const actor = await withTenant(app.db, w.tenantId, (tx) =>
+      subjectRepository(tx).create({ tenantId: w.tenantId, type: 'service' }),
+    );
+    const { ids, instance } = await exchanged(w, { actor: actor.id });
+    const n = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForActor(actor.id),
+    );
+    expect(n).toBe(1);
+    expect(await grantRevoked(ids)).toEqual(Array(4).fill(true));
+    expect(await instanceRevoked([instance])).toEqual([true]);
+  });
+
+  it('a revoke method finishes a cascade past the default cap', async () => {
+    const w = await newWorld();
+    const root = await withTenant(app.db, w.tenantId, (tx) => grant(tx, w));
+    await owner.db.execute(sql`
+      insert into token_grants (id, tenant_id, client_id, subject_id, scope, audience, exchanged_from_grant_id)
+      select gen_random_uuid(), ${w.tenantId}::uuid, ${w.clientDbId}::uuid, ${w.subjectId}::uuid,
+             'mcp:read', array['https://odudu.test/mcp'], ${root}::uuid
+        from generate_series(1, 10500)`);
+    await withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(root, LATER));
+    const live = await owner.db.execute(
+      sql`select count(*)::int as n from token_grants where tenant_id = ${w.tenantId} and revoked_at is null`,
+    );
+    expect((live as unknown as { n: number }[])[0]?.n).toBe(0);
+  }, 60_000);
+});
+
+describe('the audit row for a revoked instance', () => {
+  it('writes one agent.instance_revoked per instance root with allowlisted detail', async () => {
+    const w = await newWorld();
+    const { root, top, other } = await withTenant(app.db, w.tenantId, async (tx) => {
+      const [a, b] = await twoOf(tx, w);
+      const top = await instanceAt(tx, w, b);
+      await instanceAt(tx, w, b, top);
+      const other = await instanceAt(tx, w, a);
+      return { root: a, top, other };
+    });
+    await withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(root, LATER));
+    const rows = await auditRows(w);
+    expect(rows.map((r) => r.resource_id).sort()).toEqual([other, top].sort());
+    for (const row of rows) {
+      expect(row).toMatchObject({ action: 'agent.instance_revoked', event_type: 'agent_identity' });
+      expect(Object.keys(row.detail).sort()).toEqual(
+        ['agent_client', 'count', 'depth', 'instance', 'owner', 'via'].sort(),
+      );
+      expect(row.detail.via).toBe('cascade');
+      expect(row.detail.owner).toBe(w.subjectId);
+    }
+    expect(rows.find((r) => r.resource_id === top)?.detail.count).toBe(2);
+    expect(rows.find((r) => r.resource_id === other)?.detail.count).toBe(1);
+  });
+
+  it('writes no instance row for a cascade that revokes no instance', async () => {
+    const w = await newWorld();
+    const root = await withTenant(app.db, w.tenantId, async (tx) => {
+      return nth(await chain(tx, w, 3), 0);
+    });
+    await withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(root, LATER));
+    expect(await auditRows(w)).toEqual([]);
+  });
+
+  it('writes none again when the second revoke changes nothing', async () => {
+    const w = await newWorld();
+    const root = await withTenant(app.db, w.tenantId, async (tx) => {
+      const id = await grant(tx, w);
+      await instanceAt(tx, w, id);
+      return id;
+    });
+    await withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(root, LATER));
+    await withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(root, LATER));
+    expect(await auditRows(w)).toHaveLength(1);
+  });
+});
+
+describe('revokeCascade is tenant scoped', () => {
+  it('revokes nothing of another tenant and leaves its rows alone', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const w = await worldIn(tx, tenantId);
+        const [root, child] = await twoOf(tx, w);
+        const instance = await instanceAt(tx, w, child);
+        return { ids: [root, child], instance };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await tokenGrantRepository(tx).byId(nth(seeded.ids, 0))).not.toBeNull();
+      },
+      attempt: (tx, seeded) => tokenGrantRepository(tx).revokeCascade([nth(seeded.ids, 0)], LATER),
+      expectBlocked: (result) => {
+        expect(result).toMatchObject({ grants: 0, instances: 0, capped: false });
+      },
+      verifyTenantAUnaffected: async (_tx, seeded) => {
+        expect(await grantRevoked(seeded.ids)).toEqual([false, false]);
+        expect(await instanceRevoked([seeded.instance])).toEqual([false]);
+      },
+    });
+  });
+});
+
+describe('revokeCascade over random delegation trees', () => {
+  it('revokes exactly the descendants of the node it is given', async () => {
+    const w = await newWorld();
+    await fc.assert(
+      fc.asyncProperty(
+        fc.array(fc.nat(), { minLength: 1, maxLength: 12 }),
+        fc.nat(),
+        async (picks, pick) => {
+          const parentIdx: number[] = [-1];
+          const depth = [0];
+          for (const p of picks) {
+            const open = parentIdx.map((_, i) => i).filter((i) => nth(depth, i) < 7);
+            const parent = nth(open, p % open.length);
+            parentIdx.push(parent);
+            depth.push(nth(depth, parent) + 1);
+          }
+          const made = await withTenant(app.db, w.tenantId, async (tx) => {
+            const ids: string[] = [];
+            for (const parent of parentIdx) {
+              ids.push(
+                await grant(tx, w, {
+                  from: parent < 0 ? undefined : ids[parent],
+                  sessionless: true,
+                }),
+              );
+            }
+            return ids;
+          });
+          const target = pick % made.length;
+          const expected = made.map((_, i) => {
+            for (let at = i; at >= 0; at = nth(parentIdx, at)) if (at === target) return true;
+            return false;
+          });
+          const result = await withTenant(app.db, w.tenantId, (tx) =>
+            tokenGrantRepository(tx).revokeCascade([nth(made, target)], LATER),
+          );
+          expect(await grantRevoked(made)).toEqual(expected);
+          expect(result.grants).toBe(expected.filter(Boolean).length);
+        },
+      ),
+      { numRuns: 25 },
+    );
+  }, 120_000);
+});

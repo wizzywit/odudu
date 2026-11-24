@@ -17,7 +17,7 @@ export const AUDIT_EVENT_TYPE_DOCS: Record<AuditEventType, string> = {
     'A refusal at the admin API door: an authenticated caller without the capability, or a ' +
     'genuine token from another tenant.',
   agent_identity:
-    'The life of an agent instance: minted under an agent client for its owner. Always stored, ' +
+    'The life of an agent instance: minted under an agent client for its owner, then revoked. Always stored, ' +
     'whatever the tenant\u2019s `audit_event_types` says.',
   authentication:
     'An answer to a sign-in step or to client authentication: a password, one-time code, ' +
@@ -43,6 +43,12 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'agent.instance_minted':
     'An agent instance was minted for its owner under an agent client. `detail` names the ' +
     'instance, the owner, the agent client and the instance\u2019s depth in its lineage.',
+  'agent.instance_revoked':
+    'An agent instance was revoked, with everything minted beneath it. `detail` names the ' +
+    'instance, the owner, the agent client and its depth, `count` is how many instances ' +
+    'the revocation ended, and `via` is `cascade` when the grant it was rooted at was revoked, ' +
+    '`owner_ended` when its run was refused because the owner\u2019s session or account had ended, ' +
+    'or `admin`.',
   'token.foreign_issuer':
     'A genuine token issued by another tenant was presented to the admin API.',
   'login.password': 'A password was checked at sign-in.',

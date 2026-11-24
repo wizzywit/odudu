@@ -6,7 +6,7 @@ import { type AdminMutationAction } from '#/service/admin-mutation-actions';
 // audit-detail.ts.
 export const AUDIT_ACTIONS = {
   admin_access: ['capability.refused', 'token.foreign_issuer', 'agent.tool_call'],
-  agent_identity: ['agent.instance_minted'],
+  agent_identity: ['agent.instance_minted', 'agent.instance_revoked'],
   authentication: [
     'login.password',
     'login.otp',
@@ -136,16 +136,29 @@ type AdminAccessInput =
       }>;
     });
 
-type AgentIdentityInput = EventCommon & {
-  readonly eventType: 'agent_identity';
-  readonly action: 'agent.instance_minted';
-  readonly detail: WithReason<{
-    agent_client: string;
-    owner: string;
-    instance: string;
-    depth: number;
-  }>;
-};
+type AgentIdentityInput =
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.instance_minted';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        instance: string;
+        depth: number;
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.instance_revoked';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        instance: string;
+        depth: number;
+        count: number;
+        via: 'cascade' | 'owner_ended' | 'admin';
+      }>;
+    });
 
 type AuthenticationInput =
   | (EventCommon & {
@@ -321,6 +334,7 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'capability.refused': ['capability', 'also_admits'],
   'agent.tool_call': ['agent_client', 'owner', 'tool', 'route'],
   'agent.instance_minted': ['agent_client', 'owner', 'instance', 'depth'],
+  'agent.instance_revoked': ['agent_client', 'owner', 'instance', 'depth', 'count', 'via'],
   'login.password': ['factor'],
   'login.otp': ['factor'],
   'login.recovery_code': ['factor'],
@@ -374,7 +388,7 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const SESSION_ENDED_VIA = ['logout', 'admin', 'self', 'evicted'];
-const AGENT_VIA = ['owner', 'admin', 'cascade', 'reaper'];
+const AGENT_VIA = ['owner', 'owner_ended', 'admin', 'cascade', 'reaper'];
 const AGENT_APPROVAL_STATES = ['approved', 'denied'];
 
 const TOOL_NAME = /^[a-z0-9_.-]{1,64}$/u;
