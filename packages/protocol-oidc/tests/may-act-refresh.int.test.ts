@@ -241,3 +241,34 @@ describe.each(['access', 'refresh'] as const)(
     });
   },
 );
+
+describe('a token derived under a delegation', () => {
+  it('is not a live source once the owner revokes the delegation', async () => {
+    const clientId = 'derived-owner';
+    const ownerClientDbId = await addClient(stack, { clientId });
+    const signedIn = await login(stack, clientId);
+    const delegationId = newId();
+    await withTenant(stack.app.db, stack.tenantId, (tx) =>
+      tx.execute(
+        sql`insert into agent_delegations
+              (tenant_id, id, subject_id, client_id, actor_client_id, scope_ceiling, expires_at)
+            values (${stack.tenantId}, ${delegationId}, ${signedIn.subjectId}, ${ownerClientDbId},
+                    ${delegateDbId}, 'openid', now() + interval '1 day')`,
+      ),
+    );
+    const fresh = await login(stack, clientId);
+    const first = await exchange(stack, DELEGATE, fresh.accessToken, { scope: 'openid' });
+    expect(first.statusCode).toBe(200);
+    const derived = first.json<{ access_token: string }>().access_token;
+
+    const again = await exchange(stack, DELEGATE, derived, { scope: 'openid' });
+    expect(again.statusCode).toBe(200);
+
+    await withTenant(stack.app.db, stack.tenantId, (tx) =>
+      tx.execute(sql`update agent_delegations set revoked_at = now() where id = ${delegationId}`),
+    );
+    const refused = await exchange(stack, DELEGATE, derived, { scope: 'openid' });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<{ error: string }>().error).toBe('invalid_request');
+  });
+});

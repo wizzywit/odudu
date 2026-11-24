@@ -1,3 +1,4 @@
+import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { tenants, withTenant } from '@odudu/db';
 import { agentInstanceRepository } from '@odudu/domain-agents';
@@ -7,9 +8,12 @@ import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { tokenGrantRepository } from '#/repository/grants';
+import { refreshTokenRepository } from '#/repository/refresh';
+import { hashRefreshToken } from '#/service/refresh';
 import { applyAgentLayer } from '#/usecase/agent-layer';
 import {
   addClient,
+  basic,
   decode,
   KEK,
   exchange,
@@ -296,6 +300,28 @@ describe('a nested exchange whose act head is not a live instance of this client
     const { token } = await firstInstance(owner);
     await refusedWithNoNewInstance(await withActHead(token, PLAIN));
   });
+
+  it('is refused when the instance is another subject’s in the same tenant', async () => {
+    const owner = await login(stack, AGENT);
+    const { token } = await firstInstance(owner);
+    const stranger = await withTenant(stack.app.db, stack.tenantId, async (tx) => {
+      const other = await subjectRepository(tx).create({ tenantId: stack.tenantId, type: 'user' });
+      const instance = await agentInstanceRepository(tx).mint({
+        id: newId(),
+        tenantId: stack.tenantId,
+        ownerSubjectId: other.id,
+        agentClientId: agentDbId,
+        parentInstanceId: null,
+        rootGrantId: owner.grantId,
+        depth: 1,
+        scope: 'openid',
+        expiresAt: new Date(Date.now() + 3_600_000),
+        idleExpiresAt: null,
+      });
+      return instance.id;
+    });
+    await refusedWithNoNewInstance(await withActHead(token, stranger));
+  });
 });
 
 describe('the lifetime of a minted instance', () => {
@@ -400,5 +426,153 @@ describe('minting under concurrency and refusal', () => {
       );
     });
     expect(outcome).toMatchObject({ kind: 'refused', invariant: 'parent_not_live' });
+  });
+
+  it('refuses an exchange whose owner session has expired, leaving no instance', async () => {
+    const owner = await login(stack, AGENT);
+    await stack.owner.db.execute(
+      sql`update sessions set expires_at = now() - interval '1 minute'
+           where id = (select session_id from token_grants where id = ${owner.grantId})`,
+    );
+    const before = await instanceCount();
+    const res = await exchange(stack, AGENT, owner.accessToken);
+    expect(res.statusCode).toBe(400);
+    expect(await instanceCount()).toBe(before);
+  });
+
+  it('refuses an exchange whose owner session was ended, leaving no instance', async () => {
+    const owner = await login(stack, AGENT);
+    await withTenant(stack.app.db, stack.tenantId, async (tx) => {
+      const grant = await tokenGrantRepository(tx).byId(owner.grantId);
+      if (grant?.sessionId == null) throw new Error('grant has no session');
+      expect(await sessionRepository(tx).end(grant.sessionId, stack.clock.now())).toBe(true);
+    });
+    const before = await instanceCount();
+    const res = await exchange(stack, AGENT, owner.accessToken);
+    expect(res.statusCode).toBe(400);
+    expect(await instanceCount()).toBe(before);
+  });
+});
+
+describe('a refresh whose grant names an instance as its actor', () => {
+  async function grantActedBy(head: string, actorSubjectId: string | null) {
+    const owner = await login(stack, AGENT);
+    const raw = `refresh-${newId()}`;
+    await withTenant(stack.app.db, stack.tenantId, async (tx) => {
+      const grantId = newId();
+      await tokenGrantRepository(tx).create({
+        id: grantId,
+        tenantId: stack.tenantId,
+        clientId: agentDbId,
+        subjectId: owner.subjectId,
+        scope: 'openid',
+        audience: ['https://api.example'],
+        actChain: { sub: head },
+        ...(actorSubjectId === null ? {} : { actorSubjectId }),
+      });
+      await refreshTokenRepository(tx).create({
+        tokenHash: hashRefreshToken(raw),
+        tenantId: stack.tenantId,
+        grantId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+      });
+    });
+    return { owner, raw };
+  }
+
+  async function instanceFor(owner: { grantId: string; subjectId: string }): Promise<string> {
+    return withTenant(stack.app.db, stack.tenantId, async (tx) => {
+      const instance = await agentInstanceRepository(tx).mint({
+        id: newId(),
+        tenantId: stack.tenantId,
+        ownerSubjectId: owner.subjectId,
+        agentClientId: agentDbId,
+        parentInstanceId: null,
+        rootGrantId: owner.grantId,
+        depth: 1,
+        scope: 'openid',
+        expiresAt: new Date(Date.now() + 3_600_000),
+        idleExpiresAt: null,
+      });
+      return instance.id;
+    });
+  }
+
+  function refresh(raw: string) {
+    return stack.http.inject({
+      method: 'POST',
+      url: `/tenants/${stack.tenantName}/protocol/openid-connect/token`,
+      payload: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: raw }).toString(),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: basic(AGENT),
+      },
+    });
+  }
+
+  async function namingInstance() {
+    const owner = await login(stack, AGENT);
+    const id = await instanceFor(owner);
+    const { raw } = await grantActedBy(id, id);
+    return { id, raw };
+  }
+
+  it('keeps the act of a live instance', async () => {
+    const { id, raw } = await namingInstance();
+    const res = await refresh(raw);
+    expect(res.statusCode).toBe(200);
+    expect(decode(res.json<{ access_token: string }>().access_token).act).toEqual({ sub: id });
+  });
+
+  it('is refused invalid_grant once the instance was revoked', async () => {
+    const { id, raw } = await namingInstance();
+    await stack.owner.db.execute(
+      sql`update agent_instances set revoked_at = now() where id = ${id}`,
+    );
+    const res = await refresh(raw);
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+
+  it('is refused invalid_grant once the instance lapsed', async () => {
+    const { id, raw } = await namingInstance();
+    await stack.owner.db.execute(
+      sql`update agent_instances set expires_at = now() - interval '1 minute' where id = ${id}`,
+    );
+    const res = await refresh(raw);
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+
+  it('is refused invalid_grant once the instance idled out', async () => {
+    const { id, raw } = await namingInstance();
+    await stack.owner.db.execute(
+      sql`update agent_instances set idle_expires_at = now() - interval '1 minute' where id = ${id}`,
+    );
+    expect((await refresh(raw)).statusCode).toBe(400);
+  });
+
+  it('is refused invalid_grant once the instance row and subject were deleted', async () => {
+    const { id, raw } = await namingInstance();
+    await stack.owner.db.execute(sql`delete from agent_instances where id = ${id}`);
+    await stack.owner.db.execute(sql`delete from subjects where id = ${id}`);
+    const res = await refresh(raw);
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+
+  it('leaves a grant whose act names a client id unchanged', async () => {
+    const { raw } = await grantActedBy('some-client', null);
+    const res = await refresh(raw);
+    expect(res.statusCode).toBe(200);
+    expect(decode(res.json<{ access_token: string }>().access_token).act).toEqual({
+      sub: 'some-client',
+    });
+  });
+
+  it('leaves a grant whose act names a user subject unchanged', async () => {
+    const owner = await login(stack, AGENT);
+    const { raw } = await grantActedBy(owner.subjectId, owner.subjectId);
+    expect((await refresh(raw)).statusCode).toBe(200);
   });
 });

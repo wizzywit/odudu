@@ -39,6 +39,10 @@ export interface AgentLayerInput {
   actorSubject: string;
   requestedScope: readonly string[];
   now: Date;
+  // A run's instance: it keeps the id the caller derived for the run and
+  // lives until the owner's session ends, sliding its idle expiry with use,
+  // rather than for the fixed lifetime an exchange's instance gets.
+  run?: { instanceId: string; idleSeconds: number };
 }
 
 export type AgentLayerOutcome =
@@ -66,13 +70,16 @@ function headOfAct(act: unknown): string | null {
   return typeof sub === 'string' ? sub : null;
 }
 
-function isLive(instance: AgentInstanceRecord, now: Date): boolean {
+export function isLive(instance: AgentInstanceRecord, now: Date): boolean {
   return (
     instance.revokedAt === null &&
     instance.expiresAt.getTime() > now.getTime() &&
     (instance.idleExpiresAt === null || instance.idleExpiresAt.getTime() > now.getTime())
   );
 }
+
+// The longest a run's instance can live when no session bounds it.
+const RUN_LIFETIME_SECONDS = 86_400;
 
 // The most exchange hops walked back to the grant a person signed in with.
 const MAX_GRANT_HOPS = 16;
@@ -155,6 +162,7 @@ async function resolveParent(
   if (head !== null && UUID.test(head)) {
     const parent = await repo.lockForUpdate(head);
     if (parent?.agentClientId !== client.id || !isLive(parent, now)) return null;
+    if (parent.ownerSubjectId !== subject.subjectId) return null;
     return {
       node: {
         scope: parent.scope.split(' ').filter((entry) => entry !== ''),
@@ -219,7 +227,8 @@ export async function applyAgentLayer(
   if (sessionEndsAt === 'gone') return refuse('parent_not_live');
   const expiresAt = instanceExpiry({
     now: input.now,
-    ttlSeconds: settings.agentInstanceTtlSeconds,
+    ttlSeconds:
+      input.run === undefined ? settings.agentInstanceTtlSeconds : RUN_LIFETIME_SECONDS,
     parentExpiresAt: parent.expiresAt,
     sessionEndsAt,
   });
@@ -242,7 +251,7 @@ export async function applyAgentLayer(
   }
 
   const instance = await repo.mint({
-    id: newId(),
+    id: input.run?.instanceId ?? newId(),
     tenantId: deps.tenantId,
     ownerSubjectId: input.subject.subjectId,
     agentClientId: input.client.id,
@@ -251,7 +260,12 @@ export async function applyAgentLayer(
     depth: admission.node.depth,
     scope: scope.join(' '),
     expiresAt,
-    idleExpiresAt: null,
+    idleExpiresAt:
+      input.run === undefined
+        ? null
+        : new Date(
+            Math.min(input.now.getTime() + input.run.idleSeconds * 1000, expiresAt.getTime()),
+          ),
   });
   await auditRepository(tx).record({
     eventType: 'agent_identity',
