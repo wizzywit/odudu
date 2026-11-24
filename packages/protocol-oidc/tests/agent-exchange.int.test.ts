@@ -361,6 +361,39 @@ describe('the lifetime of a minted instance', () => {
     expect((await expiryOf(id)).getTime()).toBe(end.getTime());
   });
 
+  it('caps the exchanged token and its grant at the instance expiry', async () => {
+    await setting('agent_instance_ttl_seconds', 60);
+    try {
+      const owner = await login(stack, AGENT);
+      const res = await exchange(stack, AGENT, owner.accessToken);
+      expect(res.statusCode).toBe(200);
+      const claims = decode(res.json<{ access_token: string }>().access_token);
+      const id = (claims.act as { sub: string }).sub;
+      const instanceEnd = (await expiryOf(id)).getTime();
+      expect(Number(claims.exp) * 1000).toBeLessThanOrEqual(instanceEnd);
+      const grant = await withTenant(stack.app.db, stack.tenantId, (tx) =>
+        tokenGrantRepository(tx).byId(String(claims.grant_id)),
+      );
+      expect(grant?.expCeiling?.getTime()).toBeLessThanOrEqual(instanceEnd);
+    } finally {
+      await setting('agent_instance_ttl_seconds', 900);
+    }
+  });
+
+  it('caps an exchanged refresh token at the instance expiry', async () => {
+    await setting('agent_instance_ttl_seconds', 60);
+    try {
+      const owner = await login(stack, AGENT);
+      const res = await exchange(stack, AGENT, owner.accessToken, {
+        extra: { requested_token_type: 'urn:ietf:params:oauth:token-type:refresh_token' },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json<{ expires_in: number }>().expires_in).toBeLessThanOrEqual(60);
+    } finally {
+      await setting('agent_instance_ttl_seconds', 900);
+    }
+  });
+
   it('never outlives its parent instance', async () => {
     const owner = await login(stack, AGENT);
     const first = await firstInstance(owner);

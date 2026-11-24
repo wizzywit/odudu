@@ -1100,6 +1100,13 @@ const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
 const REFRESH_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:refresh_token';
 const ID_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:id_token';
 
+function earliest(...times: readonly (Date | null | undefined)[]): Date | undefined {
+  const present = times.filter((time): time is Date => time !== null && time !== undefined);
+  return present.length === 0
+    ? undefined
+    : new Date(Math.min(...present.map((time) => time.getTime())));
+}
+
 // RFC 8693's grant, minting from a subject_token (and, optionally, an
 // actor_token) rather than a credential the client owns outright.
 async function issueExchangedTokens(
@@ -1278,8 +1285,9 @@ async function issueExchangedTokens(
 
   // An exchange may not lengthen the credential it was handed —
   // mintAccessToken's own `expCeiling`, and (below) this same instant
-  // stands in for it when the issued shape is not an access token.
-  const expCeiling = subject.token.expiresAt ?? undefined;
+  // stands in for it when the issued shape is not an access token. A minted
+  // instance bounds it too: nothing made from it outlives it.
+  const expCeiling = earliest(subject.token.expiresAt, layer.instance?.expiresAt);
   // Recorded only for a delegated exchange (`act` present); an
   // impersonation names no actor in the claim, so none is recorded here
   // either (token-grants.ts's own comment on the column).
