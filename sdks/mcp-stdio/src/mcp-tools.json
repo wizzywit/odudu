@@ -750,6 +750,16 @@
           "token_exchange_actor_from_other_client": {
             "type": "boolean"
           },
+          "agent_type": {
+            "type": "boolean"
+          },
+          "delegated_actors": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "userinfo_signed_response_alg": {
             "type": [
               "string",
@@ -940,6 +950,8 @@
           "token_exchange_impersonation_allowed",
           "token_exchange_allowed_for_public",
           "token_exchange_actor_from_other_client",
+          "agent_type",
+          "delegated_actors",
           "userinfo_signed_response_alg",
           "userinfo_encrypted_response_alg",
           "userinfo_encrypted_response_enc",
@@ -6011,6 +6023,16 @@
                 "token_exchange_actor_from_other_client": {
                   "type": "boolean"
                 },
+                "agent_type": {
+                  "type": "boolean"
+                },
+                "delegated_actors": {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
                 "userinfo_signed_response_alg": {
                   "type": [
                     "string",
@@ -6194,6 +6216,8 @@
                 "token_exchange_impersonation_allowed",
                 "token_exchange_allowed_for_public",
                 "token_exchange_actor_from_other_client",
+                "agent_type",
+                "delegated_actors",
                 "userinfo_signed_response_alg",
                 "userinfo_encrypted_response_alg",
                 "userinfo_encrypted_response_enc",
@@ -8569,6 +8593,16 @@
           "token_exchange_actor_from_other_client": {
             "type": "boolean"
           },
+          "agent_type": {
+            "type": "boolean"
+          },
+          "delegated_actors": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "userinfo_signed_response_alg": {
             "type": [
               "string",
@@ -8759,6 +8793,8 @@
           "token_exchange_impersonation_allowed",
           "token_exchange_allowed_for_public",
           "token_exchange_actor_from_other_client",
+          "agent_type",
+          "delegated_actors",
           "userinfo_signed_response_alg",
           "userinfo_encrypted_response_alg",
           "userinfo_encrypted_response_enc",

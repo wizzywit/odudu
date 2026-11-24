@@ -200,10 +200,9 @@ describe('the lists a client of a document may hold', () => {
 
 describe('the agent layer of a document', () => {
   it('imports an older document, which has none, with the defaults and no agent client', () => {
-    const settings: Record<string, unknown> = { ...DOCUMENT.settings };
-    for (const name of Object.keys(settings).filter((key) => key.startsWith('agent_'))) {
-      delete settings[name];
-    }
+    const settings = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => !name.startsWith('agent_')),
+    );
     const client: Record<string, unknown> = { ...CLIENT };
     delete client.agent_type;
     delete client.delegated_actors;

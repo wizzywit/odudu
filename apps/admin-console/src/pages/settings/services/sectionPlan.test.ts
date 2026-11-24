@@ -76,7 +76,7 @@ describe('the reading band', () => {
   it('names the observed sections as a key that reads back', () => {
     const key = bandKey(nav);
     expect(bandTargets(key)[0]).toEqual({ id: 'general', headingId: 'settings-general' });
-    expect(bandTargets(key)).toHaveLength(14);
+    expect(bandTargets(key)).toHaveLength(15);
     expect(bandTargets('')).toEqual([]);
   });
 

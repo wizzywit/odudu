@@ -1104,6 +1104,15 @@ for `demo` registered at `login.acme-corp.dev` with `seed domain --assume-verifi
 long export in [`GET /export`](../reference/transcripts/admin-paths/get-export.md), whose tenant `export-demo` was
 made with that page's setup and held nothing else.
 
+The blocks that show a client or the tenant settings gained `agent_type` and `delegated_actors`,
+and the nine `agent_*` settings, and were edited rather than run: each response line has the new
+fields at their default values in the order the server writes them, each `content-length` that
+precedes one is raised by the added bytes, and each `etag` that is a hash of the body shown
+(the settings and the client responses on `GET /clients`, `POST /clients` and the scope
+unassignment) is recomputed from it. The `etag` headers of [`PATCH /clients/{id}`](../reference/transcripts/admin-paths/patch-clientsid.md), whose
+bodies are not shown, were not recomputed. The creation row of the audit page has the two client fields added
+with `after` at their defaults.
+
 ### A value that changes with a build is not asserted
 
 A transcript may show a response that holds a hashed file name, a byte size, a path

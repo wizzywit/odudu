@@ -1103,8 +1103,8 @@ function checkedDelegatedActors(value: unknown): string[] | FieldError {
     : { field, description: `${field} names ${JSON.stringify(twice)} twice` };
 }
 
-// Every actor must already be a client of the tenant: a name that is not is
-// refused rather than created, so a typo cannot make a client no one holds.
+// Every actor must already be a client of the tenant; a name that is not is
+// refused, never created.
 async function refusedDelegatedActors(
   tx: TenantScopedDatabase,
   actors: readonly string[] | undefined,

@@ -77,6 +77,11 @@ export interface ExchangeValues extends Values {
   token_exchange_actor_from_other_client: boolean;
 }
 
+export interface AgentValues extends Values {
+  agent_type: boolean;
+  delegated_actors: readonly string[];
+}
+
 export interface ActionValues extends Values {
   allowed_actions: readonly string[];
 }
@@ -149,6 +154,12 @@ export function useClientConfigSaves(tenant: string, id: string) {
       amend(gateway, { allowed_actions: values.allowed_actions }, ifMatch),
     flow: (gateway: Gateway, { values, ifMatch }: SaveInput<FlowValues>) =>
       amend(gateway, { flow_id: sentOf(values.flow_id) }, ifMatch),
+    agent: (gateway: Gateway, { values, ifMatch }: SaveInput<AgentValues>) =>
+      amend(
+        gateway,
+        { agent_type: values.agent_type, delegated_actors: values.delegated_actors },
+        ifMatch,
+      ),
     exchange: (gateway: Gateway, { values, ifMatch }: SaveInput<ExchangeValues>) =>
       amend(
         gateway,
