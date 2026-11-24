@@ -76,6 +76,7 @@ const SWEPT: ReapOutcome = {
     refresh_tokens: 2,
     authorization_codes: 1,
     agent_budget_windows: 0,
+    ciba_requests: 0,
     agent_approvals: 0,
     agent_delegations: 0,
     agent_instances: 0,

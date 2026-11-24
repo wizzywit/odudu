@@ -479,6 +479,16 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   `);
 
   await owner.db.execute(sql`
+    INSERT INTO ciba_requests (tenant_id, id, auth_req_hash, client_id, hint_digest, scope,
+                               expires_at)
+    VALUES
+      (${tenantId}, ${newId()}, ${newId()}, ${clientId}, 'h', 'openid',
+       ${at(-31 * DAY)}::timestamptz),
+      (${tenantId}, ${newId()}, ${newId()}, ${clientId}, 'h', 'openid',
+       ${at(-1 * DAY)}::timestamptz)
+  `);
+
+  await owner.db.execute(sql`
     INSERT INTO agent_approvals (tenant_id, id, subject_id, requesting_client_id, kind, summary,
                                  action_digest, state, decided_at, decided_via, expires_at)
     VALUES
@@ -556,6 +566,7 @@ const RELATIONS: Record<TableName, SQL> = {
   refresh_tokens: sql.raw('refresh_tokens'),
   authorization_codes: sql.raw('authorization_codes'),
   agent_budget_windows: sql.raw('agent_budget_windows'),
+  ciba_requests: sql.raw('ciba_requests'),
   agent_approvals: sql.raw('agent_approvals'),
   agent_delegations: sql.raw('agent_delegations'),
   agent_instances: sql.raw('agent_instances'),
@@ -879,6 +890,7 @@ describe('odudu reap', () => {
       refresh_tokens: 1,
       authorization_codes: 1,
       agent_budget_windows: 1,
+      ciba_requests: 1,
       agent_approvals: 2,
       agent_delegations: 2,
       agent_instances: 4,
@@ -910,6 +922,7 @@ describe('odudu reap', () => {
       refresh_tokens: 3,
       authorization_codes: 1,
       agent_budget_windows: 1,
+      ciba_requests: 1,
       agent_approvals: 2,
       agent_delegations: 2,
       agent_instances: 3,
@@ -938,6 +951,7 @@ describe('odudu reap', () => {
       refresh_tokens: 0,
       authorization_codes: 0,
       agent_budget_windows: 0,
+      ciba_requests: 0,
       agent_approvals: 0,
       agent_delegations: 0,
       agent_instances: 0,
@@ -1267,6 +1281,7 @@ describe('odudu reap', () => {
     'dynamic_clients',
     'tenant_domains',
     'agent_budget_windows',
+    'ciba_requests',
     'agent_approvals',
     'agent_delegations',
     'agent_instances',
