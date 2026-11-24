@@ -436,7 +436,7 @@ function topLevel(row: Row): string {
 
 // Rows are kept together by their top-level field, so a field and what is
 // inside it are never on different pages.
-function chunkRows(rows: readonly Row[]): Row[][] {
+export function chunkRows(rows: readonly Row[]): Row[][] {
   const groups = new Map<string, Row[]>();
   for (const row of rows) {
     const group = groups.get(topLevel(row));

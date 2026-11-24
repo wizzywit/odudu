@@ -5,6 +5,7 @@ import { buildMeOpenApiDocument } from '@odudu/me/docs';
 import { buildAdminOpenApiDocument, type OpenApiDocument } from '@odudu/protocol-admin/docs';
 import {
   areaOf,
+  chunkRows,
   operationSlug,
   operationsOf,
   ME_PROFILE,
@@ -508,5 +509,49 @@ describe('the me API reference', () => {
 
   it('places a path in an area by the profile it is read under', () => {
     expect(areaOf('/tenants/{tenant}/me/sessions/{id}', ME_PROFILE)).toBe('sessions');
+  });
+});
+
+type BodyRow = Parameters<typeof chunkRows>[0][number];
+
+// `count` rows under one top-level field, so the group is never split.
+function field(name: string, count: number): BodyRow[] {
+  return Array.from({ length: count }, (_, index) => ({
+    path: index === 0 ? name : `${name}.child${String(index)}`,
+    type: 'string',
+    required: true,
+    details: '',
+    described: true,
+    patterns: [],
+  }));
+}
+
+describe('the pages a long body is split into', () => {
+  const sizes = (rows: readonly BodyRow[]): number[] =>
+    chunkRows(rows).map((chunk) => chunk.length);
+
+  it('gives an empty body no page and a short one a single page', () => {
+    expect(sizes([])).toEqual([]);
+    expect(sizes(field('a', 10))).toEqual([10]);
+  });
+
+  it('folds a last page of up to three rows into the page before it', () => {
+    expect(sizes([...field('a', 55), ...field('b', 1)])).toEqual([56]);
+    expect(sizes([...field('a', 55), ...field('b', 3)])).toEqual([58]);
+  });
+
+  it('leaves a last page of four rows on its own', () => {
+    expect(sizes([...field('a', 55), ...field('b', 4)])).toEqual([55, 4]);
+  });
+
+  it('does not fold past 58 rows', () => {
+    expect(sizes([...field('a', 56), ...field('b', 3)])).toEqual([56, 3]);
+  });
+
+  it('keeps a field and what is inside it on one page', () => {
+    const chunks = chunkRows([...field('a', 30), ...field('b', 30)]);
+    expect(chunks.map((chunk) => new Set(chunk.map((row) => row.path.split('.')[0])).size)).toEqual(
+      [1, 1],
+    );
   });
 });
