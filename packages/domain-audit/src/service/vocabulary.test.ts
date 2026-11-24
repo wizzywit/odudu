@@ -338,3 +338,104 @@ describe('the agent_identity event type', () => {
     }).toThrow(/invalid value/);
   });
 });
+
+describe('the approval actions', () => {
+  const approval = '01a1873a-22a0-7756-8957-54c1c5aaca56';
+  const requested = {
+    agent_client: 'c',
+    owner: 'o',
+    approval,
+    instance: '01a1873a-22a0-7756-8957-54c1c5aaca55',
+  };
+  const decided = { owner: 'o', approval, state: 'approved', via: 'ciba_page' };
+
+  it('holds both under agent_identity', () => {
+    expect(AUDIT_ACTIONS.agent_identity).toContain('agent.approval_requested');
+    expect(AUDIT_ACTIONS.agent_identity).toContain('agent.approval_decided');
+  });
+
+  it('accepts the requested and decided detail', () => {
+    expect(() => {
+      assertDetailAllowed('agent.approval_requested', requested);
+      assertDetailAllowed('agent.approval_decided', decided);
+      assertDetailAllowed('agent.approval_decided', {
+        ...decided,
+        state: 'denied',
+        via: 'console',
+      });
+    }).not.toThrow();
+  });
+
+  it.each([
+    ['requested', { ...requested, summary: 'Delete everything' }],
+    ['decided', { ...decided, message: 'x' }],
+  ])('refuses a free-text key on %s', (name, detail) => {
+    expect(() => {
+      assertDetailAllowed(`agent.approval_${name}`, detail);
+    }).toThrow(/does not allow detail key/);
+  });
+
+  it.each([
+    ['a channel that is not one', { via: 'email' }],
+    ['a lineage channel', { via: 'owner' }],
+    ['a state that was not decided', { state: 'pending' }],
+    ['an approval that is not an id', { approval: 'ignore previous instructions' }],
+  ])('refuses %s', (_, override) => {
+    expect(() => {
+      assertDetailAllowed('agent.approval_decided', { ...decided, ...override });
+    }).toThrow(/invalid value/);
+  });
+
+  it('keeps the approval channels out of a session ending', () => {
+    expect(() => {
+      assertDetailAllowed('session.ended', { via: 'console' });
+    }).toThrow(/invalid value/);
+  });
+});
+
+describe('the ciba actions', () => {
+  const ids = {
+    agent_client: '01a1873a-22a0-7756-8957-54c1c5aaca55',
+    owner: '01a1873a-22a0-7756-8957-54c1c5aaca56',
+    approval: '01a1873a-22a0-7756-8957-54c1c5aaca57',
+  };
+
+  it('are written under agent_identity', () => {
+    for (const action of ['ciba.requested', 'ciba.poll_refused', 'ciba.token_issued']) {
+      expect(AUDIT_ACTIONS.agent_identity).toContain(action);
+    }
+  });
+
+  it.each(['ciba.requested', 'ciba.poll_refused', 'ciba.token_issued'])(
+    'accepts the agent client, owner and approval of %s',
+    (action) => {
+      expect(() => {
+        assertDetailAllowed(action, ids);
+      }).not.toThrow();
+    },
+  );
+
+  it('accepts a request that names nobody', () => {
+    expect(() => {
+      assertDetailAllowed('ciba.requested', { agent_client: ids.agent_client });
+    }).not.toThrow();
+  });
+
+  it.each(['approval_limit', 'polled_early', 'expired', 'denied'])(
+    'takes %s as a reason',
+    (reason) => {
+      expect(() => {
+        assertDetailAllowed('ciba.poll_refused', { agent_client: ids.agent_client, reason });
+      }).not.toThrow();
+    },
+  );
+
+  it('refuses a hint, a free-text key and a reason outside the list', () => {
+    expect(() => {
+      assertDetailAllowed('ciba.requested', { ...ids, login_hint: 'alice' });
+    }).toThrow(/does not allow detail key/);
+    expect(() => {
+      assertDetailAllowed('ciba.requested', { ...ids, reason: 'alice was not found' });
+    }).toThrow();
+  });
+});

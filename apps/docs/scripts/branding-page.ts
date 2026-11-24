@@ -9,6 +9,7 @@ export const KIND_DESCRIPTIONS: Record<PageKind, string> = {
   consent: 'The page that asks a person to approve what an app requests.',
   'select-account': 'The page that offers the accounts already signed in at this browser.',
   'logout-confirm': 'The question asked before ending a session at the end-session address.',
+  approval: 'The page a mailed link opens, where a person approves or denies what an agent asks.',
   'totp-enrolment': 'Adding an authenticator app.',
   'passkey-enrolment': 'Adding a passkey.',
   'recovery-codes': 'Showing the new recovery codes once.',
@@ -37,6 +38,9 @@ export const PART_DESCRIPTIONS: Readonly<Record<string, string>> = {
   submit: 'The button that sends the form.',
   'submit.allow': 'The button that approves the request.',
   'submit.deny': 'The button that refuses it.',
+  'submit.approve': 'The button that approves what the agent asks for.',
+  details:
+    'Who is asking, what for, the message it sent and when the request ends; the page’s own text, so a template places it and cannot drop it.',
   'submit.other': 'The button that signs in as someone else.',
   error: 'The refusal message for the form; empty when there is none.',
   intro: 'The heading and the tenant’s name.',

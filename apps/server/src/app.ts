@@ -245,6 +245,11 @@ export interface AppDeps {
    */
   readonly clientSecretThrottle?: ThrottleSettings;
   /**
+   * The budget per client on `bc-authorize`, the backchannel authentication
+   * endpoint. Defaults to `DEFAULT_CIBA_THROTTLE`.
+   */
+  readonly cibaThrottle?: ThrottleSettings;
+  /**
    * The budget per address and username on the sign-in submission alone,
    * beside the per-origin one: credential stuffing against one account
    * from one address is refused sooner without punishing a whole NAT.
@@ -363,6 +368,20 @@ export const DEFAULT_ME_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, window
 // many an origin a minute get it.
 export const DEFAULT_ME_REFUSAL_THROTTLE: ThrottleSettings = { limit: 60, windowSeconds: 60 };
 
+// Where a person with no session signs in to reach an approval page: the
+// console's sign-in, which sends them back to the page. Only where the console
+// is on; elsewhere there is nowhere to send them.
+function approvalSignIn(
+  consoleBaseUrl: string | undefined,
+): (tenant: string, returnPath: string) => string | null {
+  return (tenant, returnPath) => {
+    if (consoleBaseUrl === undefined) return null;
+    const url = new URL('/console/auth/login', consoleBaseUrl);
+    url.search = new URLSearchParams({ tenant, return_to: returnPath }).toString();
+    return url.toString();
+  };
+}
+
 function tenantParam(request: { readonly params: unknown }): string | undefined {
   const params = request.params;
   return typeof params === 'object' &&
@@ -397,6 +416,11 @@ export const DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE: ThrottleSettings = {
 // unusual, and the two budgets being the same shape is easier for an
 // operator to reason about than a third, unrelated pair of numbers.
 export const DEFAULT_CLIENT_SECRET_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
+
+// How fast one client may ask at the backchannel authentication endpoint. The
+// live requests it may hold per hint, and the silent protection of a person
+// who already has many approvals waiting, bound what piles up beyond this.
+export const DEFAULT_CIBA_THROTTLE: ThrottleSettings = { limit: 30, windowSeconds: 60 };
 
 // ADR 0037: the most refusal rows one registered client can put in the
 // audit table per window, the last of them saying the budget ran out. Past
@@ -580,6 +604,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // flood cannot spend the other's window.
   const clientSecretLimiter: RateLimiter = slidingWindow({
     ...(deps.clientSecretThrottle ?? DEFAULT_CLIENT_SECRET_THROTTLE),
+    now: () => new Date(),
+  });
+
+  const cibaLimiter: RateLimiter = slidingWindow({
+    ...(deps.cibaThrottle ?? DEFAULT_CIBA_THROTTLE),
     now: () => new Date(),
   });
 
@@ -834,6 +863,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       resolveBranding: branding.resolveBranding,
       resolveOverrides: messageOverrides.resolveOverrides,
       resolveMailLook: mailLook,
+      approvalSignIn: approvalSignIn(deps.consoleBaseUrl),
+      approvalMailBudget: (tenantId, address) => mailGate('approval', tenantId, address),
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
@@ -853,6 +884,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
           request,
         ),
       clientSecretLimiter,
+      cibaLimiter,
       mcpRegistrationLimiter: mcpRegistrations,
       auditRefusalBudget: auditRefusalBudget(() => new Date()),
       clientKeySet: privateKeyJwtKeySet,

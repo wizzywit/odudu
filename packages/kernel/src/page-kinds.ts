@@ -6,6 +6,7 @@ export type PageKind =
   | 'consent'
   | 'select-account'
   | 'logout-confirm'
+  | 'approval'
   | 'totp-enrolment'
   | 'passkey-enrolment'
   | 'recovery-codes'
@@ -61,6 +62,11 @@ export const PAGE_KINDS: Record<PageKind, PageManifest> = {
     required: [FORM_OPEN, 'submit', FORM_CLOSE],
     optional: [],
     inForm: ['submit'],
+  },
+  approval: {
+    required: [FORM_OPEN, 'details', 'submit.approve', 'submit.deny', FORM_CLOSE],
+    optional: [],
+    inForm: ['submit.approve', 'submit.deny'],
   },
   'totp-enrolment': {
     required: [FORM_OPEN, 'offer', 'fields', 'submit', 'error', FORM_CLOSE],

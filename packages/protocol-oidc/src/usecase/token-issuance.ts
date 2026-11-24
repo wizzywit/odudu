@@ -86,6 +86,8 @@ import {
   type RefusalLogger,
 } from '#/usecase/client-authentication';
 import { authenticateEndpointClient } from '#/usecase/private-key-jwt-authentication';
+import { CIBA_GRANT } from '#/service/ciba';
+import { issueCibaTokens, recordCibaPoll, type CibaPollRequest } from '#/usecase/ciba-token';
 import { loadClaimContextIn } from '#/usecase/evaluate-claims';
 import { narrowMayAct, type MayActClaim } from '#/service/agent-mint';
 import { applyAgentLayer, mayActFor } from '#/usecase/agent-layer';
@@ -229,7 +231,8 @@ type StructuredRequest =
       scope: string;
       resource: string | string[] | undefined;
       audience: string | string[] | undefined;
-    };
+    }
+  | (CibaPollRequest & { clientId: string | undefined });
 
 function readField(body: Record<string, string | string[] | undefined>, key: string): string {
   const value = body[key];
@@ -322,6 +325,12 @@ export function parseStructure(
       resource: readResourceField(body),
       audience: readMultiField(body, 'audience'),
     };
+  }
+
+  if (grantType === CIBA_GRANT) {
+    const authReqId = readField(body, 'auth_req_id');
+    if (authReqId.length === 0) throw invalidRequest();
+    return { grantType, clientId: readOptionalField(body, 'client_id'), authReqId };
   }
 
   throw unsupportedGrantType();
@@ -1482,6 +1491,8 @@ export async function issueTokens(
     rawHeaders,
   });
 
+  if (request.grantType === CIBA_GRANT) await recordCibaPoll(tx, deps, request, client);
+
   return settle(async (work) => {
     try {
       return await issueForAuthenticatedClient(work, deps, request, client, config);
@@ -1501,6 +1512,7 @@ const GRANT_REFUSAL_ACTIONS: Readonly<
   client_credentials: 'token.issue',
   refresh_token: 'token.refresh',
   [TOKEN_EXCHANGE_GRANT]: 'token.exchange',
+  [CIBA_GRANT]: 'token.issue',
 };
 
 // `invalid_request` has no reason here: after authentication only a token
@@ -1555,6 +1567,11 @@ async function issueForAuthenticatedClient(
       return issueClientCredentialsTokens(tx, deps, request, client, issuing);
     case TOKEN_EXCHANGE_GRANT:
       return issueExchangedTokens(tx, deps, request, client, issuing);
+    case CIBA_GRANT:
+      return issueCibaTokens(tx, deps, request, client, issuing, {
+        accessToken: (input, at) => mintSubjectAccessToken(tx, deps, input, at),
+        idTokenKey: (active) => idTokenKey(tx, issuing, active),
+      });
     default:
       return assertNeverGrant(request);
   }

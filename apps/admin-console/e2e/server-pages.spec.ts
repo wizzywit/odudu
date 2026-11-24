@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { expect, forgive, test } from './fixtures';
 import { authorize, client, LANDING, LONG_NAME, mailKey, ROOT, totp } from './page-flows';
 import { BASE, COMMON_PASSWORD, forgiveRefusals, inspect } from './page-inspection';
-import { inTenant, psql, seed } from './stack';
+import { inTenant, psql, seed, seedApproval } from './stack';
 import type { Page } from '@playwright/test';
 import { randomPassword } from './password';
 
@@ -221,6 +221,12 @@ test('consent, the account chooser and signing out', async ({ page, problems }) 
   await page.goto(authorize(main, 'plain', { prompt: 'select_account' }));
   await expect(page.getByRole('heading', { level: 1, name: 'Choose an account' })).toBeVisible();
   await inspect(page, 'select-account');
+
+  await page.goto(`/tenants/${main}/approval/${seedApproval(main, 'alice', 'plain')}`);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(
+    'is asking for your approval',
+  );
+  await inspect(page, 'approval');
 
   await page.goto(`/tenants/${main}/protocol/openid-connect/logout?client_id=plain`);
   await expect(page.getByRole('heading', { level: 1, name: 'Sign out?' })).toBeVisible();

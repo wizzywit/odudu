@@ -5,6 +5,7 @@ from enum import Enum
 
 class GetAdminTenantsTenantMessageCatalogueResponse200SectionsItemKindsItem(str, Enum):
     ACCEPT_TERMS = "accept-terms"
+    APPROVAL = "approval"
     AUTHORIZE_ERROR = "authorize-error"
     CONSENT = "consent"
     EMAIL_UNVERIFIED = "email-unverified"

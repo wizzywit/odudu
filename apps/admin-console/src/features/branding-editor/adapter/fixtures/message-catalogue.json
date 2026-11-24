@@ -6,6 +6,7 @@
         "consent",
         "select-account",
         "logout-confirm",
+        "approval",
         "authorize-error",
         "email-unverified",
         "logged-out"

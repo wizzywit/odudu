@@ -19,11 +19,16 @@ export const AUTHORIZATION_ERRORS = [
 export type AuthorizationErrorCode = (typeof AUTHORIZATION_ERRORS)[number];
 
 export const TOKEN_ERRORS = [
+  'access_denied',
+  'authorization_pending',
+  'expired_token',
+  'invalid_binding_message',
   'invalid_client',
   'invalid_grant',
   'invalid_request',
   'invalid_scope',
   'invalid_target',
+  'slow_down',
   'unauthorized_client',
   'unsupported_grant_type',
 ] as const;
@@ -62,20 +67,35 @@ export const OAUTH_ERROR_DOCS: Readonly<Record<OAuthErrorCode, { readonly summar
   access_denied: {
     summary:
       'The user refused consent, or the sign-in the request was waiting on expired, so the ' +
-      'client is sent back without a code.',
+      'client is sent back without a code. At the token endpoint it is a person refusing a ' +
+      'backchannel (CIBA) request; at the backchannel authentication endpoint it is the ' +
+      'server declining one because the person already holds the most pending requests allowed.',
   },
   account_selection_required: {
     summary:
       'The request asked for no interaction (`prompt=none`) but the user must choose between ' +
       'accounts.',
   },
+  authorization_pending: {
+    summary:
+      'The backchannel (CIBA) request is still waiting for the person to decide. Poll again ' +
+      'after the interval.',
+  },
   consent_required: {
     summary:
       'The request asked for no interaction (`prompt=none`) but the user has not consented to ' +
       'what the client asks for.',
   },
+  expired_token: {
+    summary: 'The backchannel (CIBA) request expired before the person decided. Start a new one.',
+  },
   insufficient_scope: {
     summary: 'The access token does not carry the `openid` scope the UserInfo endpoint requires.',
+  },
+  invalid_binding_message: {
+    summary:
+      'The `binding_message` of a backchannel (CIBA) request is longer than 140 characters or ' +
+      'holds a control character.',
   },
   invalid_client: {
     summary: 'Client authentication failed: the client is unknown or its credential is wrong.',
@@ -122,6 +142,11 @@ export const OAUTH_ERROR_DOCS: Readonly<Record<OAuthErrorCode, { readonly summar
   request_uri_not_supported: {
     summary: 'The request carried a `request_uri`, which this server does not support.',
   },
+  slow_down: {
+    summary:
+      'A backchannel (CIBA) poll came before the interval had passed. The interval is raised by ' +
+      'five seconds, for this poll and every later one.',
+  },
   unauthorized_client: {
     summary: 'The client is not allowed to use the grant type it asked for.',
   },
@@ -141,8 +166,11 @@ export const OAUTH_ERROR_DESCRIPTIONS: Readonly<
   Record<AuthorizationErrorCode | TokenErrorCode, string>
 > = {
   access_denied: 'The user did not allow the request.',
+  authorization_pending: 'The user has not decided yet.',
   account_selection_required: 'The user must choose an account first.',
   consent_required: 'The user has not agreed to this request yet.',
+  expired_token: 'The request has expired.',
+  invalid_binding_message: 'The binding message is not acceptable.',
   invalid_client: 'Client authentication failed.',
   invalid_grant: 'The code or token is not valid.',
   invalid_request: 'The request is missing a parameter or has a wrong one.',
@@ -151,10 +179,15 @@ export const OAUTH_ERROR_DESCRIPTIONS: Readonly<
   login_required: 'The user is not signed in.',
   request_not_supported: 'The request parameter is not supported.',
   request_uri_not_supported: 'The request_uri parameter is not supported.',
+  slow_down: 'Poll less often.',
   unauthorized_client: 'This client may not use this grant type.',
   unsupported_grant_type: 'This grant type is not supported.',
   unsupported_response_type: 'Only response_type=code is supported.',
 };
+
+// What the backchannel authentication endpoint says when a client already holds the most
+// live requests one hint allows: its own sentence, since no person refused anything.
+export const CIBA_REQUEST_LIMIT_DESCRIPTION = 'Too many requests are waiting for this hint.';
 
 // What /authorize says, beside its code's sentence, when it can name the
 // parameter at fault: still static, still never built from the request.

@@ -29,6 +29,7 @@ export {
   loadPendingRequest,
   pendingSession,
   advance,
+  findAccountByLogin,
   authenticatedSession,
   authenticatorsSatisfyFlow,
   authenticatedSubject,

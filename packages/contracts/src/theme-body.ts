@@ -21,6 +21,7 @@ export const THEME_PAGE_KINDS = [
   'consent',
   'select-account',
   'logout-confirm',
+  'approval',
   'totp-enrolment',
   'passkey-enrolment',
   'recovery-codes',

@@ -912,6 +912,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'clients/services/tokenExchange.ts',
     "EXCHANGE_ACTOR_LABEL = 'Accept an actor token issued to another client'",
   ),
+  'Backchannel authentication': page(
+    'clients/services/grantTypes.ts',
+    "'urn:openid:params:grant-type:ciba': 'Backchannel authentication'",
+  ),
   'Agent identity': page('clients/services/sectionTitles.ts', "agent: 'Agent identity'"),
   'This client is an agent': page(
     'clients/services/tokenExchange.ts',
