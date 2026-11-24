@@ -56,6 +56,11 @@ describe('renderApprovalPage', () => {
     expect(page.html).not.toContain('&amp;amp;');
   });
 
+  it('names the tenant by the name it was given, escaped', () => {
+    const page = renderApprovalPage({ ...view, tenant: 'Northwind <Ltd>' }, DEFAULT_PAGE_LOCALE);
+    expect(page.body).toContain('Northwind &lt;Ltd&gt;');
+  });
+
   it('omits the message line when the request carried none', () => {
     const page = renderApprovalPage({ ...view, bindingMessage: null }, DEFAULT_PAGE_LOCALE);
     expect(page.body).not.toContain(en['approval.bindingMessage'].split('{')[0] ?? '');

@@ -11,8 +11,6 @@ export const NO_TENANT_IN_SCOPE: Record<string, string> = {
     'answers from the edge, before any route runs, for an address the tenant has left; it names only the canonical address and must not cost a theme read',
   'packages/protocol-oidc/src/view/throttled-html.ts':
     'the request path names the tenant, but the throttle answers before any tenant lookup by design, so a refusal costs no query (a cost choice)',
-  'packages/protocol-oidc/src/view/approval-html.ts':
-    'reached from a mailed link that carries only an approval id: it wears the tenant theme through the page shell, but has no template kind, so the theme API and console editor do not offer one',
   'packages/console-gateway/src/view/refusal-html.ts':
     "the console's own sign-in refusal: the console belongs to the system tenant, not to a tenant that themes pages",
 };
@@ -46,6 +44,10 @@ export const CLIENT_RULES: Record<string, ClientRule> = {
   'packages/protocol-oidc/src/view/logout-html.ts': {
     source: 'verified-hint',
     why: 'a logout names its client in a query parameter anyone can set, so only a client the id_token_hint verified for (carried to the confirmation by the form token) is worn; otherwise the tenant theme',
+  },
+  'packages/protocol-oidc/src/view/approval-html.ts': {
+    source: 'tenant',
+    why: 'the page is reached from a mailed link that carries only an approval id, so no client travels with it',
   },
   'packages/authn-flows/src/view/totp-enrolment-html.ts': {
     source: 'pending-request',
