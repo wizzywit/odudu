@@ -4,6 +4,7 @@ import {
   agentInstanceRepository,
   type AgentApprovalChannel,
   type AgentApprovalRecord,
+  type AgentInstanceRecord,
 } from '@odudu/domain-agents';
 import { auditRepository } from '@odudu/domain-audit';
 import { readAgentSettings } from '@odudu/domain-tenant';
@@ -17,6 +18,23 @@ export class ApprovalLimitReached extends Error {
     super(`a subject holds at most ${String(PENDING_APPROVALS_PER_SUBJECT)} pending approvals`);
     this.name = 'ApprovalLimitReached';
   }
+}
+
+// The instance an approval names is missing, ended, or belongs to someone else.
+export class ApprovalInstanceRefused extends Error {
+  constructor() {
+    super('an approval can name only a live instance of its own owner');
+    this.name = 'ApprovalInstanceRefused';
+  }
+}
+
+function liveOwnedBy(instance: AgentInstanceRecord, subjectId: string, now: Date): boolean {
+  return (
+    instance.ownerSubjectId === subjectId &&
+    instance.revokedAt === null &&
+    instance.expiresAt > now &&
+    (instance.idleExpiresAt === null || instance.idleExpiresAt > now)
+  );
 }
 
 export interface ApprovalDeps {
@@ -52,12 +70,18 @@ export async function requestApproval(
     throw new ApprovalLimitReached();
   }
 
-  const settings = await readAgentSettings(tx, deps.tenantId);
-  let expiresAt = new Date(input.now.getTime() + settings.agentApprovalTtlSeconds * 1000);
+  let instanceEnd: Date | null = null;
   if (input.instanceId !== null) {
     const instance = await agentInstanceRepository(tx).byId(input.instanceId);
-    if (instance !== null && instance.expiresAt < expiresAt) expiresAt = instance.expiresAt;
+    if (instance === null || !liveOwnedBy(instance, input.subjectId, input.now)) {
+      throw new ApprovalInstanceRefused();
+    }
+    instanceEnd = instance.expiresAt;
   }
+
+  const settings = await readAgentSettings(tx, deps.tenantId);
+  const ttlEnd = new Date(input.now.getTime() + settings.agentApprovalTtlSeconds * 1000);
+  const expiresAt = instanceEnd !== null && instanceEnd < ttlEnd ? instanceEnd : ttlEnd;
 
   const record = await repository.create({
     id: newId(),

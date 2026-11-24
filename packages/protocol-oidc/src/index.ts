@@ -1391,6 +1391,7 @@ export {
   type MintAgentTokenInput,
 } from '#/usecase/mint-agent-token';
 export {
+  ApprovalInstanceRefused,
   ApprovalLimitReached,
   consumeApproval,
   decideApproval,

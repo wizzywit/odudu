@@ -16,6 +16,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  ApprovalInstanceRefused,
   ApprovalLimitReached,
   consumeApproval,
   decideApproval,
@@ -174,6 +175,162 @@ describe('requestApproval', () => {
       const later = new Date(NOW.getTime() + 601_000);
       await expect(requestApproval(tx, deps(s), request(s, { now: later }))).resolves.toBeDefined();
     });
+  });
+});
+
+async function mintInstance(
+  tx: TenantScopedDatabase,
+  s: Seeded,
+  overrides: Partial<Parameters<ReturnType<typeof agentInstanceRepository>['mint']>[0]> = {},
+): Promise<string> {
+  const id = newId();
+  await agentInstanceRepository(tx).mint({
+    id,
+    tenantId: s.tenantId,
+    ownerSubjectId: s.ownerId,
+    agentClientId: s.clientId,
+    parentInstanceId: null,
+    rootGrantId: s.grantId,
+    depth: 1,
+    scope: 'openid',
+    expiresAt: new Date(NOW.getTime() + 60_000),
+    idleExpiresAt: null,
+    ...overrides,
+  });
+  return id;
+}
+
+async function noTrace(tx: TenantScopedDatabase, s: Seeded): Promise<void> {
+  expect(await agentApprovalRepository(tx).pendingCount(s.ownerId, NOW)).toBe(0);
+  const rows = await auditRepository(tx).list({ limit: 100 });
+  expect(rows.filter((x) => x.action === 'agent.approval_requested')).toEqual([]);
+}
+
+describe('requestApproval and the instance it names', () => {
+  it('refuses an instance id that resolves to nothing', async () => {
+    await inTenant(async (tx, s) => {
+      await expect(
+        requestApproval(tx, deps(s), request(s, { instanceId: newId() })),
+      ).rejects.toBeInstanceOf(ApprovalInstanceRefused);
+      await noTrace(tx, s);
+    });
+  });
+
+  it("refuses another subject's instance", async () => {
+    await inTenant(async (tx, s) => {
+      const instanceId = await mintInstance(tx, s, { ownerSubjectId: s.otherId });
+      await expect(requestApproval(tx, deps(s), request(s, { instanceId }))).rejects.toBeInstanceOf(
+        ApprovalInstanceRefused,
+      );
+      await noTrace(tx, s);
+    });
+  });
+
+  it('refuses an expired instance', async () => {
+    await inTenant(async (tx, s) => {
+      const instanceId = await mintInstance(tx, s, { expiresAt: new Date(NOW.getTime() - 1) });
+      await expect(requestApproval(tx, deps(s), request(s, { instanceId }))).rejects.toBeInstanceOf(
+        ApprovalInstanceRefused,
+      );
+      await noTrace(tx, s);
+    });
+  });
+
+  it('refuses an instance idle past its idle expiry', async () => {
+    await inTenant(async (tx, s) => {
+      const instanceId = await mintInstance(tx, s, { idleExpiresAt: new Date(NOW.getTime() - 1) });
+      await expect(requestApproval(tx, deps(s), request(s, { instanceId }))).rejects.toBeInstanceOf(
+        ApprovalInstanceRefused,
+      );
+      await noTrace(tx, s);
+    });
+  });
+
+  it('refuses a revoked instance', async () => {
+    await inTenant(async (tx, s) => {
+      const instanceId = await mintInstance(tx, s);
+      await agentInstanceRepository(tx).revoke(instanceId, NOW);
+      await expect(requestApproval(tx, deps(s), request(s, { instanceId }))).rejects.toBeInstanceOf(
+        ApprovalInstanceRefused,
+      );
+      await noTrace(tx, s);
+    });
+  });
+
+  it("refuses another tenant's instance id", async () => {
+    const foreign = await inTenant(async (tx, s) => mintInstance(tx, s));
+    await inTenant(async (tx, s) => {
+      await expect(
+        requestApproval(tx, deps(s), request(s, { instanceId: foreign })),
+      ).rejects.toBeInstanceOf(ApprovalInstanceRefused);
+      await noTrace(tx, s);
+    });
+  });
+});
+
+describe('requestApproval across tenants', () => {
+  // The composite foreign key aborts the transaction, so the refusal is the
+  // rejection of the whole unit of work and nothing is committed.
+  it("refuses another tenant's subject", async () => {
+    const foreign = await inTenant((_tx, s) => Promise.resolve(s));
+    await expect(
+      inTenant((tx, s) => requestApproval(tx, deps(s), request(s, { subjectId: foreign.ownerId }))),
+    ).rejects.toThrow();
+  });
+
+  it("refuses another tenant's client", async () => {
+    const foreign = await inTenant((_tx, s) => Promise.resolve(s));
+    await expect(
+      inTenant((tx, s) =>
+        requestApproval(tx, deps(s), request(s, { requestingClientId: foreign.clientId })),
+      ),
+    ).rejects.toThrow();
+  });
+});
+
+describe('concurrent approvals', () => {
+  it('lets exactly one more request through at 19 pending', async () => {
+    const tenantId = newId();
+    const s = await withTenant(app.db, tenantId, (tx) => seed(tx, tenantId));
+    await withTenant(app.db, tenantId, async (tx) => {
+      for (let i = 0; i < PENDING_APPROVALS_PER_SUBJECT - 1; i += 1) {
+        await requestApproval(tx, deps(s), request(s));
+      }
+    });
+    const results = await Promise.allSettled(
+      Array.from({ length: 6 }, () =>
+        withTenant(app.db, tenantId, (tx) => requestApproval(tx, deps(s), request(s))),
+      ),
+    );
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    for (const r of results) {
+      if (r.status === 'rejected') expect(r.reason).toBeInstanceOf(ApprovalLimitReached);
+    }
+    await withTenant(app.db, tenantId, async (tx) => {
+      expect(await agentApprovalRepository(tx).pendingCount(s.ownerId, NOW)).toBe(20);
+    });
+  });
+
+  it('spends an approved approval once however many consume it together', async () => {
+    const tenantId = newId();
+    const s = await withTenant(app.db, tenantId, (tx) => seed(tx, tenantId));
+    const id = await withTenant(app.db, tenantId, async (tx) => {
+      const r = await requestApproval(tx, deps(s), request(s));
+      await decideApproval(tx, deps(s), {
+        approvalId: r.id,
+        subjectId: s.ownerId,
+        approve: true,
+        via: 'console',
+        now: NOW,
+      });
+      return r.id;
+    });
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        withTenant(app.db, tenantId, (tx) => consumeApproval(tx, id, DIGEST, NOW)),
+      ),
+    );
+    expect(results.filter(Boolean)).toHaveLength(1);
   });
 });
 
