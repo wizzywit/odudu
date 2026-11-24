@@ -147,7 +147,7 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   agent_approval_ttl_seconds: count.default(600),
   agent_writes_per_grant: count.default(20),
   agent_creates_per_grant: count.default(10),
-  agent_window_writes: count.default(200),
+  agent_window_writes: count.default(1000),
   audit_event_types: z.array(z.string()),
   // Absent from a document exported before tenants had languages, which
   // imports as English only with no default.

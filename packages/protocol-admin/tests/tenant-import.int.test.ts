@@ -282,6 +282,32 @@ describe('POST /admin/tenant-imports', () => {
     );
   });
 
+  it('refuses a delegated actor the document does not carry, and takes one it does', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const withActors = (delegated_actors: string[]) => ({
+      ...original,
+      clients: original.clients.map((client) =>
+        client.client_id === 'spa' ? { ...client, delegated_actors } : client,
+      ),
+    });
+    const refused = await postImport(token, {
+      name: `actor-a-${newId()}`,
+      document: withActors(['no-such-client']),
+    });
+    expect(refused.statusCode).toBe(400);
+    const errors = refused.json<ImportRefusal>().errors ?? [];
+    expect(errors.map((error) => error.path)).toHaveLength(1);
+    expect(errors[0]?.path).toMatch(/^document\.clients\[\d+\]\.delegated_actors\[0\]$/u);
+    expect(errors[0]?.message).toContain('no-such-client');
+    const accepted = await postImport(token, {
+      name: `actor-b-${newId()}`,
+      document: withActors([source.confidentialId]),
+    });
+    expect(accepted.statusCode, accepted.payload).toBe(201);
+  });
+
   it('refuses a document display name of 257 characters, naming it, and takes 256', async () => {
     const source = await fixture.createTenant(`bound-src-${newId()}`);
     const token = await operatorToken();

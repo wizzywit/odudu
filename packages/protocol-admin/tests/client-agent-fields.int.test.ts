@@ -163,4 +163,26 @@ describe('the agent fields of a client', () => {
     expect((await patch([7])).statusCode).toBe(400);
     expect((await patch('abc')).statusCode).toBe(400);
   });
+
+  it('refuses the built-in admin client, a metadata-document client and the client itself', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const created = await newClient(t.name, token);
+    const metadataClient = `https://cimd-${newId()}.example/client.json`;
+    await fixture.owner.sql`
+      insert into clients (id, tenant_id, client_id, name, type, registration_origin, metadata_used_at)
+      values (${newId()}, ${t.id}, ${metadataClient}, 'cimd', 'public', 'cimd', now())`;
+    const admin = await fixture.builtinAdminClient(t.name);
+    const patch = (actor: string) =>
+      request(t.name, token, 'PATCH', `/clients/${created.id}`, { delegated_actors: [actor] });
+
+    for (const actor of [admin.clientId, metadataClient, created.clientId]) {
+      const res = await patch(actor);
+      expect(res.statusCode, actor).toBe(400);
+      expect(res.payload).toContain('delegated_actors');
+      expect(res.payload).toContain(actor);
+    }
+    const onCreate = await newClient(t.name, token, { delegated_actors: [admin.clientId] });
+    expect(onCreate.status).toBe(400);
+  });
 });

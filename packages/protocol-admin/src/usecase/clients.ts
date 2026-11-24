@@ -698,7 +698,11 @@ export async function createClient(
     await auditRefusal();
     return { kind: 'invalid_value', ...unknownFlow };
   }
-  const unknownActor = await refusedDelegatedActors(tx, admin.config.delegatedActors);
+  const unknownActor = await refusedDelegatedActors(
+    tx,
+    admin.config.delegatedActors,
+    input.clientId,
+  );
   if (unknownActor !== null) {
     await auditRefusal();
     return { kind: 'invalid_value', ...unknownActor };
@@ -1103,20 +1107,27 @@ function checkedDelegatedActors(value: unknown): string[] | FieldError {
     : { field, description: `${field} names ${JSON.stringify(twice)} twice` };
 }
 
-// Every actor must already be a client of the tenant; a name that is not is
-// refused, never created.
+// Every actor must be a client of the tenant that a tenant export carries:
+// not the built-in admin client, not one resolved from a metadata document,
+// and not the client itself. A name that is not is refused, never created.
 async function refusedDelegatedActors(
   tx: TenantScopedDatabase,
   actors: readonly string[] | undefined,
+  self?: string,
 ): Promise<FieldError | null> {
   if (actors === undefined) return null;
   const clients = clientRepository(tx);
+  const refuse = (actor: string, reason: string): FieldError => ({
+    field: 'delegated_actors',
+    description: `delegated_actors names ${JSON.stringify(actor)}, ${reason}`,
+  });
   for (const actor of actors) {
-    if ((await clients.byClientId(actor)) === null) {
-      return {
-        field: 'delegated_actors',
-        description: `delegated_actors names ${JSON.stringify(actor)}, which is not a client of this tenant`,
-      };
+    if (actor === self) return refuse(actor, 'the client itself');
+    const found = await clients.byClientId(actor);
+    if (found === null) return refuse(actor, 'which is not a client of this tenant');
+    if (found.builtinAdmin) return refuse(actor, 'the built-in admin client');
+    if (found.registrationOrigin === 'cimd') {
+      return refuse(actor, 'a client registered from a metadata document');
     }
   }
   return null;
@@ -1455,7 +1466,11 @@ export async function amendClient(
   if (isFieldError(admin)) return { kind: 'invalid_value', ...admin };
   const unknownFlow = await refusedFlow(tx, clientRow.tenantId, admin.config.flowId);
   if (unknownFlow !== null) return { kind: 'invalid_value', ...unknownFlow };
-  const unknownActor = await refusedDelegatedActors(tx, admin.config.delegatedActors);
+  const unknownActor = await refusedDelegatedActors(
+    tx,
+    admin.config.delegatedActors,
+    clientRow.clientId,
+  );
   if (unknownActor !== null) return { kind: 'invalid_value', ...unknownActor };
   if (
     'allowed_actions' in input.values &&

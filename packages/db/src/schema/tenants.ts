@@ -143,7 +143,7 @@ export const tenants = pgTable('tenants', {
   agentApprovalTtlSeconds: integer('agent_approval_ttl_seconds').notNull().default(600),
   agentWritesPerGrant: integer('agent_writes_per_grant').notNull().default(20),
   agentCreatesPerGrant: integer('agent_creates_per_grant').notNull().default(10),
-  agentWindowWrites: integer('agent_window_writes').notNull().default(200),
+  agentWindowWrites: integer('agent_window_writes').notNull().default(1000),
   // The audit event types the trail stores; the admin pair always
   // (packages/db/drizzle/0091_audit_event_types.sql).
   auditEventTypes: text('audit_event_types')

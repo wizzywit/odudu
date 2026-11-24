@@ -40,7 +40,7 @@ export const SETTINGS = {
   agent_approval_ttl_seconds: 600,
   agent_writes_per_grant: 20,
   agent_creates_per_grant: 10,
-  agent_window_writes: 200,
+  agent_window_writes: 1000,
   max_clients: 200,
   max_sessions_per_browser: 25,
   remember_me_allowed: false,

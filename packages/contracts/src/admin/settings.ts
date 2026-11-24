@@ -60,7 +60,7 @@ export const TENANT_SETTING_RANGES: Readonly<Partial<Record<string, TenantSettin
   agent_approval_ttl_seconds: { min: 60, max: 900 },
   agent_writes_per_grant: { min: 1, max: 1000 },
   agent_creates_per_grant: { min: 1, max: 1000 },
-  agent_window_writes: { min: 1, max: 10_000 },
+  agent_window_writes: { min: 1, max: 100_000 },
 };
 
 // The values a setting may take where the CHECK is a list rather than a range:

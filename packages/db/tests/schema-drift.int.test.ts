@@ -54,7 +54,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'tenants.tenants_agent_creates_per_grant_range':
     'CHECK (((agent_creates_per_grant >= 1) AND (agent_creates_per_grant <= 1000)))',
   'tenants.tenants_agent_window_writes_range':
-    'CHECK (((agent_window_writes >= 1) AND (agent_window_writes <= 10000)))',
+    'CHECK (((agent_window_writes >= 1) AND (agent_window_writes <= 100000)))',
   'tenants.tenants_audit_retention_days_range':
     'CHECK (((audit_retention_days >= 1) AND (audit_retention_days <= 3650)))',
   'agent_approvals.agent_approvals_decided_via_check':

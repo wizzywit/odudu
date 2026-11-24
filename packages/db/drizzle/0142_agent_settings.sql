@@ -11,7 +11,7 @@ ALTER TABLE tenants
   ADD COLUMN IF NOT EXISTS agent_approval_ttl_seconds integer NOT NULL DEFAULT 600,
   ADD COLUMN IF NOT EXISTS agent_writes_per_grant integer NOT NULL DEFAULT 20,
   ADD COLUMN IF NOT EXISTS agent_creates_per_grant integer NOT NULL DEFAULT 10,
-  ADD COLUMN IF NOT EXISTS agent_window_writes integer NOT NULL DEFAULT 200;
+  ADD COLUMN IF NOT EXISTS agent_window_writes integer NOT NULL DEFAULT 1000;
 
 DO $$
 DECLARE
@@ -27,7 +27,7 @@ BEGIN
       ('agent_approval_ttl_seconds', 60, 900),
       ('agent_writes_per_grant', 1, 1000),
       ('agent_creates_per_grant', 1, 1000),
-      ('agent_window_writes', 1, 10000)
+      ('agent_window_writes', 1, 100000)
     ) AS v (col, lo, hi)
   LOOP
     IF NOT EXISTS (

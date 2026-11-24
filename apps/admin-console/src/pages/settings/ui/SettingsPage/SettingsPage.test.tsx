@@ -167,7 +167,7 @@ it('shows the agent limits with their ranges and saves one on its own', async ()
   const depth = within(agents).getByRole('textbox', { name: 'Delegation depth' });
   expect(depth).toHaveValue('3');
   expect(within(agents).getByText(/Allowed: 1 to 8 levels/u)).toBeVisible();
-  expect(within(agents).getByRole('textbox', { name: 'Writes per day' })).toHaveValue('200');
+  expect(within(agents).getByRole('textbox', { name: 'Writes per day' })).toHaveValue('1000');
   await user.clear(depth);
   await user.type(depth, '5');
   await user.tab();

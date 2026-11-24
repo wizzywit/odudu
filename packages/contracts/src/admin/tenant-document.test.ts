@@ -118,7 +118,7 @@ const DOCUMENT: TenantDocument = {
     agent_approval_ttl_seconds: 600,
     agent_writes_per_grant: 20,
     agent_creates_per_grant: 10,
-    agent_window_writes: 200,
+    agent_window_writes: 1000,
     audit_event_types: ['admin_mutation', 'admin_access'],
     supported_locales: ['en'],
     default_locale: null,
