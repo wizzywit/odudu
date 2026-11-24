@@ -53,6 +53,9 @@ export const PLAN_VOLUME = {
   // Tables a tenant fills with one row per role, group or scope, or per sign-in:
   // above the large-table threshold so a scan of one is caught.
   registrationTokens: 6_000,
+  // Live agent instances of other tenants, a hundred grants' worth, above the
+  // large-table threshold.
+  agentInstancesPerGrant: 60,
   consoleRows: 6_000,
   // What a set the admin API replaces whole holds, at the most it may.
   assignments: ASSIGNMENT_LIMIT,
@@ -154,6 +157,22 @@ insert into authentication_sessions (id, tenant_id, pending_request, expires_at)
 select gen_random_uuid(), (select id from vol_dynamic_tenant),
        jsonb_build_object('clientId', 'noise-' || g), now() + interval '30 minutes'
   from generate_series(1, 5000) g;
+-- Live agent instances held by tenants other than the plan tenant, so that a
+-- count of one tenant's live instances that fell back to scanning the table
+-- would read rows it has no business with.
+create temp table vol_instances as
+select gen_random_uuid() id, g.tenant_id, g.subject_id owner, g.client_id client, g.id root_grant
+  from token_grants g cross join generate_series(1, ${v.agentInstancesPerGrant})
+ where g.tenant_id = (select id from vol_dynamic_tenant)
+   and g.scope = 'openid';
+insert into subjects (id, tenant_id, type)
+select id, tenant_id, 'agent_instance' from vol_instances;
+insert into agent_instances
+  (id, tenant_id, owner_subject_id, agent_client_id, root_grant_id, depth, scope, expires_at)
+select id, tenant_id, owner, client, root_grant, 1, 'openid', now() + interval '1 hour'
+  from vol_instances;
+analyze agent_instances;
+drop table vol_instances;
 -- Confidential clients that hold an account without the grant, one per tenant
 -- for the first fifty, as the boot check reads them.
 with picked as (
@@ -550,10 +569,11 @@ async function assertVolume(connection: {
            (select count(*) from roles r join tenants t on t.id = r.tenant_id
              where t.name = '${NEAR_LIMIT_TENANT}') near_limit_roles,
            (select count(*) from flows f join tenants t on t.id = f.tenant_id
-             where t.name = '${NEAR_LIMIT_TENANT}') near_limit_flows`);
+             where t.name = '${NEAR_LIMIT_TENANT}') near_limit_flows,
+           (select count(*) from agent_instances) agent_instances`);
   const row = rows[0];
   if (row === undefined) throw new Error('the volume check read nothing');
-  for (const table of ['role_composites', 'group_roles', 'client_scope_roles']) {
+  for (const table of ['role_composites', 'group_roles', 'client_scope_roles', 'agent_instances']) {
     if (Number(row[table]) <= LARGE_TABLE_ROWS) {
       throw new Error(
         `${table} holds ${String(row[table])} rows, under the ${String(LARGE_TABLE_ROWS)} a scan of it is judged at`,

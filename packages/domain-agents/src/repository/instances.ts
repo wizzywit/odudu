@@ -123,6 +123,9 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
       return rows[0]?.n ?? 0;
     },
 
+    // Every live instance of the tenant, counted on each mint. It reads at most
+    // as many rows as the tenant may hold (`agent_max_live_instances`, 100,000
+    // at the most), through the tenant's own index.
     async liveCount(now: Date): Promise<number> {
       const rows = await tx.select({ n: count() }).from(agentInstances).where(live(now));
       return rows[0]?.n ?? 0;
