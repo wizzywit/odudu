@@ -38,13 +38,12 @@ import {
   type EndpointAuthenticationDeps,
 } from '#/usecase/private-key-jwt-authentication';
 import { subjectOfAuthorizeHint } from '#/usecase/authorization-request';
-import { type SigningKeyRecord } from '@odudu/crypto';
+import { signingKeyRepository } from '@odudu/crypto';
 
 export interface BackchannelDeps extends EndpointAuthenticationDeps {
   readonly cibaLimiter: ClientSecretLimiter;
   // Whether the tenant lets a person sign in with a verified address.
   readonly loginWithEmail: boolean;
-  readonly listPublishableKeys: (tenantId: string) => Promise<SigningKeyRecord[]>;
 }
 
 export interface BackchannelAcknowledgement {
@@ -174,8 +173,10 @@ async function resolveSubject(
     const found = await findAccountByLogin(tx, asked.hint.value, deps.loginWithEmail);
     return found !== null && subjectIsEnabled(found.subject) ? found.subject.id : null;
   }
+  // Read on this transaction's own connection: a second one taken while it is
+  // open would starve a pool that every request holds one of.
   const hint = await subjectOfAuthorizeHint(
-    deps,
+    { listPublishableKeys: () => signingKeyRepository(tx).listPublishable() },
     deps.tenantId,
     deps.acceptedIssuers,
     asked.hint.value,

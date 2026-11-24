@@ -98,10 +98,21 @@ describe('parseBackchannelRequest', () => {
 });
 
 describe('a login hint', () => {
-  it.each(['a\u0000b', 'a\nb', 'a\u200Bb'])('[ODUDU-CIBA-HINT-01] refuses %j', (hint) => {
-    expect(parseBackchannelRequest({ scope: 'openid', login_hint: hint })).toEqual({
-      ok: false,
-      error: 'invalid_request',
+  it.each(['a\u0000b', 'a\nb', 'a\u2028b', 'a\u202Eb'])(
+    '[ODUDU-CIBA-HINT-01] refuses %j',
+    (hint) => {
+      expect(parseBackchannelRequest({ scope: 'openid', login_hint: hint })).toEqual({
+        ok: false,
+        error: 'invalid_request',
+      });
+    },
+  );
+});
+
+describe('a login hint the username policy allows', () => {
+  it.each(['ra\u200Dmya', 'a\u200Cb'])('[ODUDU-CIBA-HINT-02] accepts %j', (hint) => {
+    expect(parseBackchannelRequest({ scope: 'openid', login_hint: hint })).toMatchObject({
+      ok: true,
     });
   });
 });

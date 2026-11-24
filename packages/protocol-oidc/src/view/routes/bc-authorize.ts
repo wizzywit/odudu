@@ -1,4 +1,3 @@
-import { type SigningKeyRecord } from '@odudu/crypto';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { type Clock, systemClock } from '@odudu/kernel';
@@ -22,7 +21,6 @@ export interface BackchannelRouteDeps {
   clientKeySet: ClientKeySet;
   trustProxy: boolean;
   tlsClientCertHeader: string;
-  listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
   acceptedIssuers: AcceptedIssuersLookup;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   clientSecretLimiter: ClientSecretLimiter;
@@ -63,7 +61,6 @@ export function registerBackchannelAuthenticationRoute(
       clientSecretLimiter: deps.clientSecretLimiter,
       cibaLimiter: deps.cibaLimiter,
       loginWithEmail: tenant.loginWithEmail,
-      listPublishableKeys: (tenantId) => deps.listPublishableKeys(tenantId),
       logger: request.log,
       now: () => now,
       acceptedIssuers,

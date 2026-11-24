@@ -6,6 +6,7 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
+import { subjectRepository, users } from '@odudu/domain-identity';
 import { FakeClock } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -188,6 +189,25 @@ function shapes(queries: readonly string[]): string[] {
       const verb = q.trimStart().split(/\s+/u)[0]?.toLowerCase() ?? '';
       return match === null ? verb : `${verb} ${match[2]?.toLowerCase() ?? ''}`;
     });
+}
+
+async function issuerOf(on: CibaWorld): Promise<string> {
+  const res = await http.inject({ url: `/tenants/${on.tenant}/.well-known/openid-configuration` });
+  return res.json<{ issuer: string }>().issuer;
+}
+
+// The form fields of a signed assertion for the client that authenticates that way.
+async function assertionFields(audience: string): Promise<Params> {
+  return {
+    client_assertion_type: CLIENT_ASSERTION_TYPE,
+    client_assertion: await signClientAssertion({
+      key: world.assertion.key,
+      clientId: world.assertion.clientId,
+      audience,
+      kek: CIBA_KEK,
+      now: clock.now(),
+    }),
+  };
 }
 
 function detailOf(row: { detail?: unknown }): Record<string, unknown> {
@@ -863,6 +883,33 @@ describe('the limit on requests for one hint', () => {
     });
   });
 
+  it('[ODUDU-CIBA-CAP-06] leaves one audit row and no mail when the person is at their approval limit', async () => {
+    const fresh = await seedCibaWorld(app, 'cap-audit');
+    await fillApprovals(fresh, fresh.bob.subjectId, 20);
+    const res = await authorize(fresh, fresh.agent, { scope: 'openid', login_hint: 'bob' });
+    expect(res.statusCode).toBe(200);
+    await withTenant(app.db, fresh.tenantId, async (tx) => {
+      const rows = (await auditRepository(tx).list({ limit: 500 })).filter(
+        (row) => row.action === 'ciba.requested',
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        outcome: 'allowed',
+        actorSubjectId: fresh.bob.subjectId,
+        detail: {
+          agent_client: fresh.agent.dbId,
+          owner: fresh.bob.subjectId,
+          reason: 'approval_limit',
+        },
+      });
+      expect(detailOf(rows[0] ?? {}).approval).toBeUndefined();
+    });
+    const mail = await owner.db.execute<{ n: number }>(
+      sql`select count(*)::int as n from email_outbox where tenant_id = ${fresh.tenantId}`,
+    );
+    expect(mail[0]?.n).toBe(0);
+  });
+
   it('[ODUDU-CIBA-CAP-04] gives the refusal its own sentence', async () => {
     const fresh = await seedCibaWorld(app, 'cap-words');
     const statuses = await twentyOne(fresh, Array(21).fill('alice') as string[]);
@@ -876,11 +923,27 @@ describe('the limit on requests for one hint', () => {
 
 describe('the requests that need care', () => {
   it('[ODUDU-CIBA-HINT-01] refuses a control character in a login hint as an invalid request', async () => {
-    for (const hint of ['ali\u0000ce', 'ali\nce', 'ali\u200Bce']) {
+    for (const hint of ['ali\u0000ce', 'ali\nce', 'ali\u2028ce', 'ali\u202Ece']) {
       const res = await authorize(world, world.agent, { scope: 'openid', login_hint: hint });
       expect(res.statusCode, JSON.stringify(hint)).toBe(400);
       expect(res.json()).toMatchObject({ error: 'invalid_request' });
     }
+  });
+
+  it('[ODUDU-CIBA-HINT-02] resolves a username that holds a zero-width joiner like any other', async () => {
+    const joined = 'ra\u200Dmya';
+    const subjectId = await withTenant(app.db, world.tenantId, async (tx) => {
+      const subject = await subjectRepository(tx).create({
+        tenantId: world.tenantId,
+        type: 'user',
+      });
+      await tx
+        .insert(users)
+        .values({ subjectId: subject.id, tenantId: world.tenantId, username: joined });
+      return subject.id;
+    });
+    const ack = await request(world, { login_hint: joined });
+    expect((await approvalOf(world, ack.auth_req_id)).subjectId).toBe(subjectId);
   });
 
   it('[ODUDU-CIBA-CONF-01] refuses a public client at bc-authorize and at the token endpoint', async () => {
@@ -968,25 +1031,102 @@ describe('polling concurrently', () => {
     expect(both.filter((res) => res.statusCode === 400)).toHaveLength(1);
   });
 
-  it('[ODUDU-CIBA-CONC-02] answers more simultaneous polls than the pool has connections', async () => {
+  it('[ODUDU-CIBA-CONC-02] answers more simultaneous polls than the pool has connections, refusals and signed assertions included', async () => {
     const tiny = createDatabase(appUrl, { max: 2 });
     const server = await startApp(tiny);
     try {
-      const acks = await Promise.all(Array.from({ length: 6 }, () => request(world)));
-      clock.advance(6000);
+      const issuer = await issuerOf(world);
+      const pending = await Promise.all(Array.from({ length: 2 }, () => request(world)));
+      const expiring = await Promise.all(
+        Array.from({ length: 2 }, () =>
+          request(world, { login_hint: 'alice' }, world.agent, { requested_expiry: '30' }),
+        ),
+      );
+      const denied = await Promise.all(
+        Array.from({ length: 2 }, async () => {
+          const ack = await request(world);
+          const row = await approvalOf(world, ack.auth_req_id);
+          await decide(world, row.approvalId ?? '', world.alice.subjectId, false);
+          return ack;
+        }),
+      );
+      const signed = await Promise.all(
+        Array.from({ length: 2 }, async () => {
+          const res = await http.inject({
+            method: 'POST',
+            url: `/tenants/${world.tenant}/protocol/openid-connect/bc-authorize`,
+            headers: FORM,
+            payload: body({
+              scope: 'openid',
+              login_hint: 'alice',
+              ...(await assertionFields(`${issuer}/protocol/openid-connect/bc-authorize`)),
+            }),
+          });
+          return res.json<Acknowledgement>();
+        }),
+      );
+      clock.advance(31_000);
+      const plain = (ack: Acknowledgement) =>
+        server.inject({
+          method: 'POST',
+          url: `/tenants/${world.tenant}/protocol/openid-connect/token`,
+          headers: { ...FORM, ...basic(world.agent) },
+          payload: body({ grant_type: CIBA_GRANT, auth_req_id: ack.auth_req_id }),
+        });
+      const viaAssertion = async (ack: Acknowledgement) =>
+        server.inject({
+          method: 'POST',
+          url: `/tenants/${world.tenant}/protocol/openid-connect/token`,
+          headers: FORM,
+          payload: body({
+            grant_type: CIBA_GRANT,
+            auth_req_id: ack.auth_req_id,
+            ...(await assertionFields(`${issuer}/protocol/openid-connect/token`)),
+          }),
+        });
+      const answers = await Promise.all([
+        ...pending.map(plain),
+        ...expiring.map(plain),
+        ...denied.map(plain),
+        ...signed.map(viaAssertion),
+      ]);
+      expect(answers.map((res) => res.json<{ error: string }>().error)).toEqual([
+        'authorization_pending',
+        'authorization_pending',
+        'expired_token',
+        'expired_token',
+        'access_denied',
+        'access_denied',
+        'authorization_pending',
+        'authorization_pending',
+      ]);
+    } finally {
+      await server.close();
+      await tiny.close();
+    }
+  }, 30_000);
+
+  it('[ODUDU-CIBA-CONC-04] answers more simultaneous id_token_hint requests than the pool has connections', async () => {
+    const tiny = createDatabase(appUrl, { max: 2 });
+    const server = await startApp(tiny);
+    try {
+      const issuer = await issuerOf(world);
+      const hints = await Promise.all(
+        Array.from({ length: 6 }, () =>
+          signHint(world, issuer, world.agent.clientId, world.alice.subjectId),
+        ),
+      );
       const answers = await Promise.all(
-        acks.map((ack) =>
+        hints.map((hint) =>
           server.inject({
             method: 'POST',
-            url: `/tenants/${world.tenant}/protocol/openid-connect/token`,
+            url: `/tenants/${world.tenant}/protocol/openid-connect/bc-authorize`,
             headers: { ...FORM, ...basic(world.agent) },
-            payload: body({ grant_type: CIBA_GRANT, auth_req_id: ack.auth_req_id }),
+            payload: body({ scope: 'openid', id_token_hint: hint }),
           }),
         ),
       );
-      expect(answers.map((res) => res.json<{ error: string }>().error)).toEqual(
-        Array(6).fill('authorization_pending'),
-      );
+      expect(answers.map((res) => res.statusCode)).toEqual(Array(6).fill(200));
     } finally {
       await server.close();
       await tiny.close();

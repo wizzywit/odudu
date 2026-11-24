@@ -403,9 +403,9 @@ export const DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE: ThrottleSettings = {
 // operator to reason about than a third, unrelated pair of numbers.
 export const DEFAULT_CLIENT_SECRET_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
 
-// Each request at the backchannel authentication endpoint asks a person to
-// decide, and the person's own pending limit bounds what piles up for them;
-// this bounds how fast one client can ask, for anyone.
+// How fast one client may ask at the backchannel authentication endpoint. The
+// live requests it may hold per hint, and the silent protection of a person
+// who already has many approvals waiting, bound what piles up beyond this.
 export const DEFAULT_CIBA_THROTTLE: ThrottleSettings = { limit: 30, windowSeconds: 60 };
 
 // ADR 0037: the most refusal rows one registered client can put in the

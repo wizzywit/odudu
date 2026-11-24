@@ -61,6 +61,11 @@ function single(body: Body, key: string): { text: string | undefined; repeated: 
 // Control and format characters, which include the line and paragraph separators.
 const CONTROL_CHARACTER = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
+// What a login hint refuses: control characters, line and paragraph separators and
+// the bidirectional overrides and isolates a username may not hold. Other format
+// characters, the zero-width joiners some scripts need, a username may hold.
+const HINT_REFUSED = /[\p{Cc}\p{Zl}\p{Zp}\u202A-\u202E\u2066-\u2069]/u;
+
 export function parseBackchannelRequest(body: Body): BackchannelParse {
   if (UNSUPPORTED_PARAMETERS.some((name) => single(body, name).text !== undefined)) {
     return refuse('invalid_request');
@@ -81,7 +86,7 @@ export function parseBackchannelRequest(body: Body): BackchannelParse {
         : undefined;
   if (hint === undefined) return refuse('invalid_request');
   const longest = hint.kind === 'login_hint' ? LOGIN_HINT_MAX_LENGTH : ID_TOKEN_HINT_MAX_LENGTH;
-  if (hint.value.length > longest || CONTROL_CHARACTER.test(hint.value)) {
+  if (hint.value.length > longest || HINT_REFUSED.test(hint.value)) {
     return refuse('invalid_request');
   }
 

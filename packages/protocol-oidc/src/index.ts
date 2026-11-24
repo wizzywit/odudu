@@ -173,7 +173,8 @@ export interface OidcRoutesDeps {
   // `UNLIMITED_CLIENT_SECRET_LIMITER` (#/service/client-secret-throttle.ts).
   clientSecretLimiter: ClientSecretLimiter;
   // The budget per client on the backchannel authentication endpoint. Left
-  // out, that endpoint takes no budget beyond the pending limit per person;
+  // out, that endpoint takes no rate budget, only the limit of live requests
+  // per client and hint and the silent protection per person;
   // `apps/server/src/app.ts` always supplies one.
   cibaLimiter?: ClientSecretLimiter;
   // RFC 7523 §2.2's fetcher for a client's jwks_uri, consulted only by
@@ -682,7 +683,6 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     registerBackchannelAuthenticationRoute(app, {
       database: deps.database,
       findTenant,
-      listPublishableKeys,
       acceptedIssuers: acceptedIssuersFor,
       clientKeySet,
       trustProxy: deps.trustProxy ?? false,
