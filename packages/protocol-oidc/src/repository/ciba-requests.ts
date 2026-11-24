@@ -40,6 +40,15 @@ export function cibaRequestRepository(tx: TenantScopedDatabase) {
       return rows[0] ?? null;
     },
 
+    // The request an approval was made for: what the person is shown beside it.
+    async byApprovalId(approvalId: string): Promise<CibaRequestRecord | null> {
+      const rows = await tx
+        .select()
+        .from(cibaRequests)
+        .where(eq(cibaRequests.approvalId, approvalId));
+      return rows[0] ?? null;
+    },
+
     // The requests a client holds for one hint that have not expired, whether
     // or not the hint named anyone: what the visible limit counts.
     async liveCountFor(clientId: string, hintDigest: string, now: Date): Promise<number> {

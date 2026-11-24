@@ -8,6 +8,8 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/testing';
+import { agentApprovalRepository } from '@odudu/domain-agents';
+import { subjectRepository } from '@odudu/domain-identity';
 import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -36,7 +38,7 @@ afterAll(async () => {
 async function seedRequest(
   tx: TenantScopedDatabase,
   tenantId: string,
-  overrides: { hint?: string; expiresAt?: Date; subject?: boolean } = {},
+  overrides: { hint?: string; expiresAt?: Date; subject?: boolean; approval?: boolean } = {},
 ) {
   await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
   const clientId = newId();
@@ -50,20 +52,38 @@ async function seedRequest(
   });
   const id = newId();
   const hash = newId();
+  let subjectId: string | null = null;
+  let approvalId: string | null = null;
+  if (overrides.approval === true) {
+    subjectId = (await subjectRepository(tx).create({ tenantId, type: 'user' })).id;
+    approvalId = (
+      await agentApprovalRepository(tx).create({
+        id: newId(),
+        tenantId,
+        subjectId,
+        requestingClientId: clientId,
+        instanceId: null,
+        kind: 'ciba',
+        summary: 'asks',
+        actionDigest: 'd',
+        expiresAt: new Date(NOW.getTime() + 600_000),
+      })
+    ).id;
+  }
   await cibaRequestRepository(tx).create({
     id,
     tenantId,
     authReqHash: hash,
     clientId,
-    subjectId: null,
-    approvalId: null,
+    subjectId,
+    approvalId,
     hintDigest: overrides.hint ?? 'digest',
     scope: 'openid',
     bindingMessage: null,
     requestedExpiry: null,
     expiresAt: overrides.expiresAt ?? new Date(NOW.getTime() + 600_000),
   });
-  return { id, hash, clientId };
+  return { id, hash, clientId, approvalId };
 }
 
 describe('the ciba_requests table', () => {
@@ -83,6 +103,21 @@ describe('the ciba_requests table', () => {
         expect((await cibaRequestRepository(tx).byHash(seeded.hash))?.id).toBe(seeded.id);
       },
       attempt: (tx, seeded) => cibaRequestRepository(tx).byHash(seeded.hash),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
+  });
+
+  it('is found by approval only within the tenant that holds it', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: (tx, tenantId) => seedRequest(tx, tenantId, { approval: true }),
+      verifySeeded: async (tx, seeded) => {
+        expect((await cibaRequestRepository(tx).byApprovalId(seeded.approvalId ?? ''))?.id).toBe(
+          seeded.id,
+        );
+      },
+      attempt: (tx, seeded) => cibaRequestRepository(tx).byApprovalId(seeded.approvalId ?? ''),
       expectBlocked: (result) => {
         expect(result).toBeNull();
       },

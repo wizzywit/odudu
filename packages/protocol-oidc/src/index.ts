@@ -129,6 +129,7 @@ import { registerJwksRoute } from '#/view/routes/jwks';
 import { registerLoginRoute } from '#/view/routes/login';
 import { registerRequiredActionRoute } from '#/view/routes/required-action';
 import { registerLogoutRoute } from '#/view/routes/logout';
+import { registerApprovalRoute } from '#/view/routes/approval';
 import { registerBackchannelAuthenticationRoute } from '#/view/routes/bc-authorize';
 import { registerRevokeRoute } from '#/view/routes/revoke';
 import { registerTokenRoute } from '#/view/routes/token';
@@ -228,6 +229,10 @@ export interface OidcRoutesDeps {
     subjectId: string,
     request: RequestContext,
   ) => Promise<'queued' | 'limited' | 'unavailable' | 'verified'>;
+  // Where a person with no session signs in to reach the approval page of a
+  // CIBA request, given the tenant and the page's own path to come back to;
+  // null where there is nowhere to send them. Absent, none.
+  approvalSignIn?: (tenantName: string, returnPath: string) => string | null;
   // How the mail that tells a person of a change to their own sign-in methods
   // is dressed and worded; the server wires the same resolver its other mail
   // uses. Absent, that mail is unthemed.
@@ -692,6 +697,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       cibaLimiter: deps.cibaLimiter ?? UNLIMITED_CLIENT_SECRET_LIMITER,
       auditRefusalBudget: deps.auditRefusalBudget,
       clock,
+    });
+    registerApprovalRoute(app, {
+      database: deps.database,
+      findTenant,
+      resolveSessions,
+      signIn: deps.approvalSignIn ?? (() => null),
+      clock,
+      ...branding,
     });
     registerClientRegistrationRoute(app, {
       findTenant,

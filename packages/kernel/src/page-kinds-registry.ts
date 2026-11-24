@@ -11,6 +11,8 @@ export const NO_TENANT_IN_SCOPE: Record<string, string> = {
     'answers from the edge, before any route runs, for an address the tenant has left; it names only the canonical address and must not cost a theme read',
   'packages/protocol-oidc/src/view/throttled-html.ts':
     'the request path names the tenant, but the throttle answers before any tenant lookup by design, so a refusal costs no query (a cost choice)',
+  'packages/protocol-oidc/src/view/approval-html.ts':
+    'reached from a mailed link that carries only an approval id: it wears the tenant theme through the page shell, but has no template kind, so the theme API and console editor do not offer one',
   'packages/console-gateway/src/view/refusal-html.ts':
     "the console's own sign-in refusal: the console belongs to the system tenant, not to a tenant that themes pages",
 };
