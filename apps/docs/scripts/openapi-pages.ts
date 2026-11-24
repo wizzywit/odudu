@@ -406,6 +406,9 @@ function examplesOf(media: Json): string[] {
 // page past it, is listed on pages of its own, so that no page carries more
 // table than a browser lays out in one piece.
 const MAX_TABLE_ROWS = 55;
+// A last page of this many rows or fewer joins the page before it: a page of
+// its own costs the site more than the rows it would spare a reader.
+const ORPHAN_ROWS = 3;
 
 interface Part {
   readonly slug: string;
@@ -433,7 +436,7 @@ function topLevel(row: Row): string {
 
 // Rows are kept together by their top-level field, so a field and what is
 // inside it are never on different pages.
-function chunkRows(rows: readonly Row[]): Row[][] {
+export function chunkRows(rows: readonly Row[]): Row[][] {
   const groups = new Map<string, Row[]>();
   for (const row of rows) {
     const group = groups.get(topLevel(row));
@@ -445,6 +448,13 @@ function chunkRows(rows: readonly Row[]): Row[][] {
     const last = chunks.at(-1);
     if (last !== undefined && last.length + group.length <= MAX_TABLE_ROWS) last.push(...group);
     else chunks.push([...group]);
+  }
+  const last = chunks.at(-1);
+  const before = chunks.at(-2);
+  if (last !== undefined && before !== undefined && last.length <= ORPHAN_ROWS) {
+    if (before.length + last.length <= MAX_TABLE_ROWS + ORPHAN_ROWS) {
+      chunks.splice(-2, 2, [...before, ...last]);
+    }
   }
   return chunks;
 }
@@ -768,6 +778,15 @@ function capabilityOf(operation: Json, profile: ReferenceProfile): string {
 // than that has a page to itself.
 const MAX_PAGE_ROWS = 60;
 
+// The site appends " | Odudu" to a title, and a search result shows 70
+// characters of the two. A long path leaves no room for "response", which the
+// heading's own "body" already implies.
+const MAX_TITLE_CHARACTERS = 62;
+
+function fitTitle(title: string): string {
+  return title.length > MAX_TITLE_CHARACTERS ? title.replace(' response body', ' body') : title;
+}
+
 interface Section {
   readonly operation: Operation;
   readonly text: string;
@@ -850,11 +869,11 @@ function addParts(
         part.slug,
         [
           frontMatter(
-            `${profile.name}: ${heading}`,
+            fitTitle(`${profile.name}: ${heading}`),
             `One page of the fields of ${short} in the Odudu ${profile.lowerName} (${label}): its ${part.heading}.`,
             { sidebar_position: position + (number + 1) / 100 },
           ),
-          `# ${profile.name}: ${heading}`,
+          `# ${fitTitle(`${profile.name}: ${heading}`)}`,
           '',
           `The fields of one body of [${code(`${method.toUpperCase()} ${path}`)}](./${target}.md#${anchorOf(section.operation)}), ${where}.`,
           '',
