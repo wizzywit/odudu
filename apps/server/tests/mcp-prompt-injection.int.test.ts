@@ -205,10 +205,13 @@ function rowsOf(result: unknown): Record<string, unknown>[] {
   return rows as Record<string, unknown>[];
 }
 
-// The tables whose rows differ between two snapshots.
+// The tables whose rows differ between two snapshots. The budget windows are
+// counters every write call spends, like the two on a grant.
 function changedTables(before: Record<string, unknown[]>, after: Record<string, unknown[]>) {
   return Object.keys(after).filter(
-    (name) => JSON.stringify(before[name]) !== JSON.stringify(after[name]),
+    (name) =>
+      name !== 'agent_budget_windows' &&
+      JSON.stringify(before[name]) !== JSON.stringify(after[name]),
   );
 }
 

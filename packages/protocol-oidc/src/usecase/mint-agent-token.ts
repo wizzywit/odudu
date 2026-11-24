@@ -219,7 +219,7 @@ export async function mintAgentToken(
     const ended = refusal === 'session_ended' || refusal === 'subject_disabled';
     const endedRun =
       ended && grant !== null && client !== null ? await runIdFor(tx, input, grant, client) : null;
-    if (endedRun !== null) {
+    if (endedRun !== null && client !== null) {
       await revokeEndedRun(tx, endedRun, client, input.now);
       throw new AgentTokenRefused('owner_ended');
     }
