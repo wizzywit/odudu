@@ -127,6 +127,8 @@ async function seededSource(): Promise<{ id: string; name: string; confidentialI
       skip_logout_confirmation: true,
       token_exchange_allowed_for_public: true,
       token_exchange_actor_from_other_client: true,
+      agent_type: true,
+      delegated_actors: [confidential.clientId],
     },
   });
   expect(spa.statusCode, spa.payload).toBe(201);
@@ -200,6 +202,8 @@ async function seededSource(): Promise<{ id: string; name: string; confidentialI
       passwordMinLength: 12,
       usernameEditable: true,
       cimdEnabled: true,
+      agentMaxDelegationDepth: 5,
+      agentWindowWrites: 77,
       clientRegistrationPolicy: 'mcp',
     });
 
@@ -351,6 +355,11 @@ describe('POST /admin/tenant-imports', () => {
       ['ivan', true],
     ]);
     expect(original.settings.cimd_enabled).toBe(true);
+    expect(original.settings).toMatchObject({
+      agent_max_delegation_depth: 5,
+      agent_window_writes: 77,
+      agent_max_children: 20,
+    });
     expect(original.registration_policy.client_registration_policy).toBe('mcp');
     expect(original.scopes.map((scope) => scope.name)).toContain('billing');
     expect(original.scopes.map((scope) => scope.name)).not.toContain('phone');
@@ -368,6 +377,8 @@ describe('POST /admin/tenant-imports', () => {
     expect(original.clients.find((client) => client.client_id === 'spa')).toMatchObject({
       token_exchange_allowed_for_public: true,
       token_exchange_actor_from_other_client: true,
+      agent_type: true,
+      delegated_actors: [source.confidentialId],
     });
     const name = `import-${newId()}`;
 

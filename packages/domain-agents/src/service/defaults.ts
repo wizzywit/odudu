@@ -10,4 +10,5 @@ export const AGENT_DEFAULTS = {
   approvalTtlCapSeconds: 900,
   writesPerGrant: 20,
   createsPerGrant: 10,
+  windowWrites: 200,
 } as const;

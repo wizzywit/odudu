@@ -11,6 +11,7 @@ import {
   CLIENT_NAME_MAX,
   DESCRIPTION_MAX,
   listLimitMessage,
+  MAX_DELEGATED_ACTORS,
   type Client,
   type ClientFields,
   type ApplicationAction,
@@ -129,6 +130,8 @@ const CLIENT_VIEW_COLUMNS = {
   tokenExchangeImpersonationAllowed: clientOidcConfig.tokenExchangeImpersonationAllowed,
   tokenExchangeAllowedForPublic: clientOidcConfig.tokenExchangeAllowedForPublic,
   tokenExchangeActorFromOtherClient: clientOidcConfig.tokenExchangeActorFromOtherClient,
+  agentType: clientOidcConfig.agentType,
+  delegatedActors: clientOidcConfig.delegatedActors,
   userinfoSignedResponseAlg: clientOidcConfig.userinfoSignedResponseAlg,
   userinfoEncryptedResponseAlg: clientOidcConfig.userinfoEncryptedResponseAlg,
   userinfoEncryptedResponseEnc: clientOidcConfig.userinfoEncryptedResponseEnc,
@@ -182,6 +185,8 @@ export interface ClientView {
   readonly tokenExchangeImpersonationAllowed: boolean;
   readonly tokenExchangeAllowedForPublic: boolean;
   readonly tokenExchangeActorFromOtherClient: boolean;
+  readonly agentType: boolean;
+  readonly delegatedActors: string[];
   readonly userinfoSignedResponseAlg: string | null;
   readonly userinfoEncryptedResponseAlg: string | null;
   readonly userinfoEncryptedResponseEnc: string | null;
@@ -580,6 +585,8 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): StoredVie
     tokenExchangeImpersonationAllowed: config.tokenExchangeImpersonationAllowed,
     tokenExchangeAllowedForPublic: config.tokenExchangeAllowedForPublic,
     tokenExchangeActorFromOtherClient: config.tokenExchangeActorFromOtherClient,
+    agentType: config.agentType,
+    delegatedActors: config.delegatedActors,
     userinfoSignedResponseAlg: config.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: config.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: config.userinfoEncryptedResponseEnc,
@@ -690,6 +697,11 @@ export async function createClient(
   if (unknownFlow !== null) {
     await auditRefusal();
     return { kind: 'invalid_value', ...unknownFlow };
+  }
+  const unknownActor = await refusedDelegatedActors(tx, admin.config.delegatedActors);
+  if (unknownActor !== null) {
+    await auditRefusal();
+    return { kind: 'invalid_value', ...unknownActor };
   }
 
   const requestedActions = admin.config.allowedActions ?? [];
@@ -844,6 +856,8 @@ export function clientWireShape(view: ClientView): ClientFields {
     token_exchange_impersonation_allowed: view.tokenExchangeImpersonationAllowed,
     token_exchange_allowed_for_public: view.tokenExchangeAllowedForPublic,
     token_exchange_actor_from_other_client: view.tokenExchangeActorFromOtherClient,
+    agent_type: view.agentType,
+    delegated_actors: view.delegatedActors,
     userinfo_signed_response_alg: view.userinfoSignedResponseAlg,
     userinfo_encrypted_response_alg: view.userinfoEncryptedResponseAlg,
     userinfo_encrypted_response_enc: view.userinfoEncryptedResponseEnc,
@@ -1072,6 +1086,42 @@ async function languagesFor(
     : undefined;
 }
 
+function checkedDelegatedActors(value: unknown): string[] | FieldError {
+  const field = 'delegated_actors';
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
+    return { field, description: `${field} must be an array of strings` };
+  }
+  if (value.length > MAX_DELEGATED_ACTORS) {
+    return {
+      field,
+      description: `${field} holds ${String(value.length)} entries, at most ${String(MAX_DELEGATED_ACTORS)}`,
+    };
+  }
+  const twice = value.find((entry, at) => value.indexOf(entry) !== at);
+  return twice === undefined
+    ? value
+    : { field, description: `${field} names ${JSON.stringify(twice)} twice` };
+}
+
+// Every actor must already be a client of the tenant: a name that is not is
+// refused rather than created, so a typo cannot make a client no one holds.
+async function refusedDelegatedActors(
+  tx: TenantScopedDatabase,
+  actors: readonly string[] | undefined,
+): Promise<FieldError | null> {
+  if (actors === undefined) return null;
+  const clients = clientRepository(tx);
+  for (const actor of actors) {
+    if ((await clients.byClientId(actor)) === null) {
+      return {
+        field: 'delegated_actors',
+        description: `delegated_actors names ${JSON.stringify(actor)}, which is not a client of this tenant`,
+      };
+    }
+  }
+  return null;
+}
+
 function checkedWebOrigins(origins: readonly string[]): string[] | FieldError {
   const bad = origins.find((origin) => !isWellFormedWebOrigin(origin));
   return bad === undefined
@@ -1106,6 +1156,8 @@ const ADMIN_FIELDS = new Set<string>([
   'token_exchange_impersonation_allowed',
   'token_exchange_allowed_for_public',
   'token_exchange_actor_from_other_client',
+  'agent_type',
+  'delegated_actors',
 ]);
 
 interface AdminFieldPatches {
@@ -1132,6 +1184,8 @@ interface AdminFieldPatches {
     tokenExchangeImpersonationAllowed?: boolean;
     tokenExchangeAllowedForPublic?: boolean;
     tokenExchangeActorFromOtherClient?: boolean;
+    agentType?: boolean;
+    delegatedActors?: string[];
   };
 }
 
@@ -1245,6 +1299,7 @@ function checkedAdminFields(
     'token_exchange_impersonation_allowed',
     'token_exchange_allowed_for_public',
     'token_exchange_actor_from_other_client',
+    'agent_type',
   ] as const) {
     if (!(field in values)) continue;
     const checked = checkedBoolean(field, values[field]);
@@ -1254,7 +1309,13 @@ function checkedAdminFields(
       config.tokenExchangeImpersonationAllowed = checked;
     } else if (field === 'token_exchange_allowed_for_public') {
       config.tokenExchangeAllowedForPublic = checked;
-    } else config.tokenExchangeActorFromOtherClient = checked;
+    } else if (field === 'agent_type') config.agentType = checked;
+    else config.tokenExchangeActorFromOtherClient = checked;
+  }
+  if ('delegated_actors' in values) {
+    const checked = checkedDelegatedActors(values.delegated_actors);
+    if (isFieldError(checked)) return checked;
+    config.delegatedActors = checked;
   }
 
   return { client, config };
@@ -1394,6 +1455,8 @@ export async function amendClient(
   if (isFieldError(admin)) return { kind: 'invalid_value', ...admin };
   const unknownFlow = await refusedFlow(tx, clientRow.tenantId, admin.config.flowId);
   if (unknownFlow !== null) return { kind: 'invalid_value', ...unknownFlow };
+  const unknownActor = await refusedDelegatedActors(tx, admin.config.delegatedActors);
+  if (unknownActor !== null) return { kind: 'invalid_value', ...unknownActor };
   if (
     'allowed_actions' in input.values &&
     !allowedActionsHaveMeRead(

@@ -345,6 +345,10 @@ describeFields(clientFieldsSchema, {
     'Whether a public client may use token exchange at all. Off by default: a public client holds no secret, so reaching the grant proves nothing about who asked.',
   token_exchange_actor_from_other_client:
     'Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it.',
+  agent_type:
+    'Whether the client is an agent: an application that acts for a person under a grant they gave it.',
+  delegated_actors:
+    'The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant. A grant made through this client lists them in its `may_act` claim.',
   userinfo_signed_response_alg:
     'The algorithm that signs this client’s UserInfo responses. Null returns plain JSON.',
   userinfo_encrypted_response_alg:
@@ -934,6 +938,10 @@ describeFields(exportedClientSchema, {
     'Whether a public client may use token exchange at all. Off by default: a public client holds no secret, so reaching the grant proves nothing about who asked.',
   token_exchange_actor_from_other_client:
     'Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it.',
+  agent_type:
+    'Whether the client is an agent: an application that acts for a person under a grant they gave it.',
+  delegated_actors:
+    'The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant. A grant made through this client lists them in its `may_act` claim.',
   userinfo_signed_response_alg:
     'The algorithm that signs this client’s UserInfo responses. Null returns plain JSON.',
   userinfo_encrypted_response_alg:
@@ -1115,6 +1123,23 @@ describeFields(tenantSettingsDocumentSchema, {
     'Whether the registration form asks for a username: required, optional or generated (the server makes one). Optional and generated need login_with_email and verify_email on, and keep them on.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',
+  agent_max_delegation_depth: 'How many instances deep a delegation may go, 1 to 8. 3 by default.',
+  agent_max_children:
+    'How many live child instances one instance may have, 1 to 200. 20 by default.',
+  agent_max_live_instances:
+    'How many live agent instances the tenant may hold at once, 1 to 100000. 1000 by default.',
+  agent_instance_ttl_seconds:
+    'How long an agent instance lives, in seconds, 60 to 86400, and never past the owner’s session. 900 by default.',
+  agent_instance_idle_seconds:
+    'How long an agent instance may sit idle before it ends, in seconds, 60 to 86400, and never past the owner’s session. 1800 by default.',
+  agent_approval_ttl_seconds:
+    'How long an approval of one action lasts, in seconds, 60 to 900. 600 by default.',
+  agent_writes_per_grant:
+    'How many writes an agent may make under one grant, creates included, 1 to 1000. 20 by default.',
+  agent_creates_per_grant:
+    'How many of those writes under one grant may create something, 1 to 1000. 10 by default.',
+  agent_window_writes:
+    'How many writes one agent type may make for one owner in a 24-hour UTC window, across their sign-ins, 1 to 10000. 200 by default.',
   audit_event_types: 'The audit event types the tenant stores.',
   supported_locales:
     'The language tags the tenant’s pages are offered in, 1 to 32, each such as `fr` or `zh-Hant-TW`; discovery advertises them as `ui_locales_supported`.',

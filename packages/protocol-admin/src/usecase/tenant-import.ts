@@ -210,6 +210,8 @@ async function writeClient(
     tokenExchangeImpersonationAllowed: client.token_exchange_impersonation_allowed,
     tokenExchangeAllowedForPublic: client.token_exchange_allowed_for_public,
     tokenExchangeActorFromOtherClient: client.token_exchange_actor_from_other_client,
+    agentType: client.agent_type,
+    delegatedActors: client.delegated_actors,
     userinfoSignedResponseAlg: metadata.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: metadata.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: metadata.userinfoEncryptedResponseEnc,

@@ -1,6 +1,7 @@
 export {
   ASSIGNMENT_LIMIT,
   CLIENT_LIST_LIMIT,
+  MAX_DELEGATED_ACTORS,
   CLIENT_SCOPE_LIMIT,
   clientScopeLimitMessage,
   defaultScopeLimitMessage,

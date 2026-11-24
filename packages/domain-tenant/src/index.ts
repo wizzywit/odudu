@@ -27,6 +27,7 @@ export {
   type PutMessageOverrideOutcome,
 } from '#/repository/message-overrides';
 export { messageOverrides } from '#/schema/message-overrides';
+export { readAgentSettings, type AgentSettings } from '#/repository/agent-settings';
 export {
   tenantSettingsRepository,
   TenantSettingCheckViolationError,

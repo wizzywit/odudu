@@ -41,6 +41,15 @@ describe('migrations', () => {
 
     expect(rows.map((row) => row.column_name)).toEqual([
       'access_token_ttl_seconds',
+      'agent_approval_ttl_seconds',
+      'agent_creates_per_grant',
+      'agent_instance_idle_seconds',
+      'agent_instance_ttl_seconds',
+      'agent_max_children',
+      'agent_max_delegation_depth',
+      'agent_max_live_instances',
+      'agent_window_writes',
+      'agent_writes_per_grant',
       'audit_event_types',
       'audit_retention_days',
       'authorization_code_ttl_seconds',

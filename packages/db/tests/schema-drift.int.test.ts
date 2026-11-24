@@ -37,6 +37,24 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((type = 'execute_actions'::text) = ((actions IS NOT NULL) AND (cardinality(actions) > 0))))",
   'action_tokens.action_tokens_return_check':
     'CHECK (((client_id IS NULL) = (return_uri IS NULL)))',
+  'tenants.tenants_agent_max_delegation_depth_range':
+    'CHECK (((agent_max_delegation_depth >= 1) AND (agent_max_delegation_depth <= 8)))',
+  'tenants.tenants_agent_max_children_range':
+    'CHECK (((agent_max_children >= 1) AND (agent_max_children <= 200)))',
+  'tenants.tenants_agent_max_live_instances_range':
+    'CHECK (((agent_max_live_instances >= 1) AND (agent_max_live_instances <= 100000)))',
+  'tenants.tenants_agent_instance_ttl_seconds_range':
+    'CHECK (((agent_instance_ttl_seconds >= 60) AND (agent_instance_ttl_seconds <= 86400)))',
+  'tenants.tenants_agent_instance_idle_seconds_range':
+    'CHECK (((agent_instance_idle_seconds >= 60) AND (agent_instance_idle_seconds <= 86400)))',
+  'tenants.tenants_agent_approval_ttl_seconds_range':
+    'CHECK (((agent_approval_ttl_seconds >= 60) AND (agent_approval_ttl_seconds <= 900)))',
+  'tenants.tenants_agent_writes_per_grant_range':
+    'CHECK (((agent_writes_per_grant >= 1) AND (agent_writes_per_grant <= 1000)))',
+  'tenants.tenants_agent_creates_per_grant_range':
+    'CHECK (((agent_creates_per_grant >= 1) AND (agent_creates_per_grant <= 1000)))',
+  'tenants.tenants_agent_window_writes_range':
+    'CHECK (((agent_window_writes >= 1) AND (agent_window_writes <= 10000)))',
   'tenants.tenants_audit_retention_days_range':
     'CHECK (((audit_retention_days >= 1) AND (audit_retention_days <= 3650)))',
   'agent_approvals.agent_approvals_decided_via_check':
