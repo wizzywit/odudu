@@ -9176,7 +9176,7 @@ export interface paths {
                 query?: {
                     cursor?: string;
                     limit?: number;
-                    event_type?: "admin_mutation" | "admin_access" | "authentication" | "session" | "token" | "credential";
+                    event_type?: "admin_mutation" | "admin_access" | "agent_identity" | "authentication" | "session" | "token" | "credential";
                     actor_subject_id?: string;
                     resource_type?: string;
                     resource_id?: string;
@@ -9270,7 +9270,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    event_type?: "admin_mutation" | "admin_access" | "authentication" | "session" | "token" | "credential";
+                    event_type?: "admin_mutation" | "admin_access" | "agent_identity" | "authentication" | "session" | "token" | "credential";
                     actor_subject_id?: string;
                     resource_type?: string;
                     resource_id?: string;
@@ -9323,7 +9323,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    event_type?: "admin_mutation" | "admin_access" | "authentication" | "session" | "token" | "credential";
+                    event_type?: "admin_mutation" | "admin_access" | "agent_identity" | "authentication" | "session" | "token" | "credential";
                     actor_subject_id?: string;
                     resource_type?: string;
                     resource_id?: string;
