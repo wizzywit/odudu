@@ -2748,6 +2748,51 @@ export interface paths {
                                  * @default false
                                  */
                                 cimd_enabled: boolean;
+                                /**
+                                 * @description How many instances deep a delegation may go, 1 to 8. 3 by default.
+                                 * @default 3
+                                 */
+                                agent_max_delegation_depth: number;
+                                /**
+                                 * @description How many live child instances one instance may have, 1 to 200. 20 by default.
+                                 * @default 20
+                                 */
+                                agent_max_children: number;
+                                /**
+                                 * @description How many live agent instances the tenant may hold at once, 1 to 100000. 1000 by default.
+                                 * @default 1000
+                                 */
+                                agent_max_live_instances: number;
+                                /**
+                                 * @description How long an agent instance lives, in seconds, 60 to 86400, and never past the owner’s session. 900 by default.
+                                 * @default 900
+                                 */
+                                agent_instance_ttl_seconds: number;
+                                /**
+                                 * @description How long an agent instance may sit idle before it ends, in seconds, 60 to 86400, and never past the owner’s session. 1800 by default.
+                                 * @default 1800
+                                 */
+                                agent_instance_idle_seconds: number;
+                                /**
+                                 * @description How long an approval of one action lasts, in seconds, 60 to 900. 600 by default.
+                                 * @default 600
+                                 */
+                                agent_approval_ttl_seconds: number;
+                                /**
+                                 * @description How many writes an agent may make under one grant, creates included, 1 to 1000. 20 by default.
+                                 * @default 20
+                                 */
+                                agent_writes_per_grant: number;
+                                /**
+                                 * @description How many of those writes under one grant may create something, 1 to 1000. 10 by default.
+                                 * @default 10
+                                 */
+                                agent_creates_per_grant: number;
+                                /**
+                                 * @description How many writes one agent type may make for one owner in a 24-hour UTC window, across their sign-ins, 1 to 100000. 1000 by default.
+                                 * @default 1000
+                                 */
+                                agent_window_writes: number;
                                 /** @description The audit event types the tenant stores. */
                                 audit_event_types: string[];
                                 /**
@@ -2887,6 +2932,16 @@ export interface paths {
                                  * @default false
                                  */
                                 token_exchange_actor_from_other_client: boolean;
+                                /**
+                                 * @description Whether the client is an agent: an application that acts for a person under a grant they gave it.
+                                 * @default false
+                                 */
+                                agent_type: boolean;
+                                /**
+                                 * @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim.
+                                 * @default []
+                                 */
+                                delegated_actors: string[];
                                 /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                                 userinfo_signed_response_alg: string | null;
                                 /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -4319,6 +4374,10 @@ export interface paths {
                                 token_exchange_allowed_for_public: boolean;
                                 /** @description Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it. */
                                 token_exchange_actor_from_other_client: boolean;
+                                /** @description Whether the client is an agent: an application that acts for a person under a grant they gave it. */
+                                agent_type: boolean;
+                                /** @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim. */
+                                delegated_actors: string[];
                                 /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                                 userinfo_signed_response_alg: string | null;
                                 /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -4468,6 +4527,10 @@ export interface paths {
                             token_exchange_allowed_for_public: boolean;
                             /** @description Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it. */
                             token_exchange_actor_from_other_client: boolean;
+                            /** @description Whether the client is an agent: an application that acts for a person under a grant they gave it. */
+                            agent_type: boolean;
+                            /** @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim. */
+                            delegated_actors: string[];
                             /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                             userinfo_signed_response_alg: string | null;
                             /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -4671,6 +4734,10 @@ export interface paths {
                             token_exchange_allowed_for_public: boolean;
                             /** @description Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it. */
                             token_exchange_actor_from_other_client: boolean;
+                            /** @description Whether the client is an agent: an application that acts for a person under a grant they gave it. */
+                            agent_type: boolean;
+                            /** @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim. */
+                            delegated_actors: string[];
                             /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                             userinfo_signed_response_alg: string | null;
                             /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -4851,6 +4918,10 @@ export interface paths {
                             token_exchange_allowed_for_public: boolean;
                             /** @description Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it. */
                             token_exchange_actor_from_other_client: boolean;
+                            /** @description Whether the client is an agent: an application that acts for a person under a grant they gave it. */
+                            agent_type: boolean;
+                            /** @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim. */
+                            delegated_actors: string[];
                             /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                             userinfo_signed_response_alg: string | null;
                             /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -5005,6 +5076,10 @@ export interface paths {
                             token_exchange_allowed_for_public: boolean;
                             /** @description Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it. */
                             token_exchange_actor_from_other_client: boolean;
+                            /** @description Whether the client is an agent: an application that acts for a person under a grant they gave it. */
+                            agent_type: boolean;
+                            /** @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim. */
+                            delegated_actors: string[];
                             /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                             userinfo_signed_response_alg: string | null;
                             /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */

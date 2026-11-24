@@ -97,6 +97,11 @@ class GetAdminTenantsTenantExportResponse200ClientsItem:
             a public client holds no secret, so reaching the grant proves nothing about who asked. Default: False.
         token_exchange_actor_from_other_client (bool): Whether an actor token issued to another client is accepted in a
             delegated exchange. Off by default: an actor token must belong to the client presenting it. Default: False.
+        agent_type (bool): Whether the client is an agent: an application that acts for a person under a grant they gave
+            it. Default: False.
+        delegated_actors (list[str]): The `client_id` of each client allowed to act for the subjects who use this
+            client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-
+            document client and this client itself. A grant made through this client lists them in its `may_act` claim.
         userinfo_signed_response_alg (None | str): The algorithm that signs this client’s UserInfo responses. Null
             returns plain JSON.
         userinfo_encrypted_response_alg (None | str): The key-management algorithm that encrypts this client’s UserInfo
@@ -153,6 +158,7 @@ class GetAdminTenantsTenantExportResponse200ClientsItem:
     backchannel_logout_session_required: bool
     consent_required: bool
     token_exchange_impersonation_allowed: bool
+    delegated_actors: list[str]
     userinfo_signed_response_alg: None | str
     userinfo_encrypted_response_alg: None | str
     userinfo_encrypted_response_enc: None | str
@@ -171,6 +177,7 @@ class GetAdminTenantsTenantExportResponse200ClientsItem:
     skip_logout_confirmation: bool = False
     token_exchange_allowed_for_public: bool = False
     token_exchange_actor_from_other_client: bool = False
+    agent_type: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         client_id = self.client_id
@@ -242,6 +249,10 @@ class GetAdminTenantsTenantExportResponse200ClientsItem:
         token_exchange_actor_from_other_client = (
             self.token_exchange_actor_from_other_client
         )
+
+        agent_type = self.agent_type
+
+        delegated_actors = self.delegated_actors
 
         userinfo_signed_response_alg: None | str
         userinfo_signed_response_alg = self.userinfo_signed_response_alg
@@ -319,6 +330,8 @@ class GetAdminTenantsTenantExportResponse200ClientsItem:
                 "token_exchange_impersonation_allowed": token_exchange_impersonation_allowed,
                 "token_exchange_allowed_for_public": token_exchange_allowed_for_public,
                 "token_exchange_actor_from_other_client": token_exchange_actor_from_other_client,
+                "agent_type": agent_type,
+                "delegated_actors": delegated_actors,
                 "userinfo_signed_response_alg": userinfo_signed_response_alg,
                 "userinfo_encrypted_response_alg": userinfo_encrypted_response_alg,
                 "userinfo_encrypted_response_enc": userinfo_encrypted_response_enc,
@@ -478,6 +491,10 @@ class GetAdminTenantsTenantExportResponse200ClientsItem:
             "token_exchange_actor_from_other_client"
         )
 
+        agent_type = d.pop("agent_type")
+
+        delegated_actors = cast(list[str], d.pop("delegated_actors"))
+
         def _parse_userinfo_signed_response_alg(data: object) -> None | str:
             if data is None:
                 return data
@@ -613,6 +630,8 @@ class GetAdminTenantsTenantExportResponse200ClientsItem:
             token_exchange_impersonation_allowed=token_exchange_impersonation_allowed,
             token_exchange_allowed_for_public=token_exchange_allowed_for_public,
             token_exchange_actor_from_other_client=token_exchange_actor_from_other_client,
+            agent_type=agent_type,
+            delegated_actors=delegated_actors,
             userinfo_signed_response_alg=userinfo_signed_response_alg,
             userinfo_encrypted_response_alg=userinfo_encrypted_response_alg,
             userinfo_encrypted_response_enc=userinfo_encrypted_response_enc,
