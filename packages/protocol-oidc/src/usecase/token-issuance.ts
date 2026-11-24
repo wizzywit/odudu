@@ -87,7 +87,7 @@ import {
 } from '#/usecase/client-authentication';
 import { authenticateEndpointClient } from '#/usecase/private-key-jwt-authentication';
 import { CIBA_GRANT } from '#/service/ciba';
-import { issueCibaTokens } from '#/usecase/ciba-token';
+import { issueCibaTokens, recordCibaPoll, type CibaPollRequest } from '#/usecase/ciba-token';
 import { loadClaimContextIn } from '#/usecase/evaluate-claims';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
@@ -230,11 +230,7 @@ type StructuredRequest =
       resource: string | string[] | undefined;
       audience: string | string[] | undefined;
     }
-  | {
-      grantType: typeof CIBA_GRANT;
-      clientId: string | undefined;
-      authReqId: string;
-    };
+  | (CibaPollRequest & { clientId: string | undefined });
 
 function readField(body: Record<string, string | string[] | undefined>, key: string): string {
   const value = body[key];
@@ -1406,6 +1402,8 @@ export async function issueTokens(
     headers,
     rawHeaders,
   });
+
+  if (request.grantType === CIBA_GRANT) await recordCibaPoll(tx, deps, request, client);
 
   return settle(async (work) => {
     try {

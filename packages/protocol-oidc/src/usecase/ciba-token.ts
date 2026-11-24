@@ -1,7 +1,7 @@
 import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/crypto';
-import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import { agentApprovalRepository } from '@odudu/domain-agents';
-import { auditRepository, type RequestContext } from '@odudu/domain-audit';
+import { auditRepository } from '@odudu/domain-audit';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
 import { clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
@@ -17,6 +17,7 @@ import {
   invalidGrant,
   invalidScope,
   slowDown,
+  unauthorizedClient,
   type TokenError,
   type TokenRefusalAudit,
 } from '#/service/errors';
@@ -27,22 +28,28 @@ import { withRegisteredClaimsWinning } from '#/service/token-claims';
 import { consumeApproval } from '#/usecase/approvals';
 import { cibaActionDigest } from '#/usecase/ciba';
 import { loadClaimContextIn } from '#/usecase/evaluate-claims';
+import { SpentRefusal } from '#/usecase/private-key-jwt-authentication';
+
+export interface RecordedPoll {
+  readonly row: CibaRequestRecord;
+  readonly poll: 'on_time' | 'early';
+}
 
 export interface CibaPollRequest {
   readonly grantType: typeof CIBA_GRANT;
   readonly authReqId: string;
+  // Set by `recordCibaPoll` before the grant runs: the request's row, and
+  // whether the poll was on time. Null when there is no such request for this
+  // client.
+  recorded?: RecordedPoll | null;
 }
 
 export interface CibaTokenDeps {
   readonly tenantId: string;
-  // A poll's bookkeeping commits on a transaction of its own: the poll that
-  // records it is, most of the time, one that answers with an error.
-  readonly database: DatabaseHandle;
   readonly issuer: string;
   readonly kek: Uint8Array;
   readonly clock: Clock;
   readonly claimMappers: ClaimMapperRegistry<ClaimContext>;
-  readonly request: RequestContext;
 }
 
 export type CibaIssuingConfig = Pick<ClientOidcConfig, 'idTokenSignedResponseAlg'> & {
@@ -91,6 +98,36 @@ function refused(
   };
 }
 
+// Records the poll on the request's own transaction, ahead of the grant, so the
+// write is committed with a refusal (`kept` below) and never lost to it. The
+// row stays locked until then, which orders two polls of one request.
+export async function recordCibaPoll(
+  tx: TenantScopedDatabase,
+  deps: Pick<CibaTokenDeps, 'clock'>,
+  request: CibaPollRequest,
+  client: ClientRecord,
+): Promise<void> {
+  request.recorded = null;
+  if (client.type !== 'confidential') return;
+  const repository = cibaRequestRepository(tx);
+  const row = await repository.byHash(hashAuthReqId(request.authReqId));
+  if (row === null) return;
+  if (row.clientId !== client.id) return;
+  const now = deps.clock.now();
+  if (row.expiresAt <= now) {
+    request.recorded = { row, poll: 'on_time' };
+    return;
+  }
+  const poll = await repository.recordPoll(row.id, now);
+  if (poll !== null) request.recorded = { row, poll };
+}
+
+// A refusal that answers a poll is thrown so that the transaction commits what
+// the poll recorded; the route re-throws it once it has.
+function kept(error: TokenError): Error {
+  return error.error === 'invalid_grant' ? error : new SpentRefusal(error);
+}
+
 // OpenID CIBA §10.1 and §11, poll mode. A request for nobody reads here as
 // one nobody has decided: pending until it expires.
 export async function issueCibaTokens(
@@ -101,23 +138,18 @@ export async function issueCibaTokens(
   config: CibaIssuingConfig,
   minting: CibaMinting,
 ): Promise<CibaTokenResponse> {
-  const row = await cibaRequestRepository(tx).byHash(hashAuthReqId(request.authReqId));
-  if (row === null) throw invalidGrant();
-  if (row.clientId !== client.id) throw invalidGrant();
+  // A client with no secret proves nothing about who is polling.
+  if (client.type !== 'confidential') throw unauthorizedClient();
+  const recorded = request.recorded ?? null;
+  if (recorded === null) throw invalidGrant();
+  const { row, poll } = recorded;
 
   const now = deps.clock.now();
-  if (row.expiresAt <= now) throw expiredToken(refused(client, row, 'expired'));
-
-  const poll = await withTenant(
-    deps.database.db,
-    deps.tenantId,
-    (own) => cibaRequestRepository(own).recordPoll(row.id, now),
-    deps.request,
-  );
-  if (poll === 'early') throw slowDown(refused(client, row, 'polled_early'));
+  if (row.expiresAt <= now) throw kept(expiredToken(refused(client, row, 'expired')));
+  if (poll === 'early') throw kept(slowDown(refused(client, row, 'polled_early')));
 
   const decision = await decisionOf(tx, row, client, now);
-  if (decision instanceof Error) throw decision;
+  if (decision instanceof Error) throw kept(decision);
   return redeem(tx, deps, client, config, minting, row, decision, now);
 }
 

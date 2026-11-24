@@ -105,19 +105,21 @@ describe('the ciba_requests table', () => {
     });
   });
 
-  it('counts the live unresolved requests of a hint in its own tenant only', async () => {
+  it('counts the live requests of a client for a hint, in its own tenant only', async () => {
     const tenantId = newId();
-    await withTenant(app.db, tenantId, async (tx) => {
-      await seedRequest(tx, tenantId, { hint: 'a' });
+    const clientId = await withTenant(app.db, tenantId, async (tx) => {
+      const seeded = await seedRequest(tx, tenantId, { hint: 'a' });
       const repository = cibaRequestRepository(tx);
-      expect(await repository.unresolvedPendingCount('a', NOW)).toBe(1);
-      expect(await repository.unresolvedPendingCount('b', NOW)).toBe(0);
-      expect(await repository.unresolvedPendingCount('a', new Date(NOW.getTime() + 601_000))).toBe(
-        0,
-      );
+      expect(await repository.liveCountFor(seeded.clientId, 'a', NOW)).toBe(1);
+      expect(await repository.liveCountFor(seeded.clientId, 'b', NOW)).toBe(0);
+      expect(await repository.liveCountFor(newId(), 'a', NOW)).toBe(0);
+      expect(
+        await repository.liveCountFor(seeded.clientId, 'a', new Date(NOW.getTime() + 601_000)),
+      ).toBe(0);
+      return seeded.clientId;
     });
     await withTenant(app.db, newId(), async (tx) => {
-      expect(await cibaRequestRepository(tx).unresolvedPendingCount('a', NOW)).toBe(0);
+      expect(await cibaRequestRepository(tx).liveCountFor(clientId, 'a', NOW)).toBe(0);
     });
   });
 

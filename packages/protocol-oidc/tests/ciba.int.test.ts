@@ -6,12 +6,12 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
-import { FakeClock, newId } from '@odudu/kernel';
+import { FakeClock } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import { sql } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { cibaRequestRepository } from '#/repository/ciba-requests';
@@ -26,7 +26,9 @@ import {
   type CibaWorld,
 } from '#/testing/ciba-fixture';
 import { noBreachedLookup } from '#/testing/breached-check';
-import { decideApproval } from '#/usecase/approvals';
+import { decideApproval, requestApproval } from '#/usecase/approvals';
+import { signClientAssertion } from '#/testing/private-key-jwt-fixture';
+import { CLIENT_ASSERTION_TYPE } from '#/service/client-assertion';
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
@@ -48,23 +50,16 @@ const limiter: { denied: boolean; keys: string[] } & ClientSecretLimiter = {
   },
 };
 
-beforeAll(async () => {
-  container = await startTestDatabase();
-  owner = createDatabase(container.adminUrl);
-  await runMigrations(owner.db, MIGRATIONS_DIR);
-  app = createDatabase(await createAppRole(container.adminUrl), {
-    max: 8,
-    onQueryForTests: (query) => {
-      if (recording) statements.push(query);
-    },
-  });
-  http = Fastify();
-  await http.register(formbody);
-  await http.register(
+let appUrl: string;
+
+async function startApp(db: DatabaseHandle): Promise<FastifyInstance> {
+  const server = Fastify();
+  await server.register(formbody);
+  await server.register(
     oidcRoutes({
       breachedPasswordCheck: noBreachedLookup,
       tls: false,
-      database: app,
+      database: db,
       ownerDatabase: owner,
       kek: CIBA_KEK,
       clock,
@@ -74,7 +69,22 @@ beforeAll(async () => {
       cibaLimiter: limiter,
     }),
   );
-  await http.ready();
+  await server.ready();
+  return server;
+}
+
+beforeAll(async () => {
+  container = await startTestDatabase();
+  owner = createDatabase(container.adminUrl);
+  await runMigrations(owner.db, MIGRATIONS_DIR);
+  appUrl = await createAppRole(container.adminUrl);
+  app = createDatabase(appUrl, {
+    max: 8,
+    onQueryForTests: (query) => {
+      if (recording) statements.push(query);
+    },
+  });
+  http = await startApp(app);
 }, 120_000);
 
 afterAll(async () => {
@@ -165,6 +175,21 @@ function decide(world: CibaWorld, approvalId: string, subjectId: string, approve
   );
 }
 
+// What each statement does and to which table, so a path that reads or writes
+// a different table cannot hide behind the same verb.
+const STATEMENT = /^\s*(select|insert|update|delete)\b[\s\S]*?\b(?:from|into)\s+"?([a-z_]+)"?/iu;
+
+function shapes(queries: readonly string[]): string[] {
+  return queries
+    .filter((q) => /^\s*(select|insert|update|delete|with)\b/iu.test(q))
+    .filter((q) => !q.includes('set_config'))
+    .map((q) => {
+      const match = STATEMENT.exec(q);
+      const verb = q.trimStart().split(/\s+/u)[0]?.toLowerCase() ?? '';
+      return match === null ? verb : `${verb} ${match[2]?.toLowerCase() ?? ''}`;
+    });
+}
+
 function detailOf(row: { detail?: unknown }): Record<string, unknown> {
   return typeof row.detail === 'object' && row.detail !== null
     ? (row.detail as Record<string, unknown>)
@@ -181,6 +206,18 @@ function payload(jwt: string): Record<string, unknown> {
 let world: CibaWorld;
 beforeAll(async () => {
   world = await seedCibaWorld(app, 'flow');
+});
+
+// Each test starts with nothing of the shared tenant's still waiting, so the
+// limits on a person do not carry from one test to the next.
+beforeEach(async () => {
+  const past = new Date(clock.now().getTime() - 1000);
+  await owner.db.execute(
+    sql`update ciba_requests set expires_at = ${past.toISOString()}::timestamptz where tenant_id = ${world.tenantId}`,
+  );
+  await owner.db.execute(
+    sql`update agent_approvals set state = 'expired' where tenant_id = ${world.tenantId} and state = 'pending'`,
+  );
 });
 
 describe('the backchannel authentication endpoint', () => {
@@ -322,12 +359,12 @@ describe('the backchannel authentication endpoint', () => {
     expect(unknown.json()).toMatchObject({ error: 'invalid_scope' });
   });
 
-  it('[OIDC-CIBA-7.1-05] stores the binding message escaped and refuses one past 140 characters', async () => {
+  it('[OIDC-CIBA-7.1-05] stores the binding message as validated text and refuses one past 140 characters', async () => {
     const ack = await request(world, { login_hint: 'alice' }, world.agent, {
       binding_message: '<img src=x onerror=alert(1)>',
     });
     const row = await approvalOf(world, ack.auth_req_id);
-    expect(row.bindingMessage).toBe('&lt;img src=x onerror=alert(1)&gt;');
+    expect(row.bindingMessage).toBe('<img src=x onerror=alert(1)>');
     const long = await authorize(world, world.agent, {
       scope: 'openid',
       login_hint: 'alice',
@@ -614,18 +651,12 @@ describe('polling the token endpoint', () => {
 });
 
 describe('a person the hint does not identify', () => {
-  async function counted(hint: Params) {
+  async function counted(hint: Params, on: CibaWorld = world) {
     statements.length = 0;
     recording = true;
     try {
-      const res = await authorize(world, world.agent, { scope: 'openid', ...hint });
-      return {
-        res,
-        verbs: statements
-          .filter((q) => /^\s*(select|insert|update|delete|with)\b/iu.test(q))
-          .filter((q) => !q.includes('set_config'))
-          .map((q) => q.trimStart().split(/\s+/u)[0]?.toLowerCase()),
-      };
+      const res = await authorize(on, on.agent, { scope: 'openid', ...hint });
+      return { res, verbs: shapes(statements) };
     } finally {
       recording = false;
     }
@@ -648,6 +679,11 @@ describe('a person the hint does not identify', () => {
     expect(unknown.res.headers['cache-control']).toBe(known.res.headers['cache-control']);
     expect(unknown.verbs.length).toBeGreaterThan(5);
     expect(unknown.verbs).toEqual(known.verbs);
+
+    await fillApprovals(world, world.bob.subjectId, 20);
+    const atCap = await counted({ login_hint: 'bob' });
+    expect(atCap.res.statusCode).toBe(known.res.statusCode);
+    expect(atCap.verbs).toEqual(known.verbs);
   });
 
   it('[ODUDU-CIBA-UNKNOWN-02] polls as authorization_pending until it expires, creates no approval and sends nothing', async () => {
@@ -718,6 +754,334 @@ describe('a person the hint does not identify', () => {
   });
 });
 
+// Another source of pending approvals for one person: another client's.
+async function fillApprovals(on: CibaWorld, subjectId: string, count: number): Promise<void> {
+  for (let i = 0; i < count; i += 1) {
+    await withTenant(app.db, on.tenantId, (tx) =>
+      requestApproval(
+        tx,
+        { tenantId: on.tenantId },
+        {
+          subjectId,
+          requestingClientId: on.other.dbId,
+          instanceId: null,
+          kind: 'tool_call',
+          summary: 'Something else',
+          actionDigest: 'b'.repeat(64),
+          now: clock.now(),
+        },
+      ),
+    );
+  }
+}
+
+describe('the limit on requests for one hint', () => {
+  async function twentyOne(on: CibaWorld, hints: string[], extra: Params = {}) {
+    const statuses: number[] = [];
+    for (const [i, hint] of hints.entries()) {
+      const res = await authorize(on, on.agent, {
+        scope: 'openid',
+        login_hint: hint,
+        ...extra,
+      });
+      statuses.push(res.statusCode);
+      if (i === hints.length - 1 && res.statusCode === 403) {
+        expect(res.json()).toMatchObject({ error: 'access_denied' });
+      }
+    }
+    return statuses;
+  }
+
+  it('[ODUDU-CIBA-CAP-01] counts a request that was shortened by requested_expiry the same for a known and an unknown hint', async () => {
+    const fresh = await seedCibaWorld(app, 'cap-expiry');
+    for (const hint of ['alice', 'ghost']) {
+      const statuses = await twentyOne(fresh, Array(20).fill(hint) as string[], {
+        requested_expiry: '1',
+      });
+      expect(
+        statuses.every((status) => status === 200),
+        hint,
+      ).toBe(true);
+      clock.advance(2000);
+      const again = await authorize(fresh, fresh.agent, { scope: 'openid', login_hint: hint });
+      expect(again.statusCode, hint).toBe(200);
+    }
+  });
+
+  it('[ODUDU-CIBA-CAP-02] shares one counter between spellings of one address, known or not', async () => {
+    const fresh = await seedCibaWorld(app, 'cap-alias');
+    await owner.db.execute(
+      sql`update tenants set login_with_email = true where id = ${fresh.tenantId}`,
+    );
+    const spellings = (local: string) =>
+      Array.from(
+        { length: 21 },
+        (_, i) =>
+          [
+            `${local}@example.test`,
+            `${local[0]?.toUpperCase() ?? ''}${local.slice(1)}@Example.Test`,
+            `${local.toUpperCase()}@EXAMPLE.TEST`,
+          ][i % 3] ?? '',
+      );
+    const known = await twentyOne(fresh, spellings('alice'));
+    const unknown = await twentyOne(fresh, spellings('ghost'));
+    expect(known.slice(0, 20).every((status) => status === 200)).toBe(true);
+    expect(known.at(-1)).toBe(403);
+    expect(unknown).toEqual(known);
+  });
+
+  it('[ODUDU-CIBA-CAP-03] gives a person with pending approvals from elsewhere the answer of an unknown one, and no approval', async () => {
+    const fresh = await seedCibaWorld(app, 'cap-other');
+    await fillApprovals(fresh, fresh.bob.subjectId, 20);
+    const known = await authorize(fresh, fresh.agent, { scope: 'openid', login_hint: 'bob' });
+    const unknown = await authorize(fresh, fresh.agent, { scope: 'openid', login_hint: 'ghost' });
+    expect(known.statusCode).toBe(200);
+    expect(Object.keys(known.json<object>()).sort()).toEqual(
+      Object.keys(unknown.json<object>()).sort(),
+    );
+    expect(known.json<Acknowledgement>().expires_in).toBe(
+      unknown.json<Acknowledgement>().expires_in,
+    );
+
+    const ack = known.json<Acknowledgement>();
+    const row = await withTenant(app.db, fresh.tenantId, async (tx) =>
+      cibaRequestRepository(tx).byHash(hashAuthReqId(ack.auth_req_id)),
+    );
+    expect(row?.approvalId).toBeNull();
+    const approvals = await owner.db.execute<{ n: number }>(
+      sql`select count(*)::int as n from agent_approvals where tenant_id = ${fresh.tenantId} and subject_id = ${fresh.bob.subjectId}`,
+    );
+    expect(approvals[0]?.n).toBe(20);
+
+    clock.advance(6000);
+    expect((await poll(fresh, fresh.agent, ack.auth_req_id)).json()).toMatchObject({
+      error: 'authorization_pending',
+    });
+    clock.advance(700_000);
+    expect((await poll(fresh, fresh.agent, ack.auth_req_id)).json()).toMatchObject({
+      error: 'expired_token',
+    });
+  });
+
+  it('[ODUDU-CIBA-CAP-04] gives the refusal its own sentence', async () => {
+    const fresh = await seedCibaWorld(app, 'cap-words');
+    const statuses = await twentyOne(fresh, Array(21).fill('alice') as string[]);
+    expect(statuses.at(-1)).toBe(403);
+    const last = await authorize(fresh, fresh.agent, { scope: 'openid', login_hint: 'alice' });
+    expect(last.json<{ error_description: string }>().error_description).not.toBe(
+      'The user did not allow the request.',
+    );
+  });
+});
+
+describe('the requests that need care', () => {
+  it('[ODUDU-CIBA-HINT-01] refuses a control character in a login hint as an invalid request', async () => {
+    for (const hint of ['ali\u0000ce', 'ali\nce', 'ali\u200Bce']) {
+      const res = await authorize(world, world.agent, { scope: 'openid', login_hint: hint });
+      expect(res.statusCode, JSON.stringify(hint)).toBe(400);
+      expect(res.json()).toMatchObject({ error: 'invalid_request' });
+    }
+  });
+
+  it('[ODUDU-CIBA-CONF-01] refuses a public client at bc-authorize and at the token endpoint', async () => {
+    const res = await authorize(world, null, {
+      client_id: world.pub.clientId,
+      scope: 'openid',
+      login_hint: 'alice',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'unauthorized_client' });
+    const polled = await http.inject({
+      method: 'POST',
+      url: `/tenants/${world.tenant}/protocol/openid-connect/token`,
+      headers: FORM,
+      payload: body({
+        grant_type: CIBA_GRANT,
+        client_id: world.pub.clientId,
+        auth_req_id: 'anything',
+      }),
+    });
+    expect(polled.statusCode).toBe(400);
+    expect(polled.json()).toMatchObject({ error: 'unauthorized_client' });
+  });
+
+  it('[ODUDU-CIBA-CONF-02] refuses a public client even when it holds an id issued to a confidential one', async () => {
+    const ack = await request(world);
+    const polled = await http.inject({
+      method: 'POST',
+      url: `/tenants/${world.tenant}/protocol/openid-connect/token`,
+      headers: FORM,
+      payload: body({
+        grant_type: CIBA_GRANT,
+        client_id: world.pub.clientId,
+        auth_req_id: ack.auth_req_id,
+      }),
+    });
+    expect(polled.json()).toMatchObject({ error: 'unauthorized_client' });
+  });
+
+  it('[OIDC-CIBA-7.1-07] accepts the issuer, the token endpoint or the endpoint itself as the audience of a client assertion', async () => {
+    const issuer = (
+      await http.inject({ url: `/tenants/${world.tenant}/.well-known/openid-configuration` })
+    ).json<{ issuer: string }>().issuer;
+    const send = async (audience: string) =>
+      http.inject({
+        method: 'POST',
+        url: `/tenants/${world.tenant}/protocol/openid-connect/bc-authorize`,
+        headers: FORM,
+        payload: body({
+          scope: 'openid',
+          login_hint: 'alice',
+          client_assertion_type: CLIENT_ASSERTION_TYPE,
+          client_assertion: await signClientAssertion({
+            key: world.assertion.key,
+            clientId: world.assertion.clientId,
+            audience,
+            kek: CIBA_KEK,
+            now: clock.now(),
+          }),
+        }),
+      });
+    for (const audience of [
+      issuer,
+      `${issuer}/protocol/openid-connect/token`,
+      `${issuer}/protocol/openid-connect/bc-authorize`,
+    ]) {
+      const res = await send(audience);
+      expect(res.statusCode, `${audience}: ${res.body}`).toBe(200);
+    }
+    expect((await send(`${issuer}/protocol/openid-connect/revoke`)).statusCode).toBe(401);
+  });
+});
+
+describe('polling concurrently', () => {
+  it('[ODUDU-CIBA-CONC-01] lets exactly one of two simultaneous polls have the tokens', async () => {
+    const ack = await request(world);
+    const row = await approvalOf(world, ack.auth_req_id);
+    await decide(world, row.approvalId ?? '', world.alice.subjectId, true);
+    clock.advance(6000);
+    const both = await Promise.all([
+      poll(world, world.agent, ack.auth_req_id),
+      poll(world, world.agent, ack.auth_req_id),
+    ]);
+    expect(both.filter((res) => res.statusCode === 200)).toHaveLength(1);
+    expect(both.filter((res) => res.statusCode === 400)).toHaveLength(1);
+  });
+
+  it('[ODUDU-CIBA-CONC-02] answers more simultaneous polls than the pool has connections', async () => {
+    const tiny = createDatabase(appUrl, { max: 2 });
+    const server = await startApp(tiny);
+    try {
+      const acks = await Promise.all(Array.from({ length: 6 }, () => request(world)));
+      clock.advance(6000);
+      const answers = await Promise.all(
+        acks.map((ack) =>
+          server.inject({
+            method: 'POST',
+            url: `/tenants/${world.tenant}/protocol/openid-connect/token`,
+            headers: { ...FORM, ...basic(world.agent) },
+            payload: body({ grant_type: CIBA_GRANT, auth_req_id: ack.auth_req_id }),
+          }),
+        ),
+      );
+      expect(answers.map((res) => res.json<{ error: string }>().error)).toEqual(
+        Array(6).fill('authorization_pending'),
+      );
+    } finally {
+      await server.close();
+      await tiny.close();
+    }
+  }, 20_000);
+});
+
+describe('polling as a client that signs assertions', () => {
+  it('[ODUDU-CIBA-CONC-03] records a poll that is refused, so the interval still grows', async () => {
+    const issuer = (
+      await http.inject({ url: `/tenants/${world.tenant}/.well-known/openid-configuration` })
+    ).json<{ issuer: string }>().issuer;
+    const assertionFor = async (audience: string) =>
+      signClientAssertion({
+        key: world.assertion.key,
+        clientId: world.assertion.clientId,
+        audience,
+        kek: CIBA_KEK,
+        now: clock.now(),
+      });
+    const made = await http.inject({
+      method: 'POST',
+      url: `/tenants/${world.tenant}/protocol/openid-connect/bc-authorize`,
+      headers: FORM,
+      payload: body({
+        scope: 'openid',
+        login_hint: 'alice',
+        client_assertion_type: CLIENT_ASSERTION_TYPE,
+        client_assertion: await assertionFor(`${issuer}/protocol/openid-connect/bc-authorize`),
+      }),
+    });
+    expect(made.statusCode, made.body).toBe(200);
+    const ack = made.json<Acknowledgement>();
+    const pollSigned = async () =>
+      http.inject({
+        method: 'POST',
+        url: `/tenants/${world.tenant}/protocol/openid-connect/token`,
+        headers: FORM,
+        payload: body({
+          grant_type: CIBA_GRANT,
+          auth_req_id: ack.auth_req_id,
+          client_assertion_type: CLIENT_ASSERTION_TYPE,
+          client_assertion: await signClientAssertion({
+            key: world.assertion.key,
+            clientId: world.assertion.clientId,
+            audience: `${issuer}/protocol/openid-connect/token`,
+            kek: CIBA_KEK,
+            now: clock.now(),
+          }),
+        }),
+      });
+    expect((await pollSigned()).json()).toMatchObject({ error: 'authorization_pending' });
+    clock.advance(1000);
+    expect((await pollSigned()).json()).toMatchObject({ error: 'slow_down' });
+    expect((await approvalOf(world, ack.auth_req_id)).intervalSeconds).toBe(10);
+  });
+});
+
+describe('what an approval binds', () => {
+  async function approvedRequest() {
+    const ack = await request(world, { login_hint: 'alice' }, world.agent, {
+      binding_message: 'pay the invoice',
+    });
+    const row = await approvalOf(world, ack.auth_req_id);
+    await decide(world, row.approvalId ?? '', world.alice.subjectId, true);
+    clock.advance(6000);
+    return { ack, row };
+  }
+
+  it('[ODUDU-CIBA-BIND-01] is not redeemed once the digest stored with the approval is not the request’s', async () => {
+    const { ack, row } = await approvedRequest();
+    await owner.db.execute(
+      sql`update agent_approvals set action_digest = ${'0'.repeat(64)} where id = ${row.approvalId}`,
+    );
+    expect((await poll(world, world.agent, ack.auth_req_id)).json()).toMatchObject({
+      error: 'invalid_grant',
+    });
+  });
+
+  it('[ODUDU-CIBA-BIND-02] is not redeemed once the request was altered after it was approved', async () => {
+    const { ack } = await approvedRequest();
+    await owner.db.execute(
+      sql`update ciba_requests set binding_message = 'pay another invoice' where tenant_id = ${world.tenantId} and auth_req_hash = ${hashAuthReqId(ack.auth_req_id)}`,
+    );
+    expect((await poll(world, world.agent, ack.auth_req_id)).json()).toMatchObject({
+      error: 'invalid_grant',
+    });
+  });
+
+  it('[ODUDU-CIBA-BIND-03] is redeemed when nothing was altered', async () => {
+    const { ack } = await approvedRequest();
+    expect((await poll(world, world.agent, ack.auth_req_id)).statusCode).toBe(200);
+  });
+});
+
 describe('the request in the audit trail', () => {
   it('[ODUDU-CIBA-AUDIT-01] records a refused request with a reason from the closed list and no hint', async () => {
     const tenantWorld = await seedCibaWorld(app, 'audit');
@@ -729,10 +1093,9 @@ describe('the request in the audit trail', () => {
       const refused = rows.find((r) => r.action === 'ciba.requested' && r.outcome === 'refused');
       expect(refused?.detail).toEqual({
         agent_client: tenantWorld.agent.dbId,
-        reason: 'approval_limit',
+        reason: 'rate_limited',
       });
       expect(JSON.stringify(refused)).not.toContain('alice');
     });
-    expect(newId()).toBeTruthy();
   });
 });

@@ -5,6 +5,8 @@ export const CIBA_GRANT = 'urn:openid:params:grant-type:ciba';
 // OpenID CIBA §7.3: what a client waits between polls when told nothing else.
 export const CIBA_INTERVAL_SECONDS = 5;
 export const BINDING_MESSAGE_MAX_LENGTH = 140;
+// What one client may hold, unexpired, for one hint.
+export const LIVE_REQUESTS_PER_HINT = 20;
 const LOGIN_HINT_MAX_LENGTH = 512;
 const ID_TOKEN_HINT_MAX_LENGTH = 8192;
 const SCOPE_MAX_LENGTH = 1024;
@@ -29,7 +31,7 @@ export interface BackchannelRequest {
     readonly kind: 'login_hint' | 'id_token_hint';
     readonly value: string;
   };
-  // Escaped text, never interpreted.
+  // The validated text as written; whatever shows it escapes it.
   readonly bindingMessage: string | null;
   readonly requestedExpiry: number | null;
 }
@@ -56,15 +58,6 @@ function single(body: Body, key: string): { text: string | undefined; repeated: 
   };
 }
 
-function escapeText(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 // Control and format characters, which include the line and paragraph separators.
 const CONTROL_CHARACTER = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
@@ -88,7 +81,9 @@ export function parseBackchannelRequest(body: Body): BackchannelParse {
         : undefined;
   if (hint === undefined) return refuse('invalid_request');
   const longest = hint.kind === 'login_hint' ? LOGIN_HINT_MAX_LENGTH : ID_TOKEN_HINT_MAX_LENGTH;
-  if (hint.value.length > longest) return refuse('invalid_request');
+  if (hint.value.length > longest || CONTROL_CHARACTER.test(hint.value)) {
+    return refuse('invalid_request');
+  }
 
   if (scope === undefined || scope.length > SCOPE_MAX_LENGTH) return refuse('invalid_scope');
   if (!scope.split(' ').includes('openid')) return refuse('invalid_scope');
@@ -101,7 +96,7 @@ export function parseBackchannelRequest(body: Body): BackchannelParse {
     ) {
       return refuse('invalid_binding_message');
     }
-    bindingMessage = escapeText(binding);
+    bindingMessage = binding;
   }
 
   let requestedExpiry: number | null = null;
@@ -126,8 +121,11 @@ export function hashAuthReqId(authReqId: string): string {
   return createHash('sha256').update(authReqId).digest('hex');
 }
 
-// What the per-person pending limit counts a request for nobody against: the
-// hint as sent, within its tenant, held only as a digest.
+// What the limit on requests for one hint counts against: the hint within its
+// tenant, held only as a digest. An address is folded to lower case, as the
+// sign-in lookup compares it, so its spellings share one counter whether or not
+// anyone holds it; a username is compared exactly.
 export function hintDigest(tenantId: string, hint: string): string {
-  return createHash('sha256').update(`ciba-hint\0${tenantId}\0${hint}`).digest('hex');
+  const folded = hint.includes('@') ? hint.toLowerCase() : hint;
+  return createHash('sha256').update(`ciba-hint\0${tenantId}\0${folded}`).digest('hex');
 }

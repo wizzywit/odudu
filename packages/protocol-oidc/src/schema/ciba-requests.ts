@@ -17,7 +17,7 @@ export const cibaRequests = pgTable('ciba_requests', {
   approvalId: uuid('approval_id'),
   hintDigest: text('hint_digest').notNull(),
   scope: text('scope').notNull(),
-  // Stored escaped, never interpreted.
+  // The validated text as written; whatever shows it escapes it.
   bindingMessage: text('binding_message'),
   requestedExpiry: integer('requested_expiry'),
   intervalSeconds: integer('interval_seconds').notNull().default(5),

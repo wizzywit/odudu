@@ -185,6 +185,10 @@ export const OAUTH_ERROR_DESCRIPTIONS: Readonly<
   unsupported_response_type: 'Only response_type=code is supported.',
 };
 
+// What the backchannel authentication endpoint says when a client already holds the most
+// live requests one hint allows: its own sentence, since no person refused anything.
+export const CIBA_REQUEST_LIMIT_DESCRIPTION = 'Too many requests are waiting for this hint.';
+
 // What /authorize says, beside its code's sentence, when it can name the
 // parameter at fault: still static, still never built from the request.
 export const AUTHORIZE_REQUEST_DESCRIPTIONS = {

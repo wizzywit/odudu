@@ -6,6 +6,7 @@ import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { CIBA_GRANT } from '#/service/ciba';
+import { buildClientSigningKey, jwksDocumentFor } from '#/testing/private-key-jwt-fixture';
 
 export const CIBA_KEK = Buffer.alloc(32, 13);
 
@@ -26,6 +27,11 @@ export interface CibaWorld {
   readonly other: CibaClient;
   // Registered for the authorization code grant alone.
   readonly plain: CibaClient;
+  // A public client that holds the grant, which the database allows and the
+  // endpoints refuse.
+  readonly pub: CibaClient;
+  // Authenticates with a signed assertion.
+  readonly assertion: CibaClient & { readonly key: SigningKeyRecord };
   readonly key: SigningKeyRecord;
 }
 
@@ -34,6 +40,7 @@ async function addClient(
   tenantId: string,
   clientId: string,
   grantTypes: string[],
+  kind: 'secret' | 'public' | { jwks: unknown } = 'secret',
 ): Promise<CibaClient> {
   const dbId = newId();
   const secret = `${clientId}-secret`;
@@ -42,8 +49,8 @@ async function addClient(
     tenantId,
     clientId,
     name: `Client ${clientId}`,
-    type: 'confidential',
-    secretHash: await hashPassword(secret),
+    type: kind === 'public' ? 'public' : 'confidential',
+    secretHash: kind === 'secret' ? await hashPassword(secret) : null,
   });
   await provisionClientDefaults(tx, dbId);
   await clientOidcConfigRepository(tx).create({
@@ -51,7 +58,9 @@ async function addClient(
     tenantId,
     redirectUris: ['https://app.example/callback'],
     grantTypes,
-    tokenEndpointAuthMethod: 'client_secret_basic',
+    tokenEndpointAuthMethod:
+      kind === 'secret' ? 'client_secret_basic' : kind === 'public' ? 'none' : 'private_key_jwt',
+    ...(typeof kind === 'object' ? { jwks: kind.jwks } : {}),
     audiences: [],
     accessTokenTtlSeconds: 300,
     refreshTokenTtlSeconds: 1_209_600,
@@ -99,6 +108,11 @@ export async function seedCibaWorld(app: DatabaseHandle, label: string): Promise
       privateJwkEncrypted: key.privateJwkEncrypted,
     });
 
+    const assertionKey = await buildClientSigningKey(CIBA_KEK, tenantId, 'ES256');
+    const assertion = await addClient(tx, tenantId, 'assertion-agent', [CIBA_GRANT], {
+      jwks: jwksDocumentFor(assertionKey),
+    });
+
     return {
       tenantId,
       tenant,
@@ -107,6 +121,8 @@ export async function seedCibaWorld(app: DatabaseHandle, label: string): Promise
       agent: await addClient(tx, tenantId, 'agent', [CIBA_GRANT]),
       other: await addClient(tx, tenantId, 'other-agent', [CIBA_GRANT]),
       plain: await addClient(tx, tenantId, 'plain', ['authorization_code']),
+      pub: await addClient(tx, tenantId, 'public-agent', [CIBA_GRANT], 'public'),
+      assertion: { ...assertion, key: assertionKey },
       key,
     };
   });

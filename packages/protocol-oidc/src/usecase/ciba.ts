@@ -1,6 +1,6 @@
 import { findAccountByLogin } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { approvalDigest } from '@odudu/domain-agents';
+import { agentApprovalRepository, approvalDigest } from '@odudu/domain-agents';
 import { auditRepository } from '@odudu/domain-audit';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
 import { clientScopeRepository, readAgentSettings, type ClientRecord } from '@odudu/domain-tenant';
@@ -12,6 +12,7 @@ import { clientSecretLimiterKey, type ClientSecretLimiter } from '#/service/clie
 import {
   CIBA_GRANT,
   CIBA_INTERVAL_SECONDS,
+  LIVE_REQUESTS_PER_HINT,
   generateAuthReqId,
   hashAuthReqId,
   hintDigest,
@@ -28,12 +29,9 @@ import {
   withAudit,
   type TokenRefusalAudit,
 } from '#/service/errors';
+import { CIBA_REQUEST_LIMIT_DESCRIPTION } from '#/service/oauth-errors';
 import { resolveScope } from '#/service/scope';
-import {
-  ApprovalLimitReached,
-  PENDING_APPROVALS_PER_SUBJECT,
-  requestApproval,
-} from '#/usecase/approvals';
+import { ApprovalLimitReached, requestApproval } from '#/usecase/approvals';
 import {
   authenticateEndpointClient,
   type ClientRequest,
@@ -54,6 +52,9 @@ export interface BackchannelAcknowledgement {
   readonly expires_in: number;
   readonly interval: number;
 }
+
+// A subject no person holds, whose approvals count zero.
+const NOBODY = '00000000-0000-0000-0000-000000000000';
 
 const refusal = (client: ClientRecord, reason: TokenRefusalAudit['reason']): TokenRefusalAudit => ({
   action: 'ciba.requested',
@@ -84,7 +85,8 @@ async function acknowledge(
   if (!decision.allowed) {
     throw new TokenRateLimited(decision.retryAfterSeconds, refusal(client, 'rate_limited'));
   }
-  if (!config.grantTypes.includes(CIBA_GRANT)) {
+  // A client with no secret proves nothing about who is asking.
+  if (client.type !== 'confidential' || !config.grantTypes.includes(CIBA_GRANT)) {
     throw withAudit(unauthorizedClient(), refusal(client, 'unauthorized_client'));
   }
 
@@ -106,15 +108,20 @@ async function acknowledge(
   const subjectId = await resolveSubject(tx, deps, client, asked);
   const now = deps.now();
   const digestOfHint = hintDigest(deps.tenantId, asked.hint.value);
-  const { approvalId, expiresAt: approvalEnd } =
-    subjectId === null
-      ? await decoyApproval(tx, deps, client, digestOfHint, now)
-      : await openApproval(tx, deps, client, subjectId, asked, now);
 
-  const requestedEnd =
-    asked.requestedExpiry === null ? null : new Date(now.getTime() + asked.requestedExpiry * 1000);
-  const expiresAt =
-    requestedEnd !== null && requestedEnd < approvalEnd ? requestedEnd : approvalEnd;
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`ciba-requests:${deps.tenantId}:${client.id}:${digestOfHint}`}))`,
+  );
+  const live = await cibaRequestRepository(tx).liveCountFor(client.id, digestOfHint, now);
+  if (live >= LIVE_REQUESTS_PER_HINT) {
+    throw refusedByServer(refusal(client, 'rate_limited'), CIBA_REQUEST_LIMIT_DESCRIPTION);
+  }
+
+  const opened =
+    subjectId === null
+      ? await requestForNobody(tx, deps, digestOfHint, asked.requestedExpiry, now)
+      : await openApproval(tx, deps, client, subjectId, asked, now);
+  const { approvalId } = opened;
 
   const authReqId = generateAuthReqId();
   await cibaRequestRepository(tx).create({
@@ -122,13 +129,13 @@ async function acknowledge(
     tenantId: deps.tenantId,
     authReqHash: hashAuthReqId(authReqId),
     clientId: client.id,
-    subjectId,
+    subjectId: approvalId === null ? null : subjectId,
     approvalId,
     hintDigest: digestOfHint,
     scope: requested.join(' '),
     bindingMessage: asked.bindingMessage,
     requestedExpiry: asked.requestedExpiry,
-    expiresAt,
+    expiresAt: opened.expiresAt,
   });
   await auditRepository(tx).record({
     eventType: 'agent_identity',
@@ -140,12 +147,13 @@ async function acknowledge(
     resourceId: approvalId,
     detail: {
       agent_client: client.id,
-      ...(subjectId === null || approvalId === null
-        ? {}
-        : { owner: subjectId, approval: approvalId }),
+      ...(subjectId === null ? {} : { owner: subjectId }),
+      ...(approvalId === null ? {} : { approval: approvalId }),
+      ...(opened.limited ? { reason: 'approval_limit' as const } : {}),
     },
   });
 
+  const expiresAt = opened.expiresAt;
   return {
     auth_req_id: authReqId,
     expires_in: Math.max(1, Math.ceil((expiresAt.getTime() - now.getTime()) / 1000)),
@@ -205,6 +213,13 @@ export function cibaActionDigest(
   }
 }
 
+interface Opened {
+  readonly approvalId: string | null;
+  readonly expiresAt: Date;
+  // The person already held the most approvals allowed, so none was made.
+  readonly limited: boolean;
+}
+
 async function openApproval(
   tx: TenantScopedDatabase,
   deps: BackchannelDeps,
@@ -212,7 +227,7 @@ async function openApproval(
   subjectId: string,
   asked: BackchannelRequest,
   now: Date,
-) {
+): Promise<Opened> {
   const requested = asked.scope.split(' ').filter((token) => token.length > 0);
   const digest = cibaActionDigest(deps.tenantId, subjectId, client, {
     ...asked,
@@ -229,41 +244,47 @@ async function openApproval(
         kind: 'ciba',
         summary: `${client.name} asks to sign in as you with: ${requested.join(' ')}`,
         actionDigest: digest,
+        ...(asked.requestedExpiry === null ? {} : { lifetimeSeconds: asked.requestedExpiry }),
         now,
       },
     );
-    return { approvalId: approval.id, expiresAt: approval.expiresAt };
+    return { approvalId: approval.id, expiresAt: approval.expiresAt, limited: false };
   } catch (error) {
-    if (error instanceof ApprovalLimitReached) {
-      throw refusedByServer(refusal(client, 'approval_limit'));
-    }
-    throw error;
+    // The person's own protection is silent: the request goes on as one for
+    // nobody does, so nothing a client sees tells it how busy they are.
+    if (!(error instanceof ApprovalLimitReached)) throw error;
+    return { ...(await withoutApproval(tx, deps, asked.requestedExpiry, now)), limited: true };
   }
 }
 
 // For a hint that named nobody: the statements `requestApproval` runs for a
-// person, in their order and of their kinds, with nothing stored. The limit is
-// counted over requests with the same hint, so a person who does not exist
-// reaches it exactly as one who does.
-async function decoyApproval(
+// person, in their order and of their kinds, with nothing stored.
+async function requestForNobody(
   tx: TenantScopedDatabase,
   deps: BackchannelDeps,
-  client: ClientRecord,
   digestOfHint: string,
+  requestedExpiry: number | null,
   now: Date,
-) {
+): Promise<Opened> {
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtext(${`agent-approvals:${digestOfHint}`}))`,
   );
-  const pending = await cibaRequestRepository(tx).unresolvedPendingCount(digestOfHint, now);
-  if (pending >= PENDING_APPROVALS_PER_SUBJECT) {
-    throw refusedByServer(refusal(client, 'approval_limit'));
-  }
+  await agentApprovalRepository(tx).pendingCount(NOBODY, now);
+  return { ...(await withoutApproval(tx, deps, requestedExpiry, now)), limited: false };
+}
+
+// The rest of what `requestApproval` does after its checks, minus the rows: the
+// settings read and an insert into each table it writes, that insert matching
+// nothing.
+async function withoutApproval(
+  tx: TenantScopedDatabase,
+  deps: BackchannelDeps,
+  requestedExpiry: number | null,
+  now: Date,
+): Promise<{ approvalId: null; expiresAt: Date }> {
   const settings = await readAgentSettings(tx, deps.tenantId);
   await tx.execute(sql`insert into agent_approvals select * from agent_approvals where false`);
   await tx.execute(sql`insert into audit_events select * from audit_events where false`);
-  return {
-    approvalId: null,
-    expiresAt: new Date(now.getTime() + settings.agentApprovalTtlSeconds * 1000),
-  };
+  const lifetime = Math.min(settings.agentApprovalTtlSeconds, requestedExpiry ?? Infinity);
+  return { approvalId: null, expiresAt: new Date(now.getTime() + lifetime * 1000) };
 }

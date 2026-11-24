@@ -9,7 +9,7 @@ import { TokenError, TokenRateLimited } from '#/service/errors';
 import { OAUTH_ERROR_DESCRIPTIONS } from '#/service/oauth-errors';
 import { type AcceptedIssuersLookup } from '#/service/issuer';
 import { acknowledgeBackchannelRequest, type BackchannelDeps } from '#/usecase/ciba';
-import { keepingSpend, unsettle } from '#/usecase/private-key-jwt-authentication';
+import { keepingSpend, tokenEndpointOf, unsettle } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
 import { type ClientKeySet } from '#/usecase/token-issuance';
 import { tenantIssuerFor } from '#/view/issuer';
@@ -67,6 +67,12 @@ export function registerBackchannelAuthenticationRoute(
       logger: request.log,
       now: () => now,
       acceptedIssuers,
+      // CIBA §7.1: the issuer, the token endpoint or this endpoint.
+      assertionAudiences: acceptedIssuers.flatMap((issuer) => [
+        issuer,
+        tokenEndpointOf(issuer),
+        `${issuer}/protocol/openid-connect/bc-authorize`,
+      ]),
     };
 
     const context = requestContextFrom(request);
@@ -117,7 +123,10 @@ export function registerBackchannelAuthenticationRoute(
           .code(err.status)
           .header('cache-control', 'no-store')
           .header('pragma', 'no-cache')
-          .send({ error: err.error, error_description: OAUTH_ERROR_DESCRIPTIONS[err.error] });
+          .send({
+            error: err.error,
+            error_description: err.description ?? OAUTH_ERROR_DESCRIPTIONS[err.error],
+          });
       }
       throw err;
     }

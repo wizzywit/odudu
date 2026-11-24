@@ -49,6 +49,8 @@ export interface ApprovalRequest {
   readonly kind: string;
   readonly summary: string;
   readonly actionDigest: string;
+  // Asks for less than the tenant's lifetime; never more.
+  readonly lifetimeSeconds?: number;
   readonly now: Date;
 }
 
@@ -80,7 +82,8 @@ export async function requestApproval(
   }
 
   const settings = await readAgentSettings(tx, deps.tenantId);
-  const ttlEnd = new Date(input.now.getTime() + settings.agentApprovalTtlSeconds * 1000);
+  const lifetime = Math.min(settings.agentApprovalTtlSeconds, input.lifetimeSeconds ?? Infinity);
+  const ttlEnd = new Date(input.now.getTime() + lifetime * 1000);
   const expiresAt = instanceEnd !== null && instanceEnd < ttlEnd ? instanceEnd : ttlEnd;
 
   const record = await repository.create({

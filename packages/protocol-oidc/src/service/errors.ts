@@ -28,12 +28,15 @@ export class TokenError extends Error {
   // Set only where ADR 0037 says a refusal is recorded; never read by the
   // response, which is identical with or without it.
   readonly audit: TokenRefusalAudit | undefined;
+  // A sentence of its own where the code's fixed one would say the wrong thing.
+  readonly description: string | undefined;
 
   constructor(
     error: TokenErrorCode,
     status: number,
     wwwAuthenticate?: string,
     audit?: TokenRefusalAudit,
+    description?: string,
   ) {
     super(error);
     this.name = 'TokenError';
@@ -41,11 +44,12 @@ export class TokenError extends Error {
     this.status = status;
     this.wwwAuthenticate = wwwAuthenticate;
     this.audit = audit;
+    this.description = description;
   }
 }
 
 export function withAudit(err: TokenError, audit: TokenRefusalAudit): TokenError {
-  return new TokenError(err.error, err.status, err.wwwAuthenticate, audit);
+  return new TokenError(err.error, err.status, err.wwwAuthenticate, audit, err.description);
 }
 
 export function invalidGrant(): TokenError {
@@ -96,8 +100,8 @@ export function accessDenied(audit?: TokenRefusalAudit): TokenError {
 }
 
 // §13: the server declines to create a request.
-export function refusedByServer(audit: TokenRefusalAudit): TokenError {
-  return new TokenError('access_denied', 403, undefined, audit);
+export function refusedByServer(audit: TokenRefusalAudit, description: string): TokenError {
+  return new TokenError('access_denied', 403, undefined, audit, description);
 }
 
 export function invalidBindingMessage(): TokenError {

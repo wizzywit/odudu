@@ -52,11 +52,11 @@ describe('parseBackchannelRequest', () => {
     });
   });
 
-  it('[OIDC-CIBA-7.1-05] stores a binding message escaped and caps it at 140 characters', () => {
+  it('[OIDC-CIBA-7.1-05] keeps the binding message as written, caps it at 140 characters and refuses control characters', () => {
     const parsed = parseBackchannelRequest({ ...ok, binding_message: '<b>"hi" & \'bye\'</b>' });
     expect(parsed).toMatchObject({
       ok: true,
-      request: { bindingMessage: '&lt;b&gt;&quot;hi&quot; &amp; &#39;bye&#39;&lt;/b&gt;' },
+      request: { bindingMessage: '<b>"hi" & \'bye\'</b>' },
     });
     expect(
       parseBackchannelRequest({ ...ok, binding_message: 'x'.repeat(BINDING_MESSAGE_MAX_LENGTH) }),
@@ -67,10 +67,12 @@ describe('parseBackchannelRequest', () => {
         binding_message: 'x'.repeat(BINDING_MESSAGE_MAX_LENGTH + 1),
       }),
     ).toEqual({ ok: false, error: 'invalid_binding_message' });
-    expect(parseBackchannelRequest({ ...ok, binding_message: 'a\nb' })).toEqual({
-      ok: false,
-      error: 'invalid_binding_message',
-    });
+    for (const bad of ['a\nb', 'a\u0000b', 'a\u200Bb', 'a\u202Eb', 'a\u2028b']) {
+      expect(parseBackchannelRequest({ ...ok, binding_message: bad }), bad).toEqual({
+        ok: false,
+        error: 'invalid_binding_message',
+      });
+    }
   });
 
   it('[OIDC-CIBA-7.1-06] reads requested_expiry as a positive integer', () => {
@@ -89,6 +91,15 @@ describe('parseBackchannelRequest', () => {
 
   it('refuses a repeated parameter', () => {
     expect(parseBackchannelRequest({ ...ok, login_hint: ['a', 'b'] })).toEqual({
+      ok: false,
+      error: 'invalid_request',
+    });
+  });
+});
+
+describe('a login hint', () => {
+  it.each(['a\u0000b', 'a\nb', 'a\u200Bb'])('[ODUDU-CIBA-HINT-01] refuses %j', (hint) => {
+    expect(parseBackchannelRequest({ scope: 'openid', login_hint: hint })).toEqual({
       ok: false,
       error: 'invalid_request',
     });
@@ -114,6 +125,11 @@ describe('auth_req_id', () => {
 });
 
 describe('hintDigest', () => {
+  it('[ODUDU-CIBA-CAP-05] folds the case of an address as the account lookup does, and of nothing else', () => {
+    expect(hintDigest('t1', 'Alice@Example.Test')).toBe(hintDigest('t1', 'alice@example.test'));
+    expect(hintDigest('t1', 'Alice')).not.toBe(hintDigest('t1', 'alice'));
+  });
+
   it('differs by tenant and by hint', () => {
     expect(hintDigest('t1', 'a')).not.toBe(hintDigest('t2', 'a'));
     expect(hintDigest('t1', 'a')).not.toBe(hintDigest('t1', 'b'));

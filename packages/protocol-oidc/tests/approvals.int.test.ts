@@ -121,6 +121,15 @@ describe('requestApproval', () => {
     });
   });
 
+  it('expires after the lifetime asked for when that is shorter than the tenant ttl, and never after a longer one', async () => {
+    await inTenant(async (tx, s) => {
+      const shorter = await requestApproval(tx, deps(s), request(s, { lifetimeSeconds: 60 }));
+      expect(shorter.expiresAt).toEqual(new Date(NOW.getTime() + 60_000));
+      const longer = await requestApproval(tx, deps(s), request(s, { lifetimeSeconds: 86_400 }));
+      expect(longer.expiresAt).toEqual(new Date(NOW.getTime() + 600_000));
+    });
+  });
+
   it('expires no later than the instance it names', async () => {
     await inTenant(async (tx, s) => {
       const instanceId = newId();

@@ -1,5 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { and, count, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, count, eq, gt, sql } from 'drizzle-orm';
 import { cibaRequests, type CibaRequestRecord } from '#/schema/ciba-requests';
 
 export type { CibaRequestRecord } from '#/schema/ciba-requests';
@@ -40,16 +40,16 @@ export function cibaRequestRepository(tx: TenantScopedDatabase) {
       return rows[0] ?? null;
     },
 
-    // Requests for a hint that resolved to nobody and are still live: what the
-    // per-person pending limit counts where there is no person to count.
-    async unresolvedPendingCount(hintDigest: string, now: Date): Promise<number> {
+    // The requests a client holds for one hint that have not expired, whether
+    // or not the hint named anyone: what the visible limit counts.
+    async liveCountFor(clientId: string, hintDigest: string, now: Date): Promise<number> {
       const rows = await tx
         .select({ n: count() })
         .from(cibaRequests)
         .where(
           and(
+            eq(cibaRequests.clientId, clientId),
             eq(cibaRequests.hintDigest, hintDigest),
-            isNull(cibaRequests.subjectId),
             gt(cibaRequests.expiresAt, now),
           ),
         );
