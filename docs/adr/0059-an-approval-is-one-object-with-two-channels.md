@@ -1,6 +1,6 @@
 # 0059 — An approval is one object with two channels: a console card and CIBA
 
-**Status:** Proposed · 2026-11-24
+**Status:** Accepted · 2026-11-24
 
 ## Context
 

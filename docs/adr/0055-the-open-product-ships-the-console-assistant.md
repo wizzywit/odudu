@@ -1,6 +1,6 @@
 # 0055 — The open product ships the console assistant, behind the operator's own key
 
-**Status:** Proposed · 2026-11-24
+**Status:** Accepted · 2026-11-24
 
 ## Context
 

@@ -43,3 +43,13 @@ differentiation.
 maximum product depth, but more invented surface where the standards are
 silent, and persistent instances reintroduce the growth problem that
 ephemerality solves.
+
+## Amendment, 2026-11-24: the instance is `act.sub`, never `sub`
+
+The wire format the Consequences describe is corrected to the one shipped by
+the RFC 8693 exchange ([ADR 0050](0050-the-mcp-server-acts-through-an-exchanged-token.md)).
+`sub` stays the owner, the person the token acts for. `act.sub` is the agent
+instance, and a nested `act` carries the chain above it. Putting the
+instance in `sub` would make every resource server that reads `sub` treat an
+agent as a person. The decision itself, a type that is a client and an
+instance that is a principal, is unchanged.

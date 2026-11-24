@@ -1,6 +1,6 @@
 # 0056 — The AI SDK runs the agent loop; Odudu owns what it decides in the hooks
 
-**Status:** Proposed · 2026-11-24
+**Status:** Accepted · 2026-11-24
 
 ## Context
 

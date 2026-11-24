@@ -1,6 +1,6 @@
 # 0058 — The assistant leaves two records: an audit trail of what happened and a trace of why
 
-**Status:** Proposed · 2026-11-24
+**Status:** Accepted · 2026-11-24
 
 ## Context
 
@@ -20,10 +20,10 @@ written (`verified:` the telemetry documentation in `ai@7.0.181`).
 
 ## Decision
 
-**Two records.** The *audit trail* is rows in the existing `audit_events` table with
+**Two records.** The _audit trail_ is rows in the existing `audit_events` table with
 allowlisted detail and no message text, kept as long as other audit rows:
 `assistant.turn`, `assistant.approval`, `assistant.budget`, `assistant.config`, and
-`agent.tool_call` carrying the conversation and turn ids. The *trace* is tenant-scoped
+`agent.tool_call` carrying the conversation and turn ids. The _trace_ is tenant-scoped
 tables (conversations, turns, steps, events) holding the content, with a configurable
 short retention (default 30 days) removed by a command-first reaper (ADR 0024).
 
