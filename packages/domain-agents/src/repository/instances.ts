@@ -2,6 +2,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { subjects } from '@odudu/domain-identity';
 import {
   and,
+  asc,
   count,
   eq,
   gt,
@@ -9,6 +10,7 @@ import {
   isNotNull,
   isNull,
   lt,
+  not,
   notExists,
   or,
   sql,
@@ -31,6 +33,17 @@ export interface NewAgentInstance {
   idleExpiresAt: Date | null;
   // Left out, the column defaults (the tenant defaults) apply.
   slice?: { mutating: number; creates: number };
+}
+
+export type AgentInstanceState = 'live' | 'expired' | 'revoked';
+
+export interface AgentInstancePageFilter {
+  ownerSubjectId?: string;
+  state?: AgentInstanceState;
+  // Resumes strictly after this id.
+  afterId?: string;
+  limit: number;
+  now: Date;
 }
 
 // Not revoked, not past its fixed expiry and not past its idle expiry at `now`.
@@ -84,6 +97,32 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
     async byId(id: string): Promise<AgentInstanceRecord | null> {
       const rows = await tx.select().from(agentInstances).where(eq(agentInstances.id, id));
       return rows[0] ?? null;
+    },
+
+    // A page of the tenant's instances in id order, which is the order they
+    // were minted in, so a parent comes before its children. Each filter has an
+    // index that starts with the tenant: the tenant and id alone, with the owner,
+    // or with whether the instance is revoked, so a page reads a page.
+    async page(filter: AgentInstancePageFilter): Promise<AgentInstanceRecord[]> {
+      const state = filter.state;
+      return tx
+        .select()
+        .from(agentInstances)
+        .where(
+          and(
+            filter.ownerSubjectId === undefined
+              ? undefined
+              : eq(agentInstances.ownerSubjectId, filter.ownerSubjectId),
+            filter.afterId === undefined ? undefined : gt(agentInstances.id, filter.afterId),
+            state === 'revoked' ? isNotNull(agentInstances.revokedAt) : undefined,
+            state === 'live' ? live(filter.now) : undefined,
+            state === 'expired'
+              ? and(isNull(agentInstances.revokedAt), not(live(filter.now)))
+              : undefined,
+          ),
+        )
+        .orderBy(asc(agentInstances.id))
+        .limit(filter.limit);
     },
 
     async liveChildren(parentId: string, now: Date): Promise<number> {
