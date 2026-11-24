@@ -1,6 +1,7 @@
 import { sessionRepository } from '@odudu/authn-flows';
 import { MAX_LIMIT } from '@odudu/contracts/me';
 import { type Database, withTenant } from '@odudu/db';
+import { agentDelegationRepository, agentInstanceRepository } from '@odudu/domain-agents';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { assetRepository, themeRepository } from '@odudu/domain-theme';
 import {
@@ -343,6 +344,20 @@ export async function driveRepositories(
       const grants = tokenGrantRepository(tx);
       await grants.reserveAgentWrite(agentGrant, 'create', WRITE_BUDGET);
       await grants.releaseAgentWrite(agentGrant, 'create');
+    }),
+  );
+  await capture('agents: what a mint counts and reads', 'oidc', () =>
+    withTenant(database, world.tenantId, async (tx) => {
+      const now = new Date();
+      const instances = agentInstanceRepository(tx);
+      await instances.liveCount(now);
+      await instances.liveRoots(agentGrant, now);
+      await instances.liveChildren(newId(), now);
+      await instances.byId(newId());
+      const delegations = agentDelegationRepository(tx);
+      await delegations.activeFor(subjectId, world.clientDbId, now);
+      await delegations.activeForActor(subjectId, world.clientDbId, world.clientDbId, now);
+      await delegations.hasActive(subjectId, world.clientDbId, now);
     }),
   );
   await capture('themes: what a sign-in render and an asset route read', 'authn', () =>

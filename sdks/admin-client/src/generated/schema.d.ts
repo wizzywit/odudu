@@ -2759,7 +2759,7 @@ export interface paths {
                                  */
                                 agent_max_children: number;
                                 /**
-                                 * @description How many live agent instances the tenant may hold at once, 1 to 100000. 1000 by default.
+                                 * @description How many live agent instances the tenant may hold at once, 1 to 100000. 1000 by default. Approximate: mints in flight at the same moment can pass it by their number.
                                  * @default 1000
                                  */
                                 agent_max_live_instances: number;

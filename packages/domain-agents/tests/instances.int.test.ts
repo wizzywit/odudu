@@ -127,6 +127,20 @@ describe('agentInstanceRepository', () => {
     });
   });
 
+  it('touch never moves the idle expiry backwards when an earlier request lands last', async () => {
+    await inTenant(async (repo, seeded) => {
+      const idle = await repo.mint(
+        input(seeded, { idleExpiresAt: new Date(NOW.getTime() + 60_000) }),
+      );
+      const later = new Date(NOW.getTime() + 10_000);
+      expect(await repo.touch(idle.id, later, 1_800, IN_AN_HOUR)).toBe(true);
+      expect(await repo.touch(idle.id, NOW, 1_800, IN_AN_HOUR)).toBe(true);
+      expect((await repo.byId(idle.id))?.idleExpiresAt).toEqual(
+        new Date(later.getTime() + 1_800_000),
+      );
+    });
+  });
+
   it('touch refuses a revoked, an idle-expired and a fixed-lifetime instance', async () => {
     await inTenant(async (repo, seeded) => {
       const revoked = await repo.mint(input(seeded, { idleExpiresAt: IN_AN_HOUR }));
@@ -173,6 +187,35 @@ describe('agentInstanceRepository', () => {
       const subjects = await tx.execute(sql`select id from subjects where id = ${old.id}`);
       expect((subjects as unknown as unknown[]).length).toBe(0);
       expect(await repo.expireDue(NOW, tombstoneBefore)).toEqual({ expired: 0, deleted: 0 });
+    });
+  });
+});
+
+describe('agentInstanceRepository expireDue below a lapsed instance', () => {
+  it('revokes the live children of an instance that lapsed by idle expiry', async () => {
+    await inTenant(async (repo, seeded) => {
+      const parent = await repo.mint(
+        input(seeded, { idleExpiresAt: new Date(NOW.getTime() - 1_000) }),
+      );
+      const child = await repo.mint(input(seeded, { parentInstanceId: parent.id, depth: 2 }));
+      const grandchild = await repo.mint(input(seeded, { parentInstanceId: child.id, depth: 3 }));
+      const sibling = await repo.mint(input(seeded));
+
+      const tombstoneBefore = new Date(NOW.getTime() - 7 * 86_400_000);
+      expect(await repo.expireDue(NOW, tombstoneBefore)).toEqual({ expired: 3, deleted: 0 });
+      expect((await repo.byId(child.id))?.revokedAt).toEqual(NOW);
+      expect((await repo.byId(grandchild.id))?.revokedAt).toEqual(NOW);
+      expect((await repo.byId(sibling.id))?.revokedAt).toBeNull();
+      expect(await repo.liveCount(NOW)).toBe(1);
+    });
+  });
+
+  it('revokes the live children of an instance that lapsed by expiry', async () => {
+    await inTenant(async (repo, seeded) => {
+      const parent = await repo.mint(input(seeded, { expiresAt: new Date(NOW.getTime() - 1) }));
+      const child = await repo.mint(input(seeded, { parentInstanceId: parent.id, depth: 2 }));
+      await repo.expireDue(NOW, new Date(NOW.getTime() - 7 * 86_400_000));
+      expect((await repo.byId(child.id))?.revokedAt).toEqual(NOW);
     });
   });
 });
@@ -239,14 +282,14 @@ describe('agentInstanceRepository across tenants', () => {
   const seedInstance = async (
     tx: Parameters<Parameters<typeof withTenant>[2]>[0],
     tenantId: string,
-  ): Promise<{ id: string; parentId: string }> => {
+  ): Promise<{ id: string; parentId: string; grantId: string }> => {
     const seeded = await seedOwner(tx, tenantId);
     const repo = agentInstanceRepository(tx);
     const parent = await repo.mint(input(seeded, { idleExpiresAt: IN_AN_HOUR }));
     const child = await repo.mint(
       input(seeded, { parentInstanceId: parent.id, depth: 2, idleExpiresAt: IN_AN_HOUR }),
     );
-    return { id: child.id, parentId: parent.id };
+    return { id: child.id, parentId: parent.id, grantId: seeded.grantId };
   };
 
   const unchanged = async (
@@ -282,6 +325,29 @@ describe('agentInstanceRepository across tenants', () => {
       },
       expectBlocked: (result) => {
         expect(result).toEqual([0, 0]);
+      },
+    });
+  });
+
+  it('lockForUpdate, lockGrant and liveRoots see none', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedInstance,
+      verifySeeded: async (tx, s) => {
+        const repo = agentInstanceRepository(tx);
+        expect((await repo.lockForUpdate(s.parentId))?.id).toBe(s.parentId);
+        expect(await repo.lockGrant(s.grantId)).toBe(true);
+        expect(await repo.liveRoots(s.grantId, NOW)).toBe(1);
+      },
+      attempt: async (tx, s) => {
+        const repo = agentInstanceRepository(tx);
+        return [
+          await repo.lockForUpdate(s.parentId),
+          await repo.lockGrant(s.grantId),
+          await repo.liveRoots(s.grantId, NOW),
+        ];
+      },
+      expectBlocked: (result) => {
+        expect(result).toEqual([null, false, 0]);
       },
     });
   });
