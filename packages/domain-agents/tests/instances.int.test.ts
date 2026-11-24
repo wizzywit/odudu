@@ -239,14 +239,14 @@ describe('agentInstanceRepository across tenants', () => {
   const seedInstance = async (
     tx: Parameters<Parameters<typeof withTenant>[2]>[0],
     tenantId: string,
-  ): Promise<{ id: string; parentId: string }> => {
+  ): Promise<{ id: string; parentId: string; grantId: string }> => {
     const seeded = await seedOwner(tx, tenantId);
     const repo = agentInstanceRepository(tx);
     const parent = await repo.mint(input(seeded, { idleExpiresAt: IN_AN_HOUR }));
     const child = await repo.mint(
       input(seeded, { parentInstanceId: parent.id, depth: 2, idleExpiresAt: IN_AN_HOUR }),
     );
-    return { id: child.id, parentId: parent.id };
+    return { id: child.id, parentId: parent.id, grantId: seeded.grantId };
   };
 
   const unchanged = async (
@@ -282,6 +282,29 @@ describe('agentInstanceRepository across tenants', () => {
       },
       expectBlocked: (result) => {
         expect(result).toEqual([0, 0]);
+      },
+    });
+  });
+
+  it('lockForUpdate, lockGrant and liveRoots see none', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedInstance,
+      verifySeeded: async (tx, s) => {
+        const repo = agentInstanceRepository(tx);
+        expect((await repo.lockForUpdate(s.parentId))?.id).toBe(s.parentId);
+        expect(await repo.lockGrant(s.grantId)).toBe(true);
+        expect(await repo.liveRoots(s.grantId, NOW)).toBe(1);
+      },
+      attempt: async (tx, s) => {
+        const repo = agentInstanceRepository(tx);
+        return [
+          await repo.lockForUpdate(s.parentId),
+          await repo.lockGrant(s.grantId),
+          await repo.liveRoots(s.grantId, NOW),
+        ];
+      },
+      expectBlocked: (result) => {
+        expect(result).toEqual([null, false, 0]);
       },
     });
   });

@@ -90,6 +90,40 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
       return rows[0]?.n ?? 0;
     },
 
+    // Takes the row lock a mint serialises on, so the children counted next
+    // are the children that exist once this transaction commits.
+    async lockForUpdate(id: string): Promise<AgentInstanceRecord | null> {
+      const rows = await tx
+        .select()
+        .from(agentInstances)
+        .where(eq(agentInstances.id, id))
+        .for('update');
+      return rows[0] ?? null;
+    },
+
+    // The same lock for an instance minted straight under a grant, which has
+    // no parent instance row to take it on.
+    async lockGrant(grantId: string): Promise<boolean> {
+      const rows = await tx.execute(
+        sql`select id from token_grants where id = ${grantId} for update`,
+      );
+      return (rows as unknown as unknown[]).length > 0;
+    },
+
+    async liveRoots(rootGrantId: string, now: Date): Promise<number> {
+      const rows = await tx
+        .select({ n: count() })
+        .from(agentInstances)
+        .where(
+          and(
+            eq(agentInstances.rootGrantId, rootGrantId),
+            isNull(agentInstances.parentInstanceId),
+            live(now),
+          ),
+        );
+      return rows[0]?.n ?? 0;
+    },
+
     async liveCount(now: Date): Promise<number> {
       const rows = await tx.select({ n: count() }).from(agentInstances).where(live(now));
       return rows[0]?.n ?? 0;
