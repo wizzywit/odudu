@@ -161,7 +161,7 @@ async function resolveParent(
   const head = headOfAct(subject.act);
   if (subject.act !== undefined && head === null) return null;
 
-  if (head !== null && UUID.test(head)) {
+  if (head !== null && head !== client.clientId && UUID.test(head)) {
     const parent = await repo.lockForUpdate(head);
     if (parent?.agentClientId !== client.id || !isLive(parent, now)) return null;
     if (parent.ownerSubjectId !== subject.subjectId) return null;

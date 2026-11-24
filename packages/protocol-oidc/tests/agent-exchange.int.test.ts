@@ -324,6 +324,19 @@ describe('a nested exchange whose act head is not a live instance of this client
   });
 });
 
+describe('an agent-type client whose client_id looks like an instance id', () => {
+  it('starts a lineage when the act head is the client itself', async () => {
+    const clientId = newId();
+    await addClient(stack, { clientId, agentType: true });
+    const owner = await login(stack, clientId);
+    const token = await withActHead(owner.accessToken, clientId);
+    const res = await exchange(stack, clientId, token);
+    expect(res.statusCode).toBe(200);
+    const act = decode(res.json<{ access_token: string }>().access_token).act as { sub: string };
+    expect(await instanceRow(act.sub)).toMatchObject({ parent_instance_id: null, depth: 1 });
+  });
+});
+
 describe('the lifetime of a minted instance', () => {
   async function expiryOf(id: string): Promise<Date> {
     const row = await instanceRow(id);
