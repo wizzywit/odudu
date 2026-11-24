@@ -168,12 +168,12 @@ function before(now: Date, seconds: number): string {
 }
 
 // Written against the alias `g` (token_grants). A family is past retention
-// once its age exceeds the window — floored by the tenant's own maximum
-// session life, so a window configured shorter than the grant it retains
-// cannot be expressed — and once no refresh token of it is still usable,
-// which is what stops a retention pass killing a token a client holds. The
-// first bound is the later of the two windows' cutoffs, so the grants a
-// pass has to look at are one range of `token_grants_by_created`.
+// once its age exceeds the window, floored by the tenant's own maximum session
+// life, and once no refresh token of it is still usable and no agent instance
+// is rooted at it (the cascade would delete the instance and leave its
+// subject behind). The first bound is the later of the two windows' cutoffs,
+// so the grants a pass has to look at are one range of
+// `token_grants_by_created`.
 function grantPastRetention(now: Date, policy: RetentionPolicy, tenant: RetentionTenant): SQL {
   const sessionCutoff = before(now, Math.max(policy.grantSeconds, tenant.ssoSessionMaxSeconds));
   const offlineCutoff = before(
@@ -193,6 +193,10 @@ function grantPastRetention(now: Date, policy: RetentionPolicy, tenant: Retentio
          AND live.grant_id = g.id
          AND live.used_at IS NULL
          AND live.expires_at > ${now.toISOString()}::timestamptz)
+    AND NOT EXISTS (
+      SELECT 1 FROM agent_instances rooted
+       WHERE rooted.tenant_id = g.tenant_id
+         AND rooted.root_grant_id = g.id)
   `;
 }
 
