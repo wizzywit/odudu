@@ -1,7 +1,8 @@
 # OpenID Connect Client-Initiated Backchannel Authentication Flow 1.0 (CIBA)
 
-**Status in Odudu:** poll mode only. A client that holds the
-`urn:openid:params:grant-type:ciba` grant asks `POST /tenants/:tenant/protocol/openid-connect/bc-authorize`
+**Status in Odudu:** poll mode only. A confidential client that holds the
+`urn:openid:params:grant-type:ciba` grant (a public client is refused with
+`unauthorized_client`, at both endpoints and when it is registered) asks `POST /tenants/:tenant/protocol/openid-connect/bc-authorize`
 for an approval by a named person, receives an `auth_req_id`, and polls the token
 endpoint with it. The person decides on a channel the client has no part in: the
 approval is an `agent_approvals` row (ADR 0059) and only `decideApproval`
@@ -24,7 +25,7 @@ to and are not rowed, apart from the enumeration passage of §14, rowed at §7.2
 | 5      | MAY    | the OP serves the ping and push delivery modes                                                                  | —                     | accepted: "Ping and push delivery, user codes, signed requests and login hint tokens"   |
 | 7.1    | MUST   | the request is an HTTP POST with a form-encoded UTF-8 body                                                      | `OIDC-CIBA-7.1-01`    | covered                                                                                 |
 | 7.1    | MUST   | the client authenticates with the method registered for its `client_id`                                         | `OIDC-CIBA-7.1-02`    | covered                                                                                 |
-| 7.1    | MUST   | the OP accepts its issuer, token endpoint or backchannel endpoint as the audience of a client assertion         | —                     | accepted: "The audience of a client assertion"                                          |
+| 7.1    | MUST   | the OP accepts its issuer, token endpoint or backchannel endpoint as the audience of a client assertion         | `OIDC-CIBA-7.1-07`    | covered                                                                                 |
 | 7.1    | MUST   | `scope` is present and holds `openid`                                                                           | `OIDC-CIBA-7.1-03`    | covered                                                                                 |
 | 7.1    | MUST   | exactly one of `login_hint_token`, `id_token_hint` and `login_hint` is sent                                     | `OIDC-CIBA-7.1-04`    | covered                                                                                 |
 | 7.1    | MAY    | the OP accepts `login_hint_token`                                                                               | —                     | accepted: "Ping and push delivery, user codes, signed requests and login hint tokens"   |
@@ -86,21 +87,30 @@ does. `bc-authorize` resolves `login_hint` as the sign-in form does (a
 username, or a verified address where the tenant accepts one) and, whether or
 not that finds anyone, runs the same statements, writes a `ciba_requests` row
 and answers `200` with an `auth_req_id` of the same shape. The request of an
-unknown person is flagged unresolved and can only run to `expired_token`, polled
-as `authorization_pending` until then, and nothing is sent anywhere. The pending
-cap per person applies to a hint's digest for an unresolved request, so the
-21st request for one hint is refused the same way for a known and an unknown
-person. `tests/ciba.int.test.ts` asserts the same status, body shape and number
-of statements, not their timing.
+unknown person has no approval and can only run to `expired_token`, polled as
+`authorization_pending` until then, and nothing is sent anywhere.
+`tests/ciba.int.test.ts` asserts the same status, body shape and, statement by
+statement, the same verb and table for a known person, a known person at the
+per-person limit and an unknown one. Timing is not claimed to be equal.
 
-### The audience of a client assertion
+### Two limits, one visible and one silent
 
-§7.1 asks the OP to accept three audiences for a `private_key_jwt` assertion.
-Every endpoint of this server that authenticates a client accepts one: the token
-endpoint (`tokenEndpointOf`, `packages/protocol-oidc/src/usecase/private-key-jwt-authentication.ts`),
-so a client holds one assertion shape for all of them. `bc-authorize` takes the
-same one. A client that sends the issuer or the backchannel endpoint as the
-audience is refused with `invalid_client`.
+The visible limit is per authenticated client and hint: a client holds at most
+20 live requests (`expires_at` in the future) for one hint, and the 21st answers
+`access_denied` (HTTP 403, §13) with its own `error_description`. The count
+reads `ciba_requests` alone and treats a request for a person and one for nobody
+alike, so it says nothing about whom a hint names. The hint is digested after the
+fold the account lookup applies (an address is compared without regard to case),
+so spellings of one address share one counter, for a known and an unknown hint
+alike. `invalid_request` would say the request is malformed, which it is not.
+
+The silent limit is per person: 20 pending approvals from any source
+(`PENDING_APPROVALS_PER_SUBJECT`). A person at it still gets a `ciba_requests`
+row and the ordinary `200`, but no approval is made, and the request then runs
+as one for nobody does: `authorization_pending`, then `expired_token`. Nothing
+a client can see tells it the person is busy, because that would reveal that
+the person exists and what else is asking of them. `requested_expiry` shortens
+the request and its approval alike.
 
 ### acr_values is ignored
 
@@ -124,16 +134,17 @@ five seconds each time, as the specification asks for that error. The limit on
 polls per `auth_req_id` is the same answer, so a client cannot turn polling into
 a load generator and is never told its request is dead while it is not.
 
-### What a person's pending limit answers at bc-authorize
-
-A person holds at most 20 pending approvals (`PENDING_APPROVALS_PER_SUBJECT`).
-The 21st request answers `access_denied` (HTTP 403, §13): the OP is declining to
-create the request. `invalid_request` would say the request is malformed, which
-it is not, and a client treats that as a bug to fix rather than a state to wait
-out.
-
 ### Binding message
 
-`binding_message` is at most 140 characters (§7.1 leaves the limit to the OP) and
-is stored as text, HTML-escaped on the way in, never interpreted. A longer one
-is refused with `invalid_binding_message`.
+`binding_message` is at most 140 characters, counted in code points (§7.1 leaves
+the limit to the OP), and holds no control, bidirectional, zero-width or line
+separator character. It is stored as the validated text and escaped by the page
+that shows it, never interpreted. A message that fails is refused with
+`invalid_binding_message`.
+
+### Audience of a client assertion
+
+§7.1 asks the OP to accept its issuer, its token endpoint or the endpoint itself
+as the audience of a `private_key_jwt` assertion. `bc-authorize` accepts all
+three; the other endpoints that authenticate a client keep accepting the token
+endpoint.
