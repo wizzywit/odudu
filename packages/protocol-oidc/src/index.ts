@@ -233,6 +233,9 @@ export interface OidcRoutesDeps {
   // CIBA request, given the tenant and the page's own path to come back to;
   // null where there is nowhere to send them. Absent, none.
   approvalSignIn?: (tenantName: string, returnPath: string) => string | null;
+  // Whether an address may be mailed another approval notice now; absent, any
+  // may. Over it the request still succeeds and nothing observable differs.
+  approvalMailBudget?: (tenantId: string, address: string) => boolean;
   // How the mail that tells a person of a change to their own sign-in methods
   // is dressed and worded; the server wires the same resolver its other mail
   // uses. Absent, that mail is unthemed.
@@ -703,6 +706,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
               issuerBase: deps.publicBaseUrl,
               lookupDomain: deps.canonicalDomain,
               resolveMailLook: deps.resolveMailLook,
+              budgetAllows: deps.approvalMailBudget,
             },
           }),
       clock,

@@ -27,6 +27,7 @@ let http: FastifyInstance;
 let world: CibaWorld;
 const clock = new FakeClock(new Date());
 const BASE = 'https://idp.example';
+const budget = { asked: [] as string[], open: true };
 
 beforeAll(async () => {
   container = await startTestDatabase();
@@ -44,6 +45,10 @@ beforeAll(async () => {
       kek: CIBA_KEK,
       clock,
       publicBaseUrl: BASE,
+      approvalMailBudget: (_tenantId, address) => {
+        budget.asked.push(address);
+        return budget.open;
+      },
       clientSecretLimiter: { check: () => ({ allowed: true, retryAfterSeconds: 0 }) },
       auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
@@ -147,5 +152,23 @@ describe('the mail a CIBA request sends', () => {
       sql`select count(*)::int as n from email_outbox where tenant_id = ${full.tenantId}`,
     );
     expect(queued[0]?.n).toBe(0);
+  });
+
+  it('[ODUDU-CIBA-NOTICE-04] asks the address budget for a mailable address only, and queues nothing over it, though the request succeeds', async () => {
+    budget.asked.length = 0;
+    await ask('nobody-by-that-name');
+    await ask('bob');
+    expect(budget.asked).toEqual([]);
+
+    budget.open = false;
+    try {
+      const before = (await mail()).length;
+      const authReqId = await ask('alice');
+      expect(authReqId).toBeTruthy();
+      expect(budget.asked).toEqual([world.alice.email]);
+      expect((await mail()).length).toBe(before);
+    } finally {
+      budget.open = true;
+    }
   });
 });

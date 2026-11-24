@@ -864,6 +864,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       resolveOverrides: messageOverrides.resolveOverrides,
       resolveMailLook: mailLook,
       approvalSignIn: approvalSignIn(deps.consoleBaseUrl),
+      approvalMailBudget: (tenantId, address) => mailGate('approval', tenantId, address),
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,

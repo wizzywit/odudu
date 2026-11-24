@@ -17,6 +17,8 @@ export interface ApprovalMail {
   readonly issuerBase: string;
   readonly lookupDomain?: LookupCanonicalDomain | undefined;
   readonly resolveMailLook?: MailLookResolver | undefined;
+  // Whether an address may be mailed another notice now.
+  readonly budgetAllows?: ((tenantId: string, address: string) => boolean) | undefined;
 }
 
 // A subject no person holds and an approval nothing holds, for the statements
@@ -58,6 +60,9 @@ export async function noticeOfApproval(
     link: addressUrl(address, `/approval/${input.approvalId ?? NOBODY}`),
     agent: input.agent,
     now: deps.now,
+    ...(mail.budgetAllows === undefined
+      ? {}
+      : { mailBudgetAllows: (to: string) => mail.budgetAllows?.(deps.tenantId, to) ?? true }),
   };
   if (input.approvalId === null) {
     await queueApprovalNoticeDecoy(tx, notice, mail.resolveMailLook);

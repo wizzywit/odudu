@@ -39,6 +39,7 @@ let http: FastifyInstance;
 const clock = new FakeClock(new Date());
 const statements: string[] = [];
 let recording = false;
+let mailBudgetSpent = false;
 
 const limiter: { denied: boolean; keys: string[] } & ClientSecretLimiter = {
   denied: false,
@@ -65,6 +66,7 @@ async function startApp(db: DatabaseHandle): Promise<FastifyInstance> {
       kek: CIBA_KEK,
       clock,
       publicBaseUrl: 'https://idp.example',
+      approvalMailBudget: () => !mailBudgetSpent,
       clientSecretLimiter: { check: () => ({ allowed: true, retryAfterSeconds: 0 }) },
       auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
@@ -706,6 +708,18 @@ describe('a person the hint does not identify', () => {
     const atCap = await counted({ login_hint: 'bob' });
     expect(atCap.res.statusCode).toBe(known.res.statusCode);
     expect(atCap.verbs).toEqual(known.verbs);
+  });
+
+  it('[ODUDU-CIBA-UNKNOWN-06] runs the same statements for a person whose address is over its mail budget', async () => {
+    const mailed = await counted({ login_hint: 'alice' });
+    mailBudgetSpent = true;
+    try {
+      const over = await counted({ login_hint: 'alice' });
+      expect(over.res.statusCode).toBe(200);
+      expect(over.verbs).toEqual(mailed.verbs);
+    } finally {
+      mailBudgetSpent = false;
+    }
   });
 
   it('[ODUDU-CIBA-UNKNOWN-05] runs the same statements for a known person whose address cannot be mailed', async () => {

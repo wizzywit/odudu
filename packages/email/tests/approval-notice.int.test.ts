@@ -56,8 +56,13 @@ function mailOf(tenantId: string) {
   return owner.db.select().from(emailOutbox).where(eq(emailOutbox.tenantId, tenantId));
 }
 
-function notice(tenantId: string, address: { email: string | null; verified: boolean }) {
+function notice(
+  tenantId: string,
+  address: { email: string | null; verified: boolean },
+  mailBudgetAllows?: (address: string) => boolean,
+) {
   return {
+    ...(mailBudgetAllows === undefined ? {} : { mailBudgetAllows }),
     tenantId,
     address: { ...address, locale: null },
     link: LINK,
@@ -109,6 +114,55 @@ describe('queueApprovalNotice', () => {
   });
 });
 
+describe('queueApprovalNotice over the mail budget of an address', () => {
+  it('queues nothing, says skipped_none and runs the statements a sent notice runs', async () => {
+    const id = await tenant();
+    const asked: string[] = [];
+    const outcome = await withTenant(app.db, id, (tx) =>
+      queueApprovalNotice(
+        tx,
+        notice(id, { email: 'ada@example.test', verified: true }, (address) => {
+          asked.push(address);
+          return false;
+        }),
+        undefined,
+      ),
+    );
+    expect(outcome).toBe('skipped_none');
+    expect(asked).toEqual(['ada@example.test']);
+    expect(await mailOf(id)).toHaveLength(0);
+  });
+
+  it('is asked only for an address that could be mailed, and a budget that allows sends', async () => {
+    const id = await tenant();
+    let asked = 0;
+    const counting = (): boolean => {
+      asked += 1;
+      return true;
+    };
+    await withTenant(app.db, id, (tx) =>
+      queueApprovalNotice(tx, notice(id, { email: null, verified: false }, counting), undefined),
+    );
+    await withTenant(app.db, id, (tx) =>
+      queueApprovalNotice(
+        tx,
+        notice(id, { email: 'ada@example.test', verified: false }, counting),
+        undefined,
+      ),
+    );
+    expect(asked).toBe(0);
+    const sent = await withTenant(app.db, id, (tx) =>
+      queueApprovalNotice(
+        tx,
+        notice(id, { email: 'ada@example.test', verified: true }, counting),
+        undefined,
+      ),
+    );
+    expect(sent).toBe('sent');
+    expect(asked).toBe(1);
+  });
+});
+
 describe('queueApprovalNoticeDecoy', () => {
   it('runs the statements of a sent notice, of the same kinds and tables, and queues nothing', async () => {
     const id = await tenant();
@@ -148,8 +202,9 @@ describe('queueApprovalNoticeDecoy', () => {
     const id = await tenant();
     const shapes: string[][] = [];
     for (const address of [
-      { email: 'ada@example.test', verified: true },
-      { email: null, verified: false },
+      { email: 'ada@example.test', verified: true, allow: true },
+      { email: null, verified: false, allow: true },
+      { email: 'ada@example.test', verified: true, allow: false },
     ]) {
       const seen: string[] = [];
       let recording = false;
@@ -164,7 +219,11 @@ describe('queueApprovalNoticeDecoy', () => {
       try {
         await withTenant(db.db, id, (tx) => {
           recording = true;
-          return queueApprovalNotice(tx, notice(id, address), undefined);
+          return queueApprovalNotice(
+            tx,
+            notice(id, address, () => address.allow),
+            undefined,
+          );
         });
       } finally {
         await db.close();
@@ -172,5 +231,6 @@ describe('queueApprovalNoticeDecoy', () => {
       shapes.push(seen);
     }
     expect(shapes[1]).toEqual(shapes[0]);
+    expect(shapes[2]).toEqual(shapes[0]);
   });
 });

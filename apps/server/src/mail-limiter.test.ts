@@ -39,6 +39,14 @@ describe('the per-address mail bound', () => {
     expect(allow('held', 't1', 'ada@example.test')).toBe(true);
   });
 
+  it('gives the approval notice a budget of its own', () => {
+    const allow = gate();
+    for (let i = 0; i < MAIL_LIMIT; i += 1)
+      expect(allow('approval', 't1', 'ada@example.test')).toBe(true);
+    expect(allow('approval', 't1', 'ada@example.test')).toBe(false);
+    expect(allow('reset', 't1', 'ada@example.test')).toBe(true);
+  });
+
   it('keeps addresses apart', () => {
     const allow = gate();
     for (let i = 0; i < MAIL_LIMIT; i += 1) allow('registration', 't1', 'ada@example.test');
