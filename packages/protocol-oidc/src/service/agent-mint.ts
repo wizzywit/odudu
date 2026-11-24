@@ -77,7 +77,7 @@ export function narrowMayAct(value: unknown): MayActClaim | undefined {
   };
   if (Array.isArray(value)) {
     const actors = value.map(actor);
-    return actors.every((entry) => entry !== null) ? (actors as MayActActor[]) : [];
+    return actors.every((entry) => entry !== null) ? actors : [];
   }
   return actor(value) ?? [];
 }

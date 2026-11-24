@@ -56,8 +56,8 @@ function refuse(invariant: MintInvariant): AgentLayerOutcome {
   return { kind: 'refused', error: mintRefusal(invariant).error, invariant };
 }
 
-// The innermost-first `act` chain's head: who the subject token already
-// names as acting, if it names a well-formed one.
+// Who the subject token names as its current actor, the outermost `act`, if it
+// names a well-formed one.
 function headOfAct(act: unknown): string | null {
   if (typeof act !== 'object' || act === null) return null;
   const sub = (act as { sub?: unknown }).sub;
@@ -126,7 +126,7 @@ async function resolveParent(
 
   if (named !== null) {
     const parent = await repo.lockForUpdate(named.id);
-    if (parent === null || parent.agentClientId !== client.id || !isLive(parent, now)) return null;
+    if (parent?.agentClientId !== client.id || !isLive(parent, now)) return null;
     return {
       node: {
         scope: parent.scope.split(' ').filter((entry) => entry !== ''),
