@@ -437,6 +437,76 @@ describe('every revoke method cascades and keeps its return value', () => {
   }, 60_000);
 });
 
+describe('revokeForActors', () => {
+  async function actors(w: World, count: number) {
+    return withTenant(app.db, w.tenantId, async (tx) => {
+      const made: string[] = [];
+      for (let i = 0; i < count; i += 1) {
+        made.push(
+          (await subjectRepository(tx).create({ tenantId: w.tenantId, type: 'service' })).id,
+        );
+      }
+      return made;
+    });
+  }
+
+  it('revokes what each actor acted in, what was exchanged from it and the instances rooted there', async () => {
+    const w = await newWorld();
+    const [a, b] = await actors(w, 2);
+    const held = await withTenant(app.db, w.tenantId, async (tx) => {
+      const first = await grant(tx, w, { actor: a });
+      const below = await grant(tx, w, { from: first });
+      const second = await grant(tx, w, { actor: b });
+      const untouched = await grant(tx, w);
+      return { first, below, second, untouched, instance: await instanceAt(tx, w, below) };
+    });
+    const result = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForActors([nth([a, b], 0), nth([a, b], 1)], LATER),
+    );
+    expect(result).toEqual({ grants: 3, instances: 1 });
+    expect(await grantRevoked([held.first, held.below, held.second, held.untouched])).toEqual([
+      true,
+      true,
+      true,
+      false,
+    ]);
+    expect(await instanceRevoked([held.instance])).toEqual([true]);
+    const again = await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForActors([nth([a, b], 0)], LATER),
+    );
+    expect(again).toEqual({ grants: 0, instances: 0 });
+  });
+
+  it('answers nothing for no actor', async () => {
+    const w = await newWorld();
+    expect(
+      await withTenant(app.db, w.tenantId, (tx) =>
+        tokenGrantRepository(tx).revokeForActors([], LATER),
+      ),
+    ).toEqual({ grants: 0, instances: 0 });
+  });
+
+  it('revokes nothing of another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const w = await worldIn(tx, tenantId);
+        const actor = await subjectRepository(tx).create({ tenantId, type: 'service' });
+        return { id: await grant(tx, w, { actor: actor.id }), actor: actor.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await tokenGrantRepository(tx).byId(seeded.id)).not.toBeNull();
+      },
+      attempt: (tx, seeded) => tokenGrantRepository(tx).revokeForActors([seeded.actor], LATER),
+      expectBlocked: (result) => {
+        expect(result).toEqual({ grants: 0, instances: 0 });
+      },
+      verifyTenantAUnaffected: async (_tx, seeded) => {
+        expect(await grantRevoked([seeded.id])).toEqual([false]);
+      },
+    });
+  });
+});
+
 describe('the audit row for a revoked instance', () => {
   it('writes one agent.instance_revoked per instance root with allowlisted detail', async () => {
     const w = await newWorld();
