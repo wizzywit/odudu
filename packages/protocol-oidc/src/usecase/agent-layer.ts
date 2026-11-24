@@ -149,7 +149,10 @@ interface Parent {
 }
 
 // Takes the row lock a mint serialises on, then counts what is already
-// there, so two exchanges at the last free slot cannot both be admitted. A
+// there, so two exchanges at the last free slot cannot both be admitted.
+// Lock order, here and in every transaction that touches both: the grant
+// first, the instance second, which is the order a revoke takes them in.
+// A
 // head that looks like an instance id must be a live instance of this client
 // in this tenant; only no head, or the client's own id, starts a new lineage.
 async function resolveParent(
@@ -162,6 +165,9 @@ async function resolveParent(
   if (subject.act !== undefined && head === null) return null;
 
   if (head !== null && UUID.test(head)) {
+    if (subject.grantId !== null && !(await tokenGrantRepository(tx).lockLive(subject.grantId))) {
+      return null;
+    }
     const parent = await repo.lockForUpdate(head);
     if (parent?.agentClientId !== client.id || !isLive(parent, now)) return null;
     if (parent.ownerSubjectId !== subject.subjectId) return null;

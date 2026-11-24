@@ -201,6 +201,10 @@ export async function revokeClientGrants(
     .set({ revokedAt: input.now })
     .where(inArray(tokenGrants.id, batch))
     .returning({ id: tokenGrants.id });
+  await tokenGrantRepository(tx).revokeBelow(
+    revoked.map((row) => row.id),
+    input.now,
+  );
   const remaining = await countAtMost(tx, {
     table: tokenGrants,
     where: reachable,

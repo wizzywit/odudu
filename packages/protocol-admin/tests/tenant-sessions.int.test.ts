@@ -612,6 +612,59 @@ describe('the batches and counts of the tenant-wide writes', () => {
     ]);
   });
 
+  it('revokes what was exchanged from a client’s grants, however deep, and the instances rooted there', async () => {
+    const t = await fixture.createTenant(`cgc-${newId()}`);
+    const { client, other } = await withTenant(fixture.app.db, t.id, async (tx) => ({
+      client: await seedClient(tx, t.id),
+      other: await seedClient(tx, t.id),
+    }));
+    const ada = await seedUser(t.id, 'ada');
+    const seeded = await seedSession(t.id, ada, client);
+    const chain = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const ids: string[] = [];
+      for (let n = 0; n < 12; n += 1) {
+        const id = newId();
+        await tokenGrantRepository(tx).create({
+          id,
+          tenantId: t.id,
+          clientId: other.id,
+          subjectId: ada,
+          scope: 'openid',
+          audience: [],
+          exchangedFromGrantId: ids[n - 1] ?? seeded.grantId,
+        });
+        ids.push(id);
+      }
+      return ids;
+    });
+    const instance = newId();
+    await fixture.owner.db.execute(
+      sql`insert into subjects (id, tenant_id, type) values (${instance}, ${t.id}, 'agent_instance')`,
+    );
+    await fixture.owner.db.execute(sql`
+      insert into agent_instances (tenant_id, id, owner_subject_id, agent_client_id, root_grant_id, depth, scope, expires_at)
+      values (${t.id}, ${instance}, ${ada}, ${other.id}, ${chain[11] ?? ''}, 1, 'openid', now() + interval '1 hour')`);
+
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      revokeClientGrants(
+        tx,
+        { audit: noAudit },
+        {
+          clientDbId: client.id,
+          now: fixture.clock.now(),
+          callerCapabilities: new Set(TENANT_CAPABILITIES),
+          ...actor,
+        },
+      ),
+    );
+    expect(outcome).toEqual({ kind: 'revoked', revoked: 1, beyondCeiling: 0, remaining: 0 });
+    const live = await fixture.owner.db.execute(
+      sql`select (select count(*)::int from token_grants where tenant_id = ${t.id} and revoked_at is null) as grants,
+                 (select count(*)::int from agent_instances where tenant_id = ${t.id} and revoked_at is null) as instances`,
+    );
+    expect(live[0]).toEqual({ grants: 0, instances: 0 });
+  });
+
   it('counts the sessions left no further than the count ceiling', async () => {
     const t = await fixture.createTenant(`cap-${newId()}`);
     const client = await withTenant(fixture.app.db, t.id, (tx) => seedClient(tx, t.id));

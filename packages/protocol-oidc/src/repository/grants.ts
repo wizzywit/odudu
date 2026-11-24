@@ -169,6 +169,9 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
   // statement. The first `cap` rows by depth are taken. A node whose grant is
   // revoked and has no live instance is walked through but takes no place in
   // the cap, which is what lets a second call reach what the first left.
+  // The updates are handed their ids sorted, so concurrent cascades lock rows
+  // in id order; an index scan over a sorted array visits them that way, but
+  // the planner does not promise it.
   async function pass(ids: readonly string[], at: Date, cap: number): Promise<CascadePass> {
     const stamp = at.toISOString();
     const rows = (await tx.execute(sql`
@@ -355,6 +358,12 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       return rows.length > 0;
     },
 
+    // Revokes what was exchanged from grants a caller has just revoked
+    // itself, and the instances rooted at them, with `cascadeAll`'s audit.
+    async revokeBelow(ids: readonly string[], at: Date): Promise<void> {
+      await cascadeAll(ids, at);
+    },
+
     // The share lock a derived grant takes on its parent before it is made.
     // A revoke of the parent updates the row and so waits for it, which makes a
     // concurrent revoke either see the child or find the parent already gone.
@@ -368,9 +377,10 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     },
 
     // Everything exchanged from `ids`, and the agent instances rooted at any
-    // of them, in one statement. `cap` bounds the grants taken; past it the
-    // rest is left live and `capped` says so, and the same call made again
-    // takes the next of them.
+    // of them, one statement for each pass of a chain's depth. `cap` bounds the
+    // grants taken; past it the rest is left live and `capped` says so, and the
+    // same call made again takes the next of them. The revoke methods use
+    // `cascadeAll`, which loops until nothing is left.
     revokeCascade(ids: readonly string[], at: Date, cap = CASCADE_CAP): Promise<CascadeResult> {
       return cascade(ids, at, cap);
     },
