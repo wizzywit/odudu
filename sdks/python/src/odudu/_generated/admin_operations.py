@@ -3,6 +3,7 @@
 
 from odudu._generated.admin.api.default import (
     delete_admin_tenants_tenant,
+    delete_admin_tenants_tenant_agents_id,
     delete_admin_tenants_tenant_clients_id,
     delete_admin_tenants_tenant_clients_id_grants,
     delete_admin_tenants_tenant_clients_id_theme,
@@ -34,6 +35,9 @@ from odudu._generated.admin.api.default import (
     get_admin_tenants,
     get_admin_tenants_count,
     get_admin_tenants_tenant,
+    get_admin_tenants_tenant_agent_approvals,
+    get_admin_tenants_tenant_agents,
+    get_admin_tenants_tenant_agents_id,
     get_admin_tenants_tenant_audit,
     get_admin_tenants_tenant_audit_count,
     get_admin_tenants_tenant_audit_export,
@@ -165,6 +169,7 @@ from odudu._generated.admin.api.default import (
 
 __all__ = [
     "delete_admin_tenants_tenant",
+    "delete_admin_tenants_tenant_agents_id",
     "delete_admin_tenants_tenant_clients_id",
     "delete_admin_tenants_tenant_clients_id_grants",
     "delete_admin_tenants_tenant_clients_id_theme",
@@ -196,6 +201,9 @@ __all__ = [
     "get_admin_tenants",
     "get_admin_tenants_count",
     "get_admin_tenants_tenant",
+    "get_admin_tenants_tenant_agent_approvals",
+    "get_admin_tenants_tenant_agents",
+    "get_admin_tenants_tenant_agents_id",
     "get_admin_tenants_tenant_audit",
     "get_admin_tenants_tenant_audit_count",
     "get_admin_tenants_tenant_audit_export",

@@ -8,6 +8,12 @@ from .clients_get_response_items_item_scopes_item import (
 from .clients_get_response_items_item_scopes_item_assignment import (
     ClientsGetResponseItemsItemScopesItemAssignment,
 )
+from .delete_admin_tenants_tenant_agents_id_dry_run import (
+    DeleteAdminTenantsTenantAgentsIdDryRun,
+)
+from .delete_admin_tenants_tenant_agents_id_response_200 import (
+    DeleteAdminTenantsTenantAgentsIdResponse200,
+)
 from .delete_admin_tenants_tenant_clients_id_grants_response_200 import (
     DeleteAdminTenantsTenantClientsIdGrantsResponse200,
 )
@@ -61,6 +67,43 @@ from .flows_post_response import FlowsPostResponse
 from .get_admin_tenants_count_enabled import GetAdminTenantsCountEnabled
 from .get_admin_tenants_enabled import GetAdminTenantsEnabled
 from .get_admin_tenants_response_200 import GetAdminTenantsResponse200
+from .get_admin_tenants_tenant_agent_approvals_response_200 import (
+    GetAdminTenantsTenantAgentApprovalsResponse200,
+)
+from .get_admin_tenants_tenant_agent_approvals_response_200_items_item import (
+    GetAdminTenantsTenantAgentApprovalsResponse200ItemsItem,
+)
+from .get_admin_tenants_tenant_agent_approvals_response_200_items_item_decided_via_type_0 import (
+    GetAdminTenantsTenantAgentApprovalsResponse200ItemsItemDecidedViaType0,
+)
+from .get_admin_tenants_tenant_agent_approvals_response_200_items_item_state import (
+    GetAdminTenantsTenantAgentApprovalsResponse200ItemsItemState,
+)
+from .get_admin_tenants_tenant_agent_approvals_state import (
+    GetAdminTenantsTenantAgentApprovalsState,
+)
+from .get_admin_tenants_tenant_agents_id_response_200 import (
+    GetAdminTenantsTenantAgentsIdResponse200,
+)
+from .get_admin_tenants_tenant_agents_id_response_200_remaining_budget import (
+    GetAdminTenantsTenantAgentsIdResponse200RemainingBudget,
+)
+from .get_admin_tenants_tenant_agents_id_response_200_state import (
+    GetAdminTenantsTenantAgentsIdResponse200State,
+)
+from .get_admin_tenants_tenant_agents_response_200 import (
+    GetAdminTenantsTenantAgentsResponse200,
+)
+from .get_admin_tenants_tenant_agents_response_200_items_item import (
+    GetAdminTenantsTenantAgentsResponse200ItemsItem,
+)
+from .get_admin_tenants_tenant_agents_response_200_items_item_remaining_budget import (
+    GetAdminTenantsTenantAgentsResponse200ItemsItemRemainingBudget,
+)
+from .get_admin_tenants_tenant_agents_response_200_items_item_state import (
+    GetAdminTenantsTenantAgentsResponse200ItemsItemState,
+)
+from .get_admin_tenants_tenant_agents_state import GetAdminTenantsTenantAgentsState
 from .get_admin_tenants_tenant_audit_count_event_type import (
     GetAdminTenantsTenantAuditCountEventType,
 )
@@ -1060,6 +1103,8 @@ from .theme_put_request_tokens_font import ThemePutRequestTokensFont
 __all__ = (
     "ClientsGetResponseItemsItemScopesItem",
     "ClientsGetResponseItemsItemScopesItemAssignment",
+    "DeleteAdminTenantsTenantAgentsIdDryRun",
+    "DeleteAdminTenantsTenantAgentsIdResponse200",
     "DeleteAdminTenantsTenantClientsIdGrantsResponse200",
     "DeleteAdminTenantsTenantLockoutsResponse200",
     "DeleteAdminTenantsTenantSessionsResponse200",
@@ -1083,6 +1128,19 @@ __all__ = (
     "GetAdminTenantsCountEnabled",
     "GetAdminTenantsEnabled",
     "GetAdminTenantsResponse200",
+    "GetAdminTenantsTenantAgentApprovalsResponse200",
+    "GetAdminTenantsTenantAgentApprovalsResponse200ItemsItem",
+    "GetAdminTenantsTenantAgentApprovalsResponse200ItemsItemDecidedViaType0",
+    "GetAdminTenantsTenantAgentApprovalsResponse200ItemsItemState",
+    "GetAdminTenantsTenantAgentApprovalsState",
+    "GetAdminTenantsTenantAgentsIdResponse200",
+    "GetAdminTenantsTenantAgentsIdResponse200RemainingBudget",
+    "GetAdminTenantsTenantAgentsIdResponse200State",
+    "GetAdminTenantsTenantAgentsResponse200",
+    "GetAdminTenantsTenantAgentsResponse200ItemsItem",
+    "GetAdminTenantsTenantAgentsResponse200ItemsItemRemainingBudget",
+    "GetAdminTenantsTenantAgentsResponse200ItemsItemState",
+    "GetAdminTenantsTenantAgentsState",
     "GetAdminTenantsTenantAuditCountEventType",
     "GetAdminTenantsTenantAuditCountOutcome",
     "GetAdminTenantsTenantAuditEventType",
