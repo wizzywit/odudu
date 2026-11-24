@@ -66,3 +66,12 @@ is stable enough to rely on, or is replaced by approvals we store and check ours
   translations to keep correct; the fallback behind the same package boundary.
 - **OPA policy (`@ai-sdk/policy-opa`).** A second policy language beside the TypeScript
   capability ceiling.
+
+## Amendment 2026-11-24: self-hosted models
+
+A self-hosted model is a provider like any other: `@ai-sdk/openai-compatible`
+(Apache-2.0, `verified:` `npm view`) points the same loop at any server that speaks the
+OpenAI chat protocol, such as vLLM or Ollama, behind the same package boundary and the
+same hooks. The decision above is unchanged. What the operator's server must support
+(tool calling, streamed usage) and how a model earns a place on the supported list are in
+the P5c design.

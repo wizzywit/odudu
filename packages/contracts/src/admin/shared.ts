@@ -21,6 +21,9 @@ export const ASSIGNMENT_LIMIT = MAX_LIMIT;
  */
 export const CLIENT_LIST_LIMIT = ASSIGNMENT_LIMIT;
 
+/** The most clients one client may name as allowed to act for its subjects. */
+export const MAX_DELEGATED_ACTORS = 20;
+
 /**
  * The most scopes one client carries. A client is read and listed with them
  * all, so this is what bounds that read; the tenant's own scopes may be many

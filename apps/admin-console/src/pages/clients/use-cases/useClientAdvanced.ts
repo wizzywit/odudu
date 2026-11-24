@@ -1,6 +1,7 @@
 import {
   useClientConfigSaves,
   type ActionValues,
+  type AgentValues,
   type AudienceValues,
   type AuthValues,
   type ExchangeValues,
@@ -16,7 +17,11 @@ import {
   SUBJECT_DN_RULE,
 } from '#/pages/clients/services/clientAuthentication';
 import {
+  AGENT_TYPE_LABEL,
+  AGENT_TYPE_RULE,
   AUDIENCES_RULE,
+  DELEGATED_ACTORS_LABEL,
+  DELEGATED_ACTORS_RULE,
   EXCHANGE_ACTOR_LABEL,
   EXCHANGE_ACTOR_RULE,
   EXCHANGE_LABEL,
@@ -59,7 +64,11 @@ import {
   FLOW_LABEL,
   FLOW_RULE,
 } from '#/pages/clients/services/clientFlow';
-import { CLIENT_LIST_LIMIT, listCount } from '#/pages/clients/services/listEntries';
+import {
+  CLIENT_LIST_LIMIT,
+  listCount,
+  MAX_DELEGATED_ACTORS,
+} from '#/pages/clients/services/listEntries';
 import {
   useClientSection,
   type ClientRecordRead,
@@ -90,6 +99,10 @@ export interface ClientAdvanced {
   exchangePublicRule: string;
   exchangeActorLabel: string;
   exchangeActorRule: string;
+  agentTypeLabel: string;
+  agentTypeRule: string;
+  delegatedActorsLabel: string;
+  delegatedActorsDescription: string;
   // What cannot be changed, each with its value and why.
   fixedByDesign: typeof FIXED_BY_DESIGN;
   auth: SectionSave<AuthValues>;
@@ -107,6 +120,7 @@ export interface ClientAdvanced {
   encrypted: boolean;
   audiences: SectionSave<AudienceValues>;
   exchange: SectionSave<ExchangeValues>;
+  agent: SectionSave<AgentValues>;
   actions: SectionSave<ActionValues>;
   actionsLabel: string;
   actionsRule: string;
@@ -217,6 +231,21 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     },
     save: saves.exchange,
   });
+  const agent = useSectionSave({
+    ...shared,
+    section: 'agent',
+    label: SECTIONS_ADVANCED.agent,
+    fields: {
+      agent_type: { value: client.agent_type, label: AGENT_TYPE_LABEL, kind: 'plain' },
+      delegated_actors: {
+        value: client.delegated_actors,
+        label: DELEGATED_ACTORS_LABEL,
+        kind: 'plain',
+        describe: namesOrNone,
+      },
+    },
+    save: saves.agent,
+  });
   const actions = useSectionSave({
     ...shared,
     section: 'actions',
@@ -262,6 +291,13 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     exchangePublicRule: EXCHANGE_PUBLIC_RULE,
     exchangeActorLabel: EXCHANGE_ACTOR_LABEL,
     exchangeActorRule: EXCHANGE_ACTOR_RULE,
+    agentTypeLabel: AGENT_TYPE_LABEL,
+    agentTypeRule: AGENT_TYPE_RULE,
+    delegatedActorsLabel: DELEGATED_ACTORS_LABEL,
+    delegatedActorsDescription: spaced(
+      DELEGATED_ACTORS_RULE,
+      listCount(agent.values.delegated_actors, MAX_DELEGATED_ACTORS, 'clients'),
+    ),
     fixedByDesign: FIXED_BY_DESIGN,
     auth,
     authMethods: authOptions(client),
@@ -275,6 +311,7 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     encrypted: encryptsUserinfo(userinfo.values.userinfo_encrypted_response_alg),
     audiences,
     exchange,
+    agent,
     actions,
     actionsLabel: ACTIONS_LABEL,
     actionsRule: ACTIONS_RULE,

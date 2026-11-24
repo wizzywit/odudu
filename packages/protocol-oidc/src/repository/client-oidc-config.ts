@@ -49,6 +49,8 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     requireAuthTime: row.requireAuthTime,
     allowedActions: row.allowedActions,
     flowId: row.flowId,
+    agentType: row.agentType,
+    delegatedActors: row.delegatedActors,
   };
 }
 
@@ -86,6 +88,8 @@ export type NewClientOidcConfig = Omit<
   | 'requireAuthTime'
   | 'allowedActions'
   | 'flowId'
+  | 'agentType'
+  | 'delegatedActors'
 > & {
   idTokenTtlSeconds?: number | null;
   clientCredentialsScopes?: string[];
@@ -113,6 +117,8 @@ export type NewClientOidcConfig = Omit<
   requireAuthTime?: boolean;
   allowedActions?: ClientOidcConfig['allowedActions'];
   flowId?: string | null;
+  agentType?: boolean;
+  delegatedActors?: string[];
 };
 
 // The origins a client allows, rewritten from its lists as the server compares
@@ -231,6 +237,8 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
           requireAuthTime: input.requireAuthTime ?? false,
           allowedActions: input.allowedActions ?? [],
           flowId: input.flowId ?? null,
+          agentType: input.agentType ?? false,
+          delegatedActors: input.delegatedActors ?? [],
         })
         .returning();
       const row = rows[0];

@@ -198,7 +198,8 @@ bound of the `act` parser), `agent_max_children` (default 20), `agent_max_live_i
 default 1000), `agent_instance_ttl_seconds` (default 900) and
 `agent_instance_idle_seconds` (default 1800), both bounded by the owner's session,
 `agent_approval_ttl_seconds` (default 600, capped at 900), and the three budget
-settings.
+settings (`agent_writes_per_grant` 20, `agent_creates_per_grant` 10 and
+`agent_window_writes`, default 1000, range 1 to 100000).
 All on the admin API, console and in `docs/` generated reference.
 
 ### 5.7 Approvals and CIBA

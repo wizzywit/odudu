@@ -16,10 +16,13 @@
     "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
   },
   "dependencies": {
+    "@odudu/db": "workspace:*",
+    "@odudu/domain-identity": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.4"
   },
   "devDependencies": {
+    "@odudu/domain-tenant": "workspace:*",
     "@odudu/testkit": "workspace:*",
     "fast-check": "4.11.0",
     "vitest": "5.1.1"

@@ -988,6 +988,20 @@
       "when": 1791667383737,
       "tag": "0140_registration_username",
       "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1791753783737,
+      "tag": "0141_agent_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1791840183737,
+      "tag": "0142_agent_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -133,6 +133,17 @@ export const tenants = pgTable('tenants', {
   // Whether a client_id that is an https URL is resolved to the Client ID
   // Metadata Document served there (packages/db/drizzle/0116_cimd_clients.sql).
   cimdEnabled: boolean('cimd_enabled').notNull().default(false),
+  // Limits of the agent identity layer, each held to a range by a CHECK
+  // (packages/db/drizzle/0142_agent_settings.sql).
+  agentMaxDelegationDepth: integer('agent_max_delegation_depth').notNull().default(3),
+  agentMaxChildren: integer('agent_max_children').notNull().default(20),
+  agentMaxLiveInstances: integer('agent_max_live_instances').notNull().default(1000),
+  agentInstanceTtlSeconds: integer('agent_instance_ttl_seconds').notNull().default(900),
+  agentInstanceIdleSeconds: integer('agent_instance_idle_seconds').notNull().default(1800),
+  agentApprovalTtlSeconds: integer('agent_approval_ttl_seconds').notNull().default(600),
+  agentWritesPerGrant: integer('agent_writes_per_grant').notNull().default(20),
+  agentCreatesPerGrant: integer('agent_creates_per_grant').notNull().default(10),
+  agentWindowWrites: integer('agent_window_writes').notNull().default(1000),
   // The audit event types the trail stores; the admin pair always
   // (packages/db/drizzle/0091_audit_event_types.sql).
   auditEventTypes: text('audit_event_types')

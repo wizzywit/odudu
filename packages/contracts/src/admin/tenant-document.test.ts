@@ -41,6 +41,8 @@ const CLIENT: ExportedClient = {
   token_exchange_impersonation_allowed: false,
   token_exchange_allowed_for_public: false,
   token_exchange_actor_from_other_client: false,
+  agent_type: false,
+  delegated_actors: [],
   userinfo_signed_response_alg: null,
   userinfo_encrypted_response_alg: null,
   userinfo_encrypted_response_enc: null,
@@ -108,6 +110,15 @@ const DOCUMENT: TenantDocument = {
     login_with_email: false,
     registration_username: 'required',
     cimd_enabled: false,
+    agent_max_delegation_depth: 3,
+    agent_max_children: 20,
+    agent_max_live_instances: 1000,
+    agent_instance_ttl_seconds: 900,
+    agent_instance_idle_seconds: 1800,
+    agent_approval_ttl_seconds: 600,
+    agent_writes_per_grant: 20,
+    agent_creates_per_grant: 10,
+    agent_window_writes: 1000,
     audit_event_types: ['admin_mutation', 'admin_access'],
     supported_locales: ['en'],
     default_locale: null,
@@ -184,6 +195,39 @@ describe('the lists a client of a document may hold', () => {
       clients: [{ ...CLIENT, [field]: entries.slice(1) }],
     });
     expect(atLimit.success).toBe(true);
+  });
+});
+
+describe('the agent layer of a document', () => {
+  it('imports an older document, which has none, with the defaults and no agent client', () => {
+    const settings = Object.fromEntries(
+      Object.entries(DOCUMENT.settings).filter(([name]) => !name.startsWith('agent_')),
+    );
+    const client: Record<string, unknown> = { ...CLIENT };
+    delete client.agent_type;
+    delete client.delegated_actors;
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, settings, clients: [client] });
+    expect(result.data?.settings).toMatchObject(
+      Object.fromEntries(
+        Object.entries(DOCUMENT.settings).filter(([name]) => name.startsWith('agent_')),
+      ),
+    );
+    expect(result.data?.clients[0]).toMatchObject({ agent_type: false, delegated_actors: [] });
+  });
+
+  it('holds the delegated actors to twenty distinct ids', () => {
+    const many = tenantDocumentSchema.safeParse({
+      ...DOCUMENT,
+      clients: [
+        { ...CLIENT, delegated_actors: Array.from({ length: 21 }, (_, i) => `c${String(i)}`) },
+      ],
+    });
+    expect(many.error?.issues[0]?.path).toEqual(['clients', 0, 'delegated_actors']);
+    const twice = tenantDocumentSchema.safeParse({
+      ...DOCUMENT,
+      clients: [{ ...CLIENT, delegated_actors: ['a', 'a'] }],
+    });
+    expect(twice.error?.issues[0]?.path).toEqual(['clients', 0, 'delegated_actors']);
   });
 });
 

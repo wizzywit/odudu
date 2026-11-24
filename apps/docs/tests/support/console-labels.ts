@@ -590,6 +590,16 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     SETTINGS_WORDS,
     "cimdLabel: 'Accept client metadata documents'",
   ),
+  Agents: page(PLATFORM, "title: 'Agents'"),
+  'Delegation depth': page(PLATFORM, "label: 'Delegation depth'"),
+  'Children per instance': page(PLATFORM, "label: 'Children per instance'"),
+  'Live instances': page(PLATFORM, "label: 'Live instances'"),
+  'Instance lifetime': page(PLATFORM, "label: 'Instance lifetime'"),
+  'Instance idle timeout': page(PLATFORM, "label: 'Instance idle timeout'"),
+  'Approval lifetime': page(PLATFORM, "label: 'Approval lifetime'"),
+  'Writes per grant': page(PLATFORM, "label: 'Writes per grant'"),
+  'Creates per grant': page(PLATFORM, "label: 'Creates per grant'"),
+  'Writes per day': page(PLATFORM, "label: 'Writes per day'"),
   'Audit retention': page(PLATFORM, "title: 'Audit retention'"),
   'Idle timeout': page(ACCESS, "label: 'Idle timeout'"),
   'Maximum lifetime': page(ACCESS, "label: 'Maximum lifetime'"),
@@ -901,6 +911,15 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Accept an actor token issued to another client': page(
     'clients/services/tokenExchange.ts',
     "EXCHANGE_ACTOR_LABEL = 'Accept an actor token issued to another client'",
+  ),
+  'Agent identity': page('clients/services/sectionTitles.ts', "agent: 'Agent identity'"),
+  'This client is an agent': page(
+    'clients/services/tokenExchange.ts',
+    "AGENT_TYPE_LABEL = 'This client is an agent'",
+  ),
+  'Clients allowed to act for its people': page(
+    'clients/services/tokenExchange.ts',
+    "DELEGATED_ACTORS_LABEL = 'Clients allowed to act for its people'",
   ),
   'Application actions': page(
     'clients/services/sectionTitles.ts',

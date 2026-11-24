@@ -26,7 +26,9 @@ one product. That combination is the claim this phase makes true.
 1. A chat panel with Ask and Act modes, a visible activity feed, an approval card,
    a token meter and a stop button.
 2. A provider port with Amazon Bedrock (the owner's bearer key first), Anthropic
-   and OpenAI behind it, chosen by configuration.
+   and OpenAI behind it, and any server that speaks the OpenAI chat protocol (vLLM,
+   Ollama, LM Studio) for an operator who keeps the model inside their own network,
+   all chosen by configuration.
 3. Model slots (fast, standard, deep) and sub-agents chosen by task profile, so cost
    follows difficulty.
 4. AI buttons inside console screens that open the same panel with that screen's
@@ -100,6 +102,27 @@ browser, a log or an audit row):
   `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`). `assumption:` the Bedrock provider accepts
   the bearer key through `apiKey` and that variable, per its documentation; a spike
   runs it.
+- `openai-compatible:<model>` as a slot's provider, for a self-hosted model, with
+  `ODUDU_ASSISTANT_OPENAI_COMPATIBLE_BASE_URL` (required) and
+  `ODUDU_ASSISTANT_OPENAI_COMPATIBLE_API_KEY` (optional). Slots may mix providers: a
+  small local model on fast and a larger one on standard. The adapter is
+  `@ai-sdk/openai-compatible` (`verified:` `npm view @ai-sdk/openai-compatible version
+license` gave 3.0.94, Apache-2.0). The base URL is the operator's own trusted
+  configuration, so a private or loopback address is allowed; this is not the client-
+  supplied URL of ADR 0028.
+
+**Self-hosted models.** Data then never leaves the operator's network, and the trace
+and audit content stay local. What the operator must supply is a server that supports
+tool calling for the chosen model (vLLM needs `--enable-auto-tool-choice` and a tool
+parser for the model family; some models cannot make parallel calls), and, for the
+token budget to be exact, usage reported on streamed responses (the provider's
+`includeUsage` option); without it the ledger settles on an estimate and says so. No
+prompt-cache saving is assumed. Tool inputs are validated by the door whatever the
+model emits, so a malformed call is a refusal the loop sees and never a bad write, and
+Act-mode writes still wait for the person. `assumption:` Ollama's OpenAI-compatible
+endpoint supports streamed tool calls well enough for the loop; not yet run, so the
+spike runs it. Quality, not safety, is what varies by model, which is why "supported"
+is defined by the golden tasks (5.10) and not by a model's benchmark score.
 
 The **standard** slot is required. An unset **fast** or **deep** slot falls back to
 standard, and a profile that names deep runs on standard. A configured slot whose
@@ -215,7 +238,8 @@ button always present while running; an input with the page context chip it will
 Feedback is stated at every point: connecting, thinking, each tool step, waiting for
 approval ("Waiting for you"), stopped by step limit or budget (named), failed
 (plain cause, what to do, a trace id), and finished. Errors never show a raw stack.
-A first-run notice says that data goes to the provider and who can see conversations.
+A first-run notice says where data goes (the provider, or for a self-hosted endpoint
+its host) and who can see conversations.
 Accessibility: focus moves into the panel and back, a polite live region announces
 status, every control is keyboard reachable, and wording is constants in the console's
 `services` per its rules, so P4h's localization reaches it. Model text renders as
@@ -263,7 +287,9 @@ reaper (ADR 0024).
 
 Unit tests with a mock model (`assumption:` the SDK exports mock models from `ai/test`)
 and the SDK's own telemetry events; a fixture-driven golden task for each profile with
-a token ceiling, so a prompt or model change that raises cost fails CI; promptfoo
+a token ceiling, so a prompt or model change that raises cost fails CI; a nightly job
+runs the golden tasks against a self-hosted model (vLLM or Ollama in a container), and
+the models that pass are the published supported list; promptfoo
 injection and red-team scenarios for each tool class, run against recorded fixtures on
 every PR and against a live model nightly with the owner's key as a repository secret;
 integration tests on real PostgreSQL for the ledger under concurrency, the approval
@@ -282,7 +308,9 @@ clear message, with an optional fallback model per slot. Model IDs are pinned, n
 
 ## 6. Documentation owed
 
-Concepts page and a guide to enabling it with Bedrock, Anthropic and OpenAI; the
+Concepts page and a guide to enabling it with Bedrock, Anthropic and OpenAI; a guide
+to self-hosting with vLLM and Ollama, with the list of models that passed the golden
+tasks and the server flags each needs; the
 console area page and tour with screenshots; the configuration reference for the new
 variables and settings; the transcripts for the new routes, re-run on a live stack;
 the landing page's "Planned" agent band turned into a shipped one; `README.md`;
@@ -292,7 +320,8 @@ applies.
 ## 7. Increments
 
 0. Spikes: Bedrock bearer key through the SDK; `experimental_toolApprovalSecret`;
-   prompt caching; sub-agent nesting in traces; streaming through the console
+   prompt caching; an OpenAI-compatible endpoint (vLLM and Ollama) through the SDK:
+   streaming, tool calls and usage with `includeUsage`; sub-agent nesting in traces; streaming through the console
    gateway (`packages/console-gateway/src/usecase/forward.ts` forwards a whole
    buffered `response.body`, so a stream needs either a streaming mode in the proxy
    or a sibling route in the gateway package that resolves the console session the
@@ -322,7 +351,8 @@ With no provider configured the console is unchanged and no AI route acts; with 
 a person completes each profile in section 5.6 with every step visible; a write never
 runs without the person's approval and a model cannot approve; budgets are atomic
 under concurrent turns and a turn stops with a named limit; swapping the provider is a
-configuration change proven by running the golden tasks on two providers; every turn
+configuration change proven by running the golden tasks on two hosted providers and on
+one self-hosted model; every turn
 leaves an audit row and a trace that the activity screen replays, and if the row
 cannot be written the action does not run; the injection suite passes against a real
 model; every new table is probed with a foreign tenant; documentation, transcripts,
@@ -332,7 +362,10 @@ screenshots and `CHANGELOG.md` are current.
 
 A model can still be wrong inside what it may do; approval, the capability ceiling and
 the budget bound the cost of that, and the trace makes it findable. Data goes to the
-provider the operator chose; the notice and masking are the control.
+provider the operator chose; the notice and masking are the control. A self-hosted
+model may be weaker at multi-step tool use than a hosted one; the supported list is
+what the golden tasks proved, and approval and the door bound what a weaker model can
+do.
 
 ## 10. Open decisions (my calls, for the owner to confirm)
 
@@ -342,6 +375,8 @@ provider the operator chose; the notice and masking are the control.
 - First-scope profiles as in 5.6; the flow profile may drop.
 - Tokens, not dollars, as the budget unit.
 - Provider failover is optional per slot, not default.
+- Self-hosted models are supported through any OpenAI-compatible endpoint; "supported"
+  means the golden tasks pass; the operator's base URL is trusted configuration.
 
 ## 11. What stays for other phases
 

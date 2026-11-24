@@ -107,6 +107,7 @@ function build(
           actChain: null,
           expCeiling: null,
           requestedUserinfoClaims: null,
+          mayAct: null,
         }),
       isSessionLive: () => Promise.resolve(true),
       loadClientState: () =>

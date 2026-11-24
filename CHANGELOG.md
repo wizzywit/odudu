@@ -6,6 +6,12 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Nine tenant settings for agents, under **Agents** in the console's Settings and through the settings API: `agent_max_delegation_depth`, `agent_max_children`, `agent_max_live_instances`, `agent_instance_ttl_seconds`, `agent_instance_idle_seconds`, `agent_approval_ttl_seconds`, `agent_writes_per_grant`, `agent_creates_per_grant` and `agent_window_writes`. Each has a default and a range, and a tenant export and import carry them.
+- A client has `agent_type`, which marks it as an agent, and `delegated_actors`, the `client_id` of each client allowed to act for its people (at most 20, each an existing client of the tenant). Both are on the admin API, the console's Advanced tab and a tenant export and import.
+- `odudu reap` reports four more tables, after `authorization_codes`: `agent_budget_windows`, `agent_approvals`, `agent_delegations` and `agent_instances`. It deletes a budget window two days after it opened, an approval and a delegation thirty days after they lapsed or were revoked, and an agent instance seven days after it was revoked or lapsed, once nothing beneath it is left, together with its subject.
+
 ## [0.2.0] - 2026-11-23
 
 ### Added

@@ -1,0 +1,179 @@
+import { type TenantScopedDatabase } from '@odudu/db';
+import { subjects } from '@odudu/domain-identity';
+import {
+  and,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { agentInstances, type AgentInstanceRecord } from '#/schema/agent-instances';
+
+export type { AgentInstanceRecord } from '#/schema/agent-instances';
+
+export interface NewAgentInstance {
+  id: string;
+  tenantId: string;
+  ownerSubjectId: string;
+  agentClientId: string;
+  parentInstanceId: string | null;
+  rootGrantId: string;
+  depth: number;
+  scope: string;
+  expiresAt: Date;
+  idleExpiresAt: Date | null;
+}
+
+// Not revoked, not past its fixed expiry and not past its idle expiry at `now`.
+function live(now: Date) {
+  return and(
+    isNull(agentInstances.revokedAt),
+    gt(agentInstances.expiresAt, now),
+    or(isNull(agentInstances.idleExpiresAt), gt(agentInstances.idleExpiresAt, now)),
+  );
+}
+
+const children = alias(agentInstances, 'children');
+
+// The deepest chain an instance can sit in, which bounds how many leaf-first
+// rounds a tombstone pass needs.
+const MAX_ROUNDS = 8;
+
+export function agentInstanceRepository(tx: TenantScopedDatabase) {
+  return {
+    // The subject row comes first because the instance's id is a foreign key
+    // to it. A duplicate id fails on the subject's primary key.
+    async mint(input: NewAgentInstance): Promise<AgentInstanceRecord> {
+      await tx
+        .insert(subjects)
+        .values({ id: input.id, tenantId: input.tenantId, type: 'agent_instance' });
+      const rows = await tx
+        .insert(agentInstances)
+        .values({
+          id: input.id,
+          tenantId: input.tenantId,
+          ownerSubjectId: input.ownerSubjectId,
+          agentClientId: input.agentClientId,
+          parentInstanceId: input.parentInstanceId,
+          rootGrantId: input.rootGrantId,
+          depth: input.depth,
+          scope: input.scope,
+          expiresAt: input.expiresAt,
+          idleExpiresAt: input.idleExpiresAt,
+        })
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new Error('insert into agent_instances returned no row');
+      }
+      return row;
+    },
+
+    async byId(id: string): Promise<AgentInstanceRecord | null> {
+      const rows = await tx.select().from(agentInstances).where(eq(agentInstances.id, id));
+      return rows[0] ?? null;
+    },
+
+    async liveChildren(parentId: string, now: Date): Promise<number> {
+      const rows = await tx
+        .select({ n: count() })
+        .from(agentInstances)
+        .where(and(eq(agentInstances.parentInstanceId, parentId), live(now)));
+      return rows[0]?.n ?? 0;
+    },
+
+    async liveCount(now: Date): Promise<number> {
+      const rows = await tx.select({ n: count() }).from(agentInstances).where(live(now));
+      return rows[0]?.n ?? 0;
+    },
+
+    // Slides the idle expiry of an instance that has one; a fixed-lifetime
+    // instance has nothing to slide, so it and a lapsed one return false.
+    async touch(id: string, now: Date, idleSeconds: number, sessionEndsAt: Date): Promise<boolean> {
+      const rows = await tx
+        .update(agentInstances)
+        .set({
+          idleExpiresAt: sql`least(${now.toISOString()}::timestamptz + make_interval(secs => ${idleSeconds}), ${sessionEndsAt.toISOString()}::timestamptz)`,
+        })
+        .where(
+          and(
+            eq(agentInstances.id, id),
+            isNull(agentInstances.revokedAt),
+            gt(agentInstances.expiresAt, now),
+            isNotNull(agentInstances.idleExpiresAt),
+            gt(agentInstances.idleExpiresAt, now),
+          ),
+        )
+        .returning({ id: agentInstances.id });
+      return rows.length > 0;
+    },
+
+    // The instance and everything minted beneath it. `depth` is capped at 8,
+    // which bounds the walk.
+    async revoke(id: string, at: Date): Promise<number> {
+      const rows = await tx.execute(sql`
+        with recursive tree as (
+          select id from agent_instances where id = ${id}
+          union all
+          select c.id from agent_instances c join tree t on c.parent_instance_id = t.id
+        )
+        update agent_instances set revoked_at = ${at.toISOString()}::timestamptz
+         where id in (select id from tree) and revoked_at is null
+        returning id`);
+      return (rows as unknown as unknown[]).length;
+    },
+
+    // Revokes what lapsed, then deletes instances revoked before
+    // `tombstoneBefore` together with their subjects. An instance is deleted
+    // only once it has no child left, so deleting never cascades to a child
+    // that is still live or inside its own tombstone window; the rounds
+    // remove a chain from the leaves up.
+    async expireDue(
+      now: Date,
+      tombstoneBefore: Date,
+    ): Promise<{ expired: number; deleted: number }> {
+      const expired = await tx
+        .update(agentInstances)
+        .set({ revokedAt: now })
+        .where(
+          and(
+            isNull(agentInstances.revokedAt),
+            or(lte(agentInstances.expiresAt, now), lte(agentInstances.idleExpiresAt, now)),
+          ),
+        )
+        .returning({ id: agentInstances.id });
+      const removed: string[] = [];
+      for (let round = 0; round < MAX_ROUNDS; round += 1) {
+        const gone = await tx
+          .delete(agentInstances)
+          .where(
+            and(
+              isNotNull(agentInstances.revokedAt),
+              lt(agentInstances.revokedAt, tombstoneBefore),
+              notExists(
+                tx
+                  .select({ one: sql`1` })
+                  .from(children)
+                  .where(eq(children.parentInstanceId, agentInstances.id)),
+              ),
+            ),
+          )
+          .returning({ id: agentInstances.id });
+        if (gone.length === 0) break;
+        removed.push(...gone.map((row) => row.id));
+      }
+      if (removed.length > 0) {
+        await tx.delete(subjects).where(inArray(subjects.id, removed));
+      }
+      return { expired: expired.length, deleted: removed.length };
+    },
+  };
+}

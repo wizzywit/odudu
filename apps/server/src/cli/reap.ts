@@ -27,6 +27,10 @@ import { eq, sql, type SQL } from 'drizzle-orm';
 export type TableName =
   | 'refresh_tokens'
   | 'authorization_codes'
+  | 'agent_budget_windows'
+  | 'agent_approvals'
+  | 'agent_delegations'
+  | 'agent_instances'
   | 'token_grants'
   | 'authentication_sessions'
   | 'action_tokens'
@@ -99,7 +103,17 @@ export interface RetentionPolicy {
   readonly logoutDeliveredSeconds: number;
   readonly logoutFailedSeconds: number;
   readonly pendingDomainSeconds: number;
+  readonly agentBudgetWindowSeconds: number;
+  readonly agentApprovalSeconds: number;
+  readonly agentDelegationSeconds: number;
+  /** How long a revoked or lapsed agent instance stays readable for lineage. */
+  readonly agentInstanceTombstoneSeconds: number;
 }
+
+const AGENT_BUDGET_WINDOW_RETENTION_SECONDS = 2 * 24 * 60 * 60;
+const AGENT_APPROVAL_RETENTION_SECONDS = 30 * 24 * 60 * 60;
+const AGENT_DELEGATION_RETENTION_SECONDS = 30 * 24 * 60 * 60;
+const AGENT_INSTANCE_TOMBSTONE_SECONDS = 7 * 24 * 60 * 60;
 
 export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
   return {
@@ -116,6 +130,10 @@ export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
     logoutDeliveredSeconds: config.ODUDU_RETENTION_LOGOUT_DELIVERED_SECONDS,
     logoutFailedSeconds: config.ODUDU_RETENTION_LOGOUT_FAILED_SECONDS,
     pendingDomainSeconds: config.ODUDU_RETENTION_PENDING_DOMAIN_SECONDS,
+    agentBudgetWindowSeconds: AGENT_BUDGET_WINDOW_RETENTION_SECONDS,
+    agentApprovalSeconds: AGENT_APPROVAL_RETENTION_SECONDS,
+    agentDelegationSeconds: AGENT_DELEGATION_RETENTION_SECONDS,
+    agentInstanceTombstoneSeconds: AGENT_INSTANCE_TOMBSTONE_SECONDS,
   };
 }
 
@@ -150,12 +168,12 @@ function before(now: Date, seconds: number): string {
 }
 
 // Written against the alias `g` (token_grants). A family is past retention
-// once its age exceeds the window — floored by the tenant's own maximum
-// session life, so a window configured shorter than the grant it retains
-// cannot be expressed — and once no refresh token of it is still usable,
-// which is what stops a retention pass killing a token a client holds. The
-// first bound is the later of the two windows' cutoffs, so the grants a
-// pass has to look at are one range of `token_grants_by_created`.
+// once its age exceeds the window, floored by the tenant's own maximum session
+// life, and once no refresh token of it is still usable and no agent instance
+// is rooted at it (the cascade would delete the instance and leave its
+// subject behind). The first bound is the later of the two windows' cutoffs,
+// so the grants a pass has to look at are one range of
+// `token_grants_by_created`.
 function grantPastRetention(now: Date, policy: RetentionPolicy, tenant: RetentionTenant): SQL {
   const sessionCutoff = before(now, Math.max(policy.grantSeconds, tenant.ssoSessionMaxSeconds));
   const offlineCutoff = before(
@@ -175,6 +193,10 @@ function grantPastRetention(now: Date, policy: RetentionPolicy, tenant: Retentio
          AND live.grant_id = g.id
          AND live.used_at IS NULL
          AND live.expires_at > ${now.toISOString()}::timestamptz)
+    AND NOT EXISTS (
+      SELECT 1 FROM agent_instances rooted
+       WHERE rooted.tenant_id = g.tenant_id
+         AND rooted.root_grant_id = g.id)
   `;
 }
 
@@ -222,8 +244,81 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // A budget window is only read for the day it covers; the extra day is the
+  // slack for a window opened just before midnight.
+  agent_budget_windows: {
+    after: [],
+    statement: (now, policy) => sql`
+      DELETE FROM agent_budget_windows w
+       WHERE w.window_start < ${before(now, policy.agentBudgetWindowSeconds)}::timestamptz
+    `,
+  },
+
+  // A pending approval past its expiry is settled as expired first, so a
+  // reader sees the outcome and not a request nobody can still answer. Every
+  // approval's expires_at is its decision window, so one measured from it
+  // covers decided and lapsed rows alike; the two sets of rows are disjoint.
+  agent_approvals: {
+    after: [],
+    statement: (now, policy) => sql`
+      WITH settled AS (
+        UPDATE agent_approvals a
+           SET state = 'expired'
+         WHERE a.state = 'pending'
+           AND a.expires_at <= ${now.toISOString()}::timestamptz
+           AND a.expires_at >= ${before(now, policy.agentApprovalSeconds)}::timestamptz
+        RETURNING a.id)
+      DELETE FROM agent_approvals a
+       WHERE a.expires_at < ${before(now, policy.agentApprovalSeconds)}::timestamptz
+    `,
+  },
+
+  agent_delegations: {
+    after: [],
+    statement: (now, policy) => sql`
+      DELETE FROM agent_delegations d
+       WHERE d.revoked_at < ${before(now, policy.agentDelegationSeconds)}::timestamptz
+          OR d.expires_at < ${before(now, policy.agentDelegationSeconds)}::timestamptz
+    `,
+  },
+
+  // Removable once revoked, or lapsed unrevoked, for the tombstone window,
+  // and only when everything beneath it is too: agent_instances_parent_fk
+  // cascades, so deleting a parent over a live child would delete the child.
+  // The recursion collects every ancestor of a row that is not removable.
+  // The subjects go in the same statement, so none outlives its instance.
+  agent_instances: {
+    after: [],
+    statement: (now, policy) => {
+      const cutoff = before(now, policy.agentInstanceTombstoneSeconds);
+      const removable = (alias: SQL) => sql`
+        (${alias}.revoked_at < ${cutoff}::timestamptz
+         OR (${alias}.revoked_at IS NULL AND ${alias}.expires_at < ${cutoff}::timestamptz))`;
+      return sql`
+        WITH RECURSIVE waiting(id) AS (
+          SELECT c.parent_instance_id
+            FROM agent_instances c
+           WHERE c.parent_instance_id IS NOT NULL
+             AND NOT COALESCE(${removable(sql`c`)}, false)
+          UNION
+          SELECT p.parent_instance_id
+            FROM agent_instances p
+            JOIN waiting w ON w.id = p.id
+           WHERE p.parent_instance_id IS NOT NULL),
+        gone AS (
+          DELETE FROM agent_instances a
+           WHERE ${removable(sql`a`)}
+             AND NOT EXISTS (SELECT 1 FROM waiting w WHERE w.id = a.id)
+          RETURNING a.tenant_id, a.id)
+        DELETE FROM subjects s
+         USING gone g
+         WHERE s.tenant_id = g.tenant_id AND s.id = g.id AND s.type = 'agent_instance'
+      `;
+    },
+  },
+
   token_grants: {
-    after: ['refresh_tokens', 'authorization_codes'],
+    after: ['refresh_tokens', 'authorization_codes', 'agent_instances'],
     statement: (now, policy, tenant) => sql`
       DELETE FROM token_grants g
        WHERE ${grantPastRetention(now, policy, tenant)}
@@ -519,6 +614,10 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
 export const REAP_ORDER: readonly TableName[] = [
   'refresh_tokens',
   'authorization_codes',
+  'agent_budget_windows',
+  'agent_approvals',
+  'agent_delegations',
+  'agent_instances',
   'token_grants',
   'authentication_sessions',
   'action_tokens',

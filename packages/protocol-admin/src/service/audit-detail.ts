@@ -20,6 +20,8 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     token_exchange_impersonation_allowed: 'value',
     token_exchange_allowed_for_public: 'value',
     token_exchange_actor_from_other_client: 'value',
+    agent_type: 'value',
+    delegated_actors: 'value',
     redirect_uris: 'value',
     grant_types: 'value',
     token_endpoint_auth_method: 'value',
@@ -63,14 +65,24 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     display_name: 'value',
     enabled: 'value',
   },
-  // The settings that decide who may become a client of the tenant, how fresh
-  // a sign-in must be, what a new authenticator is made with, whether a
-  // passkey is required, where a new password is checked for breaches, the terms people are asked to accept, and the
-  // wording people read: the display name and the languages. Every other
-  // setting stays out of the audit detail, as an unlisted field does.
+  // The settings that decide who may become a client of the tenant, how
+  // fresh a sign-in must be, what a new authenticator is made with, whether a
+  // passkey is required, the limits on agents, where a new password is
+  // checked for breaches, the terms people are asked to accept, and the
+  // wording people read. Every other setting stays out of the audit detail,
+  // as an unlisted field does.
   tenant_settings: {
     client_registration_policy: 'value',
     cimd_enabled: 'value',
+    agent_max_delegation_depth: 'value',
+    agent_max_children: 'value',
+    agent_max_live_instances: 'value',
+    agent_instance_ttl_seconds: 'value',
+    agent_instance_idle_seconds: 'value',
+    agent_approval_ttl_seconds: 'value',
+    agent_writes_per_grant: 'value',
+    agent_creates_per_grant: 'value',
+    agent_window_writes: 'value',
     session_freshness_seconds: 'value',
     recovery_code_warn_below: 'value',
     totp_algorithm: 'value',

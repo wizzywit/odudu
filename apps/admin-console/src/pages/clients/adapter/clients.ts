@@ -115,6 +115,8 @@ export interface ClientChanges {
   token_exchange_impersonation_allowed?: boolean;
   token_exchange_allowed_for_public?: boolean;
   token_exchange_actor_from_other_client?: boolean;
+  agent_type?: boolean;
+  delegated_actors?: readonly string[];
 }
 
 // The server keeps no empty description, page, address or subject, so an
@@ -137,6 +139,7 @@ const LISTS = [
   'client_credentials_scopes',
   'grant_types',
   'allowed_actions',
+  'delegated_actors',
 ] as const;
 
 function wireChanges(changes: ClientChanges): Record<string, unknown> {

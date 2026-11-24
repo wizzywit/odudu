@@ -6,6 +6,7 @@ export const SECTIONS_ADVANCED = {
   userinfo: 'UserInfo response',
   audiences: 'Audiences',
   exchange: 'Token exchange',
+  agent: 'Agent identity',
   actions: 'Application actions',
   flow: 'Sign-in flow',
   secret: 'Client secret',

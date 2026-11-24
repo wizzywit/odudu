@@ -293,7 +293,7 @@ function instructionsIn(text: string): Attempt[] {
 // Every table of the tenant that the serving role reads and that carries a tenant_id.
 // A table added to the schema fails this until someone has asked whether a write
 // an agent may make can reach it.
-const TABLES = 47;
+const TABLES = 51;
 
 const READ_NAMES = new Set(TOOLS.filter((t) => t.access === 'read').map((t) => t.name));
 
@@ -459,6 +459,10 @@ describe('the fixtures really instruct', () => {
         'message_overrides',
         'theme_versions',
         'tenants',
+        'agent_instances',
+        'agent_delegations',
+        'agent_approvals',
+        'agent_budget_windows',
       ]),
     );
   });

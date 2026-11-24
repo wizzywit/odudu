@@ -590,6 +590,7 @@ function clientProblems(
       heldScopes.set(entry.client_id, [...(heldScopes.get(entry.client_id) ?? []), scope.name]);
     }
   }
+  const clientIds = new Set(document.clients.map((client) => client.client_id));
   document.clients.forEach((client, index) => {
     const path = `document.clients[${String(index)}]`;
     if (!allowedActionsHaveMeRead(client.allowed_actions, heldScopes.get(client.client_id) ?? [])) {
@@ -601,6 +602,14 @@ function clientProblems(
     }
     if (client.client_id === ADMIN_CLIENT_ID) {
       problems.add(`${path}.client_id`, `${ADMIN_CLIENT_ID} is provisioned by every new tenant`);
+    }
+    const actors = client.delegated_actors;
+    const unknown = actors.findIndex((actor) => !clientIds.has(actor));
+    if (unknown !== -1) {
+      problems.add(
+        `${path}.delegated_actors[${String(unknown)}]`,
+        `names no client ${actors[unknown] ?? ''} in the document`,
+      );
     }
     if (client.client_id === '') problems.add(`${path}.client_id`, 'is empty');
     if (client.client_id === MCP_CLIENT_ID) mcpClientProblems(client, path, problems);

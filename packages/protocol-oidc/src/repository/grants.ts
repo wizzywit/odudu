@@ -38,6 +38,7 @@ function toRecord(row: typeof tokenGrants.$inferSelect): TokenGrantRecord {
     actChain: row.actChain,
     expCeiling: row.expCeiling,
     requestedUserinfoClaims: row.requestedUserinfoClaims,
+    mayAct: row.mayAct,
   };
 }
 
@@ -67,6 +68,7 @@ export interface NewTokenGrant {
   // grant was minted, so a refresh rotation can reapply it.
   expCeiling?: Date | null;
   requestedUserinfoClaims?: readonly string[] | null;
+  mayAct?: unknown;
 }
 
 // What a front-channel logout page needs of a client; the rest of
@@ -144,6 +146,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
           expCeiling: input.expCeiling ?? null,
           requestedUserinfoClaims:
             input.requestedUserinfoClaims == null ? null : [...input.requestedUserinfoClaims],
+          mayAct: input.mayAct ?? null,
         })
         .returning();
       const row = rows[0];

@@ -58,6 +58,10 @@ const POLICY: RetentionPolicy = {
   logoutDeliveredSeconds: 7 * 24 * 60 * 60,
   logoutFailedSeconds: 30 * 24 * 60 * 60,
   pendingDomainSeconds: 7 * 24 * 60 * 60,
+  agentBudgetWindowSeconds: 2 * 24 * 60 * 60,
+  agentApprovalSeconds: 30 * 24 * 60 * 60,
+  agentDelegationSeconds: 30 * 24 * 60 * 60,
+  agentInstanceTombstoneSeconds: 7 * 24 * 60 * 60,
 };
 
 function at(offsetMs: number): string {
@@ -96,6 +100,11 @@ interface Fixture {
   readonly pendingDomainYoungId: string;
   readonly verifiedDomainOldId: string;
   readonly failedDomainOldId: string;
+  readonly agentChainRootId: string;
+  readonly agentWaitingParentId: string;
+  readonly agentLiveChildId: string;
+  readonly agentRecentId: string;
+  readonly approvalExpiringId: string;
 }
 
 // One tenant carrying, for every reaped table, a row that is eligible and a
@@ -146,6 +155,14 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const pendingDomainYoungId = newId();
   const verifiedDomainOldId = newId();
   const failedDomainOldId = newId();
+  const agentChainRootId = newId();
+  const agentChainMiddleId = newId();
+  const agentChainLeafId = newId();
+  const agentLapsedId = newId();
+  const agentWaitingParentId = newId();
+  const agentLiveChildId = newId();
+  const agentRecentId = newId();
+  const approvalExpiringId = newId();
 
   await owner.db.execute(sql`
     INSERT INTO tenants (id, name, brute_force_lockout_seconds,
@@ -407,6 +424,74 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
       (${failedDomainOldId}, ${tenantId}, ${`failed-${tenantId}.example.com`}, 'failed', 'c',
        ${at(-400 * DAY)}::timestamptz)
   `);
+
+  // Agent identity: a chain of three instances that is entirely past its
+  // tombstone, one that lapsed without ever being revoked, a revoked parent
+  // whose child is still live, and one revoked yesterday.
+  await owner.db.execute(sql`
+    INSERT INTO subjects (id, tenant_id, type)
+    SELECT i, ${tenantId}, 'agent_instance'
+      FROM unnest(ARRAY[${agentChainRootId}, ${agentChainMiddleId}, ${agentChainLeafId},
+                        ${agentLapsedId}, ${agentWaitingParentId}, ${agentLiveChildId},
+                        ${agentRecentId}]::uuid[]) AS i
+  `);
+  await owner.db.execute(sql`
+    INSERT INTO agent_instances (tenant_id, id, owner_subject_id, agent_client_id,
+                                 parent_instance_id, root_grant_id, depth, scope, expires_at,
+                                 revoked_at)
+    VALUES
+      (${tenantId}, ${agentChainRootId}, ${subjectId}, ${clientId}, NULL, ${youngGrantId}, 1,
+       'openid', ${at(-20 * DAY)}::timestamptz, ${at(-8 * DAY)}::timestamptz),
+      (${tenantId}, ${agentChainMiddleId}, ${subjectId}, ${clientId}, ${agentChainRootId},
+       ${youngGrantId}, 2, 'openid', ${at(-20 * DAY)}::timestamptz, ${at(-8 * DAY)}::timestamptz),
+      (${tenantId}, ${agentChainLeafId}, ${subjectId}, ${clientId}, ${agentChainMiddleId},
+       ${youngGrantId}, 3, 'openid', ${at(-20 * DAY)}::timestamptz, ${at(-8 * DAY)}::timestamptz),
+      (${tenantId}, ${agentLapsedId}, ${subjectId}, ${clientId}, NULL, ${youngGrantId}, 1,
+       'openid', ${at(-8 * DAY)}::timestamptz, NULL),
+      (${tenantId}, ${agentWaitingParentId}, ${subjectId}, ${clientId}, NULL, ${youngGrantId}, 1,
+       'openid', ${at(-20 * DAY)}::timestamptz, ${at(-8 * DAY)}::timestamptz),
+      (${tenantId}, ${agentLiveChildId}, ${subjectId}, ${clientId}, ${agentWaitingParentId},
+       ${youngGrantId}, 2, 'openid', ${at(1 * HOUR)}::timestamptz, NULL),
+      (${tenantId}, ${agentRecentId}, ${subjectId}, ${clientId}, NULL, ${youngGrantId}, 1,
+       'openid', ${at(-2 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz)
+  `);
+
+  await owner.db.execute(sql`
+    INSERT INTO agent_budget_windows (tenant_id, owner_subject_id, agent_client_id, window_start,
+                                      writes)
+    VALUES
+      (${tenantId}, ${subjectId}, ${clientId}, ${at(-3 * DAY)}::timestamptz, 4),
+      (${tenantId}, ${subjectId}, ${clientId}, ${at(-1 * DAY)}::timestamptz, 4)
+  `);
+
+  await owner.db.execute(sql`
+    INSERT INTO agent_delegations (tenant_id, id, subject_id, client_id, actor_client_id,
+                                   scope_ceiling, expires_at, revoked_at)
+    VALUES
+      (${tenantId}, ${newId()}, ${subjectId}, ${clientId}, ${clientId}, 'openid',
+       ${at(30 * DAY)}::timestamptz, ${at(-31 * DAY)}::timestamptz),
+      (${tenantId}, ${newId()}, ${subjectId}, ${clientId}, ${clientId}, 'openid',
+       ${at(-31 * DAY)}::timestamptz, NULL),
+      (${tenantId}, ${newId()}, ${subjectId}, ${clientId}, ${clientId}, 'openid',
+       ${at(30 * DAY)}::timestamptz, ${at(-1 * DAY)}::timestamptz),
+      (${tenantId}, ${newId()}, ${subjectId}, ${clientId}, ${clientId}, 'openid',
+       ${at(30 * DAY)}::timestamptz, NULL)
+  `);
+
+  await owner.db.execute(sql`
+    INSERT INTO agent_approvals (tenant_id, id, subject_id, requesting_client_id, kind, summary,
+                                 action_digest, state, decided_at, decided_via, expires_at)
+    VALUES
+      (${tenantId}, ${approvalExpiringId}, ${subjectId}, ${clientId}, 'write', 's', 'd1',
+       'pending', NULL, NULL, ${at(-1 * HOUR)}::timestamptz),
+      (${tenantId}, ${newId()}, ${subjectId}, ${clientId}, 'write', 's', 'd2',
+       'approved', ${at(-31 * DAY)}::timestamptz, 'console', ${at(-31 * DAY)}::timestamptz),
+      (${tenantId}, ${newId()}, ${subjectId}, ${clientId}, 'write', 's', 'd3',
+       'pending', NULL, NULL, ${at(-31 * DAY)}::timestamptz),
+      (${tenantId}, ${newId()}, ${subjectId}, ${clientId}, 'write', 's', 'd4',
+       'denied', ${at(-1 * DAY)}::timestamptz, 'console', ${at(-1 * DAY)}::timestamptz)
+  `);
+
   await owner.db.execute(sql`
     INSERT INTO tenant_issuer_retirements (tenant_id, issuer, expires_at)
     VALUES
@@ -459,12 +544,21 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
     pendingDomainYoungId,
     verifiedDomainOldId,
     failedDomainOldId,
+    agentChainRootId,
+    agentWaitingParentId,
+    agentLiveChildId,
+    agentRecentId,
+    approvalExpiringId,
   };
 }
 
 const RELATIONS: Record<TableName, SQL> = {
   refresh_tokens: sql.raw('refresh_tokens'),
   authorization_codes: sql.raw('authorization_codes'),
+  agent_budget_windows: sql.raw('agent_budget_windows'),
+  agent_approvals: sql.raw('agent_approvals'),
+  agent_delegations: sql.raw('agent_delegations'),
+  agent_instances: sql.raw('agent_instances'),
   token_grants: sql.raw('token_grants'),
   authentication_sessions: sql.raw('authentication_sessions'),
   action_tokens: sql.raw('action_tokens'),
@@ -598,6 +692,151 @@ describe('rotated-out client secrets', () => {
   });
 });
 
+interface AgentTenant {
+  readonly tenantId: string;
+  readonly userId: string;
+  readonly staleGrantId: string;
+  readonly youngGrantId: string;
+}
+
+async function seedAgentTenant(): Promise<AgentTenant> {
+  const tenantId = newId();
+  const userId = newId();
+  const clientId = newId();
+  const staleGrantId = newId();
+  const youngGrantId = newId();
+  await owner.db.execute(
+    sql`INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`agent-${tenantId}`})`,
+  );
+  await owner.db.execute(
+    sql`INSERT INTO subjects (id, tenant_id, type) VALUES (${userId}, ${tenantId}, 'user')`,
+  );
+  await owner.db.execute(sql`
+    INSERT INTO clients (id, tenant_id, client_id, name, type)
+    VALUES (${clientId}, ${tenantId}, 'agent-app', 'App', 'public')
+  `);
+  await owner.db.execute(sql`
+    INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id)
+    VALUES (${staleGrantId}, ${tenantId}, ${clientId}, ${userId}, 'openid',
+            ${at(-40 * DAY)}::timestamptz, NULL),
+           (${youngGrantId}, ${tenantId}, ${clientId}, ${userId}, 'openid',
+            ${at(-1 * HOUR)}::timestamptz, NULL)
+  `);
+  return { tenantId, userId, staleGrantId, youngGrantId };
+}
+
+async function seedInstance(
+  t: AgentTenant,
+  grantId: string,
+  parentId: string | null,
+  depth: number,
+  state: 'removable' | 'live',
+): Promise<string> {
+  const id = newId();
+  await owner.db.execute(
+    sql`INSERT INTO subjects (id, tenant_id, type) VALUES (${id}, ${t.tenantId}, 'agent_instance')`,
+  );
+  const clientRow = await owner.db.execute<{ id: string }>(
+    sql`SELECT id FROM clients WHERE tenant_id = ${t.tenantId} LIMIT 1`,
+  );
+  await owner.db.execute(sql`
+    INSERT INTO agent_instances (tenant_id, id, owner_subject_id, agent_client_id,
+                                 parent_instance_id, root_grant_id, depth, scope, expires_at,
+                                 revoked_at)
+    VALUES (${t.tenantId}, ${id}, ${t.userId}, ${clientRow[0]?.id ?? ''}, ${parentId}, ${grantId},
+            ${depth}, 'openid',
+            ${state === 'live' ? at(1 * HOUR) : at(-20 * DAY)}::timestamptz,
+            ${state === 'live' ? null : at(-8 * DAY)}::timestamptz)
+  `);
+  return id;
+}
+
+async function agentCounts(t: AgentTenant): Promise<Record<string, number>> {
+  const rows = await owner.db.execute<Record<string, string>>(sql`
+    SELECT
+      (SELECT count(*) FROM agent_instances WHERE tenant_id = ${t.tenantId}) AS instances,
+      (SELECT count(*) FROM subjects
+        WHERE tenant_id = ${t.tenantId} AND type = 'agent_instance') AS instance_subjects,
+      (SELECT count(*) FROM subjects s
+        WHERE s.tenant_id = ${t.tenantId} AND s.type = 'agent_instance'
+          AND NOT EXISTS (SELECT 1 FROM agent_instances i WHERE i.id = s.id)) AS orphans,
+      (SELECT count(*) FROM subjects
+        WHERE tenant_id = ${t.tenantId} AND type = 'user') AS users,
+      (SELECT count(*) FROM token_grants WHERE tenant_id = ${t.tenantId}) AS grants
+  `);
+  const row = rows[0] ?? {};
+  return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, Number(value)]));
+}
+
+describe('agent instances and the grants they are rooted at', () => {
+  it('keeps a grant past retention while an instance is rooted at it, then removes instance, subject and grant', async () => {
+    const t = await seedAgentTenant();
+    const instance = await seedInstance(t, t.staleGrantId, null, 1, 'live');
+
+    await runPass();
+    expect(await agentCounts(t)).toEqual({
+      instances: 1,
+      instance_subjects: 1,
+      orphans: 0,
+      users: 1,
+      grants: 2,
+    });
+
+    await owner.db.execute(
+      sql`UPDATE agent_instances SET revoked_at = ${at(-8 * DAY)}::timestamptz WHERE id = ${instance}`,
+    );
+    await owner.db.execute(
+      sql`UPDATE agent_instances SET expires_at = ${at(-20 * DAY)}::timestamptz WHERE id = ${instance}`,
+    );
+    await runPass();
+
+    expect(await agentCounts(t)).toEqual({
+      instances: 0,
+      instance_subjects: 0,
+      orphans: 0,
+      users: 1,
+      grants: 1,
+    });
+    const gone = await owner.db.execute<{ n: string }>(
+      sql`SELECT count(*) AS n FROM token_grants WHERE id = ${t.staleGrantId}`,
+    );
+    expect(gone[0]?.n).toBe('0');
+  });
+
+  it('removes nothing of a removable grandparent and parent over a live grandchild', async () => {
+    const t = await seedAgentTenant();
+    const grandparent = await seedInstance(t, t.youngGrantId, null, 1, 'removable');
+    const parent = await seedInstance(t, t.youngGrantId, grandparent, 2, 'removable');
+    await seedInstance(t, t.youngGrantId, parent, 3, 'live');
+
+    await runPass();
+
+    expect(await agentCounts(t)).toEqual({
+      instances: 3,
+      instance_subjects: 3,
+      orphans: 0,
+      users: 1,
+      grants: 1,
+    });
+  });
+
+  it('removes a removable child under a parent that is not removable', async () => {
+    const t = await seedAgentTenant();
+    const parent = await seedInstance(t, t.youngGrantId, null, 1, 'live');
+    await seedInstance(t, t.youngGrantId, parent, 2, 'removable');
+
+    await runPass();
+
+    expect(await agentCounts(t)).toEqual({
+      instances: 1,
+      instance_subjects: 1,
+      orphans: 0,
+      users: 1,
+      grants: 1,
+    });
+  });
+});
+
 describe('a tenant deleted while the pass is under way', () => {
   it('yields nothing for it and carries on with the others', async () => {
     await seedFixture();
@@ -639,6 +878,10 @@ describe('odudu reap', () => {
     expect(ran(await runPass())).toEqual({
       refresh_tokens: 1,
       authorization_codes: 1,
+      agent_budget_windows: 1,
+      agent_approvals: 2,
+      agent_delegations: 2,
+      agent_instances: 4,
       token_grants: 1,
       authentication_sessions: 1,
       action_tokens: 1,
@@ -666,6 +909,10 @@ describe('odudu reap', () => {
     expect(await counts(fixture.tenantId)).toEqual({
       refresh_tokens: 3,
       authorization_codes: 1,
+      agent_budget_windows: 1,
+      agent_approvals: 2,
+      agent_delegations: 2,
+      agent_instances: 3,
       token_grants: 3,
       authentication_sessions: 1,
       action_tokens: 1,
@@ -690,6 +937,10 @@ describe('odudu reap', () => {
     expect(ran(await runPass())).toEqual({
       refresh_tokens: 0,
       authorization_codes: 0,
+      agent_budget_windows: 0,
+      agent_approvals: 0,
+      agent_delegations: 0,
+      agent_instances: 0,
       token_grants: 0,
       authentication_sessions: 0,
       action_tokens: 0,
@@ -724,6 +975,68 @@ describe('odudu reap', () => {
       sql`SELECT jti FROM client_assertion_jti WHERE tenant_id = ${fixture.tenantId}`,
     );
     expect(rows.map((row) => row.jti)).toEqual([fixture.assertionJtiLive]);
+  });
+
+  it('settles a lapsed approval as expired, and keeps the ones still inside their window', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ id: string; state: string }>(
+      sql`SELECT id, state FROM agent_approvals WHERE tenant_id = ${fixture.tenantId}`,
+    );
+    expect(rows.find((row) => row.id === fixture.approvalExpiringId)?.state).toBe('expired');
+    expect(rows.map((row) => row.state).sort()).toEqual(['denied', 'expired']);
+  });
+
+  it('removes a chain of agent instances from the leaf up, with their subjects', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM agent_instances WHERE tenant_id = ${fixture.tenantId} ORDER BY id`,
+    );
+    expect(rows.map((row) => row.id).sort()).toEqual(
+      [fixture.agentWaitingParentId, fixture.agentLiveChildId, fixture.agentRecentId].sort(),
+    );
+    const root = await owner.db.execute<{ n: string }>(
+      sql`SELECT count(*) AS n FROM subjects WHERE id = ${fixture.agentChainRootId}`,
+    );
+    expect(root[0]?.n).toBe('0');
+  });
+
+  it('leaves no agent_instance subject without its instance, nor an instance without its subject', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ orphans: string; unpaired: string }>(sql`
+      SELECT
+        (SELECT count(*) FROM subjects s
+          WHERE s.tenant_id = ${fixture.tenantId} AND s.type = 'agent_instance'
+            AND NOT EXISTS (SELECT 1 FROM agent_instances i WHERE i.id = s.id)) AS orphans,
+        (SELECT count(*) FROM agent_instances i
+          WHERE i.tenant_id = ${fixture.tenantId}
+            AND NOT EXISTS (SELECT 1 FROM subjects s WHERE s.id = i.id)) AS unpaired
+    `);
+    expect(rows[0]).toEqual({ orphans: '0', unpaired: '0' });
+    const users = await owner.db.execute<{ n: string }>(
+      sql`SELECT count(*) AS n FROM subjects WHERE tenant_id = ${fixture.tenantId} AND type = 'user'`,
+    );
+    expect(users[0]?.n).toBe('3');
+  });
+
+  it('keeps a revoked agent instance while a child of it is not yet removable', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM agent_instances
+           WHERE id IN (${fixture.agentWaitingParentId}, ${fixture.agentLiveChildId})`,
+    );
+    expect(rows).toHaveLength(2);
   });
 
   it('removes the metadata document client nobody used, and keeps one in use or with a live refresh token', async () => {
@@ -953,6 +1266,10 @@ describe('odudu reap', () => {
     'cimd_clients',
     'dynamic_clients',
     'tenant_domains',
+    'agent_budget_windows',
+    'agent_approvals',
+    'agent_delegations',
+    'agent_instances',
   ] as const)('scopes the %s delete to one tenant by row-level security alone', async (table) => {
     const mine = await seedFixture();
     const theirs = await seedFixture();
