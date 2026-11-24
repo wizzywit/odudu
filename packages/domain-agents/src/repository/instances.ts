@@ -9,7 +9,6 @@ import {
   isNotNull,
   isNull,
   lt,
-  lte,
   notExists,
   or,
   sql,
@@ -165,25 +164,27 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
       return (rows as unknown as unknown[]).length;
     },
 
-    // Revokes what lapsed, then deletes instances revoked before
-    // `tombstoneBefore` together with their subjects. An instance is deleted
-    // only once it has no child left, so deleting never cascades to a child
-    // that is still live or inside its own tombstone window; the rounds
-    // remove a chain from the leaves up.
+    // Revokes what lapsed and everything beneath it, as `revoke` does, then
+    // deletes instances revoked before `tombstoneBefore` together with their
+    // subjects. An instance is deleted only once it has no child left, so
+    // deleting never cascades to a child that is still live or inside its
+    // own tombstone window; the rounds remove a chain from the leaves up.
     async expireDue(
       now: Date,
       tombstoneBefore: Date,
     ): Promise<{ expired: number; deleted: number }> {
-      const expired = await tx
-        .update(agentInstances)
-        .set({ revokedAt: now })
-        .where(
-          and(
-            isNull(agentInstances.revokedAt),
-            or(lte(agentInstances.expiresAt, now), lte(agentInstances.idleExpiresAt, now)),
-          ),
+      const expired = (await tx.execute(sql`
+        with recursive tree as (
+          select id from agent_instances
+           where revoked_at is null
+             and (expires_at <= ${now.toISOString()}::timestamptz
+                  or idle_expires_at <= ${now.toISOString()}::timestamptz)
+          union all
+          select c.id from agent_instances c join tree t on c.parent_instance_id = t.id
         )
-        .returning({ id: agentInstances.id });
+        update agent_instances set revoked_at = ${now.toISOString()}::timestamptz
+         where id in (select id from tree) and revoked_at is null
+        returning id`)) as unknown as unknown[];
       const removed: string[] = [];
       for (let round = 0; round < MAX_ROUNDS; round += 1) {
         const gone = await tx

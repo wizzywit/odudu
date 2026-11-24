@@ -177,6 +177,35 @@ describe('agentInstanceRepository', () => {
   });
 });
 
+describe('agentInstanceRepository expireDue below a lapsed instance', () => {
+  it('revokes the live children of an instance that lapsed by idle expiry', async () => {
+    await inTenant(async (repo, seeded) => {
+      const parent = await repo.mint(
+        input(seeded, { idleExpiresAt: new Date(NOW.getTime() - 1_000) }),
+      );
+      const child = await repo.mint(input(seeded, { parentInstanceId: parent.id, depth: 2 }));
+      const grandchild = await repo.mint(input(seeded, { parentInstanceId: child.id, depth: 3 }));
+      const sibling = await repo.mint(input(seeded));
+
+      const tombstoneBefore = new Date(NOW.getTime() - 7 * 86_400_000);
+      expect(await repo.expireDue(NOW, tombstoneBefore)).toEqual({ expired: 3, deleted: 0 });
+      expect((await repo.byId(child.id))?.revokedAt).toEqual(NOW);
+      expect((await repo.byId(grandchild.id))?.revokedAt).toEqual(NOW);
+      expect((await repo.byId(sibling.id))?.revokedAt).toBeNull();
+      expect(await repo.liveCount(NOW)).toBe(1);
+    });
+  });
+
+  it('revokes the live children of an instance that lapsed by expiry', async () => {
+    await inTenant(async (repo, seeded) => {
+      const parent = await repo.mint(input(seeded, { expiresAt: new Date(NOW.getTime() - 1) }));
+      const child = await repo.mint(input(seeded, { parentInstanceId: parent.id, depth: 2 }));
+      await repo.expireDue(NOW, new Date(NOW.getTime() - 7 * 86_400_000));
+      expect((await repo.byId(child.id))?.revokedAt).toEqual(NOW);
+    });
+  });
+});
+
 describe('agentInstanceRepository tombstones', () => {
   const DAY = 86_400_000;
   const tombstoneBefore = new Date(NOW.getTime() - 7 * DAY);
