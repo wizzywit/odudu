@@ -17,9 +17,12 @@ const DOCUMENTS: readonly (readonly [name: string, atLeast: number])[] = [[GUIDE
 const VOCABULARY = new Set([
   'access_denied',
   'account_selection_required',
+  'authorization_pending',
   'consent_required',
+  'expired_token',
   'insufficient_scope',
   'interaction_required',
+  'invalid_binding_message',
   'invalid_client',
   'invalid_grant',
   'invalid_request',
@@ -31,6 +34,7 @@ const VOCABULARY = new Set([
   'request_not_supported',
   'request_uri_not_supported',
   'server_error',
+  'slow_down',
   'temporarily_unavailable',
   'unauthorized_client',
   'unsupported_grant_type',
@@ -41,11 +45,16 @@ const VOCABULARY = new Set([
 // that is listed, fails `pnpm typecheck` — so the /token vocabulary this file
 // checks the documents against cannot quietly fall behind the union.
 const TOKEN_ERROR_CODES: Record<TokenErrorCode, true> = {
+  access_denied: true,
+  authorization_pending: true,
+  expired_token: true,
+  invalid_binding_message: true,
   invalid_client: true,
   invalid_grant: true,
   invalid_request: true,
   invalid_scope: true,
   invalid_target: true,
+  slow_down: true,
   unauthorized_client: true,
   unsupported_grant_type: true,
 };

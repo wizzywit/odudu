@@ -6,7 +6,15 @@ import { type AdminMutationAction } from '#/service/admin-mutation-actions';
 // audit-detail.ts.
 export const AUDIT_ACTIONS = {
   admin_access: ['capability.refused', 'token.foreign_issuer', 'agent.tool_call'],
-  agent_identity: ['agent.instance_minted', 'agent.instance_revoked'],
+  agent_identity: [
+    'agent.instance_minted',
+    'agent.instance_revoked',
+    'agent.approval_requested',
+    'agent.approval_decided',
+    'ciba.requested',
+    'ciba.poll_refused',
+    'ciba.token_issued',
+  ],
   authentication: [
     'login.password',
     'login.otp',
@@ -82,6 +90,10 @@ export const AUDIT_REASONS = [
   'already_registered',
   'timeout_outcome_unknown',
   'write_budget',
+  'approval_limit',
+  'polled_early',
+  'expired',
+  'denied',
 ] as const;
 
 export type AuditReason = (typeof AUDIT_REASONS)[number];
@@ -157,6 +169,44 @@ type AgentIdentityInput =
         depth: number;
         count: number;
         via: 'cascade' | 'owner_ended' | 'admin';
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.approval_requested';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        approval: string;
+        instance?: string;
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.approval_decided';
+      readonly detail: WithReason<{
+        owner: string;
+        approval: string;
+        state: 'approved' | 'denied';
+        via: 'ciba_page' | 'console';
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'ciba.requested' | 'ciba.poll_refused';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner?: string;
+        approval?: string;
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'ciba.token_issued';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        approval: string;
       }>;
     });
 
@@ -335,6 +385,11 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'agent.tool_call': ['agent_client', 'owner', 'tool', 'route'],
   'agent.instance_minted': ['agent_client', 'owner', 'instance', 'depth'],
   'agent.instance_revoked': ['agent_client', 'owner', 'instance', 'depth', 'count', 'via'],
+  'agent.approval_requested': ['agent_client', 'owner', 'approval', 'instance'],
+  'agent.approval_decided': ['owner', 'approval', 'state', 'via'],
+  'ciba.requested': ['agent_client', 'owner', 'approval'],
+  'ciba.poll_refused': ['agent_client', 'owner', 'approval'],
+  'ciba.token_issued': ['agent_client', 'owner', 'approval'],
   'login.password': ['factor'],
   'login.otp': ['factor'],
   'login.recovery_code': ['factor'],
@@ -389,6 +444,7 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const SESSION_ENDED_VIA = ['logout', 'admin', 'self', 'evicted'];
 const AGENT_VIA = ['owner', 'owner_ended', 'admin', 'cascade', 'reaper'];
+const APPROVAL_VIA = ['ciba_page', 'console'];
 const AGENT_APPROVAL_STATES = ['approved', 'denied'];
 
 const TOOL_NAME = /^[a-z0-9_.-]{1,64}$/u;
@@ -404,7 +460,12 @@ function isValidDetailValue(action: string, key: string, value: unknown): boolea
   if (key === 'via') {
     return (
       typeof value === 'string' &&
-      (action === 'session.ended' ? SESSION_ENDED_VIA : AGENT_VIA).includes(value)
+      (action === 'session.ended'
+        ? SESSION_ENDED_VIA
+        : action === 'agent.approval_decided'
+          ? APPROVAL_VIA
+          : AGENT_VIA
+      ).includes(value)
     );
   }
   if (key === 'instance' || key === 'approval') return typeof value === 'string' && ID.test(value);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { en, isMailMessageKey, MAIL_MESSAGES } from '#/service/messages';
 import {
+  renderApprovalNotice,
   renderFinishRegistration,
   renderOwnChange,
   renderRecoveryCodesRevoked,
@@ -63,6 +64,7 @@ describe('the mail message keys', () => {
       renderRecoveryCodesRevoked({ ...base, overrides, newSet: true }),
       renderSmtpTest({ ...base, overrides }),
       renderResetCompleted({ ...base, overrides }),
+      renderApprovalNotice({ ...base, overrides, agent: 'Agent' }),
       ...OWN_CHANGES.map((change) => renderOwnChange({ ...base, overrides, change })),
     ]
       .map((mail) => mail.subject + mail.text + mail.html)

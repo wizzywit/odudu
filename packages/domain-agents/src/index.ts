@@ -6,6 +6,7 @@ export {
   type ChildRequest,
   type Invariant,
 } from '#/service/admit-child';
+export { approvalDigest, canonicalJson, type ApprovalDigestInput } from '#/service/approval-digest';
 export { AGENT_DEFAULTS, STRUCTURAL_MAX_DEPTH } from '#/service/defaults';
 export {
   agentInstanceRepository,

@@ -50,6 +50,25 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     '`owner_ended` when its run was refused because the owner\u2019s session or account had ended, ' +
     'or `admin`. The row\u2019s actor is the instance\u2019s owner and agent client, not the party that ' +
     'triggered the revocation.',
+  'agent.approval_requested':
+    'An agent asked its owner to approve an action. `detail` names the approval, the owner, the ' +
+    'agent client and, when one asked, the instance; the action itself is not recorded.',
+  'agent.approval_decided':
+    'The owner approved or denied a pending approval. `detail.state` says which and `detail.via` ' +
+    'the channel, the consent page of a backchannel request or the console.',
+  'ciba.requested':
+    'An agent client asked, by a backchannel (CIBA) request, for a person to approve. `detail` ' +
+    'names the agent client and, when the hint named someone and an approval was made, the ' +
+    'person and the approval; a request for nobody records neither, and the hint itself is ' +
+    'never recorded. A request refused because the client already holds the most live requests ' +
+    'for that hint has the reason `rate_limited`. One acknowledged for a person who already ' +
+    'held the most pending approvals allowed has the reason `approval_limit`, and no approval.',
+  'ciba.poll_refused':
+    'A poll of the token endpoint for a backchannel (CIBA) request was answered with an error ' +
+    'other than still waiting: too soon, expired or denied. `detail.reason` says which.',
+  'ciba.token_issued':
+    'Tokens were issued for an approved backchannel (CIBA) request. `detail` names the person ' +
+    'who approved, the agent client and the approval, which is spent by it.',
   'token.foreign_issuer':
     'A genuine token issued by another tenant was presented to the admin API.',
   'login.password': 'A password was checked at sign-in.',
@@ -134,6 +153,11 @@ export const AUDIT_REASON_DOCS: Record<AuditReason, string> = {
     'An agent write ran past its deadline, so whether it changed anything is not known.',
   write_budget:
     'An agent had made as many changes as one sign-in allows, so the call was not made.',
+  approval_limit:
+    'The person already holds the most pending approvals allowed, so the request got none.',
+  polled_early: 'A backchannel (CIBA) poll came before the interval had passed.',
+  expired: 'The backchannel (CIBA) request expired before it was decided.',
+  denied: 'The person refused the backchannel (CIBA) request.',
 };
 
 export const AUDIT_OUTCOME_DOCS: Record<AuditOutcome, string> = {

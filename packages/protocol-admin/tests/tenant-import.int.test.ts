@@ -330,6 +330,39 @@ describe('POST /admin/tenant-imports', () => {
     expect((await exportOf(token, name)).settings.display_name).toBe('x'.repeat(256));
   });
 
+  it('[ODUDU-CIBA-CONF-10] refuses a public client holding the CIBA grant, naming the entry, and takes a confidential one', async () => {
+    const source = await fixture.createTenant(`ciba-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const template = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    expect(template).toBeDefined();
+    const agent = (type: 'public' | 'confidential', method: string) => ({
+      ...template,
+      client_id: `agent-${type}`,
+      type,
+      token_endpoint_auth_method: method,
+      grant_types: ['urn:openid:params:grant-type:ciba'],
+      service_account_roles: [],
+    });
+    const name = `ciba-${newId()}`;
+    const refused = await postImport(token, {
+      name,
+      document: { ...original, clients: [...original.clients, agent('public', 'none')] },
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(JSON.stringify(refused.json())).toMatch(/needs a client that authenticates/u);
+    expect(await tenantIdOf(name)).toBeNull();
+
+    const accepted = await postImport(token, {
+      name: `ciba-ok-${newId()}`,
+      document: {
+        ...original,
+        clients: [...original.clients, agent('confidential', 'client_secret_basic')],
+      },
+    });
+    expect(accepted.statusCode, accepted.body).toBe(201);
+  });
+
   it('refuses a client that holds me:write without me:read, as the admin API does, naming the entry', async () => {
     const source = await fixture.createTenant(`mewrite-src-${newId()}`);
     const token = await operatorToken();

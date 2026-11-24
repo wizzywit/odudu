@@ -11,6 +11,8 @@ export {
   renderRecoveryCodesRevoked,
   renderOwnChange,
   renderResetCompleted,
+  renderApprovalNotice,
+  type ApprovalNoticeInput,
   type ResetCompletedInput,
   type OwnChange,
   type OwnChangeInput,
@@ -46,6 +48,11 @@ export {
   type NoticeOutcome,
   type OwnChangeNotice,
 } from '#/usecase/own-change-notice';
+export {
+  queueApprovalNotice,
+  queueApprovalNoticeDecoy,
+  type ApprovalNotice,
+} from '#/usecase/approval-notice';
 export {
   queueResetCompletedNotice,
   type ResetCompletedNotice,

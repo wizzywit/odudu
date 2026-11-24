@@ -42,6 +42,9 @@ export interface EndpointAuthenticationDeps extends PrivateKeyJwtDeps {
   readonly trustProxy: boolean;
   // `ODUDU_TLS_CLIENT_CERT_HEADER`: no two proxies agree on a name.
   readonly tlsClientCertHeader: string;
+  // The audiences an assertion may name, where an endpoint accepts more than the
+  // token endpoint of each accepted issuer.
+  readonly assertionAudiences?: readonly string[];
 }
 
 export function tokenEndpointOf(issuer: string): string {
@@ -185,7 +188,7 @@ export async function authenticatePrivateKeyJwt(
           'an assertion jti could not be spent after a refused request',
         );
       }
-      throw new SpentRefusal(err);
+      throw err instanceof SpentRefusal ? err : new SpentRefusal(err);
     }
     await jtis.claimWithin(tx, deps.tenantId, oauthClientId, jti, expiresAt);
     return result;
@@ -360,7 +363,7 @@ export async function authenticateEndpointClient(
   request: ClientRequest,
 ): Promise<AuthenticatedClient> {
   const { body } = request;
-  const tokenEndpoints = deps.acceptedIssuers.map(tokenEndpointOf);
+  const tokenEndpoints = deps.assertionAudiences ?? deps.acceptedIssuers.map(tokenEndpointOf);
   const assertion = parseClientAssertion(body, deps.now(), { audience: tokenEndpoints });
   const basic = parseBasicAuth(request.authorizationHeader);
   const bodyClientSecret = readOptionalField(body, 'client_secret');

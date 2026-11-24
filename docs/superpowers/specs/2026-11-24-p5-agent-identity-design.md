@@ -221,7 +221,7 @@ CIBA (OpenID CIBA Core 1.0, poll mode):
 - `POST /{tenant}/bc-authorize` from a client holding the grant, authenticated
   as at the token endpoint. Hints: `login_hint` (resolved in constant time and
   with an identical answer for an unknown person, so it cannot enumerate) and
-  `id_token_hint`. `binding_message` is stored escaped and shown. `requested_expiry`
+  `id_token_hint`. `binding_message` is stored as validated text and escaped when shown. `requested_expiry`
   is capped by a tenant setting. Returns `auth_req_id`, `expires_in`, `interval`.
 - Token endpoint grant `urn:openid:params:grant-type:ciba` returns
   `authorization_pending`, `slow_down`, `expired_token`, `access_denied` or the

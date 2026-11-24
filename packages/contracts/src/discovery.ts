@@ -45,6 +45,10 @@ export interface DiscoveryDocument {
   readonly token_endpoint: string;
   readonly introspection_endpoint: string;
   readonly revocation_endpoint: string;
+  // OpenID CIBA §4: poll is the only delivery mode this server serves.
+  readonly backchannel_authentication_endpoint: string;
+  readonly backchannel_token_delivery_modes_supported: readonly string[];
+  readonly backchannel_user_code_parameter_supported: boolean;
   readonly userinfo_endpoint: string;
   readonly jwks_uri: string;
   readonly end_session_endpoint: string;
@@ -128,6 +132,9 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
     token_endpoint: `${issuer}/protocol/openid-connect/token`,
     introspection_endpoint: `${issuer}/protocol/openid-connect/token/introspect`,
     revocation_endpoint: `${issuer}/protocol/openid-connect/revoke`,
+    backchannel_authentication_endpoint: `${issuer}/protocol/openid-connect/bc-authorize`,
+    backchannel_token_delivery_modes_supported: ['poll'],
+    backchannel_user_code_parameter_supported: false,
     userinfo_endpoint: `${issuer}/protocol/openid-connect/userinfo`,
     jwks_uri: `${issuer}/protocol/openid-connect/certs`,
     end_session_endpoint: `${issuer}/protocol/openid-connect/logout`,
@@ -148,6 +155,7 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
       'refresh_token',
       'client_credentials',
       'urn:ietf:params:oauth:grant-type:token-exchange',
+      'urn:openid:params:grant-type:ciba',
     ],
     // Built from the same constant `authenticateClient` validates against, so
     // discovery cannot advertise a method the token endpoint would reject.

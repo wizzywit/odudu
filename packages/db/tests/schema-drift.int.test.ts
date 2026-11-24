@@ -78,7 +78,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'client_oidc_config.client_oidc_config_auth_method_check':
     "CHECK ((token_endpoint_auth_method = ANY (ARRAY['client_secret_basic'::text, 'client_secret_post'::text, 'none'::text, 'private_key_jwt'::text, 'tls_client_auth'::text])))",
   'client_oidc_config.client_oidc_config_grant_types_check':
-    "CHECK ((grant_types <@ ARRAY['authorization_code'::text, 'refresh_token'::text, 'client_credentials'::text, 'urn:ietf:params:oauth:grant-type:token-exchange'::text]))",
+    "CHECK ((grant_types <@ ARRAY['authorization_code'::text, 'refresh_token'::text, 'client_credentials'::text, 'urn:ietf:params:oauth:grant-type:token-exchange'::text, 'urn:openid:params:grant-type:ciba'::text]))",
   'client_oidc_config.client_oidc_config_one_key_source':
     'CHECK (((jwks IS NULL) OR (jwks_uri IS NULL)))',
   'client_oidc_config.client_oidc_config_redirect_uris_present':
@@ -176,6 +176,9 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'idempotency_keys.idempotency_keys_route_length': 'CHECK ((length(route) <= 512))',
   'idempotency_keys.idempotency_keys_status': "CHECK ((status = 'completed'::text))",
   'idempotency_keys.idempotency_keys_window': 'CHECK ((expires_at > created_at))',
+  'ciba_requests.ciba_requests_interval_floor': 'CHECK ((interval_seconds >= 5))',
+  'ciba_requests.ciba_requests_resolved_check':
+    'CHECK (((subject_id IS NULL) = (approval_id IS NULL)))',
   'client_metadata_cache.client_metadata_cache_body_size': 'CHECK ((length((body)::text) <= 8192))',
   'client_metadata_cache.client_metadata_cache_url_length': 'CHECK ((length(url) <= 2048))',
   'tenant_domains.tenant_domains_canonical_is_verified':

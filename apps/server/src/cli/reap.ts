@@ -28,6 +28,7 @@ export type TableName =
   | 'refresh_tokens'
   | 'authorization_codes'
   | 'agent_budget_windows'
+  | 'ciba_requests'
   | 'agent_approvals'
   | 'agent_delegations'
   | 'agent_instances'
@@ -251,6 +252,17 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     statement: (now, policy) => sql`
       DELETE FROM agent_budget_windows w
        WHERE w.window_start < ${before(now, policy.agentBudgetWindowSeconds)}::timestamptz
+    `,
+  },
+
+  // A backchannel request is over once it expires, and what it asked for lives
+  // on in its approval, so it goes for the approval's own window, ahead of the
+  // approval it names so the cascade never fires and the count is real.
+  ciba_requests: {
+    after: [],
+    statement: (now, policy) => sql`
+      DELETE FROM ciba_requests c
+       WHERE c.expires_at < ${before(now, policy.agentApprovalSeconds)}::timestamptz
     `,
   },
 
@@ -615,6 +627,7 @@ export const REAP_ORDER: readonly TableName[] = [
   'refresh_tokens',
   'authorization_codes',
   'agent_budget_windows',
+  'ciba_requests',
   'agent_approvals',
   'agent_delegations',
   'agent_instances',
