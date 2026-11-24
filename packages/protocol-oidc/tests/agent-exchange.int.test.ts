@@ -333,7 +333,43 @@ describe('an agent-type client whose client_id looks like an instance id', () =>
     const res = await exchange(stack, clientId, token);
     expect(res.statusCode).toBe(200);
     const act = decode(res.json<{ access_token: string }>().access_token).act as { sub: string };
-    expect(await instanceRow(act.sub)).toMatchObject({ parent_instance_id: null, depth: 1 });
+    expect(await instanceRow(act.sub)).toMatchObject({ parent_instance_id: null, depth: 2 });
+  });
+});
+
+describe('the depth of an exchange whose token names the client as its actor', () => {
+  async function exchangeMarked(): Promise<{ statusCode: number; json: <T>() => T }> {
+    const owner = await login(stack, AGENT);
+    return exchange(stack, AGENT, await withActHead(owner.accessToken, AGENT));
+  }
+
+  it('is refused at the tenant limit before anything is minted', async () => {
+    await setting('agent_max_delegation_depth', 1);
+    try {
+      const before = await instanceCount();
+      const res = await exchangeMarked();
+      expect(res.statusCode).toBe(400);
+      expect(res.json<{ error: string }>().error).toBe('invalid_target');
+      expect(await instanceCount()).toBe(before);
+    } finally {
+      await setting('agent_max_delegation_depth', 3);
+    }
+  });
+
+  it('is admitted one level further and recorded as deep as its act chain', async () => {
+    await setting('agent_max_delegation_depth', 2);
+    try {
+      const res = await exchangeMarked();
+      expect(res.statusCode).toBe(200);
+      const act = decode(res.json<{ access_token: string }>().access_token).act as {
+        sub: string;
+        act: { sub: string };
+      };
+      expect(act.act.sub).toBe(AGENT);
+      expect(await instanceRow(act.sub)).toMatchObject({ depth: 2 });
+    } finally {
+      await setting('agent_max_delegation_depth', 3);
+    }
   });
 });
 

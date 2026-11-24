@@ -198,11 +198,13 @@ async function resolveParent(
 
   if (subject.grantId === null || !(await repo.lockGrant(subject.grantId))) return null;
   const expiresAt = subject.expiresAt ?? new Date(now.getTime() + 3_600_000);
+  // The client's own marker is a link of the `act` chain the new instance joins,
+  // so it counts as a level, as `buildActChain` counts it.
   return {
     node: {
       scope: [...subject.scope],
       expiresAt,
-      depth: 0,
+      depth: head === null ? 0 : 1,
       liveChildren: await repo.liveRoots(subject.grantId, now),
     },
     instanceId: null,
