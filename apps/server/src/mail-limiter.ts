@@ -6,7 +6,8 @@ import { slidingWindow } from '#/throttle';
 // kind, tenant and address, so the form cannot fill somebody's inbox, or cost
 // the tenant's relay its reputation, from any number of origins, and a flood of
 // one kind (registration links, notices to a held address, password resets,
-// proofs of a changed address, new verification links, approval notices) cannot silence another.
+// proofs of a changed address, new verification links, approval notices)
+// cannot silence another.
 export const MAIL_LIMIT = 3;
 export const MAIL_WINDOW_SECONDS = 3600;
 // 100,000 addresses at most for each kind, 3 timestamps each: a few tens of

@@ -36,12 +36,12 @@ async function readTenant(
   return { displayName: tenant?.displayName ?? name, mail };
 }
 
-// To a verified address only, and within its mail budget: the page the link opens needs the person's own
-// session, but a stranger who registered with the address would still learn
-// that an agent is asking. The statements are the same whether or not a mail
-// is written, because a caller that must not tell a known person from an
-// unknown one runs this for both. Queued in the transaction that made the
-// approval, so a rollback sends nothing.
+// To a verified address only, and within its mail budget: the page the link
+// opens needs the person's own session, but a stranger who registered with the
+// address would still learn that an agent is asking. The statements are the
+// same whether or not a mail is written, because a caller that must not tell a
+// known person from an unknown one runs this for both. Queued in the
+// transaction that made the approval, so a rollback sends nothing.
 export async function queueApprovalNotice(
   tx: TenantScopedDatabase,
   input: ApprovalNotice,

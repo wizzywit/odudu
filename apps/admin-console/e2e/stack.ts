@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { z } from 'zod';
@@ -357,4 +358,14 @@ export function startThrottledServer(port: number): void {
 
 export function stopThrottledServer(): void {
   execFileSync('docker', ['rm', '-f', THROTTLED_NAME], { stdio: 'ignore' });
+}
+
+// A pending approval of `username` for a request `clientId` made, the page a
+// mailed link opens. Returns its id.
+export function seedApproval(tenant: string, username: string, clientId: string): string {
+  const id = randomUUID();
+  psql(
+    `insert into agent_approvals (id, tenant_id, subject_id, requesting_client_id, instance_id, kind, summary, action_digest, expires_at) select '${id}', t.id, u.subject_id, c.id, null, 'ciba', 'Agent asks to sign in as you with: openid', '${'a'.repeat(64)}', now() + interval '10 minutes' from tenants t join users u on u.tenant_id = t.id and u.username = ${sqlText(username)} join clients c on c.tenant_id = t.id and c.client_id = ${sqlText(clientId)} where t.name = ${sqlText(tenant)}`,
+  );
+  return id;
 }
