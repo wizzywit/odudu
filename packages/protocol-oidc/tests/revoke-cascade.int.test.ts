@@ -1282,5 +1282,6 @@ describe('a lineage whose root grant has been deleted', () => {
     );
     expect(outcome).toMatchObject({ cause: { code: '55P03' } });
     expect(await grantRevoked([seed, born])).toEqual([true, true]);
+    expect(await grantRevoked([other])).toEqual([false]);
   });
 });

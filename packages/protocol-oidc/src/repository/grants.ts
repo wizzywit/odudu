@@ -279,11 +279,12 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
 
   // Takes the roots of `ids`, the rows an update has just ended, then asks
   // `cascade` again until a pass revokes nothing, then writes one audit row for
-  // each instance revoked from the top. A grant committed after the caller's
-  // seed lock has its root held here before the cascade touches anything else;
-  // roots already held cost no lock statement. The last pass is a new statement
-  // with a new snapshot, so a child committed while an earlier pass waited on a
-  // row lock is found and revoked. A capped pass has revoked something, so the
+  // each instance revoked from the top. The caller has already locked the roots
+  // of its seeds; the roots of the rows its update ended are locked here, before
+  // the first pass, and cost no statement when already held. A grant committed
+  // after the seed lock whose root is new is the late-root case of spec 5.4. The
+  // last pass is a new statement with a new snapshot, so a child committed while
+  // an earlier pass waited is found. A capped pass has revoked something, so the
   // loop ends.
   async function cascadeAll(ids: readonly string[], at: Date): Promise<void> {
     if (ids.length > 0) {

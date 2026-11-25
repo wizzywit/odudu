@@ -204,12 +204,17 @@ revokes the run, which needs that root. Instance trees stay inside one lineage
 because a child instance takes its parent's root grant (`agent-layer.ts`);
 nothing in the schema enforces it.
 
-Three cases can still deadlock. A pass of the cascade past the first (a child
+Four cases can still deadlock. A pass of the cascade past the first (a child
 committed after the first pass's snapshot, the depth-8 frontier, a capped pass)
 locks grants while holding the instances of the passes before it, and an
 exchange that holds a grant of that later pass and wants one of those instances
 can deadlock with it. A root found late, because a middle grant was deleted
-while a revoker waited, is locked out of id order. And an amendment or
+while a revoker waited, is locked out of id order. A revoke that picks its
+seeds by a predicate (a session, a subject, a client, an actor) locks the roots
+of the seeds it saw; a grant committed for the predicate after that lock, in a
+lineage not yet held, has its root taken after the update, out of id order, and
+another revoker queued on that root can deadlock with it; no lock on the
+predicate closes this, only the window narrows. And an amendment or
 retirement of a service account takes the roots of the account's live grants
 before the client row, so a grant created for the account after that lock has
 its root taken only by the revoke, under the client row, where an exchange
