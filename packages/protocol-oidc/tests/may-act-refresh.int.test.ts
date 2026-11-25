@@ -48,7 +48,7 @@ async function grantMayAct(grantId: string): Promise<unknown> {
   return grant?.mayAct;
 }
 
-describe('the may_act of an owner grant', () => {
+describe('[ODUDU-TOKEN-EXCHANGE-MAYACT-03] the may_act of an owner grant', () => {
   it('is minted into the access token and persisted on the grant', async () => {
     const owner = await login(stack, OWNER_CLIENT);
     const claims = decode(owner.accessToken);

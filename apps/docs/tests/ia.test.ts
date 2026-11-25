@@ -106,12 +106,12 @@ describe('the information architecture', () => {
     ]);
   });
 
-  it('opens the concepts to their nine pages, in order', () => {
+  it('opens the concepts to their ten pages, in order', () => {
     const links = sidebarLinks('concepts/index.html');
     const start = links.indexOf(`${PAGES_DOCS_BASE}concepts/`);
     expect(
       links
-        .slice(start + 1, start + 10)
+        .slice(start + 1, start + 11)
         .map((href) => href.slice(`${PAGES_DOCS_BASE}concepts/`.length)),
     ).toEqual([
       'tenants/',
@@ -123,6 +123,7 @@ describe('the information architecture', () => {
       'consent-and-audit/',
       'branding/',
       'backend-for-frontend/',
+      'agents/',
     ]);
   });
 

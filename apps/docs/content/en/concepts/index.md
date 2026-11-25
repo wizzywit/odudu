@@ -1,11 +1,11 @@
 ---
 title: Concepts
-description: Tenants, clients, scopes, roles, sessions, tokens, consent, branding and the backend for frontend, each explained with a story and a diagram.
+description: Tenants, clients, scopes, roles, sessions, tokens, consent, branding, the backend for frontend and agents, each explained with a story and a diagram.
 ---
 
 # Concepts
 
-You have signed a person in, and now you want to know why it worked. These nine pages explain the ideas behind it, one at a time. Each is short, starts from a small story, and has one diagram you can come back to.
+You have signed a person in, and now you want to know why it worked. These ten pages explain the ideas behind it, one at a time. Each is short, starts from a small story, and has one diagram you can come back to.
 
 If you read them in order, each one leans on the one before.
 
@@ -18,6 +18,7 @@ If you read them in order, each one leans on the one before.
 7. [Consent and audit](./consent-and-audit.mdx): what a person agreed to share, and the record of what happened.
 8. [Branding](./branding.mdx): how a tenant and a client give the pages their own look, and what a theme can never change.
 9. [Backend for frontend](./backend-for-frontend.mdx): a server that keeps the tokens, so the browser holds only a cookie.
+10. [Agents](./agents.mdx): how a program acts for a person, what it may spend and how it all ends together.
 
 When Odudu says no, it tells a person, a client or an admin tool in the way each can use. [Read a refusal](../guides/read-a-refusal.md) shows seven of them.
 

@@ -72,7 +72,7 @@ describe('the landing page as built', () => {
     expect(text).toMatch(/first stable release/iu);
     const ai = landing.find('[data-section="agents"]');
     expect(ai).toHaveLength(1);
-    expect(ai.find('[data-planned]')).toHaveLength(2);
+    expect(ai.find('[data-planned]')).toHaveLength(1);
     expect(hrefs(ai)).not.toContain(`${PAGES_BASE}llms.txt`);
     expect(hrefs(landing.find('[data-section="browse"] [data-markdown]'))).toEqual([
       `${PAGES_BASE}llms.txt`,

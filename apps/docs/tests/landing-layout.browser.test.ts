@@ -143,7 +143,7 @@ describe.each(WIDTHS)('the landing page at %i px', (width) => {
       }, band);
       expect(Math.abs(box.leftmost - box.containerLeft)).toBeLessThan(TOLERANCE);
       if (band === 'agents') {
-        expect(box.cardRights).toHaveLength(2);
+        expect(box.cardRights).toHaveLength(1);
         expect(Math.abs(Math.max(...box.cardRights) - box.containerRight)).toBeLessThan(TOLERANCE);
       } else {
         expect(Math.abs(Math.max(...box.pictureRights) - box.containerRight)).toBeLessThan(
