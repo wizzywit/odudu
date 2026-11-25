@@ -19,6 +19,10 @@ export const CAPABILITY_TEXT: Readonly<Record<AdminCapability, string>> = {
   'view-domains': 'See the tenant’s domains and which one is its address.',
   'manage-domains':
     'Register, verify, switch to and remove the tenant’s domains. Carries view-domains.',
+  'use-assistant': 'Use the assistant panel, as yourself.',
+  'read-assistant-activity': 'Read the assistant’s conversations and traces.',
+  'manage-assistant':
+    'Switch the assistant on or off for the tenant and set its mode, masking and retention.',
   'manage-tenants': 'Create, change and disable tenants, and act inside every one.',
 };
 

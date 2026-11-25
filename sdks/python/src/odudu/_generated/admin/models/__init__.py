@@ -104,6 +104,24 @@ from .get_admin_tenants_tenant_agents_response_200_items_item_state import (
     GetAdminTenantsTenantAgentsResponse200ItemsItemState,
 )
 from .get_admin_tenants_tenant_agents_state import GetAdminTenantsTenantAgentsState
+from .get_admin_tenants_tenant_assistant_status_response_200_type_0 import (
+    GetAdminTenantsTenantAssistantStatusResponse200Type0,
+)
+from .get_admin_tenants_tenant_assistant_status_response_200_type_1 import (
+    GetAdminTenantsTenantAssistantStatusResponse200Type1,
+)
+from .get_admin_tenants_tenant_assistant_status_response_200_type_1_default_mode import (
+    GetAdminTenantsTenantAssistantStatusResponse200Type1DefaultMode,
+)
+from .get_admin_tenants_tenant_assistant_status_response_200_type_1_modes_item import (
+    GetAdminTenantsTenantAssistantStatusResponse200Type1ModesItem,
+)
+from .get_admin_tenants_tenant_assistant_status_response_200_type_1_provider import (
+    GetAdminTenantsTenantAssistantStatusResponse200Type1Provider,
+)
+from .get_admin_tenants_tenant_assistant_status_response_200_type_1_slots import (
+    GetAdminTenantsTenantAssistantStatusResponse200Type1Slots,
+)
 from .get_admin_tenants_tenant_audit_count_event_type import (
     GetAdminTenantsTenantAuditCountEventType,
 )
@@ -1141,6 +1159,12 @@ __all__ = (
     "GetAdminTenantsTenantAgentsResponse200ItemsItemRemainingBudget",
     "GetAdminTenantsTenantAgentsResponse200ItemsItemState",
     "GetAdminTenantsTenantAgentsState",
+    "GetAdminTenantsTenantAssistantStatusResponse200Type0",
+    "GetAdminTenantsTenantAssistantStatusResponse200Type1",
+    "GetAdminTenantsTenantAssistantStatusResponse200Type1DefaultMode",
+    "GetAdminTenantsTenantAssistantStatusResponse200Type1ModesItem",
+    "GetAdminTenantsTenantAssistantStatusResponse200Type1Provider",
+    "GetAdminTenantsTenantAssistantStatusResponse200Type1Slots",
     "GetAdminTenantsTenantAuditCountEventType",
     "GetAdminTenantsTenantAuditCountOutcome",
     "GetAdminTenantsTenantAuditEventType",

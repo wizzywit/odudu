@@ -35,7 +35,7 @@ export interface paths {
                             /** @description The name of that tenant, the one its address and sign-in page carry. It tells apart connections to several tenants. */
                             issuerTenantName: string;
                             /** @description The admin capabilities the caller holds in its own tenant, directly, through a group or nested in a role. A composite such as `tenant-admin` is reported as the capabilities it carries. */
-                            capabilities: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants")[];
+                            capabilities: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
                             /** @description True when the caller’s tenant is not the tenant in the path, which only a holder of `manage-tenants` may be. */
                             crossTenant: boolean;
                         };
@@ -76,7 +76,7 @@ export interface paths {
                     enabled?: "true" | "false";
                     role?: string;
                     group?: string;
-                    capability?: "view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants" | "tenant-admin" | "any";
+                    capability?: "view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants" | "tenant-admin" | "any";
                     type?: "user" | "service" | "agent_instance";
                     locked?: "true" | "false";
                 };
@@ -119,7 +119,7 @@ export interface paths {
                                      * @description The admin capability, or `tenant-admin`, which holds them all.
                                      * @enum {string}
                                      */
-                                    name: "view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants" | "tenant-admin";
+                                    name: "view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants" | "tenant-admin";
                                     /** @description True when it is assigned to the subject itself, false when it comes through a group or a role. */
                                     direct: boolean;
                                 }[];
@@ -218,7 +218,7 @@ export interface paths {
                     enabled?: "true" | "false";
                     role?: string;
                     group?: string;
-                    capability?: "view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants" | "tenant-admin" | "any";
+                    capability?: "view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants" | "tenant-admin" | "any";
                     type?: "user" | "service" | "agent_instance";
                     locked?: "true" | "false";
                 };
@@ -4410,7 +4410,7 @@ export interface paths {
                                 service_subject_id: string | null;
                                 /** @description The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for). */
                                 scopes: components["schemas"]["ClientsGetResponseItemsItemScopesItem"][];
-                                service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants")[];
+                                service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
                             }[];
                             /** @description An opaque cursor for the next page; absent on the last page. */
                             next?: string;
@@ -4563,7 +4563,7 @@ export interface paths {
                             service_subject_id: string | null;
                             /** @description The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for). */
                             scopes: components["schemas"]["ClientsGetResponseItemsItemScopesItem"][];
-                            service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants")[];
+                            service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
                             /** @description The new secret. Shown only in this response. */
                             client_secret?: string;
                         };
@@ -4770,7 +4770,7 @@ export interface paths {
                             service_subject_id: string | null;
                             /** @description The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for). */
                             scopes: components["schemas"]["ClientsGetResponseItemsItemScopesItem"][];
-                            service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants")[];
+                            service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
                             /** @description The languages the tenant offers (its `supported_locales` setting), at most 32: the languages `name_i18n` and `description_i18n` may be written in. Only the client’s own read and amendment carry it, so a caller who may manage clients can see them without reading the tenant’s settings. */
                             supported_locales: string[];
                         };
@@ -4954,7 +4954,7 @@ export interface paths {
                             service_subject_id: string | null;
                             /** @description The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for). */
                             scopes: components["schemas"]["ClientsGetResponseItemsItemScopesItem"][];
-                            service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants")[];
+                            service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
                             /** @description The languages the tenant offers (its `supported_locales` setting), at most 32: the languages `name_i18n` and `description_i18n` may be written in. Only the client’s own read and amendment carry it, so a caller who may manage clients can see them without reading the tenant’s settings. */
                             supported_locales: string[];
                         };
@@ -5112,7 +5112,7 @@ export interface paths {
                             service_subject_id: string | null;
                             /** @description The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for). */
                             scopes: components["schemas"]["ClientsGetResponseItemsItemScopesItem"][];
-                            service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants")[];
+                            service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
                             /** @description The new secret. Shown only in this response. */
                             client_secret: string;
                         };
@@ -9682,6 +9682,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tenants/{tenant}/assistant/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "use-assistant" capability.
+         * @description Whether the console assistant is on in this deployment: `{ "enabled": false }` when no model is configured, otherwise the model each slot runs, the modes offered and the default, the models a person may choose and the provider, with the host of a self-hosted endpoint and never a key.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @constant */
+                            enabled: false;
+                        } | {
+                            /** @constant */
+                            enabled: true;
+                            slots: {
+                                fast: string;
+                                standard: string;
+                                deep: string;
+                            };
+                            modes: ("ask" | "act")[];
+                            /** @enum {string} */
+                            defaultMode: "ask" | "act";
+                            modelChoices: string[];
+                            provider: {
+                                kind: string;
+                                host?: string;
+                            };
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9836,7 +9899,7 @@ export interface components {
             /** @description When the group was created. */
             created_at: string;
             /** @description The admin capabilities membership of the group hands out, however deep roles nest them: its own roles and those of every group above it. */
-            admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants")[];
+            admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
         };
         RolesGetResponseItemsItem: {
             /** @description The role’s identifier, a UUID. */
@@ -9854,7 +9917,7 @@ export interface components {
             /** @description When the role was created. */
             created_at: string;
             /** @description The admin capabilities the role hands out, however deep it nests them, as the capability ceiling judges them. */
-            admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants")[];
+            admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
         };
         DomainsGetResponseItemsItem: {
             /** @description The domain’s identifier. */
@@ -9970,7 +10033,7 @@ export interface components {
                 client_id: string | null;
                 /** @description For a client role, the client’s `client_id`. */
                 client_key: string | null;
-                admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "manage-tenants")[];
+                admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
             }[];
         };
         KeysGetResponseItemsItem: {

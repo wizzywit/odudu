@@ -1,3 +1,4 @@
+import { type StatusDeps } from '@odudu/assistant';
 import { type DatabaseHandle } from '@odudu/db';
 import { type Config, consoleBaseUrl } from '@odudu/kernel';
 import { type Logger as PinoLogger } from 'pino';
@@ -17,6 +18,7 @@ export function appDepsFromConfig(
     readonly logger: PinoLogger;
     readonly consoleKeys: ConsoleKeys | undefined;
     readonly deploymentSmtp: boolean;
+    readonly assistant?: StatusDeps;
   },
 ): AppDeps {
   return {
@@ -40,5 +42,6 @@ export function appDepsFromConfig(
     allowPrivateSmtpHosts: config.ODUDU_ALLOW_PRIVATE_SMTP_HOSTS,
     deploymentSmtp: parts.deploymentSmtp,
     outboxMaxAttempts: config.ODUDU_OUTBOX_MAX_ATTEMPTS,
+    ...(parts.assistant === undefined ? {} : { assistant: parts.assistant }),
   };
 }

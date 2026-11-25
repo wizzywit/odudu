@@ -76,7 +76,7 @@ export const CLIENT_OPTIONS = {
     'A scope a service may ask for with the client_credentials grant; a service gets none without it.',
   ),
   capability: texts(
-    "An admin capability (view-users, manage-users, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit, view-domains or manage-domains) to give the client's service account, so it can call the admin API. Needs a confidential client that may use the client_credentials grant. The result names the capabilities given; seed writes no audit event.",
+    "An admin capability (view-users, manage-users, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit, view-domains, manage-domains, use-assistant, read-assistant-activity or manage-assistant) to give the client's service account, so it can call the admin API. Needs a confidential client that may use the client_credentials grant. The result names the capabilities given; seed writes no audit event.",
   ),
 } as const;
 

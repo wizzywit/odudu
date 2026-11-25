@@ -1,4 +1,4 @@
-import { type MessageCatalogueResponse } from '@odudu/contracts/admin';
+import { type AssistantStatus, type MessageCatalogueResponse } from '@odudu/contracts/admin';
 import { type MailLookResolver } from '@odudu/email';
 import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
@@ -231,6 +231,7 @@ import {
   readTenantHandler,
   type TenantsRouteDeps,
 } from '#/view/routes/tenants';
+import { assistantStatusHandler } from '#/view/routes/assistant';
 import { whoamiHandler } from '#/view/routes/whoami';
 import {
   evaluateClaimsHandler,
@@ -427,6 +428,10 @@ export interface AdminRoutesDeps {
   // How long an audit read may run before it is refused as too broad;
   // `AUDIT_READ_TIMEOUT_MS` unless a test shortens it.
   auditReadTimeoutMs?: number;
+  // What `GET …/assistant/status` answers, which @odudu/assistant computes
+  // from the environment and the composition root hands over: the assistant
+  // sits above this package and cannot be imported here. Omitted, it is off.
+  assistantStatus?: () => AssistantStatus;
 }
 
 export type AdminAuthParts = Pick<AdminRoutesDeps, 'database' | 'ownerDatabase' | 'publicBaseUrl'>;
@@ -819,6 +824,9 @@ function buildAdminRoutes(
     };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
+      'GET /admin/tenants/:tenant/assistant/status': assistantStatusHandler({
+        status: deps.assistantStatus ?? (() => ({ enabled: false })),
+      }),
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/count': countSubjectsHandler(countsDeps),
       'GET /admin/tenants/:tenant/subjects/username-policy':

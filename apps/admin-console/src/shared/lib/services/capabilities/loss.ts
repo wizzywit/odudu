@@ -112,6 +112,9 @@ const LOSS: Readonly<Record<Holding, string>> = {
   'view-audit': 'reading the audit trail',
   'view-domains': 'seeing the tenant’s domains',
   'manage-domains': 'registering, switching to and removing domains',
+  'use-assistant': 'using the assistant',
+  'read-assistant-activity': 'reading the assistant’s activity',
+  'manage-assistant': 'changing the assistant’s settings',
   'manage-tenants': 'reaching every other tenant',
 };
 

@@ -12,6 +12,9 @@ export const EVERY_TENANT_CAPABILITY: AdminCapability[] = [
   'view-audit',
   'view-domains',
   'manage-domains',
+  'use-assistant',
+  'read-assistant-activity',
+  'manage-assistant',
 ];
 
 export function role(

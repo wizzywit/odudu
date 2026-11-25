@@ -272,6 +272,11 @@ const WITHHELD: readonly Entry[] = [
     'sensitive',
   ],
   [
+    "The console assistant's own status and configuration: not offered to an agent, which reads nothing of the assistant that may be running it.",
+    [R('GET', '/assistant/status')],
+    'sensitive',
+  ],
+  [
     "Answers one subject's id token, access token and userinfo claims, which are personal data, under manage-clients, which does not include view-users; its open claim records have no schema to bound them.",
     [R('GET', '/clients/:id/evaluate')],
     'sensitive',

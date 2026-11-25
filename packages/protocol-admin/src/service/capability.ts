@@ -105,6 +105,7 @@ import {
   clearLockoutsResponseSchema,
   listEffectiveRolesQuerySchema,
   adminCapabilitiesResponseSchema,
+  assistantStatusSchema,
   listEffectiveRolesResponseSchema,
   listTenantsQuerySchema,
   countTenantsQuerySchema,
@@ -2087,6 +2088,17 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Every row the same filters list, newest first, one JSON object per line, built in full ' +
       'before it is sent rather than streamed. Refused whole with `413` past 10,000 rows ' +
       'rather than cut short. Audited as `audit.export`.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/status',
+    capability: 'use-assistant',
+    responseSchema: assistantStatusSchema,
+    description:
+      'Whether the console assistant is on in this deployment: `{ "enabled": false }` when no ' +
+      'model is configured, otherwise the model each slot runs, the modes offered and the ' +
+      'default, the models a person may choose and the provider, with the host of a ' +
+      'self-hosted endpoint and never a key.',
   },
 ];
 

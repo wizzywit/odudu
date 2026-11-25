@@ -73,6 +73,7 @@ describe('scopeAdmits over every admin route', () => {
       'GET /admin/tenants/:tenant/agent-approvals',
       'GET /admin/tenants/:tenant/agents',
       'GET /admin/tenants/:tenant/agents/:id',
+      'GET /admin/tenants/:tenant/assistant/status',
       'GET /admin/tenants/:tenant/audit/export',
       'GET /admin/tenants/:tenant/clients/:id/evaluate',
       'GET /admin/tenants/:tenant/export',

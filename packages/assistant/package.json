@@ -20,6 +20,7 @@
     "@ai-sdk/anthropic": "4.0.108",
     "@ai-sdk/openai": "4.0.123",
     "@ai-sdk/openai-compatible": "3.0.94",
+    "@odudu/contracts": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "ai": "7.0.181"
   },

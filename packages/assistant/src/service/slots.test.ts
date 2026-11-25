@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveSlots } from '#/service/slots';
+import { resolveSlots, resolveSlotsReporting } from '#/service/slots';
 
 const BEDROCK_ENV = { AWS_BEARER_TOKEN_BEDROCK: 'bk-secret', AWS_REGION: 'eu-west-1' };
 
@@ -119,5 +119,13 @@ describe('resolveSlots', () => {
     });
     expect(slots?.standard.model).toBe('first');
     expect(slots?.warnings).toHaveLength(1);
+  });
+});
+
+describe('resolveSlotsReporting', () => {
+  it('keeps the warnings when the standard slot does not resolve, naming the variable', () => {
+    const result = resolveSlotsReporting({ ODUDU_ASSISTANT_MODELS: 'standard=anthropic:m' });
+    expect(result.slots).toBeNull();
+    expect(result.warnings.join('\n')).toContain('ANTHROPIC_API_KEY');
   });
 });

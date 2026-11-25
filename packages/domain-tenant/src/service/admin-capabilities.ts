@@ -30,6 +30,9 @@ export const TENANT_CAPABILITIES = [
   'view-audit',
   'view-domains',
   'manage-domains',
+  'use-assistant',
+  'read-assistant-activity',
+  'manage-assistant',
 ] as const;
 
 export type TenantCapability = (typeof TENANT_CAPABILITIES)[number];

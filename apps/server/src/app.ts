@@ -72,6 +72,7 @@ import {
   type ToolLimiterOptions,
 } from '@odudu/mcp';
 import { isMeRoute, meRefusalHeaders, registerMeOpenApiRoute, registerMeRoutes } from '@odudu/me';
+import { status as assistantStatus, type StatusDeps } from '@odudu/assistant';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -327,6 +328,11 @@ export interface AppDeps {
    * with no relay of its own falls back to. Defaults `false`.
    */
   readonly deploymentSmtp?: boolean;
+  /**
+   * The assistant's resolved model slots and the environment they came from,
+   * which `GET …/assistant/status` reports. Omitted, the assistant is off.
+   */
+  readonly assistant?: StatusDeps;
   /** `ODUDU_OUTBOX_MAX_ATTEMPTS`, what the admin API's mail listing calls `failed`. */
   readonly outboxMaxAttempts?: number;
   /**
@@ -839,6 +845,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
       deploymentSmtp: deps.deploymentSmtp ?? false,
       outboxMaxAttempts: deps.outboxMaxAttempts ?? DEFAULT_OUTBOX_MAX_ATTEMPTS,
+      assistantStatus: () => assistantStatus(deps.assistant ?? { slots: null, env: {} }),
       retireResetLinks: (tx, subjectId) =>
         actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subjectId),
       resolveMailLook: mailLook,

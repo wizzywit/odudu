@@ -67,12 +67,12 @@ begins with its class and says why, and names no phase.
 
 ## How many
 
-All **163 routes** are in exactly one class.
+All **164 routes** are in exactly one class.
 
 | Class | Routes |
 | ----- | ------ |
 | R     | 62     |
-| RS    | 11     |
+| RS    | 12     |
 | W1    | 13     |
 | W2    | 35     |
 | C     | 7      |
@@ -254,6 +254,7 @@ confirm each call, and `never` means no tool will serve it.
 | 161 | `GET ~/agents/:id`                                     | manage-sessions                 | RS    | not a tool                       | never      | Agents                    | one of the above                                                                                                                                                                                                            |
 | 162 | `DELETE ~/agents/:id`                                  | manage-sessions                 | D     | not a tool                       | P5b        | Agents                    | revokes an instance, everything beneath it and the grants it acted in; `?dry_run=true` reads the counts and changes nothing, but is the same route                                                                          |
 | 163 | `GET ~/agent-approvals`                                | manage-sessions                 | RS    | not a tool                       | never      | Agents                    | what agents asked their owners, in the words they chose                                                                                                                                                                     |
+| 164 | `GET ~/assistant/status`                               | use-assistant                   | RS    | not a tool                       | never      | Assistant panel           | the console assistant's own status and configuration: an agent reads nothing of the assistant that may be running it                                                                                                        |
 
 ## Mixed routes, field by field
 

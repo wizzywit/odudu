@@ -111,6 +111,17 @@ function usable(
  * or an entry's position, never a value.
  */
 export function resolveSlots(env: AssistantEnv): ResolvedSlots | null {
+  return resolveSlotsReporting(env).slots;
+}
+
+/**
+ * The same, with the warnings that are otherwise lost when the standard slot
+ * does not resolve, which is when an operator most needs to read them.
+ */
+export function resolveSlotsReporting(env: AssistantEnv): {
+  readonly slots: ResolvedSlots | null;
+  readonly warnings: readonly string[];
+} {
   const warnings: string[] = [];
   const chosen = parseEntries(env[MODELS_VARIABLE] ?? '', warnings);
   const resolved: Partial<Record<Slot, SlotModel>> = {};
@@ -120,12 +131,15 @@ export function resolveSlots(env: AssistantEnv): ResolvedSlots | null {
     if (model !== undefined) resolved[slot] = model;
   }
   const standard = resolved.standard;
-  if (standard === undefined) return null;
+  if (standard === undefined) return { slots: null, warnings };
   const fallback: SlotModel = { ...standard, fellBackTo: 'standard' };
   return {
-    standard,
-    fast: resolved.fast ?? fallback,
-    deep: resolved.deep ?? fallback,
+    slots: {
+      standard,
+      fast: resolved.fast ?? fallback,
+      deep: resolved.deep ?? fallback,
+      warnings,
+    },
     warnings,
   };
 }

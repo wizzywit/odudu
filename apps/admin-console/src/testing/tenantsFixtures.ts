@@ -15,6 +15,9 @@ export const EVERY_CAPABILITY = [
   'view-audit',
   'view-domains',
   'manage-domains',
+  'use-assistant',
+  'read-assistant-activity',
+  'manage-assistant',
 ];
 
 export function tenant(name: string, extra: Record<string, unknown> = {}) {

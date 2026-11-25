@@ -1,3 +1,5 @@
 export { createLanguageModel } from '#/adapter/provider';
-export { resolveSlots } from '#/service/slots';
+export { resolveSlots, resolveSlotsReporting } from '#/service/slots';
+export { status } from '#/usecase/status';
+export type { StatusDeps } from '#/usecase/status';
 export type { AssistantEnv, Provider, ResolvedSlots, Slot, SlotModel } from '#/service/slots';

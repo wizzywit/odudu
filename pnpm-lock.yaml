@@ -347,6 +347,9 @@ importers:
       '@odudu/account':
         specifier: workspace:*
         version: link:../../packages/account
+      '@odudu/assistant':
+        specifier: workspace:*
+        version: link:../../packages/assistant
       '@odudu/authn-flows':
         specifier: workspace:*
         version: link:../../packages/authn-flows
@@ -493,6 +496,9 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: 3.0.94
         version: 3.0.94(zod@4.6.7)
+      '@odudu/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel

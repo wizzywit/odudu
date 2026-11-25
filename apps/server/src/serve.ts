@@ -3,6 +3,7 @@ import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import { idleServiceAccounts, publicExchangeClientsAtRisk } from '@odudu/protocol-oidc';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
+import { assistantFromEnv } from '#/assistant-boot';
 import { appDepsFromConfig } from '#/app-deps';
 import {
   assertConsoleConfigured,
@@ -69,6 +70,9 @@ const app = buildApp(
     logger,
     consoleKeys,
     deploymentSmtp: emailFallback.kind === 'smtp',
+    assistant: assistantFromEnv(process.env, (line) => {
+      logger.info({}, line);
+    }),
   }),
 );
 

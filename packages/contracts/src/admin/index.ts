@@ -470,6 +470,13 @@ export {
 } from '#/admin/keys';
 export { whoamiResponseSchema, type WhoamiResponse, ADMIN_CAPABILITIES } from '#/admin/whoami';
 export {
+  ASSISTANT_MODES,
+  assistantModeSchema,
+  type AssistantMode,
+  assistantStatusSchema,
+  type AssistantStatus,
+} from '#/admin/assistant';
+export {
   executionRequirementSchema,
   type ExecutionRequirement,
   executionStepSchema,

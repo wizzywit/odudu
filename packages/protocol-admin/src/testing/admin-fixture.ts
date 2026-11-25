@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
+import { type AssistantStatus } from '@odudu/contracts/admin';
 import {
   ACCOUNT_PREVIEW_PAGES,
   actionTokenRepository,
@@ -293,6 +294,8 @@ export interface AdminFixtureOptions {
   readonly poolMax?: number;
   /** Opens the serving pool, where a test needs to watch what it sends. */
   readonly openApp?: (url: string) => DatabaseHandle;
+  /** What the assistant's status route answers; disabled when omitted. */
+  readonly assistantStatus?: () => AssistantStatus;
 }
 
 function noRecord(): Error {
@@ -411,6 +414,9 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         isThemeMessageKey: (kind, key) =>
           (options.themeMessageKeys ?? defaultMessageKey)(kind, key),
         ...(options.inspectImage === undefined ? {} : { inspectImage: options.inspectImage }),
+        ...(options.assistantStatus === undefined
+          ? {}
+          : { assistantStatus: options.assistantStatus }),
         ...(options.auditReadTimeoutMs === undefined
           ? {}
           : { auditReadTimeoutMs: options.auditReadTimeoutMs }),
