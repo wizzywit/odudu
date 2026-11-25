@@ -1,7 +1,8 @@
 import { expect, expectAccessible, expectFitsViewport, signIn, test, PHONE } from './fixtures';
-import { seeded } from './stack';
+import { inTenant, psql, seeded, sqlText } from './stack';
 
 const { admin, tenantOnly } = seeded().access.tokens;
+const { admin: lister } = seeded().sessions.list;
 const TENANT = admin.tenant;
 
 test('the agents and their approvals are listed, empty in a tenant no agent has acted in', async ({
@@ -53,4 +54,62 @@ test('the agents page fits a phone', async ({ page }) => {
   await expect(page.getByText('No agents yet')).toBeVisible();
   await expectFitsViewport(page, 'agents');
   await expectAccessible(page);
+});
+
+// A live run and one it started, for the tenant's first administrator, under an
+// ordinary client of the tenant: runs are made by an agent calling the server,
+// which this stack has no agent for.
+function seedLineage(tenant: string, owner: string): string {
+  const t = inTenant(tenant);
+  const client = `(select id from clients where tenant_id = ${t} order by id limit 1)`;
+  psql(
+    `with ids as (select gen_random_uuid() grant_id, gen_random_uuid() root, gen_random_uuid() child),
+      owner as (select u.subject_id id from users u where u.tenant_id = ${t} and u.username = ${sqlText(owner)}),
+      g as (insert into token_grants (id, tenant_id, client_id, subject_id, scope)
+            select ids.grant_id, ${t}, ${client}, owner.id, 'openid' from ids, owner returning 1),
+      s as (insert into subjects (id, tenant_id, type)
+            select unnest(array[root, child]), ${t}, 'agent_instance' from ids returning 1)
+     insert into agent_instances
+       (id, tenant_id, owner_subject_id, agent_client_id, parent_instance_id, root_grant_id, depth, scope, expires_at)
+     select ids.root, ${t}, owner.id, ${client}, null::uuid, ids.grant_id, 1, 'openid', now() + interval '1 hour' from ids, owner
+     union all
+     select ids.child, ${t}, owner.id, ${client}, ids.root, ids.grant_id, 2, 'openid', now() + interval '1 hour' from ids, owner`,
+  );
+  return psql(`select c.client_id from clients c where c.id = ${client}`);
+}
+
+function revokedRuns(tenant: string): number {
+  return Number(
+    psql(
+      `select count(*) from agent_instances where tenant_id = ${inTenant(tenant)} and revoked_at is not null`,
+    ),
+  );
+}
+
+test('a lineage is drawn from its top, and revoking the top says what it ends before it ends it', async ({
+  page,
+}) => {
+  const client = seedLineage(lister.tenant, lister.username);
+  await signIn(page, lister);
+  await page.goto(`/console/${lister.tenant}/agents`);
+  const tree = page.getByRole('list', { name: 'Agents' });
+  await expect(tree).toBeVisible();
+  const top = tree.getByRole('listitem').first();
+  await expect(top).toContainText(client);
+  await expect(top.getByRole('list')).toHaveCount(1);
+  await expectAccessible(page);
+
+  await top
+    .getByRole('button', { name: /^Revoke / })
+    .first()
+    .click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText(/ends 2 instances, this one and every run/u);
+  expect(revokedRuns(lister.tenant)).toBe(0);
+  await expectAccessible(page);
+  await dialog.getByRole('button', { name: 'Revoke run' }).click();
+  await expect(page.getByRole('status', { name: 'Last revoke' })).toContainText(
+    /ended: 2 instances/u,
+  );
+  expect(revokedRuns(lister.tenant)).toBe(2);
 });
