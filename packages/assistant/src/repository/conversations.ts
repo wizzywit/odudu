@@ -1,5 +1,5 @@
 import { MAX_LIMIT } from '@odudu/contracts/admin';
-import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import { assistantConversations, type ConversationRecord } from '#/schema/assistant-conversations';
 import { type AssistantTx } from '#/repository/tx';
 
@@ -65,7 +65,7 @@ export function conversationRepository(tx: AssistantTx) {
       cursor: ConversationCursor | null,
       limit: number,
     ): Promise<ConversationPage> {
-      const size = Math.max(1, Math.min(limit, MAX_LIMIT));
+      const size = Number.isNaN(limit) ? 1 : Math.max(1, Math.min(Math.trunc(limit), MAX_LIMIT));
       const after =
         cursor === null
           ? undefined
@@ -96,7 +96,9 @@ export function conversationRepository(tx: AssistantTx) {
     async touch(id: string, now: Date): Promise<boolean> {
       const rows = await tx
         .update(assistantConversations)
-        .set({ lastActiveAt: now })
+        .set({
+          lastActiveAt: sql`greatest(${assistantConversations.lastActiveAt}, ${now.toISOString()}::timestamptz)`,
+        })
         .where(eq(assistantConversations.id, id))
         .returning({ id: assistantConversations.id });
       return rows.length > 0;

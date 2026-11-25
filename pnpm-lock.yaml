@@ -496,9 +496,6 @@ importers:
       '@odudu/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@odudu/db':
-        specifier: workspace:*
-        version: link:../db
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -509,6 +506,9 @@ importers:
         specifier: 0.45.4
         version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@4.1.1)
     devDependencies:
+      '@odudu/db':
+        specifier: workspace:*
+        version: link:../db
       '@odudu/testkit':
         specifier: workspace:*
         version: link:../testkit

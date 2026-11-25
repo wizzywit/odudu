@@ -15,8 +15,22 @@ export interface NewMessage {
   parts: unknown[];
 }
 
-// The most messages one read returns; older ones are the compactor's to fold.
-export const MAX_LOAD = 500;
+// The most messages one read returns. Each message's parts may reach 1 MiB
+// (the table's CHECK), so one read holds at most 100 MiB; older messages are
+// the compactor's to fold.
+export const MAX_LOAD = 100;
+
+export class ConversationNotFoundError extends Error {
+  constructor() {
+    super('assistant conversation not found');
+    this.name = 'ConversationNotFoundError';
+  }
+}
+
+// A whole number from 1 to `ceiling`; anything not a number becomes 1.
+function boundedLimit(limit: number, ceiling: number): number {
+  return Number.isNaN(limit) ? 1 : Math.max(1, Math.min(Math.trunc(limit), ceiling));
+}
 
 export function messageRepository(tx: AssistantTx) {
   // Holding the conversation row is what serialises writers: two appends to
@@ -27,7 +41,7 @@ export function messageRepository(tx: AssistantTx) {
       .from(assistantConversations)
       .where(eq(assistantConversations.id, conversationId))
       .for('update');
-    if (conversation === undefined) throw new Error('assistant conversation not found');
+    if (conversation === undefined) throw new ConversationNotFoundError();
     const [last] = await tx
       .select({ tail: sql<number>`coalesce(max(${assistantMessages.seq}), 0)::int` })
       .from(assistantMessages)
@@ -72,7 +86,7 @@ export function messageRepository(tx: AssistantTx) {
         .from(assistantMessages)
         .where(eq(assistantMessages.conversationId, conversationId))
         .orderBy(desc(assistantMessages.seq))
-        .limit(Math.max(1, Math.min(limit, MAX_LOAD)));
+        .limit(boundedLimit(limit, MAX_LOAD));
       return rows.reverse();
     },
 

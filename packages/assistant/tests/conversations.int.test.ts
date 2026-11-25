@@ -14,7 +14,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { conversationRepository, type NewConversation } from '#/repository/conversations';
-import { MAX_LOAD, messageRepository } from '#/repository/messages';
+import { ConversationNotFoundError, MAX_LOAD, messageRepository } from '#/repository/messages';
 
 interface Recorded {
   query: string;
@@ -70,6 +70,15 @@ function conversation(
     now: NOW,
     ...overrides,
   };
+}
+
+async function errorNameOf(attempt: Promise<unknown>): Promise<string | null> {
+  try {
+    await attempt;
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.name : String(error);
+  }
 }
 
 async function refusalOf(attempt: Promise<unknown>): Promise<string | null> {
@@ -195,9 +204,11 @@ describe('every method refuses a foreign tenant', () => {
       seed: seedConversation,
       verifySeeded,
       attempt: async (tx, seeded) =>
-        refusalOf(messageRepository(tx).append(seeded.conversationId, { role: 'user', parts: [] })),
+        errorNameOf(
+          messageRepository(tx).append(seeded.conversationId, { role: 'user', parts: [] }),
+        ),
       expectBlocked: (result) => {
-        expect(result).toMatch(/not found/u);
+        expect(result).toBe('ConversationNotFoundError');
       },
       verifyTenantAUnaffected: async (tx, seeded) => {
         expect(await messageRepository(tx).load(seeded.conversationId, 10)).toHaveLength(1);
@@ -221,13 +232,13 @@ describe('every method refuses a foreign tenant', () => {
       seed: seedConversation,
       verifySeeded,
       attempt: async (tx, seeded) =>
-        refusalOf(
+        errorNameOf(
           messageRepository(tx).replaceTail(seeded.conversationId, 1, [
             { role: 'assistant', parts: [{ type: 'text', text: 'x' }] },
           ]),
         ),
       expectBlocked: (result) => {
-        expect(result).toMatch(/not found/u);
+        expect(result).toBe('ConversationNotFoundError');
       },
       verifyTenantAUnaffected: async (tx, seeded) => {
         const [message] = await messageRepository(tx).load(seeded.conversationId, 10);
@@ -276,6 +287,33 @@ describe('conversationRepository', () => {
     );
 
     expect(refusal).toMatch(/assistant_conversations_mode_check/u);
+  });
+
+  it('never moves the activity time backwards', async () => {
+    const later = new Date(NOW.getTime() + 9_000);
+    const earlier = new Date(NOW.getTime() + 3_000);
+    const found = await inTenant(async (tx, tenantId, subjectId) => {
+      const repo = conversationRepository(tx);
+      const created = await repo.create(conversation(tenantId, subjectId));
+      await repo.touch(created.id, later);
+      expect(await repo.touch(created.id, earlier)).toBe(true);
+      return repo.byId(created.id);
+    });
+
+    expect(found?.lastActiveAt).toEqual(later);
+  });
+
+  it('treats a fractional or non-numeric limit as a whole number of at least one', async () => {
+    const sizes = await inTenant(async (tx, tenantId, subjectId) => {
+      const repo = conversationRepository(tx);
+      for (let n = 0; n < 3; n += 1) await repo.create(conversation(tenantId, subjectId));
+      return [
+        (await repo.listByOwner(subjectId, null, 2.5)).items.length,
+        (await repo.listByOwner(subjectId, null, Number.NaN)).items.length,
+      ];
+    });
+
+    expect(sizes).toEqual([2, 1]);
   });
 
   it('touches the activity time and switches the mode', async () => {
@@ -439,6 +477,25 @@ describe('messageRepository', () => {
     });
 
     expect(loaded.map((message) => message.seq)).toEqual([4, 5, 6]);
+  });
+
+  it('treats a fractional or non-numeric limit as a whole number of at least one', async () => {
+    const sizes = await inConversation(async (tx, id) => {
+      const repo = messageRepository(tx);
+      for (let n = 1; n <= 3; n += 1) await repo.append(id, text(`m${String(n)}`));
+      return [(await repo.load(id, 2.5)).length, (await repo.load(id, Number.NaN)).length];
+    });
+
+    expect(sizes).toEqual([2, 1]);
+  });
+
+  it('names a missing conversation with a typed error', async () => {
+    const name = await inConversation(async (tx) =>
+      errorNameOf(messageRepository(tx).append(newId(), text('a'))),
+    );
+
+    expect(name).toBe('ConversationNotFoundError');
+    expect(new ConversationNotFoundError()).toBeInstanceOf(Error);
   });
 
   it('never loads more than MAX_LOAD whatever limit it is given', async () => {

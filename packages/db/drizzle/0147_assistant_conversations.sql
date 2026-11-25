@@ -1,7 +1,8 @@
 -- The console assistant's conversations and the messages in them, held in
 -- PostgreSQL so a turn resumes on any server instance. instance_id names the
 -- agent instance the conversation acts as, without a foreign key: the trace
--- outlives the instance's tombstone and must keep naming it.
+-- outlives the instance's tombstone and must keep naming it. Deleting a person
+-- deletes their conversations with them (erasure); the audit rows remain.
 CREATE TABLE IF NOT EXISTS assistant_conversations (
   tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
   id uuid NOT NULL,
