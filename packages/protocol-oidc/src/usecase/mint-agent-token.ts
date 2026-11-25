@@ -95,6 +95,11 @@ async function instanceForRun(
   // takes the root, and nothing may wait for it while holding a grant.
   await lockLineageRoots(tx, sql`select ${grant.id}::uuid as id`);
   await repo.lockGrant(grant.id);
+  // The caller read the grant before waiting for these locks; a revoke that
+  // committed meanwhile ended its instances, and a new one must not outlive it.
+  if ((await tokenGrantRepository(tx).byId(grant.id))?.revokedAt !== null) {
+    throw new AgentTokenRefused('grant_revoked');
+  }
   const { agentInstanceIdleSeconds } = await readAgentSettings(tx, deps.tenantId);
   const session =
     grant.sessionId === null

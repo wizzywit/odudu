@@ -731,3 +731,42 @@ describe('a mint on an exchanged grant racing a logout', () => {
     expect(outcomes[1]).toEqual({ value: 2 });
   });
 });
+
+describe('a new run racing a revoke of its grant', () => {
+  it('is refused grant_revoked, and no instance is made, when the revoke commits while it waits', async () => {
+    const w = await newWorld({ agentType: true });
+    const outcome = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(
+            sql`select id from token_grants where id = ${w.grantId} for no key update`,
+          );
+        },
+        afterRelease: async (tx) => {
+          await tokenGrantRepository(tx).revoke(w.grantId, NOW);
+        },
+      },
+      async (held) => {
+        const minting = held.started(
+          withTenant(app.db, w.tenantId, async (tx) => {
+            try {
+              await mintAgentToken(tx, w.deps, input(w, { run: { key: 'conv-revoked' } }));
+              return null;
+            } catch (error) {
+              if (error instanceof AgentTokenRefused) return error.reason;
+              throw error;
+            }
+          }),
+        );
+        await held.waitForWaiters(owner);
+        held.release();
+        const [result] = await Promise.all([minting, held.done]);
+        return result;
+      },
+    );
+    expect(outcome).toBe('grant_revoked');
+    expect(await instancesOf(w)).toEqual([]);
+  });
+});
