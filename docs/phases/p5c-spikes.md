@@ -8,16 +8,16 @@ says why none was.
 
 Command: `pnpm view <pkg> version license`.
 
-| Package | Version | Licence |
-| --- | --- | --- |
-| ai | 7.0.181 | Apache-2.0 |
-| @ai-sdk/amazon-bedrock | 5.0.147 | Apache-2.0 |
-| @ai-sdk/anthropic | 4.0.108 | Apache-2.0 |
-| @ai-sdk/openai | 4.0.123 | Apache-2.0 |
-| @ai-sdk/openai-compatible | 3.0.94 | Apache-2.0 |
-| @ai-sdk/otel | 1.0.181 | Apache-2.0 |
-| @ai-sdk/react | 4.0.186 | Apache-2.0 |
-| promptfoo | 0.126.0 | MIT |
+| Package                   | Version | Licence    |
+| ------------------------- | ------- | ---------- |
+| ai                        | 7.0.181 | Apache-2.0 |
+| @ai-sdk/amazon-bedrock    | 5.0.147 | Apache-2.0 |
+| @ai-sdk/anthropic         | 4.0.108 | Apache-2.0 |
+| @ai-sdk/openai            | 4.0.123 | Apache-2.0 |
+| @ai-sdk/openai-compatible | 3.0.94  | Apache-2.0 |
+| @ai-sdk/otel              | 1.0.181 | Apache-2.0 |
+| @ai-sdk/react             | 4.0.186 | Apache-2.0 |
+| promptfoo                 | 0.126.0 | MIT        |
 
 result: pass. Every licence is Apache-2.0 or MIT.
 
@@ -80,10 +80,10 @@ with one read tool, `stream()`, `stopWhen: stepCountIs(4)`.
 
 Ollama 0.40.4 at `http://localhost:11434/v1`, model `llama3.2:latest`:
 
-| includeUsage | tool calls | steps | stream parts | totalUsage |
-| --- | --- | --- | --- | --- |
-| true | 1 | 2 | tool-input-start/delta/end, tool-call, tool-result, text-delta, finish | inputTokens 274, outputTokens 25, totalTokens 299 |
-| false | 1 | 2 | same | no token counts (empty detail objects only) |
+| includeUsage | tool calls | steps | stream parts                                                           | totalUsage                                        |
+| ------------ | ---------- | ----- | ---------------------------------------------------------------------- | ------------------------------------------------- |
+| true         | 1          | 2     | tool-input-start/delta/end, tool-call, tool-result, text-delta, finish | inputTokens 274, outputTokens 25, totalTokens 299 |
+| false        | 1          | 2     | same                                                                   | no token counts (empty detail objects only)       |
 
 Observed: without `includeUsage: true` the provider reports no token usage, so
 a token budget has nothing to count. The assistant must set it for every
@@ -104,8 +104,8 @@ vLLM claim (`--enable-auto-tool-choice`) stays an assumption until then.
 
 No key was available, so none of this was run.
 
-result: `bedrock_bearer`: pending_owner_key.
-result: `prompt_cache_bedrock`: pending_owner_key.
+result: `bedrock_bearer`: pass (model `eu.anthropic.claude-haiku-5-5`, region from the owner's env; one tool call, usage 924 in / 65 out).
+result: `prompt_cache_bedrock`: pass. First call wrote 5,403 cache tokens, the second read 5,403 (10 uncached). A system prompt with `providerOptions.bedrock.cachePoint` must go through the `instructions` option: SDK 7 rejects a system message inside `messages`.
 
 The owner runs, with a pinned Bedrock model or inference-profile id:
 
@@ -125,15 +125,15 @@ and `package.json` to run elsewhere.
 
 ## Summary
 
-| Field | Result |
-| --- | --- |
-| licences | pass |
-| export names | pass |
-| mock_models_from_ai_test | pass |
-| react_19_3_useChat | pass |
-| openai_compat_streaming_tools_usage, Ollama | pass |
-| openai_compat_streaming_tools_usage, vLLM | not_run |
-| bedrock_bearer | pending_owner_key |
-| prompt_cache_bedrock | pending_owner_key |
+| Field                                       | Result  |
+| ------------------------------------------- | ------- |
+| licences                                    | pass    |
+| export names                                | pass    |
+| mock_models_from_ai_test                    | pass    |
+| react_19_3_useChat                          | pass    |
+| openai_compat_streaming_tools_usage, Ollama | pass    |
+| openai_compat_streaming_tools_usage, vLLM   | not_run |
+| bedrock_bearer                              | pass    |
+| prompt_cache_bedrock                        | pass    |
 
 No provider failed, so goal 2 of the spec is unchanged.
