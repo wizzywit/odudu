@@ -34,14 +34,13 @@ curl -sS -D - -o /dev/null http://localhost:3000/.well-known/oauth-authorization
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1cb3b-f92e-7897-934d-ee1391e114a0
+x-request-id: 01a21314-123c-7483-987f-d87e5d92e777
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
 content-length: 1787
-Date: Wed, 11 Nov 2026 15:31:07 GMT
+Date: Wed, 25 Nov 2026 14:20:12 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
-
 ```
 
 ```bash
@@ -57,7 +56,9 @@ curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/de
   "introspection_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token/introspect",
   "revocation_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/revoke",
   "backchannel_authentication_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/bc-authorize",
-  "backchannel_token_delivery_modes_supported": ["poll"],
+  "backchannel_token_delivery_modes_supported": [
+    "poll"
+  ],
   "backchannel_user_code_parameter_supported": false,
   "response_types_supported": [
     "code"

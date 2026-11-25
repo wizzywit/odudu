@@ -126,11 +126,11 @@ curl -sS -D - -H "Host: login.acme-corp.dev" http://localhost:3000/.well-known/o
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1cb3d-19e2-74d9-a547-3399c361bdee
+x-request-id: 01a21314-1e48-7727-a58b-e9886a74ed53
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 2376
-Date: Wed, 11 Nov 2026 15:32:21 GMT
+content-length: 2620
+Date: Wed, 25 Nov 2026 14:20:15 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

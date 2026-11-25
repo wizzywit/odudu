@@ -1109,7 +1109,8 @@ for `demo` registered at `login.acme-corp.dev` with `seed domain --assume-verifi
 long export in [`GET /export`](../reference/transcripts/admin-paths/get-export.md), whose tenant `export-demo` was
 made with that page's setup and held nothing else.
 
-The blocks that show a client or the tenant settings gained `agent_type` and `delegated_actors`,
+The blocks that show a client or the tenant settings gained `agent_type` and `delegated_actors` (these were not run again on
+2026-11-25: each page needs a system administrator's token, which the console's own key signs for, and its own throwaway tenant),
 and the nine `agent_*` settings, and were edited rather than run: each response line has the new
 fields at their default values in the order the server writes them, each `content-length` that
 precedes one is raised by the added bytes, and each `etag` that is a hash of the body shown
@@ -1442,6 +1443,13 @@ Replayed on the same day, on a stack of the same image started with `ODUDU_REAP_
   says, and the tenant `idem-demo` and its two keys were made just before the block that backdates them. Every count and the
   order of the keys equal what had been written by hand; only the ids in the domain and `dyn-demo` blocks are this run's.
 - `admin-paths/get-adminopenapijson.md`: the size, 431,767 bytes, and the 116 paths equal the figures that had been recomputed.
+- The discovery blocks that had been edited by hand when CIBA was added, run again on that stack with the tenant `demo` and its
+  canonical domain `login.acme-corp.dev`: blocks 1 and 2 of `authorization-server-metadata.md`, the discovery block of
+  `path-a-authorization-code-with-pkce.md` (now piped through `jq .`, and shown without a language tag, as the server's own bytes
+  would be one line), block 8 of `custom-domains-a-domain-host-and-the-proxys-question.md` and block 1 of
+  `console-paths/get-consoleapitenantstenantdiscovery-get-consoleapitenantstenantjwks.md`, run with a console session of the
+  system administrator. The bodies were what the hand edits had written; the `content-length` of the last two had not been
+  raised, and is now the real one.
 - The last section of `request-paths/the-me-api.md`, the description of the API: it had not been run since the delegation routes
   were added and showed seven paths and 29,734 bytes; the document now has nine paths and is 34,428 bytes long, and the page says so.
 
