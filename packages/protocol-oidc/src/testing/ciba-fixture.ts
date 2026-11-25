@@ -30,6 +30,9 @@ export interface CibaWorld {
   // A public client that holds the grant, which the database allows and the
   // endpoints refuse.
   readonly pub: CibaClient;
+  // Registered over the wire without an administrator, yet holding the grant,
+  // which a row written by hand can; the endpoints refuse it.
+  readonly wire: CibaClient;
   // Authenticates with a signed assertion.
   readonly assertion: CibaClient & { readonly key: SigningKeyRecord };
   readonly key: SigningKeyRecord;
@@ -41,6 +44,7 @@ async function addClient(
   clientId: string,
   grantTypes: string[],
   kind: 'secret' | 'public' | { jwks: unknown } = 'secret',
+  registrationOrigin: 'seeded' | 'anonymous' | 'cimd' = 'seeded',
 ): Promise<CibaClient> {
   const dbId = newId();
   const secret = `${clientId}-secret`;
@@ -51,6 +55,7 @@ async function addClient(
     name: `Client ${clientId}`,
     type: kind === 'public' ? 'public' : 'confidential',
     secretHash: kind === 'secret' ? await hashPassword(secret) : null,
+    registrationOrigin,
   });
   await provisionClientDefaults(tx, dbId);
   await clientOidcConfigRepository(tx).create({
@@ -122,6 +127,7 @@ export async function seedCibaWorld(app: DatabaseHandle, label: string): Promise
       other: await addClient(tx, tenantId, 'other-agent', [CIBA_GRANT]),
       plain: await addClient(tx, tenantId, 'plain', ['authorization_code']),
       pub: await addClient(tx, tenantId, 'public-agent', [CIBA_GRANT], 'public'),
+      wire: await addClient(tx, tenantId, 'wire-agent', [CIBA_GRANT], 'secret', 'anonymous'),
       assertion: { ...assertion, key: assertionKey },
       key,
     };

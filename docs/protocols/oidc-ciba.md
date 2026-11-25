@@ -2,7 +2,10 @@
 
 **Status in Odudu:** poll mode only. A confidential client that holds the
 `urn:openid:params:grant-type:ciba` grant (a public client is refused with
-`unauthorized_client`, at both endpoints and when it is registered) asks `POST /tenants/:tenant/protocol/openid-connect/bc-authorize`
+`unauthorized_client`, at both endpoints and when it is registered; so is a client
+registered over the wire, anonymously or from a metadata document, at both
+endpoints, and anonymous Dynamic Client Registration refuses the grant with
+`invalid_client_metadata`) asks `POST /tenants/:tenant/protocol/openid-connect/bc-authorize`
 for an approval by a named person, receives an `auth_req_id`, and polls the token
 endpoint with it. The person decides on a channel the client has no part in: the
 approval is an `agent_approvals` row (ADR 0059) and only `decideApproval`

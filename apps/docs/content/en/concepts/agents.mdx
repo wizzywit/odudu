@@ -47,7 +47,7 @@ Writes are counted three times, and a call must clear all three or none. The per
 
 ## Asking before acting
 
-Some actions should wait for a person's yes. An agent can ask for one through CIBA, the OpenID backchannel flow, in poll mode: the client names the person, receives an `auth_req_id` and polls the token endpoint. The person is mailed a link to an approval page that shows the client, what it asks for and the expiry. Only the signed-in person's own form can approve; no credential the client holds can. A request for a person who does not exist is answered exactly like one for a person who does.
+Some actions should wait for a person's yes. An agent can ask for one through CIBA, the OpenID backchannel flow, in poll mode: the client names the person, receives an `auth_req_id` and polls the token endpoint. Only a client an administrator created, or registered with an initial access token, can hold the grant: a client that registered itself is refused it, so a stranger cannot ask people to approve in a name of their choosing. The person is mailed a link to an approval page that shows the client, what it asks for and the expiry. Only the signed-in person's own form can approve; no credential the client holds can. A request for a person who does not exist is answered exactly like one for a person who does.
 
 ## Ending it
 

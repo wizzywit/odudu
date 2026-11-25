@@ -31,6 +31,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Security
 
+- A client that registered itself cannot hold the CIBA grant. Dynamic Client Registration without an initial access token refuses it (`invalid_client_metadata`, naming the grant), and `bc-authorize` and the token endpoint answer `unauthorized_client` to a client registered anonymously or from a metadata document, even if it somehow holds the grant. Clients an administrator created are unchanged.
 - A `may_act` restriction on an access token now holds when the refresh token of its grant is the subject of an exchange: the claim is kept on the grant, where before a refresh token carried none. Nothing minted the claim before this release, so no earlier token is affected.
 - No credential a client holds can approve a CIBA request. Only the signed-in person the request names can decide it, from the approval page, with a form token tied to their session and to that one approval; anything else, including another person's approval, one that does not exist and one already answered, gets the same `404` page.
 - `bc-authorize` answers a hint that names nobody exactly as it answers one that names a person, in its status, its members and the later poll, and runs the same database statements, so it cannot be used to find out who has an account.

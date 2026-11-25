@@ -22,6 +22,7 @@ import {
   type TokenRefusalAudit,
 } from '#/service/errors';
 import { CIBA_GRANT, hashAuthReqId } from '#/service/ciba';
+import { needsApproval } from '#/service/consent';
 import { idTokenScopeOf, mappedClaims } from '#/service/issued-claims';
 import { resolveScope } from '#/service/scope';
 import { withRegisteredClaimsWinning } from '#/service/token-claims';
@@ -139,7 +140,9 @@ export async function issueCibaTokens(
   minting: CibaMinting,
 ): Promise<CibaTokenResponse> {
   // A client with no secret proves nothing about who is polling.
-  if (client.type !== 'confidential') throw unauthorizedClient();
+  if (client.type !== 'confidential' || needsApproval(client.registrationOrigin)) {
+    throw unauthorizedClient();
+  }
   const recorded = request.recorded ?? null;
   if (recorded === null) throw invalidGrant();
   const { row, poll } = recorded;

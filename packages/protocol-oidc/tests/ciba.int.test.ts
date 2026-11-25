@@ -991,6 +991,20 @@ describe('the requests that need care', () => {
     expect(polled.json()).toMatchObject({ error: 'unauthorized_client' });
   });
 
+  it('[ODUDU-CIBA-CONF-10] refuses a client registered over the wire even when its row holds the grant', async () => {
+    const res = await authorize(world, world.wire, { scope: 'openid', login_hint: 'alice' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'unauthorized_client' });
+    const ack = await request(world);
+    const polled = await poll(world, world.wire, ack.auth_req_id);
+    expect(polled.json()).toMatchObject({ error: 'unauthorized_client' });
+  });
+
+  it('[ODUDU-CIBA-CONF-11] still serves a client an administrator created', async () => {
+    const ack = await request(world, { login_hint: 'alice' }, world.agent);
+    expect(ack.auth_req_id).toBeTruthy();
+  });
+
   it('[ODUDU-CIBA-CONF-02] refuses a public client even when it holds an id issued to a confidential one', async () => {
     const ack = await request(world);
     const polled = await http.inject({
