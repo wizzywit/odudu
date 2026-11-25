@@ -138,7 +138,6 @@ and `package.json` to run elsewhere.
 
 No provider failed, so goal 2 of the spec is unchanged.
 
-<<<<<<< HEAD
 ## Gateway streaming (console gateway)
 
 Read first: `packages/console-gateway/src/usecase/forward.ts` (resolve the
@@ -192,7 +191,7 @@ upstream stopped writing at chunk 1
 | browser_abort_reaches_upstream   | pass                                                                     |
 | session_csrf_tenant_checks_apply | pass (hook runs before the pipe; session and tenant by `resolveSession`) |
 | inject_supports_streaming        | pass (`payloadAsStream`, `signal`)                                       |
-=======
+
 # P5c engine spikes: approvals, telemetry, input estimates
 
 Run 2026-11-25, `ai@7.0.181`, Node 24.15.0, scripts in a scratch package
@@ -298,4 +297,3 @@ token per byte is unsafe there; Ollama llama3.2 peaked at 0.713. A fixed
 `ceil(bytes)` ceiling holds on both; any tighter ratio must be per provider and
 per model, and the Bedrock single-byte case rules out one under 1.0 for it.
 `vllm`: `not_run`. `bedrock_count_tokens`: unavailable with this key (IAM).
->>>>>>> p5c-i0b
