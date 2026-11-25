@@ -1,7 +1,7 @@
 # P5c — The console assistant: design
 
 **Status:** Draft for approval · 2026-11-24
-**Depends on:** [P5](2026-11-24-p5-agent-identity-design.md) (instances, budgets, approvals). **Followed by:** P5b.
+**Depends on:** [P5](../../archive/specs/2026-11-24-p5-agent-identity-design.md) (instances, budgets, approvals). **Followed by:** P5b.
 **ADRs:** 0055 (the open product ships it), 0056 (the SDK runs the loop, we own the hooks), 0057 (one agent, modes, slots, sub-agents by profile), 0058 (two records: audit and trace), 0059 (an approval is one object with two channels).
 
 ## 1. Intent

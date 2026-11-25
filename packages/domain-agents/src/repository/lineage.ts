@@ -1,4 +1,4 @@
-import type { TenantScopedDatabase } from '@odudu/db';
+import { RetryableTransactionError, type TenantScopedDatabase } from '@odudu/db';
 import { sql, type SQL } from 'drizzle-orm';
 
 // The most lineage roots one locking statement takes.
@@ -64,5 +64,7 @@ export async function lockLineageRoots(
       for (const row of rows) held.add(row.id);
     }
   }
-  throw new Error('the lineage roots kept changing while they were being locked');
+  throw new RetryableTransactionError(
+    'the lineage roots kept changing while they were being locked',
+  );
 }

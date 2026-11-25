@@ -682,10 +682,9 @@ describe('[ODUDU-TOKEN-EXCHANGE-ACTOR-01] the actor token is checked too', () =>
   });
 });
 
-// Nothing mints `may_act` yet (docs/NEXT.md's own entry on this), so this
-// re-signs a real, grant-backed access token with the claim added — the
-// only way to exercise `mayActPermits`'s wiring end to end before P5 gives
-// it a mint path of its own.
+// This re-signs a real, grant-backed access token with the claim added, so
+// the exchange's `mayActPermits` wiring is exercised with a claim whose
+// content the test chooses; the mint path has its own tests.
 async function withMayAct(accessToken: string, sub: string): Promise<string> {
   const claims = decode(accessToken);
   const key = await withTenant(app.db, TENANT_ID, (tx) => signingKeyRepository(tx).active());

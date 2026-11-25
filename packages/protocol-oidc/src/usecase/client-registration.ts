@@ -15,6 +15,7 @@ import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/
 import { dynamicClientRepository } from '#/repository/dynamic-clients';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { extractBearerToken } from '#/service/bearer-token';
+import { CIBA_GRANT } from '#/service/ciba';
 import { parseClientMetadata, type ClientMetadata } from '#/service/client-metadata';
 import {
   audiencesUnderPolicy,
@@ -127,6 +128,17 @@ async function performRegistration(
   grant: McpPolicyGrant | null,
   scope: string | undefined,
 ): Promise<ClientRegistrationOutcome> {
+  // The grant lets a client ask a person to approve signing in as them. A
+  // client nobody vouched for may not hold it; an initial access token is
+  // an administrator's word.
+  if (origin === 'anonymous' && metadata.grantTypes.includes(CIBA_GRANT)) {
+    return {
+      kind: 'invalid_metadata',
+      error: 'invalid_client_metadata',
+      description: `${CIBA_GRANT} is not accepted at anonymous registration: an administrator grants it`,
+    };
+  }
+
   // Checked against every algorithm a non-retired key produces, not only
   // the active one: a key staged as `rotating` (the admin API's `POST
   // /keys`, packages/protocol-admin/src/usecase/keys.ts) must let a client

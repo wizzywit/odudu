@@ -1,5 +1,6 @@
 import { createTranslators, type Messages, type Translators } from '@odudu/i18n';
 import { escapeHtml } from '#/view/document';
+import { APPROVAL_MESSAGES } from '#/service/approval-messages';
 import { ar } from '#/view/messages.ar';
 
 // Every sentence a page of this package shows, keyed by what it is for. `en`
@@ -105,6 +106,7 @@ export const en = {
 
   'approval.title': 'Approve or deny a request',
   'approval.heading': '{agent} is asking for your approval',
+  'approval.asks': APPROVAL_MESSAGES['approval.asks'],
   'approval.bindingMessage': 'It says: {message}',
   'approval.expires': 'Decide before {when} UTC. After that the request is no longer valid.',
   'approval.warning':

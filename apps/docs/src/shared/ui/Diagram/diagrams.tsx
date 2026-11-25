@@ -609,6 +609,44 @@ function backendForFrontend(): Drawing {
   };
 }
 
+function agents(): Drawing {
+  const lines = (x: number, y: number, rows: string[]): ReactElement[] =>
+    rows.map((row, index) => (
+      <DiagramText key={row} x={x} y={y + index * 18} ink="muted">
+        {row}
+      </DiagramText>
+    ));
+  return {
+    height: 372,
+    draw: (head) => (
+      <>
+        <DiagramBox x={14} y={10} w={312} h={62} />
+        <DiagramText x={MID} y={34} bold size={15}>
+          The person's sign-in
+        </DiagramText>
+        <DiagramText x={MID} y={56} ink="muted">
+          sub is the person, with a write allowance
+        </DiagramText>
+        <DiagramArrow head={head} d={vertical(MID, 76, 114)} />
+        <DiagramBox x={14} y={118} w={312} h={78} tone="accent" />
+        <DiagramText x={MID} y={142} bold size={15}>
+          Agent run
+        </DiagramText>
+        {lines(MID, 164, ['act.sub is the run', 'narrower scope, shorter life'])}
+        <DiagramArrow head={head} d={vertical(MID, 200, 238)} />
+        <DiagramBox x={14} y={242} w={312} h={78} tone="accent" />
+        <DiagramText x={MID} y={266} bold size={15}>
+          Child run
+        </DiagramText>
+        {lines(MID, 288, ['act nests the parent', 'a share of what is left'])}
+        <DiagramText x={MID} y={348} ink="muted">
+          ending the sign-in ends every run below it
+        </DiagramText>
+      </>
+    ),
+  };
+}
+
 export const DRAWINGS = {
   tenants: tenants(),
   clients: clients(),
@@ -621,6 +659,7 @@ export const DRAWINGS = {
   'branding-publishing': brandingPublishing(),
   'branding-parts': brandingParts(),
   'backend-for-frontend': backendForFrontend(),
+  agents: agents(),
 } satisfies Record<string, Drawing>;
 
 export type DiagramName = keyof typeof DRAWINGS;

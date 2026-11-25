@@ -95,14 +95,6 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ['P4h', 'Lists sort by', '`intl.collator`', 'machine-readable `code`'],
   ['P4h', "A client's base name", 'carry a language of their own'],
   ['P4h', 'It also sends the failure screen', "failure screen's error id sent to the server"],
-  ['P5', 'Budgets across a delegation, attenuation and approval', 'ciba approvals'],
-  ['P5', 'Delegation depth becomes a setting', '`max_delegation_depth`'],
-  [
-    'P5',
-    'A restriction on a grant holds',
-    'persisted on the grant',
-    'revoking every grant exchanged from it',
-  ],
   [
     'P5c',
     'An assistant in the admin console',
@@ -229,6 +221,31 @@ const SHIPPED_CLAIMS: readonly (readonly [
   shipped: string,
   ...criterion: string[],
 ])[] = [
+  ['P5', '`act.sub` is the run', 'the instance is `act.sub` and `sub` stays the owner'],
+  [
+    'P5',
+    "`may_act` is written into a person's access token",
+    '`may_act` minted and persisted on the grant',
+  ],
+  [
+    'P5',
+    'ending a grant ends every grant exchanged from it and every run rooted there',
+    'revoking a grant revoking every grant exchanged from it',
+  ],
+  ['P5', 'agent_max_delegation_depth', '`agent_max_delegation_depth`'],
+  [
+    'P5',
+    'so calls made together cannot overspend',
+    'budgets atomic under concurrent callers at every level',
+  ],
+  ['P5', 'ciba in poll mode', 'ciba approvals (poll mode only) end to end'],
+  ['P5', 'no credential a client holds can approve', 'no client credential can approve'],
+  [
+    'P5',
+    'a person lets an agent client act for them through the "me" api',
+    'a person\'s own delegations through the "me" api',
+  ],
+  ['P5', '**agents** area', 'an agents area in the console'],
   ['P5a', '64 tools that read what the admin api reads', 'exposing the admin api as tools'],
   [
     'P5a',
@@ -450,6 +467,22 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       'The admin API accepts a scope name with a space',
       ['P5b'],
       'one validation pattern on the scope contract, owed to whichever phase next changes it, no product behaviour',
+    ],
+    [
+      '`may_act` is minted as one object',
+      ['P14'],
+      'a claim-shape note for the agent library, no product behaviour',
+    ],
+    ['Revoking a delegation does not end runs', ['P5c'], 'a standing decision that places no work'],
+    [
+      '`bc-authorize`: exotic unicode casing',
+      ['P13'],
+      'a hardening note on one endpoint, owed with the work that next touches it, no product behaviour',
+    ],
+    [
+      "The injection probe's snapshot",
+      ['P5b'],
+      "a test-harness note for the injection suite's new scenarios, no product behaviour",
     ],
     [
       'The cleanup P4k left in branding and clients',

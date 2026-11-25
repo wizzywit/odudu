@@ -990,12 +990,14 @@ describe('the CIBA grant at dynamic registration', () => {
     expect(res.json()).toMatchObject({ error: 'invalid_client_metadata' });
   });
 
-  it('[ODUDU-CIBA-CONF-09] is accepted for a client that authenticates', async () => {
+  it('[ODUDU-CIBA-CONF-09] is refused for an anonymous registration, naming the grant', async () => {
     const res = await http.inject({
       method: 'POST',
       url: URL_FOR(await openTenant()),
       payload: { ...MINIMAL, grant_types: [GRANT] },
     });
-    expect(res.statusCode).toBe(201);
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_client_metadata' });
+    expect(res.json<{ error_description: string }>().error_description).toContain(GRANT);
   });
 });

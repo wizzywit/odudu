@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Fastify, Drizzle and hand-written SQL migrations, PostgreSQL with Testcontainers, Vitest, fast-check 4.11.0 (MIT) for property tests, Stryker, React console.
 
-**Spec:** [P5 spec](../specs/2026-11-24-p5-agent-identity-design.md) at `docs/superpowers/specs/2026-11-24-p5-agent-identity-design.md`; ADRs 0003, 0050, 0059. Read the spec first: it carries the reasoning; this plan carries the decisions an implementer cannot make alone.
+**Spec:** [P5 spec](../specs/2026-11-24-p5-agent-identity-design.md) at `docs/archive/specs/2026-11-24-p5-agent-identity-design.md`; ADRs 0003, 0050, 0059. Read the spec first: it carries the reasoning; this plan carries the decisions an implementer cannot make alone.
 
 ## Global Constraints
 

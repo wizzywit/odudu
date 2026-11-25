@@ -1,0 +1,58 @@
+---
+title: Agents
+description: How an AI agent acts for a person in Odudu, what it may spend, how a person lets it act and how everything it started ends together.
+sidebar_position: 10
+---
+
+import { Diagram } from '@site/src/shared/ui/Diagram';
+
+# Agents
+
+A person asks an assistant to tidy a tenant's roles. The assistant starts a helper to read the groups, and the helper starts another to draft the changes. Three programs now act in one person's name. Odudu has to answer who each of them is, what each may do, how much each may spend and how the person stops them all.
+
+<Diagram
+  name="agents"
+  title="A person, the agent runs acting for them and what limits each"
+  desc="A person's sign-in is the root. The agent client exchanges it for a run, which can start child runs. Each run is narrower than the one above it and carries its own share of a write budget. Ending the sign-in, or the root run, ends every run beneath it."
+/>
+
+_In words: A person's sign-in is the root. The agent client exchanges it for a run, which can start child runs. Each run is narrower than the one above it and carries its own share of a write budget. Ending the sign-in, or the root run, ends every run beneath it._
+
+## The person stays the subject
+
+A token an agent holds still says `sub`: the person. The agent is named in `act`, a claim that records who is acting. `act.sub` is the run's own id, and a run started by another run nests the claim, so the chain reads from the newest run to the oldest. A person who reads an audit row sees the person and the run together.
+
+## A client becomes an agent
+
+A client is an agent type when its `agent_type` setting is on. It is off for every client, and a client that is not an agent type exchanges tokens exactly as it did before. When an agent type exchanges a person's token for its own, Odudu starts a run: a record with an owner, a parent, a depth, a scope and an expiry. A run has no password, no session and no tokens of its own. It exists as `act.sub`, as the holder of a share of the budget and as a place in a tree.
+
+## Who may act
+
+Two things say which clients may act for a person, and when both speak the narrower one wins. The client the person signed in with lists `delegated_actors`, the clients allowed to act for its people. The person can add their own delegations through `POST /tenants/{tenant}/me/delegations`, each naming an agent client, a scope ceiling and a lifetime of up to 90 days. Odudu writes the answer into the person's access token as `may_act`, and it also keeps it on the grant, so a refresh token cannot be used to step around a limit the access token carried. When neither source speaks, nothing changes from before delegations existed.
+
+## What a run may hold
+
+A run can only be narrower than what it came from:
+
+- Its scope is a subset of its parent's.
+- It ends no later than its parent, and never after the person's session.
+- Its depth is one more than its parent's, up to `agent_max_delegation_depth`, which is 3 unless the tenant changes it.
+- A parent may start at most `agent_max_children` children, and a tenant may hold at most `agent_max_live_instances` live runs.
+
+A run started by an exchange lasts at most 15 minutes, and never longer than the token it was exchanged from. A run that keeps making calls through the MCP endpoint lasts until 30 minutes after its last call. Both are tenant settings, and the end of the person's session ends either.
+
+## What a run may spend
+
+Writes are counted three times, and a call must clear all three or none. The person's sign-in has an allowance, 20 changes and 10 creations by default. Each run has a share carved from what its parent had left, never more. A person and agent client also share a daily window of 1,000 writes. The three counts are taken in one step, so calls made at the same instant cannot overspend.
+
+## Asking before acting
+
+Some actions should wait for a person's yes. An agent can ask for one through CIBA, the OpenID backchannel flow, in poll mode: the client names the person, receives an `auth_req_id` and polls the token endpoint. Only a client an administrator created, or registered with an initial access token, can hold the grant: a client that registered itself is refused it, so a stranger cannot ask people to approve in a name of their choosing. The person is mailed a link to an approval page that shows the client, what it asks for and the expiry. Only the signed-in person's own form can approve; no credential the client holds can. A request for a person who does not exist is answered exactly like one for a person who does.
+
+## Ending it
+
+Revoking a grant revokes everything exchanged from it and every run rooted there, in one transaction, however deep. Signing out, ending a session, withdrawing a consent or replaying a refresh token all do this. An administrator can end one run and what it started from the **Agents** area of the console. Withdrawing a delegation does not end a run already started: it runs until it expires.
+
+## Where to go next
+
+[Delegate to an agent](../guides/agent-delegation.md) does all of this with real requests. The [tokens](./tokens.mdx) page explains the `act` claim's neighbours, and [Agents in the console](../admin-console/agents.mdx) shows the operator's view.

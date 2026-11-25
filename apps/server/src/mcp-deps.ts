@@ -1,4 +1,10 @@
-import { type DatabaseHandle, type RequestContext, withTenant } from '@odudu/db';
+import {
+  type DatabaseHandle,
+  type RequestContext,
+  withTenant,
+  withTenantRetrying,
+} from '@odudu/db';
+import { agentInstanceRepository } from '@odudu/domain-agents';
 import { effectiveRoles } from '@odudu/domain-authz';
 import {
   ADMIN_API_AUDIENCE,
@@ -77,7 +83,7 @@ export function mcpDepsFor(parts: McpDepsParts): McpDeps {
       }
       // A refusal is returned out of the transaction so it commits: a run
       // whose owner ended has its instance revoked in that same transaction.
-      const outcome = await withTenant(parts.database.db, tenant.id, async (tx) => {
+      const outcome = await withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
         try {
           return await mintAgentToken(
             tx,
@@ -150,11 +156,21 @@ export function grantWriteBudget(
   // daily window that was charged even when midnight UTC has passed since.
   const spentAt: Record<'mutating' | 'create', Date[]> = { mutating: [], create: [] };
   // The owner and the agent client the daily window is kept for are the grant's.
+  // A token whose grant acts as an agent instance, the head of its `act` chain,
+  // spends that instance's share too; any other actor is an ordinary caller.
   const keysOf = async (tx: Parameters<Parameters<typeof withTenant>[2]>[0]) => {
     const grant = await tokenGrantRepository(tx).byId(token.grantId);
     if (grant === null)
       throw new ToolProblem('mcp:access_ended', 'The sign-in has ended', 401, ENDED);
-    return { ownerSubjectId: grant.subjectId, agentClientId: grant.clientId };
+    const instance =
+      grant.actorSubjectId === null
+        ? null
+        : await agentInstanceRepository(tx).byId(grant.actorSubjectId);
+    return {
+      ownerSubjectId: grant.subjectId,
+      agentClientId: grant.clientId,
+      instanceId: instance?.id ?? null,
+    };
   };
   return {
     reserve: (kind) =>
@@ -169,7 +185,6 @@ export function grantWriteBudget(
           const outcome = await agentBudgetRepository(tx).spend({
             ...keys,
             grantId: token.grantId,
-            instanceId: null,
             kind,
             now,
             limits: {
@@ -204,7 +219,6 @@ export function grantWriteBudget(
           agentBudgetRepository(tx).release({
             ...(await keysOf(tx)),
             grantId: token.grantId,
-            instanceId: null,
             kind,
             now: spentAt[kind].pop() ?? clock(),
           }),

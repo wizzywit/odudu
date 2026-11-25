@@ -2,7 +2,7 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d, P4e, P4f, P4i, P4j, P4k and P5a are complete, and the
+**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d, P4e, P4f, P4i, P4j, P4k, P5 and P5a are complete, and the
 tenant rename is done. P4g has closed, and `0.1.0` is released.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
 "P4 became four phases, then five" subsection has the reasoning.
@@ -23,6 +23,14 @@ is in [`docs/phases/p5a.md`](phases/p5a.md). The owner ran Claude Code 2.1.319 a
 increments: the 42 reads of that release and its two writes (`update_client_metadata`, `update_scope_metadata`) worked. Still to run, and no CI job can:
 the other reads, the ten later write tools and the write budget (so far only integration tests and replays), the claude.ai connectors, Cursor, and
 `odudu mcp` on Windows and with the Linux Secret Service (the note's "Hand run (owner)").
+
+**P5, agent identity, is built.** A client marked as an agent starts runs of its own through the
+token exchange (`sub` is the person, `act.sub` the run), `may_act` is minted and kept on the grant,
+revoking a grant ends everything exchanged from it and every run rooted there, an agent's writes are
+bounded at three levels, and CIBA in poll mode lets an agent ask a named person to approve. A person
+delegates through the "me" API, and an administrator reads and ends runs in the console. What it found
+and what it left is in [`docs/phases/p5.md`](phases/p5.md); the model is in
+[ADR 0059](adr/0059-an-approval-is-one-object-with-two-channels.md) and the amendments to ADR 0003 and 0050.
 
 **P4f, self-service, is built:** a "me" API, application-initiated actions, several sign-in
 flows, per-tenant authenticator rules and sessions shown by device. What it found and left is
@@ -51,7 +59,7 @@ API's OpenAPI document and nine examples, none published yet (the owner's
 checklist is in `RELEASING.md`). What it found and placed is in
 [`docs/phases/p4i.md`](phases/p4i.md); the licence rule is ADR 0053.
 
-**What is next, in this order: P4h, P5, P5c, P5b**, then the
+**What is next, in this order: P4h, P5c, P5b**, then the
 phases the roadmap page lists as "Later", P6 to P14. The letters do not read
 in execution order. P4h is
 console localization ([ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md)).
@@ -82,6 +90,7 @@ The running records, split out of this file on 2026-09-17: P2b reached
 
 - [P4i — the SDKs](phases/p4i.md)
 - [P4f — self-service: the "me" API and application-initiated actions](phases/p4f.md)
+- [P5 — agent identity](phases/p5.md)
 - [P5a — the MCP server, first release](phases/p5a.md)
 - [P4j — a custom domain for each tenant](phases/p4j.md)
 - [P4k — the frontend architecture](phases/p4k.md)
@@ -148,63 +157,20 @@ Multi-replica deployment is blocked on migration locking and on the
 in-process bounds (throttles, the client-secret limiter, the registration and
 reset limiters), all **P11**, which also owes the Helm chart or manifests.
 
-## What P5 inherits
-
-**A grant, not an agent, is what P4a's exchange mints.** `token_grants` grew
-`actorSubjectId` and `exchangedFromGrantId` (migration
-`0059_token_exchange.sql`) so a delegated or impersonated grant records who
-it came from, but nothing reads either column to decide anything yet — the
-agent identity layer's own instance, budget and `max_depth` (now `agent_max_delegation_depth`; design spec
-§9) are still to build. Three things specifically wait on it:
-
-- **`may_act` minting.** `mayActPermits`
-  (`packages/protocol-oidc/src/service/token-exchange.ts`) enforces the
-  claim already, permitting an exchange whenever it is absent "since
-  nothing mints it yet" — its own comment. A subject pre-authorising a
-  specific actor needs something to write the claim onto a token in the
-  first place, which is P5's, alongside the instance that would be doing
-  the pre-authorising.
-- **`may_act` is unreachable when the subject is a refresh token.**
-  `resolveExchangeToken`'s refresh-token branch
-  (`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) sets
-  `mayAct: undefined` unconditionally: no grant column persists `may_act`,
-  and a refresh token carries no JWT claims of its own to read one from.
-  Not exploitable today, since nothing mints the claim yet, but once P5
-  does, a holder of a grant's refresh token escapes a restriction placed on
-  its access token by presenting the refresh token instead — and a
-  delegated client normally holds both. The minting phase must persist
-  `may_act` on the grant row (alongside `actChain`/`expCeiling`) or accept
-  this gap knowingly.
-- **The delegation cascade `exchangedFromGrantId` enables but does not
-  perform.** Revoking a grant today revokes that grant alone;
-  `exchangedFromGrantId` records the lineage a cascade would walk, but
-  `tokenGrantRepository.revoke` walks nothing. Whether revoking a subject's
-  original grant should transitively revoke every grant exchanged from it
-  is exactly "revoking any link transitively revokes everything below it"
-  (design spec §9), stated as an agent-layer invariant rather than
-  something this phase's plain delegation already gives it.
-- **A hardcoded chain depth.** `MAX_DELEGATION_DEPTH = 8`
-  (`packages/protocol-oidc/src/service/token-exchange.ts`) is a cap, not a
-  tenant setting, by its own comment — the configurable form belongs with
-  the agent layer's own `max_depth`, which also owns the chain's other
-  bounds (scope and TTL narrowing, budget).
-
-**What P5a built that P5 reuses, and what it leaves.** An agent is a token with an
-`act` claim or an MCP scope, and `mintAgentToken` (`@odudu/protocol-oidc`) is the one
-place an agent's admin token is made, its life the lesser of the presented token's and
-five minutes; build on it rather than beside it. The admin API's door audits every agent
-call it did not see the MCP endpoint sign (`agent.tool_call`, 503 if the row cannot be
-written), the exchange refuses a public client and a foreign actor token unless a
-per-client setting allows it, and a token holding an MCP scope keeps one through an
-exchange or a refresh. P5a built one budget, 20 changing calls and 10 creates for each MCP
-sign-in, counted on `token_grants` by the endpoint alone (`budget_grant_id` names the root
-an exchanged grant spends); P5 reuses it. Still absent, and P5's: a budget across a delegation
-(depth, narrowing, what an agent may spend over several sign-ins), `may_act` minting and
-approval, which the write tools' ten-minute token and per-sign-in consent only stand in for.
-
 ## What P5c inherits
 
-P5c, **a console assistant**, is [specified](superpowers/specs/2026-11-24-p5c-console-assistant-design.md), decided in ADRs 0055 to 0059, and writes through P5's approvals.
+P5c, **a console assistant**, is [specified](superpowers/specs/2026-11-24-p5c-console-assistant-design.md), decided in ADRs 0055 to 0059, and writes through P5's approvals. What P5 built that it uses:
+
+- **One approval object, two channels** ([ADR 0059](adr/0059-an-approval-is-one-object-with-two-channels.md)). `requestApproval`
+  and `decideApproval` (`@odudu/protocol-oidc`) are the only writers of an approval's state; a console card calls
+  `decideApproval` with `decided_via` `console`, and a client can never move one out of `pending`. An approval covers one action by its
+  digest (`approvalDigest`, `@odudu/domain-agents`): name, validated input, tenant, owner and instance.
+- **A run for the assistant's conversation.** `mintAgentToken` finds or mints the instance for a run and puts its id in `act.sub`; an
+  agent client needs `agent_type`, and only client-level actors (`delegated_actors`) are needed, not a person's delegation.
+- **Budgets.** The sign-in, the instance and the daily window are one atomic spend.
+- **Operator view.** The console's Agents area and the admin routes already list and end the assistant's runs, whatever starts them.
+
+The assistant's own token budgets, provider layer and screens are its spec's; nothing here places them.
 
 ## What P5b inherits
 
@@ -235,6 +201,7 @@ sign-in, counted on `token_grants`) is not to be shared with calls a person has 
 | The injection suite drives a scripted agent, not a model, so what a model does with a hostile description is not measured; each new class needs a scenario beside the ones for reads and for content writes                                                                             | [p5a.md](phases/p5a.md), "The injection suite"                                         | **P5b**, when tools that cannot be undone arrive                                                                                        |
 | The admin API accepts a scope name with a space, a quote or a backslash for a person, which no client can ask for (`scope` is space-separated); `create_scope` refuses such a name and the admin API does not                                                                           | [p5a.md](phases/p5a.md), "Structure: roles, groups and scopes"                         | **P5b**, or the next phase that touches the scope contract: the owner decides, and it is one pattern on `createScopeRequestSchema.name` |
 | The tools refuse text and names the admin API accepts from a person (control and zero-width characters in wording and theme text), so a field has one rule for an agent and another for a person                                                                                        | [p5a.md](phases/p5a.md), "What P5b inherits"                                           | **P5b**, or the next phase that touches those contracts: the owner decides                                                              |
+| The injection probe's snapshot ignores `agent_budget_windows`, which every write call spends                                                                                                                                                                                            | [p5.md](phases/p5.md), "Left"                                                          | **P5b**, with the injection suite's new scenarios                                                                                       |
 
 ## Decisions still open
 
@@ -276,7 +243,9 @@ that should hold it, which is usually false.
 | The edge reads the tenant's address once per request on a non-base host and on a path address, and the admin API one tenant-scoped read per request for a tenant other than `system`, with no host-to-tenant cache; a cache has to state its bound and be invalidated on a switch, and would blur "refused at its expiry"                                                                                                                                                                                                                                                                                                         | [ADR 0049](adr/0049-a-tenant-has-one-canonical-address.md), "Consequences"                                        | **P11**, when a measurement of the p99 asks for it                                                             |
 | The MCP endpoint's request limits, the `mcp` registration budget, the metadata fetch limiter and the keyed-request gate are per process, and a request with a garbage token costs a key read before it is refused                                                                                                                                                                                                                                                                                                                                                                                                                 | [p5a.md](phases/p5a.md), "The MCP endpoint", "Not done, and where it goes"                                        | **P11**, with the other in-process bounds                                                                      |
 | The backend-for-frontend package ships only an in-memory session store, so several instances of an app need a `SessionStore` of their own, with `lock` to keep a refresh from spending a refresh token twice                                                                                                                                                                                                                                                                                                                                                                                                                      | [ADR 0054](adr/0054-the-bff-keeps-tokens-and-the-browser-keeps-an-id.md), "Consequences"                          | **P14**, when an adopter runs the package on more than one instance and asks for a shared store                |
-| The agents transcript page shows no output, and the OpenAPI transcript's size and path count were recomputed, not captured; neither has been run on a live stack                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | [the P5 plan](superpowers/plans/2026-11-24-p5-agent-identity.md), "Task 16"                                       | The P5 closing pass, once an agent client seed exists                                                          |
+| `may_act` is minted as one object for one actor and as an array for several; RFC 8693 §4.4 shows only the single object                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | [rfc8693.md](protocols/rfc8693.md), "Stage 4 and the agent layer"                                                 | **P14**, with the agent library for delegation                                                                 |
+| Revoking a delegation does not end runs already started: they end at their expiry or by an administrator's revoke (decided, and said on the concept page and the me API)                                                                                                                                                                                                                                                                                                                                                                                                                                                          | [p5.md](phases/p5.md), "Left"                                                                                     | **P5c**, only if the owner reopens it                                                                          |
+| `bc-authorize`: exotic Unicode casing could split an alias across the per-hint counters, live requests count in any state until they lapse, and a refused request under pool starvation is untested                                                                                                                                                                                                                                                                                                                                                                                                                               | [p5.md](phases/p5.md), "Left"                                                                                     | **P13**, when signed authentication requests touch the endpoint                                                |
 
 ### Argued here, because there is nowhere else
 

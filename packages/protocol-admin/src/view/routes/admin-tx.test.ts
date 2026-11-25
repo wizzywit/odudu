@@ -1,9 +1,9 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type TenantScopedDatabase } from '@odudu/db';
+import { type Database, type TenantScopedDatabase } from '@odudu/db';
 import { type FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { afterCommit, withRequestTransaction } from '#/view/routes/admin-tx';
+import { adminTx, afterCommit, withRequestTransaction } from '#/view/routes/admin-tx';
 
 const VIEW_DIR = join(import.meta.dirname, '..');
 
@@ -80,5 +80,42 @@ describe('afterCommit', () => {
     expect(ran).toBe(0);
     for (const effect of after) effect();
     expect(ran).toBe(1);
+  });
+});
+
+describe('adminTx', () => {
+  const request = { id: 'req-1', ip: '203.0.113.7' } as unknown as FastifyRequest;
+  const TENANT = '0192a0a0-0000-7000-8000-000000000001';
+
+  function deadlocking(failures: number) {
+    const state = { runs: 0 };
+    const db = {
+      transaction: (fn: (tx: unknown) => Promise<unknown>) => {
+        state.runs += 1;
+        if (state.runs <= failures) {
+          return Promise.reject(
+            Object.assign(new Error('failed query'), {
+              cause: Object.assign(new Error('deadlock detected'), { code: '40P01' }),
+            }),
+          );
+        }
+        return fn({ execute: () => Promise.resolve([]) });
+      },
+    } as unknown as Database;
+    return { db, state };
+  }
+
+  it('runs a write that lost a deadlock again, and answers the second attempt', async () => {
+    const { db, state } = deadlocking(1);
+    expect(await adminTx(db, request, TENANT, () => Promise.resolve('revoked'))).toBe('revoked');
+    expect(state.runs).toBe(2);
+  });
+
+  it('answers the error once three attempts have lost', async () => {
+    const { db, state } = deadlocking(3);
+    await expect(adminTx(db, request, TENANT, () => Promise.resolve(1))).rejects.toMatchObject({
+      cause: { code: '40P01' },
+    });
+    expect(state.runs).toBe(3);
   });
 });

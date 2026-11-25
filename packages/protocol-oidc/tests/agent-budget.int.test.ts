@@ -267,6 +267,23 @@ describe('a refusal at one level', () => {
     expect(await counters(w, instance)).toMatchObject({ instanceWrites: 0, window: 0 });
   });
 
+  it('at an instance that has lapsed or gone idle spends nothing at any level', async () => {
+    const w = await world();
+    const lapsed = await instanceOf(w);
+    const idle = await instanceOf(w);
+    await stack.owner.db.execute(
+      sql`update agent_instances set idle_expires_at = ${NOON.toISOString()}::timestamptz where id = ${idle}`,
+    );
+    const later = new Date(NOON.getTime() + DAY * 31);
+    expect(await spend(w, lapsed, { now: later })).toEqual({ kind: 'refused', level: 'instance' });
+    expect(await spend(w, idle)).toEqual({ kind: 'refused', level: 'instance' });
+    expect(await counters(w, lapsed)).toMatchObject({
+      grantWrites: 0,
+      instanceWrites: 0,
+      window: 0,
+    });
+  });
+
   it('at a missing instance is refused at the instance and spends nothing else', async () => {
     const w = await world();
     expect(await spend(w, newId())).toEqual({ kind: 'refused', level: 'instance' });

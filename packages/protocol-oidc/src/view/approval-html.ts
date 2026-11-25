@@ -13,6 +13,9 @@ export interface ApprovalPageView {
   readonly agent: string;
   // What the request asks for, as it was stored when the request was made.
   readonly summary: string;
+  // The scopes the request asked for, null where it is no longer known; the
+  // page then shows the summary as it was stored.
+  readonly scope: string | null;
   // The text the client sent for the person to read, null where it sent none.
   readonly bindingMessage: string | null;
   readonly expiresAt: Date;
@@ -65,7 +68,9 @@ export function renderApprovalPage(view: ApprovalPageView, locale: PageLocale): 
     tHtml(locale, 'approval.heading', {}, { agent: view.agent }),
     view.tenant,
     [
-      bdi(view.summary),
+      view.scope === null
+        ? bdi(view.summary)
+        : tHtml(locale, 'approval.asks', {}, { agent: view.agent, scope: view.scope }),
       ...(view.bindingMessage === null
         ? []
         : [tHtml(locale, 'approval.bindingMessage', {}, { message: view.bindingMessage })]),

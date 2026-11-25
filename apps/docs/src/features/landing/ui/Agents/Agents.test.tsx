@@ -10,9 +10,9 @@ const PROPS = {
 };
 
 describe('Agents', () => {
-  it('holds only what is planned: two items and nothing that already works', () => {
+  it('holds only what is planned: one item and nothing that already works', () => {
     const $ = markupOf(<Agents {...PROPS} />);
-    expect($('[data-planned]')).toHaveLength(2);
+    expect($('[data-planned]')).toHaveLength(1);
     expect($('[data-shipped]')).toHaveLength(0);
     expect($('a[href$="llms.txt"]')).toHaveLength(0);
     expect($('[data-chip]').filter((_, chip) => $(chip).text() !== 'Planned')).toHaveLength(0);

@@ -5,7 +5,7 @@ const PAGE = 'apps/docs/content/en/roadmap.md';
 const SPEC = 'docs/superpowers/specs/2026-09-10-odudu-design.md';
 const RELEASE = 'P4g';
 // Closed after the release row in the table, which is in execution order.
-const SHIPPED_AFTER_RELEASE = ['P4b', 'P4k', 'P4j', 'P5a', 'P4f', 'P4i'];
+const SHIPPED_AFTER_RELEASE = ['P4b', 'P4k', 'P4j', 'P5a', 'P4f', 'P4i', 'P5'];
 
 // What the roadmap table orders: the release and every phase before it are
 // closed, and the rest are ahead, except those shipped after it.
@@ -128,7 +128,7 @@ describe('the roadmap page', () => {
     ['PKCE is mandatory', 'ADR 0016'],
     ['response_type=code', 'ADR 0016'],
     ['`resource`', 'decision'],
-    ['CIBA', 'P5'],
+    ['CIBA', 'P13'],
     ['device authorization grant', 'P13'],
     ['password credentials grant', 'decision'],
     ['DPoP', 'P13'],

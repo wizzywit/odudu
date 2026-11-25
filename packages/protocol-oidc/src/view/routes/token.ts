@@ -1,6 +1,6 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { OAUTH_ERROR_DESCRIPTIONS } from '#/service/oauth-errors';
-import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { type DatabaseHandle, withTenantRetrying } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
@@ -89,7 +89,7 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
     const context = requestContextFrom(request);
     try {
       const response: TokenResponse = unsettle(
-        await withTenant(
+        await withTenantRetrying(
           deps.database.db,
           tenant.id,
           (tx) =>

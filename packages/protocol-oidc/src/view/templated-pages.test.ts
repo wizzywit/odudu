@@ -154,6 +154,7 @@ const CASES: Case[] = [
           tenant: 'Tenant One',
           agent: 'Agent',
           summary: 'Agent asks to sign in as you',
+          scope: null,
           bindingMessage: 'Pay invoice 42',
           expiresAt: new Date('2026-11-24T09:15:00Z'),
         },

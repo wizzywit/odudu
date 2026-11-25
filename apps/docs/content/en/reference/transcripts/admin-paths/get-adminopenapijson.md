@@ -19,21 +19,17 @@ wc -c < openapi.json | tr -d ' '
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1fc67-f4fc-7e95-800f-dd2db3dde65b
+x-request-id: 01a21310-b14b-7a30-b437-57ba78ba3d94
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
 content-length: 431767
-Date: Sat, 21 Nov 2026 04:40:33 GMT
+Date: Wed, 25 Nov 2026 14:16:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 116
 431767
 ```
-
-The size and the path count in this block, 431,767 bytes and 116, were recomputed from the document the
-server builds after the agent routes were added and `owner_username` joined their items, not fetched from a running stack: the request id and date
-lines are from the earlier capture of this route, and the rest of the page is that capture too.
 
 422 KB and 116 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can load

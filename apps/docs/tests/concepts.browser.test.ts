@@ -18,6 +18,7 @@ const PAGES = [
   'consent-and-audit',
   'branding',
   'backend-for-frontend',
+  'agents',
 ] as const;
 
 interface Drawn {

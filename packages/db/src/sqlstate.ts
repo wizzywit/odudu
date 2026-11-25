@@ -18,6 +18,11 @@ export function isForeignKeyViolation(error: unknown): boolean {
   return hasSqlState(error, '23503');
 }
 
+/** SQLSTATE 40P01: the transaction was chosen to end a deadlock; nothing it wrote remains. */
+export function isDeadlockDetected(error: unknown): boolean {
+  return hasSqlState(error, '40P01');
+}
+
 /** SQLSTATE 55P03: a lock not taken within `lock_timeout`. */
 export function isLockNotAvailable(error: unknown): boolean {
   return hasSqlState(error, '55P03');

@@ -11,7 +11,20 @@ result field; a task that depends on one cites its result here.
   builds (`.github/workflows/verify.yml`, the `conformance` job) and look for
   one named for CIBA poll mode; then run it against a stack with the CIBA
   endpoint enabled, through `.superpowers/sdd/tools/heavy-slot -p e2e --`.
-- **Result:** (to be filled in by the increment that adds the CIBA endpoint)
+- **Result (2026-11-25): no. The suite has no plan for plain OpenID CIBA in poll mode; its only CIBA plan is the FAPI one.**
+  - Commands: the GitLab repository API read at the tag the `conformance` job builds, `release-v5.1.36`
+    (`.../repository/tree?path=src/main/java/net/openid/conformance/fapiciba&ref=release-v5.1.36`, and the same for
+    `.../conformance/ciba`). The `ciba` directory does not exist (404). `fapiciba` holds `FAPICIBAID1TestPlan.java`, a plan
+    published as `fapi-ciba-id1-test-plan`, "FAPI-CIBA-ID1: Authorization server test", and the modules under it
+    (`FAPICIBAID1EnsureBackchannelAuthorizationRequestWithoutRequestFails`, `...EnsureRequestObjectBadAudFails`,
+    `...EnsureMTLSHolderOfKeyRequired`, and others): every module is written against the FAPI profile, which needs a signed
+    authentication request object and mutual TLS or `private_key_jwt` client authentication.
+  - Odudu serves neither a signed authentication request (a `request` parameter is refused, spec section 2) nor the FAPI
+    profile (P13), so the plan could not pass by construction and is not added to the `conformance` job.
+  - The proof of poll mode stays the integration tests, `packages/protocol-oidc/tests/ciba.int.test.ts` and its
+    neighbours, tests tagged with the clauses of `docs/protocols/oidc-ciba.md`, and the transcripts of
+    `ciba-bc-authorize-and-the-token-poll.md` and `the-approval-page.md`, run on a live stack. The spec's exit criterion "green
+    on the OIDF plan for it" is amended to say so (umbrella section 11, row P5).
 
 ## 2. A `subjects` row of type `agent_instance` with no credentials
 

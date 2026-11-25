@@ -11,6 +11,7 @@ import {
   tenants,
   type TenantScopedDatabase,
   withTenant,
+  withTenantRetrying,
 } from '@odudu/db';
 import { agentDelegationRepository, type AgentDelegationRecord } from '@odudu/domain-agents';
 import { auditRepository } from '@odudu/domain-audit';
@@ -297,7 +298,7 @@ export function meWritesFor(
 ): MeWrites {
   return {
     transact: (tenantId, run) =>
-      withTenant(database.db, tenantId, (tx) => run(writeTxFor(tx, tenantId, kek, mail))),
+      withTenantRetrying(database.db, tenantId, (tx) => run(writeTxFor(tx, tenantId, kek, mail))),
   };
 }
 

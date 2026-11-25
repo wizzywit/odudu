@@ -10,6 +10,7 @@ import { requireDescriptions } from './plugins/descriptions';
 import imageStrip from './plugins/image-strip';
 import notFound from './plugins/not-found';
 import robots from './plugins/robots';
+import compactIds from './plugins/compact-ids';
 import stableText from './plugins/stable-text';
 import {
   FOOTER_ROUTES,
@@ -140,6 +141,10 @@ const config: Config = {
         indexDocs: true,
         indexBlog: false,
         indexPages: !image,
+        // A transcript's commands and outputs are most of the index, and the image holds the built
+        // site in memory within a limit; they stay on the page, and the headings and prose around
+        // them and the generated references they illustrate stay searchable.
+        ignoreCssSelectors: image ? ['html[class*="docs-doc-id-reference/transcripts/"] pre'] : [],
         // The image's pages say noindex to crawlers; its own search must still read them.
         forceIgnoreNoIndex: image,
         docsRouteBasePath: image ? '/' : 'docs',
@@ -160,6 +165,7 @@ const config: Config = {
     ],
     codeHighlight,
     stableText,
+    compactIds,
     ...(image ? [imageStrip, robots] : [notFound, robots]),
   ],
   presets: [['classic', preset]],

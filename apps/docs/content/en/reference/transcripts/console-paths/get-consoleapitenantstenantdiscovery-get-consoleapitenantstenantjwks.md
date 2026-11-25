@@ -41,11 +41,11 @@ curl -sS -D - -H 'Host: evil.example' -H "Cookie: $ADA_SESSION" \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1cb48-2cf1-72c6-95f7-e5e05c93e31b
+x-request-id: 01a21315-0dff-769c-9dee-2fe988f88a6c
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 2456
-Date: Wed, 11 Nov 2026 15:44:27 GMT
+content-length: 2710
+Date: Wed, 25 Nov 2026 14:21:16 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

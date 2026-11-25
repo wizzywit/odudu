@@ -3,9 +3,9 @@ import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/cry
 import {
   isForeignKeyViolation,
   withSavepoint,
-  withTenant,
   type DatabaseHandle,
   type TenantScopedDatabase,
+  withTenantRetrying,
 } from '@odudu/db';
 import { auditRepository, type AuditReason, type RequestContext } from '@odudu/domain-audit';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
@@ -369,7 +369,7 @@ async function redeemAuthorizationCode(
     if (existing === null || grantId === null || grantId === undefined) throw invalidGrant();
 
     const revokedAt = deps.clock.now();
-    await withTenant(
+    await withTenantRetrying(
       deps.database.db,
       deps.tenantId,
       async (revokeTx) => {
@@ -904,7 +904,7 @@ async function issueRefreshTokens(
     presentedHash,
   );
 
-  const outcome = await withTenant(
+  const outcome = await withTenantRetrying(
     deps.database.db,
     deps.tenantId,
     (rotationTx) =>

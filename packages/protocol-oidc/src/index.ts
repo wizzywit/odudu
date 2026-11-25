@@ -45,7 +45,7 @@ import {
   type SessionLifespans,
 } from '@odudu/authn-flows';
 import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
-import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { withTenant, type DatabaseHandle, withTenantRetrying } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
   type BreachedPasswordCheck,
@@ -1161,7 +1161,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           deps.breachedPasswordCheck,
           request,
         );
-        return withTenant(
+        return withTenantRetrying(
           deps.database.db,
           input.tenantId,
           (tx) =>
@@ -1261,7 +1261,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // attempt to enqueue a delivery; logoutDeliveryRepository.enqueue's
       // own comment is why that yields one delivery, not two.
       endSession: (tenantId, sessionId, subjectId, now, issuer, request) =>
-        withTenant(
+        withTenantRetrying(
           deps.database.db,
           tenantId,
           (tx) =>

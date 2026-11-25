@@ -165,7 +165,7 @@ describe('the approval page', () => {
     const res = await get(opened.path, aliceCookie);
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Client agent');
-    expect(res.body).toContain('asks to sign in as you with: openid');
+    expect(res.body).toContain('asks to sign in as you with: <bdi>openid</bdi>');
     expect(res.body).toContain('Pay invoice 42');
     expect(res.body).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC/u);
     expect(res.body).toContain('value="approve"');

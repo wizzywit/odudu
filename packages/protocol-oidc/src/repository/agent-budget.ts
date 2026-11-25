@@ -58,6 +58,19 @@ async function notRevoked(tx: TenantScopedDatabase, id: string): Promise<boolean
   return row?.revokedAt === null;
 }
 
+// A revoked, lapsed or idle instance spends nothing; the same test as
+// `isLive` in usecase/acting-instance.ts, which a repository may not import.
+function running(
+  instance: { revokedAt: Date | null; expiresAt: Date; idleExpiresAt: Date | null },
+  now: Date,
+): boolean {
+  return (
+    instance.revokedAt === null &&
+    instance.expiresAt.getTime() > now.getTime() &&
+    (instance.idleExpiresAt === null || instance.idleExpiresAt.getTime() > now.getTime())
+  );
+}
+
 export function agentBudgetRepository(tx: TenantScopedDatabase) {
   return {
     // Spends one write at every level a call counts at: the root grant it
@@ -98,12 +111,14 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
             sliceMutating: agentInstances.sliceMutating,
             sliceCreates: agentInstances.sliceCreates,
             revokedAt: agentInstances.revokedAt,
+            expiresAt: agentInstances.expiresAt,
+            idleExpiresAt: agentInstances.idleExpiresAt,
           })
           .from(agentInstances)
           .where(eq(agentInstances.id, input.instanceId))
           .for('update');
         const narrowed = input.limits.instanceSlice;
-        if (instance?.revokedAt !== null) return refused('instance');
+        if (instance === undefined || !running(instance, input.now)) return refused('instance');
         const caps = {
           mutating: Math.min(instance.sliceMutating, narrowed?.mutating ?? Infinity),
           creates: Math.min(instance.sliceCreates, narrowed?.creates ?? Infinity),
@@ -166,8 +181,9 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
     },
 
     // Gives back a call known to have changed nothing, at every level, never
-    // below none, taking the rows in the order `spend` does. A window that has
-    // rolled over since the spend is the one given back from, if it exists.
+    // below none, taking the rows in the order `spend` does. The window is the
+    // one `now` falls in, so a caller passes the instant the call was spent at,
+    // which the MCP door keeps for the purpose, not the instant it is given back.
     async release(input: ReleaseInput): Promise<void> {
       const create = input.kind === 'create';
       const root = await budgetGrantId(tx, input.grantId);

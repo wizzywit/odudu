@@ -7,6 +7,8 @@ import { clientScopeRepository, readAgentSettings, type ClientRecord } from '@od
 import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { cibaRequestRepository } from '#/repository/ciba-requests';
+import { cibaApprovalSummary } from '#/service/approval-messages';
+import { needsApproval } from '#/service/consent';
 import { type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { clientSecretLimiterKey, type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import {
@@ -88,8 +90,13 @@ async function acknowledge(
   if (!decision.allowed) {
     throw new TokenRateLimited(decision.retryAfterSeconds, refusal(client, 'rate_limited'));
   }
-  // A client with no secret proves nothing about who is asking.
-  if (client.type !== 'confidential' || !config.grantTypes.includes(CIBA_GRANT)) {
+  // A client with no secret proves nothing about who is asking, and one
+  // registered over the wire has no administrator's word behind its name.
+  if (
+    client.type !== 'confidential' ||
+    needsApproval(client.registrationOrigin) ||
+    !config.grantTypes.includes(CIBA_GRANT)
+  ) {
     throw withAudit(unauthorizedClient(), refusal(client, 'unauthorized_client'));
   }
 
@@ -253,7 +260,7 @@ async function openApproval(
         requestingClientId: client.id,
         instanceId: null,
         kind: 'ciba',
-        summary: `${client.name} asks to sign in as you with: ${requested.join(' ')}`,
+        summary: cibaApprovalSummary(client.name, requested),
         actionDigest: digest,
         ...(asked.requestedExpiry === null ? {} : { lifetimeSeconds: asked.requestedExpiry }),
         now,

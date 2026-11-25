@@ -1,8 +1,8 @@
 # P5 — Agent identity layer and approvals: design
 
 **Status:** Draft for approval · 2026-11-24
-**Umbrella:** [section 9](2026-09-10-odudu-design.md) (the model) and section 11, row P5.
-**Followed by:** [P5c, the console assistant](2026-11-24-p5c-console-assistant-design.md), then P5b.
+**Umbrella:** [section 9](../../superpowers/specs/2026-09-10-odudu-design.md) (the model) and section 11, row P5.
+**Followed by:** [P5c, the console assistant](../../superpowers/specs/2026-11-24-p5c-console-assistant-design.md), then P5b.
 
 ## 1. Why this phase, and what changed since the umbrella spec
 
@@ -220,10 +220,14 @@ before the client row, so a grant created for the account after that lock has
 its root taken only by the revoke, under the client row, where an exchange
 waiting for the client can deadlock with it (a window of milliseconds).
 PostgreSQL aborts one of the two transactions with `40P01`. Its transaction rolls
-back and the error reaches the caller: nothing in the server retries it, and the
-global error handler (`answerServerError`) answers an error that carries no
-status with `500 Internal Server Error`, so the exchange, the revoke or the
-retirement has to be sent again.
+back, and the entry points that revoke, exchange or mint (logout, ending all
+access, the admin routes, a client's amendment, retirement or deletion, a
+subject's deletion, the token endpoint and the MCP mint) run it again from the
+start through `withTenantRetrying` (`@odudu/db`): three attempts in all, a
+short jittered pause between, on `40P01` and on the typed
+`RetryableTransactionError` that `lockLineageRoots` throws when the roots kept
+changing. The error reaches the caller, as `500 Internal Server Error` through
+`answerServerError`, only after the third attempt has lost.
 
 ### 5.5 Budgets
 
@@ -291,9 +295,11 @@ acceptance of an approved action for a tool of the three classes it withholds.
 An "Agents" area (instances as a tree by lineage with owner, type, remaining
 budget and expiry, a revoke action that says what it will cascade to; pending
 and recent approvals) and the settings and client fields above. New audit actions
-for instance minted, expired and revoked, delegation created and revoked, approval
-requested, decided and expired, and CIBA request, poll refusal and token issued,
-each with an allowlisted detail and an entry in the vocabulary's docs.
+for instance minted and revoked, delegation created and revoked, approval
+requested and decided, and CIBA request, poll refusal and token issued, each with
+an allowlisted detail and an entry in the vocabulary's docs. An instance or an
+approval that lapses writes no row of its own: the reapers write none, and an
+instance that lapses and is then revoked is audited by that revocation.
 
 ## 6. Performance and scale
 
@@ -302,7 +308,7 @@ owner (`agent_max_children` per parent, a tenant cap on live instances) and
 reaped by `odudu reap` as a command first and a timer second (ADR 0024); expired
 rows are deleted after a tombstone window so lineage stays readable in audit.
 Every list is served by an index and bounded under `MAX_LIMIT`; the cascade is
-one bounded statement; pending approvals are capped per subject; CIBA polling is
+one transaction of bounded statements, one for each stretch of depth; pending approvals are capped per subject; CIBA polling is
 rate-limited per request so a client cannot turn it into a load generator.
 
 ## 7. Increments (for the plan; each independently mergeable and green)
@@ -330,7 +336,7 @@ Property-based attenuation tests pass; every budget level atomic under concurren
 callers (an integration test with parallel callers asserts no overspend);
 `may_act` minted, persisted on the grant and honoured when a refresh token is the
 subject; revoking a grant revokes every grant exchanged from it and every
-instance rooted there, in one bounded statement; `max_delegation_depth` a tenant
+instance rooted there, in one transaction of bounded statements; `agent_max_delegation_depth` a tenant
 setting; CIBA poll mode end to end including the denial, expiry and
 `slow_down` paths, and green on the OIDF conformance plan for it (see section 13);
 no client credential can approve; every new table probed with a foreign tenant;
