@@ -189,13 +189,18 @@ waits; revokers of different lineages share no row and never conflict. The
 worst case for lock volume is one row per distinct lineage the seeds belong to,
 however many grants they are, taken a batch of at most the cascade cap at a
 time. The reaper takes the roots `skip locked` and leaves a lineage a revoker
-holds for its next pass. An exchange, a mint and a budget spend each hold one
-grant and one instance (a spend holds the budget root `for no key update` and
-reads the grant a call carries without a lock), and none of them waits for a
-root while holding an instance. A child committed after a cascade pass took its
-snapshot is found by the next pass, which locks it while holding that pass's
-instances; an exchange from exactly that child could wait on one of them, and
-one of the two is then aborted by the deadlock detector and retried.
+holds for its next pass. An exchange, a mint and a budget spend each hold
+one grant and one instance (a spend holds the budget root `for no key update`
+and reads the grant a call carries without a lock), and none of them waits for
+a root while holding a grant or an instance: a mint takes the root of its
+grant's lineage before the grant, because a refusal revokes the run, which
+needs that root. Instance trees stay inside one lineage because a child
+instance takes its parent's root grant (`agent-layer.ts`); nothing in the
+schema enforces it. A pass of the cascade past the first (a child committed
+after the first pass's snapshot, the depth-8 frontier, a capped pass) locks
+grants while holding the instances of the passes before it. An exchange that
+holds a grant of that later pass and wants one of those instances can then
+deadlock with it; the detector aborts one of the two and it is retried.
 
 ### 5.5 Budgets
 

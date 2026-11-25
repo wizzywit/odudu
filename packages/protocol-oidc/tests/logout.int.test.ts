@@ -1687,6 +1687,8 @@ describe('[ODUDU-LOGOUT-SKIP-01] a client that skips the confirmation', () => {
 
     expect(asking).toBe(5);
     expect(noHint).toBe(4);
+    // One more than before: the select that locks the session's lineage roots.
+    // It runs once per revoke call, whatever the number of grants.
     expect(ending).toBe(14);
   });
 
