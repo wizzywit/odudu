@@ -336,6 +336,27 @@ describe('the lists of agent instances and approvals', () => {
   });
 });
 
+// A page of agents names its owners in one read of their usernames, keyed by the
+// subjects the page holds, however many users the tenant has.
+describe('the usernames a page of agents names', () => {
+  it.each(['agents', 'agent-approvals'])(
+    'reads them by an index, in one statement, for %s',
+    async (path) => {
+      const reads = runOf(`GET /admin/tenants/${TARGET_TENANT}/${path}`).filter((statement) =>
+        statement.query.includes('from "users"'),
+      );
+      expect(reads.length).toBe(1);
+      const [read] = reads;
+      if (read === undefined) return;
+      expect(budget.largeTables.has('users')).toBe(true);
+      const own = scansOf(await planned(read)).filter((scan) => scan.relation === 'users');
+      expect(own.length).toBeGreaterThan(0);
+      expect(own.filter((scan) => scan.node === 'Seq Scan')).toEqual([]);
+      expect(own.every((scan) => scan.index !== undefined)).toBe(true);
+    },
+  );
+});
+
 // What the registration form costs with a cached theme and no return_to: a
 // statement added to every registration path moves this number.
 const PLAIN_REGISTRATION_STATEMENTS = 1;
