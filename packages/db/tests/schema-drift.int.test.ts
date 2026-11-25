@@ -62,6 +62,13 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'agent_approvals.agent_approvals_state_check':
     "CHECK ((state = ANY (ARRAY['pending'::text, 'approved'::text, 'denied'::text, 'expired'::text, 'consumed'::text])))",
   'agent_instances.agent_instances_depth_range': 'CHECK (((depth >= 1) AND (depth <= 8)))',
+  'agent_instances.agent_instances_slice_creates_range': 'CHECK ((slice_creates >= 0))',
+  'agent_instances.agent_instances_slice_mutating_range': 'CHECK ((slice_mutating >= 0))',
+  'agent_instances.agent_instances_spent_creates_within_slice':
+    'CHECK (((spent_creates >= 0) AND (spent_creates <= slice_creates)))',
+  'agent_instances.agent_instances_spent_mutating_within_slice':
+    'CHECK (((spent_mutating >= 0) AND (spent_mutating <= slice_mutating)))',
+  'agent_budget_windows.agent_budget_windows_writes_range': 'CHECK ((writes >= 0))',
   'audit_events.audit_events_outcome':
     "CHECK ((outcome = ANY (ARRAY['allowed'::text, 'refused'::text, 'failed'::text])))",
   'authorization_codes.authorization_codes_method_check':

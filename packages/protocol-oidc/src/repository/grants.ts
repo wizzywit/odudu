@@ -1,6 +1,8 @@
 import { type TenantScopedDatabase } from '@odudu/db';
+import { lockLineageRoots, STRUCTURAL_MAX_DEPTH } from '@odudu/domain-agents';
+import { auditRepository } from '@odudu/domain-audit';
 import { clients } from '@odudu/domain-tenant';
-import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { tokenGrants, type TokenGrantRecord } from '#/schema/token-grants';
 
@@ -78,21 +80,246 @@ export interface FrontChannelTarget {
   frontchannelLogoutSessionRequired: boolean;
 }
 
+// The most grants one cascade statement revokes; a caller past it asks again.
+export const CASCADE_CAP = 10_000;
+
+// An agent instance a cascade revoked whose parent it did not also revoke, with
+// the number of instances revoked from it down.
+export interface RevokedInstanceRoot {
+  id: string;
+  ownerSubjectId: string;
+  agentClientDbId: string;
+  agentClient: string;
+  depth: number;
+  count: number;
+}
+
+export interface CascadeResult {
+  grants: number;
+  instances: number;
+  capped: boolean;
+  roots: RevokedInstanceRoot[];
+}
+
+// One pass also names the grants at its depth limit that have a child, which
+// the next pass starts from so a chain of any length is walked to its end.
+interface CascadePass extends CascadeResult {
+  frontier: string[];
+}
+
+interface CascadeRow {
+  id: string | null;
+  parent_instance_id: string | null;
+  owner_subject_id: string | null;
+  agent_client_id: string | null;
+  client_id: string | null;
+  depth: number | null;
+}
+
+interface EndedInstance {
+  id: string;
+  parent: string | null;
+  row: CascadeRow;
+}
+
+function instanceRoots(rows: readonly CascadeRow[]): RevokedInstanceRoot[] {
+  const ended = new Map<string, EndedInstance>();
+  for (const row of rows) {
+    if (row.id !== null) ended.set(row.id, { id: row.id, parent: row.parent_instance_id, row });
+  }
+  const below = new Map<string, number>();
+  for (const instance of ended.values()) {
+    for (let at: string | null = instance.id; at !== null;) {
+      below.set(at, (below.get(at) ?? 0) + 1);
+      const parent: string | null = ended.get(at)?.parent ?? null;
+      at = parent !== null && ended.has(parent) ? parent : null;
+    }
+  }
+  return [...ended.values()]
+    .filter((instance) => instance.parent === null || !ended.has(instance.parent))
+    .map(({ id, row }) => ({
+      id,
+      ownerSubjectId: row.owner_subject_id ?? '',
+      agentClientDbId: row.agent_client_id ?? '',
+      agentClient: row.client_id ?? '',
+      depth: row.depth ?? 0,
+      count: below.get(id) ?? 1,
+    }));
+}
+
+// The grant whose counters this one spends: the root named on it, or its own
+// when no exchange made it. A grant that was exchanged and names no root has
+// none and is refused, as is one whose id matches no grant. An exchanged grant
+// from before the column whose parent was deleted before the backfill cannot be
+// told from a sign-in's own grant and keeps a budget of its own.
+export async function budgetGrantId(tx: TenantScopedDatabase, id: string): Promise<string | null> {
+  const rows = await tx
+    .select({ root: tokenGrants.budgetGrantId, parent: tokenGrants.exchangedFromGrantId })
+    .from(tokenGrants)
+    .where(eq(tokenGrants.id, id));
+  const row = rows[0];
+  if (row === undefined) return null;
+  if (row.root !== null) return row.root;
+  return row.parent === null ? id : null;
+}
+
+// Takes the lineage roots of the grants a revoke starts from (see
+// `lockLineageRoots`) before it updates them. At most one row per distinct
+// lineage is locked, however many grants the seeds are.
+export async function lockLineages(
+  tx: TenantScopedDatabase,
+  seeds: SQL | undefined,
+  held?: Set<string>,
+): Promise<void> {
+  await lockLineageRoots(
+    tx,
+    sql`select id from token_grants where ${seeds ?? sql`true`}`,
+    undefined,
+    held,
+  );
+}
+
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
-  // The grant whose counters this one spends: the root named on it, or its own
-  // when no exchange made it. A grant that was exchanged and names no root has
-  // none and is refused, as is one whose id matches no grant. An exchanged grant
-  // from before the column whose parent was deleted before the backfill cannot be
-  // told from a sign-in's own grant and keeps a budget of its own.
-  async function budgetGrant(id: string): Promise<string | null> {
-    const rows = await tx
-      .select({ root: tokenGrants.budgetGrantId, parent: tokenGrants.exchangedFromGrantId })
-      .from(tokenGrants)
-      .where(eq(tokenGrants.id, id));
+  const budgetGrant = (id: string): Promise<string | null> => budgetGrantId(tx, id);
+  // The roots this repository has locked, so a later call does not lock them again.
+  const heldRoots = new Set<string>();
+
+  // One pass: the grants exchanged from `ids` down to the structural depth,
+  // and every agent instance rooted at any of them, revoked by one recursive
+  // statement. The first `cap` rows by depth are taken. A node whose grant is
+  // revoked and has no live instance is walked through but takes no place in
+  // the cap, which is what lets a second call reach what the first left.
+  // The lineage's root is already held, so the rows below are taken in id order
+  // only to keep each statement's own locking deterministic: grants first, then
+  // the live instances, which both updates read from.
+  async function pass(ids: readonly string[], at: Date, cap: number): Promise<CascadePass> {
+    const stamp = at.toISOString();
+    const rows = (await tx.execute(sql`
+      with recursive tree(id, depth) as (
+        select g.id, 0 from token_grants g
+         where g.id = any(array(select value::uuid from jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)))
+        union all
+        select c.id, t.depth + 1 from token_grants c join tree t on c.exchanged_from_grant_id = t.id
+         where t.depth < ${STRUCTURAL_MAX_DEPTH}
+      ),
+      pending as (
+        select t.id, t.depth from tree t
+         where exists (select 1 from token_grants g where g.id = t.id and g.revoked_at is null)
+            or exists (select 1 from agent_instances i where i.root_grant_id = t.id and i.revoked_at is null)
+         order by t.depth, t.id
+         limit ${cap + 1}
+      ),
+      picked as (select id from pending order by depth, id limit ${cap}),
+      locked as (
+        select id from token_grants where id = any(array(select id from picked))
+         order by id for no key update
+      ),
+      ended_grants as (
+        update token_grants set revoked_at = ${stamp}::timestamptz
+         where id = any(array(select id from locked)) and revoked_at is null
+        returning id
+      ),
+      instance_tree(id, depth) as (
+        select i.id, 0 from agent_instances i where i.root_grant_id = any(array(select id from locked))
+        union all
+        select c.id, t.depth + 1 from agent_instances c join instance_tree t on c.parent_instance_id = t.id
+         where t.depth < ${STRUCTURAL_MAX_DEPTH}
+      ),
+      locked_instances as (
+        select id from agent_instances where id in (select id from instance_tree)
+           and revoked_at is null
+         order by id for no key update
+      ),
+      ended_instances as (
+        update agent_instances set revoked_at = ${stamp}::timestamptz
+         where id = any(array(select id from locked_instances)) and revoked_at is null
+        returning id, parent_instance_id, owner_subject_id, agent_client_id, depth
+      )
+      select (select count(*) from ended_grants)::int as grants,
+             (select count(*) from pending) > ${cap} as capped,
+             (select coalesce(jsonb_agg(distinct t.id), '[]'::jsonb) from tree t
+               where t.depth = ${STRUCTURAL_MAX_DEPTH}
+                 and exists (select 1 from token_grants c where c.exchanged_from_grant_id = t.id)) as frontier,
+             coalesce((select jsonb_agg(jsonb_build_object(
+                 'id', e.id, 'parent_instance_id', e.parent_instance_id,
+                 'owner_subject_id', e.owner_subject_id, 'agent_client_id', e.agent_client_id,
+                 'client_id', c.client_id, 'depth', e.depth))
+               from ended_instances e left join clients c on c.id = e.agent_client_id), '[]'::jsonb) as ended`)) as unknown as {
+      grants: number;
+      capped: boolean;
+      frontier: string[];
+      ended: CascadeRow[];
+    }[];
     const row = rows[0];
-    if (row === undefined) return null;
-    if (row.root !== null) return row.root;
-    return row.parent === null ? id : null;
+    const ended = row?.ended ?? [];
+    return {
+      grants: row?.grants ?? 0,
+      instances: ended.length,
+      capped: row?.capped ?? false,
+      roots: instanceRoots(ended),
+      frontier: row?.frontier ?? [],
+    };
+  }
+
+  // Passes from `ids`, then from the grants each left at its depth limit,
+  // until a chain of any length is done or a pass hits the cap.
+  async function cascade(ids: readonly string[], at: Date, cap: number): Promise<CascadeResult> {
+    const total: CascadeResult = { grants: 0, instances: 0, capped: false, roots: [] };
+    if (ids.length === 0) return total;
+    for (let seeds = ids; seeds.length > 0;) {
+      const next = await pass(seeds, at, cap);
+      total.grants += next.grants;
+      total.instances += next.instances;
+      total.roots.push(...next.roots);
+      total.capped = next.capped;
+      seeds = next.capped ? [] : next.frontier;
+    }
+    return total;
+  }
+
+  // Takes the roots of `ids`, the rows an update has just ended, then asks
+  // `cascade` again until a pass revokes nothing, then writes one audit row for
+  // each instance revoked from the top. The caller has locked the roots of its
+  // seeds; the roots of the rows its update ended are locked here, before the
+  // first pass, at no cost when already held. A root new since the seed lock is
+  // the late-root case of spec 5.4. The last pass has a new snapshot, so a child
+  // committed while an earlier pass waited is found. A capped pass has revoked
+  // something, so the loop ends.
+  async function cascadeAll(ids: readonly string[], at: Date): Promise<void> {
+    if (ids.length > 0) {
+      await lockLineageRoots(
+        tx,
+        sql`select value::uuid as id from jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)`,
+        undefined,
+        heldRoots,
+      );
+    }
+    const roots: RevokedInstanceRoot[] = [];
+    for (let more = true; more;) {
+      const next = await cascade(ids, at, CASCADE_CAP);
+      roots.push(...next.roots);
+      more = next.capped || next.grants > 0 || next.instances > 0;
+    }
+    if (roots.length === 0) return;
+    await auditRepository(tx).recordAll(
+      roots.map((root) => ({
+        eventType: 'agent_identity' as const,
+        action: 'agent.instance_revoked' as const,
+        outcome: 'allowed' as const,
+        actorSubjectId: root.ownerSubjectId,
+        actorClientId: root.agentClientDbId,
+        resourceType: 'agent_instance',
+        resourceId: root.id,
+        detail: {
+          agent_client: root.agentClient,
+          owner: root.ownerSubjectId,
+          instance: root.id,
+          depth: root.depth,
+          count: root.count,
+          via: 'cascade' as const,
+        },
+      })),
+    );
   }
 
   // One read behind both ways of asking for a session's clients, so the
@@ -162,12 +389,41 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // already-revoked grant keeps its first `revoked_at`, and its caller
     // writes no second audit row for a revocation that did not happen.
     async revoke(id: string, revokedAt: Date): Promise<boolean> {
+      await lockLineages(tx, eq(tokenGrants.id, id), heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
         .where(and(eq(tokenGrants.id, id), isNull(tokenGrants.revokedAt)))
         .returning({ id: tokenGrants.id });
+      await cascadeAll([id], revokedAt);
       return rows.length > 0;
+    },
+
+    // Revokes what was exchanged from grants a caller has just revoked
+    // itself, and the instances rooted at them, with `cascadeAll`'s audit.
+    async revokeBelow(ids: readonly string[], at: Date): Promise<void> {
+      await cascadeAll(ids, at);
+    },
+
+    // The share lock a derived grant takes on its parent before it is made.
+    // A revoke of the parent updates the row and so waits for it, which makes a
+    // concurrent revoke either see the child or find the parent already gone.
+    async lockLive(id: string): Promise<boolean> {
+      const rows = await tx
+        .select({ id: tokenGrants.id })
+        .from(tokenGrants)
+        .where(and(eq(tokenGrants.id, id), isNull(tokenGrants.revokedAt)))
+        .for('share');
+      return rows.length > 0;
+    },
+
+    // Everything exchanged from `ids`, and the agent instances rooted at any
+    // of them, one statement for each pass of a chain's depth. `cap` bounds the
+    // grants taken; past it the rest is left live and `capped` says so, and the
+    // same call made again takes the next of them. The revoke methods use
+    // `cascadeAll`, which loops until nothing is left.
+    revokeCascade(ids: readonly string[], at: Date, cap = CASCADE_CAP): Promise<CascadeResult> {
+      return cascade(ids, at, cap);
     },
 
     // Spends one call of the grant's write budget: true when the grant was
@@ -232,14 +488,13 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    // Logout's whole write. Returns the number revoked so a caller can tell
-    // "ended a session that had grants" from "ended one that had none"
-    // without a second query.
-    //
+    // Logout's whole write. Returns how many grants were bound to the session,
+    // so a caller can tell a session that had grants from one that had none.
     // `coalesce` keeps the first revocation's timestamp: re-stamping an
-    // already-revoked grant at a later `now` would move its reaping window
-    // forward every time logout ran again.
+    // already-revoked grant would move its reaping window forward every time
+    // logout ran again.
     async revokeForSession(sessionId: string, revokedAt: Date): Promise<number> {
+      await lockLineages(tx, eq(tokenGrants.sessionId, sessionId), heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({
@@ -247,12 +502,17 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         })
         .where(eq(tokenGrants.sessionId, sessionId))
         .returning({ id: tokenGrants.id });
+      await cascadeAll(
+        rows.map((row) => row.id),
+        revokedAt,
+      );
       return rows.length;
     },
 
     // `revokeForSession` for many sessions in one statement.
     async revokeForSessions(sessionIds: readonly string[], revokedAt: Date): Promise<number> {
       if (sessionIds.length === 0) return 0;
+      await lockLineages(tx, inArray(tokenGrants.sessionId, [...sessionIds]), heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({
@@ -260,6 +520,10 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         })
         .where(inArray(tokenGrants.sessionId, [...sessionIds]))
         .returning({ id: tokenGrants.id });
+      await cascadeAll(
+        rows.map((row) => row.id),
+        revokedAt,
+      );
       return rows.length;
     },
 
@@ -274,17 +538,21 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       clientId: string,
       revokedAt: Date,
     ): Promise<number> {
+      const seeds = and(
+        eq(tokenGrants.subjectId, subjectId),
+        eq(tokenGrants.clientId, clientId),
+        isNull(tokenGrants.revokedAt),
+      );
+      await lockLineages(tx, seeds, heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
-        .where(
-          and(
-            eq(tokenGrants.subjectId, subjectId),
-            eq(tokenGrants.clientId, clientId),
-            isNull(tokenGrants.revokedAt),
-          ),
-        )
+        .where(seeds)
         .returning({ id: tokenGrants.id });
+      await cascadeAll(
+        rows.map((row) => row.id),
+        revokedAt,
+      );
       return rows.length;
     },
 
@@ -292,11 +560,17 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // included: whoever held a token before the password was reset holds
     // nothing after. An already-revoked grant keeps its first timestamp.
     async revokeForSubject(subjectId: string, revokedAt: Date): Promise<number> {
+      const seeds = and(eq(tokenGrants.subjectId, subjectId), isNull(tokenGrants.revokedAt));
+      await lockLineages(tx, seeds, heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
-        .where(and(eq(tokenGrants.subjectId, subjectId), isNull(tokenGrants.revokedAt)))
+        .where(seeds)
         .returning({ id: tokenGrants.id });
+      await cascadeAll(
+        rows.map((row) => row.id),
+        revokedAt,
+      );
       return rows.length;
     },
 
@@ -304,11 +578,20 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // actor goes, which would leave the delegated token live with its `act`
     // claim intact; a caller that removes an actor revokes what it acted in.
     async revokeForActor(actorSubjectId: string): Promise<number> {
+      const seeds = and(
+        eq(tokenGrants.actorSubjectId, actorSubjectId),
+        isNull(tokenGrants.revokedAt),
+      );
+      await lockLineages(tx, seeds, heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt: sql`now()` })
-        .where(and(eq(tokenGrants.actorSubjectId, actorSubjectId), isNull(tokenGrants.revokedAt)))
+        .where(seeds)
         .returning({ id: tokenGrants.id });
+      await cascadeAll(
+        rows.map((row) => row.id),
+        new Date(),
+      );
       return rows.length;
     },
 

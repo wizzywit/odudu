@@ -1525,7 +1525,14 @@ export {
 // The admin API's grant and session liveness checks read these directly
 // (packages/protocol-admin/src/testing/admin-fixture.ts and the
 // authentication chain it exists to test).
-export { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+export { lockLineages, tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+export {
+  agentBudgetRepository,
+  type BudgetLevel,
+  type ReleaseInput,
+  type SpendInput,
+  type SpendOutcome,
+} from '#/repository/agent-budget';
 export { tokenGrants } from '#/schema/token-grants';
 export { refreshTokens } from '#/schema/refresh-tokens';
 export { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';

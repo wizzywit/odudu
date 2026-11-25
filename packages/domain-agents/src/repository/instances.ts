@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { agentInstances, type AgentInstanceRecord } from '#/schema/agent-instances';
+import { lockLineageRoots } from '#/repository/lineage';
 
 export type { AgentInstanceRecord } from '#/schema/agent-instances';
 
@@ -29,6 +30,8 @@ export interface NewAgentInstance {
   scope: string;
   expiresAt: Date;
   idleExpiresAt: Date | null;
+  // Left out, the column defaults (the tenant defaults) apply.
+  slice?: { mutating: number; creates: number };
 }
 
 // Not revoked, not past its fixed expiry and not past its idle expiry at `now`.
@@ -67,6 +70,9 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
           scope: input.scope,
           expiresAt: input.expiresAt,
           idleExpiresAt: input.idleExpiresAt,
+          ...(input.slice === undefined
+            ? {}
+            : { sliceMutating: input.slice.mutating, sliceCreates: input.slice.creates }),
         })
         .returning();
       const row = rows[0];
@@ -104,7 +110,7 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
     // no parent instance row to take it on.
     async lockGrant(grantId: string): Promise<boolean> {
       const rows = await tx.execute(
-        sql`select id from token_grants where id = ${grantId} for update`,
+        sql`select id from token_grants where id = ${grantId} for no key update`,
       );
       return (rows as unknown as unknown[]).length > 0;
     },
@@ -157,6 +163,17 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
     // The instance and everything minted beneath it. `depth` is capped at 8,
     // which bounds the walk.
     async revoke(id: string, at: Date): Promise<number> {
+      // The lineage is locked before any row of it, as a revoke's cascade does.
+      await lockLineageRoots(
+        tx,
+        sql`
+          with recursive tree(id) as (
+            select id from agent_instances where id = ${id}
+            union all
+            select c.id from agent_instances c join tree t on c.parent_instance_id = t.id
+          )
+          select root_grant_id as id from agent_instances where id in (select id from tree)`,
+      );
       const rows = await tx.execute(sql`
         with recursive tree as (
           select id from agent_instances where id = ${id}
@@ -178,6 +195,19 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
       now: Date,
       tombstoneBefore: Date,
     ): Promise<{ expired: number; deleted: number }> {
+      await lockLineageRoots(
+        tx,
+        sql`
+          with recursive tree(id) as (
+            select id from agent_instances
+             where revoked_at is null
+               and (expires_at <= ${now.toISOString()}::timestamptz
+                    or idle_expires_at <= ${now.toISOString()}::timestamptz)
+            union all
+            select c.id from agent_instances c join tree t on c.parent_instance_id = t.id
+          )
+          select root_grant_id as id from agent_instances where id in (select id from tree)`,
+      );
       const expired = (await tx.execute(sql`
         with recursive tree as (
           select id from agent_instances

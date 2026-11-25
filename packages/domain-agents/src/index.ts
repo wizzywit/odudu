@@ -25,6 +25,7 @@ export {
   type AgentDelegationRecord,
   type NewAgentDelegation,
 } from '#/repository/delegations';
+export { LINEAGE_LOCK_BATCH, lineageRootCtes, lockLineageRoots } from '#/repository/lineage';
 export { agentInstances } from '#/schema/agent-instances';
 export { agentApprovals } from '#/schema/agent-approvals';
 export { agentDelegations } from '#/schema/agent-delegations';

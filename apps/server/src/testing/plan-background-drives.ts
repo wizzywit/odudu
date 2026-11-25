@@ -1,6 +1,7 @@
 import { sessionRepository } from '@odudu/authn-flows';
 import { MAX_LIMIT } from '@odudu/contracts/me';
 import { type Database, withTenant } from '@odudu/db';
+import { sql } from 'drizzle-orm';
 import { agentDelegationRepository, agentInstanceRepository } from '@odudu/domain-agents';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { assetRepository, themeRepository } from '@odudu/domain-theme';
@@ -18,6 +19,7 @@ import { capturingSender, sendPending } from '@odudu/email';
 import { loadConfig, newId } from '@odudu/kernel';
 import { WRITE_BUDGET } from '@odudu/mcp';
 import {
+  agentBudgetRepository,
   CIMD_CACHE_MAX_ROWS,
   cimdCacheRepository,
   cimdClientRepository,
@@ -341,9 +343,75 @@ export async function driveRepositories(
   );
   await capture('grants: an agent write is spent and given back', 'oidc', () =>
     withTenant(database, world.tenantId, async (tx) => {
+      const budget = agentBudgetRepository(tx);
+      const call = {
+        grantId: agentGrant,
+        instanceId: null,
+        ownerSubjectId: subjectId,
+        agentClientId: world.clientDbId,
+        kind: 'create',
+        now: new Date(),
+      } as const;
+      await budget.spend({
+        ...call,
+        limits: {
+          grant: WRITE_BUDGET,
+          instanceSlice: null,
+          windowWrites: 1000,
+        },
+      });
+      await budget.release(call);
+    }),
+  );
+  const agentInstance = newId();
+  await withTenant(database, world.tenantId, async (tx) => {
+    await tx.execute(
+      sql`insert into subjects (id, tenant_id, type) values (${agentInstance}, ${world.tenantId}, 'agent_instance')`,
+    );
+    await tx.execute(
+      sql`insert into agent_instances (id, tenant_id, owner_subject_id, agent_client_id,
+            root_grant_id, depth, scope, expires_at)
+          values (${agentInstance}, ${world.tenantId}, ${subjectId}, ${world.clientDbId},
+            ${agentGrant}, 1, 'mcp:write', now() + interval '1 hour')`,
+    );
+  });
+  await capture('grants: an instance spends and gives back its slice', 'oidc', () =>
+    withTenant(database, world.tenantId, async (tx) => {
+      const budget = agentBudgetRepository(tx);
+      const call = {
+        grantId: agentGrant,
+        instanceId: agentInstance,
+        ownerSubjectId: subjectId,
+        agentClientId: world.clientDbId,
+        kind: 'mutating',
+        now: new Date(),
+      } as const;
+      await budget.spend({
+        ...call,
+        limits: { grant: WRITE_BUDGET, instanceSlice: null, windowWrites: 1000 },
+      });
+      await budget.release(call);
+    }),
+  );
+  const cascadeRoot = newId();
+  await withTenant(database, world.tenantId, async (tx) => {
+    const grants = tokenGrantRepository(tx);
+    const base = {
+      tenantId: world.tenantId,
+      clientId: world.clientDbId,
+      subjectId,
+      scope: 'mcp:read',
+      audience: ['https://plans1.example.com/mcp'],
+    };
+    await grants.create({ ...base, id: cascadeRoot });
+    await grants.create({ ...base, id: newId(), exchangedFromGrantId: cascadeRoot });
+  });
+  await capture('grants: a revoked grant takes everything exchanged from it', 'oidc', () =>
+    withTenant(database, world.tenantId, async (tx) => {
       const grants = tokenGrantRepository(tx);
-      await grants.reserveAgentWrite(agentGrant, 'create', WRITE_BUDGET);
-      await grants.releaseAgentWrite(agentGrant, 'create');
+      await grants.lockLive(cascadeRoot);
+      await grants.revokeCascade([cascadeRoot], new Date());
+      await grants.revoke(cascadeRoot, new Date());
     }),
   );
   await capture('agents: what a mint counts and reads', 'oidc', () =>

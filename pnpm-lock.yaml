@@ -1054,6 +1054,9 @@ importers:
       '@odudu/testkit':
         specifier: workspace:*
         version: link:../testkit
+      fast-check:
+        specifier: 4.11.0
+        version: 4.11.0
       jose:
         specifier: 6.2.18
         version: 6.2.18

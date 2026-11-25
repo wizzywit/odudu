@@ -13,6 +13,7 @@ import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { type ClaimMapperRegistry, FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { sql } from 'drizzle-orm';
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { oidcRoutes } from '#/index';
@@ -274,4 +275,103 @@ export function exchange(
       authorization: basic(clientId),
     },
   });
+}
+
+// Returns once `waiting` backends are blocked, directly or behind one another,
+// by the transaction of backend `holder`: the test's own, whatever else the
+// database is doing.
+export async function waitForLockWaiters(
+  owner: DatabaseHandle,
+  holder: number,
+  waiting = 1,
+  enough: () => boolean = () => false,
+): Promise<void> {
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    if (enough()) return;
+    const rows = await owner.db.execute(
+      sql`with recursive blocked(pid) as (
+            select ${holder}::int
+            union
+            select a.pid from pg_stat_activity a join blocked b on b.pid = any(pg_blocking_pids(a.pid))
+          )
+          select count(*)::int - 1 as n from blocked`,
+    );
+    if (Number((rows as unknown as { n: number }[])[0]?.n) >= waiting) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`fewer than ${String(waiting)} backends waited on the held lock`);
+}
+
+export interface HeldLock {
+  // Lets the holding transaction go on (to `afterRelease`) and commit.
+  release: () => void;
+  // Settles when the holding transaction has committed or failed.
+  done: Promise<void>;
+  // Waits until `waiting` backends are blocked behind the holding transaction.
+  // `enough` ends the wait early when it turns true.
+  waitForWaiters: (
+    owner: DatabaseHandle,
+    waiting?: number,
+    enough?: () => boolean,
+  ) => Promise<void>;
+  // Registers an operation the body started, so it is awaited however the body ends.
+  started: <T>(operation: Promise<T>) => Promise<T>;
+}
+
+// Runs `body` while a transaction of the test holds the rows `lock` takes. The
+// body starts only once the lock is held, and not at all if taking it fails.
+// However the body ends, the holder is released and every operation it started
+// has settled before this returns, so a failure leaves nothing open; a failure
+// of the holder after it was released is thrown.
+const noop = (): undefined => undefined;
+
+export async function withHeldLock<R>(
+  db: DatabaseHandle['db'],
+  tenantId: string,
+  hold: {
+    lock: (tx: TenantScopedDatabase) => Promise<void>;
+    afterRelease?: (tx: TenantScopedDatabase) => Promise<void>;
+  },
+  body: (held: HeldLock) => Promise<R>,
+): Promise<R> {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let locked!: () => void;
+  const gotLock = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  let pid = 0;
+  const done = withTenant(db, tenantId, async (tx) => {
+    await hold.lock(tx);
+    const own = await tx.execute(sql`select pg_backend_pid()::int as pid`);
+    pid = Number((own as unknown as { pid: number }[])[0]?.pid);
+    locked();
+    await released;
+    await hold.afterRelease?.(tx);
+  });
+  // Handlers go on at registration: a rejection while the body waits is not
+  // unhandled, and whoever awaits the original promise still receives it.
+  const settled = (operation: Promise<unknown>): Promise<unknown> => operation.then(noop, noop);
+  const pending: Promise<unknown>[] = [settled(done)];
+  try {
+    await Promise.race([gotLock, done]);
+    const result = await body({
+      release,
+      done,
+      waitForWaiters: (owner, waiting = 1, enough) =>
+        waitForLockWaiters(owner, pid, waiting, enough),
+      started: (operation) => {
+        pending.push(settled(operation));
+        return operation;
+      },
+    });
+    release();
+    await done;
+    return result;
+  } finally {
+    release();
+    await Promise.allSettled(pending);
+  }
 }

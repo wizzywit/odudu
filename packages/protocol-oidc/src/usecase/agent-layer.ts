@@ -141,13 +141,18 @@ interface Parent {
   instanceId: string | null;
   rootGrantId: string;
   expiresAt: Date;
+  // What the parent instance has left to spend; null for a lineage that starts
+  // at a grant, whose limits come from the tenant's settings.
+  remaining: { mutating: number; creates: number } | null;
 }
 
 // Takes the row lock a mint serialises on, then counts what is already
 // there, so two exchanges under the same parent cannot both take its last
 // free slot. The tenant's live-instance cap is checked without a lock of its
-// own and can be exceeded by the number of mints in flight at once. A
-// head that looks like an instance id must be a live instance of this client
+// own and can be exceeded by the number of mints in flight at once.
+// Lock order, here and in every transaction that touches both: the grant
+// first, the instance second, which is the order a revoke takes them in.
+// A head that looks like an instance id must be a live instance of this client
 // in this tenant; only no head, or the client's own id, starts a new lineage.
 async function resolveParent(
   tx: TenantScopedDatabase,
@@ -159,6 +164,9 @@ async function resolveParent(
   if (subject.act !== undefined && head === null) return null;
 
   if (head !== null && head !== client.clientId && UUID.test(head)) {
+    if (subject.grantId !== null && !(await tokenGrantRepository(tx).lockLive(subject.grantId))) {
+      return null;
+    }
     const parent = await repo.lockForUpdate(head);
     if (parent?.agentClientId !== client.id || !isLive(parent, now)) return null;
     if (parent.ownerSubjectId !== subject.subjectId) return null;
@@ -172,6 +180,10 @@ async function resolveParent(
       instanceId: parent.id,
       rootGrantId: parent.rootGrantId,
       expiresAt: parent.expiresAt,
+      remaining: {
+        mutating: Math.max(parent.sliceMutating - parent.spentMutating, 0),
+        creates: Math.max(parent.sliceCreates - parent.spentCreates, 0),
+      },
     };
   }
   if (head !== null && head !== client.clientId) return null;
@@ -190,6 +202,7 @@ async function resolveParent(
     instanceId: null,
     rootGrantId: subject.grantId,
     expiresAt,
+    remaining: null,
   };
 }
 
@@ -273,6 +286,10 @@ export async function applyAgentLayer(
     depth: admission.node.depth,
     scope: scope.join(' '),
     expiresAt,
+    slice: parent.remaining ?? {
+      mutating: settings.agentWritesPerGrant,
+      creates: settings.agentCreatesPerGrant,
+    },
     idleExpiresAt:
       input.run === undefined
         ? null

@@ -1016,6 +1016,13 @@
       "when": 1792012983737,
       "tag": "0144_ciba_requests_hint_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1792099383737,
+      "tag": "0145_agent_instance_budget",
+      "breakpoints": true
     }
   ]
 }

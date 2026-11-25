@@ -339,6 +339,31 @@ describe('the agent_identity event type', () => {
   });
 });
 
+describe('agent.instance_revoked', () => {
+  const instance = '01a1873a-22a0-7756-8957-54c1c5aaca55';
+  const detail = { agent_client: 'c', owner: 'o', instance, depth: 1, count: 3, via: 'cascade' };
+
+  it('is an agent_identity action', () => {
+    expect(AUDIT_ACTIONS.agent_identity).toContain('agent.instance_revoked');
+  });
+
+  it.each(['cascade', 'owner_ended', 'admin'])('accepts via %s', (via) => {
+    expect(() => {
+      assertDetailAllowed('agent.instance_revoked', { ...detail, via });
+    }).not.toThrow();
+  });
+
+  it.each([
+    ['a via that names no cause', { via: 'logout' }],
+    ['a negative count', { count: -1 }],
+    ['a free-text key', { message: 'x' }],
+  ])('refuses %s', (_, override) => {
+    expect(() => {
+      assertDetailAllowed('agent.instance_revoked', { ...detail, ...override });
+    }).toThrow(/invalid value|does not allow/);
+  });
+});
+
 describe('the approval actions', () => {
   const approval = '01a1873a-22a0-7756-8957-54c1c5aaca56';
   const requested = {
