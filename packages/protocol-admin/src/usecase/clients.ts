@@ -58,7 +58,7 @@ import {
   tokenGrants,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
-import { and, asc, eq, gt, inArray, not, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, not, sql, type SQL } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { redactedDiff } from '#/service/audit-detail';
 import {
@@ -1392,18 +1392,21 @@ export async function amendClient(
   // here and a delete of the same client cannot wait on each other. It is
   // taken for any client that could hold an account: one created while this
   // waits is retired by the same write.
-  if (
-    mayRetireServiceAccount(canHoldServiceAccount(unlocked.type), 'grant_types' in input.values)
-  ) {
+  const mayRetire = mayRetireServiceAccount(
+    canHoldServiceAccount(unlocked.type),
+    'grant_types' in input.values,
+  );
+  if (mayRetire) {
     await lockAdministrators(tx);
   }
-  // A retirement revokes by actor, which takes lineage roots. They come before the
-  // client row, which a grant insert for the client waits for.
-  if (
-    unlocked.serviceSubjectId !== null &&
-    mayRetireServiceAccount(canHoldServiceAccount(unlocked.type), 'grant_types' in input.values)
-  ) {
-    await lockLineages(tx, eq(tokenGrants.actorSubjectId, unlocked.serviceSubjectId));
+  // A retirement revokes by actor, which takes lineage roots (of the live grants,
+  // as `revokeForActor` seeds them). They come before the client row, which a
+  // grant insert for the client waits for.
+  if (mayRetire && unlocked.serviceSubjectId !== null) {
+    await lockLineages(
+      tx,
+      and(eq(tokenGrants.actorSubjectId, unlocked.serviceSubjectId), isNull(tokenGrants.revokedAt)),
+    );
   }
 
   // Locked for the rest of the transaction, so the `If-Match` comparison
