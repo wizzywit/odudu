@@ -217,20 +217,20 @@ reported input tokens with the byte length of the serialised request body.
 `json_escapes` is quotes, backslashes, newlines and control characters, which
 serialise to two to six bytes each.
 
-| Provider      | Text             | Request bytes | Reported tokens | Reported / bytes |
-| ------------- | ---------------- | ------------- | --------------- | ---------------- |
-| Bedrock Haiku | single-byte run  | 16,088        | 16,008          | 0.995            |
-| Bedrock Haiku | random ASCII     | 16,088        | 12,985          | 0.807            |
-| Bedrock Haiku | CJK (3 B/char)   | 16,090        | 10,982          | 0.683            |
-| Bedrock Haiku | base64           | 16,088        | 15,147          | 0.942            |
-| Bedrock Haiku | emoji (4 B/char) | 16,088        | 10,939          | 0.680            |
-| Bedrock Haiku | JSON escapes     | 44,796        | 10,637          | 0.237            |
-| Ollama llama3.2 | single-byte run | 2,592       | 338             | 0.130            |
-| Ollama llama3.2 | random ASCII    | 2,592       | 1,603           | 0.618            |
-| Ollama llama3.2 | CJK             | 2,594       | 1,618           | 0.624            |
-| Ollama llama3.2 | base64          | 2,592       | 1,847           | 0.713            |
-| Ollama llama3.2 | emoji           | 2,592       | 1,812           | 0.699            |
-| Ollama llama3.2 | JSON escapes    | 6,988       | 1,786           | 0.256            |
+| Provider        | Text             | Request bytes | Reported tokens | Reported / bytes |
+| --------------- | ---------------- | ------------- | --------------- | ---------------- |
+| Bedrock Haiku   | single-byte run  | 16,088        | 16,008          | 0.995            |
+| Bedrock Haiku   | random ASCII     | 16,088        | 12,985          | 0.807            |
+| Bedrock Haiku   | CJK (3 B/char)   | 16,090        | 10,982          | 0.683            |
+| Bedrock Haiku   | base64           | 16,088        | 15,147          | 0.942            |
+| Bedrock Haiku   | emoji (4 B/char) | 16,088        | 10,939          | 0.680            |
+| Bedrock Haiku   | JSON escapes     | 44,796        | 10,637          | 0.237            |
+| Ollama llama3.2 | single-byte run  | 2,592         | 338             | 0.130            |
+| Ollama llama3.2 | random ASCII     | 2,592         | 1,603           | 0.618            |
+| Ollama llama3.2 | CJK              | 2,594         | 1,618           | 0.624            |
+| Ollama llama3.2 | base64           | 2,592         | 1,847           | 0.713            |
+| Ollama llama3.2 | emoji            | 2,592         | 1,812           | 0.699            |
+| Ollama llama3.2 | JSON escapes     | 6,988         | 1,786           | 0.256            |
 
 The provider's own count: `bedrock:CountTokens` on the inference profile was
 refused for this key ("not authorized to perform: bedrock:CountTokens"), so no
