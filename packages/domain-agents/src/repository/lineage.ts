@@ -4,15 +4,17 @@ import { sql, type SQL } from 'drizzle-orm';
 // The most lineage roots one locking statement takes.
 export const LINEAGE_LOCK_BATCH = 10_000;
 
-// How often the walk is repeated when a root is gone by the time it is locked.
-const LINEAGE_LOCK_ATTEMPTS = 3;
+// How many walks a call makes at most: one that locks and one that confirms,
+// with two more for a root that changed while it waited.
+const LINEAGE_LOCK_ATTEMPTS = 4;
 
 // The CTEs that map each grant `seedIds` selects (a query yielding `id`) to the
 // root of its lineage: the topmost existing grant reached by following
-// `exchanged_from_grant_id`. A grant is a root when it names no parent, when
-// the parent row is gone (the pointer has no foreign key and the reaper deletes
-// old grants), or when it is its own ancestor. Spliced into a `with recursive`
-// list under `name`, which then holds one row per (seed, root).
+// `exchanged_from_grant_id`. A grant is a root when it names no parent (the
+// foreign key is `ON DELETE SET NULL`, so deleting an ancestor clears it), when
+// the parent row is missing (defensive), or when it is its own ancestor.
+// Spliced into a `with recursive` list under `name`, which then holds one row
+// per (seed, root).
 export function lineageRootCtes(name: string, seedIds: SQL): SQL {
   const up = sql.raw(`${name}_up`);
   const out = sql.raw(name);
@@ -33,31 +35,36 @@ export function lineageRootCtes(name: string, seedIds: SQL): SQL {
 
 // Locks the root grant of every lineage the seeds belong to, `for no key
 // update`, in id order and at most `batch` to a statement, before the caller
-// touches any other row; returns the roots it locked. Two revokers over one
-// lineage meet at its root and one waits; lineages share no rows. The cost is
-// one row per distinct lineage. The walk is one statement, seeds times chain
-// depth rows. A root deleted between the walk and the lock is noticed (fewer
-// rows locked than asked) and the walk is repeated, a few times, never skipped.
+// touches any other row; returns the roots of the last walk. Two revokers over
+// one lineage meet at its root and one waits; lineages share no rows. The cost
+// is one row per distinct lineage. A walk is one statement, seeds times chain
+// depth rows, and each call makes at least two: after locking, the walk is
+// repeated, because a middle grant deleted while the call waited makes a
+// descendant its own root, and any root not yet held is locked too. Nothing
+// detaches a lineage while its root is held, so a walk that adds nothing is
+// final. A root locked this late is out of id order; the attempts are bounded
+// and the last one throws rather than go on unlocked.
 export async function lockLineageRoots(
   tx: TenantScopedDatabase,
   seedIds: SQL,
   batch = LINEAGE_LOCK_BATCH,
 ): Promise<string[]> {
+  const held = new Set<string>();
   for (let attempt = 0; attempt < LINEAGE_LOCK_ATTEMPTS; attempt += 1) {
     const walked = (await tx.execute(sql`
       with recursive ${lineageRootCtes('lineage', seedIds)}
       select coalesce(jsonb_agg(root order by root), '[]'::jsonb) as roots from (
         select distinct root from lineage) r`)) as unknown as { roots: string[] }[];
     const ids = walked[0]?.roots ?? [];
-    let locked = 0;
-    for (let at = 0; at < ids.length; at += batch) {
+    const todo = ids.filter((id) => !held.has(id));
+    if (todo.length === 0) return ids;
+    for (let at = 0; at < todo.length; at += batch) {
       const rows = (await tx.execute(sql`
         select id from token_grants
-         where id = any(array(select value::uuid from jsonb_array_elements_text(${JSON.stringify(ids.slice(at, at + batch))}::jsonb)))
-         order by id for no key update`)) as unknown as unknown[];
-      locked += rows.length;
+         where id = any(array(select value::uuid from jsonb_array_elements_text(${JSON.stringify(todo.slice(at, at + batch))}::jsonb)))
+         order by id for no key update`)) as unknown as { id: string }[];
+      for (const row of rows) held.add(row.id);
     }
-    if (locked === ids.length) return ids;
   }
   throw new Error('the lineage roots kept changing while they were being locked');
 }

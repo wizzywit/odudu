@@ -1131,4 +1131,32 @@ describe('a lineage whose root grant has been deleted', () => {
     );
     expect(locked).toEqual([mid]);
   });
+  it('also takes the root a seed has once a middle grant is deleted while it waited', async () => {
+    const w = await newWorld();
+    const [a, b, c] = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 3));
+    const roots = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(
+            sql`select id from token_grants where id = ${nth([a], 0)} for no key update`,
+          );
+          await tx.execute(sql`delete from token_grants where id = ${nth([b], 0)}`);
+        },
+      },
+      async (held) => {
+        const locking = held.started(
+          withTenant(app.db, w.tenantId, (tx) =>
+            lockLineageRoots(tx, sql`select ${nth([c], 0)}::uuid as id`),
+          ),
+        );
+        await held.waitForWaiters(owner);
+        held.release();
+        const [result] = await Promise.all([locking, held.done]);
+        return result;
+      },
+    );
+    expect(roots).toEqual([c]);
+  });
 });
