@@ -290,3 +290,56 @@ export async function waitForLockWaiters(owner: DatabaseHandle, waiting = 1): Pr
   }
   throw new Error(`fewer than ${String(waiting)} backends waited on a lock`);
 }
+
+export interface HeldLock {
+  // Lets the holding transaction go on (to `afterRelease`) and commit.
+  release: () => void;
+  // Settles when the holding transaction has committed or failed.
+  done: Promise<void>;
+  // Registers an operation the body started, so it is awaited however the body ends.
+  started: <T>(operation: Promise<T>) => Promise<T>;
+}
+
+// Runs `body` while a transaction of the test holds the rows `lock` takes. The
+// body starts only once the lock is held, and not at all if taking it fails.
+// However the body ends, the holder is released and every operation it started
+// has settled before this returns, so a failure leaves nothing open.
+export async function withHeldLock<R>(
+  db: DatabaseHandle['db'],
+  tenantId: string,
+  hold: {
+    lock: (tx: TenantScopedDatabase) => Promise<void>;
+    afterRelease?: (tx: TenantScopedDatabase) => Promise<void>;
+  },
+  body: (held: HeldLock) => Promise<R>,
+): Promise<R> {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let locked!: () => void;
+  const gotLock = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const done = withTenant(db, tenantId, async (tx) => {
+    await hold.lock(tx);
+    locked();
+    await released;
+    await hold.afterRelease?.(tx);
+  });
+  const pending: Promise<unknown>[] = [done];
+  try {
+    await Promise.race([gotLock, done]);
+    return await body({
+      release,
+      done,
+      started: (operation) => {
+        pending.push(operation);
+        return operation;
+      },
+    });
+  } finally {
+    release();
+    await Promise.allSettled(pending);
+  }
+}

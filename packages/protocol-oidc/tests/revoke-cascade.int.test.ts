@@ -11,7 +11,7 @@ import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { tokenGrantRepository } from '#/repository/grants';
-import { waitForLockWaiters } from '#/testing/agent-fixture';
+import { waitForLockWaiters, withHeldLock } from '#/testing/agent-fixture';
 
 function nth<T>(list: readonly T[], index: number): T {
   const item = list[index];
@@ -636,34 +636,36 @@ describe('a cascade takes the grants before any instance', () => {
       const [top, below] = await twoOf(tx, w);
       return { top, below, instance: await instanceAt(tx, w, below) };
     });
-    let release!: () => void;
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let locked!: () => void;
-    const gotLock = new Promise<void>((resolve) => {
-      locked = resolve;
-    });
-    const holder = withTenant(app.db, w.tenantId, async (tx) => {
-      await tx.execute(sql`select id from token_grants where id = ${below} for update`);
-      locked();
-      await held;
-    });
-    await gotLock;
-    const cascading = withTenant(app.db, w.tenantId, (tx) =>
-      tokenGrantRepository(tx).revokeCascade([top], LATER),
+    const probe = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${below} for update`);
+        },
+      },
+      async (held) => {
+        const cascading = held.started(
+          withTenant(app.db, w.tenantId, (tx) =>
+            tokenGrantRepository(tx).revokeCascade([top], LATER),
+          ),
+        );
+        await waitForLockWaiters(owner);
+        const result = await owner.db
+          .transaction((tx) =>
+            tx.execute(
+              sql`select id from agent_instances where id = ${instance} for update nowait`,
+            ),
+          )
+          .then(
+            () => null,
+            (error: unknown) => error,
+          );
+        held.release();
+        await Promise.all([cascading, held.done]);
+        return result;
+      },
     );
-    await waitForLockWaiters(owner);
-    const probe = await owner.db
-      .transaction((tx) =>
-        tx.execute(sql`select id from agent_instances where id = ${instance} for update nowait`),
-      )
-      .then(
-        () => null,
-        (error: unknown) => error,
-      );
-    release();
-    await Promise.all([cascading, holder]);
     expect(probe).toBeNull();
     expect(await instanceRevoked([instance])).toEqual([true]);
   });
@@ -695,36 +697,38 @@ describe('a revoke over many grants takes them in id order', () => {
   it('does not touch a later grant while it waits for an earlier one', async () => {
     const w = await newWorld();
     const [lowest, , highest] = await overlapping(w, 3);
-    let release!: () => void;
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let locked!: () => void;
-    const gotLock = new Promise<void>((resolve) => {
-      locked = resolve;
-    });
-    const holder = withTenant(app.db, w.tenantId, async (tx) => {
-      await tx.execute(sql`select id from token_grants where id = ${nth([lowest], 0)} for update`);
-      locked();
-      await held;
-    });
-    await gotLock;
-    const revoking = withTenant(app.db, w.tenantId, (tx) =>
-      tokenGrantRepository(tx).revokeForSubject(w.subjectId, LATER),
+    const probe = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(
+            sql`select id from token_grants where id = ${nth([lowest], 0)} for update`,
+          );
+        },
+      },
+      async (held) => {
+        const revoking = held.started(
+          withTenant(app.db, w.tenantId, (tx) =>
+            tokenGrantRepository(tx).revokeForSubject(w.subjectId, LATER),
+          ),
+        );
+        await waitForLockWaiters(owner);
+        const result = await owner.db
+          .transaction((tx) =>
+            tx.execute(
+              sql`select id from token_grants where id = ${nth([highest], 0)} for update nowait`,
+            ),
+          )
+          .then(
+            () => null,
+            (error: unknown) => error,
+          );
+        held.release();
+        await Promise.all([revoking, held.done]);
+        return result;
+      },
     );
-    await waitForLockWaiters(owner);
-    const probe = await owner.db
-      .transaction((tx) =>
-        tx.execute(
-          sql`select id from token_grants where id = ${nth([highest], 0)} for update nowait`,
-        ),
-      )
-      .then(
-        () => null,
-        (error: unknown) => error,
-      );
-    release();
-    await Promise.all([revoking, holder]);
     expect(probe).toBeNull();
   });
 

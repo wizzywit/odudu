@@ -16,6 +16,7 @@ import {
   login,
   startAgentStack,
   waitForLockWaiters,
+  withHeldLock,
   type AgentStack,
 } from '#/testing/agent-fixture';
 
@@ -365,25 +366,25 @@ describe('an exchanged grant revoked between the liveness check and the spend', 
         actorSubjectId: w.ownerId,
       }),
     );
-    let release!: () => void;
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let locked!: () => void;
-    const gotLock = new Promise<void>((resolve) => {
-      locked = resolve;
-    });
-    const revoking = withTenant(stack.app.db, stack.tenantId, async (tx) => {
-      await tx.execute(sql`select id from token_grants where id = ${child.id} for update`);
-      locked();
-      await held;
-      await tokenGrantRepository(tx).revoke(child.id, NOON);
-    });
-    await gotLock;
-    const spending = spend(w, null, { grantId: child.id });
-    await waitForLockWaiters(stack.owner);
-    release();
-    const [outcome] = await Promise.all([spending, revoking]);
+    const outcome = await withHeldLock(
+      stack.app.db,
+      stack.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${child.id} for update`);
+        },
+        afterRelease: async (tx) => {
+          await tokenGrantRepository(tx).revoke(child.id, NOON);
+        },
+      },
+      async (held) => {
+        const spending = held.started(spend(w, null, { grantId: child.id }));
+        await waitForLockWaiters(stack.owner);
+        held.release();
+        const [result] = await Promise.all([spending, held.done]);
+        return result;
+      },
+    );
     expect(outcome).toEqual({ kind: 'refused', level: 'grant' });
     expect(await counters(w, null)).toMatchObject({ grantWrites: 0, window: 0 });
   });
