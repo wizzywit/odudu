@@ -220,10 +220,14 @@ before the client row, so a grant created for the account after that lock has
 its root taken only by the revoke, under the client row, where an exchange
 waiting for the client can deadlock with it (a window of milliseconds).
 PostgreSQL aborts one of the two transactions with `40P01`. Its transaction rolls
-back and the error reaches the caller: nothing in the server retries it, and the
-global error handler (`answerServerError`) answers an error that carries no
-status with `500 Internal Server Error`, so the exchange, the revoke or the
-retirement has to be sent again.
+back, and the entry points that revoke, exchange or mint (logout, ending all
+access, the admin routes, a client's amendment, retirement or deletion, a
+subject's deletion, the token endpoint and the MCP mint) run it again from the
+start through `withTenantRetrying` (`@odudu/db`): three attempts in all, a
+short jittered pause between, on `40P01` and on the typed
+`RetryableTransactionError` that `lockLineageRoots` throws when the roots kept
+changing. The error reaches the caller, as `500 Internal Server Error` through
+`answerServerError`, only after the third attempt has lost.
 
 ### 5.5 Budgets
 
@@ -291,9 +295,11 @@ acceptance of an approved action for a tool of the three classes it withholds.
 An "Agents" area (instances as a tree by lineage with owner, type, remaining
 budget and expiry, a revoke action that says what it will cascade to; pending
 and recent approvals) and the settings and client fields above. New audit actions
-for instance minted, expired and revoked, delegation created and revoked, approval
-requested, decided and expired, and CIBA request, poll refusal and token issued,
-each with an allowlisted detail and an entry in the vocabulary's docs.
+for instance minted and revoked, delegation created and revoked, approval
+requested and decided, and CIBA request, poll refusal and token issued, each with
+an allowlisted detail and an entry in the vocabulary's docs. An instance or an
+approval that lapses writes no row of its own: the reapers write none, and an
+instance that lapses and is then revoked is audited by that revocation.
 
 ## 6. Performance and scale
 

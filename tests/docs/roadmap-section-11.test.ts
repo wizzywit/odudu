@@ -485,11 +485,6 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       "a test-harness note for the injection suite's new scenarios, no product behaviour",
     ],
     [
-      'Four cases of the revocation locks',
-      ['P11'],
-      'a retry rule documented now and owed with the many-instance work, no new capability',
-    ],
-    [
       'The cleanup P4k left in branding and clients',
       ['P4h'],
       'console source cleanup left by the closed P4k, no product behaviour',

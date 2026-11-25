@@ -1,5 +1,10 @@
 import { actionLink } from '#/service/action-link';
-import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import {
+  withTenant,
+  type DatabaseHandle,
+  type TenantScopedDatabase,
+  withTenantRetrying,
+} from '@odudu/db';
 import {
   auditRepository,
   type BreachedCheckOutcome,
@@ -160,7 +165,7 @@ async function writeActions(
   newPassword: string | undefined,
   prepared: BreachedPrepared | null,
 ): Promise<CompleteRequiredActionsResult> {
-  return withTenant(
+  return withTenantRetrying(
     deps.database.db,
     deps.tenantId,
     async (tx) => {

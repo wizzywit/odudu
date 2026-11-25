@@ -1,5 +1,10 @@
 import { actionLink } from '#/service/action-link';
-import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import {
+  withTenant,
+  type DatabaseHandle,
+  type TenantScopedDatabase,
+  withTenantRetrying,
+} from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
   mailContext,
@@ -315,7 +320,7 @@ async function writeReset(
   newPassword: string,
   prepared: BreachedPrepared,
 ): Promise<CompletePasswordResetResult> {
-  return withTenant(
+  return withTenantRetrying(
     deps.database.db,
     deps.tenantId,
     async (tx) => {

@@ -1,6 +1,7 @@
 import { OduduError } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { type Database } from '#/client';
+import { isDeadlockDetected } from '#/sqlstate';
 
 declare const tenantScopedBrand: unique symbol;
 
@@ -182,4 +183,60 @@ export async function withEachTenantExclusive<T>(
     }
     return { acquired: true, values };
   });
+}
+
+/**
+ * Thrown by code that gave up waiting for rows another transaction held and
+ * wrote nothing that survives the rollback, so running the whole transaction
+ * again is safe: `withTenantRetrying` does.
+ */
+export class RetryableTransactionError extends Error {}
+
+/** How many times a transaction that lost a deadlock is run in all. */
+export const DEADLOCK_ATTEMPTS = 3;
+
+export interface RetryPolicy {
+  readonly attempts?: number;
+  /** The pause before the attempt after `attempt` (1-based); jitter lives here. */
+  readonly pauseMs?: (attempt: number) => number;
+  readonly sleep?: (ms: number) => Promise<void>;
+}
+
+const DEFAULT_PAUSE_MS = (attempt: number): number => attempt * (5 + Math.random() * 20);
+const DEFAULT_SLEEP = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+function retryable(error: unknown): boolean {
+  return error instanceof RetryableTransactionError || isDeadlockDetected(error);
+}
+
+/**
+ * `withTenant`, run again from the start when PostgreSQL ends it to break a
+ * deadlock (40P01) or when it throws a `RetryableTransactionError`, at most
+ * `attempts` times in all (three), with a short jittered pause between. For a
+ * revocation, an exchange or a mint, which take row locks in an order another
+ * of them can cross; the rollback leaves nothing, so `fn` must only write
+ * through `tx` and keep no state outside it that a second run would repeat.
+ * The last attempt's error reaches the caller as it is.
+ */
+export async function withTenantRetrying<T>(
+  db: Database,
+  tenantId: string,
+  fn: (tx: TenantScopedDatabase) => Promise<T>,
+  context?: RequestContext,
+  policy: RetryPolicy = {},
+): Promise<T> {
+  const attempts = policy.attempts ?? DEADLOCK_ATTEMPTS;
+  const pauseMs = policy.pauseMs ?? DEFAULT_PAUSE_MS;
+  const sleep = policy.sleep ?? DEFAULT_SLEEP;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await withTenant(db, tenantId, fn, context);
+    } catch (error) {
+      if (attempt >= attempts || !retryable(error)) throw error;
+      await sleep(pauseMs(attempt));
+    }
+  }
 }

@@ -1,9 +1,9 @@
 import {
   withSavepoint,
-  withTenant,
   withTenantThen,
   type Database,
   type TenantScopedDatabase,
+  withTenantRetrying,
 } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { type FastifyRequest } from 'fastify';
@@ -72,7 +72,7 @@ export function adminTx<T>(
     // of its own would.
     return withSavepoint(open.tx, fn);
   }
-  return withTenant(db, tenantId, fn, requestContextFrom(request));
+  return withTenantRetrying(db, tenantId, fn, requestContextFrom(request));
 }
 
 /** `adminTx` for work in one tenant whose audit row belongs to another. */

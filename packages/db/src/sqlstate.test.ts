@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isCheckViolation,
+  isDeadlockDetected,
   isForeignKeyViolation,
   isLockNotAvailable,
   isUniqueViolation,
@@ -16,6 +17,7 @@ describe('reading a SQLSTATE off a wrapped driver error', () => {
       ),
     ).toBe(true);
     expect(isLockNotAvailable(Object.assign(new Error('x'), { code: '55P03' }))).toBe(true);
+    expect(isDeadlockDetected(Object.assign(new Error('x'), { code: '40P01' }))).toBe(true);
   });
 
   it('finds a lock timeout under a wrapper', () => {

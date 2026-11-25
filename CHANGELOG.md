@@ -39,6 +39,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Fixed
 
+- Two revocations, exchanges or mints that cross over the same chain of grants no longer answer `500` when PostgreSQL ends one of them to break a deadlock. The server runs the transaction that lost again, up to three attempts in all, for sign-out, ending all access, the admin revoke, client and person changes, the token endpoint and the MCP mint; only a third loss answers `500`.
 - Deleting a client or a person now ends what was exchanged from their grants by other clients, the tokens an agent acted with under a deleted service account, and the agent instances they ran, together with the instances' own subjects. Before, those tokens stayed live, detached from the grant they came from, and the instance subjects were left listed.
 - The me API's CORS preflight now allows `POST` beside `GET`, `PATCH` and `DELETE`, which the delegation route needs from a browser application.
 - Revoking a grant whose cascade ended several thousand independent agent runs no longer fails: the audit rows are written in chunks instead of one insert that exceeded the database's limit of 65,535 bound values.

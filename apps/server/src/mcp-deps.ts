@@ -1,4 +1,9 @@
-import { type DatabaseHandle, type RequestContext, withTenant } from '@odudu/db';
+import {
+  type DatabaseHandle,
+  type RequestContext,
+  withTenant,
+  withTenantRetrying,
+} from '@odudu/db';
 import { agentInstanceRepository } from '@odudu/domain-agents';
 import { effectiveRoles } from '@odudu/domain-authz';
 import {
@@ -78,7 +83,7 @@ export function mcpDepsFor(parts: McpDepsParts): McpDeps {
       }
       // A refusal is returned out of the transaction so it commits: a run
       // whose owner ended has its instance revoked in that same transaction.
-      const outcome = await withTenant(parts.database.db, tenant.id, async (tx) => {
+      const outcome = await withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
         try {
           return await mintAgentToken(
             tx,
