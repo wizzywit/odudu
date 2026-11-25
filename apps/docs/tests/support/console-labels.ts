@@ -90,6 +90,8 @@ const DOMAINS_WORDS = 'domains/services/domainsWords.ts';
 const DOMAINS_ROWS = 'domains/services/rows.ts';
 const DOMAINS_CONFIRM = 'domains/services/confirm.ts';
 const TOKENS_WORDS = 'registration-tokens/services/tokenWording.ts';
+const AGENT_TEXT = 'agents/services/agentText.ts';
+const AGENT_APPROVALS = 'agents/ui/AgentApprovalsPage/AgentApprovalsPage.tsx';
 const FLOW_WORDS = 'flow/services/flowWording.ts';
 const FLOW_REQUIREMENTS = 'flow/services/requirement.ts';
 const FLOWS_WORDS = 'flow/services/flowsWords.ts';
@@ -476,7 +478,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Uses: page(TOKENS_WORDS, "usesLabel: 'Uses'"),
   Lifetime: page(TOKENS_WORDS, "lifetimeLabel: 'Lifetime'"),
   'Uses left': page(TOKENS_WORDS, "usesLeft: 'Uses left'"),
-  Revoke: page(TOKENS_WORDS, "revoke: 'Revoke'"),
+  Revoke: several(
+    page(TOKENS_WORDS, "revoke: 'Revoke'"),
+    page(AGENT_TEXT, "REVOKE_LABEL = 'Revoke'"),
+  ),
   'Revoke token': page(TOKENS_WORDS, "confirm: 'Revoke token'"),
   Policy: page(SETTINGS_WORDS, "policyLabel: 'Policy'"),
   'Closed: only an administrator creates clients': page(
@@ -484,6 +489,17 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "label: 'Closed: only an administrator creates clients'",
   ),
   'With a registration token': page(PLATFORM, "label: 'With a registration token'"),
+
+  // Agents.
+  Approvals: page(AGENT_TEXT, "APPROVALS_LINK = 'Approvals'"),
+  'Agent approvals': page(AGENT_APPROVALS, "TITLE = 'Agent approvals'"),
+  State: page(AGENT_TEXT, "STATE_FILTER_LABEL = 'State'"),
+  'Revoke run': page(AGENT_TEXT, "REVOKE_CONFIRM_LABEL = 'Revoke run'"),
+  'Read again': page('agents/services/revoke.ts', "label: 'Read again'"),
+  'Show details': page(AGENT_TEXT, "SHOW_DETAILS = 'Show details'"),
+  'Hide details': page(AGENT_TEXT, "HIDE_DETAILS = 'Hide details'"),
+  'Only this owner': page(AGENT_TEXT, "NARROW_LABEL = 'Only this owner'"),
+  'Show every agent': page(AGENT_TEXT, "OWNER_ONLY_ALL = 'Show every agent'"),
 
   // The sign-in flow.
   Steps: page(FLOW_WORDS, "title: 'Steps'"),
@@ -590,7 +606,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     SETTINGS_WORDS,
     "cimdLabel: 'Accept client metadata documents'",
   ),
-  Agents: page(PLATFORM, "title: 'Agents'"),
+  Agents: several(rail('agents', 'Agents'), page(PLATFORM, "title: 'Agents'")),
   'Delegation depth': page(PLATFORM, "label: 'Delegation depth'"),
   'Children per instance': page(PLATFORM, "label: 'Children per instance'"),
   'Live instances': page(PLATFORM, "label: 'Live instances'"),

@@ -1,0 +1,64 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · demo
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Agents
+Tenant
+Settings
+Branding
+Email
+Domains
+Export
+Observe
+Audit trail
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Collapse menu
+or press 
+[
+odudu · demo
+Menu
+System
+Acting in 
+demo
+ with system authority
+Back to system
+demo
+Agents
+Each row is one run of an agent, acting for the person it is shown against. A run that started another sits above it, so lineage reads from the top down. Revoking a run ends it and every run started beneath it.
+Approvals
+State
+Any state
+▾
+Any state
+Live
+Expired
+Revoked
+Nothing yet
+No agents yet
+No agent has acted in this tenant yet. A run appears here the first time an agent acts for somebody.

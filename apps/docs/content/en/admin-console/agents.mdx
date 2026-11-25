@@ -1,0 +1,45 @@
+---
+title: Agents in the console
+description: See which agents are acting for people in a tenant, end a run and everything it started, and read what agents asked people to approve.
+sidebar_position: 11.5
+---
+
+import { ConsoleShot } from '@site/src/shared/ui/ConsoleShot';
+
+# Agents in the console
+
+An agent is an application that acts for a person, and a run is one start of it. A run can start others, so one request from a person can leave a tree of runs behind it. This page is for seeing that tree and for ending it. It needs the `manage-sessions` capability; the menu entry is **Agents** under **SECURITY**.
+
+<ConsoleShot
+  name="agents"
+  alt="The demo tenant's Agents page with an Approvals button, a State menu set to Any state, and a message saying no agent has acted in this tenant yet."
+  caption="No agent has acted in the demo tenant."
+/>
+
+## 1. See who is acting for whom
+
+Open **Agents**. Each row is one run, drawn under the run that started it, so the lineage reads from the top down. A row names the agent's client, whether the run is live, expired or revoked, and the person it acts for. A live run also says how many writes and creates it has left, and when it expires. An ended run says when it expired or was revoked and shows no budget.
+
+The list is read a page at a time, and a run can sit on a later page than the run that started it. Until that page is loaded, the run shows at the top of the list with a line naming the run that started it. Choose **State** to see only live, expired or revoked runs, and **Only this owner** on a row to see one person's runs alone, then **Show every agent** to come back. The owner's name links to their record when you may read subjects.
+
+## 2. Look at one run
+
+Choose **Show details** on a row. The console reads that run again and shows its id, the run that started it, its depth, the scopes it holds and when it started. **Hide details** puts it away.
+
+## 3. Revoke a run
+
+Choose **Revoke** on a live run. Before it asks you to confirm, the console asks the server what the revoke would end and says so: how many instances, this one and every run started beneath it, and how many grants. The tokens those grants hold stop working at once. Nothing is changed while the dialog is counting, and **Revoke run** stays dimmed until the count is in. If the count cannot be read, the dialog says so and offers **Read again**.
+
+You cannot revoke the run of a person who holds an admin capability you do not hold, so you cannot cut off someone more powerful than you. The dialog says so when the server refuses.
+
+## 4. Read what agents asked to have approved
+
+Choose **Approvals**, which opens **Agent approvals**. An approval is what an agent asked a person to agree to before it did something: a summary of the action, the agent that asked and the person it is for. **State** narrows the list to pending, approved, denied, expired or consumed requests. A pending request waits for the person it is for; it is answered by them and never from this list. The list never shows the digest that ties an approval to one exact action.
+
+## Things that cannot be undone
+
+**Revoke run** cannot be undone. It ends the run and every run it started, and the agent has to be started again to act. If a run ended while the dialog was open, nothing more is ended and the console says so.
+
+## Do the same through the API
+
+The calls are in the [agents area of the admin API](../reference/generated/admin-api/agents/index.md); what agents asked to have approved is in the [agent approvals area](../reference/generated/admin-api/agent-approvals/index.md). A revoke with `dry_run=true` returns the counts and changes nothing. For the other half of the picture, how long a person's own sessions last, read [Sessions](./sessions.mdx).
