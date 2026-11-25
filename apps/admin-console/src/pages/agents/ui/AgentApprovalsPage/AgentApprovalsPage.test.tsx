@@ -30,7 +30,7 @@ it('lists what agents asked a person to approve, with its state and how it was a
 it('links the owner for a caller who may read subjects, and only names it for one who may not', async () => {
   renderConsoleAt(AT, agentRoutes());
   const table = await screen.findByRole('grid', { name: 'Agent approvals' });
-  expect(within(table).getAllByRole('link', { name: 'Open the owner sub-ada' })[0]).toHaveAttribute(
+  expect(within(table).getAllByRole('link', { name: 'Open the owner ada' })[0]).toHaveAttribute(
     'href',
     '/console/acme/subjects/sub-ada',
   );

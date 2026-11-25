@@ -11,6 +11,7 @@ const path = 'DELETE /console/api/admin/tenants/acme/agents/run-root';
 const RUN: AgentInstance = {
   id: 'run-root',
   owner: RUN_ROOT.owner,
+  ownerUsername: 'ada',
   agentClient: RUN_ROOT.agent_client,
   parent: null,
   depth: 1,

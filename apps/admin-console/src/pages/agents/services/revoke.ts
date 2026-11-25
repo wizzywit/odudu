@@ -1,3 +1,4 @@
+import { REVOKE_LABEL, runName } from '#/pages/agents/services/agentText';
 import { refusedBy, writeFailureText } from '#/shared/lib/services/failure';
 import { counted } from '#/shared/lib/services/format';
 import type { Read } from '#/shared/lib/services/read';
@@ -31,8 +32,8 @@ export function revokeRetry(read: Read<RevokeCount>): ImpactRetry | null {
   return { label: 'Read again', run: read.retry };
 }
 
-export function revokeTitle(client: string): string {
-  return `Revoke the run of ${client}?`;
+export function revokeTitle(run: AgentInstance): string {
+  return `${REVOKE_LABEL} ${runName(run)}?`;
 }
 
 export function revokeConsequence(client: string, impact: Impact): string {
@@ -70,13 +71,10 @@ export interface RevokeDialog {
 }
 
 // The confirmation of a revoke, drawn only while one is asked.
-export function revokeDialogOf(
-  asked: Pick<AgentInstance, 'agentClient'> | null,
-  impact: Impact,
-): RevokeDialog | null {
+export function revokeDialogOf(asked: AgentInstance | null, impact: Impact): RevokeDialog | null {
   if (asked === null) return null;
   return {
-    title: revokeTitle(asked.agentClient),
+    title: revokeTitle(asked),
     consequence: revokeConsequence(asked.agentClient, impact),
     held: revokeHeld(impact),
   };
@@ -88,4 +86,14 @@ export function revokeTargetOf(asked: Pick<AgentInstance, 'id'> | null): {
   asked: boolean;
 } {
   return { id: asked?.id ?? '', asked: asked !== null };
+}
+
+export interface LastRevoke {
+  // How many revokes have gone through, for a view that moves focus to the line.
+  count: number;
+  text: string | null;
+}
+
+export function lastRevoke(was: LastRevoke, run: AgentInstance, ended: RevokeCount): LastRevoke {
+  return { count: was.count + 1, text: revokedText(run.agentClient, ended) };
 }

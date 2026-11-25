@@ -3,6 +3,7 @@
     {
       "id": "0197a3b2-1c4d-7e5f-8a9b-0c1d2e3f4a5b",
       "owner": "0197a3b1-aaaa-7bbb-8ccc-0d1e2f3a4b5c",
+      "owner_username": "ada",
       "agent_client": "planner",
       "parent": null,
       "depth": 1,
@@ -16,6 +17,7 @@
     {
       "id": "0197a3b2-2d5e-7f60-8b9c-1d2e3f4a5b6c",
       "owner": "0197a3b1-aaaa-7bbb-8ccc-0d1e2f3a4b5c",
+      "owner_username": "ada",
       "agent_client": "writer",
       "parent": "0197a3b2-1c4d-7e5f-8a9b-0c1d2e3f4a5b",
       "depth": 2,

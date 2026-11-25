@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   countOf,
+  lastRevoke,
   revokeConsequence,
   revokedText,
   revokeFailure,
@@ -10,9 +11,24 @@ import {
   revokeTargetOf,
 } from '#/pages/agents/services/revoke';
 import type { Read } from '#/shared/lib/services/read';
-import type { RevokeCount } from '#/pages/agents/types/agent';
+import type { AgentInstance, RevokeCount } from '#/pages/agents/types/agent';
 
 const retry = (): void => undefined;
+
+const RUN: AgentInstance = {
+  id: 'run-root',
+  owner: 'sub-ada',
+  ownerUsername: 'ada',
+  agentClient: 'planner',
+  parent: null,
+  depth: 1,
+  state: 'live',
+  scope: 'mcp:read',
+  createdAt: '2026-11-25T08:00:00.000Z',
+  expiresAt: '2026-11-25T08:15:00.000Z',
+  revokedAt: null,
+  budget: { mutating: 1, creates: 1 },
+};
 const ready = (data: RevokeCount): Read<RevokeCount> => ({ status: 'ready', data });
 
 it('reads the dry count as counted, and a count not read as unknown, never as none', () => {
@@ -88,17 +104,24 @@ it('says the refusals in the words of the capability or the ceiling, and that a 
 
 it('draws no confirmation until a revoke is asked, then holds it with the counts', () => {
   expect(revokeDialogOf(null, { kind: 'reading' })).toBeNull();
-  expect(revokeDialogOf({ agentClient: 'planner' }, { kind: 'reading' })).toEqual({
-    title: 'Revoke the run of planner?',
+  expect(revokeDialogOf(RUN, { kind: 'reading' })).toEqual({
+    title: 'Revoke planner started 2026-11-25 08:00:00 UTC (run-root)?',
     consequence: 'Checking what revoking this run of planner ends…',
     held: true,
   });
-  expect(
-    revokeDialogOf({ agentClient: 'planner' }, { kind: 'counted', grants: 0, instances: 1 })?.held,
-  ).toBe(false);
+  expect(revokeDialogOf(RUN, { kind: 'counted', grants: 0, instances: 1 })?.held).toBe(false);
 });
 
 it('reads the count only for a run that is being asked about', () => {
   expect(revokeTargetOf({ id: 'i1' })).toEqual({ id: 'i1', asked: true });
   expect(revokeTargetOf(null)).toEqual({ id: '', asked: false });
+});
+
+it('counts each revoke that went through and keeps what the last one came to', () => {
+  const first = lastRevoke({ count: 0, text: null }, RUN, { grants: 1, instances: 2 });
+  expect(first).toEqual({
+    count: 1,
+    text: 'The run of planner ended: 2 instances and 1 grant.',
+  });
+  expect(lastRevoke(first, RUN, { grants: 0, instances: 0 }).count).toBe(2);
 });

@@ -27,13 +27,20 @@ const LINEAGE = {
 it('nests each run under the one that started it, as deep as the lineage goes', async () => {
   renderConsoleAt(AT, agentRoutes(undefined, LINEAGE));
   const top = await screen.findByRole('list', { name: 'Agents' });
-  const writer = within(top).getByRole('list', { name: 'Started by the run of planner, run-a' });
-  const beneath = within(writer).getByRole('list', { name: 'Started by the run of writer, run-b' });
+  const writer = within(top).getByRole('list', {
+    name: 'Started by planner started 2026-11-25 08:00:00 UTC (run-a)',
+  });
+  const beneath = within(writer).getByRole('list', {
+    name: 'Started by writer started 2026-11-25 08:00:00 UTC (run-b)',
+  });
   expect(
     within(beneath)
-      .getAllByRole('listitem', { name: /, run-[cd]$/u })
+      .getAllByRole('listitem', { name: /\(run-[cd]\)$/u })
       .map((item) => item.getAttribute('aria-label')),
-  ).toEqual(['checker, run-c', 'linter, run-d']);
+  ).toEqual([
+    'checker started 2026-11-25 08:00:00 UTC (run-c)',
+    'linter started 2026-11-25 08:00:00 UTC (run-d)',
+  ]);
 });
 
 it('opens and closes the details of one run without touching its neighbours', async () => {
@@ -47,14 +54,14 @@ it('opens and closes the details of one run without touching its neighbours', as
   );
   const top = await screen.findByRole('list', { name: 'Agents' });
   const open = within(top).getByRole('button', {
-    name: 'Show details of the run of checker, run-c',
+    name: 'Show details of checker started 2026-11-25 08:00:00 UTC (run-c)',
   });
   expect(open).toHaveAttribute('aria-expanded', 'false');
   await user.click(open);
   expect(await screen.findByText('Run id')).toBeVisible();
   expect(screen.getAllByText('Run id')).toHaveLength(1);
   const close = within(top).getByRole('button', {
-    name: 'Hide details of the run of checker, run-c',
+    name: 'Hide details of checker started 2026-11-25 08:00:00 UTC (run-c)',
   });
   expect(close).toHaveAttribute('aria-expanded', 'true');
   await user.click(close);
@@ -75,7 +82,9 @@ it('passes axe in both themes with a lineage three levels deep and a run’s det
         ).element,
       async () => {
         await user.click(
-          await screen.findByRole('button', { name: 'Show details of the run of planner, run-a' }),
+          await screen.findByRole('button', {
+            name: 'Show details of planner started 2026-11-25 08:00:00 UTC (run-a)',
+          }),
         );
         await screen.findByText('Run id');
       },

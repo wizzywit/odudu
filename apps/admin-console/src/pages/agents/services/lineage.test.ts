@@ -6,6 +6,7 @@ function run(id: string, parent: string | null, depth = 1): AgentInstance {
   return {
     id,
     owner: 'sub-ada',
+    ownerUsername: 'ada',
     agentClient: 'planner',
     parent,
     depth,

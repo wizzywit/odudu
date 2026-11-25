@@ -1,49 +1,57 @@
+import { useState } from 'react';
 import { useRefusal, useAuthority } from '#/entities/session';
 import { subjectHref, subjectLinkOf } from '#/entities/subject';
 import type { AgentInstance, LineageNode, RevokeCount } from '#/pages/agents/types/agent';
 import { useAgentList, useRevokeAgent, useRevokeCount } from '#/pages/agents/repository/useAgents';
+import { agentApprovalsHref } from '#/pages/agents/services/addresses';
 import {
+  AGENT_COLUMNS,
   AGENT_NOUN,
   AGENTS_RULE,
+  APPROVALS_LINK,
+  COPY_LABELS,
   FACTS,
   HIDE_DETAILS,
+  INSTANCE_STATES,
+  LAST_REVOKE_LABEL,
   NARROW_LABEL,
-  SHOW_DETAILS,
+  NOTHING_YET_AGENTS,
   REVOKE_CONFIRM_LABEL,
   REVOKE_LABEL,
+  SHOW_DETAILS,
+  STATE_FILTER_LABEL,
+  TREE_LABEL,
   budgetText,
   detachedText,
   detailsLabel,
   endOf,
   instanceTone,
   narrowButtonLabel,
+  ownerLinkLabel,
+  ownerName,
+  readingLabel,
   revokeButtonLabel,
-  shortId,
+  runName,
   treeLabel,
-  INSTANCE_STATES,
-  NOTHING_YET_AGENTS,
-  STATE_FILTER_LABEL,
-  APPROVALS_LINK,
 } from '#/pages/agents/services/agentText';
 import { ownerNarrowing, stateChoice, type OwnerNarrowing } from '#/pages/agents/services/filters';
 import { lineageOf } from '#/pages/agents/services/lineage';
 import {
   countOf,
+  lastRevoke,
   revokeDialogOf,
-  revokedText,
   revokeFailure,
   revokeRetry,
   revokeTargetOf,
   type ImpactRetry,
+  type LastRevoke,
   type RevokeDialog,
 } from '#/pages/agents/services/revoke';
-import { useToast } from '#/shared/lib/repository/useToasts';
 import { holds } from '#/shared/lib/services/access';
 import type { Choice } from '#/shared/lib/services/choice';
 import { statusFilter } from '#/shared/lib/services/filters';
 import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import { useConfirmedChange, type Confirming } from '#/shared/lib/use-cases/useConfirmedChange';
-import { agentApprovalsHref } from '#/pages/agents/services/addresses';
 
 export interface AgentsPage {
   list: ResourceListState<AgentInstance>;
@@ -57,6 +65,8 @@ export interface AgentsPage {
   revoke: Confirming<AgentInstance>;
   dialog: RevokeDialog | null;
   retry: ImpactRetry | null;
+  // What the last revoke came to, kept beside the list and given the focus.
+  last: LastRevoke;
   approvalsHref: string;
   text: {
     noun: typeof AGENT_NOUN;
@@ -64,6 +74,10 @@ export interface AgentsPage {
     nothingYet: string;
     approvals: string;
     facts: typeof FACTS;
+    columns: typeof AGENT_COLUMNS;
+    copy: typeof COPY_LABELS;
+    treeLabel: string;
+    lastRevoke: string;
     revoke: string;
     revokeConfirm: string;
     details: { show: string; hide: string };
@@ -75,26 +89,29 @@ export interface AgentsPage {
     end: typeof endOf;
     tone: typeof instanceTone;
     detached: typeof detachedText;
-    short: typeof shortId;
     details: typeof detailsLabel;
     revoke: typeof revokeButtonLabel;
     narrow: typeof narrowButtonLabel;
     tree: typeof treeLabel;
+    run: typeof runName;
+    reading: typeof readingLabel;
+    ownerName: typeof ownerName;
+    ownerLink: typeof ownerLinkLabel;
   };
 }
 
 export function useAgentsPage(tenant: string): AgentsPage {
   const refusal = useRefusal(tenant);
-  const toast = useToast();
   const authority = useAuthority(tenant);
   const list = useAgentList(tenant);
+  const [last, setLast] = useState<LastRevoke>({ count: 0, text: null });
   const revoke = useConfirmedChange<AgentInstance, RevokeCount>({
     refusal,
     capability: 'manage-sessions',
     change: useRevokeAgent(tenant),
     failureText: revokeFailure,
     done: (run, ended) => {
-      toast.succeeded(revokedText(run.agentClient, ended));
+      setLast((was) => lastRevoke(was, run, ended));
     },
   });
   const target = revokeTargetOf(revoke.asking);
@@ -111,7 +128,7 @@ export function useAgentsPage(tenant: string): AgentsPage {
         list.setFilter('state', statusFilter(id));
       },
     },
-    owner: ownerNarrowing(list.filters, () => {
+    owner: ownerNarrowing(list.filters, list.rows, () => {
       list.setFilter('owner', null);
     }),
     narrowTo: (owner) => {
@@ -120,6 +137,7 @@ export function useAgentsPage(tenant: string): AgentsPage {
     revoke,
     dialog: revokeDialogOf(revoke.asking, countOf(count)),
     retry: revokeRetry(count),
+    last,
     approvalsHref: agentApprovalsHref(tenant),
     text: {
       noun: AGENT_NOUN,
@@ -127,6 +145,10 @@ export function useAgentsPage(tenant: string): AgentsPage {
       nothingYet: NOTHING_YET_AGENTS,
       approvals: APPROVALS_LINK,
       facts: FACTS,
+      columns: AGENT_COLUMNS,
+      copy: COPY_LABELS,
+      treeLabel: TREE_LABEL,
+      lastRevoke: LAST_REVOKE_LABEL,
       revoke: REVOKE_LABEL,
       revokeConfirm: REVOKE_CONFIRM_LABEL,
       details: { show: SHOW_DETAILS, hide: HIDE_DETAILS },
@@ -137,11 +159,14 @@ export function useAgentsPage(tenant: string): AgentsPage {
       end: endOf,
       tone: instanceTone,
       detached: detachedText,
-      short: shortId,
       details: detailsLabel,
       revoke: revokeButtonLabel,
       narrow: narrowButtonLabel,
       tree: treeLabel,
+      run: runName,
+      reading: readingLabel,
+      ownerName,
+      ownerLink: ownerLinkLabel,
     },
   };
 }

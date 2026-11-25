@@ -20,6 +20,7 @@ function instanceOf(wire: WireInstance): AgentInstance {
   return {
     id: wire.id,
     owner: wire.owner,
+    ownerUsername: wire.owner_username,
     agentClient: wire.agent_client,
     parent: wire.parent,
     depth: wire.depth,
@@ -36,6 +37,7 @@ function approvalOf(wire: WireApproval): AgentApproval {
   return {
     id: wire.id,
     owner: wire.owner,
+    ownerUsername: wire.owner_username,
     agentClient: wire.agent_client,
     instance: wire.instance,
     kind: wire.kind,

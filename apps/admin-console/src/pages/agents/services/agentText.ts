@@ -1,4 +1,4 @@
-import { counted } from '#/shared/lib/services/format';
+import { counted, formatAbsolute } from '#/shared/lib/services/format';
 import type { Choice } from '#/shared/lib/services/choice';
 import type {
   AgentApproval,
@@ -97,15 +97,41 @@ export function endOf(run: AgentInstance): RunEnd {
   }
 }
 
-const SHORT_ID = 8;
+// The ids are time-ordered, so their start is shared by runs made in the same
+// minute; the end is the random part, which tells them apart.
+const ID_TAIL = 8;
 
-export function shortId(id: string): string {
-  return id.slice(0, SHORT_ID);
+export function idTail(id: string): string {
+  return id.slice(-ID_TAIL);
+}
+
+// A run as a person tells it from its siblings: its client, when it started
+// and the end of its id.
+export function runName(run: Pick<AgentInstance, 'agentClient' | 'createdAt' | 'id'>): string {
+  const when = formatAbsolute(new Date(run.createdAt));
+  return `${run.agentClient} started ${when} (${idTail(run.id)})`;
+}
+
+// An owner by the username the server names, or by the end of its id.
+export function ownerName(owner: string, username: string | null): string {
+  return username ?? idTail(owner);
 }
 
 export function detachedText(parent: string): string {
-  return `Started by run ${shortId(parent)}, which is not on the loaded pages.`;
+  return `Started by run ${idTail(parent)}, which is not in this view.`;
 }
+
+export const FACTS = {
+  actsFor: 'Acts for',
+  budget: 'Budget left',
+  depth: 'Depth',
+  scope: 'Scope',
+  runId: 'Run id',
+  parent: 'Started by',
+  started: 'Started',
+  none: 'no run: it began with a person',
+  gone: 'The details of this run could not be read.',
+} as const;
 
 const VIA = { ciba_page: 'on the approval page', console: 'in the console' } as const;
 
@@ -126,42 +152,51 @@ export function approvalDecision(approval: AgentApproval): string {
   }
 }
 
-export function detailsLabel(open: boolean, client: string, id: string): string {
-  return `${open ? HIDE_DETAILS : SHOW_DETAILS} of the run of ${client}, ${shortId(id)}`;
+export function detailsLabel(open: boolean, run: AgentInstance): string {
+  return `${open ? HIDE_DETAILS : SHOW_DETAILS} of ${runName(run)}`;
 }
 
-export function revokeButtonLabel(client: string, id: string): string {
-  return `${REVOKE_LABEL} the run of ${client}, ${shortId(id)}`;
+export function revokeButtonLabel(run: AgentInstance): string {
+  return `${REVOKE_LABEL} ${runName(run)}`;
 }
 
-export function narrowButtonLabel(owner: string): string {
-  return `Only the runs acting for ${shortId(owner)}`;
+export function narrowButtonLabel(name: string): string {
+  return `Only the runs acting for ${name}`;
 }
 
-export function treeLabel(client: string, id: string): string {
-  return `Started by the run of ${client}, ${shortId(id)}`;
+export function treeLabel(run: AgentInstance): string {
+  return `Started by ${runName(run)}`;
 }
 
-export const FACTS = {
+export function ownerNote(name: string): string {
+  return `Only the runs acting for ${name}.`;
+}
+
+export function ownerLinkLabel(name: string): string {
+  return `Open the owner ${name}`;
+}
+
+export function readingLabel(run: AgentInstance): string {
+  return `Reading ${runName(run)}`;
+}
+
+export const TREE_LABEL = 'Agents';
+export const APPROVALS_TITLE = 'Agent approvals';
+export const LAST_REVOKE_LABEL = 'Last revoke';
+export const COPY_LABELS = { owner: 'owner id', run: 'run id', parent: 'parent id' } as const;
+
+export const AGENT_COLUMNS = {
+  agent: 'Agent',
+  state: STATE_FILTER_LABEL,
   actsFor: 'Acts for',
-  budget: 'Budget left',
-  depth: 'Depth',
-  scope: 'Scope',
-  runId: 'Run id',
-  parent: 'Started by',
-  started: 'Started',
-  none: 'no run: it began with a person',
-  gone: 'The details of this run could not be read.',
+  expires: 'Expires',
 } as const;
 
-export const APPROVAL_FACTS = {
+export const APPROVAL_COLUMNS = {
+  summary: 'Asked to approve',
+  agent: 'Agent',
+  owner: 'For',
+  state: STATE_FILTER_LABEL,
   asked: 'Asked',
   expires: 'Expires',
-  kind: 'Kind',
-  run: 'Run',
-  direct: 'none',
 } as const;
-
-export function ownerNote(owner: string): string {
-  return `Only the runs acting for ${shortId(owner)}.`;
-}

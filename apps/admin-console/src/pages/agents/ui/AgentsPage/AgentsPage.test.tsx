@@ -21,10 +21,12 @@ it('draws the runs as a tree by lineage, each with its client, owner, budget and
   expect(root).toHaveTextContent('live');
   expect(root).toHaveTextContent('18 writes and 9 creates left');
   expect(root).toHaveTextContent('Expires');
-  for (const link of within(root).getAllByRole('link', { name: 'Open the owner sub-ada' })) {
+  for (const link of within(root).getAllByRole('link', { name: 'Open the owner ada' })) {
     expect(link).toHaveAttribute('href', '/console/acme/subjects/sub-ada');
   }
-  const under = within(root).getByRole('list', { name: 'Started by the run of planner, run-root' });
+  const under = within(root).getByRole('list', {
+    name: 'Started by planner started 2026-11-25 08:00:00 UTC (run-root)',
+  });
   expect(within(under).getByText('writer')).toBeVisible();
   const old = within(tree).getByRole('listitem', { name: /auditor/u });
   expect(old).toHaveTextContent('revoked');
@@ -41,7 +43,7 @@ it('says a run whose parent is not on the loaded pages is started by one that is
     }),
   );
   expect(
-    await screen.findByText('Started by run run-gone, which is not on the loaded pages.'),
+    await screen.findByText('Started by run one-away, which is not in this view.'),
   ).toBeVisible();
 });
 
@@ -114,11 +116,15 @@ it('reads one run again when its details are opened, and says when it could not 
   const tree = await screen.findByRole('list', { name: 'Agents' });
   expect(sent.some((s) => s.path === `${AGENTS}/run-root`)).toBe(false);
   await user.click(
-    within(tree).getByRole('button', { name: 'Show details of the run of planner, run-root' }),
+    within(tree).getByRole('button', {
+      name: 'Show details of planner started 2026-11-25 08:00:00 UTC (run-root)',
+    }),
   );
   expect(await screen.findByText('mcp:read mcp:write')).toBeVisible();
   await user.click(
-    within(tree).getByRole('button', { name: 'Show details of the run of writer, run-chil' }),
+    within(tree).getByRole('button', {
+      name: 'Show details of writer started 2026-11-25 08:00:00 UTC (un-child)',
+    }),
   );
   expect(await screen.findByText('The details of this run could not be read.')).toBeVisible();
 });
@@ -150,9 +156,13 @@ it('says how many instances and grants a revoke ends before it ends them, then e
   );
   const tree = await screen.findByRole('list', { name: 'Agents' });
   await user.click(
-    within(tree).getByRole('button', { name: 'Revoke the run of planner, run-root' }),
+    within(tree).getByRole('button', {
+      name: 'Revoke planner started 2026-11-25 08:00:00 UTC (run-root)',
+    }),
   );
-  const dialog = await screen.findByRole('alertdialog', { name: 'Revoke the run of planner?' });
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Revoke planner started 2026-11-25 08:00:00 UTC (run-root)?',
+  });
   expect(
     await within(dialog).findByText(/ends 2 instances, this one and every run/u),
   ).toBeVisible();
@@ -186,7 +196,9 @@ it('holds the revoke while the count is read, and when it could not be read', as
   );
   const tree = await screen.findByRole('list', { name: 'Agents' });
   await user.click(
-    within(tree).getByRole('button', { name: 'Revoke the run of planner, run-root' }),
+    within(tree).getByRole('button', {
+      name: 'Revoke planner started 2026-11-25 08:00:00 UTC (run-root)',
+    }),
   );
   const dialog = await screen.findByRole('alertdialog');
   expect(
@@ -211,7 +223,9 @@ it('keeps the dialog and says why when the server refuses the revoke', async () 
   );
   const tree = await screen.findByRole('list', { name: 'Agents' });
   await user.click(
-    within(tree).getByRole('button', { name: 'Revoke the run of planner, run-root' }),
+    within(tree).getByRole('button', {
+      name: 'Revoke planner started 2026-11-25 08:00:00 UTC (run-root)',
+    }),
   );
   const dialog = await screen.findByRole('alertdialog');
   await user.click(await within(dialog).findByRole('button', { name: 'Revoke run' }));
@@ -248,10 +262,96 @@ it('passes axe in both themes, with the tree and with the confirmation open', as
         ).element,
       async () => {
         await user.click(
-          await screen.findByRole('button', { name: 'Revoke the run of planner, run-root' }),
+          await screen.findByRole('button', {
+            name: 'Revoke planner started 2026-11-25 08:00:00 UTC (run-root)',
+          }),
         );
         await screen.findByText(/ends 2 instances/u);
       },
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('tells sibling runs of one client apart by their start and the end of their id', async () => {
+  renderConsoleAt(
+    AT,
+    agentRoutes(undefined, {
+      [`GET ${AGENTS}`]: json({
+        items: [
+          agent('0197a3b2-0000-7000-8000-00000000aaaa', null, {
+            created_at: '2026-11-25T08:00:01.000Z',
+          }),
+          agent('0197a3b2-0000-7000-8000-00000000bbbb', null, {
+            created_at: '2026-11-25T08:00:02.000Z',
+          }),
+        ],
+      }),
+    }),
+  );
+  const tree = await screen.findByRole('list', { name: 'Agents' });
+  const names = within(tree)
+    .getAllByRole('button', { name: /^Revoke planner/u })
+    .map((button) => button.getAttribute('aria-label'));
+  expect(new Set(names).size).toBe(2);
+  expect(names[0]).toContain('(0000aaaa)');
+});
+
+it('shows the owner by username, or by the end of the id where it has none', async () => {
+  renderConsoleAt(AT, agentRoutes());
+  const tree = await screen.findByRole('list', { name: 'Agents' });
+  const old = within(tree).getByRole('listitem', { name: /auditor/u });
+  expect(within(tree).getAllByText('ada').length).toBeGreaterThan(0);
+  expect(old).toHaveTextContent('sub-bob');
+});
+
+it('says what the last revoke came to in a status that takes the focus', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    agentRoutes(undefined, {
+      [`DELETE ${AGENTS}/run-root`]: json({ grants: 1, instances: 1 }),
+    }),
+  );
+  const tree = await screen.findByRole('list', { name: 'Agents' });
+  await user.click(
+    within(tree).getByRole('button', {
+      name: 'Revoke planner started 2026-11-25 08:00:00 UTC (run-root)',
+    }),
+  );
+  const dialog = await screen.findByRole('alertdialog');
+  await user.click(await within(dialog).findByRole('button', { name: 'Revoke run' }));
+  const status = await screen.findByRole('status', { name: 'Last revoke' });
+  await waitFor(() => {
+    expect(status).toHaveTextContent('The run of planner ended: 1 instance and 1 grant.');
+    expect(status).toHaveFocus();
+  });
+});
+
+it('holds the confirmation while the count is read for a reopened revoke, never offering a stale one', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    agentRoutes(undefined, {
+      [`DELETE ${AGENTS}/run-root`]: inTurn(
+        json({ grants: 1, instances: 1 }),
+        json({ grants: 2, instances: 3 }),
+      ),
+    }),
+  );
+  const tree = await screen.findByRole('list', { name: 'Agents' });
+  const open = (): Promise<void> =>
+    user.click(
+      within(tree).getByRole('button', {
+        name: 'Revoke planner started 2026-11-25 08:00:00 UTC (run-root)',
+      }),
+    );
+  await open();
+  const first = await screen.findByRole('alertdialog');
+  await within(first).findByText(/ends 1 instance,/u);
+  await user.click(within(first).getByRole('button', { name: 'Cancel' }));
+  await open();
+  const again = await screen.findByRole('alertdialog');
+  expect(within(again).queryByText(/ends 1 instance,/u)).toBeNull();
+  await within(again).findByText(/ends 3 instances,/u);
+  expect(within(again).getByRole('button', { name: 'Revoke run' })).toBeEnabled();
 });

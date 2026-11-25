@@ -74,20 +74,6 @@
   border-radius: var(--radius-m);
 }
 
-.link {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: var(--target-min);
-  color: var(--ink-primary);
-  font-family: var(--font-mono);
-  text-decoration: underline;
-}
-
-.link[data-focus-visible] {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
 .detached {
   margin: 0;
   font-size: var(--type-13);

@@ -5,11 +5,15 @@ import { useApprovalList } from '#/pages/agents/repository/useAgents';
 import { agentsHref } from '#/pages/agents/services/addresses';
 import {
   AGENTS_LINK,
+  APPROVAL_COLUMNS,
   APPROVAL_NOUN,
+  APPROVALS_TITLE,
+  COPY_LABELS,
   APPROVAL_STATES,
   approvalDecision,
   approvalTone,
-  shortId,
+  ownerLinkLabel,
+  ownerName,
   APPROVALS_RULE,
   NOTHING_YET_APPROVALS,
   STATE_FILTER_LABEL,
@@ -25,12 +29,26 @@ export interface AgentApprovalsPage {
   ownerLink: ((id: string) => string) | null;
   state: { label: string; value: string; options: readonly Choice[]; choose: (id: string) => void };
   agentsHref: string;
-  text: { noun: typeof APPROVAL_NOUN; rule: string; nothingYet: string; agents: string };
+  text: {
+    noun: typeof APPROVAL_NOUN;
+    title: string;
+    rule: string;
+    nothingYet: string;
+    agents: string;
+    columns: typeof APPROVAL_COLUMNS;
+    copy: typeof COPY_LABELS;
+  };
   say: {
     tone: typeof approvalTone;
     decision: typeof approvalDecision;
-    short: typeof shortId;
+    ownerName: typeof ownerName;
+    ownerLink: typeof ownerLinkLabel;
   };
+}
+
+// The gate wraps the page, so it takes the title from here.
+export function useApprovalsTitle(): string {
+  return APPROVALS_TITLE;
 }
 
 export function useAgentApprovalsPage(tenant: string): AgentApprovalsPage {
@@ -50,10 +68,18 @@ export function useAgentApprovalsPage(tenant: string): AgentApprovalsPage {
     agentsHref: agentsHref(tenant),
     text: {
       noun: APPROVAL_NOUN,
+      title: APPROVALS_TITLE,
+      columns: APPROVAL_COLUMNS,
+      copy: COPY_LABELS,
       rule: APPROVALS_RULE,
       nothingYet: NOTHING_YET_APPROVALS,
       agents: AGENTS_LINK,
     },
-    say: { tone: approvalTone, decision: approvalDecision, short: shortId },
+    say: {
+      tone: approvalTone,
+      decision: approvalDecision,
+      ownerName,
+      ownerLink: ownerLinkLabel,
+    },
   };
 }

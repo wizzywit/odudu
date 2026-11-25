@@ -25,6 +25,7 @@ it('reads one page of runs with the cursor and filters it is given, and maps eac
   expect(page?.items[0]).toEqual({
     id: '0197a3b2-1c4d-7e5f-8a9b-0c1d2e3f4a5b',
     owner: '0197a3b1-aaaa-7bbb-8ccc-0d1e2f3a4b5c',
+    ownerUsername: 'ada',
     agentClient: 'planner',
     parent: null,
     depth: 1,
@@ -70,6 +71,7 @@ it('reads the approvals and carries nothing of the digest the server never sends
     {
       id: '0197a3b3-0000-7000-8000-000000000001',
       owner: '0197a3b1-aaaa-7bbb-8ccc-0d1e2f3a4b5c',
+      ownerUsername: 'ada',
       agentClient: 'planner',
       instance: null,
       kind: 'tool_call',

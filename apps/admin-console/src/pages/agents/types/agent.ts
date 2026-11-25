@@ -16,6 +16,8 @@ export interface AgentBudget {
 export interface AgentInstance {
   id: string;
   owner: string;
+  // Null for a subject with no username.
+  ownerUsername: string | null;
   agentClient: string;
   parent: string | null;
   depth: number;
@@ -30,6 +32,7 @@ export interface AgentInstance {
 export interface AgentApproval {
   id: string;
   owner: string;
+  ownerUsername: string | null;
   agentClient: string;
   instance: string | null;
   kind: string;

@@ -1,4 +1,5 @@
-import { OWNER_ONLY_ALL, ownerNote } from '#/pages/agents/services/agentText';
+import type { AgentInstance } from '#/pages/agents/types/agent';
+import { OWNER_ONLY_ALL, ownerName, ownerNote } from '#/pages/agents/services/agentText';
 import { ANY_STATUS } from '#/shared/lib/services/filters';
 
 // What the state menu shows: the state the address names, or any.
@@ -20,8 +21,15 @@ export interface OwnerNarrowing {
 // What the list says of being narrowed to one owner, with the way back to all.
 export function ownerNarrowing(
   filters: Readonly<Record<string, string>>,
+  rows: readonly Pick<AgentInstance, 'owner' | 'ownerUsername'>[],
   clear: () => void,
 ): OwnerNarrowing | null {
   const owner = ownerFilterOf(filters);
-  return owner === null ? null : { note: ownerNote(owner), all: OWNER_ONLY_ALL, clear };
+  if (owner === null) return null;
+  const named = rows.find((row) => row.owner === owner);
+  return {
+    note: ownerNote(ownerName(owner, named?.ownerUsername ?? null)),
+    all: OWNER_ONLY_ALL,
+    clear,
+  };
 }

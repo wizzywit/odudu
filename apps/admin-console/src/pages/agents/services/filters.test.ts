@@ -11,12 +11,16 @@ it('names the owner the list is narrowed to, or none', () => {
   expect(ownerFilterOf({ state: 'live' })).toBeNull();
 });
 
-it('says what the list is narrowed to, with the way back, only while it is', () => {
+it('says what the list is narrowed to, by the owner’s username when a row names it', () => {
   const clear = (): void => undefined;
-  expect(ownerNarrowing({}, clear)).toBeNull();
-  expect(ownerNarrowing({ owner: '0197a3b2-1c4d-7e5f' }, clear)).toEqual({
-    note: 'Only the runs acting for 0197a3b2.',
+  const ada = { owner: '0197a3b2-aaaa', ownerUsername: 'ada' };
+  expect(ownerNarrowing({}, [ada], clear)).toBeNull();
+  expect(ownerNarrowing({ owner: '0197a3b2-aaaa' }, [ada], clear)).toEqual({
+    note: 'Only the runs acting for ada.',
     all: 'Show every agent',
     clear,
   });
+  expect(ownerNarrowing({ owner: '0197a3b2-aaaa' }, [], clear)?.note).toBe(
+    'Only the runs acting for 3b2-aaaa.',
+  );
 });

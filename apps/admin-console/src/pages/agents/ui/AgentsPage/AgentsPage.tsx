@@ -9,18 +9,22 @@ import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import type { Column } from '#/shared/ui/DataTable';
 import { SelectField } from '#/shared/ui/Field';
+import { LastAction } from '#/shared/ui/LastAction';
 import { NarrowedNote } from '#/shared/ui/NarrowedNote';
 import { ResourceListPage } from '#/shared/ui/ResourceListPage';
 
 const AREA = areaAt('agents');
 
 // Drawn only as the skeleton's shape while the first page loads.
-const COLUMNS: readonly Column<AgentInstance>[] = [
-  { id: 'agent', header: 'Agent', isRowHeader: true, cell: (run) => run.agentClient },
-  { id: 'state', header: 'State', cell: (run) => run.state },
-  { id: 'owner', header: 'Acts for', cell: (run) => run.owner },
-  { id: 'expires', header: 'Expires', secondary: true, cell: (run) => run.expiresAt },
-];
+function columns(page: Page): readonly Column<AgentInstance>[] {
+  const { columns: words } = page.text;
+  return [
+    { id: 'agent', header: words.agent, isRowHeader: true, cell: (run) => run.agentClient },
+    { id: 'state', header: words.state, cell: (run) => run.state },
+    { id: 'owner', header: words.actsFor, cell: (run) => run.owner },
+    { id: 'expires', header: words.expires, secondary: true, cell: (run) => run.expiresAt },
+  ];
+}
 
 function Filters({ page }: { page: Page }): ReactNode {
   return (
@@ -53,17 +57,22 @@ function List({ tenant }: { tenant: string }) {
         actions={<ButtonLink href={page.approvalsHref}>{page.text.approvals}</ButtonLink>}
         noun={page.text.noun}
         filters={<Filters page={page} />}
-        columns={COLUMNS}
+        columns={columns(page)}
         rowKey={(run) => run.id}
         capability="manage-sessions"
         nothingYet={page.text.nothingYet}
+        notice={
+          <LastAction label={page.text.lastRevoke} count={page.last.count}>
+            {page.last.text}
+          </LastAction>
+        }
         renderRows={() => <AgentTree tenant={tenant} page={page} />}
       />
       {dialog === null ? null : (
         <ConfirmDialog
           isOpen
           title={dialog.title}
-          consequence={dialog.consequence}
+          consequence={<span aria-live="polite">{dialog.consequence}</span>}
           confirmLabel={page.text.revokeConfirm}
           tone="danger"
           held={dialog.held}

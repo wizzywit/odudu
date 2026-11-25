@@ -10,6 +10,7 @@ export function agent(id: string, parent: string | null, extra: Record<string, u
   return {
     id,
     owner: 'sub-ada',
+    owner_username: 'ada',
     agent_client: 'planner',
     parent,
     depth: parent === null ? 1 : 2,
@@ -28,6 +29,7 @@ export const RUN_CHILD = agent('run-child', 'run-root', { agent_client: 'writer'
 export const RUN_OLD = agent('run-old', null, {
   agent_client: 'auditor',
   owner: 'sub-bob',
+  owner_username: null,
   state: 'revoked',
   revoked_at: '2026-11-25T08:05:00.000Z',
 });
@@ -36,6 +38,7 @@ export function approval(id: string, extra: Record<string, unknown> = {}) {
   return {
     id,
     owner: 'sub-ada',
+    owner_username: 'ada',
     agent_client: 'planner',
     instance: 'run-root',
     kind: 'tool_call',

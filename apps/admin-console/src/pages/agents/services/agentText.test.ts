@@ -5,7 +5,12 @@ import {
   detachedText,
   detailsLabel,
   narrowButtonLabel,
+  ownerLinkLabel,
+  ownerName,
+  ownerNote,
+  readingLabel,
   revokeButtonLabel,
+  runName,
   treeLabel,
   endOf,
   APPROVAL_STATES,
@@ -18,6 +23,7 @@ import type { AgentApproval, AgentInstance } from '#/pages/agents/types/agent';
 const live: AgentInstance = {
   id: 'i1',
   owner: 'sub-ada',
+  ownerUsername: 'ada',
   agentClient: 'planner',
   parent: null,
   depth: 1,
@@ -32,6 +38,7 @@ const live: AgentInstance = {
 const decided: AgentApproval = {
   id: 'a1',
   owner: 'sub-ada',
+  ownerUsername: 'ada',
   agentClient: 'planner',
   instance: 'i1',
   kind: 'tool_call',
@@ -68,9 +75,9 @@ it('says when a run ends, ended or was ended, by its state', () => {
   });
 });
 
-it('names the run a detached one was started by, by a short id', () => {
+it('says the run a detached one was started by is outside the view, by the end of its id', () => {
   expect(detachedText('0197a3b2-1c4d-7e5f-8a9b-0c1d2e3f4a5b')).toBe(
-    'Started by run 0197a3b2, which is not on the loaded pages.',
+    'Started by run 2e3f4a5b, which is not in this view.',
   );
 });
 
@@ -108,11 +115,26 @@ it('tones each state, and offers each as a filter after Any state', () => {
   ]);
 });
 
-it('labels a run’s controls by its client and a short id, so two runs of one client differ', () => {
-  const id = '0197a3b2-1c4d-7e5f-8a9b-0c1d2e3f4a5b';
-  expect(revokeButtonLabel('planner', id)).toBe('Revoke the run of planner, 0197a3b2');
-  expect(detailsLabel(false, 'planner', id)).toBe('Show details of the run of planner, 0197a3b2');
-  expect(detailsLabel(true, 'planner', id)).toBe('Hide details of the run of planner, 0197a3b2');
-  expect(narrowButtonLabel(id)).toBe('Only the runs acting for 0197a3b2');
-  expect(treeLabel('planner', id)).toBe('Started by the run of planner, 0197a3b2');
+it('names a run by its client, its start and the end of its id, so siblings differ', () => {
+  const sibling = { ...live, id: '0197a3b2-1c4d-7e5f-8a9b-0c1d2e3f4a5c' };
+  const first = { ...live, id: '0197a3b2-1c4d-7e5f-8a9b-0c1d2e3f4a5b' };
+  expect(runName(first)).toBe('planner started 2026-11-25 08:00:00 UTC (2e3f4a5b)');
+  expect(runName(sibling)).not.toBe(runName(first));
+  expect(revokeButtonLabel(first)).toBe(
+    'Revoke planner started 2026-11-25 08:00:00 UTC (2e3f4a5b)',
+  );
+  expect(detailsLabel(false, first)).toBe(
+    'Show details of planner started 2026-11-25 08:00:00 UTC (2e3f4a5b)',
+  );
+  expect(detailsLabel(true, first)).toContain('Hide details of planner started');
+  expect(treeLabel(first)).toBe('Started by planner started 2026-11-25 08:00:00 UTC (2e3f4a5b)');
+  expect(readingLabel(first)).toBe('Reading planner started 2026-11-25 08:00:00 UTC (2e3f4a5b)');
+});
+
+it('names an owner by username, or by the end of its id', () => {
+  expect(ownerName('0197a3b1-aaaa-7bbb-8ccc-0d1e2f3a4b5c', 'ada')).toBe('ada');
+  expect(ownerName('0197a3b1-aaaa-7bbb-8ccc-0d1e2f3a4b5c', null)).toBe('2f3a4b5c');
+  expect(narrowButtonLabel('ada')).toBe('Only the runs acting for ada');
+  expect(ownerNote('ada')).toBe('Only the runs acting for ada.');
+  expect(ownerLinkLabel('ada')).toBe('Open the owner ada');
 });

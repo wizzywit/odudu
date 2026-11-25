@@ -3,6 +3,7 @@
     {
       "id": "0197a3b3-0000-7000-8000-000000000001",
       "owner": "0197a3b1-aaaa-7bbb-8ccc-0d1e2f3a4b5c",
+      "owner_username": "ada",
       "agent_client": "planner",
       "instance": null,
       "kind": "tool_call",
