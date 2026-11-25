@@ -232,7 +232,7 @@ const SHIPPED_CLAIMS: readonly (readonly [
     'ending a grant ends every grant exchanged from it and every run rooted there',
     'revoking a grant revoking every grant exchanged from it',
   ],
-  ['P5', 'agent_max_delegation_depth', '`max_delegation_depth`'],
+  ['P5', 'agent_max_delegation_depth', '`agent_max_delegation_depth`'],
   [
     'P5',
     'so calls made together cannot overspend',
