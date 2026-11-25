@@ -155,6 +155,10 @@ function world(over: Partial<MeWriteTx> = {}): { deps: MeWriteDeps; log: Log } {
       );
       return Promise.resolve();
     },
+    delegationClient: () => Promise.resolve(null),
+    createDelegation: () => Promise.resolve(null),
+    revokeDelegation: () => Promise.resolve(null),
+    auditDelegation: () => Promise.resolve(),
     audit: (event) => {
       log.audits.push(event);
       return Promise.resolve();

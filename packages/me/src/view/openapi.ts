@@ -120,7 +120,7 @@ function responseFor(status: number, answer: z.ZodType | 'error' | 'empty'): Ope
     if (shared === undefined) throw new Error(`no shared response for ${String(status)}`);
     return { $ref: `#/components/responses/${shared[0]}` };
   }
-  const description = status === 202 ? 'Accepted' : 'OK';
+  const description = status === 202 ? 'Accepted' : status === 201 ? 'Created' : 'OK';
   if (answer === 'empty') return { description: 'No content' };
   return {
     description,

@@ -4,8 +4,27 @@ import type {
   UserRecord,
   VerificationUpdate,
 } from '@odudu/domain-identity';
-import type { MeAuditEvent } from '#/service/audit';
+import type { DelegationAuditEvent, MeAuditEvent } from '#/service/audit';
 import type { NoticeOutcome, OwnChange } from '#/service/notice';
+
+// A client as a delegation names it: the row id the delegation stores and the
+// OAuth `client_id` a person knows it by.
+export interface MeDelegationClient {
+  readonly id: string;
+  readonly clientKey: string;
+  readonly enabled: boolean;
+  readonly agentType: boolean;
+}
+
+// A delegation with both clients named by their OAuth `client_id`.
+export interface MeDelegationRecord {
+  readonly id: string;
+  readonly clientKey: string;
+  readonly actorClientKey: string;
+  readonly scopeCeiling: string;
+  readonly expiresAt: Date;
+  readonly createdAt: Date;
+}
 
 // What a change to the person's own account does inside one transaction, for
 // the subject the token names and nobody else. Each method takes the subject it
@@ -86,6 +105,24 @@ export interface MeWriteTx {
     readonly locale: string | null;
     readonly now: Date;
   }): Promise<void>;
+
+  // The client of the tenant with this OAuth `client_id`, or null.
+  delegationClient(clientKey: string): Promise<MeDelegationClient | null>;
+  // Records the delegation unless the subject already holds `cap` live ones, and
+  // answers null then; concurrent calls for one subject cannot exceed the cap.
+  createDelegation(input: {
+    readonly subjectId: string;
+    readonly client: MeDelegationClient;
+    readonly actor: MeDelegationClient;
+    readonly scopeCeiling: string;
+    readonly expiresAt: Date;
+    readonly now: Date;
+    readonly cap: number;
+  }): Promise<MeDelegationRecord | null>;
+  // Ends the subject's own live delegation, or answers null for one that is not
+  // theirs, not there or already ended.
+  revokeDelegation(subjectId: string, id: string, now: Date): Promise<MeDelegationRecord | null>;
+  auditDelegation(event: DelegationAuditEvent): Promise<void>;
 
   audit(event: MeAuditEvent): Promise<void>;
 }

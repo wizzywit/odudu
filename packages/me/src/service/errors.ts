@@ -66,3 +66,10 @@ export const REMOVAL_REFUSAL_MESSAGES = {
 export function removalRefused(code: keyof typeof REMOVAL_REFUSAL_MESSAGES): MeError {
   return { error: code, error_description: REMOVAL_REFUSAL_MESSAGES[code] };
 }
+
+export const DELEGATION_LIMIT_MESSAGE =
+  'This account already has the most delegations allowed; revoke one first';
+
+export function delegationLimit(): MeError {
+  return conflict(DELEGATION_LIMIT_MESSAGE);
+}
