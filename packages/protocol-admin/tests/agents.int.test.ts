@@ -135,7 +135,7 @@ describe('GET …/agents', () => {
     const root = await mint(w);
     const child = await mint(w, { parent: root, depth: 2 });
     const grandchild = await mint(w, { parent: child, depth: 3 });
-    const token = await fixture.adminToken(w.t.name, ['view-users']);
+    const token = await fixture.adminToken(w.t.name, ['manage-sessions']);
 
     const all = await request('GET', w, 'agents', token);
     expect(all.statusCode).toBe(200);
@@ -178,7 +178,7 @@ describe('GET …/agents', () => {
     await withTenant(fixture.app.db, w.t.id, (tx) =>
       agentInstanceRepository(tx).revoke(gone, new Date()),
     );
-    const token = await fixture.adminToken(w.t.name, ['view-users']);
+    const token = await fixture.adminToken(w.t.name, ['manage-sessions']);
     const ids = async (query: string) =>
       (await request('GET', w, `agents?${query}`, token))
         .json<{ items: { id: string }[] }>()
@@ -201,7 +201,7 @@ describe('GET …/agents', () => {
         sql`update agent_instances set spent_mutating = 3, spent_creates = 2 where id = ${id}`,
       ),
     );
-    const token = await fixture.adminToken(w.t.name, ['view-users']);
+    const token = await fixture.adminToken(w.t.name, ['manage-sessions']);
     const res = await request('GET', w, `agents/${id}`, token);
     expect(res.json<{ remaining_budget: unknown }>().remaining_budget).toEqual({
       mutating: 2,
@@ -209,7 +209,7 @@ describe('GET …/agents', () => {
     });
   });
 
-  it('answers a caller without view-users 403, and a foreign tenant nothing', async () => {
+  it('answers a caller without manage-sessions 403, and a foreign tenant nothing', async () => {
     const w = await world();
     const other = await world();
     await mint(w);
@@ -222,7 +222,7 @@ describe('GET …/agents', () => {
       'GET',
       other,
       'agents',
-      await fixture.adminToken(other.t.name, ['view-users']),
+      await fixture.adminToken(other.t.name, ['manage-sessions']),
     );
     expect(seen.json<{ items: unknown[] }>().items).toHaveLength(1);
   });
@@ -234,7 +234,7 @@ describe('GET …/agents/:id', () => {
     const other = await world();
     const id = await mint(w);
     const foreign = await mint(other);
-    const token = await fixture.adminToken(w.t.name, ['view-users']);
+    const token = await fixture.adminToken(w.t.name, ['manage-sessions']);
 
     const found = await request('GET', w, `agents/${id}`, token);
     expect(found.statusCode).toBe(200);
@@ -425,7 +425,7 @@ describe('GET …/agent-approvals', () => {
     const a = await approve(w, 'pending', { instance });
     const b = await approve(w, 'approved');
     const c = await approve(w, 'denied');
-    const token = await fixture.adminToken(w.t.name, ['view-users']);
+    const token = await fixture.adminToken(w.t.name, ['manage-sessions']);
 
     const all = await request('GET', w, 'agent-approvals', token);
     expect(all.statusCode).toBe(200);
@@ -476,7 +476,7 @@ describe('GET …/agent-approvals', () => {
     const pending = await approve(w, 'pending');
     const consumed = await approve(w, 'consumed');
     const expired = await approve(w, 'expired');
-    const token = await fixture.adminToken(w.t.name, ['view-users']);
+    const token = await fixture.adminToken(w.t.name, ['manage-sessions']);
     const ids = async (state: string) =>
       (await request('GET', w, `agent-approvals?state=${state}`, token))
         .json<{ items: { id: string }[] }>()
@@ -491,7 +491,7 @@ describe('GET …/agent-approvals', () => {
     );
   });
 
-  it('needs view-users, and shows a tenant only its own', async () => {
+  it('needs manage-sessions, and shows a tenant only its own', async () => {
     const w = await world();
     const other = await world();
     await approve(w, 'pending');
@@ -502,7 +502,7 @@ describe('GET …/agent-approvals', () => {
           'GET',
           w,
           'agent-approvals',
-          await fixture.adminToken(w.t.name, ['manage-sessions']),
+          await fixture.adminToken(w.t.name, ['view-users']),
         )
       ).statusCode,
     ).toBe(403);
@@ -510,7 +510,7 @@ describe('GET …/agent-approvals', () => {
       'GET',
       w,
       'agent-approvals',
-      await fixture.adminToken(w.t.name, ['view-users']),
+      await fixture.adminToken(w.t.name, ['manage-sessions']),
     );
     expect(mine.json<{ items: unknown[] }>().items).toHaveLength(1);
   });
@@ -535,11 +535,14 @@ describe('an agent token on the agent routes', () => {
   }
 
   it.each([
-    ['GET', 'agents'],
-    ['GET', 'agents/:id'],
-    ['GET', 'agent-approvals'],
-  ] as const)('is refused %s …/%s, though it holds mcp:read', async (method, path) => {
-    const { res } = await refused(method, path, 'mcp:read');
+    ['GET', 'agents', 'mcp:read'],
+    ['GET', 'agents/:id', 'mcp:read'],
+    ['GET', 'agent-approvals', 'mcp:read'],
+    ['GET', 'agents', 'mcp:write'],
+    ['GET', 'agents/:id', 'mcp:write'],
+    ['GET', 'agent-approvals', 'mcp:write'],
+  ] as const)('is refused %s …/%s, holding %s', async (method, path, scope) => {
+    const { res } = await refused(method, path, scope);
     expect(res.statusCode).toBe(403);
   });
 

@@ -313,13 +313,6 @@ describe('the capability matrix', () => {
       }
     });
 
-    // An agent instance shows the user it acts for, which is a read of users, and
-    // ending one ends what a sign-in handed it, which is a session's concern, so the
-    // family names two capabilities that do not compose, each fixed to its method.
-    const MIXED_FAMILIES: Readonly<
-      Record<string, { reads: readonly [TenantCapability]; ends: TenantCapability }>
-    > = { agents: { reads: ['view-users'], ends: 'manage-sessions' } };
-
     const families = new Map<string, AdminRoute[]>();
     for (const route of tenantScopedRoutes) {
       const family = resourceFamilyOf(route);
@@ -332,16 +325,6 @@ describe('the capability matrix', () => {
       ({ family, routes }) => {
         const distinct = [...new Set(routes.map(tenantCapabilityOf))];
         if (distinct.length === 1) return;
-        const mixed = MIXED_FAMILIES[family];
-        if (mixed !== undefined) {
-          expect([...distinct].sort(), family).toEqual([...mixed.reads, mixed.ends].sort());
-          for (const route of routes) {
-            expect(tenantCapabilityOf(route), routeKey(route)).toBe(
-              route.method === 'GET' ? mixed.reads[0] : mixed.ends,
-            );
-          }
-          return;
-        }
         expect(distinct, `${family} names more than two capabilities`).toHaveLength(2);
         const [a, b] = distinct as [TenantCapability, TenantCapability];
         const view = viewCounterpart(a) === b ? b : viewCounterpart(b) === a ? a : undefined;

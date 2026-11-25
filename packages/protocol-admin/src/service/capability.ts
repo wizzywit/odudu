@@ -2004,13 +2004,14 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'read (`#flow-step-settings`); the last three carry `errors[]` naming the step. ' +
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
-  // The agents an owner has running, and the approvals asked of owners. Read
-  // with `view-users`, since each names the user it acts for; ending one is a
-  // session's concern, `manage-sessions`. No agent token reaches any of them.
+  // The agents an owner has running, and the approvals asked of owners: what a
+  // sign-in handed an agent, so `manage-sessions` for all four, as for sessions
+  // (no view-sessions: reached only by an operator who can also end one). No
+  // agent token reaches any of them.
   {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/agents',
-    capability: 'view-users',
+    capability: 'manage-sessions',
     responseSchema: listAgentsResponseSchema,
     querystringSchema: listAgentsQuerySchema,
     description:
@@ -2023,7 +2024,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/agents/:id',
-    capability: 'view-users',
+    capability: 'manage-sessions',
     responseSchema: agentInstanceSchema,
     description: 'One agent instance, as the list shows it. `404` for an id that is not one.',
   },
@@ -2044,7 +2045,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/agent-approvals',
-    capability: 'view-users',
+    capability: 'manage-sessions',
     responseSchema: listAgentApprovalsResponseSchema,
     querystringSchema: listAgentApprovalsQuerySchema,
     description:

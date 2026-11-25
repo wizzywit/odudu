@@ -1,6 +1,6 @@
 ---
 title: "A tenant's agents and approvals: list, read and revoke"
-description: 'Reading takes view-users and revoking takes manage-sessions; no agent token can call any of the four routes.'
+description: 'All four routes take manage-sessions; no agent token can call any of the four routes.'
 ---
 
 # A tenant's agents and approvals: list, read and revoke
@@ -14,8 +14,8 @@ an approval, which the guide has no page for. So the commands below are illustra
 what each answers is described. The integration tests of these routes run every one of them against a
 real database, including each refusal.
 
-Reading takes `view-users`, since each answer names the user an agent acts for. Revoking takes
-`manage-sessions`, because ending an agent ends what a sign-in handed it, as ending a session does. No
+All four take `manage-sessions`: an agent is what a sign-in handed out, and an operator who reads
+one is the operator who can end it, as with sessions. No
 agent token can call any of the four: the door refuses a `GET` of the three reads
 (`AGENT_DENIED_READS`) and has no allowlist entry for the `DELETE`, so an agent cannot list its siblings,
 read what its owner was asked or end an instance, whatever scope it holds.

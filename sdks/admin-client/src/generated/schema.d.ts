@@ -9168,7 +9168,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Requires the "view-users" capability.
+         * Requires the "manage-sessions" capability.
          * @description The tenant’s agent instances in id order, which is the order they were started in, so a parent comes before its children: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last. Narrowed by `owner` and `state`. Each carries its lineage (`owner`, `agent_client`, `parent`, `depth`), `expires_at` and the `remaining_budget` of its own slice. Never a token.
          */
         get: {
@@ -9253,7 +9253,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Requires the "view-users" capability.
+         * Requires the "manage-sessions" capability.
          * @description One agent instance, as the list shows it. `404` for an id that is not one.
          */
         get: {
@@ -9367,7 +9367,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Requires the "view-users" capability.
+         * Requires the "manage-sessions" capability.
          * @description The approvals agents asked of their owners, newest first: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last. Narrowed by `state`. Never the digest of the action an approval covers.
          */
         get: {

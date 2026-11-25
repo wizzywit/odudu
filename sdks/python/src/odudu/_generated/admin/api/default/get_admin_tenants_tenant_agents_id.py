@@ -74,7 +74,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[GetAdminTenantsTenantAgentsIdResponse200 | ProblemDetails]:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      One agent instance, as the list shows it. `404` for an id that is not one.
 
@@ -108,7 +108,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> GetAdminTenantsTenantAgentsIdResponse200 | ProblemDetails | None:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      One agent instance, as the list shows it. `404` for an id that is not one.
 
@@ -137,7 +137,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[GetAdminTenantsTenantAgentsIdResponse200 | ProblemDetails]:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      One agent instance, as the list shows it. `404` for an id that is not one.
 
@@ -169,7 +169,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> GetAdminTenantsTenantAgentsIdResponse200 | ProblemDetails | None:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      One agent instance, as the list shows it. `404` for an id that is not one.
 

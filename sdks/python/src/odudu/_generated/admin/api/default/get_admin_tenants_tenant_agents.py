@@ -102,7 +102,7 @@ def sync_detailed(
     owner: UUID | Unset = UNSET,
     state: GetAdminTenantsTenantAgentsState | Unset = UNSET,
 ) -> Response[GetAdminTenantsTenantAgentsResponse200 | ProblemDetails]:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      The tenant’s agent instances in id order, which is the order they were started in, so a parent comes
     before its children: `limit` up to 200, and `next` (also the `link` header) names the following
@@ -150,7 +150,7 @@ def sync(
     owner: UUID | Unset = UNSET,
     state: GetAdminTenantsTenantAgentsState | Unset = UNSET,
 ) -> GetAdminTenantsTenantAgentsResponse200 | ProblemDetails | None:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      The tenant’s agent instances in id order, which is the order they were started in, so a parent comes
     before its children: `limit` up to 200, and `next` (also the `link` header) names the following
@@ -193,7 +193,7 @@ async def asyncio_detailed(
     owner: UUID | Unset = UNSET,
     state: GetAdminTenantsTenantAgentsState | Unset = UNSET,
 ) -> Response[GetAdminTenantsTenantAgentsResponse200 | ProblemDetails]:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      The tenant’s agent instances in id order, which is the order they were started in, so a parent comes
     before its children: `limit` up to 200, and `next` (also the `link` header) names the following
@@ -239,7 +239,7 @@ async def asyncio(
     owner: UUID | Unset = UNSET,
     state: GetAdminTenantsTenantAgentsState | Unset = UNSET,
 ) -> GetAdminTenantsTenantAgentsResponse200 | ProblemDetails | None:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      The tenant’s agent instances in id order, which is the order they were started in, so a parent comes
     before its children: `limit` up to 200, and `next` (also the `link` header) names the following

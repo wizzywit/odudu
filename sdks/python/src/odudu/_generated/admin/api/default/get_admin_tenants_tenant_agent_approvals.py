@@ -96,7 +96,7 @@ def sync_detailed(
     limit: int | Unset = UNSET,
     state: GetAdminTenantsTenantAgentApprovalsState | Unset = UNSET,
 ) -> Response[GetAdminTenantsTenantAgentApprovalsResponse200 | ProblemDetails]:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      The approvals agents asked of their owners, newest first: `limit` up to 200, and `next` (also the
     `link` header) names the following page; a response with no `next` is the last. Narrowed by `state`.
@@ -139,7 +139,7 @@ def sync(
     limit: int | Unset = UNSET,
     state: GetAdminTenantsTenantAgentApprovalsState | Unset = UNSET,
 ) -> GetAdminTenantsTenantAgentApprovalsResponse200 | ProblemDetails | None:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      The approvals agents asked of their owners, newest first: `limit` up to 200, and `next` (also the
     `link` header) names the following page; a response with no `next` is the last. Narrowed by `state`.
@@ -177,7 +177,7 @@ async def asyncio_detailed(
     limit: int | Unset = UNSET,
     state: GetAdminTenantsTenantAgentApprovalsState | Unset = UNSET,
 ) -> Response[GetAdminTenantsTenantAgentApprovalsResponse200 | ProblemDetails]:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      The approvals agents asked of their owners, newest first: `limit` up to 200, and `next` (also the
     `link` header) names the following page; a response with no `next` is the last. Narrowed by `state`.
@@ -218,7 +218,7 @@ async def asyncio(
     limit: int | Unset = UNSET,
     state: GetAdminTenantsTenantAgentApprovalsState | Unset = UNSET,
 ) -> GetAdminTenantsTenantAgentApprovalsResponse200 | ProblemDetails | None:
-    """Requires the "view-users" capability.
+    """Requires the "manage-sessions" capability.
 
      The approvals agents asked of their owners, newest first: `limit` up to 200, and `next` (also the
     `link` header) names the following page; a response with no `next` is the last. Narrowed by `state`.
