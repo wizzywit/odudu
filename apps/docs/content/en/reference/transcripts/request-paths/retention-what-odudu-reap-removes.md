@@ -26,7 +26,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"agent_instances":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"agent_instances":0,"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 Those zeros are the point. By this stage the database holds a consumed
@@ -57,13 +57,14 @@ last attempt. A delivery still inside its retry schedule is not this
 pass's business at any age either.
 
 `agent_budget_windows`, `ciba_requests`, `agent_approvals`, `agent_delegations` and `agent_instances`
-report `0` in every count of this walkthrough, which creates no agent and no backchannel request. They run before `token_grants`, because an
-instance cascades from its root grant. A budget window is deleted two days after it opened; a
+report `0` in every count of this walkthrough, which creates no agent and no backchannel request. `agent_instances` runs first of all, and the others before
+`token_grants`, because an instance cascades from its root grant and a grant that
+roots one is kept. A budget window is deleted two days after it opened; a
 backchannel (CIBA) request is deleted thirty days after it expired, ahead of the approval it names; an
 approval settles as `expired` once its window has passed and is deleted thirty days after its
 `expires_at`; a delegation goes thirty days after it was revoked or lapsed; an instance goes seven
-days after it was revoked or lapsed, and only once every instance beneath it can go too, together
-with its `agent_instance` subject.
+days after it was revoked or lapsed, and only once no instance is left beneath it, together
+with its `agent_instance` subject, so a chain of instances goes a level at a pass, leaves first.
 
 The four new keys in each `deleted` line of the blocks on this page were added without a live run, so those lines are not real output until this page is run again on a live stack, which is still to be done.
 
@@ -120,7 +121,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"agent_instances":0,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":1,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"agent_instances":0,"refresh_tokens":2,"authorization_codes":1,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":1,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
@@ -139,7 +140,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"agent_instances":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"agent_instances":0,"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 `console_sessions` and `console_logins` report `0` in every capture in this
@@ -167,7 +168,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"agent_instances":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":2,"console_logins":1,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"agent_instances":0,"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":2,"console_logins":1,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 The idle session and the expired one are removed, and so is the expired login.
@@ -197,7 +198,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"agent_instances":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":1,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"agent_instances":0,"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":1,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 The expired request is gone and the live one remains.
@@ -218,7 +219,7 @@ odudu reap
 ```
 {"command":"domain","tenant":"demo","tenantId":"01a1ad1a-6166-7f58-9cce-6bff2c6322a7","host":"old.acme-corp.dev","state":"pending","canonical":false,"created":true,"recordName":"_odudu-challenge.old.acme-corp.dev","recordValue":"odudu-domain-verification=XYrQ46Q0JQkha8pT71r7SF3G7BaCtXWXiuWdQNy92Co"}
 {"command":"domain","tenant":"demo","tenantId":"01a1ad1a-6166-7f58-9cce-6bff2c6322a7","host":"login.acme-corp.dev","state":"verified","canonical":true,"created":true}
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"agent_instances":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"agent_instances":0,"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
 ```
 
 Nothing is due: the pending row is a minute old and the retired issuer is inside
@@ -234,7 +235,7 @@ docker compose exec -T postgres psql -U odudu -d odudu -c "select host, state, c
 ```
 UPDATE 1
 UPDATE 1
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"agent_instances":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":1,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":1,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"agent_instances":0,"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":1,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":1,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
         host         |  state   | canonical
 ---------------------+----------+-----------
  login.acme-corp.dev | verified | t
@@ -283,7 +284,7 @@ docker compose exec -T postgres psql -U odudu -d odudu -c "select c.name, c.regi
 ```
 INSERT 0 1
 UPDATE 2
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"agent_instances":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":1,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"agent_instances":0,"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":0,"cimd_clients":0,"dynamic_clients":1,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
    name   | registration_origin |  type
 ----------+---------------------+--------
  approved | anonymous           | public
@@ -306,7 +307,7 @@ docker compose exec -T postgres psql -U odudu -d odudu -c "select k.key, k.expir
 
 ```
 UPDATE 1
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"agent_instances":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":1,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+{"ran":true,"deleted":{"agent_instances":0,"refresh_tokens":0,"authorization_codes":0,"agent_budget_windows":0,"ciba_requests":0,"agent_approvals":0,"agent_delegations":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"idempotency_keys":1,"cimd_clients":0,"dynamic_clients":0,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
                  key                  | live
 --------------------------------------+------
  9a41e3c0-7d52-4e8b-a6f1-0c2b5d7e8f33 | t
