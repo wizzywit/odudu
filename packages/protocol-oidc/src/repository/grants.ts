@@ -533,15 +533,12 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    // Logout's whole write. Returns how many grants were bound to the session
-    // (all of them ended by the time it returns: the update takes the tops among
-    // them and the cascade takes the rest) so a caller can tell
-    // "ended a session that had grants" from "ended one that had none"
-    // without a second query.
-    //
-    // `coalesce` keeps the first revocation's timestamp: re-stamping an
-    // already-revoked grant at a later `now` would move its reaping window
-    // forward every time logout ran again.
+    // Logout's whole write. Returns how many grants were bound to the session,
+    // all ended by the time it returns (the update takes the tops, the cascade
+    // the rest), so a caller can tell a session that had grants from one that had
+    // none. `coalesce` keeps the first revocation's timestamp: re-stamping an
+    // already-revoked grant would move its reaping window forward every time
+    // logout ran again.
     async revokeForSession(sessionId: string, revokedAt: Date): Promise<number> {
       const locked = await lockSeedGrants(tx, eq(tokenGrants.sessionId, sessionId));
       await tx
