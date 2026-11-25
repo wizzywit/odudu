@@ -91,7 +91,6 @@ const DOMAINS_ROWS = 'domains/services/rows.ts';
 const DOMAINS_CONFIRM = 'domains/services/confirm.ts';
 const TOKENS_WORDS = 'registration-tokens/services/tokenWording.ts';
 const AGENT_TEXT = 'agents/services/agentText.ts';
-const AGENT_APPROVALS = 'agents/ui/AgentApprovalsPage/AgentApprovalsPage.tsx';
 const FLOW_WORDS = 'flow/services/flowWording.ts';
 const FLOW_REQUIREMENTS = 'flow/services/requirement.ts';
 const FLOWS_WORDS = 'flow/services/flowsWords.ts';
@@ -492,7 +491,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
 
   // Agents.
   Approvals: page(AGENT_TEXT, "APPROVALS_LINK = 'Approvals'"),
-  'Agent approvals': page(AGENT_APPROVALS, "TITLE = 'Agent approvals'"),
+  'Agent approvals': page(AGENT_TEXT, "APPROVALS_TITLE = 'Agent approvals'"),
   State: page(AGENT_TEXT, "STATE_FILTER_LABEL = 'State'"),
   'Revoke run': page(AGENT_TEXT, "REVOKE_CONFIRM_LABEL = 'Revoke run'"),
   'Read again': page('agents/services/revoke.ts', "label: 'Read again'"),

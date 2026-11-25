@@ -18,9 +18,11 @@ An agent is an application that acts for a person, and a run is one start of it.
 
 ## 1. See who is acting for whom
 
-Open **Agents**. Each row is one run, drawn under the run that started it, so the lineage reads from the top down. A row names the agent's client, whether the run is live, expired or revoked, and the person it acts for. A live run also says how many writes and creates it has left, and when it expires. An ended run says when it expired or was revoked and shows no budget.
+Open **Agents**. Each row is one run, drawn under the run that started it, so the lineage reads from the top down. A row names the agent's client, whether the run is live, expired or revoked, and the person it acts for by their username, with their id beside it to copy. A live run also says how many writes and creates it has left, and when it expires. An ended run says when it expired or was revoked and shows no budget. Runs of one client are told apart by when they started and the end of their id.
 
-The list is read a page at a time, and a run can sit on a later page than the run that started it. Until that page is loaded, the run shows at the top of the list with a line naming the run that started it. Choose **State** to see only live, expired or revoked runs, and **Only this owner** on a row to see one person's runs alone, then **Show every agent** to come back. The owner's name links to their record when you may read subjects.
+The list is read a page at a time, oldest run first, so a run is never listed before the run that started it. A run can still show at the top of the list with a line naming the run that started it, when that run is not in the view. That happens when **State** leaves it out, for instance when you look at revoked runs only and the run that started one is still live.
+
+Choose **State** to see only live, expired or revoked runs, and **Only this owner** on a row to see one person's runs alone, then **Show every agent** to come back. The owner's name links to their record when you may read subjects. A subject with no username shows as the end of its id.
 
 ## 2. Look at one run
 
@@ -34,7 +36,7 @@ You cannot revoke the run of a person who holds an admin capability you do not h
 
 ## 4. Read what agents asked to have approved
 
-Choose **Approvals**, which opens **Agent approvals**. An approval is what an agent asked a person to agree to before it did something: a summary of the action, the agent that asked and the person it is for. **State** narrows the list to pending, approved, denied, expired or consumed requests. A pending request waits for the person it is for; it is answered by them and never from this list. The list never shows the digest that ties an approval to one exact action.
+Choose **Approvals**, which opens **Agent approvals**. An approval is what an agent asked a person to agree to before it did something: a summary of the action, the agent that asked and the person it is for. **State** narrows the list to pending, approved, denied, expired or consumed requests. The person it is for is named by username. A pending request waits for them; it is answered by them and never from this list. The list never shows the digest that ties an approval to one exact action.
 
 ## Things that cannot be undone
 
