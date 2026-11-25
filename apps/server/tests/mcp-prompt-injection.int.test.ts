@@ -172,20 +172,26 @@ async function fixture(capabilities: readonly string[]): Promise<Fixture> {
 // counters of a grant's write budget, which every write call spends.
 async function snapshot(f: Fixture): Promise<Record<string, unknown[]>> {
   return withTenant(stack.appDb.db, f.w.tenantId, async (tx) => {
+    // Listed from the catalog by oid. The information_schema form named each
+    // table to has_table_privilege, which the planner may evaluate on a row of
+    // another schema (the drizzle bookkeeping table) before the schema test, and
+    // a name that search_path cannot resolve raises instead of filtering.
     const listed = await tx.execute(
-      sql`select c.table_name as name from information_schema.columns c
-          join information_schema.tables t using (table_schema, table_name)
-          where c.table_schema = 'public' and c.column_name = 'tenant_id' and t.table_type = 'BASE TABLE'
-            and c.table_name <> 'audit_events'
-            and has_table_privilege(current_user, quote_ident(c.table_name), 'SELECT')
-          order by c.table_name`,
+      sql`select c.relname as name from pg_class c
+          join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relname <> 'audit_events'
+            and exists (select 1 from pg_attribute a
+                         where a.attrelid = c.oid and a.attname = 'tenant_id'
+                           and a.attnum > 0 and not a.attisdropped)
+            and has_table_privilege(c.oid, 'SELECT')
+          order by c.relname`,
     );
     const names = rowsOf(listed).map((row) => String(row.name));
     const tables: Record<string, unknown[]> = {};
     for (const name of names) {
       const read = await tx.execute(
         sql.raw(
-          `select to_jsonb(t) - 'agent_writes' - 'agent_creates' as r from "${name}" t ` +
+          `select to_jsonb(t) - 'agent_writes' - 'agent_creates' as r from public."${name}" t ` +
             `order by (to_jsonb(t) - 'agent_writes' - 'agent_creates')::text`,
         ),
       );
@@ -468,6 +474,15 @@ describe('the fixtures really instruct', () => {
         'agent_budget_windows',
       ]),
     );
+    // Every table that carries a tenant_id, counted without the serving role's
+    // privileges, so a table the snapshot cannot read is a failure here.
+    const rows = await stack.owner.db.execute(
+      sql`select count(*)::int as n from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relname <> 'audit_events'
+             and exists (select 1 from pg_attribute a where a.attrelid = c.oid
+                          and a.attname = 'tenant_id' and a.attnum > 0 and not a.attisdropped)`,
+    );
+    expect(tables.filter((name) => name !== 'tenants')).toHaveLength(Number(rowsOf(rows)[0]?.n));
   });
 
   it('name no tool that exists among the ones that are not the catalogue', () => {
