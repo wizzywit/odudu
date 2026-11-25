@@ -2,6 +2,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clients } from '@odudu/domain-tenant';
 import {
+  idsIn,
   lockSeedGrants,
   refreshTokens,
   tokenGrantRepository,
@@ -203,19 +204,12 @@ export async function revokeClientGrants(
     .limit(input.limit ?? CLIENT_GRANTS_REVOKE_LIMIT);
   const ids = (await batch).map((row) => row.id);
   const seeds = inArray(tokenGrants.id, ids);
-  if (ids.length > 0) await lockSeedGrants(tx, seeds);
-  const revoked =
-    ids.length === 0
-      ? []
-      : await tx
-          .update(tokenGrants)
-          .set({ revokedAt: input.now })
-          .where(seeds)
-          .returning({ id: tokenGrants.id });
-  await tokenGrantRepository(tx).revokeBelow(
-    revoked.map((row) => row.id),
-    input.now,
-  );
+  const locked = ids.length === 0 ? { seeds: 0, tops: [] } : await lockSeedGrants(tx, seeds);
+  if (locked.tops.length > 0) {
+    await tx.update(tokenGrants).set({ revokedAt: input.now }).where(idsIn(locked.tops));
+  }
+  const revoked = { length: locked.seeds, ids: locked.tops };
+  await tokenGrantRepository(tx).revokeBelow(revoked.ids, input.now);
   const remaining = await countAtMost(tx, {
     table: tokenGrants,
     where: reachable,

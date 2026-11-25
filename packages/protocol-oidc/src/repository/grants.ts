@@ -171,6 +171,7 @@ const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 // cascade, which locks it as a descendant, parent first. Two revokes then never
 // wait on each other in opposite directions. At most `batch` seeds are looked
 // at per statement, in id order, so the locking is bounded as the passes are.
+// A caller updates only the tops and counts `seeds`: the cascade ends the rest.
 export function seedLockStatement(seeds: SQL | undefined, batch: number, after: string): SQL {
   const where = seeds ?? sql`true`;
   return sql`
@@ -197,23 +198,41 @@ export function seedLockStatement(seeds: SQL | undefined, batch: number, after: 
       )
       select (select count(*) from cand)::int as n,
              (select id from cand order by id desc limit 1) as last,
-             (select count(*) from locked)::int as locked`;
+             (select coalesce(jsonb_agg(id), '[]'::jsonb) from locked) as tops`;
+}
+
+export interface LockedSeeds {
+  // How many grants matched the seed predicate, tops or not.
+  seeds: number;
+  // The ones locked: those with no other seed above them.
+  tops: string[];
 }
 
 export async function lockSeedGrants(
   tx: TenantScopedDatabase,
   seeds: SQL | undefined,
   batch = CASCADE_CAP,
-): Promise<void> {
+): Promise<LockedSeeds> {
+  const result: LockedSeeds = { seeds: 0, tops: [] };
   for (let after = NIL_UUID; ;) {
     const rows = (await tx.execute(seedLockStatement(seeds, batch, after))) as unknown as {
       n: number;
       last: string | null;
+      tops: string[];
     }[];
     const row = rows[0];
-    if (row === undefined || row.last === null || row.n < batch) return;
+    if (row === undefined) return result;
+    result.seeds += row.n;
+    result.tops.push(...row.tops);
+    if (row.last === null || row.n < batch) return result;
     after = row.last;
   }
+}
+
+// The rows of `tops` as a predicate, passed as one parameter so a long list
+// stays under the driver's parameter limit.
+export function idsIn(tops: readonly string[]): SQL {
+  return sql`${tokenGrants.id} = any(array(select value::uuid from jsonb_array_elements_text(${JSON.stringify(tops)}::jsonb)))`;
 }
 
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
@@ -514,7 +533,9 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    // Logout's whole write. Returns the number revoked so a caller can tell
+    // Logout's whole write. Returns how many grants were bound to the session
+    // (all of them ended by the time it returns: the update takes the tops among
+    // them and the cascade takes the rest) so a caller can tell
     // "ended a session that had grants" from "ended one that had none"
     // without a second query.
     //
@@ -522,37 +543,29 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // already-revoked grant at a later `now` would move its reaping window
     // forward every time logout ran again.
     async revokeForSession(sessionId: string, revokedAt: Date): Promise<number> {
-      await lockSeedGrants(tx, eq(tokenGrants.sessionId, sessionId));
-      const rows = await tx
+      const locked = await lockSeedGrants(tx, eq(tokenGrants.sessionId, sessionId));
+      await tx
         .update(tokenGrants)
         .set({
           revokedAt: sql`coalesce(${tokenGrants.revokedAt}, ${revokedAt.toISOString()}::timestamptz)`,
         })
-        .where(eq(tokenGrants.sessionId, sessionId))
-        .returning({ id: tokenGrants.id });
-      await cascadeAll(
-        rows.map((row) => row.id),
-        revokedAt,
-      );
-      return rows.length;
+        .where(idsIn(locked.tops));
+      await cascadeAll(locked.tops, revokedAt);
+      return locked.seeds;
     },
 
     // `revokeForSession` for many sessions in one statement.
     async revokeForSessions(sessionIds: readonly string[], revokedAt: Date): Promise<number> {
       if (sessionIds.length === 0) return 0;
-      await lockSeedGrants(tx, inArray(tokenGrants.sessionId, [...sessionIds]));
-      const rows = await tx
+      const locked = await lockSeedGrants(tx, inArray(tokenGrants.sessionId, [...sessionIds]));
+      await tx
         .update(tokenGrants)
         .set({
           revokedAt: sql`coalesce(${tokenGrants.revokedAt}, ${revokedAt.toISOString()}::timestamptz)`,
         })
-        .where(inArray(tokenGrants.sessionId, [...sessionIds]))
-        .returning({ id: tokenGrants.id });
-      await cascadeAll(
-        rows.map((row) => row.id),
-        revokedAt,
-      );
-      return rows.length;
+        .where(idsIn(locked.tops));
+      await cascadeAll(locked.tops, revokedAt);
+      return locked.seeds;
     },
 
     // The admin API's consent-revoke write: every grant a subject holds
@@ -571,17 +584,10 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         eq(tokenGrants.clientId, clientId),
         isNull(tokenGrants.revokedAt),
       );
-      await lockSeedGrants(tx, seeds);
-      const rows = await tx
-        .update(tokenGrants)
-        .set({ revokedAt })
-        .where(seeds)
-        .returning({ id: tokenGrants.id });
-      await cascadeAll(
-        rows.map((row) => row.id),
-        revokedAt,
-      );
-      return rows.length;
+      const locked = await lockSeedGrants(tx, seeds);
+      await tx.update(tokenGrants).set({ revokedAt }).where(idsIn(locked.tops));
+      await cascadeAll(locked.tops, revokedAt);
+      return locked.seeds;
     },
 
     // What a recovered account does to every grant it holds, offline ones
@@ -589,17 +595,10 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // nothing after. An already-revoked grant keeps its first timestamp.
     async revokeForSubject(subjectId: string, revokedAt: Date): Promise<number> {
       const seeds = and(eq(tokenGrants.subjectId, subjectId), isNull(tokenGrants.revokedAt));
-      await lockSeedGrants(tx, seeds);
-      const rows = await tx
-        .update(tokenGrants)
-        .set({ revokedAt })
-        .where(seeds)
-        .returning({ id: tokenGrants.id });
-      await cascadeAll(
-        rows.map((row) => row.id),
-        revokedAt,
-      );
-      return rows.length;
+      const locked = await lockSeedGrants(tx, seeds);
+      await tx.update(tokenGrants).set({ revokedAt }).where(idsIn(locked.tops));
+      await cascadeAll(locked.tops, revokedAt);
+      return locked.seeds;
     },
 
     // The foreign key on `actor_subject_id` only clears the column when the
@@ -610,17 +609,13 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         eq(tokenGrants.actorSubjectId, actorSubjectId),
         isNull(tokenGrants.revokedAt),
       );
-      await lockSeedGrants(tx, seeds);
-      const rows = await tx
+      const locked = await lockSeedGrants(tx, seeds);
+      await tx
         .update(tokenGrants)
         .set({ revokedAt: sql`now()` })
-        .where(seeds)
-        .returning({ id: tokenGrants.id });
-      await cascadeAll(
-        rows.map((row) => row.id),
-        new Date(),
-      );
-      return rows.length;
+        .where(idsIn(locked.tops));
+      await cascadeAll(locked.tops, new Date());
+      return locked.seeds;
     },
 
     async bySession(sessionId: string): Promise<TokenGrantRecord[]> {
