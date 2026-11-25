@@ -60,7 +60,7 @@ stack, from `019dd64be`, refused every token a real sign-in issues, because the 
 from the build that fixed it. `a refusal for a token holding me:write alone` is not on the page, because no sign-in can produce one;
 the integration test of the door runs it. The stack and its image were removed afterwards.
 
-The preflight block of `the-me-api.md` lists `POST` among the allowed methods since the delegation routes were added. That one header line was edited by hand on 2026-11-25 and not captured again; the rest of the page is the capture above, and `apps/server/tests/me-edges.int.test.ts` pins the value. The delegation routes have no transcript: they are in the generated reference and their behavior is run by `apps/server/tests/me-delegations.int.test.ts`.
+The preflight block of `the-me-api.md` lists `POST` among the allowed methods since the delegation routes were added; it was run again on 2026-11-25 and the output is the page's, byte for byte (the last section below). `apps/server/tests/me-edges.int.test.ts` pins the value.
 
 The me API's changes page, `the-me-api-changes.md`, and the pages the writes made stale were captured on 2026-11-11 on one freshly
 built compose project, `odudu-p4f-i25` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit
@@ -346,8 +346,8 @@ and times are that run's, not those of the blocks around it. The admin-capabilit
 do not involve `tenant-admin` or the new capabilities and were not touched. The rest of the
 admin paths were not run again for this phase, which stays with the end-to-end re-run of all of them.
 The four agent tables the pass gained (`agent_budget_windows`, `agent_approvals`, `agent_delegations` and
-`agent_instances`, which runs first) were added to the retention page's reports as zeros by hand, with the
-key order changed by hand too, not captured again: no agent exists on those stacks, so the rows they would show are the same.
+`agent_instances`, which runs first) first appeared in the retention page's reports as zeros written by hand; the run of
+2026-11-25 below replaced them with captured output, and the numbers and the key order were the same.
 `tests/docs/retention-schedule.test.ts` holds every report to `REAP_ORDER`'s keys, and
 `apps/server/tests/reap.int.test.ts` runs both rules against real rows.
 
@@ -1415,4 +1415,37 @@ The export and import of sign-in flows were run on 2026-11-17 on a freshly built
 
 `GET /me/openapi.json` (the section "The description of the API" of `the-me-api.md`, new) was run on 2026-11-21 on the quickstart stack (`quickstart/stack.sh up`, project `odudu-t29`, port `3295`), built from `10e817234`, the committed tree of the branch (the image was built from `git archive` of that commit, so nothing was uncommitted), on a database that began empty and with nothing seeded, since the route needs no token. It showed 29,734 bytes and 7 paths, the first 150 bytes and the `securitySchemes` block as they came back; the page's other sections keep their earlier capture. The stack and its image were removed afterwards.
 
-The page for a tenant's agents and approvals, `get-agents-get-agentsid-delete-agentsid-and-get-agent-approvals.md`, was not run against a stack: it shows the commands and describes the answers, and says so at its top, because an agent instance needs an agent client, a person's sign-in and an approval, which no page of the guide sets up. The figures on `get-adminopenapijson.md` (116 paths, 431,767 bytes in the header and `wc -c`, 422 KB) were not fetched on that day: they are the size and path count of the document `buildAdminOpenApiDocument` returns, which `tests/docs/admin-paths.test.ts` holds the page to, and the rest of the page is the earlier capture.
+## The agent pages, the delegation routes and the replays of 2026-11-25
+
+Five pages show agents, and all five were captured on 2026-11-25 on one quickstart stack with its mail catcher (`docker compose`
+project `odudu-docs-p5`, `quickstart/compose.yaml` with an override file that raises `ODUDU_THROTTLE_LIMIT` and
+`ODUDU_LOGIN_THROTTLE_LIMIT` to 1,000, port `3200`, `mailpit` on `8225`), built from the branch commit `ff92bff2d` with only
+documentation files uncommitted, started from an empty volume and driven in this order, in one shell, each block's output written
+to the page as it came back (carriage returns and trailing spaces removed): `request-paths/ciba-bc-authorize-and-the-token-poll.md`
+(which makes the tenant `demo`, `ada`, `grace`, the service `agent-admin` and the agent client `my-agent`, and holds the helpers the
+others use), `request-paths/the-approval-page.md`, `admin-paths/get-agents-get-agentsid-delete-agentsid-and-get-agent-approvals.md`
+and `request-paths/agent-delegations-through-the-me-api.md`. Grace's address was verified through the mail the stack sent. Two
+corrections came out of the run: the paging parameter of the agent lists is `cursor` (the page had called it `next`, which is the
+member of the answer that carries it), and the first poll after a `slow_down` has to wait ten seconds, not five. The preflight
+block of `the-me-api.md` was run in the same shell, on the same stack, against the client `my-app` that lists
+`https://spa.example`; its output equals the page's, so the `POST` in `access-control-allow-methods`, which an earlier increment
+had written by hand, is what the server answers.
+
+The guide [Delegate to an agent](../guides/agent-delegation.md) was run by `tools/docs-run` against a quickstart stack, after
+the quick start page, as the `docs-commands` workflow runs it; every block passed.
+
+Replayed on the same day, on a stack of the same image started with `ODUDU_REAP_ENABLED=false` on port `3000`:
+
+- `request-paths/retention-what-odudu-reap-removes.md`, every block except the three that show the pass's refusals
+  (on a stack migrated and not yet seeded, and with the serving role's configuration removed), which keep their earlier capture:
+  none of them has a key the agent tables touch. The stack was driven only as far as Path A with one refresh rotation, as the page
+  says, and the tenant `idem-demo` and its two keys were made just before the block that backdates them. Every count and the
+  order of the keys equal what had been written by hand; only the ids in the domain and `dyn-demo` blocks are this run's.
+- `admin-paths/get-adminopenapijson.md`: the size, 431,767 bytes, and the 116 paths equal the figures that had been recomputed.
+- The last section of `request-paths/the-me-api.md`, the description of the API: it had not been run since the delegation routes
+  were added and showed seven paths and 29,734 bytes; the document now has nine paths and is 34,428 bytes long, and the page says so.
+
+Not shown by any of these: a person with no session sent through the console's sign-in and back to the approval page at a tenant's
+own domain, the ten-minute expiry of an approval by waiting, and a request refused for a person who already holds 20 waiting
+approvals; `packages/protocol-oidc/tests/ciba.int.test.ts`, `approval-page.int.test.ts` and `apps/server/tests/me-delegations.int.test.ts`
+run them. The stack and its image were removed afterwards.

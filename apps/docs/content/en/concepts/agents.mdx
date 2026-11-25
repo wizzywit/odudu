@@ -39,7 +39,7 @@ A run can only be narrower than what it came from:
 - Its depth is one more than its parent's, up to `agent_max_delegation_depth`, which is 3 unless the tenant changes it.
 - A parent may start at most `agent_max_children` children, and a tenant may hold at most `agent_max_live_instances` live runs.
 
-A run lasts 15 minutes from the start, or 30 minutes after its last call when it keeps working. Both are tenant settings. Whichever comes first ends it, and so does the end of the person's session.
+A run started by an exchange lasts at most 15 minutes, and never longer than the token it was exchanged from. A run that keeps making calls through the MCP endpoint lasts until 30 minutes after its last call. Both are tenant settings, and the end of the person's session ends either.
 
 ## What a run may spend
 
