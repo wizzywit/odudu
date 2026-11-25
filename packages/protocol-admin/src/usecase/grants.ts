@@ -201,12 +201,17 @@ export async function revokeClientGrants(
     .where(reachable)
     .orderBy(asc(tokenGrants.id))
     .limit(input.limit ?? CLIENT_GRANTS_REVOKE_LIMIT);
-  await lockSeedGrants(tx, inArray(tokenGrants.id, batch));
-  const revoked = await tx
-    .update(tokenGrants)
-    .set({ revokedAt: input.now })
-    .where(inArray(tokenGrants.id, batch))
-    .returning({ id: tokenGrants.id });
+  const ids = (await batch).map((row) => row.id);
+  const seeds = inArray(tokenGrants.id, ids);
+  if (ids.length > 0) await lockSeedGrants(tx, seeds);
+  const revoked =
+    ids.length === 0
+      ? []
+      : await tx
+          .update(tokenGrants)
+          .set({ revokedAt: input.now })
+          .where(seeds)
+          .returning({ id: tokenGrants.id });
   await tokenGrantRepository(tx).revokeBelow(
     revoked.map((row) => row.id),
     input.now,
