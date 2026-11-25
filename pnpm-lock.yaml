@@ -502,6 +502,9 @@ importers:
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@odudu/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       ai:
         specifier: 7.0.181
         version: 7.0.181(zod@4.6.7)

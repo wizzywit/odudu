@@ -168,6 +168,11 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(found.some((v) => v.from.includes('apps/server/src/composes-mcp'))).toBe(false);
   });
 
+  it('lets the assistant package import the MCP package', async () => {
+    const found = await violations('mcp-imported-only-by-server');
+    expect(found.some((v) => v.from.includes('assistant/src/allowed'))).toBe(false);
+  });
+
   it('rejects the assistant package importing a domain or protocol package', async () => {
     const found = await violations('assistant-allowlist');
     expect(

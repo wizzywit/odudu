@@ -22,6 +22,7 @@
     "@ai-sdk/openai-compatible": "3.0.94",
     "@odudu/contracts": "workspace:*",
     "@odudu/kernel": "workspace:*",
+    "@odudu/mcp": "workspace:*",
     "ai": "7.0.181",
     "drizzle-orm": "0.45.4"
   },
