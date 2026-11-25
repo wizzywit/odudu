@@ -11,12 +11,3 @@ export function subjectCell(
 } {
   return { label, id: session.subjectId };
 }
-
-// Where a session's subject has its page, for a caller who may read subjects.
-export function subjectLinkOf(
-  mayRead: boolean,
-  tenant: string,
-  href: (tenant: string, id: string) => string,
-): ((id: string) => string) | null {
-  return mayRead ? (id) => href(tenant, id) : null;
-}
