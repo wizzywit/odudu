@@ -1416,7 +1416,7 @@ The export and import of sign-in flows were run on 2026-11-17 on a freshly built
 
 `GET /me/openapi.json` (the section "The description of the API" of `the-me-api.md`, new) was run on 2026-11-21 on the quickstart stack (`quickstart/stack.sh up`, project `odudu-t29`, port `3295`), built from `10e817234`, the committed tree of the branch (the image was built from `git archive` of that commit, so nothing was uncommitted), on a database that began empty and with nothing seeded, since the route needs no token. It showed 29,734 bytes and 7 paths, the first 150 bytes and the `securitySchemes` block as they came back; the page's other sections keep their earlier capture. The stack and its image were removed afterwards.
 
-## The agent pages, the delegation routes and the replays of 2026-11-25
+### The agent pages, the delegation routes and the replays of 2026-11-25
 
 Five pages show agents, and all five were captured on 2026-11-25 on one quickstart stack with its mail catcher (`docker compose`
 project `odudu-docs-p5`, `quickstart/compose.yaml` with an override file that raises `ODUDU_THROTTLE_LIMIT` and
@@ -1445,8 +1445,8 @@ Replayed on the same day, on a stack of the same image started with `ODUDU_REAP_
 - `admin-paths/get-adminopenapijson.md`: the size, 431,767 bytes, and the 116 paths equal the figures that had been recomputed.
 - The discovery blocks that had been edited by hand when CIBA was added, run again on that stack with the tenant `demo` and its
   canonical domain `login.acme-corp.dev`: blocks 1 and 2 of `authorization-server-metadata.md`, the discovery block of
-  `path-a-authorization-code-with-pkce.md` (now piped through `jq .`, and shown without a language tag, as the server's own bytes
-  would be one line), block 8 of `custom-domains-a-domain-host-and-the-proxys-question.md` and block 1 of
+  `path-a-authorization-code-with-pkce.md` (its block stays a `json` fence, the repository's check reads it, and prettier lays the server's one line out),
+  block 8 of `custom-domains-a-domain-host-and-the-proxys-question.md` and block 1 of
   `console-paths/get-consoleapitenantstenantdiscovery-get-consoleapitenantstenantjwks.md`, run with a console session of the
   system administrator. The bodies were what the hand edits had written; the `content-length` of the last two had not been
   raised, and is now the real one.

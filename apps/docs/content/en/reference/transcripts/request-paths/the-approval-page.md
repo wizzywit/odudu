@@ -32,11 +32,11 @@ location: http://localhost:3200/console/auth/login?tenant=demo&return_to=%2Ftena
 
 ## The page, with Grace's session
 
-`signin` leaves Grace's session in `$JAR`. The page, with its headers (the policy is the one every server page has), names the client, what it asks, the words it sent, and when the request stops being valid. The one line that holds the mark's `svg` is left out of the output:
+`signin` leaves Grace's session in `$JAR`. The page, with its headers (the policy is the one every server page has), names the client, what it asks, the words it sent, and when the request stops being valid.
 
 ```bash
 signin grace my-agent
-curl -sS -i -b "$JAR" "$TENANT/approval/$APPROVAL" | grep -v '<p class="brand"'
+curl -sS -i -b "$JAR" "$TENANT/approval/$APPROVAL"
 ```
 
 ```
@@ -67,6 +67,7 @@ Keep-Alive: timeout=72
 </head>
 <body>
 <main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
 <header class="intro">
 <h1><bdi>My agent</bdi> is asking for your approval</h1>
 <p class="context"><bdi>My agent asks to sign in as you with: openid</bdi></p>

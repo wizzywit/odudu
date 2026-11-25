@@ -28,7 +28,7 @@ A client is an agent type when its `agent_type` setting is on. It is off for eve
 
 ## Who may act
 
-Two things say which clients may act for a person, and when both speak the narrower one wins. The client the person signed in with lists `delegated_actors`, the clients allowed to act for its people. The person can add their own delegations through `POST /me/delegations`, each naming an agent client, a scope ceiling and a lifetime of up to 90 days. Odudu writes the answer into the person's access token as `may_act`, and it also keeps it on the grant, so a refresh token cannot be used to step around a limit the access token carried. When neither source speaks, nothing changes from before delegations existed.
+Two things say which clients may act for a person, and when both speak the narrower one wins. The client the person signed in with lists `delegated_actors`, the clients allowed to act for its people. The person can add their own delegations through `POST /tenants/{tenant}/me/delegations`, each naming an agent client, a scope ceiling and a lifetime of up to 90 days. Odudu writes the answer into the person's access token as `may_act`, and it also keeps it on the grant, so a refresh token cannot be used to step around a limit the access token carried. When neither source speaks, nothing changes from before delegations existed.
 
 ## What a run may hold
 

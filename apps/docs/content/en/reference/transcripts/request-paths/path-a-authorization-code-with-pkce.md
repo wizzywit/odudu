@@ -11,10 +11,10 @@ alike, with no exception and no per-client opt-out (ADR 0016).
 ## 1. Discovery
 
 ```bash
-curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration | jq .
+curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration
 ```
 
-```
+```json
 {
   "issuer": "http://localhost:3000/tenants/demo",
   "authorization_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/auth",
@@ -22,30 +22,16 @@ curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration | j
   "introspection_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token/introspect",
   "revocation_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/revoke",
   "backchannel_authentication_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/bc-authorize",
-  "backchannel_token_delivery_modes_supported": [
-    "poll"
-  ],
+  "backchannel_token_delivery_modes_supported": ["poll"],
   "backchannel_user_code_parameter_supported": false,
   "userinfo_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo",
   "jwks_uri": "http://localhost:3000/tenants/demo/protocol/openid-connect/certs",
   "end_session_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/logout",
-  "response_types_supported": [
-    "code"
-  ],
-  "response_modes_supported": [
-    "query"
-  ],
-  "subject_types_supported": [
-    "public"
-  ],
-  "id_token_signing_alg_values_supported": [
-    "RS256",
-    "ES256"
-  ],
-  "userinfo_signing_alg_values_supported": [
-    "RS256",
-    "none"
-  ],
+  "response_types_supported": ["code"],
+  "response_modes_supported": ["query"],
+  "subject_types_supported": ["public"],
+  "id_token_signing_alg_values_supported": ["RS256", "ES256"],
+  "userinfo_signing_alg_values_supported": ["RS256", "none"],
   "userinfo_encryption_alg_values_supported": [
     "RSA-OAEP-256",
     "ECDH-ES",
@@ -61,9 +47,7 @@ curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration | j
     "A192GCM",
     "A256GCM"
   ],
-  "code_challenge_methods_supported": [
-    "S256"
-  ],
+  "code_challenge_methods_supported": ["S256"],
   "grant_types_supported": [
     "authorization_code",
     "refresh_token",
@@ -91,15 +75,8 @@ curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration | j
   ],
   "authorization_response_iss_parameter_supported": true,
   "claims_parameter_supported": true,
-  "ui_locales_supported": [
-    "en"
-  ],
-  "prompt_values_supported": [
-    "none",
-    "login",
-    "consent",
-    "select_account"
-  ],
+  "ui_locales_supported": ["en"],
+  "prompt_values_supported": ["none", "login", "consent", "select_account"],
   "backchannel_logout_supported": true,
   "backchannel_logout_session_supported": true,
   "frontchannel_logout_supported": true,

@@ -21,6 +21,10 @@ You will decide how big to make the one server Odudu runs as, and what to do whe
 3. **Keep the schedules on.** Retention keeps the tables that grow with every sign-in from growing without bound ([Deploying](./deploying.md), step 7).
 4. **Restart fast.** One container means a restart is an outage. A restart takes as long as the migrations and the boot, so keep the image pulled and the health check watched.
 
+## When a revoke answers 500
+
+Ending a grant, a session, a client, a subject or an agent run takes its row locks in one fixed order, so two of them over the same chain of grants wait for each other and neither fails. Four narrow cases can still deadlock, and PostgreSQL then ends one of the two transactions with the error `40P01`. Its changes roll back, nothing is half done, and the caller is answered `500 Internal Server Error`. Nothing in the server sends the request again, so the caller, or you, sends the same revoke, exchange or client change again. The cases are a run started after a revoke's first scan of the chain, a chain deeper than the scan's frontier, a revoke of everything a session, subject, client or actor holds that meets a grant created for it a moment after the revoke chose its targets, and a change to a service account that meets an exchange for the same client within a few milliseconds. The server's log names the code `40P01` beside the failed request.
+
 ## How big it is meant to get
 
 Odudu is designed for a tenant with a million people and ten thousand clients, for ten thousand tenants, and for a hundred million audit events. Every list endpoint is bounded and served by an index. [The roadmap](../roadmap.md#later) plans the load and latency numbers that prove it, and read replicas. Until then, measure your own before you rely on the design figure.

@@ -2,9 +2,8 @@
 // narrowed further by consent and by delegation when either applies. P1 has
 // no consent screen, so `consented` is always null here — null means "not
 // applicable", not "nothing", or intersecting it would issue no scopes at
-// all. `delegated` is inert in the same way until P5's attenuation check
-// supplies it; the parameter exists now so that arrival needs no change to
-// this function's shape.
+// all. `delegated` is inert in the same way: a token exchange narrows scope
+// through its own attenuation check, so every caller passes null.
 export function resolveScope(
   requested: string,
   clientAllowed: string[],
