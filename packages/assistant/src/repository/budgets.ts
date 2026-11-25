@@ -1,3 +1,7 @@
+// The token ledger. A caller reserves max output plus the input upper bound,
+// because a sent reservation that is never settled is charged as reserved and
+// an under-sized one under-counts. sweep resolves at most MAX_LIMIT per call,
+// so a caller loops it while released + charged equals that bound.
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
@@ -34,6 +38,11 @@ interface ChargedLevel {
   windowStart: string;
 }
 
+interface Refund {
+  level: ChargedLevel;
+  tokens: number;
+}
+
 interface OpenReservation extends Record<string, unknown> {
   id: string;
   reserved: string;
@@ -41,6 +50,7 @@ interface OpenReservation extends Record<string, unknown> {
   levels: ChargedLevel[];
 }
 
+const WINDOW_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"';
 const TENANT = sql`nullif(current_setting('app.tenant_id', true), '')::uuid`;
 
 function whole(value: number, name: string): number {
@@ -83,7 +93,34 @@ export function budgetRepository(tx: AssistantTx) {
     }
   }
 
-  async function charge(limit: LevelLimit, tokens: number): Promise<boolean> {
+  // One reservation's counters are already in lock order, but a batch of them
+  // is not: the sum per counter is applied in a single global order, so a
+  // concurrent reserve never waits on a counter this batch holds while this
+  // batch waits on one that reserve holds.
+  async function refundInLockOrder(refunds: readonly Refund[]): Promise<void> {
+    const sums = new Map<string, Refund>();
+    for (const { level, tokens } of refunds) {
+      const key = JSON.stringify([
+        level.level,
+        level.scopeKey,
+        level.slot ?? '',
+        level.windowStart,
+      ]);
+      const known = sums.get(key);
+      sums.set(key, { level, tokens: (known?.tokens ?? 0) + tokens });
+    }
+    const ordered = [...sums.values()].sort(
+      (a, b) =>
+        LEVEL_NAMES.indexOf(a.level.level) - LEVEL_NAMES.indexOf(b.level.level) ||
+        a.level.scopeKey.localeCompare(b.level.scopeKey, 'en') ||
+        (a.level.slot ?? '').localeCompare(b.level.slot ?? '', 'en'),
+    );
+    for (const { level, tokens } of ordered) await adjust([level], -tokens);
+  }
+
+  // Returns the window the counter holds after the charge, which is newer than
+  // the caller's when the caller's clock is behind; null when the level refuses.
+  async function charge(limit: LevelLimit, tokens: number): Promise<string | null> {
     const windowStart = limit.windowStart.toISOString();
     await tx.execute(sql`
       insert into assistant_budget_counters
@@ -91,7 +128,7 @@ export function budgetRepository(tx: AssistantTx) {
       values (${TENANT}, ${limit.level}, ${limit.scopeKey}, ${limit.slot}, 0,
               ${limit.limitTokens}::bigint, ${windowStart}::timestamptz)
       on conflict (tenant_id, scope_kind, scope_key, (coalesce(slot, ''))) do nothing`);
-    const rows = await tx.execute(sql`
+    const rows = await tx.execute<{ window_start: string }>(sql`
       update assistant_budget_counters
          set used = case when window_start < ${windowStart}::timestamptz
                          then ${tokens}::bigint else used + ${tokens}::bigint end,
@@ -100,8 +137,8 @@ export function budgetRepository(tx: AssistantTx) {
        where ${counterMatches({ ...limit, windowStart })}
          and (case when window_start < ${windowStart}::timestamptz then 0 else used end)
              + ${tokens}::bigint <= ${limit.limitTokens}::bigint
-      returning 1`);
-    return rows.length === 1;
+      returning to_char(window_start at time zone 'UTC', ${WINDOW_FORMAT}) as window_start`);
+    return rows[0]?.window_start ?? null;
   }
 
   return {
@@ -111,7 +148,8 @@ export function budgetRepository(tx: AssistantTx) {
       const tokens = whole(input.tokens, 'tokens');
       const charged: ChargedLevel[] = [];
       for (const limit of inLockOrder(input.levels)) {
-        if (!(await charge(limit, tokens))) {
+        const windowStart = await charge(limit, tokens);
+        if (windowStart === null) {
           await adjust(charged, -tokens);
           return { ok: false, level: limit.level };
         }
@@ -119,7 +157,7 @@ export function budgetRepository(tx: AssistantTx) {
           level: limit.level,
           scopeKey: limit.scopeKey,
           slot: limit.slot,
-          windowStart: limit.windowStart.toISOString(),
+          windowStart,
         });
       }
       const reservationId = newId();
@@ -172,13 +210,19 @@ export function budgetRepository(tx: AssistantTx) {
            for update skip locked`);
       let released = 0;
       let charged = 0;
+      const refunds: Refund[] = [];
       for (const reservation of open) {
         if (reservation.sent) {
           charged += 1;
         } else {
-          await adjust(reservation.levels, -Number(reservation.reserved));
+          for (const level of reservation.levels) {
+            refunds.push({ level, tokens: Number(reservation.reserved) });
+          }
           released += 1;
         }
+      }
+      await refundInLockOrder(refunds);
+      for (const reservation of open) {
         await tx.execute(sql`
           update assistant_reservations set settled = true
            where tenant_id = ${TENANT} and id = ${reservation.id}`);
