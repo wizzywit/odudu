@@ -46,15 +46,15 @@ function over(spent: Caps, caps: Caps, create: boolean): boolean {
   return spent.mutating >= caps.mutating || (create && spent.creates >= caps.creates);
 }
 
-// Whether the grant a call carries is live, read under a share lock so that a
-// revoke in flight is waited for and its outcome seen. Taken in id order with
-// the root's lock, as a revoke over many grants takes its seeds.
-async function liveUnderLock(tx: TenantScopedDatabase, id: string): Promise<boolean> {
+// Whether the grant a call carries has not been revoked. A plain read, taken
+// after the root's lock: a revoke that commits at the same moment as a spend
+// cannot be told from a write that finished just before it, so the call is
+// refused only if the revoke had committed when this ran.
+async function notRevoked(tx: TenantScopedDatabase, id: string): Promise<boolean> {
   const [row] = await tx
     .select({ revokedAt: tokenGrants.revokedAt })
     .from(tokenGrants)
-    .where(eq(tokenGrants.id, id))
-    .for('share');
+    .where(eq(tokenGrants.id, id));
   return row?.revokedAt === null;
 }
 
@@ -62,19 +62,15 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
   return {
     // Spends one write at every level a call counts at: the root grant it
     // belongs to, the agent instance making it and the daily window of its owner
-    // and agent client. The root and the carried grant are locked in ascending
-    // id order, as a revoke over many grants takes its seeds, then the instance
-    // and the window. Each is checked before any is written, so a refusal leaves
-    // the others untouched. A create also counts as a mutating call. A grant
-    // that is missing or revoked, root or carried, is refused at the grant.
+    // and agent client. Only the root grant is locked (`for no key update`, which
+    // a child insert's key share passes), then the instance and the window. Each
+    // is checked before any is written, so a refusal leaves the others untouched.
+    // A create also counts as a mutating call. A grant that is missing or revoked,
+    // root or carried by the call, is refused at the grant.
     async spend(input: SpendInput): Promise<SpendOutcome> {
       const create = input.kind === 'create';
       const root = await budgetGrantId(tx, input.grantId);
       if (root === null) return refused('grant');
-
-      const carried = input.grantId !== root;
-      const carriedFirst = carried && input.grantId < root;
-      if (carriedFirst && !(await liveUnderLock(tx, input.grantId))) return refused('grant');
 
       const [grant] = await tx
         .select({
@@ -85,8 +81,8 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
         })
         .from(tokenGrants)
         .where(eq(tokenGrants.id, root))
-        .for('update');
-      if (carried && !carriedFirst && !(await liveUnderLock(tx, input.grantId))) {
+        .for('no key update');
+      if (input.grantId !== root && !(await notRevoked(tx, input.grantId))) {
         return refused('grant');
       }
       if (grant?.revokedAt !== null) return refused('grant');

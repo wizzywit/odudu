@@ -7,7 +7,11 @@ import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { agentBudgetRepository, type SpendInput } from '#/repository/agent-budget';
+import {
+  agentBudgetRepository,
+  type SpendInput,
+  type SpendOutcome,
+} from '#/repository/agent-budget';
 import { tokenGrantRepository } from '#/repository/grants';
 import {
   addClient,
@@ -351,12 +355,11 @@ describe('a call with no instance', () => {
   });
 });
 
-describe('an exchanged grant revoked between the liveness check and the spend', () => {
-  it('is refused at the grant, and nothing is counted', async () => {
-    const w = await world();
-    const child = await withTenant(stack.app.db, stack.tenantId, async (tx) =>
+describe('an exchanged grant revoked before the spend reads it', () => {
+  async function exchangedFrom(w: World, id: string = newId()) {
+    return withTenant(stack.app.db, stack.tenantId, (tx) =>
       tokenGrantRepository(tx).create({
-        id: newId(),
+        id,
         tenantId: stack.tenantId,
         clientId: w.clientId,
         subjectId: w.ownerId,
@@ -366,75 +369,69 @@ describe('an exchanged grant revoked between the liveness check and the spend', 
         actorSubjectId: w.ownerId,
       }),
     );
-    const outcome = await withHeldLock(
-      stack.app.db,
-      stack.tenantId,
-      {
-        lock: async (tx) => {
-          await tx.execute(sql`select id from token_grants where id = ${child.id} for update`);
-        },
-        afterRelease: async (tx) => {
-          await tokenGrantRepository(tx).revoke(child.id, NOON);
-        },
-      },
-      async (held) => {
-        const spending = held.started(spend(w, null, { grantId: child.id }));
-        await waitForLockWaiters(stack.owner);
-        held.release();
-        const [result] = await Promise.all([spending, held.done]);
-        return result;
-      },
+  }
+
+  it('is refused at the grant, and nothing is counted', async () => {
+    const w = await world();
+    const child = await exchangedFrom(w);
+    await withTenant(stack.app.db, stack.tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(child.id, NOON),
     );
-    expect(outcome).toEqual({ kind: 'refused', level: 'grant' });
+    expect(await spend(w, null, { grantId: child.id })).toEqual({
+      kind: 'refused',
+      level: 'grant',
+    });
     expect(await counters(w, null)).toMatchObject({ grantWrites: 0, window: 0 });
   });
-});
 
-describe('a spend racing a revoke that seeds both the root and the carried grant', () => {
-  // The revoke takes its seeds in id order, so the spend has to as well: with
-  // the carried grant sorting first, taking the root first deadlocks.
+  // The spend holds the root while a revoke over both grants waits for it, so
+  // the write counts and the revoke then ends both: a revoke that commits as a
+  // spend does is the same as a write that finished a moment before it.
   it.each([
     ['the carried grant sorts before the root', true],
     ['the carried grant sorts after the root', false],
-  ])('is refused at the grant, without a deadlock, when %s', async (_, carriedFirst) => {
-    const [a, b] = [newId(), newId()];
-    const [low, high] = a < b ? [a, b] : [b, a];
-    const [rootId, childId] = carriedFirst ? [high, low] : [low, high];
-    const w = await world(rootId);
-    await withTenant(stack.app.db, stack.tenantId, (tx) =>
-      tokenGrantRepository(tx).create({
-        id: childId,
-        tenantId: stack.tenantId,
-        clientId: w.clientId,
-        subjectId: w.ownerId,
-        scope: 'mcp:write',
-        audience: ['https://id.example/mcp'],
-        exchangedFromGrantId: rootId,
-        actorSubjectId: w.ownerId,
-      }),
-    );
-    const outcome = await withHeldLock(
-      stack.app.db,
-      stack.tenantId,
-      {
-        lock: async (tx) => {
-          await tx.execute(sql`select id from token_grants where id = ${low} for no key update`);
+  ])(
+    'counts a spend that holds the root while a revoke waits, when %s',
+    async (_, carriedFirst) => {
+      const [a, b] = [newId(), newId()];
+      const [low, high] = a < b ? [a, b] : [b, a];
+      const [rootId, childId] = carriedFirst ? [high, low] : [low, high];
+      const w = await world(rootId);
+      await exchangedFrom(w, childId);
+      let spent: SpendOutcome | undefined;
+      const revoked = await withHeldLock(
+        stack.app.db,
+        stack.tenantId,
+        {
+          lock: async (tx) => {
+            spent = await agentBudgetRepository(tx).spend({
+              grantId: childId,
+              instanceId: null,
+              ownerSubjectId: w.ownerId,
+              agentClientId: w.clientId,
+              kind: 'mutating',
+              now: NOON,
+              limits: WIDE,
+            });
+          },
         },
-        afterRelease: async (tx) => {
-          await tokenGrantRepository(tx).revokeForSubjectClient(w.ownerId, w.clientId, NOON);
+        async (held) => {
+          const revoking = held.started(
+            withTenant(stack.app.db, stack.tenantId, (tx) =>
+              tokenGrantRepository(tx).revokeForSubjectClient(w.ownerId, w.clientId, NOON),
+            ),
+          );
+          await waitForLockWaiters(stack.owner);
+          held.release();
+          const [count] = await Promise.all([revoking, held.done]);
+          return count;
         },
-      },
-      async (held) => {
-        const spending = held.started(spend(w, null, { grantId: childId }));
-        await waitForLockWaiters(stack.owner);
-        held.release();
-        const [result] = await Promise.all([spending, held.done]);
-        return result;
-      },
-    );
-    expect(outcome).toEqual({ kind: 'refused', level: 'grant' });
-    expect(await counters(w, null)).toMatchObject({ grantWrites: 0, window: 0 });
-  });
+      );
+      expect(spent).toEqual({ kind: 'ok' });
+      expect(revoked).toBe(2);
+      expect(await counters(w, null)).toMatchObject({ grantWrites: 1, window: 1 });
+    },
+  );
 });
 
 describe('the daily window', () => {
