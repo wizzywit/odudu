@@ -22,10 +22,12 @@
     "@odudu/contracts": "workspace:*",
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
+    "@odudu/domain-agents": "workspace:*",
     "@odudu/domain-audit": "workspace:*",
     "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-tenant": "workspace:*",
+    "@odudu/email": "workspace:*",
     "@odudu/i18n": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.4",
@@ -35,6 +37,7 @@
   "devDependencies": {
     "@fastify/formbody": "9.0.2",
     "@odudu/testkit": "workspace:*",
+    "fast-check": "4.11.0",
     "jose": "6.2.18",
     "pino": "10.4.0",
     "vitest": "5.1.1"

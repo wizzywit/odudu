@@ -19,6 +19,7 @@ Security
 Sign-in flow
 Signing keys
 Sessions
+Agents
 Tenant
 Settings
 Branding
@@ -133,6 +134,13 @@ A public client holds no secret, so it is refused the token exchange grant unles
 Accept an actor token issued to another client
 Off
 An actor token issued to another client is refused unless this is on. It has no effect unless the client holds the token exchange grant.
+Agent identity
+This client is an agent
+Off
+Marks the client as an agent: an application that acts for a person under a grant they gave it, in place of one that signs people in.
+Clients allowed to act for its people
+Add client
+The client_id of each client allowed to act for the people who use this client. Each must already exist in this tenant, and a name that does not is refused. 0 of 20 clients.
 Application actions
 The account changes this client may ask Odudu to run for a person who is signed in, through a parameter of its authorization request. A client may start none until one is chosen here.
 Actions an application may start

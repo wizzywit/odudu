@@ -105,6 +105,7 @@ import {
   clientOidcConfigRepository,
   ensureServiceAccount,
   GRANT_TYPES_PERMITTED,
+  CIBA_GRANT,
   TOKEN_EXCHANGE_GRANT,
   isWellFormedWebOrigin,
   needsServiceAccount,
@@ -1419,6 +1420,14 @@ async function runClientCommand(
     throw new OduduError(
       'seed_unknown_grant_type',
       `--grant-type names ${unknownGrantTypes.join(', ')}, which this server does not implement`,
+    );
+  }
+
+  if (type === 'public' && grantTypes.includes(CIBA_GRANT)) {
+    throw new OduduError(
+      'seed_invalid_options',
+      `--grant-type ${CIBA_GRANT} needs a confidential client: a public client has no secret, ` +
+        'so nothing would show who is asking a person to approve',
     );
   }
 

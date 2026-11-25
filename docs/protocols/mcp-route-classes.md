@@ -67,16 +67,16 @@ begins with its class and says why, and names no phase.
 
 ## How many
 
-All **159 routes** are in exactly one class.
+All **163 routes** are in exactly one class.
 
 | Class | Routes |
 | ----- | ------ |
 | R     | 62     |
-| RS    | 8      |
+| RS    | 11     |
 | W1    | 13     |
 | W2    | 35     |
 | C     | 7      |
-| D     | 28     |
+| D     | 29     |
 | I     | 2      |
 | N     | 4      |
 
@@ -250,6 +250,10 @@ confirm each call, and `never` means no tool will serve it.
 | 157 | `GET ~/audit`                                          | view-audit                      | R     | `list_audit`                     | this phase | Audit trail               |                                                                                                                                                                                                                             |
 | 158 | `GET ~/audit/count`                                    | view-audit                      | R     | `count_audit`                    | this phase | Audit trail               |                                                                                                                                                                                                                             |
 | 159 | `GET ~/audit/export`                                   | view-audit                      | RS    | not a tool                       | never      | Audit trail               | denied at the door: up to 10,000 events in one download                                                                                                                                                                     |
+| 160 | `GET ~/agents`                                         | manage-sessions                 | RS    | not a tool                       | never      | Agents                    | the agents running in the tenant and the user each acts for: an agent reads nothing of the others beside it                                                                                                                 |
+| 161 | `GET ~/agents/:id`                                     | manage-sessions                 | RS    | not a tool                       | never      | Agents                    | one of the above                                                                                                                                                                                                            |
+| 162 | `DELETE ~/agents/:id`                                  | manage-sessions                 | D     | not a tool                       | P5b        | Agents                    | revokes an instance, everything beneath it and the grants it acted in; `?dry_run=true` reads the counts and changes nothing, but is the same route                                                                          |
+| 163 | `GET ~/agent-approvals`                                | manage-sessions                 | RS    | not a tool                       | never      | Agents                    | what agents asked their owners, in the words they chose                                                                                                                                                                     |
 
 ## Mixed routes, field by field
 

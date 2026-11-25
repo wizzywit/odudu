@@ -14,6 +14,15 @@ interface RootNotes {
 }
 
 import {
+  agentApprovalSchema,
+  agentBudgetSchema,
+  agentInstanceSchema,
+  deleteAgentQuerySchema,
+  listAgentApprovalsQuerySchema,
+  listAgentsQuerySchema,
+  revokeAgentResponseSchema,
+} from '#/admin/agents';
+import {
   auditEventSchema,
   countAuditQuerySchema,
   listAuditQuerySchema,
@@ -345,6 +354,10 @@ describeFields(clientFieldsSchema, {
     'Whether a public client may use token exchange at all. Off by default: a public client holds no secret, so reaching the grant proves nothing about who asked.',
   token_exchange_actor_from_other_client:
     'Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it.',
+  agent_type:
+    'Whether the client is an agent: an application that acts for a person under a grant they gave it.',
+  delegated_actors:
+    'The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim.',
   userinfo_signed_response_alg:
     'The algorithm that signs this client’s UserInfo responses. Null returns plain JSON.',
   userinfo_encrypted_response_alg:
@@ -433,6 +446,56 @@ describeFields(consentSchema, {
   client_key: 'The client’s `client_id`.',
   scope_names: 'The scopes the user agreed to.',
   granted_at: 'When the user agreed.',
+});
+describeFields(agentBudgetSchema, {
+  mutating: 'Changing calls the instance may still make.',
+  creates: 'Creating calls the instance may still make; each also counts as a changing call.',
+});
+describeFields(agentInstanceSchema, {
+  id: 'The instance’s own id: the `act.sub` of its tokens, a subject of type `agent_instance`.',
+  owner: 'The user the agent acts for: the `sub` of its tokens.',
+  owner_username: 'The owner’s username, or `null` for a subject that has none.',
+  agent_client: 'The `client_id` of the agent client the instance runs under.',
+  parent: 'The instance that started this one, or null for one started under a sign-in.',
+  depth: 'How many instances deep it sits: 1 for one started under a sign-in.',
+  state:
+    '`live`; `expired` once its lifetime or idle time ran out and the retention pass has not yet revoked it; `revoked`.',
+  scope: 'The scope its tokens carry.',
+  created_at: 'When it was started.',
+  expires_at: 'When it ends whatever it does.',
+  revoked_at: 'When it was revoked, or null.',
+  remaining_budget:
+    'What the instance’s own slice of changing and creating calls has left. The sign-in’s budget and the owner’s daily limit are counted too, and are not shown here.',
+});
+describeFields(listAgentsQuerySchema, {
+  owner: 'Only the instances that act for this user, by subject id.',
+  state: 'Only instances in this state.',
+});
+describeFields(deleteAgentQuerySchema, {
+  dry_run: 'With `true`, answers what a revocation would end and changes nothing, records nothing.',
+});
+describeFields(revokeAgentResponseSchema, {
+  grants:
+    'How many grants it ended: those the instance’s tree acted in and everything exchanged from them.',
+  instances: 'How many instances it ended, the one asked for and everything beneath it included.',
+});
+describeFields(agentApprovalSchema, {
+  id: 'The approval’s id.',
+  owner: 'The user who has to decide it.',
+  owner_username: 'The owner’s username, or `null` for a subject that has none.',
+  agent_client: 'The `client_id` of the client that asked.',
+  instance: 'The instance it was asked for, or null for a request made without one.',
+  kind: 'What sort of action it asks about.',
+  summary: 'The words the owner is shown to decide on; the agent wrote them.',
+  state:
+    '`pending` until the owner decides, then `approved` or `denied`; `consumed` once the action ran; `expired` when it lapsed undecided. A pending approval past `expires_at` can no longer be decided and is marked `expired` by the next retention pass.',
+  created_at: 'When it was asked.',
+  expires_at: 'When it can no longer be decided or used.',
+  decided_at: 'When the owner decided, or null.',
+  decided_via: 'Where the owner decided, the consent page of a backchannel request or the console.',
+});
+describeFields(listAgentApprovalsQuerySchema, {
+  state: 'Only approvals in this state.',
 });
 describeFields(termsAcceptanceSchema, {
   version: 'The version of the tenant’s terms the user accepted.',
@@ -934,6 +997,10 @@ describeFields(exportedClientSchema, {
     'Whether a public client may use token exchange at all. Off by default: a public client holds no secret, so reaching the grant proves nothing about who asked.',
   token_exchange_actor_from_other_client:
     'Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it.',
+  agent_type:
+    'Whether the client is an agent: an application that acts for a person under a grant they gave it.',
+  delegated_actors:
+    'The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim.',
   userinfo_signed_response_alg:
     'The algorithm that signs this client’s UserInfo responses. Null returns plain JSON.',
   userinfo_encrypted_response_alg:
@@ -1115,6 +1182,23 @@ describeFields(tenantSettingsDocumentSchema, {
     'Whether the registration form asks for a username: required, optional or generated (the server makes one). Optional and generated need login_with_email and verify_email on, and keep them on.',
   cimd_enabled:
     'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',
+  agent_max_delegation_depth: 'How many instances deep a delegation may go, 1 to 8. 3 by default.',
+  agent_max_children:
+    'How many live child instances one instance may have, 1 to 200. 20 by default.',
+  agent_max_live_instances:
+    'How many live agent instances the tenant may hold at once, 1 to 100000. 1000 by default. Approximate: mints in flight at the same moment can pass it by their number.',
+  agent_instance_ttl_seconds:
+    'How long an agent instance lives, in seconds, 60 to 86400, and never past the owner’s session. 900 by default.',
+  agent_instance_idle_seconds:
+    'How long an agent instance may sit idle before it ends, in seconds, 60 to 86400, and never past the owner’s session. 1800 by default.',
+  agent_approval_ttl_seconds:
+    'How long an approval of one action lasts, in seconds, 60 to 900. 600 by default.',
+  agent_writes_per_grant:
+    'How many writes an agent may make under one grant, creates included, 1 to 1000. 20 by default.',
+  agent_creates_per_grant:
+    'How many of those writes under one grant may create something, 1 to 1000. 10 by default.',
+  agent_window_writes:
+    'How many writes one agent type may make for one owner in a 24-hour UTC window, across their sign-ins, 1 to 100000. 1000 by default.',
   audit_event_types: 'The audit event types the tenant stores.',
   supported_locales:
     'The language tags the tenant’s pages are offered in, 1 to 32, each such as `fr` or `zh-Hant-TW`; discovery advertises them as `ui_locales_supported`.',

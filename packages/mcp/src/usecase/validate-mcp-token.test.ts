@@ -55,6 +55,7 @@ function deps(f: Fakes = {}): ValidateMcpTokenDeps {
         actChain: null,
         expCeiling: null,
         requestedUserinfoClaims: null,
+        mayAct: null,
       }),
     isSessionLive: () => Promise.resolve(f.sessionLive ?? true),
     loadClientState: () =>

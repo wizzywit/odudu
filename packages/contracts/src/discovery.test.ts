@@ -59,13 +59,34 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     expect(doc.response_modes_supported).toEqual(['query']);
   });
 
-  it('advertises exactly the four grant types registration accepts', () => {
+  it('[OIDC-CIBA-4-05] advertises exactly the five grant types registration accepts', () => {
     expect([...doc.grant_types_supported].sort()).toEqual([
       'authorization_code',
       'client_credentials',
       'refresh_token',
       'urn:ietf:params:oauth:grant-type:token-exchange',
+      'urn:openid:params:grant-type:ciba',
     ]);
+  });
+
+  it('[OIDC-CIBA-4-01] names poll as the only backchannel token delivery mode', () => {
+    expect(doc.backchannel_token_delivery_modes_supported).toEqual(['poll']);
+  });
+
+  it('[OIDC-CIBA-4-02] names the backchannel authentication endpoint under the issuer', () => {
+    expect(doc.backchannel_authentication_endpoint).toBe(
+      `${doc.issuer}/protocol/openid-connect/bc-authorize`,
+    );
+  });
+
+  it('[OIDC-CIBA-4-03] names no signing algorithm for authentication requests, so none are supported', () => {
+    expect(doc).not.toHaveProperty(
+      'backchannel_authentication_request_signing_alg_values_supported',
+    );
+  });
+
+  it('[OIDC-CIBA-4-04] says user codes are not supported', () => {
+    expect(doc.backchannel_user_code_parameter_supported).toBe(false);
   });
 
   it('advertises the token-exchange grant', () => {

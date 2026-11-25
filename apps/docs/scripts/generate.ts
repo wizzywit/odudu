@@ -118,11 +118,10 @@ export async function generatedFiles(commit: string): Promise<ReadonlyMap<string
   for (const [dir, label] of categories) {
     files.set(`${REFERENCE_DIR}/${dir}/_category_.json`, `${JSON.stringify({ label }, null, 2)}\n`);
   }
-  files.set(
-    'static/openapi/admin.json',
-    `${JSON.stringify(buildAdminOpenApiDocument(), null, 2)}\n`,
-  );
-  files.set('static/openapi/me.json', `${JSON.stringify(me, null, 2)}\n`);
+  // Compact, as the server serves them: indented, the admin description alone
+  // was more than 800 KB of the published site.
+  files.set('static/openapi/admin.json', JSON.stringify(buildAdminOpenApiDocument()));
+  files.set('static/openapi/me.json', JSON.stringify(me));
   return new Map([...files].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 

@@ -11,7 +11,9 @@ import {
   tenants,
   type TenantScopedDatabase,
   withTenant,
+  withTenantRetrying,
 } from '@odudu/db';
+import { agentDelegationRepository, type AgentDelegationRecord } from '@odudu/domain-agents';
 import { auditRepository } from '@odudu/domain-audit';
 import { type MailLookResolver } from '@odudu/email';
 import {
@@ -22,8 +24,10 @@ import {
   userRepository,
 } from '@odudu/domain-identity';
 import { clientRepository, consentRepository } from '@odudu/domain-tenant';
+import { newId } from '@odudu/kernel';
 import {
   type MeDeps,
+  type MeDelegationRecord,
   type MeReads,
   type MeSessionAuth,
   type MeWrites,
@@ -61,6 +65,28 @@ export interface MeMailParts {
   readonly deploymentSmtp: boolean;
 }
 
+// Delegations with both clients named by their OAuth `client_id`, in one read
+// of the clients however many there are.
+async function namedDelegations(
+  tx: TenantScopedDatabase,
+  records: readonly AgentDelegationRecord[],
+): Promise<MeDelegationRecord[]> {
+  const ids = [...new Set(records.flatMap((r) => [r.clientId, r.actorClientId]))];
+  const keys = new Map((await clientRepository(tx).byIds(ids)).map((c) => [c.id, c.clientId]));
+  // A client deleted since the delegation was read leaves no `client_id` to
+  // print, and an internal id is not one; the foreign keys cascade, so this is
+  // only a race, answered as the admin agent routes answer it.
+  const keyOf = (id: string) => keys.get(id) ?? 'unknown';
+  return records.map((record) => ({
+    id: record.id,
+    clientKey: keyOf(record.clientId),
+    actorClientKey: keyOf(record.actorClientId),
+    scopeCeiling: record.scopeCeiling,
+    expiresAt: record.expiresAt,
+    createdAt: record.createdAt,
+  }));
+}
+
 // Each read runs in its own tenant-scoped transaction, so the tenant it names
 // is the only one whose rows it can see.
 export function meReadsFor(database: DatabaseHandle): MeReads {
@@ -84,6 +110,10 @@ export function meReadsFor(database: DatabaseHandle): MeReads {
       ),
     consents: (tenantId, subjectId, page) =>
       withTenant(database.db, tenantId, (tx) => consentRepository(tx).forSubject(subjectId, page)),
+    delegations: (tenantId, subjectId, now) =>
+      withTenant(database.db, tenantId, async (tx) =>
+        namedDelegations(tx, await agentDelegationRepository(tx).activeOf(subjectId, now)),
+      ),
   };
 }
 
@@ -183,6 +213,62 @@ function writeTxFor(
         input,
       );
     },
+    delegationClient: async (clientKey) => {
+      const client = await clientRepository(tx).byClientId(clientKey);
+      if (client === null) return null;
+      const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+      return {
+        id: client.id,
+        clientKey: client.clientId,
+        enabled: client.enabled,
+        agentType: config?.agentType === true,
+      };
+    },
+    createDelegation: async (input) => {
+      const record = await agentDelegationRepository(tx).createUnderCap(
+        {
+          id: newId(),
+          tenantId,
+          subjectId: input.subjectId,
+          clientId: input.client.id,
+          actorClientId: input.actor.id,
+          scopeCeiling: input.scopeCeiling,
+          expiresAt: input.expiresAt,
+        },
+        input.cap,
+        input.now,
+      );
+      if (record === null) return null;
+      return {
+        id: record.id,
+        clientKey: input.client.clientKey,
+        actorClientKey: input.actor.clientKey,
+        scopeCeiling: record.scopeCeiling,
+        expiresAt: record.expiresAt,
+        createdAt: record.createdAt,
+      };
+    },
+    revokeDelegation: async (subjectId, id, now) => {
+      const record = await agentDelegationRepository(tx).revoke(subjectId, id, now);
+      return record === null ? null : ((await namedDelegations(tx, [record]))[0] ?? null);
+    },
+    auditDelegation: async (event) => {
+      const via = await clientRepository(tx).byClientId(event.viaClientKey);
+      await auditRepository(tx).record({
+        eventType: 'agent_identity',
+        action: event.action,
+        outcome: 'allowed',
+        actorSubjectId: event.ownerSubjectId,
+        actorClientId: via?.id ?? null,
+        resourceType: 'agent_delegation',
+        resourceId: event.delegationId,
+        detail: {
+          agent_client: event.agentClientKey,
+          owner: event.ownerSubjectId,
+          delegation: event.delegationId,
+        },
+      });
+    },
     audit: async (event) => {
       const client = await clientRepository(tx).byClientId(event.actorClientKey);
       await auditRepository(tx).record({
@@ -212,7 +298,7 @@ export function meWritesFor(
 ): MeWrites {
   return {
     transact: (tenantId, run) =>
-      withTenant(database.db, tenantId, (tx) => run(writeTxFor(tx, tenantId, kek, mail))),
+      withTenantRetrying(database.db, tenantId, (tx) => run(writeTxFor(tx, tenantId, kek, mail))),
   };
 }
 

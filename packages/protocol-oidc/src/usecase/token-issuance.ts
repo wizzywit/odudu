@@ -3,9 +3,9 @@ import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/cry
 import {
   isForeignKeyViolation,
   withSavepoint,
-  withTenant,
   type DatabaseHandle,
   type TenantScopedDatabase,
+  withTenantRetrying,
 } from '@odudu/db';
 import { auditRepository, type AuditReason, type RequestContext } from '@odudu/domain-audit';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
@@ -86,12 +86,24 @@ import {
   type RefusalLogger,
 } from '#/usecase/client-authentication';
 import { authenticateEndpointClient } from '#/usecase/private-key-jwt-authentication';
+import { CIBA_GRANT } from '#/service/ciba';
+import { issueCibaTokens, recordCibaPoll, type CibaPollRequest } from '#/usecase/ciba-token';
 import { loadClaimContextIn } from '#/usecase/evaluate-claims';
+import { narrowMayAct, type MayActClaim } from '#/service/agent-mint';
+import { applyAgentLayer, mayActFor } from '#/usecase/agent-layer';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
 // The client's configuration with every lifetime resolved against the
 // tenant's, so issuance never sees a lifetime the client left unset.
 type IssuingConfig = ClientOidcConfig & TokenLifetimes;
+
+// The grant a derived grant comes from is locked and found live before the
+// child is made, so a revoke of it waits for the child or the exchange fails.
+async function requireLiveParent(tx: TenantScopedDatabase, grantId: string | null): Promise<void> {
+  if (grantId !== null && !(await tokenGrantRepository(tx).lockLive(grantId))) {
+    throw invalidGrant();
+  }
+}
 
 // The client's `id_token_signed_response_alg` (OIDC Dynamic Client
 // Registration §2), or the active key it signs with when it named none.
@@ -227,7 +239,8 @@ type StructuredRequest =
       scope: string;
       resource: string | string[] | undefined;
       audience: string | string[] | undefined;
-    };
+    }
+  | (CibaPollRequest & { clientId: string | undefined });
 
 function readField(body: Record<string, string | string[] | undefined>, key: string): string {
   const value = body[key];
@@ -322,6 +335,12 @@ export function parseStructure(
     };
   }
 
+  if (grantType === CIBA_GRANT) {
+    const authReqId = readField(body, 'auth_req_id');
+    if (authReqId.length === 0) throw invalidRequest();
+    return { grantType, clientId: readOptionalField(body, 'client_id'), authReqId };
+  }
+
   throw unsupportedGrantType();
 }
 
@@ -350,7 +369,7 @@ async function redeemAuthorizationCode(
     if (existing === null || grantId === null || grantId === undefined) throw invalidGrant();
 
     const revokedAt = deps.clock.now();
-    await withTenant(
+    await withTenantRetrying(
       deps.database.db,
       deps.tenantId,
       async (revokeTx) => {
@@ -475,6 +494,9 @@ async function mintAccessToken(
     // grant that named an actor. Never derived here — the caller resolves
     // it via `buildActChain` before this function ever runs.
     act?: ActClaim;
+    // RFC 8693 §4.4's `may_act`: who may exchange this token as its actor.
+    // The caller decides it; a claim mapper cannot set it.
+    mayAct?: MayActClaim;
     // Signed only for the token the MCP endpoint mints for a call it serves: the
     // admin API reads it as "the endpoint records this call". No grant, exchange
     // or refresh sets it, and a claim mapper cannot.
@@ -512,14 +534,14 @@ async function mintAccessToken(
     ? [...input.audience]
     : [...input.audience, deps.issuer];
 
-  // `via` is the endpoint's marker (below) and nothing else's, so a mapper's is dropped.
+  // `via` is the endpoint's marker (below) and `may_act` the issuer's own, so a mapper's of either is dropped.
   const mapped = Object.fromEntries(
     Object.entries(
       await mappedClaims(deps.claimMappers, input.accessTokenScope, input.claimContext, {
         reachableRoleIds: input.reachableRoleIds,
         fullScopeAllowed: input.fullScopeAllowed,
       }),
-    ).filter(([name]) => name !== 'via'),
+    ).filter(([name]) => name !== 'via' && name !== 'may_act'),
   );
 
   const accessTokenClaims = withRegisteredClaimsWinning(mapped, {
@@ -546,6 +568,7 @@ async function mintAccessToken(
       ? { requested_userinfo_claims: input.requestedUserinfoClaims }
       : {}),
     ...(input.act === undefined ? {} : { act: input.act }),
+    ...(input.mayAct === undefined ? {} : { may_act: input.mayAct }),
     ...(input.endpointMinted === true ? { via: 'mcp' } : {}),
   });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
@@ -626,6 +649,13 @@ async function issueAuthorizationCodeTokens(
   // into the access token below and passed to `create` afterward — the
   // `grant_id` comment on `mintAccessToken` explains why.
   const grantId = newId();
+  const mayAct = await mayActFor(tx, {
+    subjectId: code.subjectId,
+    clientDbId: client.id,
+    delegatedActors: config.delegatedActors,
+    issuer: deps.issuer,
+    now,
+  });
   const userinfoClaims = Object.keys(code.claims.userinfo);
   const requestedUserinfoClaims = userinfoClaims.length > 0 ? userinfoClaims : null;
 
@@ -644,6 +674,7 @@ async function issueAuthorizationCodeTokens(
       sessionId,
       grantId,
       requestedUserinfoClaims,
+      ...(mayAct === undefined ? {} : { mayAct }),
     },
     key,
     now,
@@ -726,6 +757,7 @@ async function issueAuthorizationCodeTokens(
     audience,
     sessionId,
     requestedUserinfoClaims,
+    mayAct,
   });
   await authorizationCodeRepository(tx).attachGrant(code.codeHash, grant.id);
   await auditRepository(tx).record({
@@ -872,7 +904,7 @@ async function issueRefreshTokens(
     presentedHash,
   );
 
-  const outcome = await withTenant(
+  const outcome = await withTenantRetrying(
     deps.database.db,
     deps.tenantId,
     (rotationTx) =>
@@ -933,6 +965,7 @@ async function issueRefreshTokens(
   // was minted to record, and the ceiling it was minted never to outlive.
   const act = narrowActClaim(grant.actChain) ?? undefined;
   const expCeiling = grant.expCeiling ?? undefined;
+  const mayAct = narrowMayAct(grant.mayAct);
 
   const { accessToken, iat, exp } = await mintAccessToken(
     deps,
@@ -953,6 +986,7 @@ async function issueRefreshTokens(
       grantId: grant.id,
       requestedUserinfoClaims: grant.requestedUserinfoClaims,
       ...(act === undefined ? {} : { act }),
+      ...(mayAct === undefined ? {} : { mayAct }),
       ...(expCeiling === undefined ? {} : { expCeiling }),
     },
     key,
@@ -1083,6 +1117,13 @@ const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
 const REFRESH_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:refresh_token';
 const ID_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:id_token';
 
+function earliest(...times: readonly (Date | null | undefined)[]): Date | undefined {
+  const present = times.filter((time): time is Date => time !== null && time !== undefined);
+  return present.length === 0
+    ? undefined
+    : new Date(Math.min(...present.map((time) => time.getTime())));
+}
+
 // RFC 8693's grant, minting from a subject_token (and, optionally, an
 // actor_token) rather than a credential the client owns outright.
 async function issueExchangedTokens(
@@ -1129,7 +1170,13 @@ async function issueExchangedTokens(
   // on the column) — checked before the subject token is ever resolved, so
   // an unpermitted client cannot use this response to learn whether the
   // subject token it sent would otherwise have been valid.
-  if (request.actorToken === undefined && !config.tokenExchangeImpersonationAllowed) {
+  // An agent-type client never impersonates: with no actor token it acts as
+  // itself, so the gate guards a branch it cannot take.
+  if (
+    request.actorToken === undefined &&
+    !config.agentType &&
+    !config.tokenExchangeImpersonationAllowed
+  ) {
     throw unauthorizedClient();
   }
 
@@ -1143,6 +1190,12 @@ async function issueExchangedTokens(
 
   const subject = await resolveExchangeToken(tx, resolveDeps, subjectType, request.subjectToken);
   if (subject.kind !== 'ok') throw refused('invalid_grant');
+
+  // The actor of an agent-type client is the client itself, whose instance
+  // `act.sub` names, so an actor token has no part to play.
+  if (config.agentType && request.actorToken !== undefined) {
+    throw refused('invalid_grant', subject.token.subjectId);
+  }
 
   // `actorTokenType` is non-undefined whenever `actorToken` is — stage 1
   // refuses the pair otherwise — but narrow it rather than asserting it.
@@ -1174,11 +1227,51 @@ async function issueExchangedTokens(
   if (actChain !== undefined && actChain.kind !== 'ok') {
     throw refused('invalid_grant', subject.token.subjectId);
   }
-  const delegatedAct = actChain?.kind === 'ok' ? actChain.act : undefined;
 
   const scopeOutcome = attenuateScope(request.scope, subject.token.scope);
   if (scopeOutcome.kind === 'widened') throw invalidScope();
-  const scope = [...scopeOutcome.scope];
+  const attenuated = [...scopeOutcome.scope];
+
+  const layer = await applyAgentLayer(
+    tx,
+    { tenantId: deps.tenantId, lifespans: deps.lifespans },
+    {
+      client,
+      agentType: config.agentType,
+      subject: subject.token,
+      actorSubject,
+      requestedScope: attenuated,
+      now,
+    },
+  );
+  if (layer.kind === 'refused') {
+    const failure = {
+      invalid_scope: [invalidScope(), 'invalid_scope'],
+      invalid_target: [invalidTarget(), 'invalid_target'],
+      invalid_request: [invalidRequest(), 'invalid_grant'],
+      access_denied: [invalidRequest(), 'subject_mismatch'],
+    } as const;
+    const [error, reason] = failure[layer.error];
+    throw withAudit(error, {
+      action: 'token.exchange',
+      reason,
+      clientDbId: client.id,
+      subjectId: subject.token.subjectId,
+    });
+  }
+  const scope = [...layer.scope];
+
+  // Under an agent-type client the chain grows from the subject token's own
+  // `act`, with the new instance at its head and the tenant's depth as the limit.
+  const instanceChain =
+    layer.instance === null
+      ? undefined
+      : buildActChain(layer.actorSub, subject.token.act, layer.maxDepth);
+  if (instanceChain !== undefined && instanceChain.kind !== 'ok') {
+    throw refused('invalid_grant', subject.token.subjectId);
+  }
+  const chain = instanceChain ?? actChain;
+  const delegatedAct = chain?.kind === 'ok' ? chain.act : undefined;
 
   // The admin API treats a token with no `act` and no MCP scope as the
   // person's own, so an exchange of an agent's token may neither drop the
@@ -1209,13 +1302,17 @@ async function issueExchangedTokens(
 
   // An exchange may not lengthen the credential it was handed —
   // mintAccessToken's own `expCeiling`, and (below) this same instant
-  // stands in for it when the issued shape is not an access token.
-  const expCeiling = subject.token.expiresAt ?? undefined;
+  // stands in for it when the issued shape is not an access token. A minted
+  // instance bounds it too: nothing made from it outlives it.
+  const expCeiling = earliest(subject.token.expiresAt, layer.instance?.expiresAt);
   // Recorded only for a delegated exchange (`act` present); an
   // impersonation names no actor in the claim, so none is recorded here
   // either (token-grants.ts's own comment on the column).
-  const actorSubjectId = actor === null ? null : actorSubject;
+  const actorSubjectId =
+    layer.instance !== null ? layer.actorSub : actor === null ? null : actorSubject;
   const requestedUserinfoClaims = subject.token.requestedUserinfoClaims;
+  // The restriction on who may act travels with every token made from this one.
+  const carriedMayAct = narrowMayAct(subject.token.mayAct);
   const recordExchange = (resourceId: string | null, issuedTokenType: string) =>
     auditRepository(tx).record({
       eventType: 'token',
@@ -1226,7 +1323,7 @@ async function issueExchangedTokens(
       resourceType: resourceId === null ? null : 'grant',
       resourceId,
       detail: {
-        mode: request.actorToken === undefined ? 'impersonation' : 'delegation',
+        mode: actorSubjectId === null ? 'impersonation' : 'delegation',
         scope: scope.join(' '),
         requested_token_type: issuedTokenType,
       },
@@ -1235,6 +1332,7 @@ async function issueExchangedTokens(
   if (issuedType === 'refresh_token') {
     if (!refreshAllowedForScope(scope)) throw invalidScope();
     const grantId = newId();
+    await requireLiveParent(tx, subject.token.grantId);
     await tokenGrantRepository(tx).create({
       id: grantId,
       tenantId: deps.tenantId,
@@ -1248,6 +1346,7 @@ async function issueExchangedTokens(
       actChain: act ?? null,
       expCeiling: expCeiling ?? null,
       requestedUserinfoClaims,
+      mayAct: carriedMayAct,
     });
     await recordExchange(grantId, REFRESH_TOKEN_TYPE);
     const refreshToken = generateRefreshToken();
@@ -1280,11 +1379,15 @@ async function issueExchangedTokens(
     const reachable = await reachableRoleIds(tx, scope);
     const key = await signingKeyRepository(tx).active();
     const assigned = await clientScopeRepository(tx).forClient(client.id);
-    const mapped = await mappedClaims(
-      deps.claimMappers,
-      idTokenScopeOf(assigned, scope),
-      claimContext,
-      { reachableRoleIds: reachable, fullScopeAllowed: client.fullScopeAllowed },
+    // `may_act` is the issuer's own, carried from the subject token, so a
+    // mapper's is dropped as it is for an access token.
+    const mapped = Object.fromEntries(
+      Object.entries(
+        await mappedClaims(deps.claimMappers, idTokenScopeOf(assigned, scope), claimContext, {
+          reachableRoleIds: reachable,
+          fullScopeAllowed: client.fullScopeAllowed,
+        }),
+      ).filter(([name]) => name !== 'may_act'),
     );
     const iat = Math.floor(now.getTime() / 1000);
     const ttlExp = iat + config.idTokenTtlSeconds;
@@ -1306,6 +1409,7 @@ async function issueExchangedTokens(
       ...(session === null ? {} : { auth_time: Math.floor(session.createdAt.getTime() / 1000) }),
       ...(subject.token.sessionId !== null ? { sid: subject.token.sessionId } : {}),
       ...(act === undefined ? {} : { act }),
+      ...(carriedMayAct === undefined ? {} : { may_act: carriedMayAct }),
     });
     const idToken = await signJwt(idTokenClaims, {
       key: await idTokenKey(tx, config, key),
@@ -1339,11 +1443,13 @@ async function issueExchangedTokens(
       grantId,
       requestedUserinfoClaims,
       ...(act === undefined ? {} : { act }),
+      ...(carriedMayAct === undefined ? {} : { mayAct: carriedMayAct }),
       ...(expCeiling === undefined ? {} : { expCeiling }),
     },
     now,
   );
 
+  await requireLiveParent(tx, subject.token.grantId);
   await tokenGrantRepository(tx).create({
     id: grantId,
     tenantId: deps.tenantId,
@@ -1357,6 +1463,7 @@ async function issueExchangedTokens(
     actChain: act ?? null,
     expCeiling: expCeiling ?? null,
     requestedUserinfoClaims,
+    mayAct: carriedMayAct,
   });
   await recordExchange(grantId, ACCESS_TOKEN_TYPE);
 
@@ -1394,6 +1501,8 @@ export async function issueTokens(
     rawHeaders,
   });
 
+  if (request.grantType === CIBA_GRANT) await recordCibaPoll(tx, deps, request, client);
+
   return settle(async (work) => {
     try {
       return await issueForAuthenticatedClient(work, deps, request, client, config);
@@ -1413,6 +1522,7 @@ const GRANT_REFUSAL_ACTIONS: Readonly<
   client_credentials: 'token.issue',
   refresh_token: 'token.refresh',
   [TOKEN_EXCHANGE_GRANT]: 'token.exchange',
+  [CIBA_GRANT]: 'token.issue',
 };
 
 // `invalid_request` has no reason here: after authentication only a token
@@ -1467,6 +1577,11 @@ async function issueForAuthenticatedClient(
       return issueClientCredentialsTokens(tx, deps, request, client, issuing);
     case TOKEN_EXCHANGE_GRANT:
       return issueExchangedTokens(tx, deps, request, client, issuing);
+    case CIBA_GRANT:
+      return issueCibaTokens(tx, deps, request, client, issuing, {
+        accessToken: (input, at) => mintSubjectAccessToken(tx, deps, input, at),
+        idTokenKey: (active) => idTokenKey(tx, issuing, active),
+      });
     default:
       return assertNeverGrant(request);
   }

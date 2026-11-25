@@ -7,6 +7,7 @@ import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
 const AUDIT_EVENT_TYPES = [
   'admin_mutation',
   'admin_access',
+  'agent_identity',
   'authentication',
   'session',
   'token',

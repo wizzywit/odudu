@@ -17,6 +17,8 @@ import {
   type ListedSubject,
 } from '@odudu/contracts/admin';
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
+import { agentInstanceRepository } from '@odudu/domain-agents';
+import { tokenGrantRepository } from '@odudu/protocol-oidc';
 import {
   grantNewSubjectDefaults,
   groupRepository,
@@ -968,6 +970,14 @@ async function deleteSubjectUnguarded(
   const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.delete', input);
   if (refused !== null) return refused;
 
+  await tokenGrantRepository(tx).revokeForRemoval(
+    { clientId: null, subjectIds: [input.subjectId] },
+    new Date(),
+  );
+  await agentInstanceRepository(tx).removeWithSubjects({
+    clientId: null,
+    ownerIds: [input.subjectId],
+  });
   const rows = await tx.delete(subjects).where(eq(subjects.id, input.subjectId)).returning({
     id: subjects.id,
   });

@@ -20,6 +20,7 @@ export {
   isForeignKeyViolation,
   violatedConstraint,
   isLockNotAvailable,
+  isDeadlockDetected,
 } from '#/sqlstate';
 export * from '#/schema/index';
 export {
@@ -29,5 +30,9 @@ export {
   withEachTenantExclusive,
   withSavepoint,
   withTenant,
+  withTenantRetrying,
   withTenantThen,
+  DEADLOCK_ATTEMPTS,
+  RetryableTransactionError,
+  type RetryPolicy,
 } from '#/tx';

@@ -30,6 +30,7 @@ const PAGES = [
   'consent-and-audit',
   'branding',
   'backend-for-frontend',
+  'agents',
 ] as const;
 
 function body(page: string): string {

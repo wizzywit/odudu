@@ -4,11 +4,13 @@ import { type AuditAction, type AuditReason } from '@odudu/domain-audit';
 export interface TokenRefusalAudit {
   readonly action:
     | Extract<AuditAction<'authentication'>, `client.${string}`>
-    | Exclude<AuditAction<'token'>, `grant.${string}`>;
+    | Exclude<AuditAction<'token'>, `grant.${string}`>
+    | Extract<AuditAction<'agent_identity'>, 'ciba.requested' | 'ciba.poll_refused'>;
   readonly reason: AuditReason;
   readonly clientDbId: string;
   readonly subjectId?: string;
   readonly grantId?: string;
+  readonly approvalId?: string;
   readonly method?: string;
 }
 
@@ -26,12 +28,15 @@ export class TokenError extends Error {
   // Set only where ADR 0037 says a refusal is recorded; never read by the
   // response, which is identical with or without it.
   readonly audit: TokenRefusalAudit | undefined;
+  // A sentence of its own where the code's fixed one would say the wrong thing.
+  readonly description: string | undefined;
 
   constructor(
     error: TokenErrorCode,
     status: number,
     wwwAuthenticate?: string,
     audit?: TokenRefusalAudit,
+    description?: string,
   ) {
     super(error);
     this.name = 'TokenError';
@@ -39,11 +44,12 @@ export class TokenError extends Error {
     this.status = status;
     this.wwwAuthenticate = wwwAuthenticate;
     this.audit = audit;
+    this.description = description;
   }
 }
 
 export function withAudit(err: TokenError, audit: TokenRefusalAudit): TokenError {
-  return new TokenError(err.error, err.status, err.wwwAuthenticate, audit);
+  return new TokenError(err.error, err.status, err.wwwAuthenticate, audit, err.description);
 }
 
 export function invalidGrant(): TokenError {
@@ -73,6 +79,33 @@ export function invalidScope(): TokenError {
 // client is, not what it's allowed to do).
 export function unauthorizedClient(): TokenError {
   return new TokenError('unauthorized_client', 400);
+}
+
+// OpenID CIBA §11 and §13. Each answers 400 (§13's 403 for `access_denied` at
+// the backchannel authentication endpoint is `refusedByServer` below).
+export function authorizationPending(): TokenError {
+  return new TokenError('authorization_pending', 400);
+}
+
+export function slowDown(audit?: TokenRefusalAudit): TokenError {
+  return new TokenError('slow_down', 400, undefined, audit);
+}
+
+export function expiredToken(audit?: TokenRefusalAudit): TokenError {
+  return new TokenError('expired_token', 400, undefined, audit);
+}
+
+export function accessDenied(audit?: TokenRefusalAudit): TokenError {
+  return new TokenError('access_denied', 400, undefined, audit);
+}
+
+// §13: the server declines to create a request.
+export function refusedByServer(audit: TokenRefusalAudit, description: string): TokenError {
+  return new TokenError('access_denied', 403, undefined, audit, description);
+}
+
+export function invalidBindingMessage(): TokenError {
+  return new TokenError('invalid_binding_message', 400);
 }
 
 // RFC 8707 §2: a `resource` named at /token that the redeemed code (or, on

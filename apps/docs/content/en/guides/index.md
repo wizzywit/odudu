@@ -21,6 +21,7 @@ The guides assume you have done the [quick start](../quick-start/index.mdx), so 
 8. [Protect an MCP server](./protect-an-mcp-server.md) lets AI clients find a tenant's MCP endpoint, register, sign a person in and call its tools. You can run its commands. It also says what to do for an MCP server of your own.
 9. [Connect Claude](./connect-claude.md) covers Claude Code, Claude Desktop through `@odudu-io/mcp-stdio`, and claude.ai, with what an agent can change and the risk that stays. It follows the vendor's documentation for Claude's own steps, which the authors have not run yet.
 10. [Connect Cursor](./connect-cursor.md) uses dynamic registration or a client id in `mcp.json`, on the same terms.
+11. [Delegate to an agent](./agent-delegation.md) marks a client as an agent, starts a run for a person, nests a child run, asks the person for approval and ends it all. You can run its commands.
 
 ## Then learn what happens underneath
 

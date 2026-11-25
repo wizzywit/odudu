@@ -232,6 +232,33 @@ describe('clientRepository', () => {
     });
   });
 
+  it('byIds finds each client of the tenant at once and none of another', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const ids = [newId(), newId()];
+        for (const id of ids) await insertClient(tx, tenantId, { id });
+        return ids;
+      },
+      verifySeeded: async (tx, ids) => {
+        const found = await clientRepository(tx).byIds(ids);
+        expect(found.map((client) => client.id).sort()).toEqual([...ids].sort());
+      },
+      attempt: async (tx, ids) => clientRepository(tx).byIds(ids),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+
+  it('byIds with no ids reads nothing', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      expect(await clientRepository(tx).byIds([])).toEqual([]);
+    });
+  });
+
   it('locks and counts capacity for the resolved tenant, not the caller-supplied id', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {

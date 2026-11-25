@@ -141,6 +141,18 @@ it('accepts the token-exchange grant at registration', () => {
   expect(outcome.kind).toBe('ok');
 });
 
+it('[ODUDU-CIBA-CONF-03] accepts the CIBA grant for a client that authenticates, and refuses it for a public one', () => {
+  const grant = ['urn:openid:params:grant-type:ciba'];
+  expect(
+    parseClientMetadata(ok({ grant_types: grant }), { tlsClientAuthEnabled: false }).kind,
+  ).toBe('ok');
+  expect(
+    parseClientMetadata(ok({ grant_types: grant, token_endpoint_auth_method: 'none' }), {
+      tlsClientAuthEnabled: false,
+    }),
+  ).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+});
+
 // `client_credentials` alone has no interactive flow, which is the one case
 // the existing CHECK on client_oidc_config permits with no redirect_uri.
 it('accepts client_credentials alone with no redirect_uris', () => {

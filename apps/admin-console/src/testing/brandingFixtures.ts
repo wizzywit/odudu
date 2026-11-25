@@ -153,7 +153,7 @@ export function mailBranding(changes: Partial<MailBrandingView> = {}): MailBrand
 export const CATALOGUE = {
   sections: [
     {
-      kinds: ['sign-in', 'consent', 'select-account', 'logout-confirm'],
+      kinds: ['sign-in', 'consent', 'select-account', 'logout-confirm', 'approval'],
       messages: [
         { key: 'login.help', en: 'Ask your administrator' },
         { key: 'login.submit', en: 'Sign in' },

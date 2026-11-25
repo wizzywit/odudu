@@ -1,0 +1,30 @@
+{
+  "name": "@odudu/domain-agents",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
+  },
+  "dependencies": {
+    "@odudu/db": "workspace:*",
+    "@odudu/domain-identity": "workspace:*",
+    "@odudu/kernel": "workspace:*",
+    "drizzle-orm": "0.45.4"
+  },
+  "devDependencies": {
+    "@odudu/domain-tenant": "workspace:*",
+    "@odudu/testkit": "workspace:*",
+    "fast-check": "4.11.0",
+    "vitest": "5.1.1"
+  }
+}

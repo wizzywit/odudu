@@ -37,8 +37,38 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((type = 'execute_actions'::text) = ((actions IS NOT NULL) AND (cardinality(actions) > 0))))",
   'action_tokens.action_tokens_return_check':
     'CHECK (((client_id IS NULL) = (return_uri IS NULL)))',
+  'tenants.tenants_agent_max_delegation_depth_range':
+    'CHECK (((agent_max_delegation_depth >= 1) AND (agent_max_delegation_depth <= 8)))',
+  'tenants.tenants_agent_max_children_range':
+    'CHECK (((agent_max_children >= 1) AND (agent_max_children <= 200)))',
+  'tenants.tenants_agent_max_live_instances_range':
+    'CHECK (((agent_max_live_instances >= 1) AND (agent_max_live_instances <= 100000)))',
+  'tenants.tenants_agent_instance_ttl_seconds_range':
+    'CHECK (((agent_instance_ttl_seconds >= 60) AND (agent_instance_ttl_seconds <= 86400)))',
+  'tenants.tenants_agent_instance_idle_seconds_range':
+    'CHECK (((agent_instance_idle_seconds >= 60) AND (agent_instance_idle_seconds <= 86400)))',
+  'tenants.tenants_agent_approval_ttl_seconds_range':
+    'CHECK (((agent_approval_ttl_seconds >= 60) AND (agent_approval_ttl_seconds <= 900)))',
+  'tenants.tenants_agent_writes_per_grant_range':
+    'CHECK (((agent_writes_per_grant >= 1) AND (agent_writes_per_grant <= 1000)))',
+  'tenants.tenants_agent_creates_per_grant_range':
+    'CHECK (((agent_creates_per_grant >= 1) AND (agent_creates_per_grant <= 1000)))',
+  'tenants.tenants_agent_window_writes_range':
+    'CHECK (((agent_window_writes >= 1) AND (agent_window_writes <= 100000)))',
   'tenants.tenants_audit_retention_days_range':
     'CHECK (((audit_retention_days >= 1) AND (audit_retention_days <= 3650)))',
+  'agent_approvals.agent_approvals_decided_via_check':
+    "CHECK (((decided_via IS NULL) OR (decided_via = ANY (ARRAY['ciba_page'::text, 'console'::text]))))",
+  'agent_approvals.agent_approvals_state_check':
+    "CHECK ((state = ANY (ARRAY['pending'::text, 'approved'::text, 'denied'::text, 'expired'::text, 'consumed'::text])))",
+  'agent_instances.agent_instances_depth_range': 'CHECK (((depth >= 1) AND (depth <= 8)))',
+  'agent_instances.agent_instances_slice_creates_range': 'CHECK ((slice_creates >= 0))',
+  'agent_instances.agent_instances_slice_mutating_range': 'CHECK ((slice_mutating >= 0))',
+  'agent_instances.agent_instances_spent_creates_within_slice':
+    'CHECK (((spent_creates >= 0) AND (spent_creates <= slice_creates)))',
+  'agent_instances.agent_instances_spent_mutating_within_slice':
+    'CHECK (((spent_mutating >= 0) AND (spent_mutating <= slice_mutating)))',
+  'agent_budget_windows.agent_budget_windows_writes_range': 'CHECK ((writes >= 0))',
   'audit_events.audit_events_outcome':
     "CHECK ((outcome = ANY (ARRAY['allowed'::text, 'refused'::text, 'failed'::text])))",
   'authorization_codes.authorization_codes_method_check':
@@ -48,7 +78,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'client_oidc_config.client_oidc_config_auth_method_check':
     "CHECK ((token_endpoint_auth_method = ANY (ARRAY['client_secret_basic'::text, 'client_secret_post'::text, 'none'::text, 'private_key_jwt'::text, 'tls_client_auth'::text])))",
   'client_oidc_config.client_oidc_config_grant_types_check':
-    "CHECK ((grant_types <@ ARRAY['authorization_code'::text, 'refresh_token'::text, 'client_credentials'::text, 'urn:ietf:params:oauth:grant-type:token-exchange'::text]))",
+    "CHECK ((grant_types <@ ARRAY['authorization_code'::text, 'refresh_token'::text, 'client_credentials'::text, 'urn:ietf:params:oauth:grant-type:token-exchange'::text, 'urn:openid:params:grant-type:ciba'::text]))",
   'client_oidc_config.client_oidc_config_one_key_source':
     'CHECK (((jwks IS NULL) OR (jwks_uri IS NULL)))',
   'client_oidc_config.client_oidc_config_redirect_uris_present':
@@ -146,6 +176,9 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'idempotency_keys.idempotency_keys_route_length': 'CHECK ((length(route) <= 512))',
   'idempotency_keys.idempotency_keys_status': "CHECK ((status = 'completed'::text))",
   'idempotency_keys.idempotency_keys_window': 'CHECK ((expires_at > created_at))',
+  'ciba_requests.ciba_requests_interval_floor': 'CHECK ((interval_seconds >= 5))',
+  'ciba_requests.ciba_requests_resolved_check':
+    'CHECK (((subject_id IS NULL) = (approval_id IS NULL)))',
   'client_metadata_cache.client_metadata_cache_body_size': 'CHECK ((length((body)::text) <= 8192))',
   'client_metadata_cache.client_metadata_cache_url_length': 'CHECK ((length(url) <= 2048))',
   'tenant_domains.tenant_domains_canonical_is_verified':

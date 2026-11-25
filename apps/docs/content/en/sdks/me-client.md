@@ -60,7 +60,7 @@ The block is illustrative. It follows the example, which the repository's CI run
 | `ProblemError`                      | The error every response that is not a success becomes.                                                                                                          |
 | `paths`, `operations`, `components` | The generated types of the document. `MeError` and `FieldError` are exported types.                                                                              |
 
-The routes are profile, credentials, sessions and consents, listed in [the me API reference](../reference/generated/me-api/index.md).
+The routes are profile, credentials, sessions, consents and delegations, listed in [the me API reference](../reference/generated/me-api/index.md).
 
 ## Options
 

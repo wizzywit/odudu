@@ -75,6 +75,11 @@ const SWEPT: ReapOutcome = {
   deleted: {
     refresh_tokens: 2,
     authorization_codes: 1,
+    agent_budget_windows: 0,
+    ciba_requests: 0,
+    agent_approvals: 0,
+    agent_delegations: 0,
+    agent_instances: 0,
     token_grants: 1,
     authentication_sessions: 0,
     action_tokens: 0,

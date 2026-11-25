@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AUTHORIZATION_ERRORS,
   AUTHORIZE_REQUEST_DESCRIPTIONS,
+  CIBA_REQUEST_LIMIT_DESCRIPTION,
   OAUTH_ERROR_DESCRIPTIONS,
   OAUTH_ERROR_DOCS,
   REGISTRATION_ERRORS,
@@ -97,6 +98,7 @@ describe('the error_description of every code the authorization and token endpoi
   const sentences = [
     ...codes.map((code) => OAUTH_ERROR_DESCRIPTIONS[code]),
     ...Object.values(AUTHORIZE_REQUEST_DESCRIPTIONS),
+    CIBA_REQUEST_LIMIT_DESCRIPTION,
   ];
 
   it.each(codes)('%s has a short sentence in the permitted characters', (code) => {
@@ -104,6 +106,10 @@ describe('the error_description of every code the authorization and token endpoi
     expect(text.length).toBeGreaterThan(10);
     expect(text.length).toBeLessThanOrEqual(80);
     expect(text).toMatch(/^[\x20\x21\x23-\x5b\x5d-\x7e]+$/u);
+  });
+
+  it('says of the request limit that it is a limit, not a refusal by the person', () => {
+    expect(CIBA_REQUEST_LIMIT_DESCRIPTION).not.toBe(OAUTH_ERROR_DESCRIPTIONS.access_denied);
   });
 
   it('does not say which check an invalid_grant failed', () => {

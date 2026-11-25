@@ -301,3 +301,38 @@ describe('[ODUDU-TOKEN-EXCHANGE-MAYACT-01] may_act authorises the actor', () => 
     expect(mayActPermits(null, 'actor-1')).toBe(false);
   });
 });
+
+describe('the tenant depth limit on an act chain', () => {
+  it('refuses a chain longer than the limit it is given', () => {
+    const prior = { sub: 'a', act: { sub: 'b' } };
+    expect(buildActChain('c', prior, 2)).toEqual({ kind: 'too_deep' });
+    expect(buildActChain('c', prior, 3)).toMatchObject({ kind: 'ok' });
+  });
+
+  it('never exceeds the structural bound whatever limit it is given', () => {
+    const prior = chainDeep(MAX_DELEGATION_DEPTH);
+    expect(buildActChain('x', prior, 99)).toEqual({ kind: 'too_deep' });
+  });
+
+  function chainDeep(depth: number): unknown {
+    let act: unknown = { sub: 'root' };
+    for (let i = 1; i < depth; i += 1) act = { sub: `a${String(i)}`, act };
+    return act;
+  }
+});
+
+describe('may_act naming several actors', () => {
+  it('permits any actor it lists', () => {
+    const claim = [
+      { sub: 'a', iss: 'https://i' },
+      { sub: 'b', iss: 'https://i' },
+    ];
+    expect(mayActPermits(claim, 'b')).toBe(true);
+    expect(mayActPermits(claim, 'c')).toBe(false);
+  });
+
+  it('refuses an empty list and a list holding a malformed entry only', () => {
+    expect(mayActPermits([], 'a')).toBe(false);
+    expect(mayActPermits([{ nope: 1 }], 'a')).toBe(false);
+  });
+});

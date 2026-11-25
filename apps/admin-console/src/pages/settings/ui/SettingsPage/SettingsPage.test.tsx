@@ -38,6 +38,7 @@ it('has a section for each concern, each with its own save', async () => {
     'Brute force',
     'Token lifetimes',
     'Client registration',
+    'Agents',
     'Audit retention',
   ]) {
     expect(screen.getByRole('region', { name: title })).toBeVisible();
@@ -49,7 +50,7 @@ it('lists the sections as links, each sending the focus to its heading', async (
   renderConsoleAt(AT, settingsRoutes());
   await section('General');
   const nav = screen.getByRole('navigation', { name: 'On this page' });
-  expect(within(nav).getAllByRole('link')).toHaveLength(14);
+  expect(within(nav).getAllByRole('link')).toHaveLength(15);
   expect(within(nav).getByRole('link', { name: 'Password policy' })).toHaveAttribute(
     'href',
     '#settings-password',
@@ -80,7 +81,7 @@ it('marks the section in view in the list once the settings have loaded', async 
     renderConsoleAt(AT, settingsRoutes());
     await section('General');
     await waitFor(() => {
-      expect(observed.length).toBe(14);
+      expect(observed.length).toBe(15);
     });
     const terms = observed.find(
       (element) => element.getAttribute('aria-labelledby') === 'settings-terms',
@@ -151,6 +152,28 @@ it('sends seconds whichever unit a duration is typed in', async () => {
     expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
       sso_session_idle_seconds: 7200,
     });
+  });
+});
+
+it('shows the agent limits with their ranges and saves one on its own', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, {
+      [`PATCH ${ST}`]: settingsAnswer({ agent_max_delegation_depth: 5 }, '"s2"'),
+    }),
+  );
+  const agents = await section('Agents');
+  const depth = within(agents).getByRole('textbox', { name: 'Delegation depth' });
+  expect(depth).toHaveValue('3');
+  expect(within(agents).getByText(/Allowed: 1 to 8 levels/u)).toBeVisible();
+  expect(within(agents).getByRole('textbox', { name: 'Writes per day' })).toHaveValue('1000');
+  await user.clear(depth);
+  await user.type(depth, '5');
+  await user.tab();
+  await user.click(within(agents).getByRole('button', { name: 'Save Agents' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ agent_max_delegation_depth: 5 });
   });
 });
 

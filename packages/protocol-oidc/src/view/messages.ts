@@ -1,5 +1,6 @@
 import { createTranslators, type Messages, type Translators } from '@odudu/i18n';
 import { escapeHtml } from '#/view/document';
+import { APPROVAL_MESSAGES } from '#/service/approval-messages';
 import { ar } from '#/view/messages.ar';
 
 // Every sentence a page of this package shows, keyed by what it is for. `en`
@@ -102,6 +103,27 @@ export const en = {
     'You have been signed out, but the address given to return to afterward is not one this client has registered, so it has not been used.',
   'logout.unauthenticated.title': "Can't sign out",
   'logout.unauthenticated.body': 'This sign-out attempt is no longer valid. Go back and try again.',
+
+  'approval.title': 'Approve or deny a request',
+  'approval.heading': '{agent} is asking for your approval',
+  'approval.asks': APPROVAL_MESSAGES['approval.asks'],
+  'approval.bindingMessage': 'It says: {message}',
+  'approval.expires': 'Decide before {when} UTC. After that the request is no longer valid.',
+  'approval.warning':
+    'Approve only if you started this request. If you do not recognize it, deny it.',
+  'approval.approve': 'Approve',
+  'approval.deny': 'Deny',
+  'approval.decided.approved.title': 'Request approved',
+  'approval.decided.approved.body': 'The application can now continue. You can close this page.',
+  'approval.decided.denied.title': 'Request denied',
+  'approval.decided.denied.body': 'The application has been told no. You can close this page.',
+  'approval.unavailable.title': 'This request is not available',
+  'approval.unavailable.body':
+    'The link may be wrong or out of date, or the request may already be answered. Nothing was changed.',
+  'approval.signIn.title': 'Sign in to continue',
+  'approval.signIn.body': 'Sign in to your account, then open the link from your email again.',
+  'approval.refused.title': 'This form could not be checked',
+  'approval.refused.body': 'Nothing was changed. Open the link from your email again and retry.',
 
   'selectAccount.title': 'Choose an account',
   'selectAccount.useOther': 'Use another account',

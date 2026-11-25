@@ -18,6 +18,13 @@ import {
   exportAuditQuerySchema,
   auditEventSchema,
   AUDIT_EXPORT_MEDIA_TYPE,
+  agentInstanceSchema,
+  deleteAgentQuerySchema,
+  listAgentApprovalsQuerySchema,
+  listAgentApprovalsResponseSchema,
+  listAgentsQuerySchema,
+  listAgentsResponseSchema,
+  revokeAgentResponseSchema,
   amendGroupRequestSchema,
   amendRoleRequestSchema,
   amendScopeRequestSchema,
@@ -1996,6 +2003,55 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '(`#flow-duplicate-authenticator`), or a step whose `settings` its authenticator does not ' +
       'read (`#flow-step-settings`); the last three carry `errors[]` naming the step. ' +
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header, or `*`, is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
+  },
+  // The agents an owner has running, and the approvals asked of owners: what a
+  // sign-in handed an agent, so `manage-sessions` for all four, as for sessions
+  // (no view-sessions: reached only by an operator who can also end one). No
+  // agent token reaches any of them.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/agents',
+    capability: 'manage-sessions',
+    responseSchema: listAgentsResponseSchema,
+    querystringSchema: listAgentsQuerySchema,
+    description:
+      'The tenant\u2019s agent instances in id order, which is the order they were started in, so ' +
+      'a parent comes before its children: `limit` up to 200, and `next` (also the `link` header) ' +
+      'names the following page; a response with no `next` is the last. Narrowed by `owner` and ' +
+      '`state`. Each carries its lineage (`owner`, `agent_client`, `parent`, `depth`), `expires_at` ' +
+      'and the `remaining_budget` of its own slice. Never a token.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/agents/:id',
+    capability: 'manage-sessions',
+    responseSchema: agentInstanceSchema,
+    description: 'One agent instance, as the list shows it. `404` for an id that is not one.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/agents/:id',
+    capability: 'manage-sessions',
+    querystringSchema: deleteAgentQuerySchema,
+    responseSchema: revokeAgentResponseSchema,
+    description:
+      'Revokes the instance and every instance started beneath it, and the grants any of them ' +
+      'acted in with everything exchanged from those, so no token of theirs is honoured again. ' +
+      'Answers how many grants and instances it ended; an instance already revoked answers 0 and ' +
+      'records nothing. With `dry_run=true` it answers the same counts and changes and records ' +
+      'nothing, so a console can say what a revocation would end before it is asked for.' +
+      TARGET_CEILING,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/agent-approvals',
+    capability: 'manage-sessions',
+    responseSchema: listAgentApprovalsResponseSchema,
+    querystringSchema: listAgentApprovalsQuerySchema,
+    description:
+      'The approvals agents asked of their owners, newest first: `limit` up to 200, and `next` ' +
+      '(also the `link` header) names the following page; a response with no `next` is the last. ' +
+      'Narrowed by `state`. Never the digest of the action an approval covers.',
   },
   // Read-only: view-audit carries no manage- counterpart, since nothing
   // ever amends a row here — reap is the only other writer, and it deletes

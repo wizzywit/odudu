@@ -37,6 +37,7 @@
     "templates.consent": "default",
     "templates.select-account": "default",
     "templates.logout-confirm": "default",
+    "templates.approval": "default",
     "templates.totp-enrolment": "default",
     "templates.passkey-enrolment": "default",
     "templates.recovery-codes": "default",

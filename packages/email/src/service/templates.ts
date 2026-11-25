@@ -434,6 +434,51 @@ export function renderResetCompleted(input: ResetCompletedInput): EmailMessage {
   });
 }
 
+export interface ApprovalNoticeInput extends MailInput {
+  // The name of the client that is asking, as its registrant wrote it.
+  readonly agent: string;
+}
+
+// Said to a person whose approval an agent is waiting for. The link carries the
+// approval's id and nothing that acts: the page behind it needs the person's own
+// session, so a reader who is not the person can only be turned away.
+export function renderApprovalNotice(input: ApprovalNoticeInput): EmailMessage {
+  const locale = mailLocale(input);
+  const tenant = clipName(input.tenantDisplayName);
+  const agent = clipName(input.agent);
+  const link = safeHref(input.link);
+  return {
+    to: input.to,
+    subject: inSubject(
+      t(locale, 'approvalNotice.subject', { tenant: inSubject(tenant), agent: inSubject(agent) }),
+    ),
+    text: `${t(locale, 'approvalNotice.text', { tenant: inText(tenant), agent: inText(agent) })}\n\n${link}\n\n${t(locale, 'approvalNotice.ignore')}\n\n${textFooter(locale, 'approvalNotice.reason', tenant, input.now)}`,
+    html: renderShell({
+      ...page({
+        locale,
+        tenant,
+        now: input.now,
+        heading: 'approvalNotice.heading',
+        preheader: 'approvalNotice.preheader',
+        reason: 'approvalNotice.reason',
+        branding: input.branding,
+      }),
+      blocks: [
+        paragraph(
+          tHtml(
+            locale,
+            'approvalNotice.body',
+            {},
+            { tenant: stripBidiControls(tenant), agent: stripBidiControls(agent) },
+          ),
+        ),
+      ],
+      action: { label: t(locale, 'approvalNotice.button'), href: link },
+      closing: [tHtml(locale, 'approvalNotice.ignore')],
+    }),
+  };
+}
+
 export interface SmtpTestInput extends MailContext {
   readonly to: string;
   readonly tenantDisplayName: string;

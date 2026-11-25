@@ -119,6 +119,25 @@ describe('coercing a value that arrived as a string', () => {
     });
   });
 
+  it('coerces the agent settings and judges their ranges', () => {
+    expect(coerceTenantSetting('agent_max_delegation_depth', '5')).toEqual({
+      kind: 'coerced',
+      column: 'agentMaxDelegationDepth',
+      value: 5,
+    });
+    expect(coerceTenantSetting('agent_window_writes', '200')).toEqual({
+      kind: 'coerced',
+      column: 'agentWindowWrites',
+      value: 200,
+    });
+    expect(tenantSettingProblems({ agent_max_delegation_depth: 9 })).toEqual([
+      { name: 'agent_max_delegation_depth', message: 'must be between 1 and 8' },
+    ]);
+    expect(tenantSettingProblems({ agent_approval_ttl_seconds: 901 })).toEqual([
+      { name: 'agent_approval_ttl_seconds', message: 'must be between 60 and 900' },
+    ]);
+  });
+
   it('refuses a cap that is not an integer', () => {
     expect(coerceTenantSetting('max_sessions_per_browser', 'lots')).toEqual({
       kind: 'invalid_value',

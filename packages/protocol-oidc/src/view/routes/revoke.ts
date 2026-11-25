@@ -1,6 +1,6 @@
 import { type SigningKeyRecord } from '@odudu/crypto';
 import { OAUTH_ERROR_DESCRIPTIONS } from '#/service/oauth-errors';
-import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { type DatabaseHandle, withTenantRetrying } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
@@ -65,7 +65,7 @@ export function registerRevokeRoute(app: FastifyInstance, deps: RevokeRouteDeps)
     const context = requestContextFrom(request);
     try {
       unsettle(
-        await withTenant(
+        await withTenantRetrying(
           deps.database.db,
           tenant.id,
           (tx) =>

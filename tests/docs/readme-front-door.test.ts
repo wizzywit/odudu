@@ -193,7 +193,7 @@ describe('what it says about the product matches the roadmap', () => {
 
   it('names no feature the roadmap places later or decides against', () => {
     const text = [...reasons, ...features].join('\n');
-    expect(text).not.toMatch(/SAML|LDAP|SCIM|FAPI|implicit|device authorization|CIBA/u);
+    expect(text).not.toMatch(/SAML|LDAP|SCIM|FAPI|implicit|device authorization/u);
   });
 
   it('says plainly where it stands, links the roadmap, and promises no hosted date or price', () => {

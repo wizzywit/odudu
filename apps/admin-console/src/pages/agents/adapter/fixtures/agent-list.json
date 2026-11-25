@@ -1,0 +1,33 @@
+{
+  "items": [
+    {
+      "id": "0197a3b2-1c4d-7e5f-8a9b-0c1d2e3f4a5b",
+      "owner": "0197a3b1-aaaa-7bbb-8ccc-0d1e2f3a4b5c",
+      "owner_username": "ada",
+      "agent_client": "planner",
+      "parent": null,
+      "depth": 1,
+      "state": "live",
+      "scope": "mcp:read mcp:write",
+      "created_at": "2026-11-25T08:00:00.000Z",
+      "expires_at": "2026-11-25T08:15:00.000Z",
+      "revoked_at": null,
+      "remaining_budget": { "mutating": 18, "creates": 9 }
+    },
+    {
+      "id": "0197a3b2-2d5e-7f60-8b9c-1d2e3f4a5b6c",
+      "owner": "0197a3b1-aaaa-7bbb-8ccc-0d1e2f3a4b5c",
+      "owner_username": "ada",
+      "agent_client": "writer",
+      "parent": "0197a3b2-1c4d-7e5f-8a9b-0c1d2e3f4a5b",
+      "depth": 2,
+      "state": "revoked",
+      "scope": "mcp:read",
+      "created_at": "2026-11-25T08:01:00.000Z",
+      "expires_at": "2026-11-25T08:15:00.000Z",
+      "revoked_at": "2026-11-25T08:05:00.000Z",
+      "remaining_budget": { "mutating": 0, "creates": 0 }
+    }
+  ],
+  "next": "c2"
+}

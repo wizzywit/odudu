@@ -1,4 +1,5 @@
 import { type PageKind } from '@odudu/kernel';
+import { APPROVAL_TEMPLATE } from '#/view/templates/approval';
 import { AUTHORIZE_ERROR_TEMPLATE } from '#/view/templates/authorize-error';
 import { CONSENT_TEMPLATE } from '#/view/templates/consent';
 import { EMAIL_UNVERIFIED_TEMPLATE } from '#/view/templates/email-unverified';
@@ -13,6 +14,7 @@ export type TemplatedKind = Extract<
   | 'consent'
   | 'select-account'
   | 'logout-confirm'
+  | 'approval'
   | 'authorize-error'
   | 'email-unverified'
   | 'logged-out'
@@ -24,6 +26,7 @@ export const DEFAULT_TEMPLATES: Record<TemplatedKind, string> = {
   consent: CONSENT_TEMPLATE,
   'select-account': SELECT_ACCOUNT_TEMPLATE,
   'logout-confirm': LOGOUT_CONFIRM_TEMPLATE,
+  approval: APPROVAL_TEMPLATE,
   'authorize-error': AUTHORIZE_ERROR_TEMPLATE,
   'email-unverified': EMAIL_UNVERIFIED_TEMPLATE,
   'logged-out': LOGGED_OUT_TEMPLATE,

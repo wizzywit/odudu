@@ -124,6 +124,17 @@ export const ar: Readonly<Record<string, string>> = {
   'resetCompleted.heading': 'أُعيد تعيين كلمة المرور',
   'resetCompleted.text': 'أُعيد تعيين كلمة المرور لحسابك في {tenant} عبر رابط أُرسل بالبريد.',
   'resetCompleted.reason': 'وصلتك هذه الرسالة لأن كلمة المرور لحسابك لدى {tenant} أُعيد تعيينها.',
+  'approvalNotice.subject': 'يطلب {agent} موافقتك في {tenant}',
+  'approvalNotice.preheader': 'راجع الطلب ثم وافق عليه أو ارفضه.',
+  'approvalNotice.heading': 'طلب بحاجة إلى موافقتك',
+  'approvalNotice.body':
+    'يطلب {agent} التصرف نيابةً عنك في حسابك لدى {tenant}. افتح الطلب لترى ما يطلبه ولتوافق عليه أو ترفضه.',
+  'approvalNotice.text':
+    'يطلب {agent} التصرف نيابةً عنك في حسابك لدى {tenant}. افتح هذا الرابط لترى الطلب ولتوافق عليه أو ترفضه:',
+  'approvalNotice.button': 'مراجعة الطلب',
+  'approvalNotice.ignore':
+    'إذا لم تتعرف على هذا الطلب، فتجاهل هذه الرسالة ولا توافق عليه. ينتهي الطلب من تلقاء نفسه.',
+  'approvalNotice.reason': 'وصلتك هذه الرسالة لأن طلبًا قُدّم بخصوص حسابك لدى {tenant}.',
   'smtpTest.subject': 'اختبار SMTP من Odudu',
   'smtpTest.preheader': 'أُرسلت هذه الرسالة للتحقق من إعدادات البريد.',
   'smtpTest.heading': 'اختبار SMTP',

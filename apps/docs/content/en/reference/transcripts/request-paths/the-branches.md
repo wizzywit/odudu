@@ -982,6 +982,35 @@ Every 401 carries `WWW-Authenticate: Basic realm="token"`. Every response,
 success or failure, carries `cache-control: no-store` and `pragma:
 no-cache`.
 
+### `/token` with the CIBA grant, and `bc-authorize`
+
+These branches were driven by the server's integration tests against a real
+database, and not run against a stack with `curl`, so no captured response is
+shown for them. A client holding
+`urn:openid:params:grant-type:ciba` posts to `/protocol/openid-connect/bc-authorize`
+and polls `/token` with `grant_type=urn:openid:params:grant-type:ciba` and its
+`auth_req_id`.
+
+| Request                                                                          | Status | Body                      |
+| -------------------------------------------------------------------------------- | ------ | ------------------------- |
+| `bc-authorize` from a client without the grant, or a public client               | 400    | `unauthorized_client`     |
+| `bc-authorize` with no hint, two hints, or `user_code`, `request` and the like   | 400    | `invalid_request`         |
+| `bc-authorize` with a `scope` that lacks `openid` or names one not assigned      | 400    | `invalid_scope`           |
+| `bc-authorize` with a `binding_message` past 140 characters                      | 400    | `invalid_binding_message` |
+| `bc-authorize` from a client holding 20 live requests for the hint, known or not | 403    | `access_denied`           |
+| `bc-authorize` from a client over its budget                                     | 429    | none, with `Retry-After`  |
+| A poll before the person has decided                                             | 400    | `authorization_pending`   |
+| A poll before `interval` has passed                                              | 400    | `slow_down`               |
+| A poll of a request that has expired                                             | 400    | `expired_token`           |
+| A poll after the person refused                                                  | 400    | `access_denied`           |
+| A poll with no `auth_req_id`                                                     | 400    | `invalid_request`         |
+| An unknown, spent or another client's or tenant's `auth_req_id`                  | 400    | `invalid_grant`           |
+| A poll after the person approved                                                 | 200    | access and ID token       |
+
+A hint that names nobody gets the `200` acknowledgement a known person gets, and
+its polls are `authorization_pending` until `expired_token`. So does a request for
+a person who already has 20 approvals waiting: no approval is made for it.
+
 `tls_client_auth` (RFC 8705 §2.1) registers with a `tls_client_auth_subject_dn`
 metadata field — the exact string the client's certificate's subject must equal,
 byte for byte after trimming surrounding whitespace, for the comparison to pass

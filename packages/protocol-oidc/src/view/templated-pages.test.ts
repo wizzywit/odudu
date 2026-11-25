@@ -13,6 +13,7 @@ import {
   renderEmailUnverifiedPage,
   renderLoginForm,
 } from '#/view/authorize-html';
+import { renderApprovalPage } from '#/view/approval-html';
 import { renderConsentPage } from '#/view/consent-html';
 import {
   renderLoggedOutPage,
@@ -141,6 +142,27 @@ const CASES: Case[] = [
     template: `<div>{{form.open}}{{submit}}{{form.close}}</div><h2>{{t "logout.confirm.title"}}</h2>`,
     inOrder: ['<form', '<button', '</form>', '<h2>'],
     hidden: ['session_id', 'csrf', 'client_id', 'post_logout_redirect_uri', 'state'],
+  },
+  {
+    kind: 'approval',
+    render: (locale) =>
+      renderApprovalPage(
+        {
+          address: pathAddress('https://idp.example', 't1'),
+          approvalId: '7d0e5c6a-3b0c-4f0e-9d9a-4a8f3c1b2d10',
+          csrf: 'csrf-value',
+          tenant: 'Tenant One',
+          agent: 'Agent',
+          summary: 'Agent asks to sign in as you',
+          scope: null,
+          bindingMessage: 'Pay invoice 42',
+          expiresAt: new Date('2026-11-24T09:15:00Z'),
+        },
+        locale,
+      ),
+    template: '{{form.open}}{{submit.deny}}{{submit.approve}}{{form.close}}{{details}}',
+    inOrder: ['<form', 'value="deny"', 'value="approve"', '</form>', 'class="intro"'],
+    hidden: ['csrf'],
   },
   {
     kind: 'authorize-error',

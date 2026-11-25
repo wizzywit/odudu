@@ -102,6 +102,12 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   // The foreign key is (tenant_id, flow_id), so a flow of another tenant is
   // refused by the database (packages/db/drizzle/0138_client_flow.sql).
   flowId: uuid('flow_id'),
+  // An agent type exchanges into instances of itself and carries a budget
+  // slice per instance (packages/db/drizzle/0141_agent_identity.sql).
+  agentType: boolean('agent_type').notNull().default(false),
+  // The client ids allowed to act for subjects who use this client: the
+  // operator-configured source of a grant's `may_act`.
+  delegatedActors: text('delegated_actors').array().notNull().default([]),
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
@@ -142,4 +148,6 @@ export interface ClientOidcConfig {
   requireAuthTime: boolean;
   allowedActions: ApplicationAction[];
   flowId: string | null;
+  agentType: boolean;
+  delegatedActors: string[];
 }

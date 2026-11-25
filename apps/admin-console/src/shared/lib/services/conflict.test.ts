@@ -41,6 +41,7 @@ const FLAGS = [
     'token_exchange_impersonation_allowed',
     'token_exchange_allowed_for_public',
     'token_exchange_actor_from_other_client',
+    'agent_type',
   ].map((field) => ['client', clientSchema, BILLING, field] as const),
   ['role', roleSchema, AUDITOR, 'default_for_new_subjects'] as const,
   ['group', groupSchema, ENG, 'default_for_new_subjects'] as const,

@@ -13,6 +13,14 @@ export const EXCHANGE_ACTOR_LABEL = 'Accept an actor token issued to another cli
 export const EXCHANGE_ACTOR_RULE =
   'An actor token issued to another client is refused unless this is on. It has no effect unless the client holds the token exchange grant.';
 
+export const AGENT_TYPE_LABEL = 'This client is an agent';
+export const AGENT_TYPE_RULE =
+  'Marks the client as an agent: an application that acts for a person under a grant they gave it, in place of one that signs people in.';
+
+export const DELEGATED_ACTORS_LABEL = 'Clients allowed to act for its people';
+export const DELEGATED_ACTORS_RULE =
+  'The client_id of each client allowed to act for the people who use this client. Each must already exist in this tenant, and a name that does not is refused.';
+
 export const FIXED_BY_DESIGN: readonly { label: string; value: string; why: string }[] = [
   {
     label: 'Response type',

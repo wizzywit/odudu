@@ -96,6 +96,26 @@ export const ar: Readonly<Record<string, string>> = {
   'logout.unauthenticated.title': 'تعذّر تسجيل الخروج',
   'logout.unauthenticated.body': 'محاولة تسجيل الخروج هذه لم تعد صالحة. ارجع وحاول مرة أخرى.',
 
+  'approval.title': 'الموافقة على طلب أو رفضه',
+  'approval.heading': 'يطلب {agent} موافقتك',
+  'approval.asks': 'يطلب {agent} تسجيل الدخول باسمك بالنطاقات: {scope}',
+  'approval.bindingMessage': 'ورد فيه: {message}',
+  'approval.expires': 'اتخذ قرارك قبل {when} بالتوقيت العالمي المنسق. بعد ذلك لا يعود الطلب صالحًا.',
+  'approval.warning': 'وافق فقط إذا كنت أنت من بدأ هذا الطلب. وإذا لم تتعرف عليه فارفضه.',
+  'approval.approve': 'موافقة',
+  'approval.deny': 'رفض',
+  'approval.decided.approved.title': 'تمت الموافقة على الطلب',
+  'approval.decided.approved.body': 'يمكن للتطبيق الآن المتابعة. يمكنك إغلاق هذه الصفحة.',
+  'approval.decided.denied.title': 'تم رفض الطلب',
+  'approval.decided.denied.body': 'أُبلغ التطبيق بالرفض. يمكنك إغلاق هذه الصفحة.',
+  'approval.unavailable.title': 'هذا الطلب غير متاح',
+  'approval.unavailable.body':
+    'قد يكون الرابط خاطئًا أو قديمًا، أو قد يكون الطلب أُجيب عنه بالفعل. لم يتغير شيء.',
+  'approval.signIn.title': 'سجّل الدخول للمتابعة',
+  'approval.signIn.body': 'سجّل الدخول إلى حسابك ثم افتح الرابط من بريدك الإلكتروني مرة أخرى.',
+  'approval.refused.title': 'تعذّر التحقق من هذا النموذج',
+  'approval.refused.body': 'لم يتغير شيء. افتح الرابط من بريدك الإلكتروني مرة أخرى وأعد المحاولة.',
+
   'selectAccount.title': 'اختر حسابًا',
   'selectAccount.useOther': 'استخدام حساب آخر',
 };

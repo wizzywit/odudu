@@ -19,6 +19,7 @@ Security
 Sign-in flow
 Signing keys
 Sessions
+Agents
 Tenant
 Settings
 Branding
@@ -57,6 +58,7 @@ Any event type
 Any event type
 Admin change
 Admin access
+Agent identity
 Authentication
 Session
 Token

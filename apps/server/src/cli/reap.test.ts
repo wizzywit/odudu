@@ -26,35 +26,21 @@ describe('the order the retention pass runs in', () => {
   // uncounted, and a session deleted before its grants has its grants
   // nulled instead of kept.
   it('refuses an order that puts a table before what it depends on', () => {
-    const inverted = REAP_ORDER.filter((table) => table !== 'refresh_tokens');
+    const inverted = REAP_ORDER.filter((table) => table !== 'agent_budget_windows');
     expect(() => {
-      assertReapOrder(['refresh_tokens', ...inverted]);
+      assertReapOrder(['agent_budget_windows', ...inverted]);
     }).not.toThrow();
     expect(() => {
-      assertReapOrder([
-        'token_grants',
-        'refresh_tokens',
-        'authorization_codes',
-        'authentication_sessions',
-        'action_tokens',
-        'pending_registrations',
-        'client_registration_tokens',
-        'login_failures',
-        'email_outbox',
-        'backchannel_logout_deliveries',
-        'client_assertion_jti',
-        'console_sessions',
-        'console_logins',
-        'tenant_issuer_retirements',
-        'client_metadata_cache',
-        'idempotency_keys',
-        'cimd_clients',
-        'dynamic_clients',
-        'tenant_domains',
-        'sessions',
-        'audit_events',
-      ]);
-    }).toThrow(/token_grants before refresh_tokens/u);
+      const rest = REAP_ORDER.filter((table) => table !== 'agent_instances');
+      assertReapOrder([...rest.slice(0, 1), 'agent_instances', ...rest.slice(1)]);
+    }).toThrow(/refresh_tokens before agent_instances/u);
+    expect(() => {
+      assertReapOrder(['token_grants', ...REAP_ORDER.filter((table) => table !== 'token_grants')]);
+    }).toThrow(/token_grants before /u);
+    expect(() => {
+      const rest = REAP_ORDER.filter((table) => table !== 'agent_instances');
+      assertReapOrder([...rest, 'agent_instances']);
+    }).toThrow(/before agent_instances/u);
   });
 
   it('refuses an order that omits a table', () => {
@@ -89,6 +75,10 @@ describe('the retention windows', () => {
       logoutDeliveredSeconds: 604_800,
       logoutFailedSeconds: 2_592_000,
       pendingDomainSeconds: 604_800,
+      agentBudgetWindowSeconds: 172_800,
+      agentApprovalSeconds: 2_592_000,
+      agentDelegationSeconds: 2_592_000,
+      agentInstanceTombstoneSeconds: 604_800,
     });
   });
 

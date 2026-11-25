@@ -107,6 +107,23 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
     ]);
   });
 
+  it('applies the agent settings and refuses a depth above the structural bound', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+
+    const ok = await patchSettings(t.name, {
+      agent_max_delegation_depth: 8,
+      agent_window_writes: 50,
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ agent_max_delegation_depth: 8, agent_window_writes: 50 });
+
+    const refused = await patchSettings(t.name, { agent_max_delegation_depth: 9 });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<RangeRefusal>().errors).toEqual([
+      { path: 'agent_max_delegation_depth', message: 'must be between 1 and 8' },
+    ]);
+  });
+
   it('reports every out-of-range value together', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
 

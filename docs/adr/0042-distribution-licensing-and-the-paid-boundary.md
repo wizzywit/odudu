@@ -119,3 +119,11 @@ and a fork, a logo or a hosted service under the name needs permission. The
 symbol is TM, never the registered one, until a registration exists. The
 owner approved the mark on 2026-10-21 and directs its use. A fork under the
 AGPL is still allowed; it carries its own name.
+
+## Amendment 2026-11-24: the built-in assistant is open
+
+[ADR 0055](0055-the-open-product-ships-the-console-assistant.md) supersedes the
+paragraph of the amendment of 2026-10-16 that kept out a built-in assistant, a stored
+provider key and a chat surface. The open product ships the assistant behind the
+operator's own key and shows nothing without one; what stays paid is the managed
+assistant, tiers and proactive, whole-tenant work. The decision on the MCP server stands.

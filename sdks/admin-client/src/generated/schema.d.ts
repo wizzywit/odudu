@@ -2748,6 +2748,51 @@ export interface paths {
                                  * @default false
                                  */
                                 cimd_enabled: boolean;
+                                /**
+                                 * @description How many instances deep a delegation may go, 1 to 8. 3 by default.
+                                 * @default 3
+                                 */
+                                agent_max_delegation_depth: number;
+                                /**
+                                 * @description How many live child instances one instance may have, 1 to 200. 20 by default.
+                                 * @default 20
+                                 */
+                                agent_max_children: number;
+                                /**
+                                 * @description How many live agent instances the tenant may hold at once, 1 to 100000. 1000 by default. Approximate: mints in flight at the same moment can pass it by their number.
+                                 * @default 1000
+                                 */
+                                agent_max_live_instances: number;
+                                /**
+                                 * @description How long an agent instance lives, in seconds, 60 to 86400, and never past the owner’s session. 900 by default.
+                                 * @default 900
+                                 */
+                                agent_instance_ttl_seconds: number;
+                                /**
+                                 * @description How long an agent instance may sit idle before it ends, in seconds, 60 to 86400, and never past the owner’s session. 1800 by default.
+                                 * @default 1800
+                                 */
+                                agent_instance_idle_seconds: number;
+                                /**
+                                 * @description How long an approval of one action lasts, in seconds, 60 to 900. 600 by default.
+                                 * @default 600
+                                 */
+                                agent_approval_ttl_seconds: number;
+                                /**
+                                 * @description How many writes an agent may make under one grant, creates included, 1 to 1000. 20 by default.
+                                 * @default 20
+                                 */
+                                agent_writes_per_grant: number;
+                                /**
+                                 * @description How many of those writes under one grant may create something, 1 to 1000. 10 by default.
+                                 * @default 10
+                                 */
+                                agent_creates_per_grant: number;
+                                /**
+                                 * @description How many writes one agent type may make for one owner in a 24-hour UTC window, across their sign-ins, 1 to 100000. 1000 by default.
+                                 * @default 1000
+                                 */
+                                agent_window_writes: number;
                                 /** @description The audit event types the tenant stores. */
                                 audit_event_types: string[];
                                 /**
@@ -2887,6 +2932,16 @@ export interface paths {
                                  * @default false
                                  */
                                 token_exchange_actor_from_other_client: boolean;
+                                /**
+                                 * @description Whether the client is an agent: an application that acts for a person under a grant they gave it.
+                                 * @default false
+                                 */
+                                agent_type: boolean;
+                                /**
+                                 * @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim.
+                                 * @default []
+                                 */
+                                delegated_actors: string[];
                                 /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                                 userinfo_signed_response_alg: string | null;
                                 /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -3493,7 +3548,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                     scheme?: "light" | "dark";
                 };
                 header?: never;
@@ -3540,7 +3595,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                     scheme?: "light" | "dark";
                 };
                 header?: never;
@@ -3563,7 +3618,7 @@ export interface paths {
                              * @description The page kind the preview shows.
                              * @enum {string}
                              */
-                            kind: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                            kind: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                             /**
                              * @description Where the scope’s own layer comes from: its `draft`, its `published` version when it has no draft, or `none` when it has neither.
                              * @enum {string}
@@ -3856,7 +3911,7 @@ export interface paths {
                             /** @description One section per package that fills pages, each with the page kinds it fills, and last the section of mail messages, which has no page kinds. The list is the same for every tenant and holds a few hundred messages in all. */
                             sections: {
                                 /** @description The page kinds filled from this section; empty for the mail messages. A template of one of them may name, in `{{t "key"}}`, only a key of its own section. */
-                                kinds: ("sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice")[];
+                                kinds: ("sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice")[];
                                 /** @description Every message of the section in key order. A message override may name the key of any section, mail included. */
                                 messages: {
                                     /** @description The key a template names in `{{t "key"}}` and an override is set under. */
@@ -4319,6 +4374,10 @@ export interface paths {
                                 token_exchange_allowed_for_public: boolean;
                                 /** @description Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it. */
                                 token_exchange_actor_from_other_client: boolean;
+                                /** @description Whether the client is an agent: an application that acts for a person under a grant they gave it. */
+                                agent_type: boolean;
+                                /** @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim. */
+                                delegated_actors: string[];
                                 /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                                 userinfo_signed_response_alg: string | null;
                                 /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -4468,6 +4527,10 @@ export interface paths {
                             token_exchange_allowed_for_public: boolean;
                             /** @description Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it. */
                             token_exchange_actor_from_other_client: boolean;
+                            /** @description Whether the client is an agent: an application that acts for a person under a grant they gave it. */
+                            agent_type: boolean;
+                            /** @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim. */
+                            delegated_actors: string[];
                             /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                             userinfo_signed_response_alg: string | null;
                             /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -4671,6 +4734,10 @@ export interface paths {
                             token_exchange_allowed_for_public: boolean;
                             /** @description Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it. */
                             token_exchange_actor_from_other_client: boolean;
+                            /** @description Whether the client is an agent: an application that acts for a person under a grant they gave it. */
+                            agent_type: boolean;
+                            /** @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim. */
+                            delegated_actors: string[];
                             /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                             userinfo_signed_response_alg: string | null;
                             /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -4851,6 +4918,10 @@ export interface paths {
                             token_exchange_allowed_for_public: boolean;
                             /** @description Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it. */
                             token_exchange_actor_from_other_client: boolean;
+                            /** @description Whether the client is an agent: an application that acts for a person under a grant they gave it. */
+                            agent_type: boolean;
+                            /** @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim. */
+                            delegated_actors: string[];
                             /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                             userinfo_signed_response_alg: string | null;
                             /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -5005,6 +5076,10 @@ export interface paths {
                             token_exchange_allowed_for_public: boolean;
                             /** @description Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it. */
                             token_exchange_actor_from_other_client: boolean;
+                            /** @description Whether the client is an agent: an application that acts for a person under a grant they gave it. */
+                            agent_type: boolean;
+                            /** @description The `client_id` of each client allowed to act for the subjects who use this client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-document client and this client itself. A grant made through this client lists them in its `may_act` claim. */
+                            delegated_actors: string[];
                             /** @description The algorithm that signs this client’s UserInfo responses. Null returns plain JSON. */
                             userinfo_signed_response_alg: string | null;
                             /** @description The key-management algorithm that encrypts this client’s UserInfo responses, or null. */
@@ -5398,7 +5473,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                     scheme?: "light" | "dark";
                 };
                 header?: never;
@@ -5447,7 +5522,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                    kind?: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                     scheme?: "light" | "dark";
                 };
                 header?: never;
@@ -5472,7 +5547,7 @@ export interface paths {
                              * @description The page kind the preview shows.
                              * @enum {string}
                              */
-                            kind: "sign-in" | "consent" | "select-account" | "logout-confirm" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
+                            kind: "sign-in" | "consent" | "select-account" | "logout-confirm" | "approval" | "totp-enrolment" | "passkey-enrolment" | "recovery-codes" | "update-password" | "verify-email" | "update-profile" | "accept-terms" | "required-action" | "registration" | "reset" | "verification" | "required-actions" | "authorize-error" | "email-unverified" | "logged-out" | "notice";
                             /**
                              * @description Where the scope’s own layer comes from: its `draft`, its `published` version when it has no draft, or `none` when it has neither.
                              * @enum {string}
@@ -9085,6 +9160,290 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tenants/{tenant}/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "manage-sessions" capability.
+         * @description The tenant’s agent instances in id order, which is the order they were started in, so a parent comes before its children: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last. Narrowed by `owner` and `state`. Each carries its lineage (`owner`, `agent_client`, `parent`, `depth`), `expires_at` and the `remaining_budget` of its own slice. Never a token.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    cursor?: string;
+                    limit?: number;
+                    owner?: string;
+                    state?: "live" | "expired" | "revoked";
+                };
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The overrides of the locale in key order. */
+                            items: {
+                                /** @description The instance’s own id: the `act.sub` of its tokens, a subject of type `agent_instance`. */
+                                id: string;
+                                /** @description The user the agent acts for: the `sub` of its tokens. */
+                                owner: string;
+                                /** @description The owner’s username, or `null` for a subject that has none. */
+                                owner_username: string | null;
+                                /** @description The `client_id` of the agent client the instance runs under. */
+                                agent_client: string;
+                                /** @description The instance that started this one, or null for one started under a sign-in. */
+                                parent: string | null;
+                                /** @description How many instances deep it sits: 1 for one started under a sign-in. */
+                                depth: number;
+                                /**
+                                 * @description `live`; `expired` once its lifetime or idle time ran out and the retention pass has not yet revoked it; `revoked`.
+                                 * @enum {string}
+                                 */
+                                state: "live" | "expired" | "revoked";
+                                /** @description The scope its tokens carry. */
+                                scope: string;
+                                /** @description When it was started. */
+                                created_at: string;
+                                /** @description When it ends whatever it does. */
+                                expires_at: string;
+                                /** @description When it was revoked, or null. */
+                                revoked_at: string | null;
+                                /** @description What the instance’s own slice of changing and creating calls has left. The sign-in’s budget and the owner’s daily limit are counted too, and are not shown here. */
+                                remaining_budget: {
+                                    /** @description Changing calls the instance may still make. */
+                                    mutating: number;
+                                    /** @description Creating calls the instance may still make; each also counts as a changing call. */
+                                    creates: number;
+                                };
+                            }[];
+                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            next?: string;
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/agents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "manage-sessions" capability.
+         * @description One agent instance, as the list shows it. `404` for an id that is not one.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The instance’s own id: the `act.sub` of its tokens, a subject of type `agent_instance`. */
+                            id: string;
+                            /** @description The user the agent acts for: the `sub` of its tokens. */
+                            owner: string;
+                            /** @description The owner’s username, or `null` for a subject that has none. */
+                            owner_username: string | null;
+                            /** @description The `client_id` of the agent client the instance runs under. */
+                            agent_client: string;
+                            /** @description The instance that started this one, or null for one started under a sign-in. */
+                            parent: string | null;
+                            /** @description How many instances deep it sits: 1 for one started under a sign-in. */
+                            depth: number;
+                            /**
+                             * @description `live`; `expired` once its lifetime or idle time ran out and the retention pass has not yet revoked it; `revoked`.
+                             * @enum {string}
+                             */
+                            state: "live" | "expired" | "revoked";
+                            /** @description The scope its tokens carry. */
+                            scope: string;
+                            /** @description When it was started. */
+                            created_at: string;
+                            /** @description When it ends whatever it does. */
+                            expires_at: string;
+                            /** @description When it was revoked, or null. */
+                            revoked_at: string | null;
+                            /** @description What the instance’s own slice of changing and creating calls has left. The sign-in’s budget and the owner’s daily limit are counted too, and are not shown here. */
+                            remaining_budget: {
+                                /** @description Changing calls the instance may still make. */
+                                mutating: number;
+                                /** @description Creating calls the instance may still make; each also counts as a changing call. */
+                                creates: number;
+                            };
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Requires the "manage-sessions" capability.
+         * @description Revokes the instance and every instance started beneath it, and the grants any of them acted in with everything exchanged from those, so no token of theirs is honoured again. Answers how many grants and instances it ended; an instance already revoked answers 0 and records nothing. With `dry_run=true` it answers the same counts and changes and records nothing, so a console can say what a revocation would end before it is asked for. Refused with `403` when the subject holds an admin capability the caller does not (the target ceiling).
+         */
+        delete: {
+            parameters: {
+                query?: {
+                    dry_run?: "true" | "false";
+                };
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description How many grants it ended: those the instance’s tree acted in and everything exchanged from them. */
+                            grants: number;
+                            /** @description How many instances it ended, the one asked for and everything beneath it included. */
+                            instances: number;
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/agent-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "manage-sessions" capability.
+         * @description The approvals agents asked of their owners, newest first: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last. Narrowed by `state`. Never the digest of the action an approval covers.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    cursor?: string;
+                    limit?: number;
+                    state?: "pending" | "approved" | "denied" | "expired" | "consumed";
+                };
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The overrides of the locale in key order. */
+                            items: {
+                                /** @description The approval’s id. */
+                                id: string;
+                                /** @description The user who has to decide it. */
+                                owner: string;
+                                /** @description The owner’s username, or `null` for a subject that has none. */
+                                owner_username: string | null;
+                                /** @description The `client_id` of the client that asked. */
+                                agent_client: string;
+                                /** @description The instance it was asked for, or null for a request made without one. */
+                                instance: string | null;
+                                /** @description What sort of action it asks about. */
+                                kind: string;
+                                /** @description The words the owner is shown to decide on; the agent wrote them. */
+                                summary: string;
+                                /**
+                                 * @description `pending` until the owner decides, then `approved` or `denied`; `consumed` once the action ran; `expired` when it lapsed undecided. A pending approval past `expires_at` can no longer be decided and is marked `expired` by the next retention pass.
+                                 * @enum {string}
+                                 */
+                                state: "pending" | "approved" | "denied" | "expired" | "consumed";
+                                /** @description When it was asked. */
+                                created_at: string;
+                                /** @description When it can no longer be decided or used. */
+                                expires_at: string;
+                                /** @description When the owner decided, or null. */
+                                decided_at: string | null;
+                                /** @description Where the owner decided, the consent page of a backchannel request or the console. */
+                                decided_via: ("ciba_page" | "console") | null;
+                            }[];
+                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            next?: string;
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/tenants/{tenant}/audit": {
         parameters: {
             query?: never;
@@ -9101,7 +9460,7 @@ export interface paths {
                 query?: {
                     cursor?: string;
                     limit?: number;
-                    event_type?: "admin_mutation" | "admin_access" | "authentication" | "session" | "token" | "credential";
+                    event_type?: "admin_mutation" | "admin_access" | "agent_identity" | "authentication" | "session" | "token" | "credential";
                     actor_subject_id?: string;
                     resource_type?: string;
                     resource_id?: string;
@@ -9195,7 +9554,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    event_type?: "admin_mutation" | "admin_access" | "authentication" | "session" | "token" | "credential";
+                    event_type?: "admin_mutation" | "admin_access" | "agent_identity" | "authentication" | "session" | "token" | "credential";
                     actor_subject_id?: string;
                     resource_type?: string;
                     resource_id?: string;
@@ -9248,7 +9607,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    event_type?: "admin_mutation" | "admin_access" | "authentication" | "session" | "token" | "credential";
+                    event_type?: "admin_mutation" | "admin_access" | "agent_identity" | "authentication" | "session" | "token" | "credential";
                     actor_subject_id?: string;
                     resource_type?: string;
                     resource_id?: string;

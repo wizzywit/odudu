@@ -5,6 +5,7 @@ export const PAGE_KIND_LABELS: Readonly<Record<PageKind, string>> = {
   consent: 'Consent',
   'select-account': 'Choose an account',
   'logout-confirm': 'Confirm sign-out',
+  approval: 'Approve a request',
   'totp-enrolment': 'Authenticator app set-up',
   'passkey-enrolment': 'Passkey set-up',
   'recovery-codes': 'Recovery codes',
@@ -60,6 +61,11 @@ export const MANIFESTS: Readonly<Record<PageKind, Manifest>> = {
     required: ['form.open', 'submit', 'form.close'],
     optional: [],
     inForm: ['submit'],
+  },
+  approval: {
+    required: ['form.open', 'details', 'submit.approve', 'submit.deny', 'form.close'],
+    optional: [],
+    inForm: ['submit.approve', 'submit.deny'],
   },
   'totp-enrolment': {
     required: ['form.open', 'offer', 'fields', 'submit', 'error', 'form.close'],

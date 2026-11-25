@@ -1,4 +1,4 @@
-export { CLIENT_LIST_LIMIT } from '@odudu/contracts/admin';
+export { CLIENT_LIST_LIMIT, MAX_DELEGATED_ACTORS } from '@odudu/contracts/admin';
 
 import { limitReading } from '#/shared/lib/services/format';
 

@@ -19,6 +19,7 @@ Security
 Sign-in flow
 Signing keys
 Sessions
+Agents
 Tenant
 Settings
 Branding
@@ -257,6 +258,7 @@ Sign in
 Consent
 Choose an account
 Confirm sign-out
+Approve a request
 Authenticator app set-up
 Passkey set-up
 Recovery codes
@@ -288,6 +290,7 @@ Sign in
 Consent
 Choose an account
 Confirm sign-out
+Approve a request
 Authenticator app set-up
 Passkey set-up
 Recovery codes

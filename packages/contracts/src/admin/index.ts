@@ -1,6 +1,7 @@
 export {
   ASSIGNMENT_LIMIT,
   CLIENT_LIST_LIMIT,
+  MAX_DELEGATED_ACTORS,
   CLIENT_SCOPE_LIMIT,
   clientScopeLimitMessage,
   defaultScopeLimitMessage,
@@ -301,6 +302,28 @@ export {
   type IssuePasswordResponse,
   type Lockout,
 } from '#/admin/account-recovery';
+export {
+  AGENT_APPROVAL_STATES,
+  AGENT_INSTANCE_STATES,
+  agentApprovalSchema,
+  agentBudgetSchema,
+  agentInstanceSchema,
+  deleteAgentQuerySchema,
+  listAgentApprovalsQuerySchema,
+  listAgentApprovalsResponseSchema,
+  listAgentsQuerySchema,
+  listAgentsResponseSchema,
+  revokeAgentResponseSchema,
+  type AgentApproval,
+  type AgentBudget,
+  type AgentInstance,
+  type DeleteAgentQuery,
+  type ListAgentApprovalsQuery,
+  type ListAgentApprovalsResponse,
+  type ListAgentsQuery,
+  type ListAgentsResponse,
+  type RevokeAgentResponse,
+} from '#/admin/agents';
 export {
   termsAcceptanceSchema,
   type TermsAcceptance,

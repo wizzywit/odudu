@@ -193,6 +193,10 @@ shown once — a registration token, a client secret, a one-time password.
 | `GET`    | `/admin/tenants/{tenant}/registration-tokens`                           | List initial access tokens                 |
 | `POST`   | `/admin/tenants/{tenant}/registration-tokens`                           | Mint an initial access token               |
 | `DELETE` | `/admin/tenants/{tenant}/registration-tokens/:id`                       | Revoke an initial access token             |
+| `GET`    | `/admin/tenants/{tenant}/agents`                                        | List the tenant's agent instances          |
+| `GET`    | `/admin/tenants/{tenant}/agents/:id`                                    | Read an agent instance                     |
+| `DELETE` | `/admin/tenants/{tenant}/agents/:id`                                    | Revoke an agent instance and its lineage   |
+| `GET`    | `/admin/tenants/{tenant}/agent-approvals`                               | List the approvals agents asked for        |
 | `GET`    | `/admin/tenants/{tenant}/domains`                                       | List domains                               |
 | `POST`   | `/admin/tenants/{tenant}/domains`                                       | Register a domain                          |
 | `GET`    | `/admin/tenants/{tenant}/domains/passkey-impact`                        | Count the passkeys a switch hides          |

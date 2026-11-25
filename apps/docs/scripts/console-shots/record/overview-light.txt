@@ -19,6 +19,7 @@ Security
 Sign-in flow
 Signing keys
 Sessions
+Agents
 Tenant
 Settings
 Branding
@@ -83,6 +84,10 @@ http://localhost:3000/tenants/demo/protocol/openid-connect/token/introspect
 revocation_
 endpoint
 http://localhost:3000/tenants/demo/protocol/openid-connect/revoke
+backchannel_
+authentication_
+endpoint
+http://localhost:3000/tenants/demo/protocol/openid-connect/bc-authorize
 userinfo_
 endpoint
 http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo
@@ -94,6 +99,12 @@ session_
 endpoint
 http://localhost:3000/tenants/demo/protocol/openid-connect/logout
 Supported values
+backchannel_
+token_
+delivery_
+modes_
+supported
+poll
 response_
 types_
 supported
@@ -154,6 +165,7 @@ authorization_code
 refresh_token
 client_credentials
 urn:ietf:params:oauth:grant-type:token-exchange
+urn:openid:params:grant-type:ciba
 token_
 endpoint_
 auth_
@@ -230,6 +242,12 @@ groups
 address
 phone_number
 phone_number_verified
+backchannel_
+user_
+code_
+parameter_
+supported
+no
 authorization_
 response_
 iss_
@@ -298,6 +316,11 @@ Raw discovery document
   "token_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token",
   "introspection_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token/introspect",
   "revocation_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/revoke",
+  "backchannel_authentication_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/bc-authorize",
+  "backchannel_token_delivery_modes_supported": [
+    "poll"
+  ],
+  "backchannel_user_code_parameter_supported": false,
   "userinfo_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo",
   "jwks_uri": "http://localhost:3000/tenants/demo/protocol/openid-connect/certs",
   "end_session_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/logout",
@@ -340,7 +363,8 @@ Raw discovery document
     "authorization_code",
     "refresh_token",
     "client_credentials",
-    "urn:ietf:params:oauth:grant-type:token-exchange"
+    "urn:ietf:params:oauth:grant-type:token-exchange",
+    "urn:openid:params:grant-type:ciba"
   ],
   "token_endpoint_auth_methods_supported": [
     "client_secret_basic",

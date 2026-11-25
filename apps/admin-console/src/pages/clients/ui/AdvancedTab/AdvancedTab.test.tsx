@@ -456,6 +456,49 @@ it('accepts an actor token issued to another client on the same save, off until 
   });
 });
 
+it('marks a client as an agent and names the clients allowed to act for its people, on one save', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    patching({ agent_type: true, delegated_actors: ['worker'] }),
+  );
+  await open();
+  const section = screen.getByRole('region', { name: 'Agent identity' });
+  const toggle = within(section).getByRole('switch', { name: 'This client is an agent' });
+  expect(toggle).not.toBeChecked();
+  expect(within(section).getByText(/0 of 20 clients\./u)).toBeVisible();
+  await user.click(toggle);
+  await user.click(within(section).getByRole('button', { name: 'Add client' }));
+  await user.type(within(section).getByRole('textbox', { name: 'Client 1' }), 'worker');
+  await user.click(within(section).getByRole('button', { name: 'Save Agent identity' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      agent_type: true,
+      delegated_actors: ['worker'],
+    });
+  });
+});
+
+it('shows the server’s refusal of a delegated client under its field', async () => {
+  const user = userEvent.setup();
+  const refusal = 'names "ghost", which is not a client of this tenant';
+  renderConsoleAt(
+    AT,
+    clientRoutes(undefined, {
+      [`PATCH ${C}/c-bill`]: problem(400, 'about:blank', 'Bad Request', {
+        detail: refusal,
+        errors: [{ path: 'delegated_actors', message: refusal }],
+      }),
+    }),
+  );
+  await open();
+  const section = screen.getByRole('region', { name: 'Agent identity' });
+  await user.click(within(section).getByRole('button', { name: 'Add client' }));
+  await user.type(within(section).getByRole('textbox', { name: 'Client 1' }), 'ghost');
+  await user.click(within(section).getByRole('button', { name: 'Save Agent identity' }));
+  expect(await within(section).findByText(refusal)).toBeVisible();
+});
+
 it('rotates the secret behind a confirmation, shows it once, and nowhere after', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(

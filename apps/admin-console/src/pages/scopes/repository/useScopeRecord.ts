@@ -134,7 +134,9 @@ export function useScopeDeletion(
 // Read again each time it is asked for: the counts move with every assignment.
 export function useScopeImpact(tenant: string, id: string, asked: boolean): Read<ScopeImpact> {
   const { gateway } = useTransport();
-  return useRead(scopeImpactKey(tenant, id), asked, () => readScopeImpact(gateway, tenant, id));
+  return useRead(scopeImpactKey(tenant, id), asked, () => readScopeImpact(gateway, tenant, id), {
+    fresh: true,
+  });
 }
 
 export function useBuiltinScopes(tenant: string, asked: boolean): Read<BuiltinScopes> {

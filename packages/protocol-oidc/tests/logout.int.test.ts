@@ -1660,7 +1660,7 @@ describe('[ODUDU-LOGOUT-SKIP-01] a client that skips the confirmation', () => {
     });
   });
 
-  it('costs five data statements to ask about a hint, four with none and thirteen to end at once', async () => {
+  it('costs five data statements to ask about a hint, four with none and fourteen to end at once', async () => {
     const { tenantName, tenantId, clientDbId } = await skippingTenant('logout-skip-count', true);
     const asked = await signedInWithGrant(tenantName, tenantId, clientDbId);
 
@@ -1687,7 +1687,9 @@ describe('[ODUDU-LOGOUT-SKIP-01] a client that skips the confirmation', () => {
 
     expect(asking).toBe(5);
     expect(noHint).toBe(4);
-    expect(ending).toBe(13);
+    // One more than before: the select that locks the session's lineage roots.
+    // It runs once per revoke call, whatever the number of grants.
+    expect(ending).toBe(14);
   });
 
   it('asks for a hint naming several audiences, even when one of them skips', async () => {

@@ -4,7 +4,7 @@
   }
 }
 Odudu console
-20 options available.
+21 options available.
 Skip to content
 odudu · acme
 Overview
@@ -20,6 +20,7 @@ Security
 Sign-in flow
 Signing keys
 Sessions
+Agents
 Tenant
 Settings
 Branding
@@ -291,6 +292,7 @@ Sign in
 Consent
 Choose an account
 Confirm sign-out
+Approve a request
 Authenticator app set-up
 Passkey set-up
 Recovery codes
@@ -323,6 +325,8 @@ Page-kind class: Consent
 Page-kind class: Choose an account
 .page-logout-confirm
 Page-kind class: Confirm sign-out
+.page-approval
+Page-kind class: Approve a request
 .page-totp-enrolment
 Page-kind class: Authenticator app set-up
 .page-passkey-enrolment

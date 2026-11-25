@@ -15,8 +15,13 @@ function write(tx: TenantScopedDatabase, audit: TokenRefusalAudit, reason: Audit
     outcome: 'refused',
     actorClientId: audit.clientDbId,
     actorSubjectId: audit.subjectId ?? null,
-    resourceType: audit.grantId === undefined ? null : 'grant',
-    resourceId: audit.grantId ?? null,
+    resourceType:
+      audit.grantId !== undefined
+        ? 'grant'
+        : audit.approvalId === undefined
+          ? null
+          : 'agent_approval',
+    resourceId: audit.grantId ?? audit.approvalId ?? null,
   } as const;
   const repository = auditRepository(tx);
   switch (audit.action) {
@@ -47,6 +52,19 @@ function write(tx: TenantScopedDatabase, audit: TokenRefusalAudit, reason: Audit
         eventType: 'token',
         action: 'token.exchange',
         detail: { reason },
+      });
+    case 'ciba.requested':
+    case 'ciba.poll_refused':
+      return repository.record({
+        ...common,
+        eventType: 'agent_identity',
+        action: audit.action,
+        detail: {
+          agent_client: audit.clientDbId,
+          ...(audit.subjectId === undefined ? {} : { owner: audit.subjectId }),
+          ...(audit.approvalId === undefined ? {} : { approval: audit.approvalId }),
+          reason,
+        },
       });
     case 'token.revoke':
       return repository.record({

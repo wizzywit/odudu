@@ -7,6 +7,10 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The types of the delegation operations: `GET`, `POST` and `DELETE /tenants/{tenant}/me/delegations`.
+
 ## [0.1.1] - 2026-11-23
 
 ### Changed

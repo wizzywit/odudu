@@ -76,15 +76,23 @@ interface PasswordAttempt {
 // username that copies one and would otherwise shadow its owner's sign-in.
 // Both lookups run for every login, so a username, an address and a miss
 // each cost the same statements and none of them answers faster.
+export async function findAccountByLogin(
+  tx: TenantScopedDatabase,
+  login: string,
+  loginWithEmail: boolean,
+) {
+  const accounts = userRepository(tx);
+  const byUsername = await accounts.byUsername(login);
+  const byEmail = loginWithEmail ? await accounts.byVerifiedEmail(login) : null;
+  return login.includes('@') ? (byEmail ?? byUsername) : (byUsername ?? byEmail);
+}
+
 async function passwordAttemptFor(
   tx: TenantScopedDatabase,
   login: string,
   loginWithEmail: boolean,
 ): Promise<PasswordAttempt> {
-  const accounts = userRepository(tx);
-  const byUsername = await accounts.byUsername(login);
-  const byEmail = loginWithEmail ? await accounts.byVerifiedEmail(login) : null;
-  const found = login.includes('@') ? (byEmail ?? byUsername) : (byUsername ?? byEmail);
+  const found = await findAccountByLogin(tx, login, loginWithEmail);
   const keyedOn = found === null ? DUMMY_SUBJECT_ID : found.subject.id;
   const credential = await credentialRepository(tx).passwordCredentialFor(keyedOn);
   const onRecord = await loginFailureRepository(tx).forSubject(keyedOn);

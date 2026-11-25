@@ -60,6 +60,14 @@ export function outboxRepository(tx: TenantScopedDatabase) {
     },
 
     /**
+     * The statement `enqueue` runs, matching nothing: for a caller that must
+     * run the same statements whether or not a mail is queued.
+     */
+    async enqueueNothing(): Promise<void> {
+      await tx.execute(sql`insert into email_outbox select * from email_outbox where false`);
+    },
+
+    /**
      * One statement: the rows are selected, locked and marked as attempted
      * together, so two senders never hand the same message to SMTP twice.
      * `FOR UPDATE SKIP LOCKED` rather than an advisory lock — senders that

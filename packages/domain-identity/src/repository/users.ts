@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { OduduError, refuseBidiControls } from '@odudu/kernel';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { subjects, type SubjectRecord } from '#/schema/subjects';
 import { isEmailAddress } from '#/service/email';
 import {
@@ -144,6 +144,17 @@ export function userRepository(tx: TenantScopedDatabase) {
       const rows = await tx.select().from(users).where(eq(users.subjectId, subjectId));
       const row = rows[0];
       return row === undefined ? null : toUser(row);
+    },
+
+    // The usernames of the subjects a page names, in one read for the page. A
+    // subject with no users row (a service, an agent instance) has no entry.
+    async usernamesOf(subjectIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
+      if (subjectIds.length === 0) return new Map();
+      const rows = await tx
+        .select({ subjectId: users.subjectId, username: users.username })
+        .from(users)
+        .where(inArray(users.subjectId, [...new Set(subjectIds)]));
+      return new Map(rows.map((row) => [row.subjectId, row.username]));
     },
 
     // Password reset's lookup: users_email_unique (0023) is (tenant_id,

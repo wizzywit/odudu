@@ -4,7 +4,7 @@ import { configureIssuerBase, configureTenantAddress } from '@odudu/protocol-oid
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MAX_LIMIT } from '@odudu/contracts/me';
-import type { MeAuditEvent, MeWriteTx } from '#/index';
+import type { DelegationAuditEvent, MeAuditEvent, MeWriteTx } from '#/index';
 import { REMOVAL_REFUSAL_MESSAGES, UsernameTakenError } from '#/service/errors';
 import { ME_ROUTES, isMeRoute, registerMeRoutes, type MeDeps } from '#/view/routes';
 
@@ -45,6 +45,21 @@ const USER = {
 } as UserRecord;
 
 const CRED_ID = '01a0a992-4657-7d89-8fbf-3385f54810d9';
+const DELEGATION_ID = '01a0a992-4657-7d89-8fbf-3385f54810da';
+const DELEGATION = {
+  id: DELEGATION_ID,
+  clientKey: 'portal',
+  actorClientKey: 'assistant',
+  scopeCeiling: 'openid profile',
+  expiresAt: new Date('2026-12-01T00:00:00Z'),
+  createdAt: NOW,
+};
+const NEW_DELEGATION = {
+  client_id: 'portal',
+  actor_client_id: 'assistant',
+  scope_ceiling: 'openid profile',
+  expires_in: 3600,
+};
 const OTHER_SESSION = '01a0a992-4657-7d89-8fbf-3385f54810d2';
 const SUMMARY: CredentialSummary = {
   id: CRED_ID,
@@ -70,6 +85,7 @@ function build(
     claims?: Record<string, unknown>;
     tx?: Partial<MeWriteTx>;
     audits?: MeAuditEvent[];
+    delegationAudits?: DelegationAuditEvent[];
     // When the session behind the token was signed in to; null for one that is gone.
     signedInAt?: Date | null;
     // The authenticators the session behind the token ran.
@@ -125,6 +141,10 @@ function build(
       return Promise.resolve([
         { clientId: 'row', clientKey: 'portal', scopeNames: ['openid'], grantedAt: AT },
       ]);
+    },
+    delegations: (t, s) => {
+      note(`delegations ${t} ${s}`);
+      return Promise.resolve([DELEGATION]);
     },
     ...over.reads,
   };
@@ -202,6 +222,22 @@ function build(
             note(`queueAddressProof ${input.email}`);
             return Promise.resolve();
           },
+          delegationClient: (key) =>
+            Promise.resolve({ id: `row-${key}`, clientKey: key, enabled: true, agentType: true }),
+          createDelegation: (input) => {
+            note(
+              `createDelegation ${input.subjectId} ${input.actor.clientKey} ${String(input.cap)}`,
+            );
+            return Promise.resolve(DELEGATION);
+          },
+          revokeDelegation: (subjectId, id) => {
+            note(`revokeDelegation ${subjectId} ${id}`);
+            return Promise.resolve(DELEGATION);
+          },
+          auditDelegation: (event) => {
+            over.delegationAudits?.push(event);
+            return Promise.resolve();
+          },
           audit: (event) => {
             over.audits?.push(event);
             return Promise.resolve();
@@ -234,18 +270,21 @@ const get = (app: FastifyInstance, path: string, token: string | null = TOKEN) =
   });
 
 describe('the routes', () => {
-  it('are four reads and six writes, none naming a subject', () => {
+  it('are five reads and eight writes, none naming a subject', () => {
     expect(ME_ROUTES.map((r) => `${r.method} ${r.url}`)).toEqual([
       'GET /tenants/:tenant/me/profile',
       'GET /tenants/:tenant/me/credentials',
       'GET /tenants/:tenant/me/sessions',
       'GET /tenants/:tenant/me/consents',
+      'GET /tenants/:tenant/me/delegations',
       'PATCH /tenants/:tenant/me/profile',
       'DELETE /tenants/:tenant/me/sessions',
       'DELETE /tenants/:tenant/me/sessions/:id',
       'DELETE /tenants/:tenant/me/consents/:client_id',
       'PATCH /tenants/:tenant/me/credentials/:id',
       'DELETE /tenants/:tenant/me/credentials/:id',
+      'POST /tenants/:tenant/me/delegations',
+      'DELETE /tenants/:tenant/me/delegations/:id',
     ]);
     expect(ME_ROUTES.every((r) => !r.url.includes('subject'))).toBe(true);
   });
@@ -376,7 +415,7 @@ describe('the lists', () => {
 });
 
 describe('the door', () => {
-  it.each(['profile', 'credentials', 'sessions', 'consents'])(
+  it.each(['profile', 'credentials', 'sessions', 'consents', 'delegations'])(
     'challenges %s with no token',
     async (path) => {
       const res = await get(build(), path, null);
@@ -385,7 +424,7 @@ describe('the door', () => {
     },
   );
 
-  it.each(['profile', 'credentials', 'sessions', 'consents'])(
+  it.each(['profile', 'credentials', 'sessions', 'consents', 'delegations'])(
     'refuses %s for a token holding me:write alone',
     async (path) => {
       const res = await get(build({ scope: 'openid me:write' }), path);
@@ -409,7 +448,7 @@ describe('the door', () => {
 
 const send = (
   app: FastifyInstance,
-  method: 'PATCH' | 'DELETE',
+  method: 'PATCH' | 'DELETE' | 'POST',
   path: string,
   payload?: object,
   token: string | null = TOKEN,
@@ -421,7 +460,7 @@ const send = (
     ...(payload === undefined ? {} : { payload }),
   });
 
-const WRITES: readonly [string, 'PATCH' | 'DELETE', string, object | undefined][] = [
+const WRITES: readonly [string, 'PATCH' | 'DELETE' | 'POST', string, object | undefined][] = [
   ['the profile', 'PATCH', 'profile', { name: 'Ada L' }],
   ['all other sessions', 'DELETE', 'sessions', undefined],
   ['one session', 'DELETE', `sessions/${OTHER_SESSION}`, undefined],
@@ -573,6 +612,125 @@ describe('DELETE /me/consents/:client_id', () => {
   });
 });
 
+describe('GET /me/delegations', () => {
+  it('lists the token’s own, uncached, with the clients by their client_id', async () => {
+    const seen: string[] = [];
+    const res = await get(build({ seen }), 'delegations');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.json()).toEqual({
+      items: [
+        {
+          id: DELEGATION_ID,
+          client_id: 'portal',
+          actor_client_id: 'assistant',
+          scope_ceiling: 'openid profile',
+          expires_at: '2026-12-01T00:00:00.000Z',
+          created_at: NOW.toISOString(),
+        },
+      ],
+    });
+    expect(seen).toEqual(['delegations tenant-1 subject-1']);
+  });
+
+  it('refuses any query member with 400', async () => {
+    expect((await get(build(), 'delegations?subject=x')).statusCode).toBe(400);
+  });
+});
+
+describe('POST /me/delegations', () => {
+  it('answers 201 with the delegation and files the lineage row', async () => {
+    const seen: string[] = [];
+    const delegationAudits: DelegationAuditEvent[] = [];
+    const res = await send(
+      build({ seen, delegationAudits }),
+      'POST',
+      'delegations',
+      NEW_DELEGATION,
+    );
+    expect(res.statusCode).toBe(201);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.json()).toMatchObject({ id: DELEGATION_ID, actor_client_id: 'assistant' });
+    expect(seen).toContain('createDelegation subject-1 assistant 20');
+    expect(delegationAudits.map((event) => event.action)).toEqual(['agent.delegation_created']);
+  });
+
+  it.each([
+    ['a member it does not name', { ...NEW_DELEGATION, subject_id: 'x' }],
+    ['no scope', { ...NEW_DELEGATION, scope_ceiling: '' }],
+    ['a lifetime of zero', { ...NEW_DELEGATION, expires_in: 0 }],
+  ])('answers 400 for %s, before any write', async (_, body) => {
+    const seen: string[] = [];
+    const res = await send(build({ seen }), 'POST', 'delegations', body);
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_request' });
+    expect(seen.some((entry) => entry.startsWith('transact'))).toBe(false);
+  });
+
+  it('answers 400 naming the member when an actor is not an agent client', async () => {
+    const tx = {
+      delegationClient: (key: string) =>
+        Promise.resolve({ id: key, clientKey: key, enabled: true, agentType: false }),
+    };
+    const res = await send(build({ tx }), 'POST', 'delegations', NEW_DELEGATION);
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: 'invalid_request',
+      error_description: 'actor_client_id: is not an agent client',
+    });
+  });
+
+  it('answers 409 at the limit and files nothing', async () => {
+    const delegationAudits: DelegationAuditEvent[] = [];
+    const res = await send(
+      build({ delegationAudits, tx: { createDelegation: () => Promise.resolve(null) } }),
+      'POST',
+      'delegations',
+      NEW_DELEGATION,
+    );
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ error: 'conflict' });
+    expect(delegationAudits).toEqual([]);
+  });
+
+  it('is refused for a token that holds me:read alone', async () => {
+    const res = await send(
+      build({ scope: 'openid me:read' }),
+      'POST',
+      'delegations',
+      NEW_DELEGATION,
+    );
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('DELETE /me/delegations/:id', () => {
+  it('revokes the caller’s own with no body and files the lineage row', async () => {
+    const delegationAudits: DelegationAuditEvent[] = [];
+    const seen: string[] = [];
+    const res = await send(
+      build({ delegationAudits, seen }),
+      'DELETE',
+      `delegations/${DELEGATION_ID}`,
+    );
+    expect(res.statusCode).toBe(204);
+    expect(res.body).toBe('');
+    expect(seen).toContain(`revokeDelegation subject-1 ${DELEGATION_ID}`);
+    expect(delegationAudits.map((event) => event.action)).toEqual(['agent.delegation_revoked']);
+  });
+
+  it('answers 404 for one that is not theirs or is not live', async () => {
+    const app = build({ tx: { revokeDelegation: () => Promise.resolve(null) } });
+    expect((await send(app, 'DELETE', `delegations/${DELEGATION_ID}`)).statusCode).toBe(404);
+  });
+
+  it('answers 404 for an id that is not a uuid, without reading the session', async () => {
+    const seen: string[] = [];
+    expect((await send(build({ seen }), 'DELETE', 'delegations/nope')).statusCode).toBe(404);
+    expect(seen).toEqual([]);
+  });
+});
+
 describe('PATCH /me/credentials/:id', () => {
   it('answers with the relabelled credential', async () => {
     const res = await send(build(), 'PATCH', `credentials/${CRED_ID}`, { label: 'Work phone' });
@@ -607,16 +765,18 @@ const CHALLENGE =
   'Bearer error="insufficient_user_authentication", ' +
   'error_description="A recent sign-in is required", max_age="300"';
 
-const GATED: readonly [string, 'PATCH' | 'DELETE', string, object | undefined][] = [
+const GATED: readonly [string, 'PATCH' | 'DELETE' | 'POST', string, object | undefined][] = [
   ['ending all other sessions', 'DELETE', 'sessions', undefined],
   ['revoking a consent', 'DELETE', 'consents/portal', undefined],
   ['changing the username', 'PATCH', 'profile', { username: 'grace' }],
+  ['making a delegation', 'POST', 'delegations', NEW_DELEGATION],
 ];
 
-const UNGATED: readonly [string, 'PATCH' | 'DELETE', string, object | undefined][] = [
+const UNGATED: readonly [string, 'PATCH' | 'DELETE' | 'POST', string, object | undefined][] = [
   ['ending one session', 'DELETE', `sessions/${OTHER_SESSION}`, undefined],
   ['renaming an authenticator', 'PATCH', `credentials/${CRED_ID}`, { label: 'Work phone' }],
   ['amending a claim', 'PATCH', 'profile', { name: 'Ada L' }],
+  ['revoking a delegation', 'DELETE', `delegations/${DELEGATION_ID}`, undefined],
 ];
 
 describe('the freshness gate', () => {
@@ -713,7 +873,7 @@ describe('the freshness gate', () => {
     },
   );
 
-  it.each(['profile', 'credentials', 'sessions', 'consents'])(
+  it.each(['profile', 'credentials', 'sessions', 'consents', 'delegations'])(
     'does not read the session to read %s',
     async (path) => {
       const seen: string[] = [];
@@ -1002,7 +1162,9 @@ describe('cross-origin calls', () => {
     const allowed = await ask(ORIGIN);
     expect(allowed.statusCode).toBe(204);
     expect(allowed.headers['access-control-allow-origin']).toBe(ORIGIN);
-    expect(allowed.headers['access-control-allow-methods']).toBe('GET, PATCH, DELETE, OPTIONS');
+    expect(allowed.headers['access-control-allow-methods']).toBe(
+      'GET, POST, PATCH, DELETE, OPTIONS',
+    );
     const refused = await ask('https://other.example');
     expect(refused.statusCode).toBe(204);
     expect(refused.headers['access-control-allow-origin']).toBeUndefined();

@@ -389,6 +389,17 @@ export const SCREENS: readonly Screen[] = [
     },
   },
   {
+    name: 'agents',
+    alt: "The demo tenant's Agents page with an Approvals button, a State menu set to Any state, and a message saying no agent has acted in this tenant yet.",
+    caption: 'No agent has acted in the demo tenant.',
+    signedIn: true,
+    expect: [{ heading: 'Agents' }, { role: 'link', name: 'Approvals' }, { label: 'State' }],
+    open: async (page, context) => {
+      await openArea(page, context, `${DEMO}/agents`);
+      await page.getByText('No agents yet').waitFor();
+    },
+  },
+  {
     name: 'settings',
     alt: 'The Settings page: a strip of section links from General to Audit retention, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min.',
     caption: 'Every section of the settings saves on its own.',

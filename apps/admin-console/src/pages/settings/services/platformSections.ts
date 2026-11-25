@@ -51,6 +51,86 @@ export const PLATFORM_SECTIONS: readonly SettingsSection[] = [
     ],
   },
   {
+    id: 'agents',
+    title: 'Agents',
+    description:
+      'The limits on agent instances and on what an agent may write under a person’s grant.',
+    fields: [
+      {
+        name: 'agent_max_delegation_depth',
+        label: 'Delegation depth',
+        control: 'count',
+        unit: 'levels',
+        group: 'Instances',
+        description: 'How many instances deep one delegation may go.',
+      },
+      {
+        name: 'agent_max_children',
+        label: 'Children per instance',
+        control: 'count',
+        unit: 'instances',
+        group: 'Instances',
+        description: 'How many live child instances one instance may have.',
+      },
+      {
+        name: 'agent_max_live_instances',
+        label: 'Live instances',
+        control: 'count',
+        unit: 'instances',
+        group: 'Instances',
+        description: 'How many instances the tenant may hold at once.',
+      },
+      {
+        name: 'agent_instance_ttl_seconds',
+        label: 'Instance lifetime',
+        control: 'seconds',
+        group: 'Instances',
+        description:
+          'An instance ends this long after it is made, never after its owner’s session.',
+      },
+      {
+        name: 'agent_instance_idle_seconds',
+        label: 'Instance idle timeout',
+        control: 'seconds',
+        group: 'Instances',
+        description:
+          'An instance ends after this long without a call, never after its owner’s session.',
+      },
+      {
+        name: 'agent_approval_ttl_seconds',
+        label: 'Approval lifetime',
+        control: 'seconds',
+        group: 'Approvals',
+        description: 'A person has this long to approve one action an agent asked to take.',
+      },
+      {
+        name: 'agent_writes_per_grant',
+        label: 'Writes per grant',
+        control: 'count',
+        unit: 'writes',
+        group: 'Writes',
+        description: 'How many writes an agent may make under one grant, creates included.',
+      },
+      {
+        name: 'agent_creates_per_grant',
+        label: 'Creates per grant',
+        control: 'count',
+        unit: 'creates',
+        group: 'Writes',
+        description: 'How many of those writes under one grant may create something.',
+      },
+      {
+        name: 'agent_window_writes',
+        label: 'Writes per day',
+        control: 'count',
+        unit: 'writes',
+        group: 'Writes',
+        description:
+          'How many writes one agent type may make for one person in a 24-hour UTC window, across their sign-ins.',
+      },
+    ],
+  },
+  {
     id: 'retention',
     title: 'Audit retention',
     description: 'How long the audit trail is kept, and which events it records.',

@@ -1,6 +1,17 @@
-import { type DatabaseHandle, type RequestContext, withTenant } from '@odudu/db';
+import {
+  type DatabaseHandle,
+  type RequestContext,
+  withTenant,
+  withTenantRetrying,
+} from '@odudu/db';
+import { agentInstanceRepository } from '@odudu/domain-agents';
 import { effectiveRoles } from '@odudu/domain-authz';
-import { ADMIN_API_AUDIENCE, clientRepository, isSystemTenantId } from '@odudu/domain-tenant';
+import {
+  ADMIN_API_AUDIENCE,
+  clientRepository,
+  isSystemTenantId,
+  readAgentSettings,
+} from '@odudu/domain-tenant';
 import {
   callMcpTool,
   createInProcessCaller,
@@ -12,7 +23,6 @@ import {
   TOOLS,
   ToolProblem,
   visibleTools,
-  WRITE_BUDGET,
   type AdminCaller,
   type McpCallDeps,
   type McpDeps,
@@ -30,6 +40,8 @@ import {
   verifyTenantAccessToken,
 } from '@odudu/protocol-admin';
 import {
+  agentBudgetRepository,
+  AgentTokenRefused,
   MCP_WRITE_SCOPE,
   mintAgentToken,
   tenantLookupRepository,
@@ -69,24 +81,33 @@ export function mcpDepsFor(parts: McpDepsParts): McpDeps {
       if (tenant?.id !== token.tenant.id) {
         throw new ToolProblem('mcp:access_ended', 'The tenant is not available', 401);
       }
-      return withTenant(parts.database.db, tenant.id, (tx) =>
-        mintAgentToken(
-          tx,
-          {
-            tenantId: tenant.id,
-            issuer: token.issuer,
-            kek: parts.kek,
-            claimMappers: parts.claimMappers,
-            lifespans: {
-              ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
-              ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
-              rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
-              rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+      // A refusal is returned out of the transaction so it commits: a run
+      // whose owner ended has its instance revoked in that same transaction.
+      const outcome = await withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
+        try {
+          return await mintAgentToken(
+            tx,
+            {
+              tenantId: tenant.id,
+              issuer: token.issuer,
+              kek: parts.kek,
+              claimMappers: parts.claimMappers,
+              lifespans: {
+                ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+                ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+                rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+                rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+              },
             },
-          },
-          input,
-        ),
-      );
+            input,
+          );
+        } catch (error) {
+          if (error instanceof AgentTokenRefused) return error;
+          throw error;
+        }
+      });
+      if (outcome instanceof AgentTokenRefused) throw outcome;
+      return outcome;
     },
     inject: (options) => parts.app.inject(options),
     now: () => new Date(),
@@ -114,9 +135,10 @@ export function adminCallerFor(deps: McpCallDeps, token: ValidatedMcpToken): Adm
   );
 }
 
-// The write budget of the grant behind a token, spent in the database: one
-// statement per reservation, so calls made at once between them cannot pass
-// the limit, in this process or another.
+// The write budget of the grant behind a token, spent in the database: the
+// limits are the tenant's own settings, and a call counts at the grant and in
+// the owner's daily window in one transaction, so calls made at once between
+// them cannot pass a limit, in this process or another.
 // A reservation waits for the grant's row no longer than the caller waits for it.
 const LOCK_WAIT_MS = '3000';
 
@@ -127,7 +149,29 @@ export function grantWriteBudget(
   database: DatabaseHandle,
   token: Pick<ValidatedMcpToken, 'tenant' | 'grantId'>,
   request?: RequestContext,
+  logger?: Pick<PinoLogger, 'info'>,
+  clock: () => Date = () => new Date(),
 ): WriteBudget {
+  // The time each held reservation was spent at, so a release lands in the
+  // daily window that was charged even when midnight UTC has passed since.
+  const spentAt: Record<'mutating' | 'create', Date[]> = { mutating: [], create: [] };
+  // The owner and the agent client the daily window is kept for are the grant's.
+  // A token whose grant acts as an agent instance, the head of its `act` chain,
+  // spends that instance's share too; any other actor is an ordinary caller.
+  const keysOf = async (tx: Parameters<Parameters<typeof withTenant>[2]>[0]) => {
+    const grant = await tokenGrantRepository(tx).byId(token.grantId);
+    if (grant === null)
+      throw new ToolProblem('mcp:access_ended', 'The sign-in has ended', 401, ENDED);
+    const instance =
+      grant.actorSubjectId === null
+        ? null
+        : await agentInstanceRepository(tx).byId(grant.actorSubjectId);
+    return {
+      ownerSubjectId: grant.subjectId,
+      agentClientId: grant.clientId,
+      instanceId: instance?.id ?? null,
+    };
+  };
   return {
     reserve: (kind) =>
       withTenant(
@@ -135,10 +179,35 @@ export function grantWriteBudget(
         token.tenant.id,
         async (tx) => {
           await tx.execute(sql`select set_config('lock_timeout', ${LOCK_WAIT_MS}, true)`);
-          const grants = tokenGrantRepository(tx);
-          if (await grants.reserveAgentWrite(token.grantId, kind, WRITE_BUDGET)) return true;
-          if (await grants.isLive(token.grantId)) return false;
-          throw new ToolProblem('mcp:access_ended', 'The sign-in has ended', 401, ENDED);
+          const keys = await keysOf(tx);
+          const settings = await readAgentSettings(tx, token.tenant.id);
+          const now = clock();
+          const outcome = await agentBudgetRepository(tx).spend({
+            ...keys,
+            grantId: token.grantId,
+            kind,
+            now,
+            limits: {
+              grant: {
+                mutating: settings.agentWritesPerGrant,
+                creates: settings.agentCreatesPerGrant,
+              },
+              instanceSlice: null,
+              windowWrites: settings.agentWindowWrites,
+            },
+          });
+          if (outcome.kind === 'ok') {
+            spentAt[kind].push(now);
+            return true;
+          }
+          if (
+            outcome.level === 'grant' &&
+            !(await tokenGrantRepository(tx).isLive(token.grantId))
+          ) {
+            throw new ToolProblem('mcp:access_ended', 'The sign-in has ended', 401, ENDED);
+          }
+          logger?.info({ level: outcome.level, kind }, 'mcp write budget refused');
+          return false;
         },
         request,
       ),
@@ -146,7 +215,13 @@ export function grantWriteBudget(
       withTenant(
         database.db,
         token.tenant.id,
-        (tx) => tokenGrantRepository(tx).releaseAgentWrite(token.grantId, kind),
+        async (tx) =>
+          agentBudgetRepository(tx).release({
+            ...(await keysOf(tx)),
+            grantId: token.grantId,
+            kind,
+            now: spentAt[kind].pop() ?? clock(),
+          }),
         request,
       ),
   };
@@ -236,7 +311,7 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
             {
               requestId: request.requestId,
               deadlineMs: TOOL_DEADLINE_MS,
-              budget: grantWriteBudget(parts.database, token, request),
+              budget: grantWriteBudget(parts.database, token, request, parts.logger),
               holdsWrite: token.scope.includes(MCP_WRITE_SCOPE),
               record: (recorded) =>
                 withTenant(

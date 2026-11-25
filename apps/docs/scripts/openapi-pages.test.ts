@@ -5,6 +5,7 @@ import { buildMeOpenApiDocument } from '@odudu/me/docs';
 import { buildAdminOpenApiDocument, type OpenApiDocument } from '@odudu/protocol-admin/docs';
 import {
   areaOf,
+  chunkRows,
   operationSlug,
   operationsOf,
   ME_PROFILE,
@@ -29,6 +30,16 @@ function sectionText(area: string, method: string, path: string): string {
     return page.slice(start, next === -1 ? undefined : next);
   }
   return '';
+}
+
+// The section and the pages of its own that a body too long to list inline is
+// moved to, which hold the rows the section links to.
+function sectionWithParts(area: string, method: string, path: string): string {
+  const slug = operationSlug(method.toLowerCase(), path);
+  const parts = [...pages.keys()]
+    .filter((key) => key.startsWith(`admin-api/${area}/${slug}-`) && key.includes('-part-'))
+    .sort();
+  return [sectionText(area, method, path), ...parts.map((key) => pages.get(key) ?? '')].join('\n');
 }
 
 function allText(): string {
@@ -204,8 +215,19 @@ describe('the admin API reference pages', () => {
     expect(section).toContain('| `client_id` | string | yes |');
     expect(section).toContain('\n### Responses\n');
     expect(section).toContain('\n#### 201 Created\n');
-    expect(section).toContain('| `token_endpoint_auth_method` |');
+    expect(sectionWithParts('clients', 'POST', '/admin/tenants/{tenant}/clients')).toContain(
+      '| `token_endpoint_auth_method` |',
+    );
     expect(section).toContain('\n#### 401');
+  });
+
+  // The site appends " | Odudu" to a page's title, and a search result shows 70.
+  it('titles every page so that its title and the site name fit 70 characters', () => {
+    const long = [...pages.entries()]
+      .map(([name, page]) => [name, /^title: (?<title>".*")$/mu.exec(page)?.groups?.title] as const)
+      .filter(([, title]) => title !== undefined && (JSON.parse(title) as string).length > 62)
+      .map(([name]) => name);
+    expect(long).toEqual([]);
   });
 
   it('names every route ADMIN_ROUTES lists', () => {
@@ -423,7 +445,7 @@ describe('the me API reference', () => {
   it('has an index and one folder per resource the document serves', () => {
     expect([...mePages.keys()].every((name) => name.startsWith('me-api/'))).toBe(true);
     const index = mePages.get('me-api/index.md') ?? '';
-    for (const area of ['profile', 'credentials', 'sessions', 'consents']) {
+    for (const area of ['profile', 'credentials', 'sessions', 'consents', 'delegations']) {
       expect(index, area).toContain(`](./${area}/index.md)`);
       expect(mePages.has(`me-api/${area}/index.md`), area).toBe(true);
     }
@@ -442,6 +464,17 @@ describe('the me API reference', () => {
     expect(text).toContain('/me/openapi.json');
     expect(text).not.toContain('openapi/admin.json');
     expect(text).not.toMatch(/admin API|Admin API/u);
+  });
+
+  it('lists the error body once, on the index, and points each error status at it', () => {
+    const index = mePages.get('me-api/index.md') ?? '';
+    expect(index).toContain('## Error body');
+    const operations = [...mePages].filter(([name]) => name !== 'me-api/index.md');
+    const rest = operations.map(([, page]) => page).join('\n');
+    expect(rest).not.toContain('| `error_description` |');
+    expect(rest).toContain(
+      'Body: `application/json`, the error body described under [error body](../index.md#error-body).',
+    );
   });
 
   it('is deterministic', () => {
@@ -487,5 +520,49 @@ describe('the me API reference', () => {
 
   it('places a path in an area by the profile it is read under', () => {
     expect(areaOf('/tenants/{tenant}/me/sessions/{id}', ME_PROFILE)).toBe('sessions');
+  });
+});
+
+type BodyRow = Parameters<typeof chunkRows>[0][number];
+
+// `count` rows under one top-level field, so the group is never split.
+function field(name: string, count: number): BodyRow[] {
+  return Array.from({ length: count }, (_, index) => ({
+    path: index === 0 ? name : `${name}.child${String(index)}`,
+    type: 'string',
+    required: true,
+    details: '',
+    described: true,
+    patterns: [],
+  }));
+}
+
+describe('the pages a long body is split into', () => {
+  const sizes = (rows: readonly BodyRow[]): number[] =>
+    chunkRows(rows).map((chunk) => chunk.length);
+
+  it('gives an empty body no page and a short one a single page', () => {
+    expect(sizes([])).toEqual([]);
+    expect(sizes(field('a', 10))).toEqual([10]);
+  });
+
+  it('folds a last page of up to three rows into the page before it', () => {
+    expect(sizes([...field('a', 55), ...field('b', 1)])).toEqual([56]);
+    expect(sizes([...field('a', 55), ...field('b', 3)])).toEqual([58]);
+  });
+
+  it('leaves a last page of four rows on its own', () => {
+    expect(sizes([...field('a', 55), ...field('b', 4)])).toEqual([55, 4]);
+  });
+
+  it('does not fold past 58 rows', () => {
+    expect(sizes([...field('a', 56), ...field('b', 3)])).toEqual([56, 3]);
+  });
+
+  it('keeps a field and what is inside it on one page', () => {
+    const chunks = chunkRows([...field('a', 30), ...field('b', 30)]);
+    expect(chunks.map((chunk) => new Set(chunk.map((row) => row.path.split('.')[0])).size)).toEqual(
+      [1, 1],
+    );
   });
 });

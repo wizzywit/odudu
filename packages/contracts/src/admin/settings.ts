@@ -22,7 +22,7 @@ export interface TenantSettingRange {
 }
 
 // The ranges the CHECK constraints on `tenants` hold each integer setting
-// to (migrations 0028, 0035, 0041, 0045, 0048, 0049, 0068, 0082, 0126, 0131 and 0132), here so
+// to (migrations 0028, 0035, 0041, 0045, 0048, 0049, 0068, 0082, 0126, 0131, 0132 and 0142), here so
 // the console words the same limits the server enforces;
 // tests/tenant-setting-checks.int.test.ts in @odudu/domain-tenant holds the
 // two in agreement.
@@ -52,6 +52,15 @@ export const TENANT_SETTING_RANGES: Readonly<Partial<Record<string, TenantSettin
   session_freshness_seconds: { min: 30, max: 3600 },
   recovery_code_warn_below: { min: 0, max: 10 },
   recovery_code_count: RECOVERY_CODE_COUNT_RANGE,
+  agent_max_delegation_depth: { min: 1, max: 8 },
+  agent_max_children: { min: 1, max: 200 },
+  agent_max_live_instances: { min: 1, max: 100_000 },
+  agent_instance_ttl_seconds: { min: 60, max: 86_400 },
+  agent_instance_idle_seconds: { min: 60, max: 86_400 },
+  agent_approval_ttl_seconds: { min: 60, max: 900 },
+  agent_writes_per_grant: { min: 1, max: 1000 },
+  agent_creates_per_grant: { min: 1, max: 1000 },
+  agent_window_writes: { min: 1, max: 100_000 },
 };
 
 // The values a setting may take where the CHECK is a list rather than a range:

@@ -40,3 +40,16 @@ export {
   type MeSessionEnded,
   type MeSessionsEnded,
 } from '#/me/writes';
+export {
+  MAX_CLIENT_ID_LENGTH,
+  MAX_DELEGATION_EXPIRES_IN,
+  MAX_DELEGATION_SCOPE_LENGTH,
+  MAX_DELEGATIONS,
+  MIN_DELEGATION_EXPIRES_IN,
+  meCreateDelegationRequestSchema,
+  meDelegationSchema,
+  meDelegationsResponseSchema,
+  type MeCreateDelegationRequest,
+  type MeDelegation,
+  type MeDelegationsResponse,
+} from '#/me/delegations';

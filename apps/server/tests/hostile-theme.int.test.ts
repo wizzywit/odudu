@@ -26,7 +26,7 @@ import {
   startTestDatabase,
   type TestDatabase,
 } from '@odudu/testkit';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { parse } from 'parse5';
 import { pino } from 'pino';
@@ -453,6 +453,21 @@ const FLOWS: Partial<Record<PageKind, Flow>> = {
     expect((await signInAs(w, user, browser)).statusCode).toBe(302);
     const confirm = themed(await browser.get(`/tenants/${w.name}/protocol/openid-connect/logout`));
     return browser.submit(confirm);
+  },
+
+  approval: async (w, { themed }) => {
+    const user = await addUser(w);
+    const browser = new Browser();
+    expect((await signInAs(w, user, browser)).statusCode).toBe(302);
+    const approvalId = newId();
+    await owner.db.execute(sql`
+      insert into agent_approvals
+        (id, tenant_id, subject_id, requesting_client_id, instance_id, kind, summary, action_digest, expires_at)
+      select ${approvalId}, c.tenant_id, ${user.subjectId}, c.id, null, 'ciba',
+             'Portal asks to sign in as you', ${'a'.repeat(64)}, now() + interval '10 minutes'
+        from clients c where c.tenant_id = ${w.tenantId} and c.client_id = 'portal'`);
+    const page = themed(await browser.get(`/tenants/${w.name}/approval/${approvalId}`));
+    return browser.submit(page, {}, { name: 'decision', value: 'approve' });
   },
 
   'totp-enrolment': async (w, { themed }) => {

@@ -25,7 +25,9 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { ensureServiceAccount, retireServiceAccount } from '#/usecase/service-account';
+import { withHeldLock } from '#/testing/agent-fixture';
 import { noBreachedLookup } from '#/testing/breached-check';
+import { tokenGrantRepository } from '#/repository/grants';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -414,6 +416,86 @@ describe('a token request racing the retirement of the account', () => {
     const res = await request;
     expect(res.statusCode).toBe(400);
     expect(res.json<{ error: string }>().error).toBe('unauthorized_client');
+  });
+});
+
+describe('retiring a service account while its lineage is revoked and exchanged from', () => {
+  // The retirement holds the client row and then revokes by actor, which takes
+  // the lineage root a revoker holds; an exchange inserting a grant holds a grant
+  // and wants a key share on the same client, which the client lock conflicts
+  // with; the revoker wants that grant. Taking the roots first breaks the ring.
+  it('finishes all three without a deadlock', async () => {
+    const w = await world();
+    const created = await client(w, 'ringed', ['client_credentials']);
+    const account = await withTenant(app.db, w.id, (tx) => ensureServiceAccount(tx, created));
+    const subject = account.serviceSubjectId ?? '';
+    const [root, exchanged, child] = [newId(), newId(), newId()];
+    await withTenant(app.db, w.id, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      const base = {
+        tenantId: w.id,
+        clientId: account.id,
+        subjectId: subject,
+        scope: 'reports:read',
+        audience: ['https://api.example'],
+      };
+      await grants.create({ ...base, id: root });
+      await grants.create({
+        ...base,
+        id: exchanged,
+        exchangedFromGrantId: root,
+        actorSubjectId: subject,
+      });
+    });
+    const settle = (run: () => Promise<unknown>) =>
+      run().then(
+        () => null,
+        (error: unknown) => error,
+      );
+    const outcomes = await withHeldLock(
+      app.db,
+      w.id,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${root} for no key update`);
+        },
+        afterRelease: async (tx) => {
+          await tx.execute(
+            sql`select id from token_grants where id = ${exchanged} for no key update`,
+          );
+        },
+      },
+      async (held) => {
+        const retiring = held.started(
+          settle(() => withTenant(app.db, w.id, (tx) => retireServiceAccount(tx, account))),
+        );
+        await held.waitForWaiters(owner);
+        let exchangeSettled = false;
+        const exchanging = held.started(
+          settle(() =>
+            withTenant(app.db, w.id, async (tx) => {
+              await tokenGrantRepository(tx).lockLive(exchanged);
+              await tokenGrantRepository(tx).create({
+                id: child,
+                tenantId: w.id,
+                clientId: account.id,
+                subjectId: subject,
+                scope: 'reports:read',
+                audience: ['https://api.example'],
+                exchangedFromGrantId: exchanged,
+              });
+            }),
+          ).then((error) => {
+            exchangeSettled = true;
+            return error;
+          }),
+        );
+        await held.waitForWaiters(owner, 2, () => exchangeSettled);
+        held.release();
+        return Promise.all([retiring, exchanging, held.done]);
+      },
+    );
+    expect(outcomes.slice(0, 2)).toEqual([null, null]);
   });
 });
 

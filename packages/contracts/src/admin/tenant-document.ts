@@ -18,6 +18,7 @@ import {
   fieldErrorSchema,
   listLimitMessage,
   localisedTextSchema,
+  MAX_DELEGATED_ACTORS,
   type FieldError,
 } from '#/admin/shared';
 import {
@@ -136,6 +137,17 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   // Absent from a document exported before the setting existed, which
   // imports with it off.
   cimd_enabled: z.boolean().default(false),
+  // Absent from a document exported before agents existed, which imports with
+  // the defaults. Ranges are judged on import, as for every setting here.
+  agent_max_delegation_depth: count.default(3),
+  agent_max_children: count.default(20),
+  agent_max_live_instances: count.default(1000),
+  agent_instance_ttl_seconds: count.default(900),
+  agent_instance_idle_seconds: count.default(1800),
+  agent_approval_ttl_seconds: count.default(600),
+  agent_writes_per_grant: count.default(20),
+  agent_creates_per_grant: count.default(10),
+  agent_window_writes: count.default(1000),
   audit_event_types: z.array(z.string()),
   // Absent from a document exported before tenants had languages, which
   // imports as English only with no default.
@@ -229,6 +241,14 @@ export const exportedClientSchema = z.strictObject({
   // imports with both off.
   token_exchange_allowed_for_public: z.boolean().default(false),
   token_exchange_actor_from_other_client: z.boolean().default(false),
+  // Absent from a document exported before agents existed, which imports as
+  // no agent and no delegated actor.
+  agent_type: z.boolean().default(false),
+  delegated_actors: z
+    .array(z.string())
+    .max(MAX_DELEGATED_ACTORS)
+    .refine((ids) => new Set(ids).size === ids.length, 'names a client twice')
+    .default([]),
   userinfo_signed_response_alg: z.string().nullable(),
   userinfo_encrypted_response_alg: z.string().nullable(),
   userinfo_encrypted_response_enc: z.string().nullable(),

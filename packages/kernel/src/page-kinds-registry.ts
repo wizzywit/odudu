@@ -45,6 +45,10 @@ export const CLIENT_RULES: Record<string, ClientRule> = {
     source: 'verified-hint',
     why: 'a logout names its client in a query parameter anyone can set, so only a client the id_token_hint verified for (carried to the confirmation by the form token) is worn; otherwise the tenant theme',
   },
+  'packages/protocol-oidc/src/view/approval-html.ts': {
+    source: 'tenant',
+    why: 'the page is reached from a mailed link that carries only an approval id, so no client travels with it',
+  },
   'packages/authn-flows/src/view/totp-enrolment-html.ts': {
     source: 'pending-request',
     why: 'a required action interrupts a parked sign-in',

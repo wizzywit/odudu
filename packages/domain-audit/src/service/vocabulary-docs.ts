@@ -16,6 +16,9 @@ export const AUDIT_EVENT_TYPE_DOCS: Record<AuditEventType, string> = {
   admin_access:
     'A refusal at the admin API door: an authenticated caller without the capability, or a ' +
     'genuine token from another tenant.',
+  agent_identity:
+    'The life of an agent instance: minted under an agent client for its owner, then revoked. Always stored, ' +
+    'whatever the tenant\u2019s `audit_event_types` says.',
   authentication:
     'An answer to a sign-in step or to client authentication: a password, one-time code, ' +
     'recovery code or passkey, a second factor offered, a lockout tripped.',
@@ -37,6 +40,44 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'The MCP endpoint writes it for a call it serves; for a call made straight to the admin API ' +
     'with a token the endpoint did not sign (`odudu mcp`, or an exchanged token), the admin API writes it before the call runs, ' +
     'and the tool is the route (`admin.get.clients`).',
+  'agent.instance_minted':
+    'An agent instance was minted for its owner under an agent client. `detail` names the ' +
+    'instance, the owner, the agent client and the instance\u2019s depth in its lineage.',
+  'agent.instance_revoked':
+    'An agent instance was revoked, with everything minted beneath it. `detail` names the ' +
+    'instance, the owner, the agent client and its depth, `count` is how many instances ' +
+    'the revocation ended, and `via` is `cascade` when the grant it was rooted at was revoked, ' +
+    '`owner_ended` when its run was refused because the owner\u2019s session or account had ended, ' +
+    'or `admin`. The row\u2019s actor is the instance\u2019s owner and agent client, not the party that ' +
+    'triggered the revocation.',
+  'agent.delegation_created':
+    'A person let an agent client act for them through a client they sign in with, within a ' +
+    'scope ceiling. `detail` names the delegation, the person and the agent client; the ceiling ' +
+    'is on the delegation, not in this row. The row\u2019s actor is the person, acting through ' +
+    'the client the token was issued to.',
+  'agent.delegation_revoked':
+    'A person withdrew a delegation they had made. `detail` names it, the person and the agent ' +
+    'client. Agent instances already minted under it are not ended by this, since each one was ' +
+    'admitted when it was minted; no new one is admitted from it.',
+  'agent.approval_requested':
+    'An agent asked its owner to approve an action. `detail` names the approval, the owner, the ' +
+    'agent client and, when one asked, the instance; the action itself is not recorded.',
+  'agent.approval_decided':
+    'The owner approved or denied a pending approval. `detail.state` says which and `detail.via` ' +
+    'the channel, the consent page of a backchannel request or the console.',
+  'ciba.requested':
+    'An agent client asked, by a backchannel (CIBA) request, for a person to approve. `detail` ' +
+    'names the agent client and, when the hint named someone and an approval was made, the ' +
+    'person and the approval; a request for nobody records neither, and the hint itself is ' +
+    'never recorded. A request refused because the client already holds the most live requests ' +
+    'for that hint has the reason `rate_limited`. One acknowledged for a person who already ' +
+    'held the most pending approvals allowed has the reason `approval_limit`, and no approval.',
+  'ciba.poll_refused':
+    'A poll of the token endpoint for a backchannel (CIBA) request was answered with an error ' +
+    'other than still waiting: too soon, expired or denied. `detail.reason` says which.',
+  'ciba.token_issued':
+    'Tokens were issued for an approved backchannel (CIBA) request. `detail` names the person ' +
+    'who approved, the agent client and the approval, which is spent by it.',
   'token.foreign_issuer':
     'A genuine token issued by another tenant was presented to the admin API.',
   'login.password': 'A password was checked at sign-in.',
@@ -121,6 +162,11 @@ export const AUDIT_REASON_DOCS: Record<AuditReason, string> = {
     'An agent write ran past its deadline, so whether it changed anything is not known.',
   write_budget:
     'An agent had made as many changes as one sign-in allows, so the call was not made.',
+  approval_limit:
+    'The person already holds the most pending approvals allowed, so the request got none.',
+  polled_early: 'A backchannel (CIBA) poll came before the interval had passed.',
+  expired: 'The backchannel (CIBA) request expired before it was decided.',
+  denied: 'The person refused the backchannel (CIBA) request.',
 };
 
 export const AUDIT_OUTCOME_DOCS: Record<AuditOutcome, string> = {
@@ -130,6 +176,8 @@ export const AUDIT_OUTCOME_DOCS: Record<AuditOutcome, string> = {
 };
 
 export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
+  'agent.instance_revoke':
+    'An administrator revoked an agent instance, with everything beneath it and the grants it acted in, or was refused because the instance’s owner holds an admin capability the administrator does not. `detail` carries the numbers; the lineage row `agent.instance_revoked` names the instance.',
   'audit.export': 'The audit trail was exported.',
   'client.amend': 'A client was amended.',
   'client.create': 'A client was created.',

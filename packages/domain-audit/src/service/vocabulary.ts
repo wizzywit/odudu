@@ -6,6 +6,17 @@ import { type AdminMutationAction } from '#/service/admin-mutation-actions';
 // audit-detail.ts.
 export const AUDIT_ACTIONS = {
   admin_access: ['capability.refused', 'token.foreign_issuer', 'agent.tool_call'],
+  agent_identity: [
+    'agent.instance_minted',
+    'agent.instance_revoked',
+    'agent.delegation_created',
+    'agent.delegation_revoked',
+    'agent.approval_requested',
+    'agent.approval_decided',
+    'ciba.requested',
+    'ciba.poll_refused',
+    'ciba.token_issued',
+  ],
   authentication: [
     'login.password',
     'login.otp',
@@ -54,6 +65,7 @@ type VocabularyAction = AuditAction<VocabularyEventType>;
 export const AUDIT_EVENT_TYPES: readonly AuditEventType[] = [
   'admin_mutation',
   'admin_access',
+  'agent_identity',
   'authentication',
   'session',
   'token',
@@ -80,6 +92,10 @@ export const AUDIT_REASONS = [
   'already_registered',
   'timeout_outcome_unknown',
   'write_budget',
+  'approval_limit',
+  'polled_early',
+  'expired',
+  'denied',
 ] as const;
 
 export type AuditReason = (typeof AUDIT_REASONS)[number];
@@ -131,6 +147,77 @@ type AdminAccessInput =
         owner: string;
         tool: string;
         route: string;
+      }>;
+    });
+
+type AgentIdentityInput =
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.instance_minted';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        instance: string;
+        depth: number;
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.instance_revoked';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        instance: string;
+        depth: number;
+        count: number;
+        via: 'cascade' | 'owner_ended' | 'admin';
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.delegation_created' | 'agent.delegation_revoked';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        delegation: string;
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.approval_requested';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        approval: string;
+        instance?: string;
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.approval_decided';
+      readonly detail: WithReason<{
+        owner: string;
+        approval: string;
+        state: 'approved' | 'denied';
+        via: 'ciba_page' | 'console';
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'ciba.requested' | 'ciba.poll_refused';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner?: string;
+        approval?: string;
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'ciba.token_issued';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        approval: string;
       }>;
     });
 
@@ -288,7 +375,12 @@ type CredentialInput =
     });
 
 export type VocabularyEventInput =
-  AdminAccessInput | AuthenticationInput | SessionInput | TokenInput | CredentialInput;
+  | AdminAccessInput
+  | AgentIdentityInput
+  | AuthenticationInput
+  | SessionInput
+  | TokenInput
+  | CredentialInput;
 
 export type AuditEventInput = AdminMutationInput | VocabularyEventInput;
 
@@ -302,6 +394,15 @@ export type AuditEventInput = AdminMutationInput | VocabularyEventInput;
 const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> = {
   'capability.refused': ['capability', 'also_admits'],
   'agent.tool_call': ['agent_client', 'owner', 'tool', 'route'],
+  'agent.instance_minted': ['agent_client', 'owner', 'instance', 'depth'],
+  'agent.instance_revoked': ['agent_client', 'owner', 'instance', 'depth', 'count', 'via'],
+  'agent.delegation_created': ['agent_client', 'owner', 'delegation'],
+  'agent.delegation_revoked': ['agent_client', 'owner', 'delegation'],
+  'agent.approval_requested': ['agent_client', 'owner', 'approval', 'instance'],
+  'agent.approval_decided': ['owner', 'approval', 'state', 'via'],
+  'ciba.requested': ['agent_client', 'owner', 'approval'],
+  'ciba.poll_refused': ['agent_client', 'owner', 'approval'],
+  'ciba.token_issued': ['agent_client', 'owner', 'approval'],
   'login.password': ['factor'],
   'login.otp': ['factor'],
   'login.recovery_code': ['factor'],
@@ -349,19 +450,42 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
   'tool',
   'route',
   'version',
+  'instance',
+  'approval',
+  'delegation',
 ]);
+
+const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+const SESSION_ENDED_VIA = ['logout', 'admin', 'self', 'evicted'];
+const AGENT_VIA = ['owner', 'owner_ended', 'admin', 'cascade', 'reaper'];
+const APPROVAL_VIA = ['ciba_page', 'console'];
+const AGENT_APPROVAL_STATES = ['approved', 'denied'];
 
 const TOOL_NAME = /^[a-z0-9_.-]{1,64}$/u;
 // A route is a table key, `METHOD /path/:param`, never a concrete address;
 // the admin router's own check that it is one lives with its table.
 const ROUTE_KEY = /^[A-Z]{3,7} \/[A-Za-z0-9/:_.-]{0,160}$/u;
 
-function isValidDetailValue(key: string, value: unknown): boolean {
+function isValidDetailValue(action: string, key: string, value: unknown): boolean {
   if (key === 'tool') return typeof value === 'string' && TOOL_NAME.test(value);
   if (key === 'route') return typeof value === 'string' && ROUTE_KEY.test(value);
   if (key === 'mode') return value === 'delegation' || value === 'impersonation';
-  if (key === 'via')
-    return value === 'logout' || value === 'admin' || value === 'self' || value === 'evicted';
+  // A value set per action, so the agent lineage's `via` cannot be spent on a session.
+  if (key === 'via') {
+    return (
+      typeof value === 'string' &&
+      (action === 'session.ended'
+        ? SESSION_ENDED_VIA
+        : action === 'agent.approval_decided'
+          ? APPROVAL_VIA
+          : AGENT_VIA
+      ).includes(value)
+    );
+  }
+  if (key === 'instance' || key === 'approval' || key === 'delegation')
+    return typeof value === 'string' && ID.test(value);
+  if (key === 'depth' || key === 'count') return Number.isInteger(value) && Number(value) >= 0;
+  if (key === 'state') return typeof value === 'string' && AGENT_APPROVAL_STATES.includes(value);
   if (key === 'notice') {
     return value === 'sent' || value === 'skipped_unverified' || value === 'skipped_none';
   }
@@ -391,7 +515,7 @@ export function assertDetailAllowed(action: string, detail: Record<string, unkno
     if (!allowedKeys.has(key)) {
       throw new Error(`audit event '${action}' does not allow detail key '${key}'`);
     }
-    if (key !== 'reason' && !isValidDetailValue(key, detail[key])) {
+    if (key !== 'reason' && !isValidDetailValue(action, key, detail[key])) {
       throw new Error(`audit event '${action}' has an invalid value for detail key '${key}'`);
     }
   }

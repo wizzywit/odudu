@@ -9,6 +9,7 @@ export const CLIENT_GRANT_TYPES = [
   'refresh_token',
   'client_credentials',
   'urn:ietf:params:oauth:grant-type:token-exchange',
+  'urn:openid:params:grant-type:ciba',
 ] as const;
 
 export const CLIENT_AUTH_METHODS = TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED;

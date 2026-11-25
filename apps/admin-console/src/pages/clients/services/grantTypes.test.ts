@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { grantOptions, grantsBlock } from '#/pages/clients/services/grantTypes';
 
 describe('grantOptions', () => {
-  it('offers the four grants the server takes, in its order', () => {
+  it('offers the five grants the server takes, in its order', () => {
     const options = grantOptions({ type: 'confidential', grant_types: ['authorization_code'] });
     expect(options.map((each) => each.id)).toEqual([
       'authorization_code',
       'refresh_token',
       'client_credentials',
       'urn:ietf:params:oauth:grant-type:token-exchange',
+      'urn:openid:params:grant-type:ciba',
     ]);
     expect(options.every((each) => each.unavailable === null)).toBe(true);
   });
@@ -20,6 +21,17 @@ describe('grantOptions', () => {
     );
     const held = grantOptions({ type: 'public', grant_types: ['client_credentials'] });
     expect(held.find((each) => each.id === 'client_credentials')?.unavailable).toBeNull();
+  });
+});
+
+describe('the CIBA grant', () => {
+  const ciba = 'urn:openid:params:grant-type:ciba';
+
+  it('[ODUDU-CIBA-CONF-07] is not offered to a public client that does not hold it', () => {
+    const options = grantOptions({ type: 'public', grant_types: ['authorization_code'] });
+    expect(options.find((each) => each.id === ciba)?.unavailable).toMatch(/no secret/u);
+    const confidential = grantOptions({ type: 'confidential', grant_types: [] });
+    expect(confidential.find((each) => each.id === ciba)?.unavailable).toBeNull();
   });
 });
 

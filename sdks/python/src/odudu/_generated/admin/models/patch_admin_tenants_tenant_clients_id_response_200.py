@@ -107,6 +107,11 @@ class PatchAdminTenantsTenantClientsIdResponse200:
             a public client holds no secret, so reaching the grant proves nothing about who asked.
         token_exchange_actor_from_other_client (bool): Whether an actor token issued to another client is accepted in a
             delegated exchange. Off by default: an actor token must belong to the client presenting it.
+        agent_type (bool): Whether the client is an agent: an application that acts for a person under a grant they gave
+            it.
+        delegated_actors (list[str]): The `client_id` of each client allowed to act for the subjects who use this
+            client, at most 20, each an existing client of the tenant other than the built-in admin client, a metadata-
+            document client and this client itself. A grant made through this client lists them in its `may_act` claim.
         userinfo_signed_response_alg (None | str): The algorithm that signs this client’s UserInfo responses. Null
             returns plain JSON.
         userinfo_encrypted_response_alg (None | str): The key-management algorithm that encrypts this client’s UserInfo
@@ -179,6 +184,8 @@ class PatchAdminTenantsTenantClientsIdResponse200:
     token_exchange_impersonation_allowed: bool
     token_exchange_allowed_for_public: bool
     token_exchange_actor_from_other_client: bool
+    agent_type: bool
+    delegated_actors: list[str]
     userinfo_signed_response_alg: None | str
     userinfo_encrypted_response_alg: None | str
     userinfo_encrypted_response_enc: None | str
@@ -274,6 +281,10 @@ class PatchAdminTenantsTenantClientsIdResponse200:
         token_exchange_actor_from_other_client = (
             self.token_exchange_actor_from_other_client
         )
+
+        agent_type = self.agent_type
+
+        delegated_actors = self.delegated_actors
 
         userinfo_signed_response_alg: None | str
         userinfo_signed_response_alg = self.userinfo_signed_response_alg
@@ -373,6 +384,8 @@ class PatchAdminTenantsTenantClientsIdResponse200:
                 "token_exchange_impersonation_allowed": token_exchange_impersonation_allowed,
                 "token_exchange_allowed_for_public": token_exchange_allowed_for_public,
                 "token_exchange_actor_from_other_client": token_exchange_actor_from_other_client,
+                "agent_type": agent_type,
+                "delegated_actors": delegated_actors,
                 "userinfo_signed_response_alg": userinfo_signed_response_alg,
                 "userinfo_encrypted_response_alg": userinfo_encrypted_response_alg,
                 "userinfo_encrypted_response_enc": userinfo_encrypted_response_enc,
@@ -540,6 +553,10 @@ class PatchAdminTenantsTenantClientsIdResponse200:
         token_exchange_actor_from_other_client = d.pop(
             "token_exchange_actor_from_other_client"
         )
+
+        agent_type = d.pop("agent_type")
+
+        delegated_actors = cast(list[str], d.pop("delegated_actors"))
 
         def _parse_userinfo_signed_response_alg(data: object) -> None | str:
             if data is None:
@@ -715,6 +732,8 @@ class PatchAdminTenantsTenantClientsIdResponse200:
             token_exchange_impersonation_allowed=token_exchange_impersonation_allowed,
             token_exchange_allowed_for_public=token_exchange_allowed_for_public,
             token_exchange_actor_from_other_client=token_exchange_actor_from_other_client,
+            agent_type=agent_type,
+            delegated_actors=delegated_actors,
             userinfo_signed_response_alg=userinfo_signed_response_alg,
             userinfo_encrypted_response_alg=userinfo_encrypted_response_alg,
             userinfo_encrypted_response_enc=userinfo_encrypted_response_enc,

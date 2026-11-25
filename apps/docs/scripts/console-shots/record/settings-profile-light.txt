@@ -19,6 +19,7 @@ Security
 Sign-in flow
 Signing keys
 Sessions
+Agents
 Tenant
 Settings
 Branding
@@ -67,6 +68,7 @@ Remember me
 Token lifetimes
 Applications
 Client registration
+Agents
 Records
 Audit retention
 General
@@ -361,6 +363,47 @@ A client may use an HTTPS address as its client_id, and the document served ther
 Most clients
 clients
 The most clients an administrator or a registration token can make. Clients that register themselves have limits of their own. Allowed: at least 0 clients.
+Agents
+The limits on agent instances and on what an agent may write under a person’s grant.
+Instances
+Delegation depth
+levels
+How many instances deep one delegation may go. Allowed: 1 to 8 levels.
+Children per instance
+instances
+How many live child instances one instance may have. Allowed: 1 to 200 instances.
+Live instances
+instances
+How many instances the tenant may hold at once. Allowed: 1 to 100000 instances.
+Instance lifetime
+s
+min
+h
+d
+An instance ends this long after it is made, never after its owner’s session. Allowed: 1 minute to 1 day.
+Instance idle timeout
+s
+min
+h
+d
+An instance ends after this long without a call, never after its owner’s session. Allowed: 1 minute to 1 day.
+Approvals
+Approval lifetime
+s
+min
+h
+d
+A person has this long to approve one action an agent asked to take. Allowed: 1 minute to 15 minutes.
+Writes
+Writes per grant
+writes
+How many writes an agent may make under one grant, creates included. Allowed: 1 to 1000 writes.
+Creates per grant
+creates
+How many of those writes under one grant may create something. Allowed: 1 to 1000 creates.
+Writes per day
+writes
+How many writes one agent type may make for one person in a 24-hour UTC window, across their sign-ins. Allowed: 1 to 100000 writes.
 Audit retention
 How long the audit trail is kept, and which events it records.
 Keep events for

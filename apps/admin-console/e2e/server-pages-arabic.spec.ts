@@ -6,7 +6,7 @@ import { expect, forgive, test } from './fixtures';
 import { authorize, client, LANDING, LONG_NAME, mailKey, ROOT, totp } from './page-flows';
 import { BASE, COMMON_PASSWORD, forgiveRefusals, inspect } from './page-inspection';
 import { randomPassword } from './password';
-import { inTenant, psql, seed } from './stack';
+import { inTenant, psql, seed, seedApproval } from './stack';
 import type { Page } from '@playwright/test';
 
 // Every kind of page the server renders, in Arabic, reached the way a person
@@ -199,6 +199,10 @@ test('consent, the account chooser and signing out', async ({ page, problems }) 
   await page.goto(authorize(main, 'plain', { prompt: 'select_account' }));
   await expect(page.locator('h1')).toBeVisible();
   await look(page, 'select-account');
+
+  await page.goto(`/tenants/${main}/approval/${seedApproval(main, 'alice', 'plain')}`);
+  await expect(page.locator('h1')).toBeVisible();
+  await look(page, 'approval');
 
   await page.goto(`/tenants/${main}/protocol/openid-connect/logout?client_id=plain`);
   await look(page, 'logout-confirm');

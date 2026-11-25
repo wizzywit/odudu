@@ -1,0 +1,24 @@
+.owner {
+  display: inline-grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.name {
+  overflow-wrap: anywhere;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  color: var(--ink-primary);
+  font-weight: 500;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
+.link[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

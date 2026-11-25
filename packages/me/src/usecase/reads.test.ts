@@ -68,6 +68,10 @@ function reads(seen: Seen, over: Partial<MeReads> = {}): MeReads {
       note(t, s, page);
       return Promise.resolve([]);
     },
+    delegations: (t, s) => {
+      note(t, s);
+      return Promise.resolve([]);
+    },
     ...over,
   };
 }

@@ -1,8 +1,11 @@
 import {
   meAmendProfileRequestSchema,
   meConsentsResponseSchema,
+  meCreateDelegationRequestSchema,
   meCredentialSchema,
   meCredentialsResponseSchema,
+  meDelegationSchema,
+  meDelegationsResponseSchema,
   meEmailVerificationSentSchema,
   meListQuerySchema,
   meNoQuerySchema,
@@ -19,6 +22,7 @@ import { z } from 'zod';
 import {
   agentNotPermitted,
   conflict,
+  delegationLimit,
   invalidBody,
   invalidRequest,
   mailUnavailable,
@@ -30,6 +34,8 @@ import {
   consentsDto,
   credentialDto,
   credentialsDto,
+  delegationDto,
+  delegationsDto,
   profileDto,
   sessionEndedDto,
   sessionsDto,
@@ -44,6 +50,7 @@ import {
 } from '#/usecase/admit-me';
 import { invalidToken } from '#/service/challenge';
 import { meAnswerHeaders, mePreflightHeaders } from '#/service/cors';
+import { createDelegation, listDelegations, revokeDelegation } from '#/usecase/delegations';
 import { emailRequestOf, type EmailRoute } from '#/service/email-change';
 import {
   acrForRemoval,
@@ -87,9 +94,10 @@ type MeRequest = FastifyRequest<{ Params: { tenant: string } }>;
 const BASE = '/tenants/:tenant/me';
 
 const NO_AUTHENTICATOR = 'No such authenticator';
+const NO_DELEGATION = 'No such delegation';
 
 export interface MeRoute {
-  readonly method: 'GET' | 'PATCH' | 'DELETE';
+  readonly method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   readonly url: string;
   readonly summary: string;
   readonly scope: 'me:read' | 'me:write';
@@ -103,7 +111,9 @@ export interface MeRoute {
 }
 
 const idParams = z.object({
-  id: z.uuid().describe('The identifier of the session or credential, as listed in its `id`.'),
+  id: z
+    .uuid()
+    .describe('The identifier of the session, credential or delegation, as listed in its `id`.'),
 });
 
 // What any route may answer before it reads its own input: a tenant that is
@@ -213,18 +223,48 @@ const CREDENTIAL_DELETE = {
   responses: { 204: 'empty', ...REFUSED, 409: 'error' },
 } as const satisfies MeRoute;
 
+const DELEGATIONS_GET = {
+  method: 'GET',
+  url: `${BASE}/delegations`,
+  summary: 'The person’s own live delegations to agent clients.',
+  scope: 'me:read',
+  query: meNoQuerySchema,
+  responses: { 200: meDelegationsResponseSchema, 400: 'error', ...REFUSED },
+} as const satisfies MeRoute;
+
+const DELEGATIONS_POST = {
+  method: 'POST',
+  url: `${BASE}/delegations`,
+  summary: 'Lets an agent client act for the person, within a scope ceiling and for a time.',
+  scope: 'me:write',
+  body: meCreateDelegationRequestSchema,
+  responses: { 201: meDelegationSchema, 400: 'error', ...REFUSED, 409: 'error' },
+} as const satisfies MeRoute;
+
+const DELEGATION_DELETE = {
+  method: 'DELETE',
+  url: `${BASE}/delegations/:id`,
+  summary: 'Withdraws one of the person’s own delegations.',
+  scope: 'me:write',
+  params: idParams,
+  responses: { 204: 'empty', ...REFUSED },
+} as const satisfies MeRoute;
+
 // No route names a subject: the token's own is the only one any of them acts for.
 export const ME_ROUTES: readonly MeRoute[] = [
   PROFILE_GET,
   CREDENTIALS_GET,
   SESSIONS_GET,
   CONSENTS_GET,
+  DELEGATIONS_GET,
   PROFILE_PATCH,
   SESSIONS_DELETE,
   SESSION_DELETE,
   CONSENT_DELETE,
   CREDENTIAL_PATCH,
   CREDENTIAL_DELETE,
+  DELEGATIONS_POST,
+  DELEGATION_DELETE,
 ];
 
 function respond(reply: FastifyReply, status: number, body?: object): FastifyReply {
@@ -502,6 +542,33 @@ function registerWrites(app: FastifyInstance, deps: MeDeps): void {
       return respond(reply, 204);
     },
   );
+
+  app.post<{ Params: { tenant: string } }>(DELEGATIONS_POST.url, async (request, reply) => {
+    const caller = await admitWrite(deps, request, reply);
+    if (caller === undefined) return reply;
+    const body = DELEGATIONS_POST.body.safeParse(request.body);
+    if (!body.success) return respond(reply, 400, invalidBody(body.error.issues));
+    if (!(await signInIsFresh(deps, caller, reply))) return reply;
+    const outcome = await createDelegation(deps, caller, body.data);
+    if (outcome.kind === 'invalid') {
+      return respond(reply, 400, invalidRequest(`${outcome.field}: ${outcome.description}`));
+    }
+    if (outcome.kind === 'limit_reached') return respond(reply, 409, delegationLimit());
+    return respond(reply, 201, delegationDto(outcome.delegation));
+  });
+
+  app.delete<{ Params: { tenant: string; id: string } }>(
+    DELEGATION_DELETE.url,
+    async (request, reply) => {
+      if (!isUuid(request.params.id)) return respond(reply, 404, notFound(NO_DELEGATION));
+      const caller = await admitWrite(deps, request, reply);
+      if (caller === undefined) return reply;
+      if (!(await sessionIsLive(deps, caller, reply))) return reply;
+      const outcome = await revokeDelegation(deps, caller, request.params.id);
+      if (outcome.kind === 'not_found') return respond(reply, 404, notFound(NO_DELEGATION));
+      return respond(reply, 204);
+    },
+  );
 }
 
 // Every URL the "me" routes answer, the preflight's included.
@@ -527,4 +594,13 @@ export function registerMeRoutes(app: FastifyInstance, deps: MeDeps): void {
   );
   listRoute(app, deps, SESSIONS_GET, listSessions, (o) => sessionsDto(o.items, o.next));
   listRoute(app, deps, CONSENTS_GET, listConsents, (o) => consentsDto(o.items, o.next));
+  app.get<{ Params: { tenant: string } }>(DELEGATIONS_GET.url, async (request, reply) => {
+    const caller = await admit(deps, request, reply);
+    if (caller === undefined) return reply;
+    if (!DELEGATIONS_GET.query.safeParse(request.query).success) {
+      return respond(reply, 400, invalidRequest('The query is not valid'));
+    }
+    const outcome = await listDelegations(deps, caller);
+    return respond(reply, 200, delegationsDto(outcome.items));
+  });
 }

@@ -90,6 +90,7 @@ const DOMAINS_WORDS = 'domains/services/domainsWords.ts';
 const DOMAINS_ROWS = 'domains/services/rows.ts';
 const DOMAINS_CONFIRM = 'domains/services/confirm.ts';
 const TOKENS_WORDS = 'registration-tokens/services/tokenWording.ts';
+const AGENT_TEXT = 'agents/services/agentText.ts';
 const FLOW_WORDS = 'flow/services/flowWording.ts';
 const FLOW_REQUIREMENTS = 'flow/services/requirement.ts';
 const FLOWS_WORDS = 'flow/services/flowsWords.ts';
@@ -476,7 +477,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Uses: page(TOKENS_WORDS, "usesLabel: 'Uses'"),
   Lifetime: page(TOKENS_WORDS, "lifetimeLabel: 'Lifetime'"),
   'Uses left': page(TOKENS_WORDS, "usesLeft: 'Uses left'"),
-  Revoke: page(TOKENS_WORDS, "revoke: 'Revoke'"),
+  Revoke: several(
+    page(TOKENS_WORDS, "revoke: 'Revoke'"),
+    page(AGENT_TEXT, "REVOKE_LABEL = 'Revoke'"),
+  ),
   'Revoke token': page(TOKENS_WORDS, "confirm: 'Revoke token'"),
   Policy: page(SETTINGS_WORDS, "policyLabel: 'Policy'"),
   'Closed: only an administrator creates clients': page(
@@ -484,6 +488,17 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "label: 'Closed: only an administrator creates clients'",
   ),
   'With a registration token': page(PLATFORM, "label: 'With a registration token'"),
+
+  // Agents.
+  Approvals: page(AGENT_TEXT, "APPROVALS_LINK = 'Approvals'"),
+  'Agent approvals': page(AGENT_TEXT, "APPROVALS_TITLE = 'Agent approvals'"),
+  State: page(AGENT_TEXT, "STATE_FILTER_LABEL = 'State'"),
+  'Revoke run': page(AGENT_TEXT, "REVOKE_CONFIRM_LABEL = 'Revoke run'"),
+  'Read again': page('agents/services/revoke.ts', "label: 'Read again'"),
+  'Show details': page(AGENT_TEXT, "SHOW_DETAILS = 'Show details'"),
+  'Hide details': page(AGENT_TEXT, "HIDE_DETAILS = 'Hide details'"),
+  'Only this owner': page(AGENT_TEXT, "NARROW_LABEL = 'Only this owner'"),
+  'Show every agent': page(AGENT_TEXT, "OWNER_ONLY_ALL = 'Show every agent'"),
 
   // The sign-in flow.
   Steps: page(FLOW_WORDS, "title: 'Steps'"),
@@ -590,6 +605,16 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     SETTINGS_WORDS,
     "cimdLabel: 'Accept client metadata documents'",
   ),
+  Agents: several(rail('agents', 'Agents'), page(PLATFORM, "title: 'Agents'")),
+  'Delegation depth': page(PLATFORM, "label: 'Delegation depth'"),
+  'Children per instance': page(PLATFORM, "label: 'Children per instance'"),
+  'Live instances': page(PLATFORM, "label: 'Live instances'"),
+  'Instance lifetime': page(PLATFORM, "label: 'Instance lifetime'"),
+  'Instance idle timeout': page(PLATFORM, "label: 'Instance idle timeout'"),
+  'Approval lifetime': page(PLATFORM, "label: 'Approval lifetime'"),
+  'Writes per grant': page(PLATFORM, "label: 'Writes per grant'"),
+  'Creates per grant': page(PLATFORM, "label: 'Creates per grant'"),
+  'Writes per day': page(PLATFORM, "label: 'Writes per day'"),
   'Audit retention': page(PLATFORM, "title: 'Audit retention'"),
   'Idle timeout': page(ACCESS, "label: 'Idle timeout'"),
   'Maximum lifetime': page(ACCESS, "label: 'Maximum lifetime'"),
@@ -901,6 +926,19 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Accept an actor token issued to another client': page(
     'clients/services/tokenExchange.ts',
     "EXCHANGE_ACTOR_LABEL = 'Accept an actor token issued to another client'",
+  ),
+  'Backchannel authentication': page(
+    'clients/services/grantTypes.ts',
+    "'urn:openid:params:grant-type:ciba': 'Backchannel authentication'",
+  ),
+  'Agent identity': page('clients/services/sectionTitles.ts', "agent: 'Agent identity'"),
+  'This client is an agent': page(
+    'clients/services/tokenExchange.ts',
+    "AGENT_TYPE_LABEL = 'This client is an agent'",
+  ),
+  'Clients allowed to act for its people': page(
+    'clients/services/tokenExchange.ts',
+    "DELEGATED_ACTORS_LABEL = 'Clients allowed to act for its people'",
   ),
   'Application actions': page(
     'clients/services/sectionTitles.ts',

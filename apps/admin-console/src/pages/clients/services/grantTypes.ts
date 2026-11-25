@@ -6,6 +6,7 @@ export const GRANT_LABELS: Readonly<Record<string, string>> = {
   refresh_token: 'Refresh token',
   client_credentials: 'Client credentials',
   'urn:ietf:params:oauth:grant-type:token-exchange': 'Token exchange',
+  'urn:openid:params:grant-type:ciba': 'Backchannel authentication',
 };
 
 const GRANT_NOTES: Readonly<Record<string, string>> = {
@@ -14,7 +15,15 @@ const GRANT_NOTES: Readonly<Record<string, string>> = {
   client_credentials:
     "The client acts as itself, through its service account's roles. Turning it on creates the account; turning it off removes it with its roles.",
   'urn:ietf:params:oauth:grant-type:token-exchange': 'Trades one token for another (RFC 8693).',
+  'urn:openid:params:grant-type:ciba':
+    'Asks a person to approve on another device and polls for the result (OpenID CIBA, poll mode).',
 };
+
+// Grants a client proves itself for; a public client cannot hold one.
+const NEEDS_SECRET: ReadonlySet<string> = new Set([
+  'client_credentials',
+  'urn:openid:params:grant-type:ciba',
+]);
 
 const NO_SECRET = 'A public client has no secret to authenticate with, so it cannot hold this.';
 
@@ -32,7 +41,7 @@ export function grantOptions(client: Pick<Client, 'type' | 'grant_types'>): Gran
     label: GRANT_LABELS[id] ?? id,
     description: GRANT_NOTES[id] ?? '',
     unavailable:
-      id === 'client_credentials' && client.type === 'public' && !client.grant_types.includes(id)
+      NEEDS_SECRET.has(id) && client.type === 'public' && !client.grant_types.includes(id)
         ? NO_SECRET
         : null,
   }));

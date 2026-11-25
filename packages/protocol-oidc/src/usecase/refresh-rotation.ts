@@ -5,6 +5,8 @@ import { type Logger } from '@odudu/kernel';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
+import { narrowActClaim } from '#/service/token-exchange';
+import { actingInstanceEnded } from '#/usecase/acting-instance';
 
 export type RotationOutcome =
   | { readonly kind: 'rotated'; readonly grant: TokenGrantRecord; readonly next: string }
@@ -82,6 +84,12 @@ export async function rotateRefreshToken(
   if (grant.revokedAt !== null) {
     return { kind: 'revoked' };
   }
+
+  // An instance that ended takes the family's refresh with it, as its
+  // session ending would: the token was consumed above and stays consumed. A
+  // named actor that no longer exists fails closed the same way.
+  if (await actingInstanceEnded(tx, narrowActClaim(grant.actChain)?.sub, now))
+    return { kind: 'revoked' };
 
   // A session-bound family lives exactly as long as its session: an idle
   // timeout that a refresh could out-live would not be an idle timeout. An

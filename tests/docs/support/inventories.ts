@@ -200,6 +200,7 @@ export const PAGE_KIND_ALIASES: Readonly<Record<string, readonly string[]>> = {
   'update-profile-html': ['complete your profile'],
   'accept-terms-html': ['accept the terms'],
   'refusal-html': ['refusal page', 'refused'],
+  'approval-html': ['approval page'],
   'authorize-html': ['sign-in page', 'sign in page', 'login page'],
   'consent-html': ['consent screen', 'consent page'],
   'logout-html': ['signed out', 'sign-out page', 'logout page'],

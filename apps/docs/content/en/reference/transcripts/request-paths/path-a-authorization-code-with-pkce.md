@@ -21,6 +21,9 @@ curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration
   "token_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token",
   "introspection_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token/introspect",
   "revocation_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/revoke",
+  "backchannel_authentication_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/bc-authorize",
+  "backchannel_token_delivery_modes_supported": ["poll"],
+  "backchannel_user_code_parameter_supported": false,
   "userinfo_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/userinfo",
   "jwks_uri": "http://localhost:3000/tenants/demo/protocol/openid-connect/certs",
   "end_session_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/logout",
@@ -49,7 +52,8 @@ curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration
     "authorization_code",
     "refresh_token",
     "client_credentials",
-    "urn:ietf:params:oauth:grant-type:token-exchange"
+    "urn:ietf:params:oauth:grant-type:token-exchange",
+    "urn:openid:params:grant-type:ciba"
   ],
   "token_endpoint_auth_methods_supported": [
     "client_secret_basic",

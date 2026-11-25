@@ -988,6 +988,48 @@
       "when": 1791667383737,
       "tag": "0140_registration_username",
       "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1791753783737,
+      "tag": "0141_agent_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1791840183737,
+      "tag": "0142_agent_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1791926583737,
+      "tag": "0143_ciba_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1792012983737,
+      "tag": "0144_ciba_requests_hint_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1792099383737,
+      "tag": "0145_agent_instance_budget",
+      "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1792185783737,
+      "tag": "0146_agent_admin_lists",
+      "breakpoints": true
     }
   ]
 }

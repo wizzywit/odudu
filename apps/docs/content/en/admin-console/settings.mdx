@@ -23,7 +23,7 @@ The list of sections is made of links, so a section can be opened from a bookmar
 - **Tenant**: **General**, **Terms** and **Profile**.
 - **Sign-in**: **Usernames**, **Registration and recovery**, **Authenticators**, **Passkey requirement**, **Password policy** and **Brute force**.
 - **Sessions and tokens**: **Sessions**, **Remember me** and **Token lifetimes**.
-- **Applications**: **Client registration**.
+- **Applications**: **Client registration** and **Agents**.
 - **Records**: **Audit retention**.
 
 Choosing a name moves to that section and puts the focus on its heading. The section in view is marked, and a section with changes you have not saved has a dot, so one scrolled out of sight is not forgotten.
@@ -225,7 +225,19 @@ A tenant can let an app identify itself with a web address instead of registerin
 
 A tenant can also let an agent register itself with `client_registration_policy` set to `mcp`. The registration endpoint then admits only a public client, with https or loopback http redirect addresses, which may hold `mcp:read` and never `mcp:write` (a request that also names `mcp:write` is registered without it, and the response's `scope` says what was kept), and whose only audience is the tenant's MCP address. Each address may register ten clients an hour and the tenant sixty, and the tenant may hold 1,000 clients that registered themselves, whatever `max_clients` says. Any public client that registered itself, under `open` as well as `mcp`, and is never approved, signed in through or granted anything is deleted by `odudu reap` after a week; one with an approval or a grant that has not yet been reaped stays. A tenant imported from an export brings such a client back without its approval or consent, so it is deleted a week after the import unless it is used, and an import whose document holds more than 1,000 of them is refused. Such a client, and a metadata document client on a tenant with this policy, is given that audience and `mcp:read` by the policy and not by anything it sends. If the policy is later changed, such a client stops being offered that audience and `mcp:read` at its next sign-in and its next refresh, so a refresh chain started under the policy carries neither once the policy is off; disable or delete the client to end the chain at once. A metadata document client that signs in with a key rather than as a public client is not given them. A client of these kinds is never offered `mcp:write`. `mcp:read` is optional, so the consent screen offers it as a choice.
 
-An administrator who changes the policy or the switch leaves a `tenant.amend_settings` audit event whose detail holds the value each had before and after. The display name and the languages (`display_name`, `supported_locales`, `default_locale`) are recorded the same way, since people read them on the sign-in pages, and no other setting appears in that detail.
+An administrator who changes the policy or the switch leaves a `tenant.amend_settings` audit event whose detail holds the value each had before and after. The settings that decide who may become a client, how fresh a sign-in must be, how a new authenticator or password is made and checked, the terms, the wording people read and the agent limits are recorded the same way. A setting that is not among them is not named in that detail.
+
+### Agents
+
+The limits on agent instances and on what an agent may write under a person's grant. Each is held to the range shown by a CHECK in the database, so no writer can step outside it.
+
+- **Delegation depth** (`agent_max_delegation_depth`): how many instances deep one delegation may go, 1 to 8 and 3 by default. 8 is the structural limit of the `act` claim.
+- **Children per instance** (`agent_max_children`): how many live child instances one instance may have, 1 to 200 and 20 by default.
+- **Live instances** (`agent_max_live_instances`): how many instances the tenant may hold at once, 1 to 100,000 and 1,000 by default. Mints that run at the same moment under different parents are not serialised, so the count can briefly pass the limit by up to the number of mints in flight.
+- **Instance lifetime** (`agent_instance_ttl_seconds`) and **Instance idle timeout** (`agent_instance_idle_seconds`): how long an instance lives and how long it may go without a call, 1 minute to 24 hours, 15 minutes and 30 minutes by default. Neither outlasts the owner's session.
+- **Approval lifetime** (`agent_approval_ttl_seconds`): how long a person has to approve one action an agent asked to take, 1 to 15 minutes and 10 minutes by default.
+- **Writes per grant** (`agent_writes_per_grant`) and **Creates per grant** (`agent_creates_per_grant`): how many writes an agent may make under one grant, creates included, and how many of those may create something, 1 to 1,000, and 20 and 10 by default.
+- **Writes per day** (`agent_window_writes`): how many writes one agent type may make for one person in a 24-hour UTC window, across their sign-ins, 1 to 100,000 and 1,000 by default.
 
 ### Audit retention
 

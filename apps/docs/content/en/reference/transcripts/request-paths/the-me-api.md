@@ -586,7 +586,7 @@ Origin: https://spa.example
 HTTP/1.1 204 No Content
 vary: Origin
 access-control-allow-origin: https://spa.example
-access-control-allow-methods: GET, PATCH, DELETE, OPTIONS
+access-control-allow-methods: GET, POST, PATCH, DELETE, OPTIONS
 access-control-allow-headers: authorization, content-type
 access-control-max-age: 600
 Origin: https://other.example
@@ -625,19 +625,19 @@ wc -c < me-openapi.json | tr -d ' '
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1fc76-d932-7669-9c1b-6cd5f05e4180
+x-request-id: 01a21311-0414-7f7e-83c3-c5a38d67c8c6
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 29734
-Date: Sat, 21 Nov 2026 04:56:49 GMT
+content-length: 34428
+Date: Wed, 25 Nov 2026 14:16:51 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-7
-29734
+9
+34428
 ```
 
-Seven paths: the four reads, and the routes of one credential, one session and one consent. `/me/openapi.json` is not among them: the document does not describe itself. Its first bytes, and the scheme it declares:
+Nine paths: the four reads, the routes of one credential, one session and one consent, and the two for [delegations](./agent-delegations-through-the-me-api.md). `/me/openapi.json` is not among them: the document does not describe itself. Its first bytes, and the scheme it declares:
 
 ```bash
 head -c 150 me-openapi.json; echo
@@ -652,6 +652,8 @@ jq -r '.paths | keys[]' me-openapi.json
 /tenants/{tenant}/me/consents/{client_id}
 /tenants/{tenant}/me/credentials
 /tenants/{tenant}/me/credentials/{id}
+/tenants/{tenant}/me/delegations
+/tenants/{tenant}/me/delegations/{id}
 /tenants/{tenant}/me/profile
 /tenants/{tenant}/me/sessions
 /tenants/{tenant}/me/sessions/{id}

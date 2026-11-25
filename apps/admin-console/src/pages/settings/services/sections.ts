@@ -29,7 +29,7 @@ export const SECTION_GROUPS: readonly { title: string; ids: readonly string[] }[
     ],
   },
   { title: 'Sessions and tokens', ids: ['sessions', 'remember-me', 'tokens'] },
-  { title: 'Applications', ids: ['client-registration'] },
+  { title: 'Applications', ids: ['client-registration', 'agents'] },
   { title: 'Records', ids: ['retention'] },
 ];
 

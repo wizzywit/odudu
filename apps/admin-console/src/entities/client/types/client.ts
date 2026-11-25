@@ -42,6 +42,8 @@ export interface Client {
   token_exchange_impersonation_allowed: boolean;
   token_exchange_allowed_for_public: boolean;
   token_exchange_actor_from_other_client: boolean;
+  agent_type: boolean;
+  delegated_actors: string[];
   userinfo_signed_response_alg: string | null;
   userinfo_encrypted_response_alg: string | null;
   userinfo_encrypted_response_enc: string | null;

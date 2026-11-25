@@ -967,3 +967,37 @@ describe('client_name#<language> members', () => {
     },
   );
 });
+
+describe('the CIBA grant at dynamic registration', () => {
+  const GRANT = 'urn:openid:params:grant-type:ciba';
+
+  async function openTenant(): Promise<string> {
+    const tenantName = `ciba-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
+    );
+    return tenantName;
+  }
+
+  it('[ODUDU-CIBA-CONF-08] is refused for a public client', async () => {
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(await openTenant()),
+      payload: { ...MINIMAL, grant_types: [GRANT], token_endpoint_auth_method: 'none' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_client_metadata' });
+  });
+
+  it('[ODUDU-CIBA-CONF-09] is refused for an anonymous registration, naming the grant', async () => {
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(await openTenant()),
+      payload: { ...MINIMAL, grant_types: [GRANT] },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_client_metadata' });
+    expect(res.json<{ error_description: string }>().error_description).toContain(GRANT);
+  });
+});

@@ -127,6 +127,23 @@ class GetAdminTenantsTenantExportResponse200Settings:
             GetAdminTenantsTenantExportResponse200SettingsRegistrationUsername.REQUIRED.
         cimd_enabled (bool): Whether a client_id that is an https URL is resolved to the Client ID Metadata Document
             served there. Default: False.
+        agent_max_delegation_depth (int): How many instances deep a delegation may go, 1 to 8. 3 by default. Default: 3.
+        agent_max_children (int): How many live child instances one instance may have, 1 to 200. 20 by default. Default:
+            20.
+        agent_max_live_instances (int): How many live agent instances the tenant may hold at once, 1 to 100000. 1000 by
+            default. Approximate: mints in flight at the same moment can pass it by their number. Default: 1000.
+        agent_instance_ttl_seconds (int): How long an agent instance lives, in seconds, 60 to 86400, and never past the
+            owner’s session. 900 by default. Default: 900.
+        agent_instance_idle_seconds (int): How long an agent instance may sit idle before it ends, in seconds, 60 to
+            86400, and never past the owner’s session. 1800 by default. Default: 1800.
+        agent_approval_ttl_seconds (int): How long an approval of one action lasts, in seconds, 60 to 900. 600 by
+            default. Default: 600.
+        agent_writes_per_grant (int): How many writes an agent may make under one grant, creates included, 1 to 1000. 20
+            by default. Default: 20.
+        agent_creates_per_grant (int): How many of those writes under one grant may create something, 1 to 1000. 10 by
+            default. Default: 10.
+        agent_window_writes (int): How many writes one agent type may make for one owner in a 24-hour UTC window, across
+            their sign-ins, 1 to 100000. 1000 by default. Default: 1000.
         audit_event_types (list[str]): The audit event types the tenant stores.
         supported_locales (list[str]): The language tags the tenant’s pages are offered in, 1 to 32, each such as `fr`
             or `zh-Hant-TW`; discovery advertises them as `ui_locales_supported`.
@@ -195,6 +212,15 @@ class GetAdminTenantsTenantExportResponse200Settings:
     terms_version: str = "1"
     registration_username: GetAdminTenantsTenantExportResponse200SettingsRegistrationUsername = GetAdminTenantsTenantExportResponse200SettingsRegistrationUsername.REQUIRED
     cimd_enabled: bool = False
+    agent_max_delegation_depth: int = 3
+    agent_max_children: int = 20
+    agent_max_live_instances: int = 1000
+    agent_instance_ttl_seconds: int = 900
+    agent_instance_idle_seconds: int = 1800
+    agent_approval_ttl_seconds: int = 600
+    agent_writes_per_grant: int = 20
+    agent_creates_per_grant: int = 10
+    agent_window_writes: int = 1000
 
     def to_dict(self) -> dict[str, Any]:
         display_name: None | str
@@ -304,6 +330,24 @@ class GetAdminTenantsTenantExportResponse200Settings:
 
         cimd_enabled = self.cimd_enabled
 
+        agent_max_delegation_depth = self.agent_max_delegation_depth
+
+        agent_max_children = self.agent_max_children
+
+        agent_max_live_instances = self.agent_max_live_instances
+
+        agent_instance_ttl_seconds = self.agent_instance_ttl_seconds
+
+        agent_instance_idle_seconds = self.agent_instance_idle_seconds
+
+        agent_approval_ttl_seconds = self.agent_approval_ttl_seconds
+
+        agent_writes_per_grant = self.agent_writes_per_grant
+
+        agent_creates_per_grant = self.agent_creates_per_grant
+
+        agent_window_writes = self.agent_window_writes
+
         audit_event_types = self.audit_event_types
 
         supported_locales = self.supported_locales
@@ -365,6 +409,15 @@ class GetAdminTenantsTenantExportResponse200Settings:
                 "login_with_email": login_with_email,
                 "registration_username": registration_username,
                 "cimd_enabled": cimd_enabled,
+                "agent_max_delegation_depth": agent_max_delegation_depth,
+                "agent_max_children": agent_max_children,
+                "agent_max_live_instances": agent_max_live_instances,
+                "agent_instance_ttl_seconds": agent_instance_ttl_seconds,
+                "agent_instance_idle_seconds": agent_instance_idle_seconds,
+                "agent_approval_ttl_seconds": agent_approval_ttl_seconds,
+                "agent_writes_per_grant": agent_writes_per_grant,
+                "agent_creates_per_grant": agent_creates_per_grant,
+                "agent_window_writes": agent_window_writes,
                 "audit_event_types": audit_event_types,
                 "supported_locales": supported_locales,
                 "default_locale": default_locale,
@@ -544,6 +597,24 @@ class GetAdminTenantsTenantExportResponse200Settings:
 
         cimd_enabled = d.pop("cimd_enabled")
 
+        agent_max_delegation_depth = d.pop("agent_max_delegation_depth")
+
+        agent_max_children = d.pop("agent_max_children")
+
+        agent_max_live_instances = d.pop("agent_max_live_instances")
+
+        agent_instance_ttl_seconds = d.pop("agent_instance_ttl_seconds")
+
+        agent_instance_idle_seconds = d.pop("agent_instance_idle_seconds")
+
+        agent_approval_ttl_seconds = d.pop("agent_approval_ttl_seconds")
+
+        agent_writes_per_grant = d.pop("agent_writes_per_grant")
+
+        agent_creates_per_grant = d.pop("agent_creates_per_grant")
+
+        agent_window_writes = d.pop("agent_window_writes")
+
         audit_event_types = cast(list[str], d.pop("audit_event_types"))
 
         supported_locales = cast(list[str], d.pop("supported_locales"))
@@ -606,6 +677,15 @@ class GetAdminTenantsTenantExportResponse200Settings:
             login_with_email=login_with_email,
             registration_username=registration_username,
             cimd_enabled=cimd_enabled,
+            agent_max_delegation_depth=agent_max_delegation_depth,
+            agent_max_children=agent_max_children,
+            agent_max_live_instances=agent_max_live_instances,
+            agent_instance_ttl_seconds=agent_instance_ttl_seconds,
+            agent_instance_idle_seconds=agent_instance_idle_seconds,
+            agent_approval_ttl_seconds=agent_approval_ttl_seconds,
+            agent_writes_per_grant=agent_writes_per_grant,
+            agent_creates_per_grant=agent_creates_per_grant,
+            agent_window_writes=agent_window_writes,
             audit_event_types=audit_event_types,
             supported_locales=supported_locales,
             default_locale=default_locale,

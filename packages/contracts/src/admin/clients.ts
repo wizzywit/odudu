@@ -10,6 +10,7 @@ import {
   enabledFilterSchema,
   idSchema,
   localisedTextSchema,
+  MAX_DELEGATED_ACTORS,
   searchPrefixSchema,
 } from '#/admin/shared';
 
@@ -59,6 +60,10 @@ export const clientFieldsSchema = z.object({
   token_exchange_impersonation_allowed: z.boolean(),
   token_exchange_allowed_for_public: z.boolean(),
   token_exchange_actor_from_other_client: z.boolean(),
+  // Whether the client is an agent, and the client ids allowed to act for
+  // the subjects who use it.
+  agent_type: z.boolean(),
+  delegated_actors: z.array(z.string()).max(MAX_DELEGATED_ACTORS),
   userinfo_signed_response_alg: z.string().nullable(),
   userinfo_encrypted_response_alg: z.string().nullable(),
   userinfo_encrypted_response_enc: z.string().nullable(),

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MAIL_PALETTE } from '#/service/palette.generated';
 import { renderShell } from '#/service/shell';
 import {
+  renderApprovalNotice,
   renderFinishRegistration,
   renderOwnChange,
   renderRecoveryCodesRevoked,
@@ -81,6 +82,11 @@ const kinds: Record<string, Kind> = {
     render: (tenantDisplayName, now = NOW) =>
       renderResetCompleted({ to: base.to, tenantDisplayName, now }),
     button: null,
+  },
+  'approval notice': {
+    render: (tenantDisplayName, now = NOW) =>
+      renderApprovalNotice({ ...base, tenantDisplayName, now, agent: 'Calendar Agent' }),
+    button: 'Review the request',
   },
   'smtp test': {
     render: (tenantDisplayName, now = NOW) =>

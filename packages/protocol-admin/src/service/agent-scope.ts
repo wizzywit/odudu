@@ -17,12 +17,11 @@ export interface AgentWriteRoute {
 }
 
 // Reads an agent never gets, though a GET. The first three each return a whole
-// tenant, or bytes, in one call; a person fetches those with their own token.
-// The rest are personal data, credential metadata and the mail relay login,
-// which the MCP tool catalogue withholds (`NOT_TOOLS`, kinds `denied` and
-// `sensitive`): a tool's absence binds nobody who holds the bearer, so the
-// door refuses them too, and the coverage test holds the two lists to each
-// other.
+// tenant, or bytes, in one call. The rest are personal data, credential metadata,
+// the mail relay login, and the agents and approvals the tenant runs, which the
+// MCP tool catalogue withholds (`NOT_TOOLS`, kinds `denied` and `sensitive`): a
+// tool's absence binds nobody who holds the bearer, so the door refuses them
+// too, and the coverage test holds the two lists to each other.
 export const AGENT_DENIED_READS: readonly string[] = [
   'GET /admin/tenants/:tenant/export',
   'GET /admin/tenants/:tenant/audit/export',
@@ -32,6 +31,9 @@ export const AGENT_DENIED_READS: readonly string[] = [
   'GET /admin/tenants/:tenant/registration-tokens',
   'GET /admin/tenants/:tenant/smtp',
   'GET /admin/tenants/:tenant/clients/:id/evaluate',
+  'GET /admin/tenants/:tenant/agents',
+  'GET /admin/tenants/:tenant/agents/:id',
+  'GET /admin/tenants/:tenant/agent-approvals',
 ];
 
 // The two reads that span tenants. An agent acts inside the one tenant its

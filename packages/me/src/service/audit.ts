@@ -128,3 +128,41 @@ export function emailChangeRequestedEvent(
       : { fields: ['email'], skipped: plan.reason },
   );
 }
+
+// The lineage row of a delegation a person made or withdrew. The actor is the
+// person, acting through the client the token was issued to.
+export interface DelegationAuditEvent {
+  readonly action: 'agent.delegation_created' | 'agent.delegation_revoked';
+  readonly delegationId: string;
+  readonly ownerSubjectId: string;
+  readonly viaClientKey: string;
+  readonly agentClientKey: string;
+}
+
+interface MadeDelegation {
+  readonly id: string;
+  readonly actorClientKey: string;
+}
+
+function lineage(actor: Actor, delegation: MadeDelegation) {
+  return {
+    delegationId: delegation.id,
+    ownerSubjectId: actor.subjectId,
+    viaClientKey: actor.clientId,
+    agentClientKey: delegation.actorClientKey,
+  };
+}
+
+export function delegationCreatedEvent(
+  actor: Actor,
+  delegation: MadeDelegation,
+): DelegationAuditEvent {
+  return { action: 'agent.delegation_created', ...lineage(actor, delegation) };
+}
+
+export function delegationRevokedEvent(
+  actor: Actor,
+  delegation: MadeDelegation,
+): DelegationAuditEvent {
+  return { action: 'agent.delegation_revoked', ...lineage(actor, delegation) };
+}

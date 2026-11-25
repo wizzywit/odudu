@@ -227,6 +227,7 @@ const WITHHELD: readonly Entry[] = [
       R('DELETE', '/scopes/:id'),
       R('DELETE', '/smtp'),
       R('DELETE', '/flows/:id'),
+      R('DELETE', '/agents/:id'),
     ],
     'destructive',
   ],
@@ -258,6 +259,16 @@ const WITHHELD: readonly Entry[] = [
   [
     'The mail relay configuration, with its host and login username: not offered to an agent; list_mail shows delivery status.',
     [R('GET', '/smtp')],
+    'sensitive',
+  ],
+  [
+    'Lists the agents running in the tenant, with the user each acts for: not offered to an agent, which reads nothing of the others running beside it.',
+    [R('GET', '/agents'), R('GET', '/agents/:id')],
+    'sensitive',
+  ],
+  [
+    'Lists the approvals agents asked of their owners, with the words each was asked in: not offered to an agent.',
+    [R('GET', '/agent-approvals')],
     'sensitive',
   ],
   [

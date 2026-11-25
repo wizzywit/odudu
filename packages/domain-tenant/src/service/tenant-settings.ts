@@ -17,7 +17,7 @@ type TenantColumn = keyof typeof tenants.$inferSelect;
 // already minted, and `id` is what row-level security keys on. `column` is
 // typed against the real row, so a typo is a compile error, not a silent
 // miss. Ranges are not here — they are CHECK constraints (migrations 0028,
-// 0035, 0041 and 0049), the idiom for a rule no writer may bypass.
+// 0035, 0041, 0049 and 0142), the idiom for a rule no writer may bypass.
 const SETTINGS = {
   display_name: { column: 'displayName', type: 'text' },
   enabled: { column: 'enabled', type: 'boolean' },
@@ -107,6 +107,15 @@ const SETTINGS = {
     values: TENANT_SETTING_CHOICES.registration_username as readonly string[],
   },
   cimd_enabled: { column: 'cimdEnabled', type: 'boolean' },
+  agent_max_delegation_depth: { column: 'agentMaxDelegationDepth', type: 'integer' },
+  agent_max_children: { column: 'agentMaxChildren', type: 'integer' },
+  agent_max_live_instances: { column: 'agentMaxLiveInstances', type: 'integer' },
+  agent_instance_ttl_seconds: { column: 'agentInstanceTtlSeconds', type: 'integer' },
+  agent_instance_idle_seconds: { column: 'agentInstanceIdleSeconds', type: 'integer' },
+  agent_approval_ttl_seconds: { column: 'agentApprovalTtlSeconds', type: 'integer' },
+  agent_writes_per_grant: { column: 'agentWritesPerGrant', type: 'integer' },
+  agent_creates_per_grant: { column: 'agentCreatesPerGrant', type: 'integer' },
+  agent_window_writes: { column: 'agentWindowWrites', type: 'integer' },
   // The audit trail's admin pair can never be left out: a security trail an
   // attacker holding an administrator's token could switch off is no trail.
   audit_event_types: {

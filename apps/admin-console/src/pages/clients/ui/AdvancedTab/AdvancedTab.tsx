@@ -96,7 +96,7 @@ function Fixed({ title, items }: { title: string; items: ClientAdvanced['fixedBy
 export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabProps) {
   const page = useClientAdvanced({ tenant, client, etag, gone });
   const secret = useClientSecret(tenant, client);
-  const { auth, keys, userinfo, audiences, exchange, actions, flow } = page;
+  const { auth, keys, userinfo, audiences, exchange, agent, actions, flow } = page;
   const method = auth.values.token_endpoint_auth_method;
   const source = keys.values.key_source;
   return (
@@ -259,6 +259,29 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
             changed={exchange.changed.includes('token_exchange_actor_from_other_client')}
             onChange={(value) => {
               exchange.edit('token_exchange_actor_from_other_client', value);
+            }}
+          />
+        </SaveSection>
+        <SaveSection title={page.sections.agent} save={agent}>
+          <ToggleField
+            label={page.agentTypeLabel}
+            description={page.agentTypeRule}
+            value={agent.values.agent_type}
+            error={agent.fieldErrors.agent_type}
+            changed={agent.changed.includes('agent_type')}
+            onChange={(value) => {
+              agent.edit('agent_type', value);
+            }}
+          />
+          <TextListField
+            label={page.delegatedActorsLabel}
+            itemLabel="Client"
+            description={page.delegatedActorsDescription}
+            error={agent.fieldErrors.delegated_actors}
+            changed={agent.changed.includes('delegated_actors')}
+            value={agent.values.delegated_actors}
+            onChange={(value) => {
+              agent.edit('delegated_actors', value);
             }}
           />
         </SaveSection>

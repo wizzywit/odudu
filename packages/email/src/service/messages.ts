@@ -136,6 +136,18 @@ export const en = {
   'resetCompleted.text': 'The password on your {tenant} account was reset using a mailed link.',
   'resetCompleted.reason':
     'You received this because the password on your account at {tenant} was reset.',
+  'approvalNotice.subject': '{agent} is asking for your approval at {tenant}',
+  'approvalNotice.preheader': 'Review the request and approve or deny it.',
+  'approvalNotice.heading': 'A request needs your approval',
+  'approvalNotice.body':
+    '{agent} is asking to act for you on your {tenant} account. Open the request to see what it asks for and to approve or deny it.',
+  'approvalNotice.text':
+    '{agent} is asking to act for you on your {tenant} account. Open this link to see the request and to approve or deny it:',
+  'approvalNotice.button': 'Review the request',
+  'approvalNotice.ignore':
+    'If you do not recognize this request, ignore this message and do not approve it. The request expires on its own.',
+  'approvalNotice.reason':
+    'You received this because a request was made for your account at {tenant}.',
   'smtpTest.subject': 'Odudu SMTP test',
   'smtpTest.preheader': 'This message was sent to check the mail settings.',
   'smtpTest.heading': 'SMTP test',

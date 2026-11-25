@@ -1,6 +1,6 @@
 import { isUniqueViolation, tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId, refuseBidiControls } from '@odudu/kernel';
-import { and, count, eq, lte, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, inArray, lte, sql, type SQL } from 'drizzle-orm';
 import { clients, type ClientRecord } from '#/schema/clients';
 
 export type { ClientRecord } from '#/schema/clients';
@@ -127,6 +127,17 @@ export function clientRepository(tx: TenantScopedDatabase) {
       const rows = await tx.select().from(clients).where(eq(clients.id, id));
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
+    },
+
+    // Several clients by internal uuid in one read, so a caller resolving a
+    // list makes one query however long the list is.
+    async byIds(ids: readonly string[]): Promise<ClientRecord[]> {
+      if (ids.length === 0) return [];
+      const rows = await tx
+        .select()
+        .from(clients)
+        .where(inArray(clients.id, [...ids]));
+      return rows.map(toRecord);
     },
 
     // `byId` with the row locked for the rest of the transaction, so a

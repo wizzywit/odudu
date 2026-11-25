@@ -4,5 +4,5 @@
 // verification link. The composition root backs it with a bounded in-process
 // limiter (apps/server/src/mail-limiter.ts). It decides only whether the mail
 // is queued: the response a person gets never depends on it.
-export type MailKind = 'registration' | 'held' | 'reset' | 'change' | 'verification';
+export type MailKind = 'registration' | 'held' | 'reset' | 'change' | 'verification' | 'approval';
 export type MailGate = (kind: MailKind, tenantId: string, address: string) => boolean;

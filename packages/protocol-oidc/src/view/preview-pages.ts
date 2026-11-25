@@ -4,6 +4,7 @@ import {
   renderEmailUnverifiedPage,
   renderLoginForm,
 } from '#/view/authorize-html';
+import { renderApprovalPage } from '#/view/approval-html';
 import { renderConsentPage } from '#/view/consent-html';
 import { renderLoggedOutPage, renderLogoutConfirmationPage } from '#/view/logout-html';
 import { renderSelectAccountPage } from '#/view/select-account-html';
@@ -14,6 +15,7 @@ type OidcKind = Extract<
   | 'consent'
   | 'select-account'
   | 'logout-confirm'
+  | 'approval'
   | 'authorize-error'
   | 'email-unverified'
   | 'logged-out'
@@ -76,6 +78,21 @@ export const PREVIEW_PAGES: Readonly<Record<OidcKind, PreviewRender>> = {
       SESSION,
       'preview-csrf',
       { clientId: null, postLogoutRedirectUri: null, state: null },
+      locale,
+    ),
+  approval: (tenant, locale) =>
+    renderApprovalPage(
+      {
+        address: pathAddress('', tenant),
+        approvalId: '00000000-0000-4000-8000-000000000000',
+        csrf: 'preview-csrf',
+        tenant,
+        agent: 'Example agent',
+        summary: 'Example agent asks to sign in as you with: openid',
+        scope: 'openid',
+        bindingMessage: 'Approve the example request',
+        expiresAt: new Date('2026-01-01T00:10:00Z'),
+      },
       locale,
     ),
   'authorize-error': (_tenant, locale) =>

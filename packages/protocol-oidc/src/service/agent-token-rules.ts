@@ -13,7 +13,9 @@ export type AgentTokenRefusal =
   | 'client_disabled'
   | 'tenant_disabled'
   | 'session_ended'
-  | 'subject_disabled';
+  | 'subject_disabled'
+  | 'owner_ended'
+  | 'run_refused';
 
 // What can be judged before anything is read.
 export function requestRefusal(input: {

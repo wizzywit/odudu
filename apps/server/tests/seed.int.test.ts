@@ -1640,6 +1640,29 @@ describe('seed client --grant-type', () => {
     expect(await grantTypesOf(options.tenant, 'narrow')).toEqual(['authorization_code']);
   });
 
+  it('refuses the CIBA grant for a public client and gives it to a confidential one', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    const ciba = 'urn:openid:params:grant-type:ciba';
+    const base = (clientId: string) => [
+      'client',
+      '--tenant',
+      options.tenant,
+      '--client-id',
+      clientId,
+      '--redirect-uri',
+      'https://app.example/cb',
+      '--grant-type',
+      ciba,
+    ];
+
+    await expect(seed([...base('ciba-public'), '--public'])).rejects.toThrow(
+      new RegExp(`${ciba}.*public|public.*${ciba}`, 'u'),
+    );
+    await seed([...base('ciba-secret'), '--client-secret', 'secret']);
+    expect(await grantTypesOf(options.tenant, 'ciba-secret')).toEqual([ciba]);
+  });
+
   it('refuses a grant type this server does not implement', async () => {
     const options = uniqueOptions();
     await seed(options);
