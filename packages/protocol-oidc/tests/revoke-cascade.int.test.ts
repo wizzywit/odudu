@@ -1106,10 +1106,22 @@ describe('a lineage whose root grant has been deleted', () => {
     expect(await grantRevoked([x, z, y])).toEqual([true, true, true]);
   });
 
+  // Asked of the owner's connection while a locking transaction is still open:
+  // the row must be held, and held for the reason of a lock, not any error.
+  const heldByAnother = (id: string) =>
+    owner.db
+      .transaction((tx) =>
+        tx.execute(sql`select id from token_grants where id = ${id} for update nowait`),
+      )
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+
   it('takes the next root when the one it walked to is deleted before it is locked', async () => {
     const w = await newWorld();
     const [top, mid, leaf] = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 3));
-    const locked = await withHeldLock(
+    const outcome = await withHeldLock(
       app.db,
       w.tenantId,
       {
@@ -1119,22 +1131,25 @@ describe('a lineage whose root grant has been deleted', () => {
       },
       async (held) => {
         const locking = held.started(
-          withTenant(app.db, w.tenantId, (tx) =>
-            lockLineageRoots(tx, sql`select ${nth([leaf], 0)}::uuid as id`),
-          ),
+          withTenant(app.db, w.tenantId, async (tx) => {
+            const roots = await lockLineageRoots(tx, sql`select ${nth([leaf], 0)}::uuid as id`);
+            return { roots, probe: await heldByAnother(mid ?? '') };
+          }),
         );
         await held.waitForWaiters(owner);
         held.release();
-        const [roots] = await Promise.all([locking, held.done]);
-        return roots;
+        const [result] = await Promise.all([locking, held.done]);
+        return result;
       },
     );
-    expect(locked).toEqual([mid]);
+    expect(outcome.roots).toEqual([mid]);
+    expect(outcome.probe).toMatchObject({ cause: { code: '55P03' } });
   });
+
   it('also takes the root a seed has once a middle grant is deleted while it waited', async () => {
     const w = await newWorld();
     const [a, b, c] = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 3));
-    const roots = await withHeldLock(
+    const outcome = await withHeldLock(
       app.db,
       w.tenantId,
       {
@@ -1147,9 +1162,10 @@ describe('a lineage whose root grant has been deleted', () => {
       },
       async (held) => {
         const locking = held.started(
-          withTenant(app.db, w.tenantId, (tx) =>
-            lockLineageRoots(tx, sql`select ${nth([c], 0)}::uuid as id`),
-          ),
+          withTenant(app.db, w.tenantId, async (tx) => {
+            const roots = await lockLineageRoots(tx, sql`select ${nth([c], 0)}::uuid as id`);
+            return { roots, probe: await heldByAnother(c ?? '') };
+          }),
         );
         await held.waitForWaiters(owner);
         held.release();
@@ -1157,12 +1173,14 @@ describe('a lineage whose root grant has been deleted', () => {
         return result;
       },
     );
-    expect(roots).toEqual([c]);
+    expect(outcome.roots).toEqual([c]);
+    expect(outcome.probe).toMatchObject({ cause: { code: '55P03' } });
   });
-  // A grant committed between a revoke's seed lock and its update has a root
-  // the seed lock never saw. The cascade takes the roots of the rows the update
-  // ended before it touches anything else.
-  it('locks the root of a grant it ends before cascading from it', async () => {
+
+  // `revokeBelow` takes the roots of the ids it starts from before its first
+  // pass. Another transaction holds the seed, so the first pass blocks, and the
+  // root is probed then: a root taken after the pass would not be held yet.
+  it('holds the root of a grant it cascades from while its first pass waits', async () => {
     const w = await newWorld();
     const [root, child] = await withTenant(app.db, w.tenantId, (tx) => twoOf(tx, w));
     const probe = await withHeldLock(
@@ -1170,19 +1188,98 @@ describe('a lineage whose root grant has been deleted', () => {
       w.tenantId,
       {
         lock: async (tx) => {
-          await tokenGrantRepository(tx).revokeBelow([child], LATER);
+          await tx.execute(sql`select id from token_grants where id = ${child} for no key update`);
         },
       },
-      async () =>
-        owner.db
-          .transaction((tx) =>
-            tx.execute(sql`select id from token_grants where id = ${root} for update nowait`),
-          )
-          .then(
-            () => null,
-            (error: unknown) => error,
+      async (held) => {
+        const below = held.started(
+          withTenant(app.db, w.tenantId, (tx) =>
+            tokenGrantRepository(tx).revokeBelow([child], LATER),
           ),
+        );
+        await held.waitForWaiters(owner);
+        const result = await heldByAnother(root);
+        held.release();
+        await Promise.all([below, held.done]);
+        return result;
+      },
     );
-    expect(probe).not.toBeNull();
+    expect(probe).toMatchObject({ cause: { code: '55P03' } });
+    expect(await grantRevoked([root, child])).toEqual([false, true]);
+  });
+
+  // A grant committed while a revoke waits for its seeds' roots has a lineage
+  // the first walk never saw; the walk after the lock finds it. One case for
+  // each way a revoke picks its seeds.
+  it.each([
+    [
+      'a session',
+      (r: ReturnType<typeof tokenGrantRepository>, w: World) =>
+        r.revokeForSession(w.sessionId, LATER),
+    ],
+    [
+      'sessions',
+      (r: ReturnType<typeof tokenGrantRepository>, w: World) =>
+        r.revokeForSessions([w.sessionId], LATER),
+    ],
+    [
+      'a subject and client',
+      (r: ReturnType<typeof tokenGrantRepository>, w: World) =>
+        r.revokeForSubjectClient(w.subjectId, w.clientDbId, LATER),
+    ],
+    [
+      'a subject',
+      (r: ReturnType<typeof tokenGrantRepository>, w: World) =>
+        r.revokeForSubject(w.subjectId, LATER),
+    ],
+  ])('ends and roots a grant born while it waited, by %s', async (_, revoke) => {
+    const w = await newWorld();
+    const stranger = await withTenant(app.db, w.tenantId, (tx) =>
+      subjectRepository(tx).create({ tenantId: w.tenantId, type: 'user' }),
+    );
+    const base = {
+      tenantId: w.tenantId,
+      clientId: w.clientDbId,
+      scope: 'mcp:read',
+      audience: ['https://odudu.test/mcp'],
+    };
+    const [seed, other, born] = [newId(), newId(), newId()];
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      await grants.create({ ...base, id: seed, subjectId: w.subjectId, sessionId: w.sessionId });
+      await grants.create({ ...base, id: other, subjectId: stranger.id });
+    });
+    const outcome = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${seed} for no key update`);
+        },
+      },
+      async (held) => {
+        const revoking = held.started(
+          withTenant(app.db, w.tenantId, async (tx) => {
+            await revoke(tokenGrantRepository(tx), w);
+            return heldByAnother(other);
+          }),
+        );
+        await held.waitForWaiters(owner);
+        await withTenant(app.db, w.tenantId, (tx) =>
+          tokenGrantRepository(tx).create({
+            ...base,
+            id: born,
+            subjectId: w.subjectId,
+            sessionId: w.sessionId,
+            exchangedFromGrantId: other,
+          }),
+        );
+        held.release();
+        const [probe] = await Promise.all([revoking, held.done]);
+        return probe;
+      },
+    );
+    expect(outcome).toMatchObject({ cause: { code: '55P03' } });
+    expect(await grantRevoked([seed, born])).toEqual([true, true]);
   });
 });
