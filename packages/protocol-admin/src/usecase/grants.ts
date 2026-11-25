@@ -1,7 +1,12 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clients } from '@odudu/domain-tenant';
-import { refreshTokens, tokenGrantRepository, tokenGrants } from '@odudu/protocol-oidc';
+import {
+  lockSeedGrants,
+  refreshTokens,
+  tokenGrantRepository,
+  tokenGrants,
+} from '@odudu/protocol-oidc';
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { isBeyond, isNotBeyond, subjectsBeyond } from '#/service/capability-ceiling';
 import { BULK_WRITE_LIMIT } from '#/usecase/bulk-limit';
@@ -196,6 +201,7 @@ export async function revokeClientGrants(
     .where(reachable)
     .orderBy(asc(tokenGrants.id))
     .limit(input.limit ?? CLIENT_GRANTS_REVOKE_LIMIT);
+  await lockSeedGrants(tx, inArray(tokenGrants.id, batch));
   const revoked = await tx
     .update(tokenGrants)
     .set({ revokedAt: input.now })
