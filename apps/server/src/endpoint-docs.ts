@@ -110,7 +110,7 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   'OPTIONS /tenants/:tenant/me/*': {
     auth: 'None',
     purpose:
-      'The CORS preflight of every “me” route: `204`, with the origin echoed and the methods `GET, PATCH, DELETE, OPTIONS` allowed when an enabled client of the tenant lists that origin among its web origins, and with no allowance otherwise. Counts against the “me” budget per origin.',
+      'The CORS preflight of every “me” route: `204`, with the origin echoed and the methods `GET, POST, PATCH, DELETE, OPTIONS` allowed when an enabled client of the tenant lists that origin among its web origins, and with no allowance otherwise. Counts against the “me” budget per origin.',
   },
   'GET /tenants/:tenant/me/profile': {
     auth: 'Access token',

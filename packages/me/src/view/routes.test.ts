@@ -1162,7 +1162,7 @@ describe('cross-origin calls', () => {
     const allowed = await ask(ORIGIN);
     expect(allowed.statusCode).toBe(204);
     expect(allowed.headers['access-control-allow-origin']).toBe(ORIGIN);
-    expect(allowed.headers['access-control-allow-methods']).toBe('GET, PATCH, DELETE, OPTIONS');
+    expect(allowed.headers['access-control-allow-methods']).toBe('GET, POST, PATCH, DELETE, OPTIONS');
     const refused = await ask('https://other.example');
     expect(refused.statusCode).toBe(204);
     expect(refused.headers['access-control-allow-origin']).toBeUndefined();

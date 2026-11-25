@@ -254,7 +254,7 @@ describe('cross-origin calls', () => {
     const res = await preflight(w, ORIGIN);
     expect(res.statusCode).toBe(204);
     expect(res.headers['access-control-allow-origin']).toBe(ORIGIN);
-    expect(res.headers['access-control-allow-methods']).toBe('GET, PATCH, DELETE, OPTIONS');
+    expect(res.headers['access-control-allow-methods']).toBe('GET, POST, PATCH, DELETE, OPTIONS');
     expect(res.headers['access-control-allow-headers']).toBe('authorization, content-type');
     expect(res.headers.vary).toContain('Origin');
   });

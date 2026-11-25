@@ -586,7 +586,7 @@ Origin: https://spa.example
 HTTP/1.1 204 No Content
 vary: Origin
 access-control-allow-origin: https://spa.example
-access-control-allow-methods: GET, PATCH, DELETE, OPTIONS
+access-control-allow-methods: GET, POST, PATCH, DELETE, OPTIONS
 access-control-allow-headers: authorization, content-type
 access-control-max-age: 600
 Origin: https://other.example

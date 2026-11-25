@@ -60,6 +60,8 @@ stack, from `019dd64be`, refused every token a real sign-in issues, because the 
 from the build that fixed it. `a refusal for a token holding me:write alone` is not on the page, because no sign-in can produce one;
 the integration test of the door runs it. The stack and its image were removed afterwards.
 
+The preflight block of `the-me-api.md` lists `POST` among the allowed methods since the delegation routes were added. That one header line was edited by hand on 2026-11-25 and not captured again; the rest of the page is the capture above, and `apps/server/tests/me-edges.int.test.ts` pins the value. The delegation routes have no transcript: they are in the generated reference and their behavior is run by `apps/server/tests/me-delegations.int.test.ts`.
+
 The me API's changes page, `the-me-api-changes.md`, and the pages the writes made stale were captured on 2026-11-11 on one freshly
 built compose project, `odudu-p4f-i25` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), built from the branch commit
 `e34a77bd9` with nothing uncommitted. The changes page ran on that stack with one file added, shown on the page, that gives the
