@@ -14,6 +14,7 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { withHeldLock } from '#/testing/agent-fixture';
 import { standardClaimMappers } from '#/service/claims';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
@@ -656,5 +657,77 @@ describe('a foreign tenant and the run instance', () => {
     const id = actOf((await mint(a, { run: { key: 'conv-1' } })).accessToken);
     const seen = await withTenant(app.db, b.tenantId, (tx) => agentInstanceRepository(tx).byId(id));
     expect(seen).toBeNull();
+  });
+});
+
+describe('a mint on an exchanged grant racing a logout', () => {
+  // The mint finds the session ended only after it has the grant, and a refusal
+  // revokes the run, which needs the lineage root a logout already holds. The
+  // mint therefore takes the root before the grant.
+  it('is refused owner_ended, and the logout finishes, without a deadlock', async () => {
+    const w = await newWorld({ agentType: true });
+    const exchanged = newId();
+    await withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).create({
+        id: exchanged,
+        tenantId: w.tenantId,
+        clientId: w.agent.id,
+        subjectId: w.subjectId,
+        scope: 'mcp:read mcp:write',
+        audience: [MCP_AUDIENCE],
+        sessionId: w.sessionId,
+        exchangedFromGrantId: w.grantId,
+      }),
+    );
+    await mint(w, { subjectGrantId: exchanged, run: { key: 'conv-9' } });
+    const settle = <T>(run: () => Promise<T>) =>
+      run().then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+    const outcomes = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(
+            sql`select id from token_grants where id = ${exchanged} for no key update`,
+          );
+        },
+      },
+      async (held) => {
+        const minting = held.started(
+          settle(() =>
+            withTenant(app.db, w.tenantId, async (tx) => {
+              try {
+                await mintAgentToken(
+                  tx,
+                  w.deps,
+                  input(w, { subjectGrantId: exchanged, run: { key: 'conv-9' } }),
+                );
+                return null;
+              } catch (error) {
+                if (error instanceof AgentTokenRefused) return error.reason;
+                throw error;
+              }
+            }),
+          ),
+        );
+        await held.waitForWaiters(owner);
+        await setSessionEnd(w, new Date(NOW.getTime() - 1_000));
+        const logout = held.started(
+          settle(() =>
+            withTenant(app.db, w.tenantId, (tx) =>
+              tokenGrantRepository(tx).revokeForSession(w.sessionId, NOW),
+            ),
+          ),
+        );
+        await held.waitForWaiters(owner, 2);
+        held.release();
+        return Promise.all([minting, logout, held.done]);
+      },
+    );
+    expect(outcomes[0]).toEqual({ value: 'owner_ended' });
+    expect(outcomes[1]).toEqual({ value: 2 });
   });
 });
