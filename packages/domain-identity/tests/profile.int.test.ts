@@ -289,6 +289,38 @@ describe('the database enforces what the claim promises', () => {
   });
 });
 
+describe('usernamesOf', () => {
+  it('names the usernames of the subjects asked for, once each, and skips one with none', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+    const expected = await withTenant(app.db, tenantId, async (tx) => {
+      return (await userRepository(tx).bySubjectId(subjectId))?.username;
+    });
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).usernamesOf([subjectId, subjectId, newId()]),
+    );
+    expect([...found]).toEqual([[subjectId, expected]]);
+    expect(
+      (await withTenant(app.db, tenantId, (tx) => userRepository(tx).usernamesOf([]))).size,
+    ).toBe(0);
+  });
+
+  it('names nobody from another tenant', async () => {
+    const tenantA = newId();
+    const tenantB = newId();
+    const subjectInA = await withTenant(app.db, tenantA, (tx) => seedUser(tx, tenantA));
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB));
+    const found = await withTenant(app.db, tenantB, (tx) =>
+      userRepository(tx).usernamesOf([subjectInA]),
+    );
+    expect(found.size).toBe(0);
+    const own = await withTenant(app.db, tenantA, (tx) =>
+      userRepository(tx).usernamesOf([subjectInA]),
+    );
+    expect(own.size).toBe(1);
+  });
+});
+
 describe('markEmailVerified', () => {
   it('flips emailVerified for the named user', async () => {
     const tenantId = newId();
