@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_CLIENT_ID_LENGTH,
   MAX_DELEGATION_EXPIRES_IN,
   MAX_DELEGATION_SCOPE_LENGTH,
   meConsentsResponseSchema,
@@ -194,6 +195,11 @@ describe('meCreateDelegationRequestSchema', () => {
     ['a lifetime past the bound', { ...body, expires_in: MAX_DELEGATION_EXPIRES_IN + 1 }],
     ['a lifetime that is not whole seconds', { ...body, expires_in: 1.5 }],
     ['an empty client', { ...body, client_id: '' }],
+    ['a client_id past the bound', { ...body, client_id: 'a'.repeat(MAX_CLIENT_ID_LENGTH + 1) }],
+    [
+      'an actor client_id past the bound',
+      { ...body, actor_client_id: 'a'.repeat(MAX_CLIENT_ID_LENGTH + 1) },
+    ],
   ])('refuses %s', (_, input) => {
     expect(meCreateDelegationRequestSchema.safeParse(input).success).toBe(false);
   });

@@ -41,6 +41,7 @@ export {
   type MeSessionsEnded,
 } from '#/me/writes';
 export {
+  MAX_CLIENT_ID_LENGTH,
   MAX_DELEGATION_EXPIRES_IN,
   MAX_DELEGATION_SCOPE_LENGTH,
   MAX_DELEGATIONS,

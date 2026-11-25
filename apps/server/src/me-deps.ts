@@ -72,21 +72,18 @@ async function namedDelegations(
 ): Promise<MeDelegationRecord[]> {
   const ids = [...new Set(records.flatMap((r) => [r.clientId, r.actorClientId]))];
   const keys = new Map((await clientRepository(tx).byIds(ids)).map((c) => [c.id, c.clientId]));
-  return records.flatMap((record) => {
-    const clientKey = keys.get(record.clientId);
-    const actorClientKey = keys.get(record.actorClientId);
-    if (clientKey === undefined || actorClientKey === undefined) return [];
-    return [
-      {
-        id: record.id,
-        clientKey,
-        actorClientKey,
-        scopeCeiling: record.scopeCeiling,
-        expiresAt: record.expiresAt,
-        createdAt: record.createdAt,
-      },
-    ];
-  });
+  // A client deleted since the delegation was read leaves no `client_id` to
+  // print, and an internal id is not one; the foreign keys cascade, so this is
+  // only a race, answered as the admin agent routes answer it.
+  const keyOf = (id: string) => keys.get(id) ?? 'unknown';
+  return records.map((record) => ({
+    id: record.id,
+    clientKey: keyOf(record.clientId),
+    actorClientKey: keyOf(record.actorClientId),
+    scopeCeiling: record.scopeCeiling,
+    expiresAt: record.expiresAt,
+    createdAt: record.createdAt,
+  }));
 }
 
 // Each read runs in its own tenant-scoped transaction, so the tenant it names

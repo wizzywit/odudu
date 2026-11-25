@@ -175,7 +175,7 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   'DELETE /tenants/:tenant/me/delegations/:id': {
     auth: 'Access token',
     purpose:
-      'Withdraws one of the person’s own delegations so that no further agent run is admitted by it; `204`, or `404` for an id that is not a live one of theirs. Instances already running are not ended. Needs `me:write`, with the same refusals as the profile edit.',
+      'Withdraws one of the person’s own delegations; `204`, or `404` for an id that is not a live one of theirs. Instances already minted keep running until they expire. If it was the person’s last delegation and the sign-in client names no `delegated_actors`, new sign-ins carry no `may_act` and any agent client may act for them, with no scope ceiling, as before delegations existed. Needs `me:write`, with the same refusals as the profile edit.',
   },
   [`GET ${OIDC}/certs`]: {
     auth: 'None',

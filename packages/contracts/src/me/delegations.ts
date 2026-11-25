@@ -5,6 +5,7 @@ export const MAX_DELEGATIONS = 20;
 export const MIN_DELEGATION_EXPIRES_IN = 60;
 export const MAX_DELEGATION_EXPIRES_IN = 7_776_000;
 export const MAX_DELEGATION_SCOPE_LENGTH = 1000;
+export const MAX_CLIENT_ID_LENGTH = 255;
 
 // A scope is an RFC 6749 section 3.3 token: printable ASCII with no space,
 // quotation mark or backslash.
@@ -26,10 +27,12 @@ export const meCreateDelegationRequestSchema = z
     client_id: z
       .string()
       .min(1)
+      .max(MAX_CLIENT_ID_LENGTH)
       .describe('The `client_id` of the application the person signs in with, as listed.'),
     actor_client_id: z
       .string()
       .min(1)
+      .max(MAX_CLIENT_ID_LENGTH)
       .describe(
         'The `client_id` of the agent client allowed to act for the person. It must be an agent client of the tenant.',
       ),
