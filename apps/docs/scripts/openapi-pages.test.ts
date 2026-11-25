@@ -445,7 +445,7 @@ describe('the me API reference', () => {
   it('has an index and one folder per resource the document serves', () => {
     expect([...mePages.keys()].every((name) => name.startsWith('me-api/'))).toBe(true);
     const index = mePages.get('me-api/index.md') ?? '';
-    for (const area of ['profile', 'credentials', 'sessions', 'consents']) {
+    for (const area of ['profile', 'credentials', 'sessions', 'consents', 'delegations']) {
       expect(index, area).toContain(`](./${area}/index.md)`);
       expect(mePages.has(`me-api/${area}/index.md`), area).toBe(true);
     }
@@ -464,6 +464,17 @@ describe('the me API reference', () => {
     expect(text).toContain('/me/openapi.json');
     expect(text).not.toContain('openapi/admin.json');
     expect(text).not.toMatch(/admin API|Admin API/u);
+  });
+
+  it('lists the error body once, on the index, and points each error status at it', () => {
+    const index = mePages.get('me-api/index.md') ?? '';
+    expect(index).toContain('## Error body');
+    const operations = [...mePages].filter(([name]) => name !== 'me-api/index.md');
+    const rest = operations.map(([, page]) => page).join('\n');
+    expect(rest).not.toContain('| `error_description` |');
+    expect(rest).toContain(
+      'Body: `application/json`, the error body described under [error body](../index.md#error-body).',
+    );
   });
 
   it('is deterministic', () => {

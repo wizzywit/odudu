@@ -421,6 +421,9 @@ interface Part {
 interface Context {
   readonly root: ReferenceDocument;
   readonly problemLink: string;
+  // The error schema's own section on the overview, where its fields are
+  // listed once instead of under every error status.
+  readonly errorBody: { readonly ref: string; readonly heading: string; readonly link: string };
   readonly openApiLink: string;
   readonly unknown: string[];
   readonly slug: string;
@@ -505,6 +508,11 @@ function mediaBlock(
     ];
   }
   const schema = record(media.schema);
+  if (str(schema?.$ref) === ctx.errorBody.ref) {
+    return [
+      `Body: ${code(mediaType)}, the error body described under [${ctx.errorBody.heading.toLowerCase()}](${ctx.errorBody.link}).`,
+    ];
+  }
   const rows = schema === undefined ? [] : fieldRows(schema, ctx.root, [], ctx.openApiLink);
   const split = ctx.inline.rows + rows.length > MAX_TABLE_ROWS;
   if (!split) ctx.inline.rows += rows.length;
@@ -803,6 +811,11 @@ function sectionOf(
   const ctx: Context = {
     root: doc,
     problemLink: '../index.md#problem-details',
+    errorBody: {
+      ref: `#/components/schemas/${profile.errorSchema}`,
+      heading: profile.errorHeading,
+      link: `../index.md#${profile.errorHeading.toLowerCase().replaceAll(' ', '-')}`,
+    },
     openApiLink: openApiLinkOf(profile),
     unknown: [],
     slug: operationSlug(method, path, profile),

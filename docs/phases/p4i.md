@@ -881,6 +881,7 @@ parameters, so its numbers stand.
 | ------------- | --------- | ------ |
 | `consents`    | 10        | 10     |
 | `credentials` | 22        | 22     |
+| `delegations` | 21        | 21     |
 | `profile`     | 77        | 77     |
 | `sessions`    | 18        | 18     |
 
