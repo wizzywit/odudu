@@ -298,7 +298,8 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // and only when everything beneath it is too: agent_instances_parent_fk
   // cascades, so deleting a parent over a live child would delete the child.
   // The recursion collects every ancestor of a row that is not removable.
-  // The subjects go in the same statement, so none outlives its instance.
+  // The subjects go in the same statement, so none outlives its instance. The
+  // rows are locked in id order and skipped when a cascade holds them.
   agent_instances: {
     after: [],
     statement: (now, policy) => {
@@ -319,8 +320,11 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
            WHERE p.parent_instance_id IS NOT NULL),
         gone AS (
           DELETE FROM agent_instances a
-           WHERE ${removable(sql`a`)}
-             AND NOT EXISTS (SELECT 1 FROM waiting w WHERE w.id = a.id)
+           WHERE a.id IN (
+             SELECT r.id FROM agent_instances r
+              WHERE ${removable(sql`r`)}
+                AND NOT EXISTS (SELECT 1 FROM waiting w WHERE w.id = r.id)
+              ORDER BY r.id FOR UPDATE SKIP LOCKED)
           RETURNING a.tenant_id, a.id)
         DELETE FROM subjects s
          USING gone g
@@ -329,11 +333,15 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     },
   },
 
+  // Locked in id order and skipped when held, as a revoke's cascade takes them.
   token_grants: {
     after: ['refresh_tokens', 'authorization_codes', 'agent_instances'],
     statement: (now, policy, tenant) => sql`
-      DELETE FROM token_grants g
-       WHERE ${grantPastRetention(now, policy, tenant)}
+      DELETE FROM token_grants d
+       WHERE d.id IN (
+         SELECT g.id FROM token_grants g
+          WHERE ${grantPastRetention(now, policy, tenant)}
+          ORDER BY g.id FOR UPDATE SKIP LOCKED)
     `,
   },
 
