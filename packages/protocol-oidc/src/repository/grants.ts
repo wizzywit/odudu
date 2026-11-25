@@ -169,12 +169,20 @@ export async function budgetGrantId(tx: TenantScopedDatabase, id: string): Promi
 export async function lockLineages(
   tx: TenantScopedDatabase,
   seeds: SQL | undefined,
+  held?: Set<string>,
 ): Promise<void> {
-  await lockLineageRoots(tx, sql`select id from token_grants where ${seeds ?? sql`true`}`);
+  await lockLineageRoots(
+    tx,
+    sql`select id from token_grants where ${seeds ?? sql`true`}`,
+    undefined,
+    held,
+  );
 }
 
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
   const budgetGrant = (id: string): Promise<string | null> => budgetGrantId(tx, id);
+  // The roots this repository has locked, so a later call does not lock them again.
+  const heldRoots = new Set<string>();
 
   // One pass: the grants exchanged from `ids` down to the structural depth,
   // and every agent instance rooted at any of them, revoked by one recursive
@@ -269,12 +277,23 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     return total;
   }
 
-  // Asks `cascade` again until a pass revokes nothing, then writes one audit
-  // row for each instance revoked from the top. The last pass is a new
-  // statement with a new snapshot, so a child committed while an earlier pass
-  // waited on a row lock is found and revoked. A capped pass has revoked
-  // something, so the loop ends. The caller has locked the lineage roots.
+  // Takes the roots of `ids`, the rows an update has just ended, then asks
+  // `cascade` again until a pass revokes nothing, then writes one audit row for
+  // each instance revoked from the top. A grant committed after the caller's
+  // seed lock has its root held here before the cascade touches anything else;
+  // roots already held cost no lock statement. The last pass is a new statement
+  // with a new snapshot, so a child committed while an earlier pass waited on a
+  // row lock is found and revoked. A capped pass has revoked something, so the
+  // loop ends.
   async function cascadeAll(ids: readonly string[], at: Date): Promise<void> {
+    if (ids.length > 0) {
+      await lockLineageRoots(
+        tx,
+        sql`select value::uuid as id from jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)`,
+        undefined,
+        heldRoots,
+      );
+    }
     const roots: RevokedInstanceRoot[] = [];
     for (let more = true; more;) {
       const next = await cascade(ids, at, CASCADE_CAP);
@@ -370,7 +389,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // already-revoked grant keeps its first `revoked_at`, and its caller
     // writes no second audit row for a revocation that did not happen.
     async revoke(id: string, revokedAt: Date): Promise<boolean> {
-      await lockLineages(tx, eq(tokenGrants.id, id));
+      await lockLineages(tx, eq(tokenGrants.id, id), heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
@@ -381,8 +400,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     },
 
     // Revokes what was exchanged from grants a caller has just revoked
-    // itself, and the instances rooted at them, with `cascadeAll`'s audit. The
-    // caller has locked their lineages (`lockLineages`) before revoking them.
+    // itself, and the instances rooted at them, with `cascadeAll`'s audit.
     async revokeBelow(ids: readonly string[], at: Date): Promise<void> {
       await cascadeAll(ids, at);
     },
@@ -476,7 +494,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // already-revoked grant would move its reaping window forward every time
     // logout ran again.
     async revokeForSession(sessionId: string, revokedAt: Date): Promise<number> {
-      await lockLineages(tx, eq(tokenGrants.sessionId, sessionId));
+      await lockLineages(tx, eq(tokenGrants.sessionId, sessionId), heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({
@@ -494,7 +512,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // `revokeForSession` for many sessions in one statement.
     async revokeForSessions(sessionIds: readonly string[], revokedAt: Date): Promise<number> {
       if (sessionIds.length === 0) return 0;
-      await lockLineages(tx, inArray(tokenGrants.sessionId, [...sessionIds]));
+      await lockLineages(tx, inArray(tokenGrants.sessionId, [...sessionIds]), heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({
@@ -525,7 +543,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         eq(tokenGrants.clientId, clientId),
         isNull(tokenGrants.revokedAt),
       );
-      await lockLineages(tx, seeds);
+      await lockLineages(tx, seeds, heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
@@ -543,7 +561,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // nothing after. An already-revoked grant keeps its first timestamp.
     async revokeForSubject(subjectId: string, revokedAt: Date): Promise<number> {
       const seeds = and(eq(tokenGrants.subjectId, subjectId), isNull(tokenGrants.revokedAt));
-      await lockLineages(tx, seeds);
+      await lockLineages(tx, seeds, heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
@@ -564,7 +582,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         eq(tokenGrants.actorSubjectId, actorSubjectId),
         isNull(tokenGrants.revokedAt),
       );
-      await lockLineages(tx, seeds);
+      await lockLineages(tx, seeds, heldRoots);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt: sql`now()` })

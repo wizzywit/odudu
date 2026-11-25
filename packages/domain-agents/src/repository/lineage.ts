@@ -43,13 +43,14 @@ export function lineageRootCtes(name: string, seedIds: SQL): SQL {
 // descendant its own root, and any root not yet held is locked too. Nothing
 // detaches a lineage while its root is held, so a walk that adds nothing is
 // final. A root locked this late is out of id order; the attempts are bounded
-// and the last one throws rather than go on unlocked.
+// and the last one throws rather than go on unlocked. A caller that makes
+// several calls in one transaction passes the set of roots it already holds.
 export async function lockLineageRoots(
   tx: TenantScopedDatabase,
   seedIds: SQL,
   batch = LINEAGE_LOCK_BATCH,
+  held = new Set<string>(),
 ): Promise<string[]> {
-  const held = new Set<string>();
   for (let attempt = 0; attempt < LINEAGE_LOCK_ATTEMPTS; attempt += 1) {
     const walked = (await tx.execute(sql`
       with recursive ${lineageRootCtes('lineage', seedIds)}

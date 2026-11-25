@@ -1159,4 +1159,30 @@ describe('a lineage whose root grant has been deleted', () => {
     );
     expect(roots).toEqual([c]);
   });
+  // A grant committed between a revoke's seed lock and its update has a root
+  // the seed lock never saw. The cascade takes the roots of the rows the update
+  // ended before it touches anything else.
+  it('locks the root of a grant it ends before cascading from it', async () => {
+    const w = await newWorld();
+    const [root, child] = await withTenant(app.db, w.tenantId, (tx) => twoOf(tx, w));
+    const probe = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tokenGrantRepository(tx).revokeBelow([child], LATER);
+        },
+      },
+      async () =>
+        owner.db
+          .transaction((tx) =>
+            tx.execute(sql`select id from token_grants where id = ${root} for update nowait`),
+          )
+          .then(
+            () => null,
+            (error: unknown) => error,
+          ),
+    );
+    expect(probe).not.toBeNull();
+  });
 });
