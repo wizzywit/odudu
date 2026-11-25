@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { useRevokeAgent, useRevokeCount } from '#/pages/agents/repository/useAgents';
 import { RUN_ROOT } from '#/testing/agentsFixtures';
-import { json, pending, problem } from '#/testing/fakeTransport';
+import { inTurn, json, pending, problem } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';
 import type { AgentInstance } from '#/pages/agents/types/agent';
 
@@ -73,4 +73,24 @@ it('counts what a revoke would end with dry_run, and only once it is asked', asy
     expect(result.current).toEqual({ status: 'ready', data: { grants: 1, instances: 2 } });
   });
   expect(sent.map((request) => request.search.get('dry_run'))).toEqual(['true']);
+});
+
+it('never answers a count it read for an earlier ask: reopened, it is loading until the server says again', async () => {
+  const { wrapper } = hookHarness({
+    [path]: inTurn(json({ grants: 1, instances: 1 }), json({ grants: 2, instances: 3 })),
+  });
+  const { result, rerender } = renderHook(
+    ({ asked }) => useRevokeCount('acme', 'run-root', asked),
+    { wrapper, initialProps: { asked: true } },
+  );
+  await waitFor(() => {
+    expect(result.current).toEqual({ status: 'ready', data: { grants: 1, instances: 1 } });
+  });
+  rerender({ asked: false });
+  expect(result.current.status).toBe('loading');
+  rerender({ asked: true });
+  expect(result.current.status).toBe('loading');
+  await waitFor(() => {
+    expect(result.current).toEqual({ status: 'ready', data: { grants: 2, instances: 3 } });
+  });
 });

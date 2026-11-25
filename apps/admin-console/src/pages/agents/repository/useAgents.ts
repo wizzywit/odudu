@@ -43,7 +43,9 @@ export function useAgentDetail(tenant: string, id: string, asked: boolean): Read
 // What revoking the run would end, counted by the server and changed by nothing.
 export function useRevokeCount(tenant: string, id: string, asked: boolean): Read<RevokeCount> {
   const { gateway } = useTransport();
-  return useRead(revokeCountKey(tenant, id), asked, () => revokeAgent(gateway, tenant, id, true));
+  return useRead(revokeCountKey(tenant, id), asked, () => revokeAgent(gateway, tenant, id, true), {
+    fresh: true,
+  });
 }
 
 // A revoke ends grants as well as runs, so every list of the tenant is read
