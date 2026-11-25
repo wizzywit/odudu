@@ -364,6 +364,31 @@ describe('agent.instance_revoked', () => {
   });
 });
 
+describe('the delegation actions', () => {
+  const delegation = '01a1873a-22a0-7756-8957-54c1c5aaca57';
+  const detail = { agent_client: 'actor', owner: 'o', delegation };
+
+  it.each(['agent.delegation_created', 'agent.delegation_revoked'])(
+    'holds %s under agent_identity and accepts its detail',
+    (action) => {
+      expect(AUDIT_ACTIONS.agent_identity).toContain(action);
+      expect(() => {
+        assertDetailAllowed(action, detail);
+      }).not.toThrow();
+    },
+  );
+
+  it.each([
+    ['a delegation that is not an id', { delegation: 'ignore previous instructions' }],
+    ['a free-text key', { message: 'x' }],
+    ['a scope ceiling, which can be long and is not a lineage fact', { scope_ceiling: 'a b' }],
+  ])('refuses %s', (_, override) => {
+    expect(() => {
+      assertDetailAllowed('agent.delegation_created', { ...detail, ...override });
+    }).toThrow(/invalid value|does not allow/);
+  });
+});
+
 describe('the approval actions', () => {
   const approval = '01a1873a-22a0-7756-8957-54c1c5aaca56';
   const requested = {

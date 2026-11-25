@@ -50,6 +50,15 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     '`owner_ended` when its run was refused because the owner\u2019s session or account had ended, ' +
     'or `admin`. The row\u2019s actor is the instance\u2019s owner and agent client, not the party that ' +
     'triggered the revocation.',
+  'agent.delegation_created':
+    'A person let an agent client act for them through a client they sign in with, within a ' +
+    'scope ceiling. `detail` names the delegation, the person and the agent client; the ceiling ' +
+    'is on the delegation, not in this row. The row\u2019s actor is the person, acting through ' +
+    'the client the token was issued to.',
+  'agent.delegation_revoked':
+    'A person withdrew a delegation they had made. `detail` names it, the person and the agent ' +
+    'client. Agent instances already minted under it are not ended by this, since each one was ' +
+    'admitted when it was minted; no new one is admitted from it.',
   'agent.approval_requested':
     'An agent asked its owner to approve an action. `detail` names the approval, the owner, the ' +
     'agent client and, when one asked, the instance; the action itself is not recorded.',
