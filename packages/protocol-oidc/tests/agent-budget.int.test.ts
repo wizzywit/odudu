@@ -19,7 +19,6 @@ import {
   exchange,
   login,
   startAgentStack,
-  waitForLockWaiters,
   withHeldLock,
   type AgentStack,
 } from '#/testing/agent-fixture';
@@ -421,7 +420,7 @@ describe('an exchanged grant revoked before the spend reads it', () => {
               tokenGrantRepository(tx).revokeForSubjectClient(w.ownerId, w.clientId, NOON),
             ),
           );
-          await waitForLockWaiters(stack.owner);
+          await held.waitForWaiters(stack.owner);
           held.release();
           const [count] = await Promise.all([revoking, held.done]);
           return count;

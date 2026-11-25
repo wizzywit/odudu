@@ -1,5 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { STRUCTURAL_MAX_DEPTH } from '@odudu/domain-agents';
+import { lockLineageRoots, STRUCTURAL_MAX_DEPTH } from '@odudu/domain-agents';
 import { auditRepository } from '@odudu/domain-audit';
 import { clients } from '@odudu/domain-tenant';
 import { and, asc, eq, inArray, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm';
@@ -163,76 +163,11 @@ export async function budgetGrantId(tx: TenantScopedDatabase, id: string): Promi
   return row.parent === null ? id : null;
 }
 
-const NIL_UUID = '00000000-0000-0000-0000-000000000000';
-
-// Locks the grants a revoke starts from, `for no key update`, before its update.
-// Every revoke takes ancestors before descendants, and ids only order tops that
-// are unrelated: a seed with another seed among its ancestors is left to the
-// cascade, which locks it as a descendant, parent first. Two revokes then never
-// wait on each other in opposite directions. At most `batch` seeds are looked
-// at per statement, in id order, so the locking is bounded as the passes are.
-// A caller updates only the tops and counts `seeds`: the cascade ends the rest.
-export function seedLockStatement(seeds: SQL | undefined, batch: number, after: string): SQL {
-  const where = seeds ?? sql`true`;
-  return sql`
-      with recursive cand as (
-        select id, exchanged_from_grant_id as parent from token_grants
-         where (${where}) and id > ${after}::uuid order by id limit ${batch}
-      ),
-      up(seed, anc, depth) as (
-        select id, parent, 1 from cand where parent is not null
-        union all
-        select u.seed, g.exchanged_from_grant_id, u.depth + 1
-          from up u join token_grants g on g.id = u.anc
-         where g.exchanged_from_grant_id is not null and u.depth < ${STRUCTURAL_MAX_DEPTH}
-      ),
-      tops as (
-        select c.id from cand c
-         where not exists (
-           select 1 from up u
-            where u.seed = c.id and u.anc in (select id from token_grants where ${where}))
-      ),
-      locked as (
-        select id from token_grants where id in (select id from tops)
-         order by id for no key update
-      )
-      select (select count(*) from cand)::int as n,
-             (select id from cand order by id desc limit 1) as last,
-             (select coalesce(jsonb_agg(id), '[]'::jsonb) from locked) as tops`;
-}
-
-export interface LockedSeeds {
-  // How many grants matched the seed predicate, tops or not.
-  seeds: number;
-  // The ones locked: those with no other seed above them.
-  tops: string[];
-}
-
-export async function lockSeedGrants(
-  tx: TenantScopedDatabase,
-  seeds: SQL | undefined,
-  batch = CASCADE_CAP,
-): Promise<LockedSeeds> {
-  const result: LockedSeeds = { seeds: 0, tops: [] };
-  for (let after = NIL_UUID; ;) {
-    const rows = (await tx.execute(seedLockStatement(seeds, batch, after))) as unknown as {
-      n: number;
-      last: string | null;
-      tops: string[];
-    }[];
-    const row = rows[0];
-    if (row === undefined) return result;
-    result.seeds += row.n;
-    result.tops.push(...row.tops);
-    if (row.last === null || row.n < batch) return result;
-    after = row.last;
-  }
-}
-
-// The rows of `tops` as a predicate, passed as one parameter so a long list
-// stays under the driver's parameter limit.
-export function idsIn(tops: readonly string[]): SQL {
-  return sql`${tokenGrants.id} = any(array(select value::uuid from jsonb_array_elements_text(${JSON.stringify(tops)}::jsonb)))`;
+// Takes the lineage roots of the grants a revoke starts from (see
+// `lockLineageRoots`) before it updates them. At most one row per distinct
+// lineage is locked, however many grants the seeds are.
+export function lockLineages(tx: TenantScopedDatabase, seeds: SQL | undefined): Promise<void> {
+  return lockLineageRoots(tx, sql`select id from token_grants where ${seeds ?? sql`true`}`);
 }
 
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
@@ -243,9 +178,9 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
   // statement. The first `cap` rows by depth are taken. A node whose grant is
   // revoked and has no live instance is walked through but takes no place in
   // the cap, which is what lets a second call reach what the first left.
-  // The grants are locked first, in id order, with the update's own lock (`for
-  // no key update`, which a foreign key's key share passes), and both updates
-  // read their ids from it, so no instance is touched before every grant is held.
+  // The lineage's root is already held, so the rows below are taken in id order
+  // only to keep each statement's own locking deterministic: grants first, then
+  // the live instances, which both updates read from.
   async function pass(ids: readonly string[], at: Date, cap: number): Promise<CascadePass> {
     const stamp = at.toISOString();
     const rows = (await tx.execute(sql`
@@ -265,10 +200,8 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       ),
       picked as (select id from pending order by depth, id limit ${cap}),
       locked as (
-        select g.id from token_grants g
-          join (select t.id, max(t.depth) as d from tree t
-                 where t.id in (select id from picked) group by t.id) m on m.id = g.id
-         order by m.d, g.id for no key update of g
+        select id from token_grants where id = any(array(select id from picked))
+         order by id for no key update
       ),
       ended_grants as (
         update token_grants set revoked_at = ${stamp}::timestamptz
@@ -282,9 +215,9 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
          where t.depth < ${STRUCTURAL_MAX_DEPTH}
       ),
       locked_instances as (
-        select i.id from agent_instances i
-          join (select t.id, max(t.depth) as d from instance_tree t group by t.id) m on m.id = i.id
-         order by m.d, i.id for no key update of i
+        select id from agent_instances where id in (select id from instance_tree)
+           and revoked_at is null
+         order by id for no key update
       ),
       ended_instances as (
         update agent_instances set revoked_at = ${stamp}::timestamptz
@@ -337,7 +270,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
   // row for each instance revoked from the top. The last pass is a new
   // statement with a new snapshot, so a child committed while an earlier pass
   // waited on a row lock is found and revoked. A capped pass has revoked
-  // something, so the loop ends.
+  // something, so the loop ends. The caller has locked the lineage roots.
   async function cascadeAll(ids: readonly string[], at: Date): Promise<void> {
     const roots: RevokedInstanceRoot[] = [];
     for (let more = true; more;) {
@@ -434,7 +367,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // already-revoked grant keeps its first `revoked_at`, and its caller
     // writes no second audit row for a revocation that did not happen.
     async revoke(id: string, revokedAt: Date): Promise<boolean> {
-      await lockSeedGrants(tx, eq(tokenGrants.id, id));
+      await lockLineages(tx, eq(tokenGrants.id, id));
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
@@ -445,7 +378,8 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     },
 
     // Revokes what was exchanged from grants a caller has just revoked
-    // itself, and the instances rooted at them, with `cascadeAll`'s audit.
+    // itself, and the instances rooted at them, with `cascadeAll`'s audit. The
+    // caller has locked their lineages (`lockLineages`) before revoking them.
     async revokeBelow(ids: readonly string[], at: Date): Promise<void> {
       await cascadeAll(ids, at);
     },
@@ -534,35 +468,42 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     },
 
     // Logout's whole write. Returns how many grants were bound to the session,
-    // all ended by the time it returns (the update takes the tops, the cascade
-    // the rest), so a caller can tell a session that had grants from one that had
-    // none. `coalesce` keeps the first revocation's timestamp: re-stamping an
+    // so a caller can tell a session that had grants from one that had none.
+    // `coalesce` keeps the first revocation's timestamp: re-stamping an
     // already-revoked grant would move its reaping window forward every time
     // logout ran again.
     async revokeForSession(sessionId: string, revokedAt: Date): Promise<number> {
-      const locked = await lockSeedGrants(tx, eq(tokenGrants.sessionId, sessionId));
-      await tx
+      await lockLineages(tx, eq(tokenGrants.sessionId, sessionId));
+      const rows = await tx
         .update(tokenGrants)
         .set({
           revokedAt: sql`coalesce(${tokenGrants.revokedAt}, ${revokedAt.toISOString()}::timestamptz)`,
         })
-        .where(idsIn(locked.tops));
-      await cascadeAll(locked.tops, revokedAt);
-      return locked.seeds;
+        .where(eq(tokenGrants.sessionId, sessionId))
+        .returning({ id: tokenGrants.id });
+      await cascadeAll(
+        rows.map((row) => row.id),
+        revokedAt,
+      );
+      return rows.length;
     },
 
     // `revokeForSession` for many sessions in one statement.
     async revokeForSessions(sessionIds: readonly string[], revokedAt: Date): Promise<number> {
       if (sessionIds.length === 0) return 0;
-      const locked = await lockSeedGrants(tx, inArray(tokenGrants.sessionId, [...sessionIds]));
-      await tx
+      await lockLineages(tx, inArray(tokenGrants.sessionId, [...sessionIds]));
+      const rows = await tx
         .update(tokenGrants)
         .set({
           revokedAt: sql`coalesce(${tokenGrants.revokedAt}, ${revokedAt.toISOString()}::timestamptz)`,
         })
-        .where(idsIn(locked.tops));
-      await cascadeAll(locked.tops, revokedAt);
-      return locked.seeds;
+        .where(inArray(tokenGrants.sessionId, [...sessionIds]))
+        .returning({ id: tokenGrants.id });
+      await cascadeAll(
+        rows.map((row) => row.id),
+        revokedAt,
+      );
+      return rows.length;
     },
 
     // The admin API's consent-revoke write: every grant a subject holds
@@ -581,10 +522,17 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         eq(tokenGrants.clientId, clientId),
         isNull(tokenGrants.revokedAt),
       );
-      const locked = await lockSeedGrants(tx, seeds);
-      await tx.update(tokenGrants).set({ revokedAt }).where(idsIn(locked.tops));
-      await cascadeAll(locked.tops, revokedAt);
-      return locked.seeds;
+      await lockLineages(tx, seeds);
+      const rows = await tx
+        .update(tokenGrants)
+        .set({ revokedAt })
+        .where(seeds)
+        .returning({ id: tokenGrants.id });
+      await cascadeAll(
+        rows.map((row) => row.id),
+        revokedAt,
+      );
+      return rows.length;
     },
 
     // What a recovered account does to every grant it holds, offline ones
@@ -592,10 +540,17 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // nothing after. An already-revoked grant keeps its first timestamp.
     async revokeForSubject(subjectId: string, revokedAt: Date): Promise<number> {
       const seeds = and(eq(tokenGrants.subjectId, subjectId), isNull(tokenGrants.revokedAt));
-      const locked = await lockSeedGrants(tx, seeds);
-      await tx.update(tokenGrants).set({ revokedAt }).where(idsIn(locked.tops));
-      await cascadeAll(locked.tops, revokedAt);
-      return locked.seeds;
+      await lockLineages(tx, seeds);
+      const rows = await tx
+        .update(tokenGrants)
+        .set({ revokedAt })
+        .where(seeds)
+        .returning({ id: tokenGrants.id });
+      await cascadeAll(
+        rows.map((row) => row.id),
+        revokedAt,
+      );
+      return rows.length;
     },
 
     // The foreign key on `actor_subject_id` only clears the column when the
@@ -606,13 +561,17 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         eq(tokenGrants.actorSubjectId, actorSubjectId),
         isNull(tokenGrants.revokedAt),
       );
-      const locked = await lockSeedGrants(tx, seeds);
-      await tx
+      await lockLineages(tx, seeds);
+      const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt: sql`now()` })
-        .where(idsIn(locked.tops));
-      await cascadeAll(locked.tops, new Date());
-      return locked.seeds;
+        .where(seeds)
+        .returning({ id: tokenGrants.id });
+      await cascadeAll(
+        rows.map((row) => row.id),
+        new Date(),
+      );
+      return rows.length;
     },
 
     async bySession(sessionId: string): Promise<TokenGrantRecord[]> {

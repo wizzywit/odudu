@@ -2,8 +2,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clients } from '@odudu/domain-tenant';
 import {
-  idsIn,
-  lockSeedGrants,
+  lockLineages,
   refreshTokens,
   tokenGrantRepository,
   tokenGrants,
@@ -204,12 +203,21 @@ export async function revokeClientGrants(
     .limit(input.limit ?? CLIENT_GRANTS_REVOKE_LIMIT);
   const ids = (await batch).map((row) => row.id);
   const seeds = inArray(tokenGrants.id, ids);
-  const locked = ids.length === 0 ? { seeds: 0, tops: [] } : await lockSeedGrants(tx, seeds);
-  if (locked.tops.length > 0) {
-    await tx.update(tokenGrants).set({ revokedAt: input.now }).where(idsIn(locked.tops));
-  }
-  const revoked = { length: locked.seeds, ids: locked.tops };
-  await tokenGrantRepository(tx).revokeBelow(revoked.ids, input.now);
+  const revoked =
+    ids.length === 0
+      ? []
+      : await (async () => {
+          await lockLineages(tx, seeds);
+          return tx
+            .update(tokenGrants)
+            .set({ revokedAt: input.now })
+            .where(and(seeds, isNull(tokenGrants.revokedAt)))
+            .returning({ id: tokenGrants.id });
+        })();
+  await tokenGrantRepository(tx).revokeBelow(
+    revoked.map((row) => row.id),
+    input.now,
+  );
   const remaining = await countAtMost(tx, {
     table: tokenGrants,
     where: reachable,

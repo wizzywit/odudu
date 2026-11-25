@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { agentInstances, type AgentInstanceRecord } from '#/schema/agent-instances';
+import { lockLineageRoots } from '#/repository/lineage';
 
 export type { AgentInstanceRecord } from '#/schema/agent-instances';
 
@@ -109,7 +110,7 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
     // no parent instance row to take it on.
     async lockGrant(grantId: string): Promise<boolean> {
       const rows = await tx.execute(
-        sql`select id from token_grants where id = ${grantId} for update`,
+        sql`select id from token_grants where id = ${grantId} for no key update`,
       );
       return (rows as unknown as unknown[]).length > 0;
     },
@@ -162,16 +163,17 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
     // The instance and everything minted beneath it. `depth` is capped at 8,
     // which bounds the walk.
     async revoke(id: string, at: Date): Promise<number> {
-      // Locked parent first, then by id, as a revoke's cascade takes instances.
-      await tx.execute(sql`
-        with recursive tree(id, depth) as (
-          select id, 0 from agent_instances where id = ${id}
-          union all
-          select c.id, t.depth + 1 from agent_instances c join tree t on c.parent_instance_id = t.id
-        )
-        select i.id from agent_instances i
-          join (select t.id, max(t.depth) as d from tree t group by t.id) m on m.id = i.id
-         order by m.d, i.id for no key update of i`);
+      // The lineage is locked before any row of it, as a revoke's cascade does.
+      await lockLineageRoots(
+        tx,
+        sql`
+          with recursive tree(id) as (
+            select id from agent_instances where id = ${id}
+            union all
+            select c.id from agent_instances c join tree t on c.parent_instance_id = t.id
+          )
+          select root_grant_id as id from agent_instances where id in (select id from tree)`,
+      );
       const rows = await tx.execute(sql`
         with recursive tree as (
           select id from agent_instances where id = ${id}
@@ -193,18 +195,19 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
       now: Date,
       tombstoneBefore: Date,
     ): Promise<{ expired: number; deleted: number }> {
-      await tx.execute(sql`
-        with recursive tree(id, depth) as (
-          select id, 0 from agent_instances
-           where revoked_at is null
-             and (expires_at <= ${now.toISOString()}::timestamptz
-                  or idle_expires_at <= ${now.toISOString()}::timestamptz)
-          union all
-          select c.id, t.depth + 1 from agent_instances c join tree t on c.parent_instance_id = t.id
-        )
-        select i.id from agent_instances i
-          join (select t.id, max(t.depth) as d from tree t group by t.id) m on m.id = i.id
-         order by m.d, i.id for no key update of i`);
+      await lockLineageRoots(
+        tx,
+        sql`
+          with recursive tree(id) as (
+            select id from agent_instances
+             where revoked_at is null
+               and (expires_at <= ${now.toISOString()}::timestamptz
+                    or idle_expires_at <= ${now.toISOString()}::timestamptz)
+            union all
+            select c.id from agent_instances c join tree t on c.parent_instance_id = t.id
+          )
+          select root_grant_id as id from agent_instances where id in (select id from tree)`,
+      );
       const expired = (await tx.execute(sql`
         with recursive tree as (
           select id from agent_instances

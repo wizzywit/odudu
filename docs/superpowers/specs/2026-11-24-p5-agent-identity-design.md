@@ -179,6 +179,24 @@ plan checks the plan under row-level security (section 13) and adds a composite
 index if it is needed. A grant ended by session end, logout or reuse detection does the
 same. Audit: one row for the root, with the count.
 
+**Lock order.** Every revoker (a revoke of one grant, of a session, a client, a
+subject or an actor, the admin's client-grants revoke, the instance revoke and
+expiry, and the reaper's instance and grant deletes) first takes the _lineage
+root_ of its seeds, the topmost grant reached by following
+`exchanged_from_grant_id`, `for no key update` and in id order, and only then
+touches any other row. Two revokers over one lineage meet at that root and one
+waits; revokers of different lineages share no row and never conflict. The
+worst case for lock volume is one row per distinct lineage the seeds belong to,
+however many grants they are, taken a batch of at most the cascade cap at a
+time. The reaper takes the roots `skip locked` and leaves a lineage a revoker
+holds for its next pass. An exchange, a mint and a budget spend each hold one
+grant and one instance (a spend holds the budget root `for no key update` and
+reads the grant a call carries without a lock), and none of them waits for a
+root while holding an instance. A child committed after a cascade pass took its
+snapshot is found by the next pass, which locks it while holding that pass's
+instances; an exchange from exactly that child could wait on one of them, and
+one of the two is then aborted by the deadlock detector and retried.
+
 ### 5.5 Budgets
 
 Three levels, each a counter spent by one conditional `UPDATE … RETURNING`:

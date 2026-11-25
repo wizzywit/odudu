@@ -277,18 +277,27 @@ export function exchange(
   });
 }
 
-// Returns once `waiting` backends of the owner's database are blocked on a lock,
-// which is the evidence that a request reached the row a test holds.
-export async function waitForLockWaiters(owner: DatabaseHandle, waiting = 1): Promise<void> {
+// Returns once `waiting` backends are blocked, directly or behind one another,
+// by the transaction of backend `holder`: the test's own, whatever else the
+// database is doing.
+export async function waitForLockWaiters(
+  owner: DatabaseHandle,
+  holder: number,
+  waiting = 1,
+): Promise<void> {
   for (let attempt = 0; attempt < 400; attempt += 1) {
     const rows = await owner.db.execute(
-      sql`select count(*)::int as n from pg_stat_activity
-           where wait_event_type = 'Lock' and datname = current_database()`,
+      sql`with recursive blocked(pid) as (
+            select ${holder}::int
+            union
+            select a.pid from pg_stat_activity a join blocked b on b.pid = any(pg_blocking_pids(a.pid))
+          )
+          select count(*)::int - 1 as n from blocked`,
     );
     if (Number((rows as unknown as { n: number }[])[0]?.n) >= waiting) return;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error(`fewer than ${String(waiting)} backends waited on a lock`);
+  throw new Error(`fewer than ${String(waiting)} backends waited on the held lock`);
 }
 
 export interface HeldLock {
@@ -296,6 +305,8 @@ export interface HeldLock {
   release: () => void;
   // Settles when the holding transaction has committed or failed.
   done: Promise<void>;
+  // Waits until `waiting` backends are blocked behind the holding transaction.
+  waitForWaiters: (owner: DatabaseHandle, waiting?: number) => Promise<void>;
   // Registers an operation the body started, so it is awaited however the body ends.
   started: <T>(operation: Promise<T>) => Promise<T>;
 }
@@ -322,8 +333,11 @@ export async function withHeldLock<R>(
   const gotLock = new Promise<void>((resolve) => {
     locked = resolve;
   });
+  let pid = 0;
   const done = withTenant(db, tenantId, async (tx) => {
     await hold.lock(tx);
+    const own = await tx.execute(sql`select pg_backend_pid()::int as pid`);
+    pid = Number((own as unknown as { pid: number }[])[0]?.pid);
     locked();
     await released;
     await hold.afterRelease?.(tx);
@@ -334,6 +348,7 @@ export async function withHeldLock<R>(
     const result = await body({
       release,
       done,
+      waitForWaiters: (owner, waiting = 1) => waitForLockWaiters(owner, pid, waiting),
       started: (operation) => {
         pending.push(operation);
         return operation;

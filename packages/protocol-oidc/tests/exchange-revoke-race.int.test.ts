@@ -8,7 +8,6 @@ import {
   exchange,
   login,
   startAgentStack,
-  waitForLockWaiters,
   withHeldLock,
   type AgentStack,
 } from '#/testing/agent-fixture';
@@ -82,7 +81,7 @@ describe('an exchange from a revoked grant', () => {
       },
       async (held) => {
         const exchanging = held.started(exchange(stack, AGENT, owner.accessToken));
-        await waitForLockWaiters(stack.owner);
+        await held.waitForWaiters(stack.owner);
         held.release();
         const [outcome] = await Promise.all([exchanging, held.done]);
         return outcome;
@@ -125,7 +124,7 @@ describe('an exchange from an instance racing a revoke', () => {
           },
           async (held) => {
             const exchanging = held.started(exchange(stack, AGENT, token));
-            await waitForLockWaiters(stack.owner);
+            await held.waitForWaiters(stack.owner);
             const revoking = held.started(
               withTenant(stack.app.db, stack.tenantId, (tx) =>
                 tokenGrantRepository(tx).revoke(target, new Date()),
@@ -134,7 +133,7 @@ describe('an exchange from an instance racing a revoke', () => {
                 (error: unknown) => error,
               ),
             );
-            await waitForLockWaiters(stack.owner, 2);
+            await held.waitForWaiters(stack.owner, 2);
             held.release();
             return Promise.all([exchanging, revoking, held.done]);
           },
