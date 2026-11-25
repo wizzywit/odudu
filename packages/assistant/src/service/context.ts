@@ -1,6 +1,8 @@
 import type { UIMessage } from 'ai';
 
-// The most earlier messages one turn sends to the model.
+// The most earlier messages one turn sends. The request is bounded by this
+// count, not in bytes: each tool result inside a message is capped upstream
+// at 256,000 characters.
 export const HISTORY_MESSAGES = 40;
 
 /**

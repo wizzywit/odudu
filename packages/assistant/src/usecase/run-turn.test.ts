@@ -61,7 +61,7 @@ function ask(text: string): UIMessage {
 
 function depsFor(model: MockLanguageModelV3, overrides: Partial<RunTurnDeps> = {}) {
   let minted = 0;
-  const mintToken = vi.fn(() => {
+  const mintToken = vi.fn<RunTurnDeps['mintToken']>(() => {
     minted += 1;
     return Promise.resolve({ accessToken: `token-${String(minted)}` });
   });
@@ -123,9 +123,23 @@ describe('runTurn', () => {
     const { deps, mintToken, callTool } = depsFor(model);
     await finish(deps);
     expect(mintToken).toHaveBeenCalledTimes(2);
-    expect(mintToken).toHaveBeenNthCalledWith(1, { key: CONVERSATION });
-    expect(mintToken).toHaveBeenNthCalledWith(2, { key: CONVERSATION });
+    expect(mintToken).toHaveBeenNthCalledWith(1, { key: CONVERSATION }, expect.any(AbortSignal));
+    expect(mintToken).toHaveBeenNthCalledWith(2, { key: CONVERSATION }, expect.any(AbortSignal));
     expect(callTool.mock.calls.map((call) => call[0])).toEqual(['token-1', 'token-2']);
+  });
+
+  it('hands the turn signal to the mint and the call', async () => {
+    const model = scripted([toolCall('c1', 'list_clients', '{}'), answer('ok')]);
+    const { deps, mintToken, callTool } = depsFor(model);
+    const controller = new AbortController();
+    const result = await runTurn(deps, {
+      conversationId: CONVERSATION,
+      message: ask('x'),
+      signal: controller.signal,
+    });
+    await result.text;
+    expect(mintToken.mock.calls[0]?.[1]).toBeInstanceOf(AbortSignal);
+    expect(callTool.mock.calls[0]?.[3]).toBeInstanceOf(AbortSignal);
   });
 
   it('delivers a result that carries an instruction inside the data fence', async () => {

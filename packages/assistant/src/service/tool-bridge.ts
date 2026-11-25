@@ -1,23 +1,23 @@
-import type { JsonValue, RegisteredTool, ToolResult } from '@odudu/mcp';
+import type { RegisteredTool, ToolResult } from '@odudu/mcp';
 import { tool, type ToolSet } from 'ai';
+import { fence, FENCE_CLOSE, FENCE_OPEN } from '#/service/fence';
 
-export const FENCE_OPEN = '<tool-data>';
-export const FENCE_CLOSE = '</tool-data>';
-
-// A `<` inside the payload is written as a JSON escape, so the text between
-// the fences still parses and no value can spell either fence marker.
-const ANGLE = /</gu;
+export { FENCE_CLOSE, FENCE_OPEN };
 
 /**
  * What a tool returned, as the model reads it: inside a fence its rules say
  * holds data and never instructions. Both the answer and a refusal come back
  * under their own key (`data`, `error`), as the MCP tools label them.
  */
-export function fenceToolOutput(output: JsonValue): string {
-  return `${FENCE_OPEN}${JSON.stringify(output).replace(ANGLE, '\\u003c')}${FENCE_CLOSE}`;
+export function fenceToolOutput(output: unknown): string {
+  return fence(JSON.stringify(output));
 }
 
-export type CallTool = (name: string, input: unknown) => Promise<ToolResult>;
+export type CallTool = (name: string, input: unknown, signal?: AbortSignal) => Promise<ToolResult>;
+
+// What the model is told when a call fails before the tool answers. The
+// failure's own text is the composition's and is not passed on.
+const FAILED = { error: { title: 'The tool could not be run' } };
 
 /**
  * The given tools as an AI SDK tool set. Each tool's own schema validates the
@@ -30,9 +30,15 @@ export function toSdkTools(tools: readonly RegisteredTool[], call: CallTool): To
     set[entry.name] = tool({
       description: entry.description,
       inputSchema: entry.input,
-      execute: async (input: unknown) => {
-        const result = await call(entry.name, input);
-        return fenceToolOutput(result.structuredContent as JsonValue);
+      execute: async (input: unknown, options) => {
+        const signal = options.abortSignal;
+        try {
+          const result = await call(entry.name, input, signal);
+          return fenceToolOutput(result.structuredContent);
+        } catch (error) {
+          if (signal?.aborted === true) throw error;
+          return fenceToolOutput(FAILED);
+        }
       },
     });
   }

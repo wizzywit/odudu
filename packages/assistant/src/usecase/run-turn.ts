@@ -19,9 +19,18 @@ export interface RunTurnDeps {
   readonly tools: readonly RegisteredTool[];
   readonly history: (conversationId: string) => Promise<readonly UIMessage[]>;
   // A short admin token for one call, acting for the conversation's agent
-  // instance; `key` is the conversation, which names the run.
-  readonly mintToken: (run: { key: string }) => Promise<{ accessToken: string }>;
-  readonly callTool: (accessToken: string, name: string, input: unknown) => Promise<ToolResult>;
+  // instance; `key` is the conversation, which names the run. Calls running
+  // at once in one step share that key, so the minting must be safe under it.
+  readonly mintToken: (
+    run: { key: string },
+    signal?: AbortSignal,
+  ) => Promise<{ accessToken: string }>;
+  readonly callTool: (
+    accessToken: string,
+    name: string,
+    input: unknown,
+    signal?: AbortSignal,
+  ) => Promise<ToolResult>;
 }
 
 export interface TurnInput {
@@ -52,9 +61,9 @@ export type StreamResult = Awaited<ReturnType<ReturnType<typeof buildAgent>['str
  */
 export async function runTurn(deps: RunTurnDeps, input: TurnInput): Promise<StreamResult> {
   const reads = deps.tools.filter((entry) => entry.access === 'read');
-  const tools = toSdkTools(reads, async (name, args) => {
-    const { accessToken } = await deps.mintToken({ key: input.conversationId });
-    return deps.callTool(accessToken, name, args);
+  const tools = toSdkTools(reads, async (name, args, signal) => {
+    const { accessToken } = await deps.mintToken({ key: input.conversationId }, signal);
+    return deps.callTool(accessToken, name, args, signal);
   });
   const agent = buildAgent(deps, tools);
   const earlier = boundHistory(await deps.history(input.conversationId));
