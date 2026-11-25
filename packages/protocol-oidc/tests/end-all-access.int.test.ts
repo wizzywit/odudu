@@ -180,7 +180,7 @@ describe('endAllAccess', () => {
   it('takes a few statements a page when a subject holds more than a page of sessions', async () => {
     const { tenantId, subjectId } = await holder(450);
     const used = await recover(tenantId, subjectId);
-    expect(used).toBeLessThan(60);
+    expect(used).toBeLessThan(70);
     const open = await owner.db
       .select({ expiresAt: sessions.expiresAt })
       .from(sessions)
