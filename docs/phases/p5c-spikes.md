@@ -137,3 +137,109 @@ and `package.json` to run elsewhere.
 | prompt_cache_bedrock                        | pass    |
 
 No provider failed, so goal 2 of the spec is unchanged.
+
+# P5c engine spikes: approvals, telemetry, input estimates
+
+Run 2026-11-25, `ai@7.0.181`, Node 24.15.0, scripts in a scratch package
+outside the repository. Approval and telemetry runs use `MockLanguageModelV3`
+(no provider is involved in either); the estimate runs call Bedrock
+(`eu.anthropic.claude-haiku-5-5`, 12 requests in all) and a local Ollama
+`llama3.2` through its OpenAI-compatible endpoint (6 requests).
+
+## Approval signing and resume
+
+Source read: `ai/dist/default-stop-condition-D8PwkeWe.js`, `signToolApproval`
+and `verifyToolApprovalSignature`. The signature is an HMAC-SHA256 of the
+approval id, tool-call id, tool name and a digest of the input, keyed by
+`experimental_toolApprovalSecret`; nothing is held in process memory.
+
+Command: process A runs a `ToolLoopAgent` with `toolApproval: { create_thing:
+'user-approval' }` and a secret, writes `[user, ...response.messages]` as JSON;
+process B (a new `node`) reads that file, appends
+`{ role: 'tool', content: [{ type: 'tool-approval-response', approvalId, approved: true }] }`,
+builds a new `ToolLoopAgent` and calls `generate({ messages })`.
+
+```text
+A: {"finishReason":"tool-calls","parts":["tool-call","tool-approval-request"],"sigPresent":true,"pid":27756}
+B same secret:     {"ok":true,"executed":1,"text":"done","pid":27800}
+B other secret:    AI_InvalidToolApprovalSignatureError ... invalid signature   (executed 0)
+B tampered input:  AI_InvalidToolApprovalSignatureError ... invalid signature   (executed 0)
+B no signature:    AI_InvalidToolApprovalSignatureError ... missing signature   (executed 0)
+B empty secret:    DataError: Zero-length key is not supported                  (executed 0)
+```
+
+The pending request is plain JSON (`type`, `approvalId`, `toolCallId`,
+`signature`); the tool ran once, before the next model call, in the fresh
+process.
+
+result: `approval_secret_stable`: pass. The same secret verifies in a second
+process; a different secret, an edited input or a removed signature is refused
+before the tool runs. An empty secret throws, so a missing environment value
+must stop startup rather than disable signing.
+result: `resume_from_stored_messages`: pass. Persisted messages with a pending
+`tool-approval-request`, a response appended, and a fresh agent continue the run.
+
+## Telemetry
+
+Command: integrations that record `onStart`, `onStepStart`,
+`onToolExecutionStart`, `onToolExecutionEnd`, `onStepEnd`; one registered with
+`registerTelemetry`, one passed as `telemetry: { integrations: [...] }`.
+
+```text
+{"A_perCall":7,"A_global":0}     both present, one tool-calling run
+{"B_global_only":3}              no per-call integration: the global one receives events
+```
+
+Parent whose tool runs a child agent, both passed the same per-call
+integration. Events carry `callId` and no parent field, so nesting needs the
+integration's own `executeTool` wrapper (`ai` composes it around the tool's
+`execute`) holding an `AsyncLocalStorage` value that the child's `onStart` reads:
+
+```text
+with wrapper:    [{"callId":"call-Mj3wq5s","parent":null},
+                  {"callId":"call-wnjNtAI","parent":{"callId":"call-Mj3wq5s","toolCallId":"tp1"}}]
+without wrapper: [{"callId":"call-nKvAGgN","parent":null},{"callId":"call-19t448Q","parent":null}]
+```
+
+result: `telemetry_per_call_replaces_global`: pass. A per-call integration replaces
+the global ones for that call (0 events to the global one); with none given,
+the global receives them.
+result: `subagent_nests_under_parent`: pass with a wrapper. The child's call id
+is linked to the parent's call id and tool-call id only when the integration
+implements `executeTool` and a context store; without it the child run is a
+separate root.
+
+## Input-token upper bound per provider
+
+Command: one request per text, `max_tokens` 1, text of 16,000 bytes (Bedrock)
+or 2,500 bytes (Ollama, inside its default 4,096 context); compare the
+reported input tokens with the byte length of the serialised request body.
+`json_escapes` is quotes, backslashes, newlines and control characters, which
+serialise to two to six bytes each.
+
+| Provider      | Text             | Request bytes | Reported tokens | Reported / bytes |
+| ------------- | ---------------- | ------------- | --------------- | ---------------- |
+| Bedrock Haiku | single-byte run  | 16,088        | 16,008          | 0.995            |
+| Bedrock Haiku | random ASCII     | 16,088        | 12,985          | 0.807            |
+| Bedrock Haiku | CJK (3 B/char)   | 16,090        | 10,982          | 0.683            |
+| Bedrock Haiku | base64           | 16,088        | 15,147          | 0.942            |
+| Bedrock Haiku | emoji (4 B/char) | 16,088        | 10,939          | 0.680            |
+| Bedrock Haiku | JSON escapes     | 44,796        | 10,637          | 0.237            |
+| Ollama llama3.2 | single-byte run | 2,592       | 338             | 0.130            |
+| Ollama llama3.2 | random ASCII    | 2,592       | 1,603           | 0.618            |
+| Ollama llama3.2 | CJK             | 2,594       | 1,618           | 0.624            |
+| Ollama llama3.2 | base64          | 2,592       | 1,847           | 0.713            |
+| Ollama llama3.2 | emoji           | 2,592       | 1,812           | 0.699            |
+| Ollama llama3.2 | JSON escapes    | 6,988       | 1,786           | 0.256            |
+
+The provider's own count: `bedrock:CountTokens` on the inference profile was
+refused for this key ("not authorized to perform: bedrock:CountTokens"), so no
+count API comparison was made. vLLM was not runnable on this host.
+
+result: `input_upper_bound_per_provider`: pass for `bytes(serialised request)`
+as a ceiling. Bedrock Anthropic reached 0.995 on a single-byte run (the
+request overhead leaves 80 bytes of margin), so a smaller divisor than one
+token per byte is unsafe there; Ollama llama3.2 peaked at 0.713. A fixed
+`ceil(bytes)` ceiling holds on both; any tighter ratio must be per provider and
+per model, and the Bedrock single-byte case rules out one under 1.0 for it.
+`vllm`: `not_run`. `bedrock_count_tokens`: unavailable with this key (IAM).
