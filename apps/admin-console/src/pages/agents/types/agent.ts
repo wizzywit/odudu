@@ -1,5 +1,8 @@
 export type InstanceState = 'live' | 'expired' | 'revoked';
 
+// How a state is drawn; each is one of the status tags' tones.
+export type StateTone = 'neutral' | 'active' | 'warning' | 'danger';
+
 export type ApprovalState = 'pending' | 'approved' | 'denied' | 'expired' | 'consumed';
 
 // What an instance's own slice of writes has left.

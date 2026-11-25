@@ -1,4 +1,3 @@
-import type { StatusTone } from '#/shared/ui/StatusTag';
 import { counted } from '#/shared/lib/services/format';
 import type { Choice } from '#/shared/lib/services/choice';
 import type {
@@ -6,6 +5,7 @@ import type {
   AgentInstance,
   ApprovalState,
   InstanceState,
+  StateTone,
 } from '#/pages/agents/types/agent';
 
 export const AGENT_NOUN = { one: 'agent', other: 'agents' } as const;
@@ -50,13 +50,13 @@ export const APPROVAL_STATES: readonly Choice[] = [
   { id: 'consumed', label: 'Consumed' },
 ];
 
-const INSTANCE_TONES: Readonly<Record<InstanceState, StatusTone>> = {
+const INSTANCE_TONES: Readonly<Record<InstanceState, StateTone>> = {
   live: 'active',
   expired: 'neutral',
   revoked: 'danger',
 };
 
-const APPROVAL_TONES: Readonly<Record<ApprovalState, StatusTone>> = {
+const APPROVAL_TONES: Readonly<Record<ApprovalState, StateTone>> = {
   pending: 'warning',
   approved: 'active',
   denied: 'danger',
@@ -64,11 +64,11 @@ const APPROVAL_TONES: Readonly<Record<ApprovalState, StatusTone>> = {
   consumed: 'neutral',
 };
 
-export function instanceTone(state: InstanceState): StatusTone {
+export function instanceTone(state: InstanceState): StateTone {
   return INSTANCE_TONES[state];
 }
 
-export function approvalTone(state: ApprovalState): StatusTone {
+export function approvalTone(state: ApprovalState): StateTone {
   return APPROVAL_TONES[state];
 }
 
