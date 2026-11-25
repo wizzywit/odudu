@@ -668,3 +668,81 @@ describe('a cascade takes the grants before any instance', () => {
     expect(await instanceRevoked([instance])).toEqual([true]);
   });
 });
+
+describe('a revoke over many grants takes them in id order', () => {
+  // Grants made in descending id order, so that the order rows sit in the
+  // table is the opposite of id order.
+  async function overlapping(w: World, count: number): Promise<string[]> {
+    const ids = Array.from({ length: count }, () => newId())
+      .sort()
+      .reverse();
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      for (const id of ids) {
+        await tokenGrantRepository(tx).create({
+          id,
+          tenantId: w.tenantId,
+          clientId: w.clientDbId,
+          subjectId: w.subjectId,
+          scope: 'mcp:read',
+          audience: ['https://odudu.test/mcp'],
+          sessionId: null,
+        });
+      }
+    });
+    return ids.sort();
+  }
+
+  it('does not touch a later grant while it waits for an earlier one', async () => {
+    const w = await newWorld();
+    const [lowest, , highest] = await overlapping(w, 3);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked!: () => void;
+    const gotLock = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const holder = withTenant(app.db, w.tenantId, async (tx) => {
+      await tx.execute(sql`select id from token_grants where id = ${nth([lowest], 0)} for update`);
+      locked();
+      await held;
+    });
+    await gotLock;
+    const revoking = withTenant(app.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSubject(w.subjectId, LATER),
+    );
+    await waitForLockWaiters(owner);
+    const probe = await owner.db
+      .transaction((tx) =>
+        tx.execute(
+          sql`select id from token_grants where id = ${nth([highest], 0)} for update nowait`,
+        ),
+      )
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    release();
+    await Promise.all([revoking, holder]);
+    expect(probe).toBeNull();
+  });
+
+  it('lets two revokes over the same grants both finish, without a deadlock', async () => {
+    for (let round = 0; round < 8; round += 1) {
+      const w = await newWorld();
+      await overlapping(w, 12);
+      const failures: unknown[] = [];
+      const attempt = (run: (g: ReturnType<typeof tokenGrantRepository>) => Promise<unknown>) =>
+        withTenant(app.db, w.tenantId, (tx) => run(tokenGrantRepository(tx))).catch(
+          (error: unknown) => failures.push(error),
+        );
+      await Promise.all([
+        attempt((g) => g.revokeForSubject(w.subjectId, LATER)),
+        attempt((g) => g.revokeForSubjectClient(w.subjectId, w.clientDbId, LATER)),
+        attempt((g) => g.revokeForSubject(w.subjectId, LATER)),
+      ]);
+      expect(failures).toEqual([]);
+    }
+  });
+});

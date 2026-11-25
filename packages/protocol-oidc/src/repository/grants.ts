@@ -2,7 +2,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { STRUCTURAL_MAX_DEPTH } from '@odudu/domain-agents';
 import { auditRepository } from '@odudu/domain-audit';
 import { clients } from '@odudu/domain-tenant';
-import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { tokenGrants, type TokenGrantRecord } from '#/schema/token-grants';
 
@@ -289,6 +289,18 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     );
   }
 
+  // The seeds of a multi-grant revoke, locked in id order before the update
+  // that ends them, which cannot be told an order. Two such revokes, or one and
+  // an exchange, then take any grants they share in the same order.
+  async function lockSeeds(where: SQL | undefined): Promise<void> {
+    await tx
+      .select({ id: tokenGrants.id })
+      .from(tokenGrants)
+      .where(where)
+      .orderBy(asc(tokenGrants.id))
+      .for('no key update');
+  }
+
   // One read behind both ways of asking for a session's clients, so the
   // join and the `enabled` filter cannot differ between them.
   async function sessionClients(
@@ -462,6 +474,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // already-revoked grant at a later `now` would move its reaping window
     // forward every time logout ran again.
     async revokeForSession(sessionId: string, revokedAt: Date): Promise<number> {
+      await lockSeeds(eq(tokenGrants.sessionId, sessionId));
       const rows = await tx
         .update(tokenGrants)
         .set({
@@ -479,6 +492,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // `revokeForSession` for many sessions in one statement.
     async revokeForSessions(sessionIds: readonly string[], revokedAt: Date): Promise<number> {
       if (sessionIds.length === 0) return 0;
+      await lockSeeds(inArray(tokenGrants.sessionId, [...sessionIds]));
       const rows = await tx
         .update(tokenGrants)
         .set({
@@ -504,16 +518,16 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       clientId: string,
       revokedAt: Date,
     ): Promise<number> {
+      const seeds = and(
+        eq(tokenGrants.subjectId, subjectId),
+        eq(tokenGrants.clientId, clientId),
+        isNull(tokenGrants.revokedAt),
+      );
+      await lockSeeds(seeds);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
-        .where(
-          and(
-            eq(tokenGrants.subjectId, subjectId),
-            eq(tokenGrants.clientId, clientId),
-            isNull(tokenGrants.revokedAt),
-          ),
-        )
+        .where(seeds)
         .returning({ id: tokenGrants.id });
       await cascadeAll(
         rows.map((row) => row.id),
@@ -526,10 +540,12 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // included: whoever held a token before the password was reset holds
     // nothing after. An already-revoked grant keeps its first timestamp.
     async revokeForSubject(subjectId: string, revokedAt: Date): Promise<number> {
+      const seeds = and(eq(tokenGrants.subjectId, subjectId), isNull(tokenGrants.revokedAt));
+      await lockSeeds(seeds);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
-        .where(and(eq(tokenGrants.subjectId, subjectId), isNull(tokenGrants.revokedAt)))
+        .where(seeds)
         .returning({ id: tokenGrants.id });
       await cascadeAll(
         rows.map((row) => row.id),
@@ -542,10 +558,15 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // actor goes, which would leave the delegated token live with its `act`
     // claim intact; a caller that removes an actor revokes what it acted in.
     async revokeForActor(actorSubjectId: string): Promise<number> {
+      const seeds = and(
+        eq(tokenGrants.actorSubjectId, actorSubjectId),
+        isNull(tokenGrants.revokedAt),
+      );
+      await lockSeeds(seeds);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt: sql`now()` })
-        .where(and(eq(tokenGrants.actorSubjectId, actorSubjectId), isNull(tokenGrants.revokedAt)))
+        .where(seeds)
         .returning({ id: tokenGrants.id });
       await cascadeAll(
         rows.map((row) => row.id),
