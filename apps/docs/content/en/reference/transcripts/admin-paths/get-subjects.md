@@ -153,6 +153,8 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it.
 
+It ran once more after the three assistant capabilities joined the built-in roles, in a tenant `holders-demo` made as the text above says but through the admin API (`grace` given `tenant-admin`, `linus` made a member of `/auditors`, which maps `view-audit`, and `mei` given `view-users` and `manage-sessions`), so its ids and times are that run's, and `grace`'s `admin_capabilities` names `tenant-admin` and twelve more.
+
 Holding through a group or a composite is shown by an integration test, not
 here.
 
@@ -185,23 +187,22 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?username=bob"; ech
 ```
 
 ```
-{"items":[{"id":"01a1a8b1-88b4-7c2b-ae64-c7d60920fd47","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-11-04T22:32:49.582Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false},{"name":"view-domains","direct":false},{"name":"manage-domains","direct":false}]},{"id":"01a1a8b1-8acb-7210-98d9-e7ebaebacf75","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-11-04T22:32:50.118Z","admin_capabilities":[{"name":"view-audit","direct":false}]},{"id":"01a1a8b1-8cba-721d-9d0a-7b5d7704f203","type":"user","username":"mei","email":null,"enabled":true,"created_at":"2026-11-04T22:32:50.612Z","admin_capabilities":[{"name":"view-users","direct":true},{"name":"manage-sessions","direct":true}]}]}
-{"count":3,"capped":false}
+{"items":[{"id":"01a214e8-37ad-723b-a041-32bc01243aff","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-11-25T22:51:32.652Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false},{"name":"view-domains","direct":false},{"name":"manage-domains","direct":false},{"name":"use-assistant","direct":false},{"name":"read-assistant-activity","direct":false},{"name":"manage-assistant","direct":false}]},{"id":"01a214e8-37d6-7dd7-8485-83dac3cbd03f","type":"user","username":"mei","email":null,"enabled":true,"created_at":"2026-11-25T22:51:32.694Z","admin_capabilities":[{"name":"view-users","direct":true},{"name":"manage-sessions","direct":true}]}]}
+{"count":2,"capped":false}
 HTTP/1.1 200 OK
-x-request-id: 01a1a8b1-c9ba-7646-bc96-852d1f704c60
+x-request-id: 01a214e8-3943-7b03-a916-4fb45b4b7e53
 cache-control: no-store
-link: </admin/tenants/holders-demo/subjects?limit=2&capability=any&cursor=eyJhZnRlciI6IjAxYTFhOGIxLThhY2ItNzIxMC05OGQ5LWU3ZWJhZWJhY2Y3NSIsImNvbGxlY3Rpb24iOiJzdWJqZWN0cyIsInRlbmFudElkIjoiMDFhMWE4YjEtNzZkMy03ODQ2LWFjZGItZjEwNGNlM2NmN2JjIiwiZmlsdGVycyI6InJXRnNaN2Y3d3JBRDFrck0wQXJORFY1dEgwXzJNZEdSQW5kV2NmUTBBelUifQ.dcy5prL553f6FljLAB9RcCXF99yMJrjksnrt7S86DbU>; rel="next"
 content-type: application/json; charset=utf-8
-content-length: 1072
-Date: Wed, 04 Nov 2026 22:33:06 GMT
+content-length: 951
+Date: Wed, 25 Nov 2026 22:51:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a1a8b1-88b4-7c2b-ae64-c7d60920fd47","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-11-04T22:32:49.582Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false},{"name":"view-domains","direct":false},{"name":"manage-domains","direct":false}]},{"id":"01a1a8b1-8acb-7210-98d9-e7ebaebacf75","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-11-04T22:32:50.118Z","admin_capabilities":[{"name":"view-audit","direct":false}]}],"next":"eyJhZnRlciI6IjAxYTFhOGIxLThhY2ItNzIxMC05OGQ5LWU3ZWJhZWJhY2Y3NSIsImNvbGxlY3Rpb24iOiJzdWJqZWN0cyIsInRlbmFudElkIjoiMDFhMWE4YjEtNzZkMy03ODQ2LWFjZGItZjEwNGNlM2NmN2JjIiwiZmlsdGVycyI6InJXRnNaN2Y3d3JBRDFrck0wQXJORFY1dEgwXzJNZEdSQW5kV2NmUTBBelUifQ.dcy5prL553f6FljLAB9RcCXF99yMJrjksnrt7S86DbU"}
-{"items":[{"id":"01a1a8b1-8ea4-7320-a26f-3e371440cc46","type":"user","username":"bob","email":null,"enabled":true,"created_at":"2026-11-04T22:32:51.103Z"}]}
+{"items":[{"id":"01a214e8-37ad-723b-a041-32bc01243aff","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-11-25T22:51:32.652Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false},{"name":"view-domains","direct":false},{"name":"manage-domains","direct":false},{"name":"use-assistant","direct":false},{"name":"read-assistant-activity","direct":false},{"name":"manage-assistant","direct":false}]},{"id":"01a214e8-37d6-7dd7-8485-83dac3cbd03f","type":"user","username":"mei","email":null,"enabled":true,"created_at":"2026-11-25T22:51:32.694Z","admin_capabilities":[{"name":"view-users","direct":true},{"name":"manage-sessions","direct":true}]}]}
+{"items":[{"id":"01a214e8-37eb-7960-ada1-775402f56b5b","type":"user","username":"bob","email":null,"enabled":true,"created_at":"2026-11-25T22:51:32.714Z"}]}
 ```
 
-This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. `tenant-admin` carries nine roles now, so `grace`'s `admin_capabilities` has two more names and the page of two is longer.
+This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. `tenant-admin` then carried nine roles, so `grace`'s `admin_capabilities` has two more names and the page of two is longer.
 
 `grace`'s capabilities other than `tenant-admin` are held within it, so none
 is direct; `linus` holds `view-audit` only through `/auditors`; `bob` is in

@@ -657,3 +657,5 @@ docker compose exec -T -e ODUDU_PUBLIC_BASE_URL=https://idp.example.test odudu \
 OduduError: ODUDU_PUBLIC_BASE_URL is required while the administration console is on: its redirect URI is built from that base and never from a request header. Set it, or set ODUDU_CONSOLE=false to serve no console.
 OduduError: ODUDU_PUBLIC_BASE_URL is https://idp.example.test, but ODUDU_TLS is off. Every cookie follows ODUDU_TLS, so the console would be served without Secure and the __Host- prefix to a browser that reached it over https. Set ODUDU_TLS=true, or set ODUDU_CONSOLE=false.
 ```
+
+The lists of admin capabilities in this page's blocks keep their capture from before the three assistant capabilities (`use-assistant`, `read-assistant-activity` and `manage-assistant`) joined the built-in roles, and were not run again: a server now answers each of them with the three added, and with thirteen built-in roles of `odudu-admin` where a role list is shown.

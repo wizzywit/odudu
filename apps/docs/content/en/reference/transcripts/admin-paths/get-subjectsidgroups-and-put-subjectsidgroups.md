@@ -178,3 +178,5 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 {"items":[{"id":"01a1a8b2-3fe5-7328-976c-4cf15df36cab","occurred_at":"2026-11-04T22:33:36.477Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a1a8b1-8127-7350-86b7-3cc9fb8bc5c0","actor_subject_id
 ```
+
+The lists of admin capabilities in this page's blocks keep their capture from before the three assistant capabilities (`use-assistant`, `read-assistant-activity` and `manage-assistant`) joined the built-in roles, and were not run again: a server now answers each of them with the three added, and with thirteen built-in roles of `odudu-admin` where a role list is shown.
