@@ -56,9 +56,9 @@ describe('a transaction that loses a deadlock', () => {
   it('is run again and finishes, where without the retry it fails with 40P01', async () => {
     const bare = { first: 0, second: 0 };
     const results = await Promise.allSettled(ring(withTenant, bare, [9_100, 9_101]));
-    const failed = results.filter((r) => r.status === 'rejected');
+    const failed = results.flatMap((r) => (r.status === 'rejected' ? [r.reason as unknown] : []));
     expect(failed).toHaveLength(1);
-    expect(isDeadlockDetected((failed[0] as PromiseRejectedResult).reason)).toBe(true);
+    expect(isDeadlockDetected(failed[0])).toBe(true);
 
     const runs = { first: 0, second: 0 };
     const retrying: typeof withTenant = (database, tenantId, fn, context) =>
