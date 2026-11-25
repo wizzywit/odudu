@@ -204,12 +204,17 @@ revokes the run, which needs that root. Instance trees stay inside one lineage
 because a child instance takes its parent's root grant (`agent-layer.ts`);
 nothing in the schema enforces it.
 
-Two cases can still deadlock: a pass of the cascade past the first (a child
+Three cases can still deadlock. A pass of the cascade past the first (a child
 committed after the first pass's snapshot, the depth-8 frontier, a capped pass)
 locks grants while holding the instances of the passes before it, and an
 exchange that holds a grant of that later pass and wants one of those instances
-can deadlock with it; and a root found late, because a middle grant was deleted
-while a revoker waited, is locked out of id order. PostgreSQL aborts one of the two transactions with `40P01`. Its transaction rolls
+can deadlock with it. A root found late, because a middle grant was deleted
+while a revoker waited, is locked out of id order. And an amendment or
+retirement of a service account takes the roots of the account's live grants
+before the client row, so a grant created for the account after that lock has
+its root taken only by the revoke, under the client row, where an exchange
+waiting for the client can deadlock with it (a window of milliseconds).
+PostgreSQL aborts one of the two transactions with `40P01`. Its transaction rolls
 back and the error reaches the caller: nothing in the server retries it, and the
 global error handler (`answerServerError`) answers an error that carries no
 status with `500 Internal Server Error`, so the exchange, the revoke or the
