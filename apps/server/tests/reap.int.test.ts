@@ -867,6 +867,28 @@ describe('agent instances and the grants they are rooted at', () => {
     expect((await agentCounts(t)).instances).toBe(0);
   });
 
+  it('keeps a grant its family when a removable instance frees a lower-id grant past one batch', async () => {
+    const t = await seedAgentTenant();
+    await owner.db.execute(sql`
+      INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id)
+      SELECT gen_random_uuid(), ${t.tenantId}, c.id, ${t.userId}, 'openid',
+             ${at(-40 * DAY)}::timestamptz, NULL
+        FROM generate_series(1, 10000) g, (SELECT id FROM clients WHERE tenant_id = ${t.tenantId}) c`);
+    const ends = await owner.db.execute<{ low: string; high: string }>(sql`
+      SELECT (array_agg(id ORDER BY id))[1]::text AS low,
+             (array_agg(id ORDER BY id DESC))[1]::text AS high FROM token_grants
+       WHERE tenant_id = ${t.tenantId} AND created_at < ${at(-30 * DAY)}::timestamptz`);
+    const low = ends[0]?.low ?? '';
+    const high = ends[0]?.high ?? '';
+    // Only the leaf keeps `low` out of the first selections; the pass removes it.
+    await seedInstance(t, low, null, 1, 'removable');
+    await pastRetentionFamily(t, high);
+
+    await runPass();
+
+    expect(await familyRows(t, high)).toEqual([1, 1, 1]);
+  }, 120_000);
+
   it('removes a removable parent only after its child, never leaving a subject without its instance', async () => {
     const t = await seedAgentTenant();
     const parent = await seedInstance(t, t.youngGrantId, null, 1, 'removable');

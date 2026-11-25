@@ -206,13 +206,13 @@ function grantPastRetention(now: Date, policy: RetentionPolicy, tenant: Retentio
 }
 
 // The CTEs that choose the grants one pass may take: at most REAP_BATCH past
-// retention, by id, from lineages whose root this pass could lock (`SKIP LOCKED`:
-// a lineage a revoker holds waits for the next pass). The grant rule and the
-// rules that delete its tokens and codes share it, so a token goes in the pass
-// that takes its grant. The root locks stay held for the tenant's transaction,
-// so the grant rule re-selects the same candidates (deleting spent tokens
-// changes neither `created_at` nor the live-token test) and its own `SKIP
-// LOCKED` does not skip rows this transaction holds. Ends in `chosen(id)`.
+// retention, by id, from lineages whose root this pass could lock (`SKIP
+// LOCKED`: a lineage a revoker holds waits for the next pass). The grant rule
+// and the rules for its tokens and codes share it, so a token goes in the pass
+// that takes its grant. The instance rule runs first (`after`), so nothing
+// changes the candidates between the three; deleting spent tokens changes
+// neither `created_at` nor the live-token test, and the root locks stay held for
+// the transaction. Ends in `chosen(id)`.
 function chosenGrants(now: Date, policy: RetentionPolicy, tenant: RetentionTenant): SQL {
   return sql`
     cand AS (
@@ -237,7 +237,7 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // counting them, so the report would show nothing for a table that had
   // just been emptied.
   refresh_tokens: {
-    after: [],
+    after: ['agent_instances'],
     statement: (now, policy, tenant) => sql`
       WITH RECURSIVE ${chosenGrants(now, policy, tenant)}
       DELETE FROM refresh_tokens t
@@ -254,7 +254,7 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // `EXISTS` against a grant that no longer exists is false forever — a code
   // retained for good, in the table ADR 0021 exists to bound.
   authorization_codes: {
-    after: [],
+    after: ['agent_instances'],
     statement: (now, policy, tenant) => sql`
       WITH RECURSIVE ${chosenGrants(now, policy, tenant)}
       DELETE FROM authorization_codes c
@@ -663,13 +663,13 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
  * because a session is only deletable once nothing references it.
  */
 export const REAP_ORDER: readonly TableName[] = [
+  'agent_instances',
   'refresh_tokens',
   'authorization_codes',
   'agent_budget_windows',
   'ciba_requests',
   'agent_approvals',
   'agent_delegations',
-  'agent_instances',
   'token_grants',
   'authentication_sessions',
   'action_tokens',
