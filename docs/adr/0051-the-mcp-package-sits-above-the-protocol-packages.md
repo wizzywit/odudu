@@ -23,9 +23,9 @@ rules in `.dependency-cruiser.cjs` name the edges:
   `protocol-oidc` and `protocol-admin`, and no other workspace package. Only
   direct imports are checked: both allowed protocol packages import the
   database, so the rule bounds what `mcp` names, not what it reaches.
-- `mcp-imported-only-by-server`: nothing but `apps/server` imports `mcp`. This
-  also keeps every `protocol-*` package from importing it, so no separate rule
-  says so.
+- `mcp-imported-only-by-server`: nothing but `apps/server` and the assistant
+  package, which reads the tool catalogue, imports `mcp`. This also keeps every
+  `protocol-*` package from importing it, so no separate rule says so.
 
 `tests/boundaries/boundaries.test.ts` asserts each against fixtures. The
 fixtures use relative paths; a bare `@odudu/db` import in `mcp` was checked by

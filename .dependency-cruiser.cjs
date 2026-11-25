@@ -410,9 +410,13 @@ module.exports = {
       name: 'mcp-imported-only-by-server',
       severity: 'error',
       comment:
-        'Only apps/server composes the MCP package (ADR 0051); no other package or app reaches ' +
-        'into it, a protocol package included.',
-      from: { path: '(^|/)(?:packages|apps)/', pathNot: '(^|/)(?:packages/mcp|apps/server)/' },
+        'Only apps/server and the assistant package, which reads the MCP tool catalogue, ' +
+        'import the MCP package (ADR 0051); no other package or app reaches into it, a ' +
+        'protocol package included.',
+      from: {
+        path: '(^|/)(?:packages|apps)/',
+        pathNot: '(^|/)(?:packages/(?:mcp|assistant)|apps/server)/',
+      },
       to: { path: '(^|/)packages/mcp/' },
     },
     {
