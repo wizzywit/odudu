@@ -62,7 +62,7 @@ Clients
 Groups
 0 groups
 Roles
-10 roles
+13 roles
 Scopes
 12 scopes
 Discovery

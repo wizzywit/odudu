@@ -37,7 +37,7 @@ const NEVER: Readonly<Record<string, string>> = {
   'GET /admin/tenants/:tenant/domains/:id':
     'The domains list carries every field of a domain and a tenant holds no more than one page of them, so no screen reads one by its id.',
   'GET /admin/tenants/:tenant/assistant/status':
-    'Read by the assistant panel, which is added after this route; until it lands no screen asks whether the assistant is on.',
+    'Read by the assistant panel, which is added after this route; until it lands no screen asks whether the assistant is on. Remove this entry when the panel ships.',
   'GET /admin/tenants/:tenant/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/clients/:id/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/mail/preview': FRAMED,
