@@ -23,6 +23,12 @@ from .get_tenants_tenant_me_credentials_response_200_items_item import (
 from .get_tenants_tenant_me_credentials_response_200_items_item_type import (
     GetTenantsTenantMeCredentialsResponse200ItemsItemType,
 )
+from .get_tenants_tenant_me_delegations_response_200 import (
+    GetTenantsTenantMeDelegationsResponse200,
+)
+from .get_tenants_tenant_me_delegations_response_200_items_item import (
+    GetTenantsTenantMeDelegationsResponse200ItemsItem,
+)
 from .get_tenants_tenant_me_profile_response_200 import (
     GetTenantsTenantMeProfileResponse200,
 )
@@ -49,6 +55,10 @@ from .patch_tenants_tenant_me_profile_response_200 import (
 from .patch_tenants_tenant_me_profile_response_202 import (
     PatchTenantsTenantMeProfileResponse202,
 )
+from .post_tenants_tenant_me_delegations_body import PostTenantsTenantMeDelegationsBody
+from .post_tenants_tenant_me_delegations_response_201 import (
+    PostTenantsTenantMeDelegationsResponse201,
+)
 
 __all__ = (
     "DeleteTenantsTenantMeSessionsIdResponse200",
@@ -58,6 +68,8 @@ __all__ = (
     "GetTenantsTenantMeCredentialsResponse200",
     "GetTenantsTenantMeCredentialsResponse200ItemsItem",
     "GetTenantsTenantMeCredentialsResponse200ItemsItemType",
+    "GetTenantsTenantMeDelegationsResponse200",
+    "GetTenantsTenantMeDelegationsResponse200ItemsItem",
     "GetTenantsTenantMeProfileResponse200",
     "GetTenantsTenantMeSessionsResponse200",
     "GetTenantsTenantMeSessionsResponse200ItemsItem",
@@ -68,4 +80,6 @@ __all__ = (
     "PatchTenantsTenantMeProfileBody",
     "PatchTenantsTenantMeProfileResponse200",
     "PatchTenantsTenantMeProfileResponse202",
+    "PostTenantsTenantMeDelegationsBody",
+    "PostTenantsTenantMeDelegationsResponse201",
 )

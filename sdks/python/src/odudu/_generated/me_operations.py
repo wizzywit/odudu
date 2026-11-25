@@ -4,25 +4,31 @@
 from odudu._generated.me.api.default import (
     delete_tenants_tenant_me_consents_client_id,
     delete_tenants_tenant_me_credentials_id,
+    delete_tenants_tenant_me_delegations_id,
     delete_tenants_tenant_me_sessions,
     delete_tenants_tenant_me_sessions_id,
     get_tenants_tenant_me_consents,
     get_tenants_tenant_me_credentials,
+    get_tenants_tenant_me_delegations,
     get_tenants_tenant_me_profile,
     get_tenants_tenant_me_sessions,
     patch_tenants_tenant_me_credentials_id,
     patch_tenants_tenant_me_profile,
+    post_tenants_tenant_me_delegations,
 )
 
 __all__ = [
     "delete_tenants_tenant_me_consents_client_id",
     "delete_tenants_tenant_me_credentials_id",
+    "delete_tenants_tenant_me_delegations_id",
     "delete_tenants_tenant_me_sessions",
     "delete_tenants_tenant_me_sessions_id",
     "get_tenants_tenant_me_consents",
     "get_tenants_tenant_me_credentials",
+    "get_tenants_tenant_me_delegations",
     "get_tenants_tenant_me_profile",
     "get_tenants_tenant_me_sessions",
     "patch_tenants_tenant_me_credentials_id",
     "patch_tenants_tenant_me_profile",
+    "post_tenants_tenant_me_delegations",
 ]

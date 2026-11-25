@@ -473,6 +473,121 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tenants/{tenant}/me/delegations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The person’s own live delegations to agent clients. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The person’s live delegations, newest first: at most 20, so the answer is never paged. Revoked and expired ones are not listed. */
+                            items: {
+                                /** @description The delegation’s identifier, for revoking it. */
+                                id: string;
+                                /** @description The `client_id` of the application the person signs in with. */
+                                client_id: string;
+                                /** @description The `client_id` of the agent client allowed to act. */
+                                actor_client_id: string;
+                                /** @description The scopes the agent may use, space-separated. */
+                                scope_ceiling: string;
+                                /** @description When the delegation ends, as an ISO 8601 UTC instant. */
+                                expires_at: string;
+                                /** @description When it was made, as an ISO 8601 UTC instant. */
+                                created_at: string;
+                            }[];
+                        };
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        put?: never;
+        /** Lets an agent client act for the person, within a scope ceiling and for a time. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description The `client_id` of the application the person signs in with, as listed. */
+                        client_id: string;
+                        /** @description The `client_id` of the agent client allowed to act for the person. It must be an agent client of the tenant. */
+                        actor_client_id: string;
+                        /** @description The scopes the agent may use for the person, space-separated, at most 1000 characters. Repeated scopes are kept once. An agent never gets more than the person's own token carries, whatever this names. */
+                        scope_ceiling: unknown;
+                        /** @description How long the delegation lasts, in whole seconds, from 60 to 7776000 (90 days). */
+                        expires_in: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The delegation’s identifier, for revoking it. */
+                            id: string;
+                            /** @description The `client_id` of the application the person signs in with. */
+                            client_id: string;
+                            /** @description The `client_id` of the agent client allowed to act. */
+                            actor_client_id: string;
+                            /** @description The scopes the agent may use, space-separated. */
+                            scope_ceiling: string;
+                            /** @description When the delegation ends, as an ISO 8601 UTC instant. */
+                            expires_at: string;
+                            /** @description When it was made, as an ISO 8601 UTC instant. */
+                            created_at: string;
+                        };
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tenants/{tenant}/me/sessions/{id}": {
         parameters: {
             query?: never;
@@ -653,6 +768,48 @@ export interface paths {
                 429: components["responses"]["TooManyRequests"];
             };
         };
+        trace?: never;
+    };
+    "/tenants/{tenant}/me/delegations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Withdraws one of the person’s own delegations. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }

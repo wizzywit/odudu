@@ -104,7 +104,7 @@ def sync_detailed(
 
     Args:
         tenant (str):
-        id (UUID): The identifier of the session or credential, as listed in its `id`.
+        id (UUID): The identifier of the session, credential or delegation, as listed in its `id`.
         body (PatchTenantsTenantMeCredentialsIdBody):
 
     Raises:
@@ -139,7 +139,7 @@ def sync(
 
     Args:
         tenant (str):
-        id (UUID): The identifier of the session or credential, as listed in its `id`.
+        id (UUID): The identifier of the session, credential or delegation, as listed in its `id`.
         body (PatchTenantsTenantMeCredentialsIdBody):
 
     Raises:
@@ -169,7 +169,7 @@ async def asyncio_detailed(
 
     Args:
         tenant (str):
-        id (UUID): The identifier of the session or credential, as listed in its `id`.
+        id (UUID): The identifier of the session, credential or delegation, as listed in its `id`.
         body (PatchTenantsTenantMeCredentialsIdBody):
 
     Raises:
@@ -202,7 +202,7 @@ async def asyncio(
 
     Args:
         tenant (str):
-        id (UUID): The identifier of the session or credential, as listed in its `id`.
+        id (UUID): The identifier of the session, credential or delegation, as listed in its `id`.
         body (PatchTenantsTenantMeCredentialsIdBody):
 
     Raises:
