@@ -1030,6 +1030,13 @@
       "when": 1792185783737,
       "tag": "0146_agent_admin_lists",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1792272183737,
+      "tag": "0147_assistant_conversations",
+      "breakpoints": true
     }
   ]
 }
