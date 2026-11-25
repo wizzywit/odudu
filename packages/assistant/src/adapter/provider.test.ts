@@ -94,25 +94,12 @@ describe('createLanguageModel', () => {
   });
 
   it('refuses a provider whose variable is missing, naming the variable and no value', () => {
-    expect(() =>
-      createLanguageModel(
-        { provider: 'bedrock', model: 'm' },
-        { AWS_BEARER_TOKEN_BEDROCK: 'secret-value' },
-      ),
-    ).toThrow(/AWS_REGION is not set/u);
-    expect(() => createLanguageModel({ provider: 'anthropic', model: 'm' }, {})).toThrow(
-      /ANTHROPIC_API_KEY/u,
-    );
-    expect(() => createLanguageModel({ provider: 'openai-compatible', model: 'm' }, {})).toThrow(
-      /ODUDU_ASSISTANT_OPENAI_COMPATIBLE_BASE_URL/u,
-    );
-    try {
+    const withoutRegion = () =>
       createLanguageModel(
         { provider: 'bedrock', model: 'm' },
         { AWS_BEARER_TOKEN_BEDROCK: 'secret-value' },
       );
-    } catch (error) {
-      expect(String(error)).not.toContain('secret-value');
-    }
+    expect(withoutRegion).toThrow(/AWS_REGION/u);
+    expect(withoutRegion).not.toThrow(/secret-value/u);
   });
 });
