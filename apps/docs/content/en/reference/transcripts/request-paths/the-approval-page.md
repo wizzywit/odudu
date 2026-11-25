@@ -1,6 +1,6 @@
 ---
 title: 'The approval page'
-description: 'Where a person answers a CIBA request: what the page shows, what refuses a decision, why somebody else sees nothing, and that no client credential can decide.'
+description: 'Where a person answers a CIBA request: what the page shows, what refuses a decision, why a stranger sees nothing, and why a client cannot decide.'
 ---
 
 # The approval page

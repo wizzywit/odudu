@@ -1,6 +1,6 @@
 ---
 title: 'CIBA: bc-authorize and the token poll'
-description: 'An agent asks a named person to approve, polls the token endpoint, and is answered pending, slow down, denied, expired or with tokens; the mail, the refusals and what discovery says.'
+description: 'An agent asks a named person to approve and polls the token endpoint: pending, slow down, denied, expired or tokens, with the mail and the refusals.'
 ---
 
 # CIBA: `bc-authorize` and the token poll

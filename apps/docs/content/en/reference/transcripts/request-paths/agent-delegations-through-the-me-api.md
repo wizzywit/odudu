@@ -1,6 +1,6 @@
 ---
 title: 'Agent delegations through the me API'
-description: 'A person lets an agent client act for them with POST /me/delegations: what the access token then says, who may exchange it, and what withdrawing it does.'
+description: 'A person lets an agent client act for them with POST /me/delegations: what the token then says, who may exchange it, and what withdrawing it does.'
 ---
 
 # Agent delegations through the me API

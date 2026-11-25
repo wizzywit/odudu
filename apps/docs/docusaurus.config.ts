@@ -140,6 +140,10 @@ const config: Config = {
         indexDocs: true,
         indexBlog: false,
         indexPages: !image,
+        // A transcript's commands and outputs are most of the index, and the image holds the built
+        // site in memory within a limit; they stay on the page, and the headings and prose around
+        // them and the generated references they illustrate stay searchable.
+        ignoreCssSelectors: image ? ['html[class*="docs-doc-id-reference/transcripts/"] pre'] : [],
         // The image's pages say noindex to crawlers; its own search must still read them.
         forceIgnoreNoIndex: image,
         docsRouteBasePath: image ? '/' : 'docs',
