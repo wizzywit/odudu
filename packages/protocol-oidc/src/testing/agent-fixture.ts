@@ -284,8 +284,10 @@ export async function waitForLockWaiters(
   owner: DatabaseHandle,
   holder: number,
   waiting = 1,
+  enough: () => boolean = () => false,
 ): Promise<void> {
   for (let attempt = 0; attempt < 400; attempt += 1) {
+    if (enough()) return;
     const rows = await owner.db.execute(
       sql`with recursive blocked(pid) as (
             select ${holder}::int
@@ -306,7 +308,12 @@ export interface HeldLock {
   // Settles when the holding transaction has committed or failed.
   done: Promise<void>;
   // Waits until `waiting` backends are blocked behind the holding transaction.
-  waitForWaiters: (owner: DatabaseHandle, waiting?: number) => Promise<void>;
+  // `enough` ends the wait early when it turns true.
+  waitForWaiters: (
+    owner: DatabaseHandle,
+    waiting?: number,
+    enough?: () => boolean,
+  ) => Promise<void>;
   // Registers an operation the body started, so it is awaited however the body ends.
   started: <T>(operation: Promise<T>) => Promise<T>;
 }
@@ -353,7 +360,8 @@ export async function withHeldLock<R>(
     const result = await body({
       release,
       done,
-      waitForWaiters: (owner, waiting = 1) => waitForLockWaiters(owner, pid, waiting),
+      waitForWaiters: (owner, waiting = 1, enough) =>
+        waitForLockWaiters(owner, pid, waiting, enough),
       started: (operation) => {
         pending.push(settled(operation));
         return operation;

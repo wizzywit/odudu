@@ -1,7 +1,9 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, type ClientRecord } from '@odudu/domain-tenant';
-import { tokenGrantRepository } from '#/repository/grants';
+import { eq } from 'drizzle-orm';
+import { lockLineages, tokenGrantRepository } from '#/repository/grants';
+import { tokenGrants } from '#/schema/token-grants';
 
 async function lockedClient(tx: TenantScopedDatabase, client: ClientRecord): Promise<ClientRecord> {
   const row = await clientRepository(tx).byIdForUpdate(client.id);
@@ -48,6 +50,11 @@ export async function retireServiceAccount(
   tx: TenantScopedDatabase,
   client: ClientRecord,
 ): Promise<ClientRecord> {
+  // The roots of the account's grants come before the client row: the revoke
+  // below needs them, and a grant insert for the client waits for the row.
+  if (client.serviceSubjectId !== null) {
+    await lockLineages(tx, eq(tokenGrants.actorSubjectId, client.serviceSubjectId));
+  }
   const row = await lockedClient(tx, client);
   const subjectId = row.serviceSubjectId;
   if (subjectId === null) return row;
