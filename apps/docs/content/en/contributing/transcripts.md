@@ -1453,6 +1453,13 @@ Replayed on the same day, on a stack of the same image started with `ODUDU_REAP_
 - The last section of `request-paths/the-me-api.md`, the description of the API: it had not been run since the delegation routes
   were added and showed seven paths and 29,734 bytes; the document now has nine paths and is 34,428 bytes long, and the page says so.
 
+`request-paths/the-approval-page.md` was run again the same day, after its markup and `content-length` had been edited by hand for
+the request's lines in the reader's language: on a freshly built quickstart stack with its mail catcher (project `odudu-docs-p5`,
+port `3200`, throttles at 1,000, built from the branch commit `0446e3980`'s tree by `git archive`, started from an empty volume) driven
+only through the setup blocks of the CIBA page before it, so the tenant `demo`, `ada`, `grace`, `agent-admin` and `my-agent` are that
+page's and none of its requests exist. Every block's output replaced the page's; apart from ids, times, the form token and the
+`Date` header, it equals what had been written, `content-length: 1584` included. The stack and its image were removed afterwards.
+
 Not shown by any of these: a person with no session sent through the console's sign-in and back to the approval page at a tenant's
 own domain, the ten-minute expiry of an approval by waiting, and a request refused for a person who already holds 20 waiting
 approvals; `packages/protocol-oidc/tests/ciba.int.test.ts`, `approval-page.int.test.ts` and `apps/server/tests/me-delegations.int.test.ts`

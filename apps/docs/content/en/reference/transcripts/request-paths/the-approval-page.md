@@ -24,10 +24,10 @@ curl -sS -i "$TENANT/approval/$APPROVAL" | sed -n '1p;/^[Ll]ocation/p'
 ```
 
 ```
-{"auth_req_id":"MSEw9Cycxo8cx0DxodMC1--hyKrxKXqO8ms9gutHVBo","expires_in":600,"interval":5}
-01a2130c-fc03-7094-8a3d-c2099f701d14
+{"auth_req_id":"zt9aMVr0U0BYLrZOxMh4UUunj1xQqhWoDCd6i-j32hM","expires_in":600,"interval":5}
+01a21378-b259-711e-9950-dc9f8e61a87b
 HTTP/1.1 302 Found
-location: http://localhost:3200/console/auth/login?tenant=demo&return_to=%2Ftenants%2Fdemo%2Fapproval%2F01a2130c-fc03-7094-8a3d-c2099f701d14
+location: http://localhost:3200/console/auth/login?tenant=demo&return_to=%2Ftenants%2Fdemo%2Fapproval%2F01a21378-b259-711e-9950-dc9f8e61a87b
 ```
 
 ## The page, with Grace's session
@@ -41,7 +41,7 @@ curl -sS -i -b "$JAR" "$TENANT/approval/$APPROVAL"
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a2130c-fd13-7d41-a1ab-327502763581
+x-request-id: 01a21378-b397-70b5-81d7-702fcdda04c9
 content-type: text/html
 content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
 x-frame-options: DENY
@@ -50,7 +50,7 @@ cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
 content-length: 1584
-Date: Wed, 25 Nov 2026 14:12:28 GMT
+Date: Wed, 25 Nov 2026 16:10:07 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -74,10 +74,10 @@ Keep-Alive: timeout=72
 <p class="context">It says: <bdi>Tidy the demo roles</bdi></p>
 <p class="tenant"><bdi>demo</bdi></p>
 </header>
-<p>Decide before 2026-11-25 14:22 UTC. After that the request is no longer valid.</p>
+<p>Decide before 2026-11-25 16:20 UTC. After that the request is no longer valid.</p>
 <p>Approve only if you started this request. If you do not recognize it, deny it.</p>
-<form method="post" action="/tenants/demo/approval/01a2130c-fc03-7094-8a3d-c2099f701d14">
-  <input type="hidden" name="csrf" value="CZzE_nAy-r0UZbwrUHPn_ovWOjQ_-9lF1JrIzkXOWfI">
+<form method="post" action="/tenants/demo/approval/01a21378-b259-711e-9950-dc9f8e61a87b">
+  <input type="hidden" name="csrf" value="j2CzLFn2AutM3ItvO6z5qRGtKPZ3hGAASOWceo8cqQg">
   <button type="submit" name="decision" value="approve">Approve</button>
   <button type="submit" name="decision" value="deny" class="secondary">Deny</button>
 </form>
@@ -95,7 +95,7 @@ curl -sS -b "$JAR" "$TENANT/approval/$OTHER" | grep 'It says'
 ```
 
 ```
-{"auth_req_id":"SaslBVZprbM8l2s79gBPf2gbVFTKhdw_Yehy7KxngsQ","expires_in":600,"interval":5}
+{"auth_req_id":"KaqZujd3hFHAIDSl22-t7JKIjw4_LTfPiAgcjHsjpIM","expires_in":600,"interval":5}
 <p class="context">It says: <bdi>&lt;img src=x onerror=alert(1)&gt;</bdi></p>
 ```
 
@@ -115,7 +115,7 @@ curl -fsS -H "Authorization: Bearer $(admin_token)" "$API/agent-approvals?state=
 403
 403
 403
-{"id":"01a2130c-fc03-7094-8a3d-c2099f701d14","state":"pending"}
+{"id":"01a21378-b259-711e-9950-dc9f8e61a87b","state":"pending"}
 ```
 
 ## Somebody else, and nothing at all
@@ -132,7 +132,7 @@ done
 ```
 
 ```
-01a2130c-fc03-7094-8a3d-c2099f701d14 404 MD5(stdin)= 9903456aaa82ffd4044d4f8fca3ff28a
+01a21378-b259-711e-9950-dc9f8e61a87b 404 MD5(stdin)= 9903456aaa82ffd4044d4f8fca3ff28a
 00000000-0000-4000-8000-000000000000 404 MD5(stdin)= 9903456aaa82ffd4044d4f8fca3ff28a
 not-an-id 404 MD5(stdin)= 9903456aaa82ffd4044d4f8fca3ff28a
 ```
@@ -159,7 +159,7 @@ curl -fsS -H "Authorization: Bearer $(admin_token)" "$API/agent-approvals?state=
 
 ```
 302
-{"id":"01a2130c-fc03-7094-8a3d-c2099f701d14","state":"pending"}
+{"id":"01a21378-b259-711e-9950-dc9f8e61a87b","state":"pending"}
 ```
 
 ## The decision, once
@@ -177,7 +177,7 @@ curl -sS -i -b "$JAR" --data-urlencode "csrf=$TOKEN" --data-urlencode decision=d
 HTTP/1.1 200 OK
 <h1>Request approved</h1>
 <p>The application can now continue. You can close this page.</p>
-{"id":"01a2130c-fc03-7094-8a3d-c2099f701d14","state":"approved","decided_via":"ciba_page"}
+{"id":"01a21378-b259-711e-9950-dc9f8e61a87b","state":"approved","decided_via":"ciba_page"}
 HTTP/1.1 404 Not Found
 <h1>This request is not available</h1>
 <p>The link may be wrong or out of date, or the request may already be answered. Nothing was changed.</p>
