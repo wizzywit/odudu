@@ -9,6 +9,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The me API operations for delegations: list, create and revoke.
 - The admin API models carry `agent_type` and `delegated_actors` on a client and the nine `agent_*` tenant settings.
 
 ## [0.1.0] - 2026-11-23
