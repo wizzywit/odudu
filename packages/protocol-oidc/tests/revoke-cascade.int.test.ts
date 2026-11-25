@@ -2,7 +2,11 @@ import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants, withTenant } fr
 import type { DatabaseHandle, TenantScopedDatabase } from '@odudu/db';
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { provisionTenant, SessionEntry, sessionRepository } from '@odudu/authn-flows';
-import { agentInstanceRepository, STRUCTURAL_MAX_DEPTH } from '@odudu/domain-agents';
+import {
+  agentInstanceRepository,
+  lockLineageRoots,
+  STRUCTURAL_MAX_DEPTH,
+} from '@odudu/domain-agents';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -1037,5 +1041,94 @@ describe('revokers of one lineage meet at its root', () => {
       },
     );
     expect(outcomes.slice(0, 2)).toEqual([null, null]);
+  });
+});
+
+describe('a lineage whose root grant has been deleted', () => {
+  // The reaper deletes old grants and the foreign key on the parent clears the
+  // pointer of what is left, so a lineage can outlive its first grant. Its
+  // topmost remaining grant is then the root the revokers meet at.
+  it.each([
+    ['the revoke of the top arrives first', true],
+    ['the revoke of the actor’s grants arrives first', false],
+  ])('is still serialised when %s', async (_, topFirst) => {
+    const w = await newWorld();
+    const actor = await withTenant(app.db, w.tenantId, (tx) =>
+      subjectRepository(tx).create({ tenantId: w.tenantId, type: 'user' }),
+    );
+    const [a, b] = [newId(), newId()];
+    const [z, y] = a < b ? [a, b] : [b, a];
+    const [r, x] = [newId(), newId()];
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      const base = {
+        tenantId: w.tenantId,
+        clientId: w.clientDbId,
+        subjectId: w.subjectId,
+        scope: 'mcp:read',
+        audience: ['https://odudu.test/mcp'],
+      };
+      await grants.create({ ...base, id: r });
+      await grants.create({ ...base, id: x, exchangedFromGrantId: r, actorSubjectId: actor.id });
+      await grants.create({ ...base, id: z, exchangedFromGrantId: x });
+      await grants.create({ ...base, id: y, exchangedFromGrantId: z, actorSubjectId: actor.id });
+    });
+    await owner.db.execute(sql`delete from token_grants where id = ${r}`);
+    const byTop = () =>
+      withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(x, LATER));
+    const byActor = () =>
+      withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revokeForActor(actor.id));
+    const outcomes = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${z} for no key update`);
+        },
+      },
+      async (held) => {
+        const settle = (run: () => Promise<unknown>) =>
+          held.started(
+            run().then(
+              () => null,
+              (error: unknown) => error,
+            ),
+          );
+        const first = settle(topFirst ? byTop : byActor);
+        await held.waitForWaiters(owner);
+        const second = settle(topFirst ? byActor : byTop);
+        await held.waitForWaiters(owner, 2);
+        held.release();
+        return Promise.all([first, second, held.done]);
+      },
+    );
+    expect(outcomes.slice(0, 2)).toEqual([null, null]);
+    expect(await grantRevoked([x, z, y])).toEqual([true, true, true]);
+  });
+
+  it('takes the next root when the one it walked to is deleted before it is locked', async () => {
+    const w = await newWorld();
+    const [top, mid, leaf] = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 3));
+    const locked = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`delete from token_grants where id = ${nth([top], 0)}`);
+        },
+      },
+      async (held) => {
+        const locking = held.started(
+          withTenant(app.db, w.tenantId, (tx) =>
+            lockLineageRoots(tx, sql`select ${nth([leaf], 0)}::uuid as id`),
+          ),
+        );
+        await held.waitForWaiters(owner);
+        held.release();
+        const [roots] = await Promise.all([locking, held.done]);
+        return roots;
+      },
+    );
+    expect(locked).toEqual([mid]);
   });
 });

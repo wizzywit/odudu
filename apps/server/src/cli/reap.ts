@@ -336,7 +336,6 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
            WHERE NOT EXISTS (
              SELECT 1 FROM lineage l
               WHERE l.seed = c.root_grant_id
-                AND EXISTS (SELECT 1 FROM token_grants t WHERE t.id = l.root)
                 AND l.root NOT IN (SELECT id FROM got))),
         gone AS (
           DELETE FROM agent_instances a
@@ -369,7 +368,6 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
          WHERE NOT EXISTS (
            SELECT 1 FROM lineage l
             WHERE l.seed = c.id
-              AND EXISTS (SELECT 1 FROM token_grants t WHERE t.id = l.root)
               AND l.root NOT IN (SELECT id FROM got)))
       DELETE FROM token_grants d
        WHERE d.id IN (

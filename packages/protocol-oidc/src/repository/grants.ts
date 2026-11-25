@@ -166,8 +166,11 @@ export async function budgetGrantId(tx: TenantScopedDatabase, id: string): Promi
 // Takes the lineage roots of the grants a revoke starts from (see
 // `lockLineageRoots`) before it updates them. At most one row per distinct
 // lineage is locked, however many grants the seeds are.
-export function lockLineages(tx: TenantScopedDatabase, seeds: SQL | undefined): Promise<void> {
-  return lockLineageRoots(tx, sql`select id from token_grants where ${seeds ?? sql`true`}`);
+export async function lockLineages(
+  tx: TenantScopedDatabase,
+  seeds: SQL | undefined,
+): Promise<void> {
+  await lockLineageRoots(tx, sql`select id from token_grants where ${seeds ?? sql`true`}`);
 }
 
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
