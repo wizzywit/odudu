@@ -814,6 +814,36 @@ describe('agent instances and the grants they are rooted at', () => {
     expect(gone[0]?.n).toBe('0');
   });
 
+  it('leaves an instance whose lineage root a revoker holds for the next pass, without waiting', async () => {
+    const t = await seedAgentTenant();
+    await seedInstance(t, t.youngGrantId, null, 1, 'removable');
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => undefined;
+    const gotLock = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const holder = owner.db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT id FROM token_grants WHERE id = ${t.youngGrantId} FOR NO KEY UPDATE`,
+      );
+      locked();
+      await held;
+    });
+    await gotLock;
+    try {
+      await runPass();
+      expect((await agentCounts(t)).instances).toBe(1);
+    } finally {
+      release();
+      await holder;
+    }
+    await runPass();
+    expect((await agentCounts(t)).instances).toBe(0);
+  });
+
   it('removes nothing of a removable grandparent and parent over a live grandchild', async () => {
     const t = await seedAgentTenant();
     const grandparent = await seedInstance(t, t.youngGrantId, null, 1, 'removable');

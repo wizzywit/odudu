@@ -1,4 +1,5 @@
 import { CONSOLE_SESSION_IDLE_SECONDS } from '@odudu/console-gateway';
+import { lineageRootCtes } from '@odudu/domain-agents';
 import {
   bypassesRowLevelSecurity,
   createDatabase,
@@ -164,6 +165,9 @@ interface RetentionRule {
   readonly statement: (now: Date, policy: RetentionPolicy, tenant: RetentionTenant) => SQL;
 }
 
+// The most rows of one table a pass deletes for a tenant; the next pass takes the rest.
+const REAP_BATCH = 10_000;
+
 function before(now: Date, seconds: number): string {
   return new Date(now.getTime() - seconds * 1000).toISOString();
 }
@@ -318,13 +322,27 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
             FROM agent_instances p
             JOIN waiting w ON w.id = p.id
            WHERE p.parent_instance_id IS NOT NULL),
+        cand AS (
+          SELECT r.id, r.root_grant_id FROM agent_instances r
+           WHERE ${removable(sql`r`)}
+             AND NOT EXISTS (SELECT 1 FROM waiting w WHERE w.id = r.id)
+           ORDER BY r.id LIMIT ${REAP_BATCH}),
+        ${lineageRootCtes('lineage', sql`SELECT root_grant_id AS id FROM cand`)},
+        got AS (
+          SELECT id FROM token_grants WHERE id IN (SELECT root FROM lineage)
+           ORDER BY id FOR NO KEY UPDATE SKIP LOCKED),
+        chosen AS (
+          SELECT c.id FROM cand c
+           WHERE NOT EXISTS (
+             SELECT 1 FROM lineage l
+              WHERE l.seed = c.root_grant_id
+                AND EXISTS (SELECT 1 FROM token_grants t WHERE t.id = l.root)
+                AND l.root NOT IN (SELECT id FROM got))),
         gone AS (
           DELETE FROM agent_instances a
            WHERE a.id IN (
-             SELECT r.id FROM agent_instances r
-              WHERE ${removable(sql`r`)}
-                AND NOT EXISTS (SELECT 1 FROM waiting w WHERE w.id = r.id)
-              ORDER BY r.id FOR UPDATE SKIP LOCKED)
+             SELECT i.id FROM agent_instances i WHERE i.id IN (SELECT id FROM chosen)
+              ORDER BY i.id FOR UPDATE SKIP LOCKED)
           RETURNING a.tenant_id, a.id)
         DELETE FROM subjects s
          USING gone g
@@ -333,15 +351,30 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     },
   },
 
-  // Locked in id order and skipped when held, as a revoke's cascade takes them.
+  // A lineage whose root a revoker holds is left for the next pass: the roots
+  // are taken `SKIP LOCKED` before any row of the lineage is.
   token_grants: {
     after: ['refresh_tokens', 'authorization_codes', 'agent_instances'],
     statement: (now, policy, tenant) => sql`
+      WITH RECURSIVE cand AS (
+        SELECT g.id FROM token_grants g
+         WHERE ${grantPastRetention(now, policy, tenant)}
+         ORDER BY g.id LIMIT ${REAP_BATCH}),
+      ${lineageRootCtes('lineage', sql`SELECT id FROM cand`)},
+      got AS (
+        SELECT id FROM token_grants WHERE id IN (SELECT root FROM lineage)
+         ORDER BY id FOR NO KEY UPDATE SKIP LOCKED),
+      chosen AS (
+        SELECT c.id FROM cand c
+         WHERE NOT EXISTS (
+           SELECT 1 FROM lineage l
+            WHERE l.seed = c.id
+              AND EXISTS (SELECT 1 FROM token_grants t WHERE t.id = l.root)
+              AND l.root NOT IN (SELECT id FROM got)))
       DELETE FROM token_grants d
        WHERE d.id IN (
-         SELECT g.id FROM token_grants g
-          WHERE ${grantPastRetention(now, policy, tenant)}
-          ORDER BY g.id FOR UPDATE SKIP LOCKED)
+         SELECT t.id FROM token_grants t WHERE t.id IN (SELECT id FROM chosen)
+          ORDER BY t.id FOR UPDATE SKIP LOCKED)
     `,
   },
 
