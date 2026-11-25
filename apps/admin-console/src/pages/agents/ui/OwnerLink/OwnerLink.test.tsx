@@ -25,6 +25,13 @@ it('is the name alone, with no link, where the caller may not read the record', 
   expect(screen.getByText('ada')).toBeVisible();
 });
 
+it('shows the id to copy alone, and no name, for an owner the server names no username for', () => {
+  render(<OwnerLink {...props} name={null} href="/console/acme/subjects/s1" />);
+  expect(screen.queryByRole('link')).toBeNull();
+  expect(screen.getByRole('button', { name: /owner id/u })).toBeVisible();
+  expect(screen.queryByText('ada')).toBeNull();
+});
+
 it('has no accessibility violations in either theme', async () => {
   expect(
     await axeInBothThemes(() => <OwnerLink {...props} href="/console/acme/subjects/s1" />),

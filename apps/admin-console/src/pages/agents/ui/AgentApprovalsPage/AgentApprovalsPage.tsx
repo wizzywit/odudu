@@ -43,7 +43,7 @@ function columns(page: Page): readonly Column<AgentApproval>[] {
         return (
           <OwnerLink
             id={approval.owner}
-            name={name}
+            name={approval.ownerUsername}
             href={page.ownerLink?.(approval.owner)}
             linkLabel={page.say.ownerLink(name)}
             copyLabel={page.text.copy.owner}

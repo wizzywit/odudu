@@ -76,7 +76,7 @@ function Run({ tenant, node, page }: { tenant: string; node: LineageNode; page: 
           <dd>
             <OwnerLink
               id={run.owner}
-              name={name}
+              name={run.ownerUsername}
               href={page.ownerLink?.(run.owner)}
               linkLabel={page.say.ownerLink(name)}
               copyLabel={page.text.copy.owner}
