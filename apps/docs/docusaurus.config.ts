@@ -10,6 +10,7 @@ import { requireDescriptions } from './plugins/descriptions';
 import imageStrip from './plugins/image-strip';
 import notFound from './plugins/not-found';
 import robots from './plugins/robots';
+import compactIds from './plugins/compact-ids';
 import stableText from './plugins/stable-text';
 import {
   FOOTER_ROUTES,
@@ -164,6 +165,7 @@ const config: Config = {
     ],
     codeHighlight,
     stableText,
+    compactIds,
     ...(image ? [imageStrip, robots] : [notFound, robots]),
   ],
   presets: [['classic', preset]],
