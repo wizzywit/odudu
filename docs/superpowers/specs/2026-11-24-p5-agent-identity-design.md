@@ -308,7 +308,7 @@ owner (`agent_max_children` per parent, a tenant cap on live instances) and
 reaped by `odudu reap` as a command first and a timer second (ADR 0024); expired
 rows are deleted after a tombstone window so lineage stays readable in audit.
 Every list is served by an index and bounded under `MAX_LIMIT`; the cascade is
-one bounded statement; pending approvals are capped per subject; CIBA polling is
+one transaction of bounded statements, one for each stretch of depth; pending approvals are capped per subject; CIBA polling is
 rate-limited per request so a client cannot turn it into a load generator.
 
 ## 7. Increments (for the plan; each independently mergeable and green)
@@ -336,7 +336,7 @@ Property-based attenuation tests pass; every budget level atomic under concurren
 callers (an integration test with parallel callers asserts no overspend);
 `may_act` minted, persisted on the grant and honoured when a refresh token is the
 subject; revoking a grant revokes every grant exchanged from it and every
-instance rooted there, in one bounded statement; `max_delegation_depth` a tenant
+instance rooted there, in one transaction of bounded statements; `agent_max_delegation_depth` a tenant
 setting; CIBA poll mode end to end including the denial, expiry and
 `slow_down` paths, and green on the OIDF conformance plan for it (see section 13);
 no client credential can approve; every new table probed with a foreign tenant;
