@@ -273,6 +273,17 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((state = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))",
   'clients.clients_previous_secret_confidential':
     "CHECK (((previous_secret_hash IS NULL) OR (type = 'confidential'::text)))",
+  'assistant_conversations.assistant_conversations_mode_check':
+    "CHECK ((mode = ANY (ARRAY['ask'::text, 'act'::text])))",
+  'assistant_conversations.assistant_conversations_profile_length':
+    'CHECK (((char_length(profile) >= 1) AND (char_length(profile) <= 64)))',
+  'assistant_conversations.assistant_conversations_title_length':
+    'CHECK (((title IS NULL) OR ((char_length(title) >= 1) AND (char_length(title) <= 200))))',
+  'assistant_messages.assistant_messages_parts_shape':
+    "CHECK (((jsonb_typeof(parts) = 'array'::text) AND (octet_length((parts)::text) <= 1048576)))",
+  'assistant_messages.assistant_messages_role_check':
+    "CHECK ((role = ANY (ARRAY['system'::text, 'user'::text, 'assistant'::text])))",
+  'assistant_messages.assistant_messages_seq_floor': 'CHECK ((seq >= 1))',
 };
 
 interface ColumnRow {
