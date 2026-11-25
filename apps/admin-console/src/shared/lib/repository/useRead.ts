@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
-import { freshness, readOutcome, type Read } from '#/shared/lib/services/read';
+import { answerOf, cachePolicy, readOutcome, type Read } from '#/shared/lib/services/read';
 import type { GatewayResult } from '#/shared/api/transport/gateway';
 
 // One read a tab shows, keyed so a change elsewhere can ask for it again.
@@ -26,10 +26,9 @@ export function useRead<T>(
     queryKey: key,
     queryFn: read,
     enabled: asked,
-    ...freshness(immutable, recent),
-    ...(fresh ? { gcTime: 0, refetchOnWindowFocus: false } : {}),
+    ...cachePolicy({ immutable, recent, fresh }),
   });
-  const answer = fresh && (!asked || query.isFetching) ? undefined : query.data;
+  const answer = answerOf(fresh, { asked, fetching: query.isFetching }, query.data);
   return readOutcome(answer, () => {
     invalidateExact(key);
   });

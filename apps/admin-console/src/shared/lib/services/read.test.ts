@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  answerOf,
+  cachePolicy,
+  freshCache,
   freshness,
   RECENT_READ_MS,
   loadedData,
@@ -118,4 +121,29 @@ describe('freshness', () => {
     expect(RECENT_READ_MS).toBeLessThanOrEqual(30_000);
     expect(freshness(true, true)).toEqual(freshness(true));
   });
+});
+
+describe('a fresh read', () => {
+  const result: GatewayResult<number> = { ok: true, status: 200, data: 3, etag: null, next: null };
+
+  it('keeps nothing and is not read again on a focus, and asks nothing of an ordinary one', () => {
+    expect(freshCache(true)).toEqual({ gcTime: 0, refetchOnWindowFocus: false });
+    expect(freshCache(false)).toEqual({});
+  });
+
+  it('answers nothing while it is not asked or is being read, and what it read otherwise', () => {
+    expect(answerOf(true, { asked: false, fetching: false }, result)).toBeUndefined();
+    expect(answerOf(true, { asked: true, fetching: true }, result)).toBeUndefined();
+    expect(answerOf(true, { asked: true, fetching: false }, result)).toBe(result);
+    expect(answerOf(false, { asked: false, fetching: true }, result)).toBe(result);
+  });
+});
+
+it('merges what each option asks of the cache', () => {
+  expect(cachePolicy({ immutable: false, recent: true, fresh: true })).toEqual({
+    staleTime: RECENT_READ_MS,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+  });
+  expect(cachePolicy({ immutable: false, recent: false, fresh: false })).toEqual({});
 });
