@@ -627,6 +627,15 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       actorIds: readonly string[],
       at: Date,
     ): Promise<{ grants: number; instances: number }> {
+      if (actorIds.length > 0) {
+        await lockLineages(
+          tx,
+          sql`actor_subject_id = any(array(
+            select value::uuid from jsonb_array_elements_text(${JSON.stringify(actorIds)}::jsonb)))
+            and revoked_at is null`,
+          heldRoots,
+        );
+      }
       const ended = await endActorGrants(actorIds, at);
       const below = await cascadeAll(ended, at);
       return { grants: ended.length + below.grants, instances: below.instances };

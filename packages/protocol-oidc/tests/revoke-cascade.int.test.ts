@@ -1281,6 +1281,40 @@ describe('a lineage whose root grant has been deleted', () => {
     expect(await grantRevoked([root, child])).toEqual([false, true]);
   });
 
+  it('holds the root of a grant an actor acted in while its update waits', async () => {
+    const w = await newWorld();
+    const actor = await withTenant(app.db, w.tenantId, async (tx) => {
+      return (await subjectRepository(tx).create({ tenantId: w.tenantId, type: 'service' })).id;
+    });
+    const [root, child] = await withTenant(app.db, w.tenantId, async (tx) => {
+      const top = await grant(tx, w);
+      return [top, await grant(tx, w, { from: top, actor })];
+    });
+    const probe = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${child} for no key update`);
+        },
+      },
+      async (held) => {
+        const ending = held.started(
+          withTenant(app.db, w.tenantId, (tx) =>
+            tokenGrantRepository(tx).revokeForActors([actor], LATER),
+          ),
+        );
+        await held.waitForWaiters(owner);
+        const result = await heldByAnother(root);
+        held.release();
+        await Promise.all([ending, held.done]);
+        return result;
+      },
+    );
+    expect(probe).toMatchObject({ cause: { code: '55P03' } });
+    expect(await grantRevoked([root, child])).toEqual([false, true]);
+  });
+
   // A grant committed while a revoke waits for its seeds' roots has a lineage
   // the first walk never saw; the walk after the lock finds it. One case for
   // each way a revoke picks its seeds.
