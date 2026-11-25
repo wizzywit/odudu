@@ -1,8 +1,8 @@
 # P5 — Agent identity layer and approvals: design
 
 **Status:** Draft for approval · 2026-11-24
-**Umbrella:** [section 9](2026-09-10-odudu-design.md) (the model) and section 11, row P5.
-**Followed by:** [P5c, the console assistant](2026-11-24-p5c-console-assistant-design.md), then P5b.
+**Umbrella:** [section 9](../../superpowers/specs/2026-09-10-odudu-design.md) (the model) and section 11, row P5.
+**Followed by:** [P5c, the console assistant](../../superpowers/specs/2026-11-24-p5c-console-assistant-design.md), then P5b.
 
 ## 1. Why this phase, and what changed since the umbrella spec
 
