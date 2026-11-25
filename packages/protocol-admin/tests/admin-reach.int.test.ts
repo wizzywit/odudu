@@ -149,6 +149,9 @@ describe("a role's admin_reach", () => {
       'view-audit',
       'view-domains',
       'manage-domains',
+      'use-assistant',
+      'read-assistant-activity',
+      'manage-assistant',
     ]);
   });
 });

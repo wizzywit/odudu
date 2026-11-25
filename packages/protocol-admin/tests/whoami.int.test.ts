@@ -127,12 +127,15 @@ describe('GET /whoami', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json<WhoamiBody>();
     expect(body.capabilities).toEqual([
+      'manage-assistant',
       'manage-clients',
       'manage-domains',
       'manage-keys',
       'manage-sessions',
       'manage-tenant',
       'manage-users',
+      'read-assistant-activity',
+      'use-assistant',
       'view-audit',
       'view-domains',
       'view-users',
