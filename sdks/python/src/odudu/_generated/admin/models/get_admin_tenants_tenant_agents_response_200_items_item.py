@@ -26,7 +26,7 @@ class GetAdminTenantsTenantAgentsResponse200ItemsItem:
     Attributes:
         id (str): The instance’s own id: the `act.sub` of its tokens, a subject of type `agent_instance`.
         owner (str): The user the agent acts for: the `sub` of its tokens.
-        owner_username (None | str):
+        owner_username (None | str): The owner’s username, or `null` for a subject that has none.
         agent_client (str): The `client_id` of the agent client the instance runs under.
         parent (None | str): The instance that started this one, or null for one started under a sign-in.
         depth (int): How many instances deep it sits: 1 for one started under a sign-in.

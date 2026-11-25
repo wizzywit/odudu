@@ -23,7 +23,7 @@ class GetAdminTenantsTenantAgentApprovalsResponse200ItemsItem:
     Attributes:
         id (str): The approval’s id.
         owner (str): The user who has to decide it.
-        owner_username (None | str):
+        owner_username (None | str): The owner’s username, or `null` for a subject that has none.
         agent_client (str): The `client_id` of the client that asked.
         instance (None | str): The instance it was asked for, or null for a request made without one.
         kind (str): What sort of action it asks about.

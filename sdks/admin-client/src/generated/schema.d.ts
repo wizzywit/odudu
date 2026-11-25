@@ -9201,6 +9201,7 @@ export interface paths {
                                 id: string;
                                 /** @description The user the agent acts for: the `sub` of its tokens. */
                                 owner: string;
+                                /** @description The owner’s username, or `null` for a subject that has none. */
                                 owner_username: string | null;
                                 /** @description The `client_id` of the agent client the instance runs under. */
                                 agent_client: string;
@@ -9282,6 +9283,7 @@ export interface paths {
                             id: string;
                             /** @description The user the agent acts for: the `sub` of its tokens. */
                             owner: string;
+                            /** @description The owner’s username, or `null` for a subject that has none. */
                             owner_username: string | null;
                             /** @description The `client_id` of the agent client the instance runs under. */
                             agent_client: string;
@@ -9401,6 +9403,7 @@ export interface paths {
                                 id: string;
                                 /** @description The user who has to decide it. */
                                 owner: string;
+                                /** @description The owner’s username, or `null` for a subject that has none. */
                                 owner_username: string | null;
                                 /** @description The `client_id` of the client that asked. */
                                 agent_client: string;
