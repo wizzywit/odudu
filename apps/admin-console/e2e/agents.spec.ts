@@ -56,6 +56,13 @@ test('the agents page fits a phone', async ({ page }) => {
   await expectAccessible(page);
 });
 
+// Fixed ids, so a retry or a rerun finds the same two runs and starts them over
+// instead of adding a pair. The end of an id names a run in the list.
+const GRANT = '00000000-0000-4000-8000-0000e2e0a000';
+const ROOT = '00000000-0000-4000-8000-0000e2e0a001';
+const CHILD = '00000000-0000-4000-8000-0000e2e0a002';
+const ROOT_TAIL = ROOT.slice(-8);
+
 // A live run and one it started, for the tenant's first administrator, under an
 // ordinary client of the tenant: runs are made by an agent calling the server,
 // which this stack has no agent for.
@@ -63,25 +70,29 @@ function seedLineage(tenant: string, owner: string): string {
   const t = inTenant(tenant);
   const client = `(select id from clients where tenant_id = ${t} order by id limit 1)`;
   psql(
-    `with ids as (select gen_random_uuid() grant_id, gen_random_uuid() root, gen_random_uuid() child),
-      owner as (select u.subject_id id from users u where u.tenant_id = ${t} and u.username = ${sqlText(owner)}),
+    `with owner as (select u.subject_id id from users u where u.tenant_id = ${t} and u.username = ${sqlText(owner)}),
       g as (insert into token_grants (id, tenant_id, client_id, subject_id, scope)
-            select ids.grant_id, ${t}, ${client}, owner.id, 'openid' from ids, owner returning 1),
+            select '${GRANT}'::uuid, ${t}, ${client}, owner.id, 'openid' from owner
+            on conflict (id) do nothing returning 1),
       s as (insert into subjects (id, tenant_id, type)
-            select unnest(array[root, child]), ${t}, 'agent_instance' from ids returning 1)
-     insert into agent_instances
-       (id, tenant_id, owner_subject_id, agent_client_id, parent_instance_id, root_grant_id, depth, scope, expires_at)
-     select ids.root, ${t}, owner.id, ${client}, null::uuid, ids.grant_id, 1, 'openid', now() + interval '1 hour' from ids, owner
-     union all
-     select ids.child, ${t}, owner.id, ${client}, ids.root, ids.grant_id, 2, 'openid', now() + interval '1 hour' from ids, owner`,
+            select unnest(array['${ROOT}'::uuid, '${CHILD}'::uuid]), ${t}, 'agent_instance'
+            on conflict (id) do nothing returning 1),
+      i as (insert into agent_instances
+              (id, tenant_id, owner_subject_id, agent_client_id, parent_instance_id, root_grant_id, depth, scope, expires_at)
+            select '${ROOT}'::uuid, ${t}, owner.id, ${client}, null::uuid, '${GRANT}'::uuid, 1, 'openid', now() + interval '1 hour' from owner
+            union all
+            select '${CHILD}'::uuid, ${t}, owner.id, ${client}, '${ROOT}'::uuid, '${GRANT}'::uuid, 2, 'openid', now() + interval '1 hour' from owner
+            on conflict (id) do nothing returning 1)
+     update agent_instances set revoked_at = null, expires_at = now() + interval '1 hour'
+      where id in ('${ROOT}'::uuid, '${CHILD}'::uuid)`,
   );
   return psql(`select c.client_id from clients c where c.id = ${client}`);
 }
 
-function revokedRuns(tenant: string): number {
+function revokedRuns(): number {
   return Number(
     psql(
-      `select count(*) from agent_instances where tenant_id = ${inTenant(tenant)} and revoked_at is not null`,
+      `select count(*) from agent_instances where id in ('${ROOT}'::uuid, '${CHILD}'::uuid) and revoked_at is not null`,
     ),
   );
 }
@@ -92,9 +103,8 @@ test('a lineage is drawn from its top, and revoking the top says what it ends be
   const client = seedLineage(lister.tenant, lister.username);
   await signIn(page, lister);
   await page.goto(`/console/${lister.tenant}/agents`);
-  const tree = page.getByRole('list', { name: 'Agents' });
-  await expect(tree).toBeVisible();
-  const top = tree.getByRole('listitem').first();
+  await expect(page.getByRole('list', { name: 'Agents' })).toBeVisible();
+  const top = page.getByRole('listitem', { name: new RegExp(`\\(${ROOT_TAIL}\\)$`, 'u') });
   await expect(top).toContainText(client);
   await expect(top.getByRole('list')).toHaveCount(1);
   await expectAccessible(page);
@@ -105,11 +115,11 @@ test('a lineage is drawn from its top, and revoking the top says what it ends be
     .click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText(/ends 2 instances, this one and every run/u);
-  expect(revokedRuns(lister.tenant)).toBe(0);
+  expect(revokedRuns()).toBe(0);
   await expectAccessible(page);
   await dialog.getByRole('button', { name: 'Revoke run' }).click();
   await expect(page.getByRole('status', { name: 'Last revoke' })).toContainText(
     /ended: 2 instances/u,
   );
-  expect(revokedRuns(lister.tenant)).toBe(2);
+  expect(revokedRuns()).toBe(2);
 });
