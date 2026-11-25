@@ -35,7 +35,10 @@ the operator's collector with content off by default.
 
 **Boundary rules.** A tool call or turn whose audit row cannot be written does not run.
 No tool exposes the assistant's own audit or trace to the agent, and the agent cannot
-switch auditing off or change its own budget or mode. A conversation is visible to
+switch auditing off or change its own budget or mode. A tool result that carries a
+one-time secret or key material (a `client_secret`, a signing key) is masked before the
+trace stores it, so the activity screen never replays one; P5b enables a credential-class
+tool only once that masking is tested for it. A conversation is visible to
 people holding `read-assistant-activity`; the panel says so, and a tenant can restrict
 a conversation to its author. A person can flag a turn, which keeps that conversation
 past retention.

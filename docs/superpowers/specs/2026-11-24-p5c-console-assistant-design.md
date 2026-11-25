@@ -164,9 +164,13 @@ Our code lives in the SDK's hooks:
   `tool-approval-request`, are stored in PostgreSQL. On a decision any server instance
   loads them, appends the `tool-approval-response` and calls the agent again, which is
   the documented flow (`verified:` 03-agents/06-tool-approvals). Our own check does not
-  rest on the SDK's experimental signing: before a tool runs, the approval row must be
-  `approved`, unexpired, unused, and its digest (P5 section 5.7) must equal the digest
-  of the call about to run; the SDK's signature, if stable, is a second line.
+  rest on the SDK's experimental signing: before a tool runs, P5's `consume` spends the
+  approval in one conditional update that succeeds only while the row is `approved`,
+  unexpired and its digest (P5 section 5.7) equals that of the call about to run, and the
+  tool runs only when it does, so of two server instances racing on one approval one
+  runs the write. A call that fails after consumption leaves the approval consumed; the
+  model sees the failure and a retry asks again. The SDK's signature, if stable, is a
+  second line.
 - A tool's input is validated against its schema, passes the door under the owner's
   capability and the agent's scope, and writes its `agent.tool_call` row, which now
   carries conversation and turn ids. If the row cannot be written the call does not
@@ -186,9 +190,9 @@ operator allowed more than one standard model.
 
 A _task profile_ is data: `{ id, mode, slot, tools, subagents: allowed|required|never,
 maxSteps, maxTokens }`. Free chat starts on standard. A button starts its profile.
-A sub-agent is used when a profile asks for it or a result would otherwise be large:
-reading an audit range, reviewing several objects in parallel, or isolating a
-read-only tool set; it runs on the fast slot with a share of the parent's budget and
+A sub-agent is used when a profile requires one, or allows one and a result would
+otherwise be large: reading an audit range, reviewing several objects in parallel, or
+isolating a read-only tool set. A profile that says `never` has none; it runs on the fast slot with a share of the parent's budget and
 returns a short summary. Routing is rules plus escalation, not a trained router
 (RouteLLM is Python; a classifier call costs tokens too); evals decide whether more is
 needed. Static prompt and tool definitions come first and per-tenant text last, so
@@ -200,9 +204,21 @@ Bedrock provider; spike).
 Four levels, each a conditional `UPDATE … RETURNING` like P5's: tenant per month and
 slot, administrator per day, conversation, turn (steps and tokens). The unit is
 tokens by slot, not dollars, so no price table is needed. Before each model call
-`prepareStep` reserves an estimate (input plus the call's maximum output); after it,
-the provider's reported usage settles the difference. Swept by the reaper if a
-process dies. At 80% the panel says so; at the limit the turn stops with a message
+`prepareStep` reserves an estimate (input plus the call's maximum output); when the call
+finishes, errors or aborts, a hook settles the difference from the provider's reported
+usage, so the last call of a turn is settled too.
+
+The input estimate is an upper bound, never a guess: the provider's own token count
+where it offers one, otherwise one token per byte of the serialised request, which no
+tokenizer exceeds (`assumption:` for each supported provider; a test sends adversarial
+text and compares). Where a provider still reports more than was reserved, the actual
+is charged, the overrun is audited in `assistant.budget` and the next reservation
+refuses, so one call can overshoot and a second cannot.
+
+A reservation records whether its call was sent. The reaper releases a swept
+reservation whose call was never sent, and **charges a swept one that was sent in
+full**, since the provider's outcome is unknown; a crash cannot make tokens free, and
+repeated crashes cannot spend past the limit. At 80% the panel says so; at the limit the turn stops with a message
 that names the limit and who can change it, and nothing is silently downgraded to a
 cheaper model. A concurrency cap per tenant and a rate limit per administrator
 apply. Open defaults are conservative; the paid layer sets tier numbers.
@@ -271,7 +287,8 @@ tool start and end, errors, aborts) and our own decisions (slot chosen and why,
 reservation, narrowing, policy outcome, trimming) under one turn id, with sub-agents
 nested under the step that spawned them, the provider's request id and a hash of the
 system prompt and profile. OpenTelemetry via `@ai-sdk/otel` goes to the operator's
-collector with no content by default. `assumption:` a per-call integration replaces
+collector with no content by default. A tool result carrying a one-time secret or key
+material is masked before the recorder stores it (ADR 0058). `assumption:` a per-call integration replaces
 global ones, so each call passes both; a test proves neither is dropped, and a spike
 confirms sub-agent runs nest under their parent.
 
@@ -350,7 +367,10 @@ without an assistant configured; the `mcp` CI job passes with no changed expecta
 With no provider configured the console is unchanged and no AI route acts; with one,
 a person completes each profile in section 5.6 with every step visible; a write never
 runs without the person's approval and a model cannot approve; budgets are atomic
-under concurrent turns and a turn stops with a named limit; swapping the provider is a
+under concurrent turns, and an approval is consumed by exactly one of any number of
+parallel callers; a turn stops with a named limit, the input estimate bounds a call's
+actual usage, and a test that kills a process mid-call shows the swept reservation
+still counted; swapping the provider is a
 configuration change proven by running the golden tasks on two hosted providers and on
 one self-hosted model; every turn
 leaves an audit row and a trace that the activity screen replays, and if the row

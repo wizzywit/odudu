@@ -28,7 +28,7 @@ A client is an agent type when its `agent_type` setting is on. It is off for eve
 
 ## Who may act
 
-Two things say which clients may act for a person, and when both speak the narrower one wins. The client the person signed in with lists `delegated_actors`, the clients allowed to act for its people. The person can add their own delegations through `POST /tenants/{tenant}/me/delegations`, each naming an agent client, a scope ceiling and a lifetime of up to 90 days. Odudu writes the answer into the person's access token as `may_act`, and it also keeps it on the grant, so a refresh token cannot be used to step around a limit the access token carried. When neither source speaks, nothing changes from before delegations existed.
+Two things say which clients may act for a person, and a client may act when either names it. The client the person signed in with lists `delegated_actors`, the clients allowed to act for its people. The person can add their own delegations through `POST /tenants/{tenant}/me/delegations`, each naming an agent client, a scope ceiling and a lifetime of up to 90 days. Odudu writes the answer into the person's access token as `may_act`, and it also keeps it on the grant, so a refresh token cannot be used to step around a limit the access token carried. Where a delegation names the client, its scope ceiling applies. When neither source speaks, nothing changes from before delegations existed; once one has spoken, withdrawing it does not lift the limit.
 
 ## What a run may hold
 
@@ -51,7 +51,7 @@ Some actions should wait for a person's yes. An agent can ask for one through CI
 
 ## Ending it
 
-Revoking a grant revokes everything exchanged from it and every run rooted there, in one transaction, however deep. Signing out, ending a session, withdrawing a consent or replaying a refresh token all do this. An administrator can end one run and what it started from the **Agents** area of the console. Withdrawing a delegation does not end a run already started: it runs until it expires.
+Revoking a grant revokes everything exchanged from it and every run rooted there, in one transaction, however deep. Signing out, ending a session, withdrawing a consent or replaying a refresh token all do this. An administrator can end one run and what it started from the **Agents** area of the console. Withdrawing a delegation does not end a run already started: it runs until it expires. Ending a run stops it from exchanging or refreshing anything further; an access token it already holds works until that token expires, 300 seconds at most for one the MCP endpoint signs.
 
 ## Where to go next
 

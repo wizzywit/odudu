@@ -39,7 +39,8 @@ standard model.
 
 **A sub-agent is a child agent instance of P5** (narrower scopes, a share of the
 parent's budget, one question, one summarised answer). It is used where the profile
-says so or a result would otherwise be large, and never as the default shape.
+requires one, or allows one and a result would otherwise be large; a profile that says
+`never` has none whatever the size. It is never the default shape.
 
 **Routing is rules plus escalation,** not a trained router. Evals decide whether more
 is needed.

@@ -23,8 +23,9 @@ sub-agent pattern, lifecycle telemetry and OpenTelemetry (`@ai-sdk/otel`). Its p
 packages (`@ai-sdk/amazon-bedrock`, `@ai-sdk/anthropic`, `@ai-sdk/openai`, all
 Apache-2.0) make a provider a configuration value.
 
-**Odudu's code is what runs inside the hooks:** budget reservation and settlement in
-`prepareStep`, slot choice and tool narrowing, the approval policy in `toolApproval`
+**Odudu's code is what runs inside the hooks:** budget reservation in `prepareStep`,
+settlement in the hook that fires when a model call finishes and the one that fires when
+it errors or aborts (the last call of a turn has no later `prepareStep`), slot choice and tool narrowing, the approval policy in `toolApproval`
 backed by P5's approval store, the audit row around each tool, and a `Telemetry`
 integration that records the trace (ADR 0058).
 
