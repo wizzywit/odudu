@@ -206,14 +206,13 @@ function grantPastRetention(now: Date, policy: RetentionPolicy, tenant: Retentio
 }
 
 // The CTEs that choose the grants one pass may take: at most REAP_BATCH past
-// retention, by id, from lineages whose root this pass could lock (`SKIP
-// LOCKED`, so a lineage a revoker holds waits for the next pass). The grant
-// rule and the two rules that delete a grant's tokens and codes share it, so a
-// token or code goes in the pass that takes its grant. The root locks stay held
-// for the tenant's transaction, so the grant rule re-selects the same
-// candidates (deleting spent tokens changes neither `created_at` nor the live
-// token test) and its own `SKIP LOCKED` does not skip rows this transaction
-// holds. Ends in `chosen(id)`.
+// retention, by id, from lineages whose root this pass could lock (`SKIP LOCKED`:
+// a lineage a revoker holds waits for the next pass). The grant rule and the
+// rules that delete its tokens and codes share it, so a token goes in the pass
+// that takes its grant. The root locks stay held for the tenant's transaction,
+// so the grant rule re-selects the same candidates (deleting spent tokens
+// changes neither `created_at` nor the live-token test) and its own `SKIP
+// LOCKED` does not skip rows this transaction holds. Ends in `chosen(id)`.
 function chosenGrants(now: Date, policy: RetentionPolicy, tenant: RetentionTenant): SQL {
   return sql`
     cand AS (

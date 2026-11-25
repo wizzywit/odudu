@@ -33,18 +33,14 @@ export function lineageRootCtes(name: string, seedIds: SQL): SQL {
     )`;
 }
 
-// Locks the root grant of every lineage the seeds belong to, `for no key
-// update`, in id order and at most `batch` to a statement, before the caller
-// touches any other row; returns the roots of the last walk. Two revokers over
-// one lineage meet at its root and one waits; lineages share no rows. The cost
-// is one row per distinct lineage. A walk is one statement, seeds times chain
-// depth rows, and each call makes at least two: after locking, the walk is
-// repeated, because a middle grant deleted while the call waited makes a
-// descendant its own root, and any root not yet held is locked too. Nothing
-// detaches a lineage while its root is held, so a walk that adds nothing is
-// final. A root locked this late is out of id order; the attempts are bounded
-// and the last one throws rather than go on unlocked. A caller that makes
-// several calls in one transaction passes the set of roots it already holds.
+// Locks the root of every lineage the seeds belong to, `for no key update`, in
+// id order and `batch` to a statement, before the caller touches another row;
+// returns the roots of the last walk. A lineage is one row to lock, however many
+// grants the seeds are. A walk is seeds times chain depth rows, and each call
+// makes at least two: after locking it repeats, because a middle grant deleted
+// while the call waited makes a descendant its own root, and a root not yet held
+// is then locked too (out of id order; the attempts are bounded and the last
+// throws). A caller making several calls in a transaction passes the set it holds.
 export async function lockLineageRoots(
   tx: TenantScopedDatabase,
   seedIds: SQL,
