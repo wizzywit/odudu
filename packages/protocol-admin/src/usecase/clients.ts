@@ -48,12 +48,14 @@ import {
   ensureServiceAccount,
   idTokenAlgUnavailable,
   isWellFormedWebOrigin,
+  lockLineages,
   canHoldServiceAccount,
   mayRetireServiceAccount,
   needsServiceAccount,
   parseClientMetadata,
   retiresServiceAccount,
   retireServiceAccount,
+  tokenGrants,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
 import { and, asc, eq, gt, inArray, not, sql, type SQL } from 'drizzle-orm';
@@ -1394,6 +1396,14 @@ export async function amendClient(
     mayRetireServiceAccount(canHoldServiceAccount(unlocked.type), 'grant_types' in input.values)
   ) {
     await lockAdministrators(tx);
+  }
+  // A retirement revokes by actor, which takes lineage roots. They come before the
+  // client row, which a grant insert for the client waits for.
+  if (
+    unlocked.serviceSubjectId !== null &&
+    mayRetireServiceAccount(canHoldServiceAccount(unlocked.type), 'grant_types' in input.values)
+  ) {
+    await lockLineages(tx, eq(tokenGrants.actorSubjectId, unlocked.serviceSubjectId));
   }
 
   // Locked for the rest of the transaction, so the `If-Match` comparison

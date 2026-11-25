@@ -3,6 +3,7 @@ import { newId } from '@odudu/kernel';
 import { isWellFormedWebOrigin } from '@odudu/protocol-oidc';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { withTenant } from '@odudu/db';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
 let fixtureHandle: AdminFixture | undefined;
@@ -246,5 +247,107 @@ describe('the web_origins predicate against the CHECK it stands in front of', ()
         `${JSON.stringify(origin)}: js=${String(jsAccepts)} sql=${String(jsAccepts && !sqlAccepts ? 'VIOLATION' : sqlAccepts)}`,
       );
     }
+  });
+});
+
+describe('an amendment that retires a service account', () => {
+  async function blockedBehind(holder: number): Promise<number> {
+    const rows = await fixture.owner.db.execute(
+      sql`with recursive blocked(pid) as (
+            select ${holder}::int
+            union
+            select a.pid from pg_stat_activity a join blocked b on b.pid = any(pg_blocking_pids(a.pid))
+          )
+          select count(*)::int - 1 as n from blocked`,
+    );
+    return Number((rows as unknown as { n: number }[])[0]?.n);
+  }
+
+  async function until(condition: () => Promise<boolean> | boolean): Promise<void> {
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      if (await condition()) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error('the lock wait never appeared');
+  }
+
+  // The amendment holds the client row and then revokes the account's grants,
+  // which takes the lineage root a revoker holds; an exchange holds a grant and
+  // wants a key share on the same client; the revoker wants that grant. The
+  // amendment takes the roots before the client row, so the ring cannot form.
+  it('finishes with an exchange and a revoke of the account’s lineage, without a deadlock', async () => {
+    const t = await fixture.createTenant(`ring-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {
+      grantTypes: ['client_credentials', 'refresh_token'],
+    });
+    await fixture.tokenRequest(t.name, client, { grant_type: 'client_credentials' });
+    const row = (await fixture.owner.db.execute(
+      sql`select service_subject_id as sa from clients where id = ${client.id}`,
+    )) as unknown as { sa: string }[];
+    const account = row[0]?.sa ?? '';
+    const [root, exchanged, child] = [newId(), newId(), newId()];
+    const insert = (id: string, from: string | null, actor: string | null) =>
+      fixture.owner.db.execute(sql`
+        insert into token_grants (id, tenant_id, client_id, subject_id, scope, exchanged_from_grant_id, actor_subject_id)
+        values (${id}, ${t.id}, ${client.id}, ${account}, 'openid', ${from}, ${actor})`);
+    await insert(root, null, null);
+    await insert(exchanged, root, account);
+
+    let release: () => void = () => undefined;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let holderPid = 0;
+    let locked: () => void = () => undefined;
+    const gotLock = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const holder = withTenant(fixture.app.db, t.id, async (tx) => {
+      await tx.execute(sql`select id from token_grants where id = ${root} for no key update`);
+      const own = (await tx.execute(sql`select pg_backend_pid()::int as pid`)) as unknown as {
+        pid: number;
+      }[];
+      holderPid = Number(own[0]?.pid);
+      locked();
+      await released;
+      await tx.execute(sql`select id from token_grants where id = ${exchanged} for no key update`);
+    });
+    await Promise.race([gotLock, holder]);
+
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const etag = await currentEtag(t.name, client.id, token);
+    const amending = fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${client.id}`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'if-match': etag,
+      },
+      payload: { grant_types: ['refresh_token'] },
+    });
+    await until(async () => (await blockedBehind(holderPid)) >= 1);
+
+    let exchangeSettled = false;
+    const exchanging = withTenant(fixture.app.db, t.id, async (tx) => {
+      await tx.execute(sql`select id from token_grants where id = ${exchanged} for share`);
+      await tx.execute(sql`
+        insert into token_grants (id, tenant_id, client_id, subject_id, scope, exchanged_from_grant_id)
+        values (${child}, ${t.id}, ${client.id}, ${account}, 'openid', ${exchanged})`);
+    }).then(
+      () => {
+        exchangeSettled = true;
+        return null;
+      },
+      (error: unknown) => {
+        exchangeSettled = true;
+        return error;
+      },
+    );
+    await until(async () => exchangeSettled || (await blockedBehind(holderPid)) >= 2);
+    release();
+    const [response, exchangeError] = await Promise.all([amending, exchanging, holder]);
+    expect(exchangeError).toBeNull();
+    expect(response.statusCode).toBe(200);
   });
 });
