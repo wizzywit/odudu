@@ -47,8 +47,8 @@ function over(spent: Caps, caps: Caps, create: boolean): boolean {
 }
 
 // Whether the grant a call carries is live, read under a share lock so that a
-// revoke in flight is waited for and its outcome seen. Taken after the root's
-// lock: a cascade holds a grant before the ones exchanged from it.
+// revoke in flight is waited for and its outcome seen. Taken in id order with
+// the root's lock, as a revoke over many grants takes its seeds.
 async function liveUnderLock(tx: TenantScopedDatabase, id: string): Promise<boolean> {
   const [row] = await tx
     .select({ revokedAt: tokenGrants.revokedAt })
@@ -62,16 +62,21 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
   return {
     // Spends one write at every level a call counts at: the root grant it
     // belongs to, the agent instance making it and the daily window of its owner
-    // and agent client. Rows are locked in that order, the one a revoke and a mint
-    // take theirs in, and each is checked before any is written, so a refusal at
-    // one level leaves the other two untouched and calls made at once between
-    // them never pass a limit. A create is also a mutating call, and counts once
-    // in the window. A grant that is missing or revoked, the root or the exchanged
-    // one the call carries, is refused at the grant.
+    // and agent client. The grants come first, the root and the one the call
+    // carries in ascending id order, as a revoke over many grants takes its
+    // seeds; then the instance, then the window, the order a mint takes its own.
+    // Each is checked before any is written, so a refusal at one level leaves the
+    // other two untouched and calls made at once never pass a limit. A create is
+    // also a mutating call, and counts once in the window. A grant that is
+    // missing or revoked, the root or the carried one, is refused at the grant.
     async spend(input: SpendInput): Promise<SpendOutcome> {
       const create = input.kind === 'create';
       const root = await budgetGrantId(tx, input.grantId);
       if (root === null) return refused('grant');
+
+      const carried = input.grantId !== root;
+      const carriedFirst = carried && input.grantId < root;
+      if (carriedFirst && !(await liveUnderLock(tx, input.grantId))) return refused('grant');
 
       const [grant] = await tx
         .select({
@@ -83,11 +88,11 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
         .from(tokenGrants)
         .where(eq(tokenGrants.id, root))
         .for('update');
-      if (grant?.revokedAt !== null) return refused('grant');
-      if (over({ mutating: grant.writes, creates: grant.creates }, input.limits.grant, create)) {
+      if (carried && !carriedFirst && !(await liveUnderLock(tx, input.grantId))) {
         return refused('grant');
       }
-      if (input.grantId !== root && !(await liveUnderLock(tx, input.grantId))) {
+      if (grant?.revokedAt !== null) return refused('grant');
+      if (over({ mutating: grant.writes, creates: grant.creates }, input.limits.grant, create)) {
         return refused('grant');
       }
 

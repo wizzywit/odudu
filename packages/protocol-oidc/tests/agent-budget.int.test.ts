@@ -44,7 +44,7 @@ interface World {
 
 // A grant of its own, with its own owner and agent client, so no two tests
 // share a daily window.
-async function world(): Promise<World> {
+async function world(rootId: string = newId()): Promise<World> {
   return withTenant(stack.app.db, stack.tenantId, async (tx) => {
     const clientId = newId();
     await tx.insert(clients).values({
@@ -57,7 +57,7 @@ async function world(): Promise<World> {
     });
     const owner = await subjectRepository(tx).create({ tenantId: stack.tenantId, type: 'user' });
     const grant = await tokenGrantRepository(tx).create({
-      id: newId(),
+      id: rootId,
       tenantId: stack.tenantId,
       clientId,
       subjectId: owner.id,
@@ -379,6 +379,53 @@ describe('an exchanged grant revoked between the liveness check and the spend', 
       },
       async (held) => {
         const spending = held.started(spend(w, null, { grantId: child.id }));
+        await waitForLockWaiters(stack.owner);
+        held.release();
+        const [result] = await Promise.all([spending, held.done]);
+        return result;
+      },
+    );
+    expect(outcome).toEqual({ kind: 'refused', level: 'grant' });
+    expect(await counters(w, null)).toMatchObject({ grantWrites: 0, window: 0 });
+  });
+});
+
+describe('a spend racing a revoke that seeds both the root and the carried grant', () => {
+  // The revoke takes its seeds in id order, so the spend has to as well: with
+  // the carried grant sorting first, taking the root first deadlocks.
+  it.each([
+    ['the carried grant sorts before the root', true],
+    ['the carried grant sorts after the root', false],
+  ])('is refused at the grant, without a deadlock, when %s', async (_, carriedFirst) => {
+    const [a, b] = [newId(), newId()];
+    const [low, high] = a < b ? [a, b] : [b, a];
+    const [rootId, childId] = carriedFirst ? [high, low] : [low, high];
+    const w = await world(rootId);
+    await withTenant(stack.app.db, stack.tenantId, (tx) =>
+      tokenGrantRepository(tx).create({
+        id: childId,
+        tenantId: stack.tenantId,
+        clientId: w.clientId,
+        subjectId: w.ownerId,
+        scope: 'mcp:write',
+        audience: ['https://id.example/mcp'],
+        exchangedFromGrantId: rootId,
+        actorSubjectId: w.ownerId,
+      }),
+    );
+    const outcome = await withHeldLock(
+      stack.app.db,
+      stack.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${low} for no key update`);
+        },
+        afterRelease: async (tx) => {
+          await tokenGrantRepository(tx).revokeForSubjectClient(w.ownerId, w.clientId, NOON);
+        },
+      },
+      async (held) => {
+        const spending = held.started(spend(w, null, { grantId: childId }));
         await waitForLockWaiters(stack.owner);
         held.release();
         const [result] = await Promise.all([spending, held.done]);
