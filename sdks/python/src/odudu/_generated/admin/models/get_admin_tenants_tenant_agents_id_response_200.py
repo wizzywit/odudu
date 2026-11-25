@@ -26,6 +26,7 @@ class GetAdminTenantsTenantAgentsIdResponse200:
     Attributes:
         id (str): The instance’s own id: the `act.sub` of its tokens, a subject of type `agent_instance`.
         owner (str): The user the agent acts for: the `sub` of its tokens.
+        owner_username (None | str):
         agent_client (str): The `client_id` of the agent client the instance runs under.
         parent (None | str): The instance that started this one, or null for one started under a sign-in.
         depth (int): How many instances deep it sits: 1 for one started under a sign-in.
@@ -42,6 +43,7 @@ class GetAdminTenantsTenantAgentsIdResponse200:
 
     id: str
     owner: str
+    owner_username: None | str
     agent_client: str
     parent: None | str
     depth: int
@@ -56,6 +58,9 @@ class GetAdminTenantsTenantAgentsIdResponse200:
         id = self.id
 
         owner = self.owner
+
+        owner_username: None | str
+        owner_username = self.owner_username
 
         agent_client = self.agent_client
 
@@ -83,6 +88,7 @@ class GetAdminTenantsTenantAgentsIdResponse200:
             {
                 "id": id,
                 "owner": owner,
+                "owner_username": owner_username,
                 "agent_client": agent_client,
                 "parent": parent,
                 "depth": depth,
@@ -107,6 +113,13 @@ class GetAdminTenantsTenantAgentsIdResponse200:
         id = d.pop("id")
 
         owner = d.pop("owner")
+
+        def _parse_owner_username(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        owner_username = _parse_owner_username(d.pop("owner_username"))
 
         agent_client = d.pop("agent_client")
 
@@ -143,6 +156,7 @@ class GetAdminTenantsTenantAgentsIdResponse200:
         get_admin_tenants_tenant_agents_id_response_200 = cls(
             id=id,
             owner=owner,
+            owner_username=owner_username,
             agent_client=agent_client,
             parent=parent,
             depth=depth,

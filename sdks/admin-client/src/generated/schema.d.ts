@@ -9201,6 +9201,7 @@ export interface paths {
                                 id: string;
                                 /** @description The user the agent acts for: the `sub` of its tokens. */
                                 owner: string;
+                                owner_username: string | null;
                                 /** @description The `client_id` of the agent client the instance runs under. */
                                 agent_client: string;
                                 /** @description The instance that started this one, or null for one started under a sign-in. */
@@ -9281,6 +9282,7 @@ export interface paths {
                             id: string;
                             /** @description The user the agent acts for: the `sub` of its tokens. */
                             owner: string;
+                            owner_username: string | null;
                             /** @description The `client_id` of the agent client the instance runs under. */
                             agent_client: string;
                             /** @description The instance that started this one, or null for one started under a sign-in. */
@@ -9399,6 +9401,7 @@ export interface paths {
                                 id: string;
                                 /** @description The user who has to decide it. */
                                 owner: string;
+                                owner_username: string | null;
                                 /** @description The `client_id` of the client that asked. */
                                 agent_client: string;
                                 /** @description The instance it was asked for, or null for a request made without one. */

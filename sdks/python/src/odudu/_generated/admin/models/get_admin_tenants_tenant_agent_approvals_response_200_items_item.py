@@ -23,6 +23,7 @@ class GetAdminTenantsTenantAgentApprovalsResponse200ItemsItem:
     Attributes:
         id (str): The approval’s id.
         owner (str): The user who has to decide it.
+        owner_username (None | str):
         agent_client (str): The `client_id` of the client that asked.
         instance (None | str): The instance it was asked for, or null for a request made without one.
         kind (str): What sort of action it asks about.
@@ -39,6 +40,7 @@ class GetAdminTenantsTenantAgentApprovalsResponse200ItemsItem:
 
     id: str
     owner: str
+    owner_username: None | str
     agent_client: str
     instance: None | str
     kind: str
@@ -55,6 +57,9 @@ class GetAdminTenantsTenantAgentApprovalsResponse200ItemsItem:
         id = self.id
 
         owner = self.owner
+
+        owner_username: None | str
+        owner_username = self.owner_username
 
         agent_client = self.agent_client
 
@@ -89,6 +94,7 @@ class GetAdminTenantsTenantAgentApprovalsResponse200ItemsItem:
             {
                 "id": id,
                 "owner": owner,
+                "owner_username": owner_username,
                 "agent_client": agent_client,
                 "instance": instance,
                 "kind": kind,
@@ -109,6 +115,13 @@ class GetAdminTenantsTenantAgentApprovalsResponse200ItemsItem:
         id = d.pop("id")
 
         owner = d.pop("owner")
+
+        def _parse_owner_username(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        owner_username = _parse_owner_username(d.pop("owner_username"))
 
         agent_client = d.pop("agent_client")
 
@@ -167,6 +180,7 @@ class GetAdminTenantsTenantAgentApprovalsResponse200ItemsItem:
         get_admin_tenants_tenant_agent_approvals_response_200_items_item = cls(
             id=id,
             owner=owner,
+            owner_username=owner_username,
             agent_client=agent_client,
             instance=instance,
             kind=kind,
