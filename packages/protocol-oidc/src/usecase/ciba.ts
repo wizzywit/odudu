@@ -7,6 +7,7 @@ import { clientScopeRepository, readAgentSettings, type ClientRecord } from '@od
 import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { cibaRequestRepository } from '#/repository/ciba-requests';
+import { cibaApprovalSummary } from '#/service/approval-messages';
 import { needsApproval } from '#/service/consent';
 import { type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { clientSecretLimiterKey, type ClientSecretLimiter } from '#/service/client-secret-throttle';
@@ -259,7 +260,7 @@ async function openApproval(
         requestingClientId: client.id,
         instanceId: null,
         kind: 'ciba',
-        summary: `${client.name} asks to sign in as you with: ${requested.join(' ')}`,
+        summary: cibaApprovalSummary(client.name, requested),
         actionDigest: digest,
         ...(asked.requestedExpiry === null ? {} : { lifetimeSeconds: asked.requestedExpiry }),
         now,

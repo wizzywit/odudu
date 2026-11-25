@@ -36,6 +36,8 @@ export interface ApprovalDetails {
   readonly tenant: string;
   readonly agent: string;
   readonly summary: string;
+  // What the request asked for, null where the request is gone.
+  readonly scope: string | null;
   readonly bindingMessage: string | null;
   readonly expiresAt: Date;
 }
@@ -70,6 +72,7 @@ async function pendingFor(
     tenant: tenant?.displayName ?? tenant?.name ?? '',
     agent: client?.name ?? '',
     summary: approval.summary,
+    scope: request?.scope ?? null,
     bindingMessage: request?.bindingMessage ?? null,
     expiresAt: approval.expiresAt,
   };

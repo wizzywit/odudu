@@ -98,6 +98,7 @@ export const ar: Readonly<Record<string, string>> = {
 
   'approval.title': 'الموافقة على طلب أو رفضه',
   'approval.heading': 'يطلب {agent} موافقتك',
+  'approval.asks': 'يطلب {agent} تسجيل الدخول باسمك بالنطاقات: {scope}',
   'approval.bindingMessage': 'ورد فيه: {message}',
   'approval.expires': 'اتخذ قرارك قبل {when} بالتوقيت العالمي المنسق. بعد ذلك لا يعود الطلب صالحًا.',
   'approval.warning': 'وافق فقط إذا كنت أنت من بدأ هذا الطلب. وإذا لم تتعرف عليه فارفضه.',

@@ -21,6 +21,7 @@ const view: ApprovalPageView = {
   tenant: 'Demo',
   agent: 'Calendar Agent',
   summary: 'Calendar Agent asks to sign in as you with: openid',
+  scope: 'openid',
   bindingMessage: 'Pay invoice 42',
   expiresAt: new Date('2026-11-24T09:15:00Z'),
 };
@@ -29,7 +30,9 @@ describe('renderApprovalPage', () => {
   it('shows the agent, the request, the message and when it expires', () => {
     const page = renderApprovalPage(view, DEFAULT_PAGE_LOCALE);
     expect(page.body).toContain('<bdi>Calendar Agent</bdi> is asking for your approval');
-    expect(page.body).toContain('Calendar Agent asks to sign in as you with: openid');
+    expect(page.body).toContain(
+      '<bdi>Calendar Agent</bdi> asks to sign in as you with: <bdi>openid</bdi>',
+    );
     expect(page.body).toContain('Pay invoice 42');
     expect(page.body).toContain('2026-11-24 09:15 UTC');
   });
@@ -54,6 +57,17 @@ describe('renderApprovalPage', () => {
     expect(page.body.split(escaped).length - 1).toBeGreaterThanOrEqual(4);
     expect(page.html).not.toContain('&amp;lt;');
     expect(page.html).not.toContain('&amp;amp;');
+  });
+
+  it('says what is asked in the reader’s language, from the scopes, not the stored English', () => {
+    const page = renderApprovalPage({ ...view, scope: 'openid email' }, ARABIC);
+    expect(page.body).toContain('بالنطاقات');
+    expect(page.body).not.toContain('asks to sign in as you');
+  });
+
+  it('escapes a hostile scope in the sentence it builds', () => {
+    const page = renderApprovalPage({ ...view, scope: HOSTILE }, DEFAULT_PAGE_LOCALE);
+    expect(page.html).not.toContain('<script');
   });
 
   it('names the tenant by the name it was given, escaped', () => {

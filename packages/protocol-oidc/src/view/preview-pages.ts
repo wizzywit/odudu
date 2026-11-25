@@ -89,6 +89,7 @@ export const PREVIEW_PAGES: Readonly<Record<OidcKind, PreviewRender>> = {
         tenant,
         agent: 'Example agent',
         summary: 'Example agent asks to sign in as you with: openid',
+        scope: 'openid',
         bindingMessage: 'Approve the example request',
         expiresAt: new Date('2026-01-01T00:10:00Z'),
       },

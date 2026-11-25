@@ -118,6 +118,7 @@ export function registerApprovalRoute(app: FastifyInstance, routeDeps: ApprovalR
           tenant: shown.details.tenant,
           agent: shown.details.agent,
           summary: shown.details.summary,
+          scope: shown.details.scope,
           bindingMessage: shown.details.bindingMessage,
           expiresAt: shown.details.expiresAt,
         },

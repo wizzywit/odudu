@@ -49,7 +49,7 @@ referrer-policy: no-referrer
 cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
-content-length: 1573
+content-length: 1584
 Date: Wed, 25 Nov 2026 14:12:28 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
@@ -70,7 +70,7 @@ Keep-Alive: timeout=72
 <p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
 <header class="intro">
 <h1><bdi>My agent</bdi> is asking for your approval</h1>
-<p class="context"><bdi>My agent asks to sign in as you with: openid</bdi></p>
+<p class="context"><bdi>My agent</bdi> asks to sign in as you with: <bdi>openid</bdi></p>
 <p class="context">It says: <bdi>Tidy the demo roles</bdi></p>
 <p class="tenant"><bdi>demo</bdi></p>
 </header>
