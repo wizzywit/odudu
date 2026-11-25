@@ -289,16 +289,20 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     );
   }
 
-  // The seeds of a multi-grant revoke, locked in id order before the update
-  // that ends them, which cannot be told an order. Two such revokes, or one and
-  // an exchange, then take any grants they share in the same order.
-  async function lockSeeds(where: SQL | undefined): Promise<void> {
-    await tx
-      .select({ id: tokenGrants.id })
-      .from(tokenGrants)
-      .where(where)
-      .orderBy(asc(tokenGrants.id))
-      .for('no key update');
+  // The seeds of a revoke and every grant exchanged from them, locked in id
+  // order before anything is updated, so the revoke holds nothing a concurrent
+  // spend or exchange could hold while waiting for it. The updates and passes
+  // that follow find every row already locked.
+  async function lockTree(where: SQL | undefined): Promise<void> {
+    await tx.execute(sql`
+      with recursive tree(id, depth) as (
+        select id, 0 from token_grants where ${where}
+        union all
+        select c.id, t.depth + 1 from token_grants c join tree t on c.exchanged_from_grant_id = t.id
+         where t.depth < ${STRUCTURAL_MAX_DEPTH}
+      )
+      select id from token_grants where id in (select id from tree)
+       order by id for no key update`);
   }
 
   // One read behind both ways of asking for a session's clients, so the
@@ -368,6 +372,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // already-revoked grant keeps its first `revoked_at`, and its caller
     // writes no second audit row for a revocation that did not happen.
     async revoke(id: string, revokedAt: Date): Promise<boolean> {
+      await lockTree(eq(tokenGrants.id, id));
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
@@ -474,7 +479,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // already-revoked grant at a later `now` would move its reaping window
     // forward every time logout ran again.
     async revokeForSession(sessionId: string, revokedAt: Date): Promise<number> {
-      await lockSeeds(eq(tokenGrants.sessionId, sessionId));
+      await lockTree(eq(tokenGrants.sessionId, sessionId));
       const rows = await tx
         .update(tokenGrants)
         .set({
@@ -492,7 +497,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // `revokeForSession` for many sessions in one statement.
     async revokeForSessions(sessionIds: readonly string[], revokedAt: Date): Promise<number> {
       if (sessionIds.length === 0) return 0;
-      await lockSeeds(inArray(tokenGrants.sessionId, [...sessionIds]));
+      await lockTree(inArray(tokenGrants.sessionId, [...sessionIds]));
       const rows = await tx
         .update(tokenGrants)
         .set({
@@ -523,7 +528,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         eq(tokenGrants.clientId, clientId),
         isNull(tokenGrants.revokedAt),
       );
-      await lockSeeds(seeds);
+      await lockTree(seeds);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
@@ -541,7 +546,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // nothing after. An already-revoked grant keeps its first timestamp.
     async revokeForSubject(subjectId: string, revokedAt: Date): Promise<number> {
       const seeds = and(eq(tokenGrants.subjectId, subjectId), isNull(tokenGrants.revokedAt));
-      await lockSeeds(seeds);
+      await lockTree(seeds);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt })
@@ -562,7 +567,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         eq(tokenGrants.actorSubjectId, actorSubjectId),
         isNull(tokenGrants.revokedAt),
       );
-      await lockSeeds(seeds);
+      await lockTree(seeds);
       const rows = await tx
         .update(tokenGrants)
         .set({ revokedAt: sql`now()` })

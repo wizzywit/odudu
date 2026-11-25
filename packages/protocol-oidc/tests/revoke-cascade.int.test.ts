@@ -750,3 +750,58 @@ describe('a revoke over many grants takes them in id order', () => {
     }
   });
 });
+
+describe('a revoke racing a spend that holds a grant below it', () => {
+  // A spend carrying a grant with a lower id than the one revoked holds it
+  // while it waits for the revoked one. The revoke must not be the side a
+  // deadlock aborts: it takes everything below its seed before it updates it.
+  it('finishes the revoke, whichever grant sorts first', async () => {
+    const [a, b] = [newId(), newId()];
+    const [low, high] = a < b ? [a, b] : [b, a];
+    const w = await newWorld();
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      const base = {
+        tenantId: w.tenantId,
+        clientId: w.clientDbId,
+        subjectId: w.subjectId,
+        scope: 'mcp:read',
+        audience: ['https://odudu.test/mcp'],
+      };
+      await grants.create({ ...base, id: high });
+      await grants.create({ ...base, id: low, exchangedFromGrantId: high });
+    });
+    const outcomes = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${low} for share`);
+        },
+        afterRelease: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${high} for update`);
+        },
+      },
+      async (held) => {
+        const revoking = held.started(
+          withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(high, LATER)).then(
+            () => null,
+            (error: unknown) => error,
+          ),
+        );
+        await waitForLockWaiters(owner);
+        held.release();
+        const [revoked, spend] = await Promise.all([
+          revoking,
+          held.done.then(
+            () => null,
+            (error: unknown) => error,
+          ),
+        ]);
+        return { revoked, spend };
+      },
+    );
+    expect(outcomes.revoked).toBeNull();
+    expect(await grantRevoked([high, low])).toEqual([true, true]);
+  });
+});
