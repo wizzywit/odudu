@@ -475,11 +475,6 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ],
     ['Revoking a delegation does not end runs', ['P5c'], 'a standing decision that places no work'],
     [
-      "The instance level of an agent's budget",
-      ['P5c'],
-      "a fix owed before the console assistant's first call, no capability of its own",
-    ],
-    [
       '`bc-authorize`: exotic unicode casing',
       ['P13'],
       'a hardening note on one endpoint, owed with the work that next touches it, no product behaviour',
