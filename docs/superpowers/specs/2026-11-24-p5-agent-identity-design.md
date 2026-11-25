@@ -184,23 +184,37 @@ subject or an actor, the admin's client-grants revoke, the instance revoke and
 expiry, and the reaper's instance and grant deletes) first takes the _lineage
 root_ of its seeds, the topmost grant reached by following
 `exchanged_from_grant_id`, `for no key update` and in id order, and only then
-touches any other row. Two revokers over one lineage meet at that root and one
-waits; revokers of different lineages share no row and never conflict. The
-worst case for lock volume is one row per distinct lineage the seeds belong to,
-however many grants they are, taken a batch of at most the cascade cap at a
-time. The reaper takes the roots `skip locked` and leaves a lineage a revoker
-holds for its next pass. An exchange, a mint and a budget spend each hold
-one grant and one instance (a spend holds the budget root `for no key update`
-and reads the grant a call carries without a lock), and none of them waits for
-a root while holding a grant or an instance: a mint takes the root of its
-grant's lineage before the grant, because a refusal revokes the run, which
-needs that root. Instance trees stay inside one lineage because a child
-instance takes its parent's root grant (`agent-layer.ts`); nothing in the
-schema enforces it. A pass of the cascade past the first (a child committed
-after the first pass's snapshot, the depth-8 frontier, a capped pass) locks
-grants while holding the instances of the passes before it. An exchange that
-holds a grant of that later pass and wants one of those instances can then
-deadlock with it; the detector aborts one of the two and it is retried.
+touches any other grant, token or instance row. A client row is not part of a
+lineage: the admin's client-grants revoke takes the client `for no key update`
+first, and retiring a client's service account (and amending a client) holds the
+client `for update` and then revokes by actor, which takes roots. A grant insert
+takes a key share on its client, which `for update` conflicts with, so a
+retirement or an amendment racing an exchange and a revoke of one lineage can
+form a cycle; PostgreSQL aborts one of them (see below). Two revokers over one
+lineage meet at the root and one waits; revokers of different lineages share no
+row and never conflict. The worst case for lock volume is one row per distinct
+lineage the seeds belong to, however many grants they are, taken a batch of at
+most the cascade cap at a time. The reaper takes the roots `skip locked` and
+leaves a lineage a revoker holds for its next pass. An exchange, a mint and a
+budget spend each hold one grant and one instance (a spend holds the budget
+root `for no key update` and reads the grant a call carries without a lock), and
+none of them waits for a root while holding a grant or an instance: a mint
+takes the root of its grant's lineage before the grant, because a refusal
+revokes the run, which needs that root. Instance trees stay inside one lineage
+because a child instance takes its parent's root grant (`agent-layer.ts`);
+nothing in the schema enforces it.
+
+Three cases can still deadlock: a pass of the cascade past the first (a child
+committed after the first pass's snapshot, the depth-8 frontier, a capped pass)
+locks grants while holding the instances of the passes before it, and an
+exchange that holds a grant of that later pass and wants one of those instances
+can deadlock with it; a root found late, because a middle grant was deleted
+while a revoker waited, is locked out of id order; and the client-row case above.
+PostgreSQL aborts one of the two transactions with `40P01`. Its transaction rolls
+back and the error reaches the caller: nothing in the server retries it, and the
+global error handler (`answerServerError`) answers an error that carries no
+status with `500 Internal Server Error`, so the exchange, the revoke or the
+retirement has to be sent again.
 
 ### 5.5 Budgets
 
