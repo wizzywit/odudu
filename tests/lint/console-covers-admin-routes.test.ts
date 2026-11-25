@@ -28,12 +28,6 @@ const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 const FRAMED =
   'Framed by address (previewSource), not requested by an adapter: the Branding preview is an iframe whose own navigation fetches it.';
 
-// The console's Agents area is the screen for these four routes and is not
-// built yet. The entry goes the day an adapter calls the route, which the last
-// test below enforces by failing on a route it still says is never called.
-const NO_SCREEN_YET =
-  'No screen calls it yet: the console’s Agents area reads and revokes agents and lists approvals, and the entry goes when its adapter does.';
-
 // Routes the console deliberately never calls, each with the reason.
 const NEVER: Readonly<Record<string, string>> = {
   'POST /admin/tenants/:tenant/subjects/bulk':
@@ -42,10 +36,6 @@ const NEVER: Readonly<Record<string, string>> = {
     'The audit trail has no count, by design: over a trail that long a capped total would be an estimate the page cannot stand behind, so it says how far back the loaded rows reach instead.',
   'GET /admin/tenants/:tenant/domains/:id':
     'The domains list carries every field of a domain and a tenant holds no more than one page of them, so no screen reads one by its id.',
-  'GET /admin/tenants/:tenant/agents': NO_SCREEN_YET,
-  'GET /admin/tenants/:tenant/agents/:id': NO_SCREEN_YET,
-  'DELETE /admin/tenants/:tenant/agents/:id': NO_SCREEN_YET,
-  'GET /admin/tenants/:tenant/agent-approvals': NO_SCREEN_YET,
   'GET /admin/tenants/:tenant/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/clients/:id/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/mail/preview': FRAMED,

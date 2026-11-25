@@ -1,0 +1,27 @@
+.summary,
+.state {
+  display: inline-grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.kind {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  color: var(--ink-primary);
+  font-family: var(--font-mono);
+  text-decoration: underline;
+}
+
+.link[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

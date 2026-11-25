@@ -25,6 +25,7 @@ describe('the areas', () => {
     ['flow', 'Sign-in flow', 'manage-tenant'],
     ['keys', 'Signing keys', 'manage-keys'],
     ['sessions', 'Sessions', 'manage-sessions'],
+    ['agents', 'Agents', 'manage-sessions'],
     ['settings', 'Settings', 'manage-tenant'],
     ['branding', 'Branding', 'manage-tenant'],
     ['email', 'Email', 'manage-tenant'],

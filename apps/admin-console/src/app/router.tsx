@@ -493,6 +493,35 @@ const tenantSessions = createRoute({
   },
 });
 
+function agentsPage(name: 'AgentsPage' | 'AgentApprovalsPage') {
+  return lazyFeatureRoute(
+    () => import('#/pages/agents').then((feature) => feature[name]),
+    'Loading agents',
+  );
+}
+
+const Agents = agentsPage('AgentsPage');
+const AgentApprovals = agentsPage('AgentApprovalsPage');
+
+const agentPages = [
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'agents',
+    component: function AgentList() {
+      const { tenant: name } = tenant.useParams();
+      return <Agents key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'agents/approvals',
+    component: function AgentApprovalList() {
+      const { tenant: name } = tenant.useParams();
+      return <AgentApprovals key={name} tenant={name} />;
+    },
+  }),
+] as const;
+
 const Settings = lazyFeatureRoute(
   () => import('#/pages/settings').then((feature) => feature.SettingsPage),
   'Loading the settings',
@@ -596,6 +625,8 @@ export function preloadFeatures(): Promise<void> {
     FlowRecord,
     SigningKeys,
     TenantSessions,
+    Agents,
+    AgentApprovals,
     Settings,
     Branding,
     Email,
@@ -621,6 +652,7 @@ const routeTree = root.addChildren([
     ...flowPages,
     signingKeys,
     tenantSessions,
+    ...agentPages,
     settings,
     branding,
     email,
