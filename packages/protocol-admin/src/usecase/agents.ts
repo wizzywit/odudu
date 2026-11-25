@@ -52,9 +52,10 @@ async function clientKeys(
   return new Map(found.map((client) => [client.id, client.clientId]));
 }
 
-// An instance's client cannot be gone, since its row goes with the client.
+// A client deleted after a page was read leaves no `client_id` to print, and an
+// internal id is not one.
 function keyOf(keys: ReadonlyMap<string, string>, id: string): string {
-  return keys.get(id) ?? id;
+  return keys.get(id) ?? 'unknown';
 }
 
 export async function listAgents(
@@ -197,9 +198,15 @@ interface Ended {
   readonly instances: number;
 }
 
+// A depth of at most 8 and a revoked parent that refuses a new child leave a
+// handful of passes at most; one past that means something keeps minting.
+const MAX_PASSES = 16;
+
 // Grants first, then instances: the order a mint locks its rows in, so the two
-// cannot wait on each other. A mint that committed while the first pass ran is
-// found by the second, and one that follows is refused by the revoked parent.
+// cannot wait on each other. The tree is read again after each pass until one
+// ends nothing, so a child that committed while an earlier pass waited on a
+// row lock, and the grants it acted in, are found by a later pass. The
+// lineage row is written only when an instance was revoked from the top.
 async function endTree(
   tx: TenantScopedDatabase,
   instance: AgentInstanceRecord,
@@ -207,16 +214,30 @@ async function endTree(
   input: RevokeAgentInput,
 ): Promise<Ended> {
   const instances = agentInstanceRepository(tx);
-  const tree = await instances.subtree(instance.id);
-  const below = await tokenGrantRepository(tx).revokeForActors(tree, input.now);
+  const grants = tokenGrantRepository(tx);
+  const total = { grants: 0, instances: 0 };
   let ended = 0;
-  for (let more = true; more;) {
+  for (let pass = 0; pass < MAX_PASSES; pass += 1) {
+    const tree = await instances.subtree(instance.id);
+    const below = await grants.revokeForActors(tree, input.now);
     const revoked = await instances.revoke(instance.id, input.now);
+    total.grants += below.grants;
+    total.instances += below.instances + revoked;
     ended += revoked;
-    more = revoked > 0;
+    if (below.grants === 0 && below.instances === 0 && revoked === 0) {
+      if (ended > 0) await recordInstanceRevoked(tx, instance, agentClient, ended);
+      return total;
+    }
   }
-  const result = { grants: below.grants, instances: ended + below.instances };
-  if (result.grants === 0 && result.instances === 0) return result;
+  throw new Error(`revoking agent instance ${instance.id} did not settle`);
+}
+
+async function recordInstanceRevoked(
+  tx: TenantScopedDatabase,
+  instance: AgentInstanceRecord,
+  agentClient: string,
+  count: number,
+): Promise<void> {
   await auditRepository(tx).record({
     eventType: 'agent_identity',
     action: 'agent.instance_revoked',
@@ -230,11 +251,10 @@ async function endTree(
       owner: instance.ownerSubjectId,
       instance: instance.id,
       depth: instance.depth,
-      count: ended,
+      count,
       via: 'admin',
     },
   });
-  return result;
 }
 
 // Revokes the instance and everything beneath it, and the grants any of them

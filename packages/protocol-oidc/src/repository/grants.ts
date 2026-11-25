@@ -292,8 +292,9 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
   }
 
   // Revokes the live grants any of `actorIds` acted in, and says which. The
-  // ids go in as one JSON value, so a long list is no list of parameters, and
-  // the rows are locked in id order, as the cascade's own updates are.
+  // ids go in as one JSON value, so a long list is no list of parameters. The
+  // `order by` fixes the order the ids are picked in, not the order the update
+  // locks the rows, which the cascade's own updates do not fix either.
   async function endActorGrants(actorIds: readonly string[], at: Date): Promise<string[]> {
     if (actorIds.length === 0) return [];
     const rows = (await tx.execute(sql`

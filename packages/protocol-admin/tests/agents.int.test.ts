@@ -13,6 +13,7 @@ import { sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import { revokeAgent } from '#/usecase/agents';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -110,6 +111,17 @@ async function state(w: Tenant, ids: readonly string[], grants: readonly string[
       grants.map(async (id) => (await tokenGrantRepository(tx).byId(id))?.revokedAt !== null),
     ),
   }));
+}
+
+async function waitForLockWait(): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const rows = await fixture.owner.sql<{ n: number }[]>`
+      select count(*)::int as n from pg_stat_activity
+       where wait_event_type = 'Lock' and datname = current_database()`;
+    if ((rows[0]?.n ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('the revocation never waited on the held grant');
 }
 
 function auditOf(w: Tenant) {
@@ -333,6 +345,55 @@ describe('DELETE …/agents/:id', () => {
     expect((await request('DELETE', w, `agents/${t.root}?dry_run=maybe`, token)).statusCode).toBe(
       400,
     );
+  });
+
+  it('ends a child started while it waited on a grant, with the grants that child acted in', async () => {
+    const w = await world();
+    const child = await mint(w, { depth: 2 });
+    const [acted] = await actorGrants(w, child);
+
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let held: () => void = () => undefined;
+    const locked = new Promise<void>((resolve) => {
+      held = resolve;
+    });
+    const blocker = fixture.owner.sql.begin(async (q) => {
+      await q`select id from token_grants where id = ${acted} for update`;
+      held();
+      await gate;
+    });
+    await locked;
+    const revoking = withTenant(fixture.app.db, w.t.id, (tx) =>
+      revokeAgent(
+        tx,
+        { audit: () => Promise.resolve() },
+        {
+          instanceId: child,
+          dryRun: false,
+          now: new Date(),
+          callerCapabilities: new Set(),
+          actorSubjectId: w.owner,
+          actorTenantId: w.t.id,
+          actorClientId: w.client.id,
+        },
+      ),
+    );
+    await waitForLockWait();
+    const late = await mint(w, { parent: child, depth: 3 });
+    const [lateActed, lateBelow] = await actorGrants(w, late);
+    release();
+    await blocker;
+
+    expect(await revoking).toEqual({ kind: 'revoked', grants: 4, instances: 2 });
+    expect(await state(w, [child, late], [acted, lateActed, lateBelow])).toEqual({
+      instances: [true, true],
+      grants: [true, true, true],
+    });
+    const lineage = (await auditOf(w)).filter((row) => row.action === 'agent.instance_revoked');
+    expect(lineage.map((row) => row.detail)).toEqual([expect.objectContaining({ count: 2 })]);
   });
 
   it('answers 404 for an unknown instance and leaves another tenant’s alone', async () => {
