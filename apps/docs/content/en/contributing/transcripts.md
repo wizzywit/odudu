@@ -344,8 +344,8 @@ and times are that run's, not those of the blocks around it. The admin-capabilit
 do not involve `tenant-admin` or the new capabilities and were not touched. The rest of the
 admin paths were not run again for this phase, which stays with the end-to-end re-run of all of them.
 The four agent tables the pass gained (`agent_budget_windows`, `agent_approvals`, `agent_delegations` and
-`agent_instances`, after `authorization_codes`) were added to the retention page's reports as zeros by hand,
-not captured again: no agent exists on those stacks, so the rows they would show are the same.
+`agent_instances`, which runs first) were added to the retention page's reports as zeros by hand, with the
+key order changed by hand too, not captured again: no agent exists on those stacks, so the rows they would show are the same.
 `tests/docs/retention-schedule.test.ts` holds every report to `REAP_ORDER`'s keys, and
 `apps/server/tests/reap.int.test.ts` runs both rules against real rows.
 
