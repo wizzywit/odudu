@@ -9,14 +9,12 @@ export const LINEAGE_LOCK_BATCH = 10_000;
 const LINEAGE_LOCK_ATTEMPTS = 4;
 
 // The CTEs that map each grant `seedIds` selects (a query yielding `id`) to the
-// root of its lineage: the topmost existing grant reached by following
-// `exchanged_from_grant_id`. A grant is a root when it names no parent (the
-// foreign key is `ON DELETE SET NULL`, so deleting an ancestor clears it, and a
-// pointer never names a missing row) or when it is its own ancestor.
-// Spliced into a `with recursive` list under `name`, which then holds one row
-// per (seed, root). Each step is a lateral lookup by id with `limit 1`, which
-// stops the planner pulling it up into a join it could answer by scanning the
-// table (the plan checks flagged exactly that).
+// root of its lineage: the topmost grant reached by following
+// `exchanged_from_grant_id`, which is `ON DELETE SET NULL`, so a pointer never
+// names a missing row. A grant is a root when it names no parent or is its own
+// ancestor. Spliced into a `with recursive` list under `name`, which holds one
+// row per (seed, root). Each step is a lateral lookup by id with `limit 1`, so
+// the planner cannot pull it up into a join it would answer by scanning grants.
 export function lineageRootCtes(name: string, seedIds: SQL): SQL {
   const up = sql.raw(`${name}_up`);
   const out = sql.raw(name);
