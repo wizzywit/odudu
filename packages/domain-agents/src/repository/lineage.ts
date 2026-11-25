@@ -11,25 +11,28 @@ const LINEAGE_LOCK_ATTEMPTS = 4;
 // The CTEs that map each grant `seedIds` selects (a query yielding `id`) to the
 // root of its lineage: the topmost existing grant reached by following
 // `exchanged_from_grant_id`. A grant is a root when it names no parent (the
-// foreign key is `ON DELETE SET NULL`, so deleting an ancestor clears it), when
-// the parent row is missing (defensive), or when it is its own ancestor.
+// foreign key is `ON DELETE SET NULL`, so deleting an ancestor clears it, and a
+// pointer never names a missing row) or when it is its own ancestor.
 // Spliced into a `with recursive` list under `name`, which then holds one row
-// per (seed, root).
+// per (seed, root). Each step is a lateral lookup by id with `limit 1`, which
+// stops the planner pulling it up into a join it could answer by scanning the
+// table (the plan checks flagged exactly that).
 export function lineageRootCtes(name: string, seedIds: SQL): SQL {
   const up = sql.raw(`${name}_up`);
   const out = sql.raw(name);
   return sql`
     ${up}(seed, id, parent) as (
       select s.id, g.id, g.exchanged_from_grant_id
-        from (${seedIds}) as s(id) join token_grants g on g.id = s.id
+        from (${seedIds}) as s(id),
+             lateral (select x.id, x.exchanged_from_grant_id from token_grants x where x.id = s.id limit 1) g
       union all
       select u.seed, p.id, p.exchanged_from_grant_id
-        from ${up} u join token_grants p on p.id = u.parent
+        from ${up} u,
+             lateral (select x.id, x.exchanged_from_grant_id from token_grants x where x.id = u.parent limit 1) p
     ) cycle id set is_cycle using path,
     ${out} as (
       select distinct seed, id as root from ${up}
        where parent is null or is_cycle
-          or not exists (select 1 from token_grants q where q.id = parent)
     )`;
 }
 
