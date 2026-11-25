@@ -322,21 +322,17 @@ describe('the lists of agent instances and approvals', () => {
     ['decided', () => 'agent-approvals?state=denied'],
   ];
 
-  // The lapsed instances are read through the index on their expiry and put in id
-  // order afterwards, a sort of the rows that lapsed and the retention pass has not
-  // yet revoked, which is few unless the pass is scheduled far apart.
-  const SORTS = new Set(['agents expired']);
   it.each([
     ...AGENTS.map(([name, query]) => [`agents ${name}`, query, 'agent_instances'] as const),
     ...APPROVALS.map(([name, query]) => [`approvals ${name}`, query, 'agent_approvals'] as const),
-  ])('reads %s by an index, however many rows other tenants hold', async (name, query, table) => {
+  ])('reads %s by an index, however many rows other tenants hold', async (_name, query, table) => {
     expect(budget.largeTables.has(table)).toBe(true);
     const plan = await planned(listed(query, table));
     const own = scansOf(plan).filter((scan) => scan.relation === table);
     expect(own.length).toBeGreaterThan(0);
     expect(own.filter((scan) => scan.node === 'Seq Scan')).toEqual([]);
     expect(own.every((scan) => scan.index !== undefined)).toBe(true);
-    if (!SORTS.has(name)) expect(hasNode(plan, 'Sort')).toBe(false);
+    expect(hasNode(plan, 'Sort')).toBe(false);
   });
 });
 

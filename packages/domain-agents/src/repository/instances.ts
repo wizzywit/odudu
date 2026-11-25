@@ -10,7 +10,6 @@ import {
   isNotNull,
   isNull,
   lt,
-  lte,
   notExists,
   or,
   sql,
@@ -55,14 +54,14 @@ function live(now: Date) {
   );
 }
 
-// Not revoked, and past its fixed expiry or its idle expiry at `now`.
+// Not revoked, and past its fixed expiry or its idle expiry at `now`. The earlier
+// of the two is compared as one expression no index holds, so a page of these is
+// read in id order from the tenant's unrevoked instances and stopped at the limit,
+// where the expiry indexes would read every tenant's lapsed rows and sort them.
 function lapsed(now: Date) {
   return and(
     isNull(agentInstances.revokedAt),
-    or(
-      lte(agentInstances.expiresAt, now),
-      and(isNotNull(agentInstances.idleExpiresAt), lte(agentInstances.idleExpiresAt, now)),
-    ),
+    sql`least(${agentInstances.expiresAt}, coalesce(${agentInstances.idleExpiresAt}, ${agentInstances.expiresAt})) <= ${now.toISOString()}::timestamptz`,
   );
 }
 
