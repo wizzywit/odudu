@@ -219,7 +219,8 @@ function retryable(error: unknown): boolean {
  * revocation, an exchange or a mint, which take row locks in an order another
  * of them can cross; the rollback leaves nothing, so `fn` must only write
  * through `tx` and keep no state outside it that a second run would repeat.
- * The last attempt's error reaches the caller as it is.
+ * The last attempt's error reaches the caller as it is. Nested inside another
+ * retry, a committed inner rotation is not undone by an outer rerun.
  */
 export async function withTenantRetrying<T>(
   db: Database,

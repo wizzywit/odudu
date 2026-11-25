@@ -1000,6 +1000,11 @@ describe('the requests that need care', () => {
     expect(polled.json()).toMatchObject({ error: 'unauthorized_client' });
   });
 
+  it('serves a client registered with a registration token', async () => {
+    const ack = await request(world, { login_hint: 'alice' }, world.tokenRegistered);
+    expect(ack.auth_req_id).toBeTruthy();
+  });
+
   it('[ODUDU-CIBA-CONF-11] still serves a client an administrator created', async () => {
     const ack = await request(world, { login_hint: 'alice' }, world.agent);
     expect(ack.auth_req_id).toBeTruthy();
