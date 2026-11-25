@@ -58,4 +58,5 @@ All but the theme cookie are `HttpOnly`, and none sets a `Domain`. The browser d
 - **Retention:** how long each kind of expired row is kept, under "Retention".
 - **Background passes:** whether the server runs retention, mail and logout delivery itself, under "Background passes".
 - **Mail:** the `ODUDU_SMTP_*` settings, under "Mail".
+- **Assistant:** `ODUDU_ASSISTANT_MODELS` says which model each slot runs, `ODUDU_ASSISTANT_OPENAI_COMPATIBLE_BASE_URL` and `ODUDU_ASSISTANT_OPENAI_COMPATIBLE_API_KEY` point a slot at a self-hosted server, and each provider reads its own standard variables (`AWS_BEARER_TOKEN_BEDROCK` with `AWS_REGION`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), listed under "Assistant" in the reference. Keys come from the environment only. Without a `standard` slot the assistant stays off.
 - **Documentation:** `ODUDU_DOCS` and `ODUDU_DOCS_DIR`. The server serves the copy of these pages built into its image from its own address, under a `docs` route, marked so search engines skip it. Set `ODUDU_DOCS=false` to serve none.

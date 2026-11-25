@@ -416,6 +416,41 @@ module.exports = {
       to: { path: '(^|/)packages/mcp/' },
     },
     {
+      name: 'assistant-allowlist',
+      severity: 'error',
+      comment:
+        'The assistant package sits above the protocol packages (ADR 0051), as the MCP package ' +
+        'does, and reaches the admin API through the MCP catalogue and its HTTP surface, so of ' +
+        'the workspace it may import the kernel, the contracts and the MCP package, and no ' +
+        'database, crypto, domain or protocol package. The rule covers src/ minus its *.test.ts files.',
+      from: { path: '(^|/)packages/assistant/src/', pathNot: '\\.test\\.ts$' },
+      to: {
+        path: '(^|/)packages/',
+        pathNot: '(^|/)node_modules/|(^|/)packages/(?:assistant|kernel|contracts|mcp)/',
+      },
+    },
+    {
+      name: 'assistant-imported-only-by-server',
+      severity: 'error',
+      comment:
+        'Only apps/server composes the assistant package; no other package or app reaches into ' +
+        'it, a protocol package included.',
+      from: {
+        path: '(^|/)(?:packages|apps)/',
+        pathNot: '(^|/)(?:packages/assistant|apps/server)/',
+      },
+      to: { path: '(^|/)packages/assistant/' },
+    },
+    {
+      name: 'ai-sdk-only-in-assistant',
+      severity: 'error',
+      comment:
+        'The AI SDK and the model provider packages are imported by @odudu/assistant alone, so ' +
+        'a second place cannot choose a model or hold a key.',
+      from: { path: '(^|/)(?:packages|apps|tools|sdks)/', pathNot: '(^|/)packages/assistant/' },
+      to: { path: '(^|/)(?:ai|@ai-sdk/[^/]+)(/|$)' },
+    },
+    {
       name: 'sdks-import-no-server',
       severity: 'error',
       comment:

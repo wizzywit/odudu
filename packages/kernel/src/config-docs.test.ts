@@ -40,6 +40,7 @@ describe('the configuration reference', () => {
         .sort(),
     ).toEqual([
       'ODUDU_APP_DATABASE_URL',
+      'ODUDU_ASSISTANT_OPENAI_COMPATIBLE_API_KEY',
       'ODUDU_CONSOLE_CLIENT_KEY',
       'ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS',
       'ODUDU_DATABASE_URL',

@@ -1,0 +1,29 @@
+{
+  "name": "@odudu/assistant",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
+  },
+  "dependencies": {
+    "@ai-sdk/amazon-bedrock": "5.0.147",
+    "@ai-sdk/anthropic": "4.0.108",
+    "@ai-sdk/openai": "4.0.123",
+    "@ai-sdk/openai-compatible": "3.0.94",
+    "@odudu/kernel": "workspace:*",
+    "ai": "7.0.181"
+  },
+  "devDependencies": {
+    "vitest": "5.1.1"
+  }
+}

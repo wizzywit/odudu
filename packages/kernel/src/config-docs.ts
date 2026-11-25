@@ -12,7 +12,8 @@ export type ConfigGroup =
   | 'Background passes'
   | 'Mail'
   | 'Admin console'
-  | 'Outbound requests';
+  | 'Outbound requests'
+  | 'Assistant';
 
 export const CONFIG_GROUPS: readonly ConfigGroup[] = [
   'Server',
@@ -24,6 +25,7 @@ export const CONFIG_GROUPS: readonly ConfigGroup[] = [
   'Mail',
   'Admin console',
   'Outbound requests',
+  'Assistant',
 ];
 
 interface ConfigDoc {
@@ -387,6 +389,35 @@ export const CONFIG_DOCS: Record<ConfigKey, ConfigDoc> = {
       'which an internal relay legitimately is. Not refused under `NODE_ENV=production`. ' +
       'Loopback, link-local and multicast addresses are refused regardless.',
     secret: false,
+  },
+  ODUDU_ASSISTANT_MODELS: {
+    group: 'Assistant',
+    summary:
+      'The model each assistant slot runs, as comma-separated `slot=provider:model` entries, for ' +
+      'example `fast=bedrock:<id>,standard=bedrock:<id>,deep=anthropic:<id>`. A slot is `fast`, ' +
+      '`standard` or `deep`; a provider is `bedrock`, `anthropic`, `openai` or `openai-compatible`. ' +
+      'Pin a model or inference-profile id, never a "latest" alias. The `standard` slot is ' +
+      'required for the assistant to start; a `fast` or `deep` slot that is unset, or whose ' +
+      'provider variables are missing, runs the standard model. Each provider reads its own ' +
+      'variables: `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION` for `bedrock`, `ANTHROPIC_API_KEY` ' +
+      'for `anthropic`, `OPENAI_API_KEY` for `openai`. A malformed entry is ignored. ' +
+      'Unset, the assistant is off.',
+    secret: false,
+  },
+  ODUDU_ASSISTANT_OPENAI_COMPATIBLE_BASE_URL: {
+    group: 'Assistant',
+    summary:
+      'The base URL of a self-hosted, OpenAI-compatible server (vLLM, Ollama, llama.cpp), for a ' +
+      'slot whose provider is `openai-compatible`, for example `http://localhost:11434/v1`. It is ' +
+      'your own configuration, so a private or loopback address is allowed. The server must ' +
+      'support tool calling for the model, and should report usage on streamed responses. Without ' +
+      'it, a slot that uses `openai-compatible` is not used.',
+    secret: false,
+  },
+  ODUDU_ASSISTANT_OPENAI_COMPATIBLE_API_KEY: {
+    group: 'Assistant',
+    summary: 'The bearer key sent to the self-hosted server, when it asks for one.',
+    secret: true,
   },
 };
 
