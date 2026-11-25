@@ -303,7 +303,8 @@ export interface HeldLock {
 // Runs `body` while a transaction of the test holds the rows `lock` takes. The
 // body starts only once the lock is held, and not at all if taking it fails.
 // However the body ends, the holder is released and every operation it started
-// has settled before this returns, so a failure leaves nothing open.
+// has settled before this returns, so a failure leaves nothing open; a failure
+// of the holder after it was released is thrown.
 export async function withHeldLock<R>(
   db: DatabaseHandle['db'],
   tenantId: string,
@@ -330,7 +331,7 @@ export async function withHeldLock<R>(
   const pending: Promise<unknown>[] = [done];
   try {
     await Promise.race([gotLock, done]);
-    return await body({
+    const result = await body({
       release,
       done,
       started: (operation) => {
@@ -338,6 +339,9 @@ export async function withHeldLock<R>(
         return operation;
       },
     });
+    release();
+    await done;
+    return result;
   } finally {
     release();
     await Promise.allSettled(pending);
