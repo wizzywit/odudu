@@ -220,6 +220,30 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
       return rows.length > 0;
     },
 
+    // Deletes the subject rows of the instances a removal is about to take with
+    // it (the client they run as, their owners, or a grant they are rooted
+    // at), and of every instance beneath those, which the instance rows then
+    // follow by cascade. The walk is capped by the structural depth, and a
+    // single statement does it however many instances there are.
+    async removeWithSubjects(removal: {
+      clientId: string | null;
+      ownerIds: readonly string[];
+    }): Promise<number> {
+      const owners = JSON.stringify(removal.ownerIds);
+      const rows = await tx.execute(sql`
+        with recursive tree(id) as (
+          select i.id from agent_instances i
+           where i.owner_subject_id = any(array(select value::uuid from jsonb_array_elements_text(${owners}::jsonb)))
+              or (${removal.clientId}::uuid is not null
+                  and (i.agent_client_id = ${removal.clientId}::uuid
+                       or i.root_grant_id in (select g.id from token_grants g where g.client_id = ${removal.clientId}::uuid)))
+          union
+          select c.id from agent_instances c join tree t on c.parent_instance_id = t.id
+        )
+        delete from subjects where id in (select id from tree) returning id`);
+      return (rows as unknown as unknown[]).length;
+    },
+
     // The instance and everything minted beneath it. `depth` is capped at 8,
     // which bounds the walk.
     async revoke(id: string, at: Date): Promise<number> {

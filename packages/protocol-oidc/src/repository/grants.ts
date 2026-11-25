@@ -619,6 +619,32 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       return rows.length;
     },
 
+    // What removing a client or subjects does to the grants about to be deleted
+    // with them: the client's own grants, the subjects' and the ones an actor
+    // among them acted in, and everything exchanged from any of those, whatever
+    // client holds it, which the delete would otherwise leave live and detached.
+    async revokeForRemoval(
+      removal: { clientId: string | null; subjectIds: readonly string[] },
+      at: Date,
+    ): Promise<{ grants: number; instances: number }> {
+      const ids = JSON.stringify(removal.subjectIds);
+      const named = sql`array(select value::uuid from jsonb_array_elements_text(${ids}::jsonb))`;
+      const seeds = sql`revoked_at is null and (
+        subject_id = any(${named}) or actor_subject_id = any(${named})
+        ${removal.clientId === null ? sql`` : sql`or client_id = ${removal.clientId}::uuid`})`;
+      await lockLineages(tx, seeds, heldRoots);
+      const rows = await tx
+        .update(tokenGrants)
+        .set({ revokedAt: at })
+        .where(seeds)
+        .returning({ id: tokenGrants.id });
+      const below = await cascadeAll(
+        rows.map((row) => row.id),
+        at,
+      );
+      return { grants: rows.length + below.grants, instances: below.instances };
+    },
+
     // `revokeForActor` for many actors, answering what it revoked in all: the
     // grants they acted in and everything exchanged from them, and the agent
     // instances rooted at any of those. An instance the cascade ends is audited

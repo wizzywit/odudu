@@ -1,3 +1,4 @@
+import { agentInstanceRepository } from '@odudu/domain-agents';
 import {
   BIDI_REFUSED_MESSAGE,
   checkLocalisedText,
@@ -55,6 +56,7 @@ import {
   parseClientMetadata,
   retiresServiceAccount,
   retireServiceAccount,
+  tokenGrantRepository,
   tokenGrants,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
@@ -1880,6 +1882,18 @@ async function deleteClientUnguarded(
     return { kind: 'capability_ceiling', requested: [], removed: denied };
   }
 
+  // The grants the delete removes are ended first, with everything exchanged
+  // from them and the instances rooted at them, in the lineage-root order every
+  // revoker takes; the foreign keys would only detach what other clients hold.
+  const accounts = clientRow.serviceSubjectId === null ? [] : [clientRow.serviceSubjectId];
+  await tokenGrantRepository(tx).revokeForRemoval(
+    { clientId: input.clientDbId, subjectIds: accounts },
+    new Date(),
+  );
+  await agentInstanceRepository(tx).removeWithSubjects({
+    clientId: input.clientDbId,
+    ownerIds: accounts,
+  });
   await clientRepository(tx).delete(input.clientDbId);
   // The account exists for the client alone, so it goes with it.
   if (clientRow.serviceSubjectId !== null) {
