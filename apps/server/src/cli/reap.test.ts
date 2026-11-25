@@ -26,17 +26,21 @@ describe('the order the retention pass runs in', () => {
   // uncounted, and a session deleted before its grants has its grants
   // nulled instead of kept.
   it('refuses an order that puts a table before what it depends on', () => {
-    const inverted = REAP_ORDER.filter((table) => table !== 'refresh_tokens');
+    const inverted = REAP_ORDER.filter((table) => table !== 'agent_budget_windows');
     expect(() => {
-      assertReapOrder(['refresh_tokens', ...inverted]);
+      assertReapOrder(['agent_budget_windows', ...inverted]);
     }).not.toThrow();
+    expect(() => {
+      const rest = REAP_ORDER.filter((table) => table !== 'agent_instances');
+      assertReapOrder([...rest.slice(0, 1), 'agent_instances', ...rest.slice(1)]);
+    }).toThrow(/refresh_tokens before agent_instances/u);
     expect(() => {
       assertReapOrder(['token_grants', ...REAP_ORDER.filter((table) => table !== 'token_grants')]);
     }).toThrow(/token_grants before /u);
     expect(() => {
       const rest = REAP_ORDER.filter((table) => table !== 'agent_instances');
       assertReapOrder([...rest, 'agent_instances']);
-    }).toThrow(/token_grants before agent_instances/u);
+    }).toThrow(/before agent_instances/u);
   });
 
   it('refuses an order that omits a table', () => {

@@ -1,7 +1,8 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
-import { agentInstanceRepository } from '@odudu/domain-agents';
+import { agentInstanceRepository, lockLineageRoots } from '@odudu/domain-agents';
+import { sql } from 'drizzle-orm';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
 import {
   ADMIN_API_AUDIENCE,
@@ -90,7 +91,15 @@ async function instanceForRun(
   instanceId: string,
 ): Promise<RunInstance> {
   const repo = agentInstanceRepository(tx);
+  // The lineage root before the grant: a refusal below revokes the run, which
+  // takes the root, and nothing may wait for it while holding a grant.
+  await lockLineageRoots(tx, sql`select ${grant.id}::uuid as id`);
   await repo.lockGrant(grant.id);
+  // The caller read the grant before waiting for these locks; a revoke that
+  // committed meanwhile ended its instances, and a new one must not outlive it.
+  if ((await tokenGrantRepository(tx).byId(grant.id))?.revokedAt !== null) {
+    throw new AgentTokenRefused('grant_revoked');
+  }
   const { agentInstanceIdleSeconds } = await readAgentSettings(tx, deps.tenantId);
   const session =
     grant.sessionId === null

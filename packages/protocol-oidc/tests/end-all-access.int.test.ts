@@ -180,7 +180,10 @@ describe('endAllAccess', () => {
   it('takes a few statements a page when a subject holds more than a page of sessions', async () => {
     const { tenantId, subjectId } = await holder(450);
     const used = await recover(tenantId, subjectId);
-    expect(used).toBeLessThan(60);
+    // A page of sessions costs a few statements more than before: the walks and
+    // locks of the lineage roots its grants belong to. The growth is per page, not
+    // per session.
+    expect(used).toBeLessThan(85);
     const open = await owner.db
       .select({ expiresAt: sessions.expiresAt })
       .from(sessions)
@@ -264,7 +267,8 @@ describe('endOtherSessions', () => {
         { tenantId, subjectId, now: NOW, issuer, except: keep ?? null },
       ),
     );
-    expect(statements).toBeLessThan(40);
+    // The lineage walks and root locks add a few statements to each page.
+    expect(statements).toBeLessThan(50);
     expect(await liveSessions(subjectId)).toEqual([keep]);
   });
 });

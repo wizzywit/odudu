@@ -779,6 +779,32 @@ async function agentCounts(t: AgentTenant): Promise<Record<string, number>> {
   return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, Number(value)]));
 }
 
+// A transaction of the owner holds a grant's row, as a revoker holds its
+// lineage root. `release` ends it. A lock that cannot be taken is reported, not
+// waited for.
+async function holdGrant(grantId: string): Promise<{ release: () => Promise<void> }> {
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let locked: () => void = () => undefined;
+  const gotLock = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const holder = owner.db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM token_grants WHERE id = ${grantId} FOR NO KEY UPDATE`);
+    locked();
+    await held;
+  });
+  await Promise.race([gotLock, holder]);
+  return {
+    release: async () => {
+      release();
+      await holder;
+    },
+  };
+}
+
 describe('agent instances and the grants they are rooted at', () => {
   it('keeps a grant past retention while an instance is rooted at it, then removes instance, subject and grant', async () => {
     const t = await seedAgentTenant();
@@ -813,6 +839,139 @@ describe('agent instances and the grants they are rooted at', () => {
     );
     expect(gone[0]?.n).toBe('0');
   });
+
+  it('leaves an instance whose lineage root a revoker holds for the next pass, without waiting', async () => {
+    const t = await seedAgentTenant();
+    await seedInstance(t, t.youngGrantId, null, 1, 'removable');
+    const holder = await holdGrant(t.youngGrantId);
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const pass = runPass();
+      const deadline = new Promise<'waited'>((resolve) => {
+        timer = setTimeout(() => {
+          resolve('waited');
+        }, 8_000);
+      });
+      const outcome = await Promise.race([pass.then(() => 'done' as const), deadline]);
+      if (outcome === 'waited') {
+        await holder.release();
+        await pass;
+        throw new Error('the pass waited on a lineage root a revoker held');
+      }
+      expect((await agentCounts(t)).instances).toBe(1);
+    } finally {
+      clearTimeout(timer);
+      await holder.release();
+    }
+    await runPass();
+    expect((await agentCounts(t)).instances).toBe(0);
+  });
+
+  it('keeps a grant its family when a removable instance frees a lower-id grant past one batch', async () => {
+    const t = await seedAgentTenant();
+    await owner.db.execute(sql`
+      INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id)
+      SELECT gen_random_uuid(), ${t.tenantId}, c.id, ${t.userId}, 'openid',
+             ${at(-40 * DAY)}::timestamptz, NULL
+        FROM generate_series(1, 10000) g, (SELECT id FROM clients WHERE tenant_id = ${t.tenantId}) c`);
+    const ends = await owner.db.execute<{ low: string; high: string }>(sql`
+      SELECT (array_agg(id ORDER BY id))[1]::text AS low,
+             (array_agg(id ORDER BY id DESC))[1]::text AS high FROM token_grants
+       WHERE tenant_id = ${t.tenantId} AND created_at < ${at(-30 * DAY)}::timestamptz`);
+    const low = ends[0]?.low ?? '';
+    const high = ends[0]?.high ?? '';
+    // Only the leaf keeps `low` out of the first selections; the pass removes it.
+    await seedInstance(t, low, null, 1, 'removable');
+    await pastRetentionFamily(t, high);
+
+    await runPass();
+
+    expect(await familyRows(t, high)).toEqual([1, 1, 1]);
+  }, 120_000);
+
+  it('removes a removable parent only after its child, never leaving a subject without its instance', async () => {
+    const t = await seedAgentTenant();
+    const parent = await seedInstance(t, t.youngGrantId, null, 1, 'removable');
+    await seedInstance(t, t.youngGrantId, parent, 2, 'removable');
+
+    await runPass();
+    expect(await agentCounts(t)).toMatchObject({ instances: 1, instance_subjects: 1, orphans: 0 });
+
+    await runPass();
+    expect(await agentCounts(t)).toMatchObject({ instances: 0, instance_subjects: 0, orphans: 0 });
+  });
+
+  it('keeps a removable parent and its child together while the lineage root is held', async () => {
+    const t = await seedAgentTenant();
+    const parent = await seedInstance(t, t.youngGrantId, null, 1, 'removable');
+    await seedInstance(t, t.youngGrantId, parent, 2, 'removable');
+    const holder = await holdGrant(t.youngGrantId);
+    try {
+      await runPass();
+      expect(await agentCounts(t)).toMatchObject({ instances: 2, orphans: 0 });
+    } finally {
+      await holder.release();
+    }
+  });
+
+  async function pastRetentionFamily(t: AgentTenant, grantId: string): Promise<void> {
+    const client = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM clients WHERE tenant_id = ${t.tenantId} LIMIT 1`,
+    );
+    await owner.db.execute(sql`
+      INSERT INTO refresh_tokens (token_hash, tenant_id, grant_id, expires_at, used_at)
+      VALUES (${`rt-${grantId}`}, ${t.tenantId}, ${grantId},
+              ${at(-39 * DAY)}::timestamptz, ${at(-39 * DAY)}::timestamptz)`);
+    await owner.db.execute(sql`
+      INSERT INTO authorization_codes (code_hash, tenant_id, client_id, subject_id, redirect_uri,
+                                       scope, code_challenge, code_challenge_method, auth_time,
+                                       expires_at, consumed_at, grant_id)
+      VALUES (${`code-${grantId}`}, ${t.tenantId}, ${client[0]?.id ?? ''}, ${t.userId},
+              'https://app.example/cb', 'openid', 'challenge', 'S256', ${at(-40 * DAY)}::timestamptz,
+              ${at(-40 * DAY)}::timestamptz, ${at(-40 * DAY)}::timestamptz, ${grantId})`);
+  }
+
+  async function familyRows(t: AgentTenant, grantId: string): Promise<[number, number, number]> {
+    const rows = await owner.db.execute<{ tokens: string; codes: string; grants: string }>(sql`
+      SELECT (SELECT count(*) FROM refresh_tokens WHERE grant_id = ${grantId}) AS tokens,
+             (SELECT count(*) FROM authorization_codes WHERE grant_id = ${grantId}) AS codes,
+             (SELECT count(*) FROM token_grants WHERE id = ${grantId}) AS grants`);
+    return [Number(rows[0]?.tokens), Number(rows[0]?.codes), Number(rows[0]?.grants)];
+  }
+
+  it('keeps a spent token and a consumed code with their grant while its lineage root is held', async () => {
+    const t = await seedAgentTenant();
+    await pastRetentionFamily(t, t.staleGrantId);
+    const holder = await holdGrant(t.staleGrantId);
+    try {
+      await runPass();
+      expect(await familyRows(t, t.staleGrantId)).toEqual([1, 1, 1]);
+    } finally {
+      await holder.release();
+    }
+    await runPass();
+    expect(await familyRows(t, t.staleGrantId)).toEqual([0, 0, 0]);
+  });
+
+  it('takes a token and a code only in the pass that takes their grant, past one batch of grants', async () => {
+    const t = await seedAgentTenant();
+    await owner.db.execute(sql`
+      INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id)
+      SELECT gen_random_uuid(), ${t.tenantId}, c.id, ${t.userId}, 'openid',
+             ${at(-40 * DAY)}::timestamptz, NULL
+        FROM generate_series(1, 10000) g, (SELECT id FROM clients WHERE tenant_id = ${t.tenantId}) c`);
+    const last = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM token_grants WHERE tenant_id = ${t.tenantId} ORDER BY id DESC LIMIT 1`,
+    );
+    const grantId = last[0]?.id ?? '';
+    await pastRetentionFamily(t, grantId);
+
+    await runPass();
+    expect(await familyRows(t, grantId)).toEqual([1, 1, 1]);
+
+    await runPass();
+    expect(await familyRows(t, grantId)).toEqual([0, 0, 0]);
+  }, 120_000);
 
   it('removes nothing of a removable grandparent and parent over a live grandchild', async () => {
     const t = await seedAgentTenant();
@@ -884,6 +1043,9 @@ describe('odudu reap', () => {
   // database, so this is the only point at which it can be compared to an
   // exact expectation.
   it('deletes every eligible row, counts each one, and then has nothing left to do', async () => {
+    // A pass visits every tenant, and earlier tests leave instance chains that
+    // take a pass a level: clear them so the counts below are this tenant's.
+    for (let pass = 0; pass < 8; pass += 1) await runPass();
     const fixture = await seedFixture();
 
     expect(ran(await runPass())).toEqual({
@@ -893,7 +1055,7 @@ describe('odudu reap', () => {
       ciba_requests: 1,
       agent_approvals: 2,
       agent_delegations: 2,
-      agent_instances: 4,
+      agent_instances: 2,
       token_grants: 1,
       authentication_sessions: 1,
       action_tokens: 1,
@@ -925,7 +1087,7 @@ describe('odudu reap', () => {
       ciba_requests: 1,
       agent_approvals: 2,
       agent_delegations: 2,
-      agent_instances: 3,
+      agent_instances: 5,
       token_grants: 3,
       authentication_sessions: 1,
       action_tokens: 1,
@@ -946,6 +1108,10 @@ describe('odudu reap', () => {
       sessions: 1,
       audit_events: 0,
     });
+
+    // Instances go leaves first: the chain's middle, then its root, a pass each.
+    expect(ran(await runPass()).agent_instances).toBe(1);
+    expect(ran(await runPass()).agent_instances).toBe(1);
 
     expect(ran(await runPass())).toEqual({
       refresh_tokens: 0,
@@ -1006,7 +1172,8 @@ describe('odudu reap', () => {
   it('removes a chain of agent instances from the leaf up, with their subjects', async () => {
     const fixture = await seedFixture();
 
-    await runPass();
+    // A chain of three is gone in three passes, one level each.
+    for (let pass = 0; pass < 3; pass += 1) await runPass();
 
     const rows = await owner.db.execute<{ id: string }>(
       sql`SELECT id FROM agent_instances WHERE tenant_id = ${fixture.tenantId} ORDER BY id`,
@@ -1433,8 +1600,12 @@ describe('odudu reap', () => {
 
     // Eight days on, the session-bound family is past its own retention;
     // the session becomes deletable only because the grant went first.
-    const deleted = ran(await runPass(new Date(NOW.getTime() + 8 * DAY)));
-    expect(deleted.token_grants).toBeGreaterThanOrEqual(1);
+    // Its instances go first, a level a pass, and the grants after them.
+    let deleted = 0;
+    for (let pass = 0; pass < 5; pass += 1) {
+      deleted += ran(await runPass(new Date(NOW.getTime() + 8 * DAY))).token_grants;
+    }
+    expect(deleted).toBeGreaterThanOrEqual(1);
     expect(await countRows(fixture.tenantId, 'token_grants')).toBe(0);
     expect(await countRows(fixture.tenantId, 'sessions')).toBe(0);
     expect(await countRows(fixture.tenantId, 'refresh_tokens')).toBe(0);

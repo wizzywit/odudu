@@ -7,7 +7,11 @@ import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { agentBudgetRepository, type SpendInput } from '#/repository/agent-budget';
+import {
+  agentBudgetRepository,
+  type SpendInput,
+  type SpendOutcome,
+} from '#/repository/agent-budget';
 import { tokenGrantRepository } from '#/repository/grants';
 import {
   addClient,
@@ -15,6 +19,7 @@ import {
   exchange,
   login,
   startAgentStack,
+  withHeldLock,
   type AgentStack,
 } from '#/testing/agent-fixture';
 
@@ -42,7 +47,7 @@ interface World {
 
 // A grant of its own, with its own owner and agent client, so no two tests
 // share a daily window.
-async function world(): Promise<World> {
+async function world(rootId: string = newId()): Promise<World> {
   return withTenant(stack.app.db, stack.tenantId, async (tx) => {
     const clientId = newId();
     await tx.insert(clients).values({
@@ -55,7 +60,7 @@ async function world(): Promise<World> {
     });
     const owner = await subjectRepository(tx).create({ tenantId: stack.tenantId, type: 'user' });
     const grant = await tokenGrantRepository(tx).create({
-      id: newId(),
+      id: rootId,
       tenantId: stack.tenantId,
       clientId,
       subjectId: owner.id,
@@ -347,6 +352,85 @@ describe('a call with no instance', () => {
     });
     expect((await counters(w, null)).grantWrites).toBe(2);
   });
+});
+
+describe('an exchanged grant revoked before the spend reads it', () => {
+  async function exchangedFrom(w: World, id: string = newId()) {
+    return withTenant(stack.app.db, stack.tenantId, (tx) =>
+      tokenGrantRepository(tx).create({
+        id,
+        tenantId: stack.tenantId,
+        clientId: w.clientId,
+        subjectId: w.ownerId,
+        scope: 'mcp:write',
+        audience: ['https://id.example/mcp'],
+        exchangedFromGrantId: w.grantId,
+        actorSubjectId: w.ownerId,
+      }),
+    );
+  }
+
+  it('is refused at the grant, and nothing is counted', async () => {
+    const w = await world();
+    const child = await exchangedFrom(w);
+    await withTenant(stack.app.db, stack.tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(child.id, NOON),
+    );
+    expect(await spend(w, null, { grantId: child.id })).toEqual({
+      kind: 'refused',
+      level: 'grant',
+    });
+    expect(await counters(w, null)).toMatchObject({ grantWrites: 0, window: 0 });
+  });
+
+  // The spend holds the root while a revoke over both grants waits for it, so
+  // the write counts and the revoke then ends both: a revoke that commits as a
+  // spend does is the same as a write that finished a moment before it.
+  it.each([
+    ['the carried grant sorts before the root', true],
+    ['the carried grant sorts after the root', false],
+  ])(
+    'counts a spend that holds the root while a revoke waits, when %s',
+    async (_, carriedFirst) => {
+      const [a, b] = [newId(), newId()];
+      const [low, high] = a < b ? [a, b] : [b, a];
+      const [rootId, childId] = carriedFirst ? [high, low] : [low, high];
+      const w = await world(rootId);
+      await exchangedFrom(w, childId);
+      let spent: SpendOutcome | undefined;
+      const revoked = await withHeldLock(
+        stack.app.db,
+        stack.tenantId,
+        {
+          lock: async (tx) => {
+            spent = await agentBudgetRepository(tx).spend({
+              grantId: childId,
+              instanceId: null,
+              ownerSubjectId: w.ownerId,
+              agentClientId: w.clientId,
+              kind: 'mutating',
+              now: NOON,
+              limits: WIDE,
+            });
+          },
+        },
+        async (held) => {
+          const revoking = held.started(
+            withTenant(stack.app.db, stack.tenantId, (tx) =>
+              tokenGrantRepository(tx).revokeForSubjectClient(w.ownerId, w.clientId, NOON),
+            ),
+          );
+          await held.waitForWaiters(stack.owner);
+          held.release();
+          const [count] = await Promise.all([revoking, held.done]);
+          return count;
+        },
+      );
+      expect(spent).toEqual({ kind: 'ok' });
+      expect(revoked).toBe(2);
+      expect(await counters(w, null)).toMatchObject({ grantWrites: 1, window: 1 });
+    },
+  );
 });
 
 describe('the daily window', () => {

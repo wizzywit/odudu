@@ -10,6 +10,7 @@ import {
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type AdminMutationAction } from '#/service/admin-mutation-actions';
 import { auditRepository } from '#/repository/audit';
@@ -309,6 +310,26 @@ describe('record and list', () => {
     );
     expect(rows).toHaveLength(0);
   });
+
+  // One insert binds every column of every row; the protocol allows 65,535
+  // parameters, so a long list has to go in chunks.
+  it('writes twenty thousand events, which no single statement can bind', async () => {
+    const tenantId = newId();
+    const events = Array.from({ length: 20_000 }, () => ({
+      eventType: 'authentication' as const,
+      action: 'login.password' as const,
+      outcome: 'refused' as const,
+      detail: { factor: 'password', reason: 'bad_credential' as const },
+    }));
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await auditRepository(tx).recordAll(events);
+    });
+    const counted = await owner.db.execute(
+      sql`select count(*)::int as n from audit_events where tenant_id = ${tenantId}`,
+    );
+    expect(Number((counted as unknown as { n: number }[])[0]?.n)).toBe(20_000);
+  }, 120_000);
 
   it('writes an admin_mutation row whose action string collides with a vocabulary action', async () => {
     const tenantId = newId();

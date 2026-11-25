@@ -123,6 +123,9 @@ async function storedOf(
   );
 }
 
+// The most rows one `recordAll` statement inserts.
+const RECORD_ALL_CHUNK = 1000;
+
 export function auditRepository(tx: TenantScopedDatabase) {
   return {
     // No tenantId field: audit_events.tenant_id defaults to the same
@@ -135,15 +138,17 @@ export function auditRepository(tx: TenantScopedDatabase) {
       await tx.insert(auditEvents).values(row);
     },
 
-    // Every event is checked before any is written, and all of them go in
-    // one statement: a caller whose row count varies with what happened
-    // still issues the same number of statements either way.
+    // Every event is checked before any is written, and they go in one
+    // statement per chunk of RECORD_ALL_CHUNK rows (a statement binds a
+    // parameter for every column, and the protocol allows 65,535): a call of one
+    // chunk or less still issues one statement, whatever the row count.
     async recordAll(events: readonly AuditEventInput[]): Promise<void> {
       const validated = events.map((event) => ({ event, row: validatedRow(event) }));
       const kept = new Set(await storedOf(tx, events));
       const rows = validated.filter(({ event }) => kept.has(event)).map(({ row }) => row);
-      if (rows.length === 0) return;
-      await tx.insert(auditEvents).values(rows);
+      for (let at = 0; at < rows.length; at += RECORD_ALL_CHUNK) {
+        await tx.insert(auditEvents).values(rows.slice(at, at + RECORD_ALL_CHUNK));
+      }
     },
 
     // Ordered (occurred_at DESC, id DESC) — newest first, ties broken by id

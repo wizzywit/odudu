@@ -1,4 +1,5 @@
 import { CONSOLE_SESSION_IDLE_SECONDS } from '@odudu/console-gateway';
+import { lineageRootCtes } from '@odudu/domain-agents';
 import {
   bypassesRowLevelSecurity,
   createDatabase,
@@ -164,6 +165,9 @@ interface RetentionRule {
   readonly statement: (now: Date, policy: RetentionPolicy, tenant: RetentionTenant) => SQL;
 }
 
+// The most rows of one table a pass deletes for a tenant; the next pass takes the rest.
+const REAP_BATCH = 10_000;
+
 function before(now: Date, seconds: number): string {
   return new Date(now.getTime() - seconds * 1000).toISOString();
 }
@@ -201,19 +205,43 @@ function grantPastRetention(now: Date, policy: RetentionPolicy, tenant: Retentio
   `;
 }
 
+// The CTEs that choose the grants one pass may take: at most REAP_BATCH past
+// retention, by id, from lineages whose root this pass could lock (`SKIP
+// LOCKED`: a lineage a revoker holds waits for the next pass). The grant rule
+// and the rules for its tokens and codes share it, so a token goes in the pass
+// that takes its grant. The instance rule runs first (`after`), so nothing
+// changes the candidates between the three; deleting spent tokens changes
+// neither `created_at` nor the live-token test, and the root locks stay held for
+// the transaction. Ends in `chosen(id)`.
+function chosenGrants(now: Date, policy: RetentionPolicy, tenant: RetentionTenant): SQL {
+  return sql`
+    cand AS (
+      SELECT g.id FROM token_grants g
+       WHERE ${grantPastRetention(now, policy, tenant)}
+       ORDER BY g.id LIMIT ${REAP_BATCH}),
+    ${lineageRootCtes('lineage', sql`SELECT id FROM cand`)},
+    got AS (
+      SELECT id FROM token_grants WHERE id IN (SELECT root FROM lineage)
+       ORDER BY id FOR NO KEY UPDATE SKIP LOCKED),
+    chosen AS (
+      SELECT c.id FROM cand c
+       WHERE NOT EXISTS (
+         SELECT 1 FROM lineage l
+          WHERE l.seed = c.id
+            AND l.root NOT IN (SELECT id FROM got)))`;
+}
+
 export const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // Deleted here rather than left to the ON DELETE CASCADE on
   // refresh_tokens_grant_fk: a cascade deletes the rows without this pass
   // counting them, so the report would show nothing for a table that had
   // just been emptied.
   refresh_tokens: {
-    after: [],
+    after: ['agent_instances'],
     statement: (now, policy, tenant) => sql`
+      WITH RECURSIVE ${chosenGrants(now, policy, tenant)}
       DELETE FROM refresh_tokens t
-       USING token_grants g
-       WHERE g.tenant_id = t.tenant_id
-         AND g.id = t.grant_id
-         AND ${grantPastRetention(now, policy, tenant)}
+       WHERE t.grant_id IN (SELECT id FROM chosen)
     `,
   },
 
@@ -226,8 +254,9 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // `EXISTS` against a grant that no longer exists is false forever — a code
   // retained for good, in the table ADR 0021 exists to bound.
   authorization_codes: {
-    after: [],
+    after: ['agent_instances'],
     statement: (now, policy, tenant) => sql`
+      WITH RECURSIVE ${chosenGrants(now, policy, tenant)}
       DELETE FROM authorization_codes c
        WHERE c.expires_at < ${now.toISOString()}::timestamptz
              - make_interval(secs => ${policy.authorizationCodeSeconds}::integer)
@@ -236,11 +265,7 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
            OR NOT EXISTS (
              SELECT 1 FROM token_grants gone
               WHERE gone.tenant_id = c.tenant_id AND gone.id = c.grant_id)
-           OR EXISTS (
-             SELECT 1 FROM token_grants g
-              WHERE g.tenant_id = c.tenant_id
-                AND g.id = c.grant_id
-                AND ${grantPastRetention(now, policy, tenant)})
+           OR c.grant_id IN (SELECT id FROM chosen)
          )
     `,
   },
@@ -294,11 +319,12 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
-  // Removable once revoked, or lapsed unrevoked, for the tombstone window,
-  // and only when everything beneath it is too: agent_instances_parent_fk
-  // cascades, so deleting a parent over a live child would delete the child.
-  // The recursion collects every ancestor of a row that is not removable.
-  // The subjects go in the same statement, so none outlives its instance.
+  // Removable once revoked, or lapsed unrevoked, for the tombstone window, and
+  // only as a leaf: agent_instances_parent_fk cascades, so deleting a parent
+  // over a child would delete the child without its subject. A chain of depth d
+  // is gone in d passes, leaves first. The subjects go in the same statement,
+  // so none outlives its instance. The rows are locked in id order and skipped
+  // when a cascade holds them.
   agent_instances: {
     after: [],
     statement: (now, policy) => {
@@ -307,20 +333,28 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
         (${alias}.revoked_at < ${cutoff}::timestamptz
          OR (${alias}.revoked_at IS NULL AND ${alias}.expires_at < ${cutoff}::timestamptz))`;
       return sql`
-        WITH RECURSIVE waiting(id) AS (
-          SELECT c.parent_instance_id
-            FROM agent_instances c
-           WHERE c.parent_instance_id IS NOT NULL
-             AND NOT COALESCE(${removable(sql`c`)}, false)
-          UNION
-          SELECT p.parent_instance_id
-            FROM agent_instances p
-            JOIN waiting w ON w.id = p.id
-           WHERE p.parent_instance_id IS NOT NULL),
+        WITH RECURSIVE cand AS (
+          SELECT r.id, r.root_grant_id FROM agent_instances r
+           WHERE ${removable(sql`r`)}
+             AND NOT EXISTS (
+               SELECT 1 FROM agent_instances k
+                WHERE k.tenant_id = r.tenant_id AND k.parent_instance_id = r.id)
+           ORDER BY r.id LIMIT ${REAP_BATCH}),
+        ${lineageRootCtes('lineage', sql`SELECT root_grant_id AS id FROM cand`)},
+        got AS (
+          SELECT id FROM token_grants WHERE id IN (SELECT root FROM lineage)
+           ORDER BY id FOR NO KEY UPDATE SKIP LOCKED),
+        chosen AS (
+          SELECT c.id FROM cand c
+           WHERE NOT EXISTS (
+             SELECT 1 FROM lineage l
+              WHERE l.seed = c.root_grant_id
+                AND l.root NOT IN (SELECT id FROM got))),
         gone AS (
           DELETE FROM agent_instances a
-           WHERE ${removable(sql`a`)}
-             AND NOT EXISTS (SELECT 1 FROM waiting w WHERE w.id = a.id)
+           WHERE a.id IN (
+             SELECT i.id FROM agent_instances i WHERE i.id IN (SELECT id FROM chosen)
+              ORDER BY i.id FOR UPDATE SKIP LOCKED)
           RETURNING a.tenant_id, a.id)
         DELETE FROM subjects s
          USING gone g
@@ -329,11 +363,16 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     },
   },
 
+  // A lineage whose root a revoker holds is left for the next pass: the roots
+  // are taken `SKIP LOCKED` before any row of the lineage is.
   token_grants: {
     after: ['refresh_tokens', 'authorization_codes', 'agent_instances'],
     statement: (now, policy, tenant) => sql`
-      DELETE FROM token_grants g
-       WHERE ${grantPastRetention(now, policy, tenant)}
+      WITH RECURSIVE ${chosenGrants(now, policy, tenant)}
+      DELETE FROM token_grants d
+       WHERE d.id IN (
+         SELECT t.id FROM token_grants t WHERE t.id IN (SELECT id FROM chosen)
+          ORDER BY t.id FOR UPDATE SKIP LOCKED)
     `,
   },
 
@@ -624,13 +663,13 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
  * because a session is only deletable once nothing references it.
  */
 export const REAP_ORDER: readonly TableName[] = [
+  'agent_instances',
   'refresh_tokens',
   'authorization_codes',
   'agent_budget_windows',
   'ciba_requests',
   'agent_approvals',
   'agent_delegations',
-  'agent_instances',
   'token_grants',
   'authentication_sessions',
   'action_tokens',

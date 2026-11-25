@@ -46,15 +46,27 @@ function over(spent: Caps, caps: Caps, create: boolean): boolean {
   return spent.mutating >= caps.mutating || (create && spent.creates >= caps.creates);
 }
 
+// Whether the grant a call carries has not been revoked. A plain read, taken
+// after the root's lock: a revoke that commits at the same moment as a spend
+// cannot be told from a write that finished just before it, so the call is
+// refused only if the revoke had committed when this ran.
+async function notRevoked(tx: TenantScopedDatabase, id: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ revokedAt: tokenGrants.revokedAt })
+    .from(tokenGrants)
+    .where(eq(tokenGrants.id, id));
+  return row?.revokedAt === null;
+}
+
 export function agentBudgetRepository(tx: TenantScopedDatabase) {
   return {
     // Spends one write at every level a call counts at: the root grant it
     // belongs to, the agent instance making it and the daily window of its owner
-    // and agent client. Rows are locked in that order, the one a revoke and a mint
-    // take theirs in, and each is checked before any is written, so a refusal at
-    // one level leaves the other two untouched and calls made at once between
-    // them never pass a limit. A create is also a mutating call, and counts once
-    // in the window. A grant that is missing or revoked is refused at the grant.
+    // and agent client. Only the root grant is locked (`for no key update`, which
+    // a child insert's key share passes), then the instance and the window. Each
+    // is checked before any is written, so a refusal leaves the others untouched.
+    // A create also counts as a mutating call. A grant that is missing or revoked,
+    // root or carried by the call, is refused at the grant.
     async spend(input: SpendInput): Promise<SpendOutcome> {
       const create = input.kind === 'create';
       const root = await budgetGrantId(tx, input.grantId);
@@ -69,7 +81,10 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
         })
         .from(tokenGrants)
         .where(eq(tokenGrants.id, root))
-        .for('update');
+        .for('no key update');
+      if (input.grantId !== root && !(await notRevoked(tx, input.grantId))) {
+        return refused('grant');
+      }
       if (grant?.revokedAt !== null) return refused('grant');
       if (over({ mutating: grant.writes, creates: grant.creates }, input.limits.grant, create)) {
         return refused('grant');

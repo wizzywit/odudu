@@ -1,7 +1,12 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clients } from '@odudu/domain-tenant';
-import { refreshTokens, tokenGrantRepository, tokenGrants } from '@odudu/protocol-oidc';
+import {
+  lockLineages,
+  refreshTokens,
+  tokenGrantRepository,
+  tokenGrants,
+} from '@odudu/protocol-oidc';
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { isBeyond, isNotBeyond, subjectsBeyond } from '#/service/capability-ceiling';
 import { BULK_WRITE_LIMIT } from '#/usecase/bulk-limit';
@@ -196,11 +201,19 @@ export async function revokeClientGrants(
     .where(reachable)
     .orderBy(asc(tokenGrants.id))
     .limit(input.limit ?? CLIENT_GRANTS_REVOKE_LIMIT);
-  const revoked = await tx
-    .update(tokenGrants)
-    .set({ revokedAt: input.now })
-    .where(inArray(tokenGrants.id, batch))
-    .returning({ id: tokenGrants.id });
+  const ids = (await batch).map((row) => row.id);
+  const seeds = inArray(tokenGrants.id, ids);
+  const revoked =
+    ids.length === 0
+      ? []
+      : await (async () => {
+          await lockLineages(tx, seeds);
+          return tx
+            .update(tokenGrants)
+            .set({ revokedAt: input.now })
+            .where(and(seeds, isNull(tokenGrants.revokedAt)))
+            .returning({ id: tokenGrants.id });
+        })();
   await tokenGrantRepository(tx).revokeBelow(
     revoked.map((row) => row.id),
     input.now,

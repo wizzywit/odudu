@@ -8,6 +8,7 @@ import {
   exchange,
   login,
   startAgentStack,
+  withHeldLock,
   type AgentStack,
 } from '#/testing/agent-fixture';
 
@@ -23,8 +24,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await stack.stop();
 });
-
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function count(query: ReturnType<typeof sql>): Promise<number> {
   const rows = await stack.owner.db.execute(query);
@@ -69,25 +68,25 @@ describe('an exchange from a revoked grant', () => {
     const owner = await login(stack, AGENT);
     const grants = await grantCount();
     const instances = await count(sql`select count(*)::int as n from agent_instances`);
-    let release!: () => void;
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let locked!: () => void;
-    const gotLock = new Promise<void>((resolve) => {
-      locked = resolve;
-    });
-    const holder = withTenant(stack.app.db, stack.tenantId, async (tx) => {
-      await tx.execute(sql`select id from token_grants where id = ${owner.grantId} for update`);
-      locked();
-      await held;
-      await tokenGrantRepository(tx).revoke(owner.grantId, new Date());
-    });
-    await gotLock;
-    const exchanging = exchange(stack, AGENT, owner.accessToken);
-    await pause(300);
-    release();
-    const [res] = await Promise.all([exchanging, holder]);
+    const res = await withHeldLock(
+      stack.app.db,
+      stack.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${owner.grantId} for update`);
+        },
+        afterRelease: async (tx) => {
+          await tokenGrantRepository(tx).revoke(owner.grantId, new Date());
+        },
+      },
+      async (held) => {
+        const exchanging = held.started(exchange(stack, AGENT, owner.accessToken));
+        await held.waitForWaiters(stack.owner);
+        held.release();
+        const [outcome] = await Promise.all([exchanging, held.done]);
+        return outcome;
+      },
+    );
     expect(res.statusCode).toBe(400);
     expect(res.json<{ error: string }>().error).toBe('invalid_grant');
     expect(await grantCount()).toBe(grants);
@@ -113,32 +112,32 @@ describe('an exchange from an instance racing a revoke', () => {
         const instance = (claims.act as { sub: string }).sub;
         const target = up === 0 ? String(claims.grant_id) : owner.grantId;
 
-        let release!: () => void;
-        const held = new Promise<void>((resolve) => {
-          release = resolve;
-        });
-        let locked!: () => void;
-        const gotLock = new Promise<void>((resolve) => {
-          locked = resolve;
-        });
-        const holder = withTenant(stack.app.db, stack.tenantId, async (tx) => {
-          await tx.execute(sql`select id from agent_instances where id = ${instance} for update`);
-          locked();
-          await held;
-        });
-        await gotLock;
-
-        const exchanging = exchange(stack, AGENT, token);
-        await pause(250);
-        const revoking = withTenant(stack.app.db, stack.tenantId, (tx) =>
-          tokenGrantRepository(tx).revoke(target, new Date()),
-        ).then(
-          () => null,
-          (error: unknown) => error,
+        const [res, revokeError] = await withHeldLock(
+          stack.app.db,
+          stack.tenantId,
+          {
+            lock: async (tx) => {
+              await tx.execute(
+                sql`select id from agent_instances where id = ${instance} for update`,
+              );
+            },
+          },
+          async (held) => {
+            const exchanging = held.started(exchange(stack, AGENT, token));
+            await held.waitForWaiters(stack.owner);
+            const revoking = held.started(
+              withTenant(stack.app.db, stack.tenantId, (tx) =>
+                tokenGrantRepository(tx).revoke(target, new Date()),
+              ).then(
+                () => null,
+                (error: unknown) => error,
+              ),
+            );
+            await held.waitForWaiters(stack.owner, 2);
+            held.release();
+            return Promise.all([exchanging, revoking, held.done]);
+          },
         );
-        await pause(250);
-        release();
-        const [res, revokeError] = await Promise.all([exchanging, revoking, holder]);
 
         // A deadlock (40P01) aborts one side: the revoke must not be it.
         expect(revokeError).toBeNull();

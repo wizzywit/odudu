@@ -2,7 +2,11 @@ import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants, withTenant } fr
 import type { DatabaseHandle, TenantScopedDatabase } from '@odudu/db';
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { provisionTenant, SessionEntry, sessionRepository } from '@odudu/authn-flows';
-import { agentInstanceRepository, STRUCTURAL_MAX_DEPTH } from '@odudu/domain-agents';
+import {
+  agentInstanceRepository,
+  lockLineageRoots,
+  STRUCTURAL_MAX_DEPTH,
+} from '@odudu/domain-agents';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -11,6 +15,7 @@ import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { tokenGrantRepository } from '#/repository/grants';
+import { withHeldLock } from '#/testing/agent-fixture';
 
 function nth<T>(list: readonly T[], index: number): T {
   const item = list[index];
@@ -693,5 +698,662 @@ describe('a child made while its parent is being revoked', () => {
     const outcome = await (await exchangeHolding(w, parent, Promise.resolve())).done;
     expect(outcome).toBe(false);
     expect(await orphans(w)).toBe(0);
+  });
+});
+
+describe('a cascade takes the grants before any instance', () => {
+  // A transaction of the test holds a grant under the one revoked, so the
+  // cascade has to wait for it. An exchange takes a grant and then an
+  // instance; a cascade that has already taken the instance would deadlock
+  // against it.
+  it('leaves the instances unlocked while it waits for a grant', async () => {
+    const w = await newWorld();
+    const { top, below, instance } = await withTenant(app.db, w.tenantId, async (tx) => {
+      const [top, below] = await twoOf(tx, w);
+      return { top, below, instance: await instanceAt(tx, w, below) };
+    });
+    const probe = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${below} for update`);
+        },
+      },
+      async (held) => {
+        const cascading = held.started(
+          withTenant(app.db, w.tenantId, (tx) =>
+            tokenGrantRepository(tx).revokeCascade([top], LATER),
+          ),
+        );
+        await held.waitForWaiters(owner);
+        const result = await owner.db
+          .transaction((tx) =>
+            tx.execute(
+              sql`select id from agent_instances where id = ${instance} for update nowait`,
+            ),
+          )
+          .then(
+            () => null,
+            (error: unknown) => error,
+          );
+        held.release();
+        await Promise.all([cascading, held.done]);
+        return result;
+      },
+    );
+    expect(probe).toBeNull();
+    expect(await instanceRevoked([instance])).toEqual([true]);
+  });
+});
+
+describe('a revoke over many grants takes them in id order', () => {
+  // Grants made in descending id order, so that the order rows sit in the
+  // table is the opposite of id order.
+  async function overlapping(w: World, count: number): Promise<string[]> {
+    const ids = Array.from({ length: count }, () => newId())
+      .sort()
+      .reverse();
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      for (const id of ids) {
+        await tokenGrantRepository(tx).create({
+          id,
+          tenantId: w.tenantId,
+          clientId: w.clientDbId,
+          subjectId: w.subjectId,
+          scope: 'mcp:read',
+          audience: ['https://odudu.test/mcp'],
+          sessionId: null,
+        });
+      }
+    });
+    return ids.sort();
+  }
+
+  it('does not touch a later grant while it waits for an earlier one', async () => {
+    const w = await newWorld();
+    const [lowest, , highest] = await overlapping(w, 3);
+    const probe = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(
+            sql`select id from token_grants where id = ${nth([lowest], 0)} for update`,
+          );
+        },
+      },
+      async (held) => {
+        const revoking = held.started(
+          withTenant(app.db, w.tenantId, (tx) =>
+            tokenGrantRepository(tx).revokeForSubject(w.subjectId, LATER),
+          ),
+        );
+        await held.waitForWaiters(owner);
+        const result = await owner.db
+          .transaction((tx) =>
+            tx.execute(
+              sql`select id from token_grants where id = ${nth([highest], 0)} for update nowait`,
+            ),
+          )
+          .then(
+            () => null,
+            (error: unknown) => error,
+          );
+        held.release();
+        await Promise.all([revoking, held.done]);
+        return result;
+      },
+    );
+    expect(probe).toBeNull();
+  });
+
+  it('lets two revokes over the same grants both finish, without a deadlock', async () => {
+    for (let round = 0; round < 8; round += 1) {
+      const w = await newWorld();
+      await overlapping(w, 12);
+      const failures: unknown[] = [];
+      const attempt = (run: (g: ReturnType<typeof tokenGrantRepository>) => Promise<unknown>) =>
+        withTenant(app.db, w.tenantId, (tx) => run(tokenGrantRepository(tx))).catch(
+          (error: unknown) => failures.push(error),
+        );
+      await Promise.all([
+        attempt((g) => g.revokeForSubject(w.subjectId, LATER)),
+        attempt((g) => g.revokeForSubjectClient(w.subjectId, w.clientDbId, LATER)),
+        attempt((g) => g.revokeForSubject(w.subjectId, LATER)),
+      ]);
+      expect(failures).toEqual([]);
+    }
+  });
+});
+
+describe('revokes that seed a grant and its descendant', () => {
+  async function pair(w: World, descendantFirst: boolean): Promise<[string, string]> {
+    const [a, b] = [newId(), newId()];
+    const [low, high] = a < b ? [a, b] : [b, a];
+    const [root, child] = descendantFirst ? [high, low] : [low, high];
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      const base = {
+        tenantId: w.tenantId,
+        clientId: w.clientDbId,
+        subjectId: w.subjectId,
+        scope: 'mcp:read',
+        audience: ['https://odudu.test/mcp'],
+      };
+      await grants.create({ ...base, id: root });
+      await grants.create({ ...base, id: child, exchangedFromGrantId: root });
+    });
+    return [root, child];
+  }
+
+  // A revoke of the root alone takes the root and then the child; one seeded
+  // with both takes only the root itself and leaves the child to the cascade.
+  // Taking the child first, because its id sorts first, deadlocked them.
+  it.each([
+    ['the single-seed revoke arrives first', true],
+    ['the multi-seed revoke arrives first', false],
+  ])('finish without a deadlock when the child sorts first and %s', async (_, singleFirst) => {
+    const w = await newWorld();
+    const [root, child] = await pair(w, true);
+    const single = () =>
+      withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(root, LATER));
+    const multi = () =>
+      withTenant(app.db, w.tenantId, (tx) =>
+        tokenGrantRepository(tx).revokeForSubjectClient(w.subjectId, w.clientDbId, LATER),
+      );
+    const outcomes = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${root} for no key update`);
+        },
+      },
+      async (held) => {
+        const settle = (run: () => Promise<unknown>) =>
+          held.started(
+            run().then(
+              () => null,
+              (error: unknown) => error,
+            ),
+          );
+        const first = settle(singleFirst ? single : multi);
+        await held.waitForWaiters(owner);
+        const second = settle(singleFirst ? multi : single);
+        await held.waitForWaiters(owner, 2);
+        held.release();
+        return Promise.all([first, second, held.done]);
+      },
+    );
+    expect(outcomes.slice(0, 2)).toEqual([null, null]);
+    expect(await grantRevoked([root, child])).toEqual([true, true]);
+  });
+
+  it('revokes a chain deeper than the structural depth while other revokers run', async () => {
+    for (let round = 0; round < 4; round += 1) {
+      const w = await newWorld();
+      const ids = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 12));
+      const failures: unknown[] = [];
+      const revoke = (id: string) =>
+        withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(id, LATER)).catch(
+          (error: unknown) => failures.push(error),
+        );
+      await Promise.all([revoke(nth(ids, 0)), revoke(nth(ids, 4)), revoke(nth(ids, 9))]);
+      expect(failures).toEqual([]);
+      expect(await grantRevoked(ids)).toEqual(Array(12).fill(true));
+    }
+  }, 120_000);
+});
+
+describe('two multi-seed revokes whose seeds overlap on one chain', () => {
+  // R above M above N. One revoke seeds R and N (they share a session), the
+  // other M and N (they share an actor). Updating every seed took N before
+  // the other had taken M, and each then waited for the other.
+  it.each([
+    ['the session revoke arrives first', true],
+    ['the actor revoke arrives first', false],
+  ])('finish without a deadlock when %s', async (_, sessionFirst) => {
+    const w = await newWorld();
+    const actor = await withTenant(app.db, w.tenantId, (tx) =>
+      subjectRepository(tx).create({ tenantId: w.tenantId, type: 'user' }),
+    );
+    const [r, m, n] = [newId(), newId(), newId()];
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      const base = {
+        tenantId: w.tenantId,
+        clientId: w.clientDbId,
+        subjectId: w.subjectId,
+        scope: 'mcp:read',
+        audience: ['https://odudu.test/mcp'],
+      };
+      await grants.create({ ...base, id: r, sessionId: w.sessionId });
+      await grants.create({ ...base, id: m, exchangedFromGrantId: r, actorSubjectId: actor.id });
+      await grants.create({
+        ...base,
+        id: n,
+        exchangedFromGrantId: m,
+        sessionId: w.sessionId,
+        actorSubjectId: actor.id,
+      });
+    });
+    const bySession = () =>
+      withTenant(app.db, w.tenantId, (tx) =>
+        tokenGrantRepository(tx).revokeForSession(w.sessionId, LATER),
+      );
+    const byActor = () =>
+      withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revokeForActor(actor.id));
+    const outcomes = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${m} for no key update`);
+        },
+      },
+      async (held) => {
+        const settle = (run: () => Promise<unknown>) =>
+          held.started(
+            run().then(
+              () => null,
+              (error: unknown) => error,
+            ),
+          );
+        const first = settle(sessionFirst ? bySession : byActor);
+        await held.waitForWaiters(owner);
+        const second = settle(sessionFirst ? byActor : bySession);
+        await held.waitForWaiters(owner, 2);
+        held.release();
+        return Promise.all([first, second, held.done]);
+      },
+    );
+    expect(outcomes.slice(0, 2)).toEqual([null, null]);
+    expect(await grantRevoked([r, m, n])).toEqual([true, true, true]);
+  });
+});
+
+describe('revokers of one lineage meet at its root', () => {
+  // R exchanged to X (acted for by `actor`) and to Z, which was exchanged to Y
+  // (acted for too), with Y's id below X's. A revoke seeded with X and Y and a
+  // revoke of R reach X and Y in opposite orders, so they cannot be ordered by
+  // anything but the lineage they share.
+  it.each([
+    ['the revoke of the root arrives first', true],
+    ['the revoke of the actor’s grants arrives first', false],
+  ])('finish without a deadlock when %s', async (_, rootFirst) => {
+    const w = await newWorld();
+    const actor = await withTenant(app.db, w.tenantId, (tx) =>
+      subjectRepository(tx).create({ tenantId: w.tenantId, type: 'user' }),
+    );
+    const [a, b] = [newId(), newId()];
+    const [y, x] = a < b ? [a, b] : [b, a];
+    const [r, z] = [newId(), newId()];
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      const base = {
+        tenantId: w.tenantId,
+        clientId: w.clientDbId,
+        subjectId: w.subjectId,
+        scope: 'mcp:read',
+        audience: ['https://odudu.test/mcp'],
+      };
+      await grants.create({ ...base, id: r });
+      await grants.create({ ...base, id: x, exchangedFromGrantId: r, actorSubjectId: actor.id });
+      await grants.create({ ...base, id: z, exchangedFromGrantId: r });
+      await grants.create({ ...base, id: y, exchangedFromGrantId: z, actorSubjectId: actor.id });
+    });
+    const byRoot = () =>
+      withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(r, LATER));
+    const byActor = () =>
+      withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revokeForActor(actor.id));
+    const outcomes = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${x} for no key update`);
+        },
+      },
+      async (held) => {
+        const settle = (run: () => Promise<unknown>) =>
+          held.started(
+            run().then(
+              () => null,
+              (error: unknown) => error,
+            ),
+          );
+        const first = settle(rootFirst ? byRoot : byActor);
+        await held.waitForWaiters(owner);
+        const second = settle(rootFirst ? byActor : byRoot);
+        await held.waitForWaiters(owner, 2);
+        held.release();
+        return Promise.all([first, second, held.done]);
+      },
+    );
+    expect(outcomes.slice(0, 2)).toEqual([null, null]);
+    expect(await grantRevoked([r, x, z, y])).toEqual([true, true, true, true]);
+  });
+
+  it('does not stamp again a grant a concurrent revoke ended while it waited', async () => {
+    const w = await newWorld();
+    const [root, child] = await withTenant(app.db, w.tenantId, (tx) => twoOf(tx, w));
+    const first = new Date(LATER.getTime() - 30_000);
+    await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tokenGrantRepository(tx).revoke(child, first);
+        },
+      },
+      async (held) => {
+        const waiting = held.started(
+          withTenant(app.db, w.tenantId, (tx) =>
+            tokenGrantRepository(tx).revokeForSubjectClient(w.subjectId, w.clientDbId, LATER),
+          ),
+        );
+        await held.waitForWaiters(owner);
+        held.release();
+        await Promise.all([waiting, held.done]);
+      },
+    );
+    const rows = (await owner.db.execute(
+      sql`select id, revoked_at from token_grants where id in (${root}, ${child})`,
+    )) as unknown as { id: string; revoked_at: string | Date }[];
+    const stamp = (id: string) =>
+      new Date(rows.find((row) => row.id === id)?.revoked_at ?? 0).getTime();
+    expect(stamp(child)).toBe(first.getTime());
+    expect(stamp(root)).toBe(LATER.getTime());
+  });
+
+  // A second-level exchange holds the grant it came from and its parent
+  // instance, then inserts a child instance (a key share on the root grant); a
+  // run's mint holds the root grant, then wants the same parent instance.
+  it('lets an exchange insert its instance while a mint holds the root grant', async () => {
+    const w = await newWorld();
+    const { root, exchanged, parent } = await withTenant(app.db, w.tenantId, async (tx) => {
+      const root = await grant(tx, w);
+      const exchanged = await grant(tx, w, { from: root });
+      return { root, exchanged, parent: await instanceAt(tx, w, root) };
+    });
+    const exchanging = () =>
+      withTenant(app.db, w.tenantId, async (tx) => {
+        await tokenGrantRepository(tx).lockLive(exchanged);
+        await agentInstanceRepository(tx).lockForUpdate(parent);
+        await instanceAt(tx, w, root, parent);
+      });
+    const minting = () =>
+      withTenant(app.db, w.tenantId, async (tx) => {
+        await agentInstanceRepository(tx).lockGrant(root);
+        await agentInstanceRepository(tx).lockForUpdate(parent);
+      });
+    const outcomes = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from agent_instances where id = ${parent} for update`);
+        },
+      },
+      async (held) => {
+        const settle = (run: () => Promise<unknown>) =>
+          held.started(
+            run().then(
+              () => null,
+              (error: unknown) => error,
+            ),
+          );
+        const first = settle(exchanging);
+        await held.waitForWaiters(owner);
+        const second = settle(minting);
+        await held.waitForWaiters(owner, 2);
+        held.release();
+        return Promise.all([first, second, held.done]);
+      },
+    );
+    expect(outcomes.slice(0, 2)).toEqual([null, null]);
+  });
+});
+
+describe('a lineage whose root grant has been deleted', () => {
+  // The reaper deletes old grants and the foreign key on the parent clears the
+  // pointer of what is left, so a lineage can outlive its first grant. Its
+  // topmost remaining grant is then the root the revokers meet at.
+  it.each([
+    ['the revoke of the top arrives first', true],
+    ['the revoke of the actor’s grants arrives first', false],
+  ])('is still serialised when %s', async (_, topFirst) => {
+    const w = await newWorld();
+    const actor = await withTenant(app.db, w.tenantId, (tx) =>
+      subjectRepository(tx).create({ tenantId: w.tenantId, type: 'user' }),
+    );
+    const [a, b] = [newId(), newId()];
+    const [z, y] = a < b ? [a, b] : [b, a];
+    const [r, x] = [newId(), newId()];
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      const base = {
+        tenantId: w.tenantId,
+        clientId: w.clientDbId,
+        subjectId: w.subjectId,
+        scope: 'mcp:read',
+        audience: ['https://odudu.test/mcp'],
+      };
+      await grants.create({ ...base, id: r });
+      await grants.create({ ...base, id: x, exchangedFromGrantId: r, actorSubjectId: actor.id });
+      await grants.create({ ...base, id: z, exchangedFromGrantId: x });
+      await grants.create({ ...base, id: y, exchangedFromGrantId: z, actorSubjectId: actor.id });
+    });
+    await owner.db.execute(sql`delete from token_grants where id = ${r}`);
+    const byTop = () =>
+      withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(x, LATER));
+    const byActor = () =>
+      withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revokeForActor(actor.id));
+    const outcomes = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${z} for no key update`);
+        },
+      },
+      async (held) => {
+        const settle = (run: () => Promise<unknown>) =>
+          held.started(
+            run().then(
+              () => null,
+              (error: unknown) => error,
+            ),
+          );
+        const first = settle(topFirst ? byTop : byActor);
+        await held.waitForWaiters(owner);
+        const second = settle(topFirst ? byActor : byTop);
+        await held.waitForWaiters(owner, 2);
+        held.release();
+        return Promise.all([first, second, held.done]);
+      },
+    );
+    expect(outcomes.slice(0, 2)).toEqual([null, null]);
+    expect(await grantRevoked([x, z, y])).toEqual([true, true, true]);
+  });
+
+  // Asked of the owner's connection while a locking transaction is still open,
+  // with the strength a competing revoker takes: the row must be held against it,
+  // and for the reason of a lock, not any error.
+  const heldByAnother = (id: string) =>
+    owner.db
+      .transaction((tx) =>
+        tx.execute(sql`select id from token_grants where id = ${id} for no key update nowait`),
+      )
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+  it('takes the next root when the one it walked to is deleted before it is locked', async () => {
+    const w = await newWorld();
+    const [top, mid, leaf] = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 3));
+    const outcome = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`delete from token_grants where id = ${nth([top], 0)}`);
+        },
+      },
+      async (held) => {
+        const locking = held.started(
+          withTenant(app.db, w.tenantId, async (tx) => {
+            const roots = await lockLineageRoots(tx, sql`select ${nth([leaf], 0)}::uuid as id`);
+            return { roots, probe: await heldByAnother(mid ?? '') };
+          }),
+        );
+        await held.waitForWaiters(owner);
+        held.release();
+        const [result] = await Promise.all([locking, held.done]);
+        return result;
+      },
+    );
+    expect(outcome.roots).toEqual([mid]);
+    expect(outcome.probe).toMatchObject({ cause: { code: '55P03' } });
+  });
+
+  it('also takes the root a seed has once a middle grant is deleted while it waited', async () => {
+    const w = await newWorld();
+    const [a, b, c] = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 3));
+    const outcome = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(
+            sql`select id from token_grants where id = ${nth([a], 0)} for no key update`,
+          );
+          await tx.execute(sql`delete from token_grants where id = ${nth([b], 0)}`);
+        },
+      },
+      async (held) => {
+        const locking = held.started(
+          withTenant(app.db, w.tenantId, async (tx) => {
+            const roots = await lockLineageRoots(tx, sql`select ${nth([c], 0)}::uuid as id`);
+            return { roots, probe: await heldByAnother(c ?? '') };
+          }),
+        );
+        await held.waitForWaiters(owner);
+        held.release();
+        const [result] = await Promise.all([locking, held.done]);
+        return result;
+      },
+    );
+    expect(outcome.roots).toEqual([c]);
+    expect(outcome.probe).toMatchObject({ cause: { code: '55P03' } });
+  });
+
+  // `revokeBelow` takes the roots of the ids it starts from before its first
+  // pass. Another transaction holds the seed, so the first pass blocks, and the
+  // root is probed then: a root taken after the pass would not be held yet.
+  it('holds the root of a grant it cascades from while its first pass waits', async () => {
+    const w = await newWorld();
+    const [root, child] = await withTenant(app.db, w.tenantId, (tx) => twoOf(tx, w));
+    const probe = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${child} for no key update`);
+        },
+      },
+      async (held) => {
+        const below = held.started(
+          withTenant(app.db, w.tenantId, (tx) =>
+            tokenGrantRepository(tx).revokeBelow([child], LATER),
+          ),
+        );
+        await held.waitForWaiters(owner);
+        const result = await heldByAnother(root);
+        held.release();
+        await Promise.all([below, held.done]);
+        return result;
+      },
+    );
+    expect(probe).toMatchObject({ cause: { code: '55P03' } });
+    expect(await grantRevoked([root, child])).toEqual([false, true]);
+  });
+
+  // A grant committed while a revoke waits for its seeds' roots has a lineage
+  // the first walk never saw; the walk after the lock finds it. One case for
+  // each way a revoke picks its seeds.
+  it.each([
+    [
+      'a session',
+      (r: ReturnType<typeof tokenGrantRepository>, w: World) =>
+        r.revokeForSession(w.sessionId, LATER),
+    ],
+    [
+      'sessions',
+      (r: ReturnType<typeof tokenGrantRepository>, w: World) =>
+        r.revokeForSessions([w.sessionId], LATER),
+    ],
+    [
+      'a subject and client',
+      (r: ReturnType<typeof tokenGrantRepository>, w: World) =>
+        r.revokeForSubjectClient(w.subjectId, w.clientDbId, LATER),
+    ],
+    [
+      'a subject',
+      (r: ReturnType<typeof tokenGrantRepository>, w: World) =>
+        r.revokeForSubject(w.subjectId, LATER),
+    ],
+  ])('ends and roots a grant born while it waited, by %s', async (_, revoke) => {
+    const w = await newWorld();
+    const stranger = await withTenant(app.db, w.tenantId, (tx) =>
+      subjectRepository(tx).create({ tenantId: w.tenantId, type: 'user' }),
+    );
+    const base = {
+      tenantId: w.tenantId,
+      clientId: w.clientDbId,
+      scope: 'mcp:read',
+      audience: ['https://odudu.test/mcp'],
+    };
+    const [seed, other, born] = [newId(), newId(), newId()];
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      await grants.create({ ...base, id: seed, subjectId: w.subjectId, sessionId: w.sessionId });
+      await grants.create({ ...base, id: other, subjectId: stranger.id });
+    });
+    const outcome = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: async (tx) => {
+          await tx.execute(sql`select id from token_grants where id = ${seed} for no key update`);
+        },
+      },
+      async (held) => {
+        const revoking = held.started(
+          withTenant(app.db, w.tenantId, async (tx) => {
+            await revoke(tokenGrantRepository(tx), w);
+            return heldByAnother(other);
+          }),
+        );
+        await held.waitForWaiters(owner);
+        await withTenant(app.db, w.tenantId, (tx) =>
+          tokenGrantRepository(tx).create({
+            ...base,
+            id: born,
+            subjectId: w.subjectId,
+            sessionId: w.sessionId,
+            exchangedFromGrantId: other,
+          }),
+        );
+        held.release();
+        const [probe] = await Promise.all([revoking, held.done]);
+        return probe;
+      },
+    );
+    expect(outcome).toMatchObject({ cause: { code: '55P03' } });
+    expect(await grantRevoked([seed, born])).toEqual([true, true]);
+    expect(await grantRevoked([other])).toEqual([false]);
   });
 });

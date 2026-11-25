@@ -75,4 +75,25 @@ describe('the write budget read from the tenant', () => {
     await budgetOf(w).release('mutating');
     expect(await budgetOf(w).reserve('mutating')).toBe(true);
   });
+
+  it('gives a call back to the window it was spent in after midnight UTC', async () => {
+    const w = await stack.world([], WRITE);
+    await setting(w, 'agent_window_writes', 1);
+    let at = new Date('2026-11-24T23:59:59.000Z');
+    const budget = grantWriteBudget(
+      stack.appDb,
+      { tenant: { id: w.tenantId, name: w.name }, grantId: w.grantId },
+      undefined,
+      undefined,
+      () => at,
+    );
+    expect(await budget.reserve('mutating')).toBe(true);
+    at = new Date('2026-11-25T00:00:01.000Z');
+    await budget.release('mutating');
+    const rows = (await stack.owner.db.execute(
+      sql`select to_char(window_start, 'YYYY-MM-DD') as day, writes from agent_budget_windows
+           where owner_subject_id = ${w.subjectId} order by window_start`,
+    )) as unknown as { day: string; writes: number }[];
+    expect(rows).toEqual([{ day: '2026-11-24', writes: 0 }]);
+  });
 });
