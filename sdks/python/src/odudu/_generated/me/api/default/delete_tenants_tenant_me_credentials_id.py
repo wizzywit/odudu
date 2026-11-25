@@ -86,7 +86,7 @@ def sync_detailed(
 
     Args:
         tenant (str):
-        id (UUID): The identifier of the session or credential, as listed in its `id`.
+        id (UUID): The identifier of the session, credential or delegation, as listed in its `id`.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -118,7 +118,7 @@ def sync(
 
     Args:
         tenant (str):
-        id (UUID): The identifier of the session or credential, as listed in its `id`.
+        id (UUID): The identifier of the session, credential or delegation, as listed in its `id`.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -145,7 +145,7 @@ async def asyncio_detailed(
 
     Args:
         tenant (str):
-        id (UUID): The identifier of the session or credential, as listed in its `id`.
+        id (UUID): The identifier of the session, credential or delegation, as listed in its `id`.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -175,7 +175,7 @@ async def asyncio(
 
     Args:
         tenant (str):
-        id (UUID): The identifier of the session or credential, as listed in its `id`.
+        id (UUID): The identifier of the session, credential or delegation, as listed in its `id`.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

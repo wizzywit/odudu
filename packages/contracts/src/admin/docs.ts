@@ -14,6 +14,15 @@ interface RootNotes {
 }
 
 import {
+  agentApprovalSchema,
+  agentBudgetSchema,
+  agentInstanceSchema,
+  deleteAgentQuerySchema,
+  listAgentApprovalsQuerySchema,
+  listAgentsQuerySchema,
+  revokeAgentResponseSchema,
+} from '#/admin/agents';
+import {
   auditEventSchema,
   countAuditQuerySchema,
   listAuditQuerySchema,
@@ -437,6 +446,56 @@ describeFields(consentSchema, {
   client_key: 'The client’s `client_id`.',
   scope_names: 'The scopes the user agreed to.',
   granted_at: 'When the user agreed.',
+});
+describeFields(agentBudgetSchema, {
+  mutating: 'Changing calls the instance may still make.',
+  creates: 'Creating calls the instance may still make; each also counts as a changing call.',
+});
+describeFields(agentInstanceSchema, {
+  id: 'The instance’s own id: the `act.sub` of its tokens, a subject of type `agent_instance`.',
+  owner: 'The user the agent acts for: the `sub` of its tokens.',
+  owner_username: 'The owner’s username, or `null` for a subject that has none.',
+  agent_client: 'The `client_id` of the agent client the instance runs under.',
+  parent: 'The instance that started this one, or null for one started under a sign-in.',
+  depth: 'How many instances deep it sits: 1 for one started under a sign-in.',
+  state:
+    '`live`; `expired` once its lifetime or idle time ran out and the retention pass has not yet revoked it; `revoked`.',
+  scope: 'The scope its tokens carry.',
+  created_at: 'When it was started.',
+  expires_at: 'When it ends whatever it does.',
+  revoked_at: 'When it was revoked, or null.',
+  remaining_budget:
+    'What the instance’s own slice of changing and creating calls has left. The sign-in’s budget and the owner’s daily limit are counted too, and are not shown here.',
+});
+describeFields(listAgentsQuerySchema, {
+  owner: 'Only the instances that act for this user, by subject id.',
+  state: 'Only instances in this state.',
+});
+describeFields(deleteAgentQuerySchema, {
+  dry_run: 'With `true`, answers what a revocation would end and changes nothing, records nothing.',
+});
+describeFields(revokeAgentResponseSchema, {
+  grants:
+    'How many grants it ended: those the instance’s tree acted in and everything exchanged from them.',
+  instances: 'How many instances it ended, the one asked for and everything beneath it included.',
+});
+describeFields(agentApprovalSchema, {
+  id: 'The approval’s id.',
+  owner: 'The user who has to decide it.',
+  owner_username: 'The owner’s username, or `null` for a subject that has none.',
+  agent_client: 'The `client_id` of the client that asked.',
+  instance: 'The instance it was asked for, or null for a request made without one.',
+  kind: 'What sort of action it asks about.',
+  summary: 'The words the owner is shown to decide on; the agent wrote them.',
+  state:
+    '`pending` until the owner decides, then `approved` or `denied`; `consumed` once the action ran; `expired` when it lapsed undecided. A pending approval past `expires_at` can no longer be decided and is marked `expired` by the next retention pass.',
+  created_at: 'When it was asked.',
+  expires_at: 'When it can no longer be decided or used.',
+  decided_at: 'When the owner decided, or null.',
+  decided_via: 'Where the owner decided, the consent page of a backchannel request or the console.',
+});
+describeFields(listAgentApprovalsQuerySchema, {
+  state: 'Only approvals in this state.',
 });
 describeFields(termsAcceptanceSchema, {
   version: 'The version of the tenant’s terms the user accepted.',

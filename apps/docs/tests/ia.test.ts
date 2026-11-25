@@ -131,7 +131,7 @@ describe('the information architecture', () => {
     const start = links.indexOf(`${PAGES_DOCS_BASE}admin-console/`);
     expect(
       links
-        .slice(start + 1, start + 20)
+        .slice(start + 1, start + 21)
         .map((href) => href.slice(`${PAGES_DOCS_BASE}admin-console/`.length)),
     ).toEqual([
       'tour/',
@@ -146,6 +146,7 @@ describe('the information architecture', () => {
       'sign-in-flow/',
       'signing-keys/',
       'sessions/',
+      'agents/',
       'settings/',
       'branding/',
       'email/',

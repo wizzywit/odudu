@@ -1,5 +1,7 @@
 import type {
   MeConsent,
+  MeDelegation,
+  MeDelegationsResponse,
   MeCredential,
   MeCredentialsResponse,
   MeProfile,
@@ -9,6 +11,7 @@ import type {
 } from '@odudu/contracts/me';
 import type { UserRecord } from '@odudu/domain-identity';
 import type { SubjectConsent } from '@odudu/domain-tenant';
+import type { MeDelegationRecord } from '#/service/delegation';
 import type { CredentialView } from '#/service/credential-view';
 import type { SessionView } from '#/service/session-view';
 
@@ -109,4 +112,19 @@ export function sessionEndedDto(currentSessionEnded: boolean): MeSessionEnded {
 
 export function sessionsEndedDto(ended: number, more: boolean): MeSessionsEnded {
   return { ended, more };
+}
+
+export function delegationDto(record: MeDelegationRecord): MeDelegation {
+  return {
+    id: record.id,
+    client_id: record.clientKey,
+    actor_client_id: record.actorClientKey,
+    scope_ceiling: record.scopeCeiling,
+    expires_at: record.expiresAt.toISOString(),
+    created_at: record.createdAt.toISOString(),
+  };
+}
+
+export function delegationsDto(records: readonly MeDelegationRecord[]): MeDelegationsResponse {
+  return { items: records.map(delegationDto) };
 }

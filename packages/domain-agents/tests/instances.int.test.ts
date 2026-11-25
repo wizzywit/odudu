@@ -8,6 +8,7 @@ import {
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { subjectRepository } from '@odudu/domain-identity';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { agentInstanceRepository, type NewAgentInstance } from '#/repository/instances';
@@ -278,6 +279,85 @@ describe('agentInstanceRepository tombstones', () => {
   });
 });
 
+describe('agentInstanceRepository page', () => {
+  it('lists in id order, a page at a time, after the id it is given', async () => {
+    await inTenant(async (repo, seeded) => {
+      const made = [];
+      for (let i = 0; i < 5; i += 1) made.push(await repo.mint(input(seeded)));
+      const ids = made.map((record) => record.id).sort();
+      const first = await repo.page({ limit: 3, now: NOW });
+      expect(first.map((row) => row.id)).toEqual(ids.slice(0, 3));
+      const second = await repo.page({ afterId: ids[2] ?? '', limit: 3, now: NOW });
+      expect(second.map((row) => row.id)).toEqual(ids.slice(3));
+    });
+  });
+
+  it('filters by owner', async () => {
+    await inTenant(async (repo, seeded, tx) => {
+      const other = await subjectRepository(tx).create({ tenantId: seeded.tenantId, type: 'user' });
+      const mine = await repo.mint(input(seeded));
+      const theirs = await repo.mint(input(seeded, { ownerSubjectId: other.id }));
+      expect(
+        (await repo.page({ ownerSubjectId: other.id, limit: 10, now: NOW })).map((r) => r.id),
+      ).toEqual([theirs.id]);
+      expect(
+        (await repo.page({ ownerSubjectId: seeded.ownerId, limit: 10, now: NOW })).map((r) => r.id),
+      ).toEqual([mine.id]);
+    });
+  });
+
+  it('tells live, expired and revoked apart', async () => {
+    await inTenant(async (repo, seeded) => {
+      const live = await repo.mint(input(seeded));
+      const idle = await repo.mint(input(seeded, { idleExpiresAt: new Date(NOW.getTime() - 1) }));
+      const lapsed = await repo.mint(input(seeded, { expiresAt: new Date(NOW.getTime() - 1) }));
+      const revoked = await repo.mint(input(seeded));
+      await repo.revoke(revoked.id, NOW);
+      const ids = async (state: 'live' | 'expired' | 'revoked') =>
+        (await repo.page({ state, limit: 10, now: NOW })).map((row) => row.id).sort();
+      expect(await ids('live')).toEqual([live.id]);
+      expect(await ids('expired')).toEqual([idle.id, lapsed.id].sort());
+      expect(await ids('revoked')).toEqual([revoked.id]);
+      expect((await repo.page({ limit: 10, now: NOW })).length).toBe(4);
+    });
+  });
+
+  it('combines owner and state', async () => {
+    await inTenant(async (repo, seeded, tx) => {
+      const other = await subjectRepository(tx).create({ tenantId: seeded.tenantId, type: 'user' });
+      await repo.mint(input(seeded));
+      const revoked = await repo.mint(input(seeded, { ownerSubjectId: other.id }));
+      await repo.mint(input(seeded, { ownerSubjectId: other.id }));
+      await repo.revoke(revoked.id, NOW);
+      const rows = await repo.page({
+        ownerSubjectId: other.id,
+        state: 'revoked',
+        limit: 10,
+        now: NOW,
+      });
+      expect(rows.map((row) => row.id)).toEqual([revoked.id]);
+    });
+  });
+});
+
+describe('agentInstanceRepository subtree', () => {
+  it('names the instance and everything minted beneath it, revoked or not', async () => {
+    await inTenant(async (repo, seeded) => {
+      const root = await repo.mint(input(seeded));
+      const child = await repo.mint(input(seeded, { parentInstanceId: root.id, depth: 2 }));
+      const grandchild = await repo.mint(input(seeded, { parentInstanceId: child.id, depth: 3 }));
+      const sibling = await repo.mint(input(seeded));
+      await repo.revoke(grandchild.id, NOW);
+      expect((await repo.subtree(root.id)).sort()).toEqual(
+        [root.id, child.id, grandchild.id].sort(),
+      );
+      expect(await repo.subtree(grandchild.id)).toEqual([grandchild.id]);
+      expect(await repo.subtree(sibling.id)).toEqual([sibling.id]);
+      expect(await repo.subtree(newId())).toEqual([]);
+    });
+  });
+});
+
 describe('agentInstanceRepository across tenants', () => {
   const seedInstance = async (
     tx: Parameters<Parameters<typeof withTenant>[2]>[0],
@@ -348,6 +428,43 @@ describe('agentInstanceRepository across tenants', () => {
       },
       expectBlocked: (result) => {
         expect(result).toEqual([null, false, 0]);
+      },
+    });
+  });
+
+  it('page lists none, whatever the owner or state asked for', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const seeded = await seedInstance(tx, tenantId);
+        const owner = (await agentInstanceRepository(tx).byId(seeded.id))?.ownerSubjectId;
+        return { ...seeded, owner: owner ?? '' };
+      },
+      verifySeeded: async (tx) => {
+        expect(await agentInstanceRepository(tx).page({ limit: 10, now: NOW })).toHaveLength(2);
+      },
+      attempt: async (tx, s) => {
+        const repo = agentInstanceRepository(tx);
+        return [
+          await repo.page({ limit: 10, now: NOW }),
+          await repo.page({ ownerSubjectId: s.owner, limit: 10, now: NOW }),
+          await repo.page({ ownerSubjectId: s.owner, state: 'live', limit: 10, now: NOW }),
+        ];
+      },
+      expectBlocked: (result) => {
+        expect(result).toEqual([[], [], []]);
+      },
+    });
+  });
+
+  it('subtree names nothing', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedInstance,
+      verifySeeded: async (tx, s) => {
+        expect(await agentInstanceRepository(tx).subtree(s.parentId)).toHaveLength(2);
+      },
+      attempt: async (tx, s) => agentInstanceRepository(tx).subtree(s.parentId),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
       },
     });
   });

@@ -1,5 +1,6 @@
 import type { CredentialSummary, UserRecord } from '@odudu/domain-identity';
 import type { SubjectConsent } from '@odudu/domain-tenant';
+import type { MeDelegationRecord } from '#/service/delegation';
 import type { MeSessionLifespans, MeSessionRecord } from '#/service/session-view';
 
 export interface Page {
@@ -33,4 +34,10 @@ export interface MeReads {
     page: Page,
   ): Promise<readonly MeSessionRecord[]>;
   consents(tenantId: string, subjectId: string, page: Page): Promise<readonly SubjectConsent[]>;
+  // The subject's live delegations, newest first, in two queries however many.
+  delegations(
+    tenantId: string,
+    subjectId: string,
+    now: Date,
+  ): Promise<readonly MeDelegationRecord[]>;
 }

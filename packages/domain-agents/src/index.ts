@@ -10,12 +10,15 @@ export { approvalDigest, canonicalJson, type ApprovalDigestInput } from '#/servi
 export { AGENT_DEFAULTS, STRUCTURAL_MAX_DEPTH } from '#/service/defaults';
 export {
   agentInstanceRepository,
+  type AgentInstancePageFilter,
   type AgentInstanceRecord,
+  type AgentInstanceState,
   type NewAgentInstance,
 } from '#/repository/instances';
 export {
   agentApprovalRepository,
   type AgentApprovalChannel,
+  type AgentApprovalPageFilter,
   type AgentApprovalRecord,
   type AgentApprovalState,
   type NewAgentApproval,

@@ -1433,6 +1433,8 @@ export {
 } from '#/usecase/token-exchange-subject';
 export { narrowActClaim, TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 export { CIBA_GRANT } from '#/service/ciba';
+export { mayActFor } from '#/usecase/agent-layer';
+export type { MayActClaim } from '#/service/agent-mint';
 export {
   AgentTokenRefused,
   mintAgentToken,

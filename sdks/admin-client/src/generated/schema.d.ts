@@ -9160,6 +9160,290 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tenants/{tenant}/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "manage-sessions" capability.
+         * @description The tenant’s agent instances in id order, which is the order they were started in, so a parent comes before its children: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last. Narrowed by `owner` and `state`. Each carries its lineage (`owner`, `agent_client`, `parent`, `depth`), `expires_at` and the `remaining_budget` of its own slice. Never a token.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    cursor?: string;
+                    limit?: number;
+                    owner?: string;
+                    state?: "live" | "expired" | "revoked";
+                };
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The overrides of the locale in key order. */
+                            items: {
+                                /** @description The instance’s own id: the `act.sub` of its tokens, a subject of type `agent_instance`. */
+                                id: string;
+                                /** @description The user the agent acts for: the `sub` of its tokens. */
+                                owner: string;
+                                /** @description The owner’s username, or `null` for a subject that has none. */
+                                owner_username: string | null;
+                                /** @description The `client_id` of the agent client the instance runs under. */
+                                agent_client: string;
+                                /** @description The instance that started this one, or null for one started under a sign-in. */
+                                parent: string | null;
+                                /** @description How many instances deep it sits: 1 for one started under a sign-in. */
+                                depth: number;
+                                /**
+                                 * @description `live`; `expired` once its lifetime or idle time ran out and the retention pass has not yet revoked it; `revoked`.
+                                 * @enum {string}
+                                 */
+                                state: "live" | "expired" | "revoked";
+                                /** @description The scope its tokens carry. */
+                                scope: string;
+                                /** @description When it was started. */
+                                created_at: string;
+                                /** @description When it ends whatever it does. */
+                                expires_at: string;
+                                /** @description When it was revoked, or null. */
+                                revoked_at: string | null;
+                                /** @description What the instance’s own slice of changing and creating calls has left. The sign-in’s budget and the owner’s daily limit are counted too, and are not shown here. */
+                                remaining_budget: {
+                                    /** @description Changing calls the instance may still make. */
+                                    mutating: number;
+                                    /** @description Creating calls the instance may still make; each also counts as a changing call. */
+                                    creates: number;
+                                };
+                            }[];
+                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            next?: string;
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/agents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "manage-sessions" capability.
+         * @description One agent instance, as the list shows it. `404` for an id that is not one.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The instance’s own id: the `act.sub` of its tokens, a subject of type `agent_instance`. */
+                            id: string;
+                            /** @description The user the agent acts for: the `sub` of its tokens. */
+                            owner: string;
+                            /** @description The owner’s username, or `null` for a subject that has none. */
+                            owner_username: string | null;
+                            /** @description The `client_id` of the agent client the instance runs under. */
+                            agent_client: string;
+                            /** @description The instance that started this one, or null for one started under a sign-in. */
+                            parent: string | null;
+                            /** @description How many instances deep it sits: 1 for one started under a sign-in. */
+                            depth: number;
+                            /**
+                             * @description `live`; `expired` once its lifetime or idle time ran out and the retention pass has not yet revoked it; `revoked`.
+                             * @enum {string}
+                             */
+                            state: "live" | "expired" | "revoked";
+                            /** @description The scope its tokens carry. */
+                            scope: string;
+                            /** @description When it was started. */
+                            created_at: string;
+                            /** @description When it ends whatever it does. */
+                            expires_at: string;
+                            /** @description When it was revoked, or null. */
+                            revoked_at: string | null;
+                            /** @description What the instance’s own slice of changing and creating calls has left. The sign-in’s budget and the owner’s daily limit are counted too, and are not shown here. */
+                            remaining_budget: {
+                                /** @description Changing calls the instance may still make. */
+                                mutating: number;
+                                /** @description Creating calls the instance may still make; each also counts as a changing call. */
+                                creates: number;
+                            };
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Requires the "manage-sessions" capability.
+         * @description Revokes the instance and every instance started beneath it, and the grants any of them acted in with everything exchanged from those, so no token of theirs is honoured again. Answers how many grants and instances it ended; an instance already revoked answers 0 and records nothing. With `dry_run=true` it answers the same counts and changes and records nothing, so a console can say what a revocation would end before it is asked for. Refused with `403` when the subject holds an admin capability the caller does not (the target ceiling).
+         */
+        delete: {
+            parameters: {
+                query?: {
+                    dry_run?: "true" | "false";
+                };
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description How many grants it ended: those the instance’s tree acted in and everything exchanged from them. */
+                            grants: number;
+                            /** @description How many instances it ended, the one asked for and everything beneath it included. */
+                            instances: number;
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/agent-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "manage-sessions" capability.
+         * @description The approvals agents asked of their owners, newest first: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last. Narrowed by `state`. Never the digest of the action an approval covers.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    cursor?: string;
+                    limit?: number;
+                    state?: "pending" | "approved" | "denied" | "expired" | "consumed";
+                };
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The overrides of the locale in key order. */
+                            items: {
+                                /** @description The approval’s id. */
+                                id: string;
+                                /** @description The user who has to decide it. */
+                                owner: string;
+                                /** @description The owner’s username, or `null` for a subject that has none. */
+                                owner_username: string | null;
+                                /** @description The `client_id` of the client that asked. */
+                                agent_client: string;
+                                /** @description The instance it was asked for, or null for a request made without one. */
+                                instance: string | null;
+                                /** @description What sort of action it asks about. */
+                                kind: string;
+                                /** @description The words the owner is shown to decide on; the agent wrote them. */
+                                summary: string;
+                                /**
+                                 * @description `pending` until the owner decides, then `approved` or `denied`; `consumed` once the action ran; `expired` when it lapsed undecided. A pending approval past `expires_at` can no longer be decided and is marked `expired` by the next retention pass.
+                                 * @enum {string}
+                                 */
+                                state: "pending" | "approved" | "denied" | "expired" | "consumed";
+                                /** @description When it was asked. */
+                                created_at: string;
+                                /** @description When it can no longer be decided or used. */
+                                expires_at: string;
+                                /** @description When the owner decided, or null. */
+                                decided_at: string | null;
+                                /** @description Where the owner decided, the consent page of a backchannel request or the console. */
+                                decided_via: ("ciba_page" | "console") | null;
+                            }[];
+                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            next?: string;
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/tenants/{tenant}/audit": {
         parameters: {
             query?: never;

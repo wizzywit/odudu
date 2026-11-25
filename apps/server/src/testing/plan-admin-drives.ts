@@ -32,6 +32,8 @@ export interface AdminIds {
   readonly failedDomain: string;
   readonly key: string;
   readonly session: string;
+  readonly agent: string;
+  readonly agentVictim: string;
 }
 
 export async function adminIds(world: PlanWorld): Promise<AdminIds> {
@@ -82,6 +84,14 @@ export async function adminIds(world: PlanWorld): Promise<AdminIds> {
     ),
     key: await one(sql`select id from signing_keys where tenant_id = ${t} limit 1`, 'key'),
     session: await one(sql`select id from sessions where tenant_id = ${t} limit 1`, 'session'),
+    agent: await one(
+      sql`select id from agent_instances where tenant_id = ${t} and scope = 'openid' order by id limit 1`,
+      'agent instance',
+    ),
+    agentVictim: await one(
+      sql`select id from agent_instances where tenant_id = ${t} and scope = 'victim' and parent_instance_id is null`,
+      'agent instance with a lineage',
+    ),
   };
 }
 
@@ -302,6 +312,19 @@ export function adminPaths(ids: AdminIds): {
     { path: `${C}/${ids.client}/logout-deliveries?status=failed` },
     { path: `${C}/${ids.client}/sessions` },
     { path: `${T}/registration-tokens` },
+    { path: `${T}/agents` },
+    { path: `${T}/agents?state=live` },
+    { path: `${T}/agents?state=expired` },
+    { path: `${T}/agents?state=revoked` },
+    { path: `${T}/agents?owner=${ids.subject}` },
+    { path: `${T}/agents?owner=${ids.subject}&state=live` },
+    { path: `${T}/agents?owner=${ids.subject}&state=revoked` },
+    { path: `${T}/agent-approvals` },
+    { path: `${T}/agent-approvals?state=pending` },
+    { path: `${T}/agent-approvals?state=approved` },
+    { path: `${T}/agent-approvals?state=denied` },
+    { path: `${T}/agent-approvals?state=expired` },
+    { path: `${T}/agent-approvals?state=consumed` },
     { path: `${T}/domains` },
     { path: `${T}/message-overrides?locale=en` },
     { path: `${T}/keys` },
@@ -369,6 +392,7 @@ export function adminPaths(ids: AdminIds): {
     { path: `${S}/username-policy` },
     { path: `${C}/${ids.client}` },
     { path: `${C}/${ids.client}/installation` },
+    { path: `${T}/agents/${ids.agent}` },
     { path: `${C}/${ids.client}/evaluate?subject=${ids.subject}&scope=openid` },
     { path: `${T}/roles/${ids.role}` },
     { path: `${T}/groups/${ids.group}` },

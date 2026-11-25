@@ -7,6 +7,7 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
+import { subjectRepository } from '@odudu/domain-identity';
 import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -72,12 +73,13 @@ async function inTenant<T>(
     repo: ReturnType<typeof agentDelegationRepository>,
     seeded: Seeded,
     actor: string,
+    tx: TenantScopedDatabase,
   ) => Promise<T>,
 ): Promise<T> {
   const tenantId = newId();
   return withTenant(app.db, tenantId, async (tx) => {
     const seeded = await seedOwner(tx, tenantId);
-    return fn(agentDelegationRepository(tx), seeded, await secondClient(tx, tenantId));
+    return fn(agentDelegationRepository(tx), seeded, await secondClient(tx, tenantId), tx);
   });
 }
 
@@ -101,8 +103,8 @@ describe('agentDelegationRepository', () => {
       const revoked = await repo.create(input(seeded, actor));
       await repo.create(input(seeded, actor, { expiresAt: new Date(NOW.getTime() - 1) }));
       await repo.create(input(seeded, actor, { clientId: actor }));
-      expect(await repo.revoke(revoked.id, NOW)).toBe(true);
-      expect(await repo.revoke(revoked.id, NOW)).toBe(false);
+      expect(await repo.revoke(seeded.ownerId, revoked.id, NOW)).toMatchObject({ id: revoked.id });
+      expect(await repo.revoke(seeded.ownerId, revoked.id, NOW)).toBeNull();
       const active = await repo.activeFor(seeded.ownerId, seeded.clientId, NOW);
       expect(active.map((row) => row.id)).toEqual([kept.id]);
       expect(await repo.list(seeded.ownerId)).toHaveLength(4);
@@ -139,7 +141,7 @@ describe('agentDelegationRepository for one actor', () => {
     await inTenant(async (repo, seeded, actor) => {
       const kept = await repo.create(input(seeded, actor));
       const revoked = await repo.create(input(seeded, actor));
-      await repo.revoke(revoked.id, NOW);
+      await repo.revoke(seeded.ownerId, revoked.id, NOW);
       await repo.create(input(seeded, actor, { expiresAt: new Date(NOW.getTime() - 1) }));
       await repo.create(input(seeded, seeded.clientId));
       const own = await repo.activeForActor(seeded.ownerId, seeded.clientId, actor, NOW);
@@ -152,7 +154,7 @@ describe('agentDelegationRepository for one actor', () => {
       expect(await repo.hasActive(seeded.ownerId, seeded.clientId, NOW)).toBe(false);
       const record = await repo.create(input(seeded, actor));
       expect(await repo.hasActive(seeded.ownerId, seeded.clientId, NOW)).toBe(true);
-      await repo.revoke(record.id, NOW);
+      await repo.revoke(seeded.ownerId, record.id, NOW);
       expect(await repo.hasActive(seeded.ownerId, seeded.clientId, NOW)).toBe(false);
     });
   });
@@ -185,10 +187,14 @@ describe('agentDelegationRepository across tenants', () => {
       verifySeeded: stillActive,
       attempt: async (tx, s) => {
         const repo = agentDelegationRepository(tx);
-        return [await repo.activeFor(s.subjectId, s.clientId, NOW), await repo.list(s.subjectId)];
+        return [
+          await repo.activeFor(s.subjectId, s.clientId, NOW),
+          await repo.list(s.subjectId),
+          await repo.activeOf(s.subjectId, NOW),
+        ];
       },
       expectBlocked: (result) => {
-        expect(result).toEqual([[], []]);
+        expect(result).toEqual([[], [], []]);
       },
     });
   });
@@ -214,15 +220,15 @@ describe('agentDelegationRepository across tenants', () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: seedDelegation,
       verifySeeded: stillActive,
-      attempt: async (tx, s) => agentDelegationRepository(tx).revoke(s.id, NOW),
+      attempt: async (tx, s) => agentDelegationRepository(tx).revoke(s.subjectId, s.id, NOW),
       expectBlocked: (result) => {
-        expect(result).toBe(false);
+        expect(result).toBeNull();
       },
       verifyTenantAUnaffected: stillActive,
     });
   });
 
-  it('create refuses a subject of another tenant', async () => {
+  it('create and createUnderCap refuse a subject of another tenant', async () => {
     const tenantId = newId();
     const foreign = await withTenant(app.db, tenantId, async (tx) => seedOwner(tx, tenantId));
     expect(
@@ -232,5 +238,97 @@ describe('agentDelegationRepository across tenants', () => {
         ),
       ),
     ).toMatch(/row-level security/);
+    expect(
+      await refusalOf(
+        withTenant(app.db, newId(), async (tx) =>
+          agentDelegationRepository(tx).createUnderCap(input(foreign, foreign.clientId), 20, NOW),
+        ),
+      ),
+    ).toMatch(/row-level security/);
+  });
+});
+
+describe('agentDelegationRepository for one subject', () => {
+  it('revoke leaves another subject of the tenant alone', async () => {
+    await inTenant(async (repo, seeded, actor, tx) => {
+      const record = await repo.create(input(seeded, actor));
+      const stranger = await subjectRepository(tx).create({
+        tenantId: seeded.tenantId,
+        type: 'user',
+      });
+      expect(await repo.revoke(stranger.id, record.id, NOW)).toBeNull();
+      expect(await repo.hasActive(seeded.ownerId, seeded.clientId, NOW)).toBe(true);
+    });
+  });
+
+  it('activeOf lists the subject’s live delegations across clients, newest first', async () => {
+    await inTenant(async (repo, seeded, actor) => {
+      const first = await repo.create(input(seeded, actor));
+      const second = await repo.create(input(seeded, actor, { clientId: actor }));
+      const gone = await repo.create(input(seeded, actor));
+      await repo.revoke(seeded.ownerId, gone.id, NOW);
+      await repo.create(input(seeded, actor, { expiresAt: new Date(NOW.getTime() - 1) }));
+      const listed = await repo.activeOf(seeded.ownerId, NOW);
+      expect(listed.map((row) => row.id).sort()).toEqual([first.id, second.id].sort());
+    });
+  });
+});
+
+describe('createUnderCap', () => {
+  const CAP = 20;
+
+  it('creates up to the cap and answers null for the next', async () => {
+    await inTenant(async (repo, seeded, actor) => {
+      for (let n = 0; n < CAP; n += 1) {
+        expect(await repo.createUnderCap(input(seeded, actor), CAP, NOW)).not.toBeNull();
+      }
+      expect(await repo.createUnderCap(input(seeded, actor), CAP, NOW)).toBeNull();
+      expect(await repo.activeOf(seeded.ownerId, NOW)).toHaveLength(CAP);
+    });
+  });
+
+  it('does not count a revoked or an expired delegation', async () => {
+    await inTenant(async (repo, seeded, actor) => {
+      const revoked = await repo.create(input(seeded, actor));
+      await repo.revoke(seeded.ownerId, revoked.id, NOW);
+      await repo.create(input(seeded, actor, { expiresAt: new Date(NOW.getTime() - 1) }));
+      for (let n = 0; n < CAP; n += 1) {
+        expect(await repo.createUnderCap(input(seeded, actor), CAP, NOW)).not.toBeNull();
+      }
+      expect(await repo.createUnderCap(input(seeded, actor), CAP, NOW)).toBeNull();
+    });
+  });
+
+  it('counts per subject: another subject of the tenant has a cap of its own', async () => {
+    await inTenant(async (repo, seeded, actor, tx) => {
+      for (let n = 0; n < CAP; n += 1) await repo.createUnderCap(input(seeded, actor), CAP, NOW);
+      const other = await subjectRepository(tx).create({ tenantId: seeded.tenantId, type: 'user' });
+      const made = await repo.createUnderCap(
+        input(seeded, actor, { subjectId: other.id }),
+        CAP,
+        NOW,
+      );
+      expect(made).not.toBeNull();
+    });
+  });
+
+  it('admits exactly the cap when thirty creates race', async () => {
+    const tenantId = newId();
+    const { seeded, actor } = await withTenant(app.db, tenantId, async (tx) => ({
+      seeded: await seedOwner(tx, tenantId),
+      actor: await secondClient(tx, tenantId),
+    }));
+    const outcomes = await Promise.all(
+      Array.from({ length: 30 }, () =>
+        withTenant(app.db, tenantId, (tx) =>
+          agentDelegationRepository(tx).createUnderCap(input(seeded, actor), CAP, NOW),
+        ),
+      ),
+    );
+    expect(outcomes.filter((outcome) => outcome !== null)).toHaveLength(CAP);
+    const live = await withTenant(app.db, tenantId, (tx) =>
+      agentDelegationRepository(tx).activeOf(seeded.ownerId, NOW),
+    );
+    expect(live).toHaveLength(CAP);
   });
 });

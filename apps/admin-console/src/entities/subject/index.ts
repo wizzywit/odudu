@@ -59,6 +59,7 @@ export {
   subjectTabHref,
   type SubjectTab,
 } from '#/entities/subject/services/subjectAddress';
+export { subjectLinkOf } from '#/entities/subject/services/subjectLink';
 export { subjectName, usernameOrId } from '#/entities/subject/services/subjectName';
 export {
   actionsRecord,

@@ -61,3 +61,28 @@ export function freshness(
   if (immutable) return { staleTime: Infinity, refetchOnWindowFocus: false };
   return recent ? { staleTime: RECENT_READ_MS } : {};
 }
+
+// What a `fresh` read asks of the cache: nothing kept once it is not wanted,
+// and no read again on a window focus.
+export function freshCache(fresh: boolean): { gcTime?: number; refetchOnWindowFocus?: boolean } {
+  return fresh ? { gcTime: 0, refetchOnWindowFocus: false } : {};
+}
+
+// What a read answers: a `fresh` one answers nothing while it is not asked or
+// is being read, so no earlier answer is taken for this one.
+export function answerOf<T>(
+  fresh: boolean,
+  state: { asked: boolean; fetching: boolean },
+  data: GatewayResult<T> | undefined,
+): GatewayResult<T> | undefined {
+  return fresh && (!state.asked || state.fetching) ? undefined : data;
+}
+
+// How long a read is kept and when it is read again, for the options it was asked with.
+export function cachePolicy(options: {
+  immutable: boolean;
+  recent: boolean;
+  fresh: boolean;
+}): ReturnType<typeof freshness> & ReturnType<typeof freshCache> {
+  return { ...freshness(options.immutable, options.recent), ...freshCache(options.fresh) };
+}

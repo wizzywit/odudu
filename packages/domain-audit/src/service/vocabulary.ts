@@ -9,6 +9,8 @@ export const AUDIT_ACTIONS = {
   agent_identity: [
     'agent.instance_minted',
     'agent.instance_revoked',
+    'agent.delegation_created',
+    'agent.delegation_revoked',
     'agent.approval_requested',
     'agent.approval_decided',
     'ciba.requested',
@@ -169,6 +171,15 @@ type AgentIdentityInput =
         depth: number;
         count: number;
         via: 'cascade' | 'owner_ended' | 'admin';
+      }>;
+    })
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'agent.delegation_created' | 'agent.delegation_revoked';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        delegation: string;
       }>;
     })
   | (EventCommon & {
@@ -385,6 +396,8 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'agent.tool_call': ['agent_client', 'owner', 'tool', 'route'],
   'agent.instance_minted': ['agent_client', 'owner', 'instance', 'depth'],
   'agent.instance_revoked': ['agent_client', 'owner', 'instance', 'depth', 'count', 'via'],
+  'agent.delegation_created': ['agent_client', 'owner', 'delegation'],
+  'agent.delegation_revoked': ['agent_client', 'owner', 'delegation'],
   'agent.approval_requested': ['agent_client', 'owner', 'approval', 'instance'],
   'agent.approval_decided': ['owner', 'approval', 'state', 'via'],
   'ciba.requested': ['agent_client', 'owner', 'approval'],
@@ -439,6 +452,7 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
   'version',
   'instance',
   'approval',
+  'delegation',
 ]);
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
@@ -468,7 +482,8 @@ function isValidDetailValue(action: string, key: string, value: unknown): boolea
       ).includes(value)
     );
   }
-  if (key === 'instance' || key === 'approval') return typeof value === 'string' && ID.test(value);
+  if (key === 'instance' || key === 'approval' || key === 'delegation')
+    return typeof value === 'string' && ID.test(value);
   if (key === 'depth' || key === 'count') return Number.isInteger(value) && Number(value) >= 0;
   if (key === 'state') return typeof value === 'string' && AGENT_APPROVAL_STATES.includes(value);
   if (key === 'notice') {

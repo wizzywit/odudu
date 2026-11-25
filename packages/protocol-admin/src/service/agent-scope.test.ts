@@ -70,6 +70,9 @@ describe('scopeAdmits over every admin route', () => {
 
   it('refuses the bulk and the sensitive reads to both scopes, and they exist', () => {
     expect([...denied].sort()).toEqual([
+      'GET /admin/tenants/:tenant/agent-approvals',
+      'GET /admin/tenants/:tenant/agents',
+      'GET /admin/tenants/:tenant/agents/:id',
       'GET /admin/tenants/:tenant/audit/export',
       'GET /admin/tenants/:tenant/clients/:id/evaluate',
       'GET /admin/tenants/:tenant/export',

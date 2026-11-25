@@ -1,9 +1,10 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { and, count, eq, gt, lte } from 'drizzle-orm';
+import { and, count, desc, eq, gt, lt, lte } from 'drizzle-orm';
 import {
   agentApprovals,
   type AgentApprovalChannel,
   type AgentApprovalRecord,
+  type AgentApprovalState,
 } from '#/schema/agent-approvals';
 
 export type {
@@ -24,6 +25,13 @@ export interface NewAgentApproval {
   expiresAt: Date;
 }
 
+export interface AgentApprovalPageFilter {
+  state?: AgentApprovalState;
+  // Resumes strictly before this id.
+  beforeId?: string;
+  limit: number;
+}
+
 export function agentApprovalRepository(tx: TenantScopedDatabase) {
   return {
     async create(input: NewAgentApproval): Promise<AgentApprovalRecord> {
@@ -38,6 +46,22 @@ export function agentApprovalRepository(tx: TenantScopedDatabase) {
     async byId(id: string): Promise<AgentApprovalRecord | null> {
       const rows = await tx.select().from(agentApprovals).where(eq(agentApprovals.id, id));
       return rows[0] ?? null;
+    },
+
+    // A page of the tenant's approvals, newest first (an id is time-ordered), alone
+    // or in one state; the tenant and id, or the tenant, state and id, is the index.
+    async page(filter: AgentApprovalPageFilter): Promise<AgentApprovalRecord[]> {
+      return tx
+        .select()
+        .from(agentApprovals)
+        .where(
+          and(
+            filter.state === undefined ? undefined : eq(agentApprovals.state, filter.state),
+            filter.beforeId === undefined ? undefined : lt(agentApprovals.id, filter.beforeId),
+          ),
+        )
+        .orderBy(desc(agentApprovals.id))
+        .limit(filter.limit);
     },
 
     // One conditional UPDATE, so of two concurrent decisions exactly one wins.

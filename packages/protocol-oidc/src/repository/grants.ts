@@ -279,13 +279,15 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
 
   // Takes the roots of `ids`, the rows an update has just ended, then asks
   // `cascade` again until a pass revokes nothing, then writes one audit row for
-  // each instance revoked from the top. The caller has locked the roots of its
-  // seeds; the roots of the rows its update ended are locked here, before the
-  // first pass, at no cost when already held. A root new since the seed lock is
+  // each instance revoked from the top, and answers what the passes revoked in
+  // all. The caller has locked the roots of its seeds; a root new since then is
   // the late-root case of spec 5.4. The last pass has a new snapshot, so a child
   // committed while an earlier pass waited is found. A capped pass has revoked
   // something, so the loop ends.
-  async function cascadeAll(ids: readonly string[], at: Date): Promise<void> {
+  async function cascadeAll(
+    ids: readonly string[],
+    at: Date,
+  ): Promise<{ grants: number; instances: number }> {
     if (ids.length > 0) {
       await lockLineageRoots(
         tx,
@@ -295,12 +297,15 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       );
     }
     const roots: RevokedInstanceRoot[] = [];
+    const total = { grants: 0, instances: 0 };
     for (let more = true; more;) {
       const next = await cascade(ids, at, CASCADE_CAP);
       roots.push(...next.roots);
+      total.grants += next.grants;
+      total.instances += next.instances;
       more = next.capped || next.grants > 0 || next.instances > 0;
     }
-    if (roots.length === 0) return;
+    if (roots.length === 0) return total;
     await auditRepository(tx).recordAll(
       roots.map((root) => ({
         eventType: 'agent_identity' as const,
@@ -320,6 +325,25 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         },
       })),
     );
+    return total;
+  }
+
+  // Revokes the live grants any of `actorIds` acted in, and says which. The
+  // ids go in as one JSON value, so a long list is no list of parameters. The
+  // `order by` fixes the order the ids are picked in, not the order the update
+  // locks the rows, which the cascade's own updates do not fix either.
+  async function endActorGrants(actorIds: readonly string[], at: Date): Promise<string[]> {
+    if (actorIds.length === 0) return [];
+    const rows = (await tx.execute(sql`
+      update token_grants set revoked_at = ${at.toISOString()}::timestamptz
+       where revoked_at is null and id = any(array(
+         select g.id from token_grants g
+          where g.actor_subject_id = any(array(
+                  select value::uuid from jsonb_array_elements_text(${JSON.stringify(actorIds)}::jsonb)))
+            and g.revoked_at is null
+          order by g.id))
+      returning id`)) as unknown as { id: string }[];
+    return rows.map((row) => row.id);
   }
 
   // One read behind both ways of asking for a session's clients, so the
@@ -593,6 +617,28 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         new Date(),
       );
       return rows.length;
+    },
+
+    // `revokeForActor` for many actors, answering what it revoked in all: the
+    // grants they acted in and everything exchanged from them, and the agent
+    // instances rooted at any of those. An instance the cascade ends is audited
+    // as a cascade revocation.
+    async revokeForActors(
+      actorIds: readonly string[],
+      at: Date,
+    ): Promise<{ grants: number; instances: number }> {
+      if (actorIds.length > 0) {
+        await lockLineages(
+          tx,
+          sql`actor_subject_id = any(array(
+            select value::uuid from jsonb_array_elements_text(${JSON.stringify(actorIds)}::jsonb)))
+            and revoked_at is null`,
+          heldRoots,
+        );
+      }
+      const ended = await endActorGrants(actorIds, at);
+      const below = await cascadeAll(ended, at);
+      return { grants: ended.length + below.grants, instances: below.instances };
     },
 
     async bySession(sessionId: string): Promise<TokenGrantRecord[]> {

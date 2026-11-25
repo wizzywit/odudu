@@ -11,6 +11,7 @@ describe('where an area lives', () => {
   it.each([
     ['registration-tokens', '/console/a%20b/registration-tokens'],
     ['sessions', '/console/a%20b/sessions'],
+    ['agents', '/console/a%20b/agents'],
     ['tenants', '/console/a%20b/tenants'],
   ] as const)('%s is under the tenant, its name encoded', (path, href) => {
     expect(areaHref('a b', areaAt(path))).toBe(href);

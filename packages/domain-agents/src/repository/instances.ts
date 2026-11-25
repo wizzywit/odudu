@@ -2,6 +2,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { subjects } from '@odudu/domain-identity';
 import {
   and,
+  asc,
   count,
   eq,
   gt,
@@ -34,12 +35,34 @@ export interface NewAgentInstance {
   slice?: { mutating: number; creates: number };
 }
 
+export type AgentInstanceState = 'live' | 'expired' | 'revoked';
+
+export interface AgentInstancePageFilter {
+  ownerSubjectId?: string;
+  state?: AgentInstanceState;
+  // Resumes strictly after this id.
+  afterId?: string;
+  limit: number;
+  now: Date;
+}
+
 // Not revoked, not past its fixed expiry and not past its idle expiry at `now`.
 function live(now: Date) {
   return and(
     isNull(agentInstances.revokedAt),
     gt(agentInstances.expiresAt, now),
     or(isNull(agentInstances.idleExpiresAt), gt(agentInstances.idleExpiresAt, now)),
+  );
+}
+
+// Not revoked, and past its fixed expiry or its idle expiry at `now`. The earlier
+// of the two is compared as one expression no index holds, so a page of these is
+// read in id order from the tenant's unrevoked instances and stopped at the limit,
+// where the expiry indexes would read every tenant's lapsed rows and sort them.
+function lapsed(now: Date) {
+  return and(
+    isNull(agentInstances.revokedAt),
+    sql`least(${agentInstances.expiresAt}, coalesce(${agentInstances.idleExpiresAt}, ${agentInstances.expiresAt})) <= ${now.toISOString()}::timestamptz`,
   );
 }
 
@@ -85,6 +108,43 @@ export function agentInstanceRepository(tx: TenantScopedDatabase) {
     async byId(id: string): Promise<AgentInstanceRecord | null> {
       const rows = await tx.select().from(agentInstances).where(eq(agentInstances.id, id));
       return rows[0] ?? null;
+    },
+
+    // A page of the tenant's instances in id order, which is the order they
+    // were minted in, so a parent comes before its children. Each filter has an
+    // index that starts with the tenant: the tenant and id alone, with the owner,
+    // or with whether the instance is revoked, so a page reads a page.
+    async page(filter: AgentInstancePageFilter): Promise<AgentInstanceRecord[]> {
+      const state = filter.state;
+      return tx
+        .select()
+        .from(agentInstances)
+        .where(
+          and(
+            filter.ownerSubjectId === undefined
+              ? undefined
+              : eq(agentInstances.ownerSubjectId, filter.ownerSubjectId),
+            filter.afterId === undefined ? undefined : gt(agentInstances.id, filter.afterId),
+            state === 'revoked' ? isNotNull(agentInstances.revokedAt) : undefined,
+            state === 'live' ? live(filter.now) : undefined,
+            state === 'expired' ? lapsed(filter.now) : undefined,
+          ),
+        )
+        .orderBy(asc(agentInstances.id))
+        .limit(filter.limit);
+    },
+
+    // The instance and every instance minted beneath it, revoked or not.
+    // `depth` is capped at 8, which bounds the walk.
+    async subtree(id: string): Promise<string[]> {
+      const rows = await tx.execute(sql`
+        with recursive tree as (
+          select id from agent_instances where id = ${id}
+          union all
+          select c.id from agent_instances c join tree t on c.parent_instance_id = t.id
+        )
+        select id from tree`);
+      return (rows as unknown as { id: string }[]).map((row) => row.id);
     },
 
     async liveChildren(parentId: string, now: Date): Promise<number> {

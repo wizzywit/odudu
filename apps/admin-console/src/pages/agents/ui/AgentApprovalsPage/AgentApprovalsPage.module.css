@@ -1,0 +1,13 @@
+.summary,
+.state {
+  display: inline-grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.kind {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}

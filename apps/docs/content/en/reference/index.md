@@ -37,6 +37,8 @@ The operations of the admin API, grouped by area, with one page for each operati
 
 - [Admin API overview](./generated/admin-api/index.md): authentication, the tenant in the path and
   the shape of an error.
+- [Agent approvals](./generated/admin-api/agent-approvals/index.md)
+- [Agents](./generated/admin-api/agents/index.md)
 - [Audit](./generated/admin-api/audit/index.md)
 - [Clients](./generated/admin-api/clients/index.md)
 - [Domains](./generated/admin-api/domains/index.md)
@@ -64,7 +66,7 @@ The operations of the admin API, grouped by area, with one page for each operati
 
 ## Me API
 
-The operations a signed-in person uses on their own profile, credentials, sessions and consents. The same description is published as an
+The operations a signed-in person uses on their own profile, credentials, sessions, consents and delegations. The same description is published as an
 [OpenAPI document](pathname:///openapi/me.json) that a client generator can read.
 
 - [Me API overview](./generated/me-api/index.md): authentication, the tenant in the path and
@@ -73,6 +75,7 @@ The operations a signed-in person uses on their own profile, credentials, sessio
 - [Credentials](./generated/me-api/credentials/index.md)
 - [Sessions](./generated/me-api/sessions/index.md)
 - [Consents](./generated/me-api/consents/index.md)
+- [Delegations](./generated/me-api/delegations/index.md)
 
 ## Transcripts
 

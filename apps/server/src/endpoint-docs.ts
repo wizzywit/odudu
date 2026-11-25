@@ -110,7 +110,7 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   'OPTIONS /tenants/:tenant/me/*': {
     auth: 'None',
     purpose:
-      'The CORS preflight of every “me” route: `204`, with the origin echoed and the methods `GET, PATCH, DELETE, OPTIONS` allowed when an enabled client of the tenant lists that origin among its web origins, and with no allowance otherwise. Counts against the “me” budget per origin.',
+      'The CORS preflight of every “me” route: `204`, with the origin echoed and the methods `GET, POST, PATCH, DELETE, OPTIONS` allowed when an enabled client of the tenant lists that origin among its web origins, and with no allowance otherwise. Counts against the “me” budget per origin.',
   },
   'GET /tenants/:tenant/me/profile': {
     auth: 'Access token',
@@ -161,6 +161,21 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     auth: 'Access token',
     purpose:
       'Removes one of the person’s authenticator apps or passkeys; `204`, or `404` for an id that is not one of theirs, a password included. Refused with `409` `last_sign_in_method` when it is the last way to sign in, and with `409` `last_second_factor` when the tenant requires a second factor and it is the last one; removing the last authenticator app also revokes the recovery codes. Needs a recent sign-in: the `401` challenge names `acr_values="2"` for a person who holds a second factor. Needs `me:write`, with the same refusals as the profile edit.',
+  },
+  'GET /tenants/:tenant/me/delegations': {
+    auth: 'Access token',
+    purpose:
+      'The agent clients the person has let act for them, live ones only, newest first: `items` of at most 20, never paged. Each names the sign-in `client_id`, the agent `actor_client_id`, the `scope_ceiling` and `expires_at`. Same bearer token and refusals as the profile.',
+  },
+  'POST /tenants/:tenant/me/delegations': {
+    auth: 'Access token',
+    purpose:
+      'Lets an agent client act for the person through a client they sign in with, within `scope_ceiling` until `expires_in` seconds pass (60 to 7776000); `201` with the delegation. `400` where a client is unknown, disabled, or the actor is not an agent client, `409` once the person holds 20 live delegations. Needs a recent sign-in and `me:write`, and is refused to an agent token.',
+  },
+  'DELETE /tenants/:tenant/me/delegations/:id': {
+    auth: 'Access token',
+    purpose:
+      'Withdraws one of the person’s own delegations; `204`, or `404` for an id that is not a live one of theirs. Instances already minted keep running until they expire. If it was the person’s last delegation and the sign-in client names no `delegated_actors`, new sign-ins carry no `may_act` and any agent client may act for them, with no scope ceiling, as before delegations existed. Needs `me:write`, with the same refusals as the profile edit.',
   },
   [`GET ${OIDC}/certs`]: {
     auth: 'None',

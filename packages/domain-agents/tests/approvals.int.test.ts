@@ -154,6 +154,40 @@ describe('agentApprovalRepository', () => {
   });
 });
 
+describe('agentApprovalRepository page', () => {
+  it('lists newest first, a page at a time, before the id it is given', async () => {
+    await inTenant(async (repo, seeded) => {
+      const made = [];
+      for (let i = 0; i < 5; i += 1) made.push(await repo.create(input(seeded)));
+      const ids = made
+        .map((record) => record.id)
+        .sort()
+        .reverse();
+      const first = await repo.page({ limit: 3 });
+      expect(first.map((row) => row.id)).toEqual(ids.slice(0, 3));
+      const second = await repo.page({ beforeId: ids[2] ?? '', limit: 3 });
+      expect(second.map((row) => row.id)).toEqual(ids.slice(3));
+    });
+  });
+
+  it('filters by the state the row is in', async () => {
+    await inTenant(async (repo, seeded) => {
+      const pending = await repo.create(input(seeded));
+      const approved = await repo.create(input(seeded));
+      const denied = await repo.create(input(seeded));
+      await repo.decide(approved.id, 'approved', 'console', NOW);
+      await repo.decide(denied.id, 'denied', 'ciba_page', NOW);
+      const ids = async (state: 'pending' | 'approved' | 'denied' | 'expired' | 'consumed') =>
+        (await repo.page({ state, limit: 10 })).map((row) => row.id);
+      expect(await ids('pending')).toEqual([pending.id]);
+      expect(await ids('approved')).toEqual([approved.id]);
+      expect(await ids('denied')).toEqual([denied.id]);
+      expect(await ids('expired')).toEqual([]);
+      expect(await ids('consumed')).toEqual([]);
+    });
+  });
+});
+
 describe('agentApprovalRepository across tenants', () => {
   const seedApproval = async (
     tx: TenantScopedDatabase,
@@ -198,6 +232,26 @@ describe('agentApprovalRepository across tenants', () => {
         expect(result).toEqual([false, false]);
       },
       verifyTenantAUnaffected: stillApproved,
+    });
+  });
+
+  it('page lists none, with a state or without', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedApproval,
+      verifySeeded: async (tx) => {
+        expect(await agentApprovalRepository(tx).page({ limit: 10 })).toHaveLength(2);
+      },
+      attempt: async (tx) => {
+        const repo = agentApprovalRepository(tx);
+        return [
+          await repo.page({ limit: 10 }),
+          await repo.page({ state: 'approved', limit: 10 }),
+          await repo.page({ state: 'pending', limit: 10 }),
+        ];
+      },
+      expectBlocked: (result) => {
+        expect(result).toEqual([[], [], []]);
+      },
     });
   });
 

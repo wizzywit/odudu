@@ -22,16 +22,20 @@ HTTP/1.1 200 OK
 x-request-id: 01a1fc67-f4fc-7e95-800f-dd2db3dde65b
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 420027
+content-length: 431767
 Date: Sat, 21 Nov 2026 04:40:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-113
-414232
+116
+431767
 ```
 
-410 KB and 113 paths, which is the whole route table. It is the one admin
+The size and the path count in this block, 431,767 bytes and 116, were recomputed from the document the
+server builds after the agent routes were added and `owner_username` joined their items, not fetched from a running stack: the request id and date
+lines are from the earlier capture of this route, and the rest of the page is that capture too.
+
+422 KB and 116 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can load
 it — the local stack's optional Swagger UI does exactly that (see [Browsing the
 admin API](../../../contributing/run-from-a-checkout.md)). No admin route carries that header, so a page on
@@ -56,7 +60,7 @@ grep -o '"securitySchemes":{"bearerAuth":{[^}]*}}' openapi.json
 ```
 
 `security` is declared once at the top level, so every path inherits it
-rather than repeating it. `/admin/openapi.json` is not among those 113
+rather than repeating it. `/admin/openapi.json` is not among those 116
 paths: the document does not describe itself, which is why serving it
 unauthenticated does not contradict the blanket `security` above.
 

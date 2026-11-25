@@ -440,6 +440,11 @@ export async function driveAdminWrites(
     ],
     ['remove a failed domain', { method: 'DELETE', url: `${T}/domains/${ids.failedDomain}` }],
     [
+      'count what revoking an agent’s lineage would end',
+      { method: 'DELETE', url: `${T}/agents/${ids.agentVictim}?dry_run=true` },
+    ],
+    ['revoke an agent’s lineage', { method: 'DELETE', url: `${T}/agents/${ids.agentVictim}` }],
+    [
       'revoke a registration token',
       { method: 'DELETE', url: `${T}/registration-tokens/${ids.registrationToken}` },
     ],

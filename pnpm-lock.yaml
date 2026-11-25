@@ -944,6 +944,9 @@ importers:
       '@odudu/db':
         specifier: workspace:*
         version: link:../db
+      '@odudu/domain-agents':
+        specifier: workspace:*
+        version: link:../domain-agents
       '@odudu/domain-audit':
         specifier: workspace:*
         version: link:../domain-audit

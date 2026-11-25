@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_CLIENT_ID_LENGTH,
+  MAX_DELEGATION_EXPIRES_IN,
+  MAX_DELEGATION_SCOPE_LENGTH,
   meConsentsResponseSchema,
+  meCreateDelegationRequestSchema,
+  meDelegationSchema,
+  meDelegationsResponseSchema,
   meCredentialsResponseSchema,
   meAmendProfileRequestSchema,
   meListQuerySchema,
@@ -158,6 +164,64 @@ describe('the session end responses', () => {
     expect(meSessionsEndedSchema.parse({ ended: 2, more: false })).toEqual({
       ended: 2,
       more: false,
+    });
+  });
+});
+
+describe('meCreateDelegationRequestSchema', () => {
+  const body = {
+    client_id: 'portal',
+    actor_client_id: 'assistant',
+    scope_ceiling: 'openid  profile openid',
+    expires_in: 3600,
+  };
+
+  it('reads the four members and keeps each scope once, in order', () => {
+    expect(meCreateDelegationRequestSchema.parse(body)).toEqual({
+      ...body,
+      scope_ceiling: 'openid profile',
+    });
+  });
+
+  it.each([
+    ['a member it does not name, a subject among them', { ...body, subject_id: 'x' }],
+    ['no scope at all', { ...body, scope_ceiling: '   ' }],
+    ['a scope with a quote in it', { ...body, scope_ceiling: 'open"id' }],
+    [
+      'a ceiling past the bound',
+      { ...body, scope_ceiling: 'a'.repeat(MAX_DELEGATION_SCOPE_LENGTH + 1) },
+    ],
+    ['a lifetime of zero', { ...body, expires_in: 0 }],
+    ['a lifetime past the bound', { ...body, expires_in: MAX_DELEGATION_EXPIRES_IN + 1 }],
+    ['a lifetime that is not whole seconds', { ...body, expires_in: 1.5 }],
+    ['an empty client', { ...body, client_id: '' }],
+    ['a client_id past the bound', { ...body, client_id: 'a'.repeat(MAX_CLIENT_ID_LENGTH + 1) }],
+    [
+      'an actor client_id past the bound',
+      { ...body, actor_client_id: 'a'.repeat(MAX_CLIENT_ID_LENGTH + 1) },
+    ],
+  ])('refuses %s', (_, input) => {
+    expect(meCreateDelegationRequestSchema.safeParse(input).success).toBe(false);
+  });
+});
+
+describe('the delegation responses', () => {
+  const delegation = {
+    id: '01a0a992-4657-7d89-8fbf-3385f54810d1',
+    client_id: 'portal',
+    actor_client_id: 'assistant',
+    scope_ceiling: 'openid',
+    expires_at: '2026-12-01T00:00:00.000Z',
+    created_at: '2026-11-25T00:00:00.000Z',
+  };
+
+  it('give a delegation no member beyond the six it names', () => {
+    expect(meDelegationSchema.parse({ ...delegation, subject_id: 'x' })).toEqual(delegation);
+  });
+
+  it('list them in items, with no cursor', () => {
+    expect(meDelegationsResponseSchema.parse({ items: [delegation] })).toEqual({
+      items: [delegation],
     });
   });
 });
