@@ -62,13 +62,11 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
   return {
     // Spends one write at every level a call counts at: the root grant it
     // belongs to, the agent instance making it and the daily window of its owner
-    // and agent client. The grants come first, the root and the one the call
-    // carries in ascending id order, as a revoke over many grants takes its
-    // seeds; then the instance, then the window, the order a mint takes its own.
-    // Each is checked before any is written, so a refusal at one level leaves the
-    // other two untouched and calls made at once never pass a limit. A create is
-    // also a mutating call, and counts once in the window. A grant that is
-    // missing or revoked, the root or the carried one, is refused at the grant.
+    // and agent client. The root and the carried grant are locked in ascending
+    // id order, as a revoke over many grants takes its seeds, then the instance
+    // and the window. Each is checked before any is written, so a refusal leaves
+    // the others untouched. A create also counts as a mutating call. A grant
+    // that is missing or revoked, root or carried, is refused at the grant.
     async spend(input: SpendInput): Promise<SpendOutcome> {
       const create = input.kind === 'create';
       const root = await budgetGrantId(tx, input.grantId);
