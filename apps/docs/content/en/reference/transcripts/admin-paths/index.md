@@ -35,6 +35,7 @@ How they were captured is in [How the transcripts are captured and checked](../.
 - [GET /clients/:id/installation](./get-clientsidinstallation.md)
 - [GET /registration-tokens, POST /registration-tokens and…](./get-registration-tokens-post-registration-tokens-and-delete-registration.md)
 - [A tenant's agents and approvals: list, read and revoke](./get-agents-get-agentsid-delete-agentsid-and-get-agent-approvals.md)
+- [GET /assistant/status](./get-assistantstatus.md)
 - [Domains: register, verify, switch, remove](./get-domains-post-domains-and-the-domain-routes.md)
 - [GET /whoami](./get-whoami.md)
 - [GET /subjects](./get-subjects.md)

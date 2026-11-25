@@ -16,7 +16,7 @@ It answers `subjectId` (the token's `sub`), `issuerTenantId` and
 not the tenant named in the URL — `capabilities` and `crossTenant`. `capabilities` is the caller's own effective admin-client roles,
 resolved on its issuing tenant exactly the way `authorizeAdmin` resolves them
 (`callerCapabilities`) — composites expanded, so a `manage-users` holder sees
-`view-users` alongside it — narrowed to the `TenantCapability` names (nine, with `view-domains` and `manage-domains`) plus
+`view-users` alongside it — narrowed to the `TenantCapability` names (twelve, with `view-domains`, `manage-domains` and the three assistant capabilities) plus
 `manage-tenants` and sorted. A composite role itself, `tenant-admin` among them,
 is never a member of that list: holding one expands to what it composites, never
 to its own name, and the published schema enforces the narrowing with a `z.enum`
@@ -43,3 +43,14 @@ curl -sS \
 ```
 
 This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. The caller is the run's own `ada`, holding `tenant-admin`, so `subjectId` is hers.
+
+A client that holds only `use-assistant` sees only that. The run is on a fresh tenant `assist-demo`, so
+its ids are that run's own; the client's token is got with `client_credentials`, as on [`GET /assistant/status`](./get-assistantstatus.md):
+
+```bash
+curl -sS -H "Authorization: Bearer $USER_TOKEN" http://localhost:3112/admin/tenants/assist-demo/whoami
+```
+
+```
+{"subjectId":"01a214d1-d714-7b0a-ad73-b9638e403dc8","issuerTenantId":"01a214d1-d3bc-7dc9-acf6-2b6f2988151e","issuerTenantName":"assist-demo","capabilities":["use-assistant"],"crossTenant":false}
+```
