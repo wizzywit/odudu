@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MeDelegationClient } from '#/repository/writes';
+import type { MeDelegationClient } from '#/service/delegation';
 import { delegationClients } from '#/service/delegation-rule';
 
 const client = (over: Partial<MeDelegationClient> = {}): MeDelegationClient => ({

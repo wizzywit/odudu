@@ -1,6 +1,6 @@
 import { MAX_DELEGATIONS, type MeCreateDelegationRequest } from '@odudu/contracts/me';
 import { isUuid } from '@odudu/kernel';
-import type { MeDelegationRecord } from '#/repository/writes';
+import type { MeDelegationRecord } from '#/service/delegation';
 import { delegationCreatedEvent, delegationRevokedEvent } from '#/service/audit';
 import { delegationClients } from '#/service/delegation-rule';
 import type { MeCaller } from '#/usecase/admit-me';

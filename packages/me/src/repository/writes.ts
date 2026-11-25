@@ -5,26 +5,8 @@ import type {
   VerificationUpdate,
 } from '@odudu/domain-identity';
 import type { DelegationAuditEvent, MeAuditEvent } from '#/service/audit';
+import type { MeDelegationClient, MeDelegationRecord } from '#/service/delegation';
 import type { NoticeOutcome, OwnChange } from '#/service/notice';
-
-// A client as a delegation names it: the row id the delegation stores and the
-// OAuth `client_id` a person knows it by.
-export interface MeDelegationClient {
-  readonly id: string;
-  readonly clientKey: string;
-  readonly enabled: boolean;
-  readonly agentType: boolean;
-}
-
-// A delegation with both clients named by their OAuth `client_id`.
-export interface MeDelegationRecord {
-  readonly id: string;
-  readonly clientKey: string;
-  readonly actorClientKey: string;
-  readonly scopeCeiling: string;
-  readonly expiresAt: Date;
-  readonly createdAt: Date;
-}
 
 // What a change to the person's own account does inside one transaction, for
 // the subject the token names and nobody else. Each method takes the subject it

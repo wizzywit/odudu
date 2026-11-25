@@ -1,6 +1,6 @@
 import { MAX_DELEGATIONS } from '@odudu/contracts/me';
 import { describe, expect, it } from 'vitest';
-import type { MeDelegationClient, MeDelegationRecord } from '#/repository/writes';
+import type { MeDelegationClient, MeDelegationRecord } from '#/service/delegation';
 import type { MeReads } from '#/repository/reads';
 import type { MeWriteTx } from '#/repository/writes';
 import type { MeCaller } from '#/usecase/admit-me';

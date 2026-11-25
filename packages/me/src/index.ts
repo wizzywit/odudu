@@ -7,12 +7,8 @@ export {
 export type { MeTenant } from '#/usecase/admit-me';
 export type { MeReads, Page } from '#/repository/reads';
 export type { MeSessionAuth } from '#/repository/gate';
-export type {
-  MeDelegationClient,
-  MeDelegationRecord,
-  MeWrites,
-  MeWriteTx,
-} from '#/repository/writes';
+export type { MeWrites, MeWriteTx } from '#/repository/writes';
+export type { MeDelegationClient, MeDelegationRecord } from '#/service/delegation';
 export { UsernameTakenError } from '#/service/errors';
 export type { DelegationAuditEvent, MeAuditEvent } from '#/service/audit';
 export type { MeCaller } from '#/usecase/admit-me';

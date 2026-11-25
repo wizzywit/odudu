@@ -1,6 +1,6 @@
 import type { CredentialSummary, UserRecord } from '@odudu/domain-identity';
 import type { SubjectConsent } from '@odudu/domain-tenant';
-import type { MeDelegationRecord } from '#/repository/writes';
+import type { MeDelegationRecord } from '#/service/delegation';
 import type { MeSessionLifespans, MeSessionRecord } from '#/service/session-view';
 
 export interface Page {

@@ -11,7 +11,7 @@ import type {
 } from '@odudu/contracts/me';
 import type { UserRecord } from '@odudu/domain-identity';
 import type { SubjectConsent } from '@odudu/domain-tenant';
-import type { MeDelegationRecord } from '#/repository/writes';
+import type { MeDelegationRecord } from '#/service/delegation';
 import type { CredentialView } from '#/service/credential-view';
 import type { SessionView } from '#/service/session-view';
 

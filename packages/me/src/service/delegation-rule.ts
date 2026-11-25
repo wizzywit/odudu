@@ -1,4 +1,4 @@
-import type { MeDelegationClient } from '#/repository/writes';
+import type { MeDelegationClient } from '#/service/delegation';
 
 export type DelegationClients =
   | {
