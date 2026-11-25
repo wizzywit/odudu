@@ -1106,12 +1106,13 @@ describe('a lineage whose root grant has been deleted', () => {
     expect(await grantRevoked([x, z, y])).toEqual([true, true, true]);
   });
 
-  // Asked of the owner's connection while a locking transaction is still open:
-  // the row must be held, and held for the reason of a lock, not any error.
+  // Asked of the owner's connection while a locking transaction is still open,
+  // with the strength a competing revoker takes: the row must be held against it,
+  // and for the reason of a lock, not any error.
   const heldByAnother = (id: string) =>
     owner.db
       .transaction((tx) =>
-        tx.execute(sql`select id from token_grants where id = ${id} for update nowait`),
+        tx.execute(sql`select id from token_grants where id = ${id} for no key update nowait`),
       )
       .then(
         () => null,
