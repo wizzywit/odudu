@@ -250,6 +250,8 @@ describe('the web_origins predicate against the CHECK it stands in front of', ()
   });
 });
 
+const noop = (): undefined => undefined;
+
 describe('an amendment that retires a service account', () => {
   async function blockedBehind(holder: number): Promise<number> {
     const rows = await fixture.owner.db.execute(
@@ -314,40 +316,50 @@ describe('an amendment that retires a service account', () => {
     });
     await Promise.race([gotLock, holder]);
 
-    const token = await fixture.adminToken(t.name, ['manage-clients']);
-    const etag = await currentEtag(t.name, client.id, token);
-    const amending = fixture.http.inject({
-      method: 'PATCH',
-      url: `/admin/tenants/${t.name}/clients/${client.id}`,
-      headers: {
-        authorization: `Bearer ${token}`,
-        'content-type': 'application/json',
-        'if-match': etag,
-      },
-      payload: { grant_types: ['refresh_token'] },
-    });
-    await until(async () => (await blockedBehind(holderPid)) >= 1);
+    // Whatever happens below, the holder is released and every operation has
+    // settled before the test ends, and none is left with an unhandled rejection.
+    const settled: Promise<unknown>[] = [holder.then(noop, noop)];
+    try {
+      const token = await fixture.adminToken(t.name, ['manage-clients']);
+      const etag = await currentEtag(t.name, client.id, token);
+      const amending = fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}/clients/${client.id}`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+          'if-match': etag,
+        },
+        payload: { grant_types: ['refresh_token'] },
+      });
+      settled.push(amending.then(noop, noop));
+      await until(async () => (await blockedBehind(holderPid)) >= 1);
 
-    let exchangeSettled = false;
-    const exchanging = withTenant(fixture.app.db, t.id, async (tx) => {
-      await tx.execute(sql`select id from token_grants where id = ${exchanged} for share`);
-      await tx.execute(sql`
-        insert into token_grants (id, tenant_id, client_id, subject_id, scope, exchanged_from_grant_id)
-        values (${child}, ${t.id}, ${client.id}, ${account}, 'openid', ${exchanged})`);
-    }).then(
-      () => {
-        exchangeSettled = true;
-        return null;
-      },
-      (error: unknown) => {
-        exchangeSettled = true;
-        return error;
-      },
-    );
-    await until(async () => exchangeSettled || (await blockedBehind(holderPid)) >= 2);
-    release();
-    const [response, exchangeError] = await Promise.all([amending, exchanging, holder]);
-    expect(exchangeError).toBeNull();
-    expect(response.statusCode).toBe(200);
+      let exchangeSettled = false;
+      const exchanging = withTenant(fixture.app.db, t.id, async (tx) => {
+        await tx.execute(sql`select id from token_grants where id = ${exchanged} for share`);
+        await tx.execute(sql`
+          insert into token_grants (id, tenant_id, client_id, subject_id, scope, exchanged_from_grant_id)
+          values (${child}, ${t.id}, ${client.id}, ${account}, 'openid', ${exchanged})`);
+      }).then(
+        () => {
+          exchangeSettled = true;
+          return null;
+        },
+        (error: unknown) => {
+          exchangeSettled = true;
+          return error;
+        },
+      );
+      settled.push(exchanging);
+      await until(async () => exchangeSettled || (await blockedBehind(holderPid)) >= 2);
+      release();
+      const [response, exchangeError] = await Promise.all([amending, exchanging, holder]);
+      expect(exchangeError).toBeNull();
+      expect(response.statusCode).toBe(200);
+    } finally {
+      release();
+      await Promise.allSettled(settled);
+    }
   });
 });
