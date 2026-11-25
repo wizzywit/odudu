@@ -7,6 +7,7 @@ import {
   type AgentInstanceRecord,
 } from '@odudu/domain-agents';
 import { auditRepository } from '@odudu/domain-audit';
+import { userRepository } from '@odudu/domain-identity';
 import { clientRepository } from '@odudu/domain-tenant';
 import { tokenGrantRepository } from '@odudu/protocol-oidc';
 import { idPage, resumeAfter, type IdPageOutcome } from '#/usecase/id-page';
@@ -20,11 +21,13 @@ import {
 export interface AgentInstanceView {
   readonly instance: AgentInstanceRecord;
   readonly agentClient: string;
+  readonly ownerUsername: string | null;
 }
 
 export interface AgentApprovalView {
   readonly approval: AgentApprovalRecord;
   readonly agentClient: string;
+  readonly ownerUsername: string | null;
 }
 
 interface PageInput {
@@ -50,6 +53,15 @@ async function clientKeys(
 ): Promise<ReadonlyMap<string, string>> {
   const found = await clientRepository(tx).byIds([...new Set(ids)]);
   return new Map(found.map((client) => [client.id, client.clientId]));
+}
+
+// The username of each owner a page names, in one read for the page. A subject
+// with no username (it was never a person) has none to print.
+async function ownerNames(
+  tx: TenantScopedDatabase,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  return userRepository(tx).usernamesOf(ids);
 }
 
 // A client deleted after a page was read leaves no `client_id` to print, and an
@@ -83,12 +95,17 @@ export async function listAgents(
     tx,
     rows.map((row) => row.agentClientId),
   );
+  const owners = await ownerNames(
+    tx,
+    rows.map((row) => row.ownerSubjectId),
+  );
   return idPage(
     request,
     rows.map((instance) => ({
       id: instance.id,
       instance,
       agentClient: keyOf(keys, instance.agentClientId),
+      ownerUsername: owners.get(instance.ownerSubjectId) ?? null,
     })),
   );
 }
@@ -100,7 +117,12 @@ export async function readAgent(
   const instance = await agentInstanceRepository(tx).byId(id);
   if (instance === null) return null;
   const keys = await clientKeys(tx, [instance.agentClientId]);
-  return { instance, agentClient: keyOf(keys, instance.agentClientId) };
+  const owners = await ownerNames(tx, [instance.ownerSubjectId]);
+  return {
+    instance,
+    agentClient: keyOf(keys, instance.agentClientId),
+    ownerUsername: owners.get(instance.ownerSubjectId) ?? null,
+  };
 }
 
 export async function listAgentApprovals(
@@ -126,12 +148,17 @@ export async function listAgentApprovals(
     tx,
     rows.map((row) => row.requestingClientId),
   );
+  const owners = await ownerNames(
+    tx,
+    rows.map((row) => row.subjectId),
+  );
   return idPage(
     request,
     rows.map((approval) => ({
       id: approval.id,
       approval,
       agentClient: keyOf(keys, approval.requestingClientId),
+      ownerUsername: owners.get(approval.subjectId) ?? null,
     })),
   );
 }

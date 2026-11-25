@@ -44,6 +44,7 @@ instance, with these members:
 | ------------------ | ------------------------------------------------------------------------------------- |
 | `id`               | the instance's id, which is the `act.sub` of its tokens                               |
 | `owner`            | the subject the agent acts for                                                        |
+| `owner_username`   | the owner's username, or `null` for a subject with none                               |
 | `agent_client`     | the `client_id` of the agent client it runs under                                     |
 | `parent`           | the instance that started it, or `null`                                               |
 | `depth`            | 1 for an instance started under a sign-in, one more for each instance above it        |
@@ -100,7 +101,7 @@ Lists what agents asked their owners to approve, newest first, paged and narrowe
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/agent-approvals?state=pending"
 ```
 
-Each item has `id`, `owner`, `agent_client`, `instance` (or `null`), `kind`, `summary`, `state`,
+Each item has `id`, `owner`, `owner_username` (or `null`), `agent_client`, `instance` (or `null`), `kind`, `summary`, `state`,
 `created_at`, `expires_at`, `decided_at` and `decided_via` (`ciba_page` or `console`, or `null`). `summary`
 is the words the owner is shown, which the agent wrote. The digest of the action an approval covers is
 never in an answer. A `pending` approval past its `expires_at` can no longer be decided and is marked

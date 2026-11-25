@@ -38,6 +38,7 @@ function instanceWireShape(view: AgentInstanceView, now: Date): AgentInstance {
   return {
     id: instance.id,
     owner: instance.ownerSubjectId,
+    owner_username: view.ownerUsername,
     agent_client: view.agentClient,
     parent: instance.parentInstanceId,
     depth: instance.depth,
@@ -55,6 +56,7 @@ function approvalWireShape(view: AgentApprovalView): AgentApproval {
   return {
     id: approval.id,
     owner: approval.subjectId,
+    owner_username: view.ownerUsername,
     agent_client: view.agentClient,
     instance: approval.instanceId,
     kind: approval.kind,

@@ -31,13 +31,15 @@ const DIGEST = 'd'.repeat(64);
 interface Tenant {
   readonly t: { id: string; name: string };
   readonly owner: string;
+  readonly ownerName: string;
   readonly client: { id: string; clientId: string };
   readonly grantId: string;
 }
 
 async function world(): Promise<Tenant> {
   const t = await fixture.createTenant(`agents-${newId()}`);
-  const { id: owner } = await fixture.createSubject(t.name, `owner-${newId()}`);
+  const ownerName = `owner-${newId()}`;
+  const { id: owner } = await fixture.createSubject(t.name, ownerName);
   const client = await fixture.createConfidentialClient(t.name, {});
   const grantId = newId();
   await withTenant(fixture.app.db, t.id, (tx) =>
@@ -50,7 +52,7 @@ async function world(): Promise<Tenant> {
       audience: ['https://odudu.test/mcp'],
     }),
   );
-  return { t, owner, client, grantId };
+  return { t, owner, ownerName, client, grantId };
 }
 
 async function mint(
@@ -156,6 +158,7 @@ describe('GET …/agents', () => {
     expect(body.items.map((item) => item.id)).toEqual([root, child, grandchild]);
     expect(body.items[1]).toMatchObject({
       owner: w.owner,
+      owner_username: w.ownerName,
       agent_client: w.client.clientId,
       parent: root,
       depth: 2,
@@ -250,7 +253,12 @@ describe('GET …/agents/:id', () => {
 
     const found = await request('GET', w, `agents/${id}`, token);
     expect(found.statusCode).toBe(200);
-    expect(found.json()).toMatchObject({ id, owner: w.owner, depth: 1 });
+    expect(found.json()).toMatchObject({
+      id,
+      owner: w.owner,
+      owner_username: w.ownerName,
+      depth: 1,
+    });
     expect((await request('GET', w, `agents/${newId()}`, token)).statusCode).toBe(404);
     expect((await request('GET', w, `agents/${foreign}`, token)).statusCode).toBe(404);
     expect((await request('GET', w, 'agents/not-an-id', token)).statusCode).toBe(400);
@@ -495,6 +503,7 @@ describe('GET …/agent-approvals', () => {
     expect(items[2]).toMatchObject({
       id: a,
       owner: w.owner,
+      owner_username: w.ownerName,
       agent_client: w.client.clientId,
       instance,
       kind: 'tool_call',
@@ -513,6 +522,7 @@ describe('GET …/agent-approvals', () => {
       'instance',
       'kind',
       'owner',
+      'owner_username',
       'state',
       'summary',
     ]);

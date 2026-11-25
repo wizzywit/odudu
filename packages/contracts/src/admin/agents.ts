@@ -18,11 +18,13 @@ export const agentBudgetSchema = z.object({
 });
 export type AgentBudget = z.infer<typeof agentBudgetSchema>;
 
-// `owner` is the subject the agent acts for, `agent_client` the `client_id` of the
-// client it runs under, `parent` the instance that started it, if one did.
+// `owner` is the subject the agent acts for and `owner_username` its username, null
+// for a subject with none; `agent_client` the `client_id` of the client it runs
+// under, `parent` the instance that started it, if one did.
 export const agentInstanceSchema = z.object({
   id: idSchema,
   owner: idSchema,
+  owner_username: z.string().nullable(),
   agent_client: z.string(),
   parent: idSchema.nullable(),
   depth: z.number().int().min(1),
@@ -61,6 +63,7 @@ export type RevokeAgentResponse = z.infer<typeof revokeAgentResponseSchema>;
 export const agentApprovalSchema = z.object({
   id: idSchema,
   owner: idSchema,
+  owner_username: z.string().nullable(),
   agent_client: z.string(),
   instance: idSchema.nullable(),
   kind: z.string(),
