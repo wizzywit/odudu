@@ -577,6 +577,8 @@ describe('the audit trail narrowed by a filter', () => {
 const NOT_DRIVEN: Readonly<Record<string, string>> = {
   'POST /admin/tenants/:tenant/smtp/test':
     'reads the tenant\u2019s one settings row and opens a socket to the SMTP host: no query depends on the volume',
+  'GET /admin/tenants/:tenant/assistant/status':
+    'answers from the server\u2019s resolved model configuration and the caller\u2019s capabilities: it reads no table',
 };
 
 function routePattern(pattern: string): RegExp {
