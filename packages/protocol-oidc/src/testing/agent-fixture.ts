@@ -316,6 +316,8 @@ export interface HeldLock {
 // However the body ends, the holder is released and every operation it started
 // has settled before this returns, so a failure leaves nothing open; a failure
 // of the holder after it was released is thrown.
+const noop = (): undefined => undefined;
+
 export async function withHeldLock<R>(
   db: DatabaseHandle['db'],
   tenantId: string,
@@ -342,7 +344,10 @@ export async function withHeldLock<R>(
     await released;
     await hold.afterRelease?.(tx);
   });
-  const pending: Promise<unknown>[] = [done];
+  // Handlers go on at registration: a rejection while the body waits is not
+  // unhandled, and whoever awaits the original promise still receives it.
+  const settled = (operation: Promise<unknown>): Promise<unknown> => operation.then(noop, noop);
+  const pending: Promise<unknown>[] = [settled(done)];
   try {
     await Promise.race([gotLock, done]);
     const result = await body({
@@ -350,7 +355,7 @@ export async function withHeldLock<R>(
       done,
       waitForWaiters: (owner, waiting = 1) => waitForLockWaiters(owner, pid, waiting),
       started: (operation) => {
-        pending.push(operation);
+        pending.push(settled(operation));
         return operation;
       },
     });
