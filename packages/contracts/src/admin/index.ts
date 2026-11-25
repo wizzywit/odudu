@@ -475,6 +475,12 @@ export {
   type AssistantMode,
   assistantStatusSchema,
   type AssistantStatus,
+  ASSISTANT_SETTING_DEFAULTS,
+  ASSISTANT_SETTING_RANGES,
+  assistantSettingsSchema,
+  type AssistantSettings,
+  putAssistantSettingsRequestSchema,
+  type PutAssistantSettingsRequest,
 } from '#/admin/assistant';
 export {
   executionRequirementSchema,

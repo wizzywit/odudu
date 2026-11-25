@@ -67,14 +67,14 @@ begins with its class and says why, and names no phase.
 
 ## How many
 
-All **164 routes** are in exactly one class.
+All **166 routes** are in exactly one class.
 
 | Class | Routes |
 | ----- | ------ |
 | R     | 62     |
-| RS    | 12     |
+| RS    | 13     |
 | W1    | 13     |
-| W2    | 35     |
+| W2    | 36     |
 | C     | 7      |
 | D     | 29     |
 | I     | 2      |
@@ -255,6 +255,8 @@ confirm each call, and `never` means no tool will serve it.
 | 162 | `DELETE ~/agents/:id`                                  | manage-sessions                 | D     | not a tool                       | P5b        | Agents                    | revokes an instance, everything beneath it and the grants it acted in; `?dry_run=true` reads the counts and changes nothing, but is the same route                                                                          |
 | 163 | `GET ~/agent-approvals`                                | manage-sessions                 | RS    | not a tool                       | never      | Agents                    | what agents asked their owners, in the words they chose                                                                                                                                                                     |
 | 164 | `GET ~/assistant/status`                               | use-assistant                   | RS    | not a tool                       | never      | Assistant panel           | the console assistant's own status and configuration: an agent reads nothing of the assistant that may be running it                                                                                                        |
+| 165 | `GET ~/assistant/settings`                             | manage-assistant                | RS    | not a tool                       | never      | Settings, Assistant       | the assistant's own mode, budget and visibility: an agent reads nothing of the assistant that may be running it                                                                                                             |
+| 166 | `PUT ~/assistant/settings`                             | manage-assistant                | W2    | not a tool                       | P5b        | Settings, Assistant       | sets the assistant's own mode, budget and who may read its conversations; the assistant never edits its own configuration                                                                                                   |
 
 ## Mixed routes, field by field
 

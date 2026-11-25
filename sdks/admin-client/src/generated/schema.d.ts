@@ -9691,7 +9691,7 @@ export interface paths {
         };
         /**
          * Requires the "use-assistant" capability.
-         * @description Whether the console assistant is on in this deployment: `{ "enabled": false }` when no model is configured, otherwise the model each slot runs, the modes offered and the default, the models a person may choose and the provider, with the host of a self-hosted endpoint and never a key.
+         * @description Whether the console assistant is on in this deployment: `{ "enabled": false }` when no model is configured, otherwise the model each slot runs, the modes offered and the default, the models a person may choose and the provider, with the host of a self-hosted endpoint and never a key. A tenant that switched the assistant off reads `{ "enabled": false }` too, and the default mode is the tenant’s own.
          */
         get: {
             parameters: {
@@ -9738,6 +9738,82 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "manage-assistant" capability.
+         * @description What this tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the mode a person starts in, email masking, how long traces are kept, whether auditors see conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and the steps of one turn. `404` where the deployment has no assistant configured.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AssistantSettingsGetResponse"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        /**
+         * Requires the "manage-assistant" capability.
+         * @description Replaces every setting, so a caller sends the whole document it read. A value outside its range, a missing setting and an unknown one are refused with `400`. A change is audited as `assistant.config` with each changed setting as before and after, and a save that changes nothing writes no row. Answers an `ETag`, as GET does; `If-Match` is optional, and a stale one is refused with `412`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AssistantSettingsGetResponse"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AssistantSettingsGetResponse"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -9992,6 +10068,19 @@ export interface components {
                 /** @description The text on the button. */
                 button_ink: string;
             };
+        };
+        AssistantSettingsGetResponse: {
+            assistant_enabled: boolean;
+            /** @enum {string} */
+            assistant_default_mode: "ask" | "act";
+            assistant_mask_emails: boolean;
+            assistant_trace_retention_days: number;
+            assistant_auditor_visible: boolean;
+            assistant_monthly_tokens_fast: number;
+            assistant_monthly_tokens_standard: number;
+            assistant_monthly_tokens_deep: number;
+            assistant_max_concurrent: number;
+            assistant_max_steps_per_turn: number;
         };
         ExportGetResponseFlowItemSettings: {
             /**

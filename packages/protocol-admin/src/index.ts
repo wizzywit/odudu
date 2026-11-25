@@ -1,4 +1,8 @@
-import { type AssistantStatus, type MessageCatalogueResponse } from '@odudu/contracts/admin';
+import {
+  type AssistantSettings,
+  type AssistantStatus,
+  type MessageCatalogueResponse,
+} from '@odudu/contracts/admin';
 import { type MailLookResolver } from '@odudu/email';
 import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
@@ -36,6 +40,10 @@ import { type Audit as ScopeMapperAudit } from '#/usecase/scope-mappers';
 import { type Audit as SettingsAudit } from '#/usecase/settings';
 import { type Audit as ThemeAudit } from '#/usecase/theme';
 import { type Audit as MessageOverrideAudit } from '#/usecase/message-overrides';
+import {
+  type Audit as AssistantSettingsAudit,
+  type AssistantSettingsStore,
+} from '#/usecase/assistant-settings';
 import { type Audit as ThemeAssetAudit } from '#/usecase/theme-assets';
 import { type Audit as TenantExportAudit } from '#/usecase/tenant-export';
 import { type Audit as TenantImportAudit } from '#/usecase/tenant-import';
@@ -231,7 +239,12 @@ import {
   readTenantHandler,
   type TenantsRouteDeps,
 } from '#/view/routes/tenants';
-import { assistantStatusHandler } from '#/view/routes/assistant';
+import {
+  assistantStatusHandler,
+  putAssistantSettingsHandler,
+  readAssistantSettingsHandler,
+  type AssistantRouteDeps,
+} from '#/view/routes/assistant';
 import { whoamiHandler } from '#/view/routes/whoami';
 import {
   evaluateClaimsHandler,
@@ -428,10 +441,15 @@ export interface AdminRoutesDeps {
   // How long an audit read may run before it is refused as too broad;
   // `AUDIT_READ_TIMEOUT_MS` unless a test shortens it.
   auditReadTimeoutMs?: number;
-  // What `GET …/assistant/status` answers, which @odudu/assistant computes
-  // from the environment and the composition root hands over: the assistant
-  // sits above this package and cannot be imported here. Omitted, it is off.
-  assistantStatus?: () => AssistantStatus;
+  // What `GET …/assistant/status` answers for a tenant with these settings,
+  // which @odudu/assistant computes from the environment and the composition
+  // root hands over: the assistant sits above this package and cannot be
+  // imported here. Omitted, it is off.
+  assistantStatus?: (settings: AssistantSettings) => AssistantStatus;
+  // Where a tenant's assistant settings are read and written, again from the
+  // package this one cannot import. Omitted, the deployment has no assistant:
+  // the settings routes answer 404 and the status reads `enabled: false`.
+  assistantSettings?: AssistantSettingsStore;
 }
 
 export type AdminAuthParts = Pick<AdminRoutesDeps, 'database' | 'ownerDatabase' | 'publicBaseUrl'>;
@@ -559,6 +577,7 @@ function buildAdminRoutes(
     const settingsAudit: SettingsAudit = recordAudit;
     const themeAudit: ThemeAudit = recordAudit;
     const messageOverrideAudit: MessageOverrideAudit = recordAudit;
+    const assistantSettingsAudit: AssistantSettingsAudit = recordAudit;
     const themeAssetAudit: ThemeAssetAudit = recordAudit;
     const tenantExportAudit: TenantExportAudit = recordAudit;
     const tenantImportAudit: TenantImportAudit = recordAudit;
@@ -686,6 +705,13 @@ function buildAdminRoutes(
       isKnownKey: deps.messageOverrides.isKnownKey,
       messageProblem: deps.messageOverrides.messageProblem,
       invalidate: deps.messageOverrides.invalidate,
+    };
+    const assistantDeps: AssistantRouteDeps = {
+      database: deps.database.db,
+      audit: assistantSettingsAudit,
+      now: () => clock.now(),
+      status: deps.assistantStatus ?? (() => ({ enabled: false })),
+      ...(deps.assistantSettings === undefined ? {} : { store: deps.assistantSettings }),
     };
     const tenantTheme = themeHandlers(themeDeps, 'tenant');
     const clientTheme = themeHandlers(themeDeps, 'client');
@@ -824,9 +850,9 @@ function buildAdminRoutes(
     };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
-      'GET /admin/tenants/:tenant/assistant/status': assistantStatusHandler({
-        status: deps.assistantStatus ?? (() => ({ enabled: false })),
-      }),
+      'GET /admin/tenants/:tenant/assistant/status': assistantStatusHandler(assistantDeps),
+      'GET /admin/tenants/:tenant/assistant/settings': readAssistantSettingsHandler(assistantDeps),
+      'PUT /admin/tenants/:tenant/assistant/settings': putAssistantSettingsHandler(assistantDeps),
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/count': countSubjectsHandler(countsDeps),
       'GET /admin/tenants/:tenant/subjects/username-policy':

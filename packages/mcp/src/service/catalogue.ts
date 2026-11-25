@@ -273,8 +273,13 @@ const WITHHELD: readonly Entry[] = [
   ],
   [
     "The console assistant's own status and configuration: not offered to an agent, which reads nothing of the assistant that may be running it.",
-    [R('GET', '/assistant/status')],
+    [R('GET', '/assistant/status'), R('GET', '/assistant/settings')],
     'sensitive',
+  ],
+  [
+    `Access-changing: it sets the console assistant's own mode, budget and who may read its conversations, which an agent never edits; ${OWNER_APPROVAL}.`,
+    [R('PUT', '/assistant/settings')],
+    'access-changing',
   ],
   [
     "Answers one subject's id token, access token and userinfo claims, which are personal data, under manage-clients, which does not include view-users; its open claim records have no schema to bound them.",

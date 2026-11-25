@@ -105,7 +105,9 @@ import {
   clearLockoutsResponseSchema,
   listEffectiveRolesQuerySchema,
   adminCapabilitiesResponseSchema,
+  assistantSettingsSchema,
   assistantStatusSchema,
+  putAssistantSettingsRequestSchema,
   listEffectiveRolesResponseSchema,
   listTenantsQuerySchema,
   countTenantsQuerySchema,
@@ -2098,7 +2100,33 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Whether the console assistant is on in this deployment: `{ "enabled": false }` when no ' +
       'model is configured, otherwise the model each slot runs, the modes offered and the ' +
       'default, the models a person may choose and the provider, with the host of a ' +
-      'self-hosted endpoint and never a key.',
+      'self-hosted endpoint and never a key. A tenant that switched the assistant off reads ' +
+      '`{ "enabled": false }` too, and the default mode is the tenant’s own.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/settings',
+    capability: 'manage-assistant',
+    responseSchema: assistantSettingsSchema,
+    description:
+      'What this tenant chose for its assistant, each setting at its default until it chooses: ' +
+      'whether it is on, the mode a person starts in, email masking, how long traces are kept, ' +
+      'whether auditors see conversations, a month’s tokens for each model slot, the ' +
+      'conversations a tenant may run at once and the steps of one turn. `404` where the ' +
+      'deployment has no assistant configured.',
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/assistant/settings',
+    capability: 'manage-assistant',
+    responseSchema: assistantSettingsSchema,
+    bodySchema: putAssistantSettingsRequestSchema,
+    description:
+      'Replaces every setting, so a caller sends the whole document it read. A value outside ' +
+      'its range, a missing setting and an unknown one are refused with `400`. A change is ' +
+      'audited as `assistant.config` with each changed setting as before and after, and a save ' +
+      'that changes nothing writes no row. Answers an `ETag`, as GET does; `If-Match` is ' +
+      'optional, and a stale one is refused with `412`.',
   },
 ];
 

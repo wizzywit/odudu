@@ -102,6 +102,20 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     supported_locales: 'value',
     default_locale: 'value',
   },
+  // Choices and limits only: the assistant holds no key of its own, so no
+  // setting here can carry one.
+  assistant_settings: {
+    assistant_enabled: 'value',
+    assistant_default_mode: 'value',
+    assistant_mask_emails: 'value',
+    assistant_trace_retention_days: 'value',
+    assistant_auditor_visible: 'value',
+    assistant_monthly_tokens_fast: 'value',
+    assistant_monthly_tokens_standard: 'value',
+    assistant_monthly_tokens_deep: 'value',
+    assistant_max_concurrent: 'value',
+    assistant_max_steps_per_turn: 'value',
+  },
   group: {
     name: 'value',
     description: 'value',
