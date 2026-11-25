@@ -28,6 +28,7 @@
   "devDependencies": {
     "@odudu/db": "workspace:*",
     "@odudu/testkit": "workspace:*",
+    "fast-check": "4.11.0",
     "vitest": "5.1.1"
   }
 }

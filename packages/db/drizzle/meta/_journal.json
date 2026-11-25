@@ -1037,6 +1037,13 @@
       "when": 1792272183737,
       "tag": "0147_assistant_conversations",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1792358583737,
+      "tag": "0148_assistant_budgets",
+      "breakpoints": true
     }
   ]
 }
