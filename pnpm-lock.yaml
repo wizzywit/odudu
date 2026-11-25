@@ -505,7 +505,16 @@ importers:
       ai:
         specifier: 7.0.181
         version: 7.0.181(zod@4.6.7)
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@opentelemetry/api@1.10.0)(postgres@4.1.1)
     devDependencies:
+      '@odudu/db':
+        specifier: workspace:*
+        version: link:../db
+      '@odudu/testkit':
+        specifier: workspace:*
+        version: link:../testkit
       vitest:
         specifier: 5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))

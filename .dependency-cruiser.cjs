@@ -448,7 +448,7 @@ module.exports = {
         'The AI SDK and the model provider packages are imported by @odudu/assistant alone, so ' +
         'a second place cannot choose a model or hold a key.',
       from: { path: '(^|/)(?:packages|apps|tools|sdks)/', pathNot: '(^|/)packages/assistant/' },
-      to: { path: '(^|/)(?:ai|@ai-sdk/[^/]+)(/|$)' },
+      to: { path: '^(ai|@ai-sdk/[^/]+)(/|$)|(^|/)node_modules/(ai|@ai-sdk/[^/]+)(/|$)' },
     },
     {
       name: 'sdks-import-no-server',

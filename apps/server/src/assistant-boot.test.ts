@@ -12,11 +12,10 @@ function run(env: Record<string, string>): {
 }
 
 describe('assistantFromEnv', () => {
-  it('says once that the assistant is off when nothing is configured', () => {
-    expect(run({})).toMatchObject({
-      enabled: false,
-      lines: ['The assistant is off: no standard model slot is configured.'],
-    });
+  it('says once, naming the variable, that the assistant is off when nothing is configured', () => {
+    const { lines, enabled } = run({});
+    expect(enabled).toBe(false);
+    expect(lines).toEqual(['ODUDU_ASSISTANT_MODELS is not set; the assistant is off.']);
   });
 
   it('names the variable of a slot that cannot be used, without its value', () => {

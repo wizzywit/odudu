@@ -19,6 +19,8 @@ export type AssistantEnv = Readonly<Record<string, string | undefined>>;
 export const MODELS_VARIABLE = 'ODUDU_ASSISTANT_MODELS';
 export const COMPATIBLE_BASE_URL_VARIABLE = 'ODUDU_ASSISTANT_OPENAI_COMPATIBLE_BASE_URL';
 
+export const MAX_WARNINGS = 20;
+
 const SLOTS: readonly Slot[] = ['fast', 'standard', 'deep'];
 
 // Every variable a provider cannot be reached without; the one it may also
@@ -53,9 +55,25 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
+interface Warnings {
+  readonly kept: string[];
+  dropped: number;
+}
+
+function warn(warnings: Warnings, message: string): void {
+  if (warnings.kept.length < MAX_WARNINGS) warnings.kept.push(message);
+  else warnings.dropped += 1;
+}
+
+function finish(warnings: Warnings): readonly string[] {
+  return warnings.dropped === 0
+    ? warnings.kept
+    : [...warnings.kept, `${String(warnings.dropped)} further entries ignored.`];
+}
+
 function parseEntries(
   raw: string,
-  warnings: string[],
+  warnings: Warnings,
 ): Partial<Record<Slot, { provider: Provider; model: string }>> {
   const found: Partial<Record<Slot, { provider: Provider; model: string }>> = {};
   const entries = raw.split(',').map((entry) => entry.trim());
@@ -64,16 +82,16 @@ function parseEntries(
     const where = `${MODELS_VARIABLE} entry ${String(index + 1)}`;
     const match = ENTRY.exec(entry);
     if (match === null) {
-      warnings.push(`${where} is not slot=provider:model and is ignored.`);
+      warn(warnings, `${where} is not slot=provider:model and is ignored.`);
       return;
     }
     const [, slot = '', provider = '', model = ''] = match;
     if (!isSlot(slot)) {
-      warnings.push(`${where} names a slot that is not fast, standard or deep and is ignored.`);
+      warn(warnings, `${where} names a slot that is not fast, standard or deep and is ignored.`);
     } else if (!isProvider(provider)) {
-      warnings.push(`${where} names a provider that is not supported; slot ${slot} is ignored.`);
+      warn(warnings, `${where} names a provider that is not supported; slot ${slot} is ignored.`);
     } else if (found[slot] !== undefined) {
-      warnings.push(`${where} names slot ${slot} a second time and is ignored.`);
+      warn(warnings, `${where} names slot ${slot} a second time and is ignored.`);
     } else {
       found[slot] = { provider, model: model.trim() };
     }
@@ -85,18 +103,19 @@ function usable(
   slot: Slot,
   choice: { provider: Provider; model: string },
   env: AssistantEnv,
-  warnings: string[],
+  warnings: Warnings,
 ): SlotModel | undefined {
   const missing = REQUIRED_VARIABLES[choice.provider].filter((name) => !present(env, name));
   if (missing.length > 0) {
-    warnings.push(`Slot ${slot} is not used: ${missing.join(' and ')} is not set.`);
+    warn(warnings, `Slot ${slot} is not used: ${missing.join(' and ')} is not set.`);
     return undefined;
   }
   if (
     choice.provider === 'openai-compatible' &&
     !isHttpUrl((env[COMPATIBLE_BASE_URL_VARIABLE] ?? '').trim())
   ) {
-    warnings.push(
+    warn(
+      warnings,
       `Slot ${slot} is not used: ${COMPATIBLE_BASE_URL_VARIABLE} is not an http(s) URL.`,
     );
     return undefined;
@@ -105,25 +124,21 @@ function usable(
 }
 
 /**
- * The model each slot runs, from the environment, or `null` when the required
- * standard slot does not resolve. An unset or unusable fast or deep slot runs
- * the standard model and says so in `fellBackTo`. A warning names a variable
- * or an entry's position, never a value.
+ * The model each slot runs, from the environment, together with what the
+ * resolution had to say: `slots` is `null` when the required standard slot
+ * does not resolve, and the warnings then say why. An unset or unusable fast
+ * or deep slot runs the standard model and says so in `fellBackTo`. A warning
+ * names a variable or an entry's position, never a value, and at most
+ * `MAX_WARNINGS` are kept before a final line counts the rest.
  */
-export function resolveSlots(env: AssistantEnv): ResolvedSlots | null {
-  return resolveSlotsReporting(env).slots;
-}
-
-/**
- * The same, with the warnings that are otherwise lost when the standard slot
- * does not resolve, which is when an operator most needs to read them.
- */
-export function resolveSlotsReporting(env: AssistantEnv): {
+export function explainSlots(env: AssistantEnv): {
   readonly slots: ResolvedSlots | null;
   readonly warnings: readonly string[];
 } {
-  const warnings: string[] = [];
-  const chosen = parseEntries(env[MODELS_VARIABLE] ?? '', warnings);
+  const warnings: Warnings = { kept: [], dropped: 0 };
+  const raw = env[MODELS_VARIABLE] ?? '';
+  if (raw.trim() === '') warn(warnings, `${MODELS_VARIABLE} is not set; the assistant is off.`);
+  const chosen = parseEntries(raw, warnings);
   const resolved: Partial<Record<Slot, SlotModel>> = {};
   for (const slot of SLOTS) {
     const choice = chosen[slot];
@@ -131,15 +146,26 @@ export function resolveSlotsReporting(env: AssistantEnv): {
     if (model !== undefined) resolved[slot] = model;
   }
   const standard = resolved.standard;
-  if (standard === undefined) return { slots: null, warnings };
+  if (standard === undefined) {
+    if (raw.trim() !== '' && chosen.standard === undefined) {
+      warn(warnings, 'No standard slot is configured; the assistant is off.');
+    }
+    return { slots: null, warnings: finish(warnings) };
+  }
   const fallback: SlotModel = { ...standard, fellBackTo: 'standard' };
+  const all = finish(warnings);
   return {
     slots: {
       standard,
       fast: resolved.fast ?? fallback,
       deep: resolved.deep ?? fallback,
-      warnings,
+      warnings: all,
     },
-    warnings,
+    warnings: all,
   };
+}
+
+/** The slots alone; see `explainSlots` for why a `null` result happened. */
+export function resolveSlots(env: AssistantEnv): ResolvedSlots | null {
+  return explainSlots(env).slots;
 }

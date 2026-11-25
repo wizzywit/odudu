@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveSlots, resolveSlotsReporting } from '#/service/slots';
+import { explainSlots, MAX_WARNINGS, resolveSlots } from '#/service/slots';
 
 const BEDROCK_ENV = { AWS_BEARER_TOKEN_BEDROCK: 'bk-secret', AWS_REGION: 'eu-west-1' };
 
@@ -122,10 +122,46 @@ describe('resolveSlots', () => {
   });
 });
 
-describe('resolveSlotsReporting', () => {
-  it('keeps the warnings when the standard slot does not resolve, naming the variable', () => {
-    const result = resolveSlotsReporting({ ODUDU_ASSISTANT_MODELS: 'standard=anthropic:m' });
-    expect(result.slots).toBeNull();
-    expect(result.warnings.join('\n')).toContain('ANTHROPIC_API_KEY');
+describe('explainSlots', () => {
+  it('names the missing variable when standard is set but unusable', () => {
+    const explained = explainSlots({ ODUDU_ASSISTANT_MODELS: 'standard=anthropic:m' });
+    expect(explained.slots).toBeNull();
+    expect(explained.warnings.join('\n')).toContain('ANTHROPIC_API_KEY');
+  });
+
+  it('says nothing is configured when the variable is unset', () => {
+    const explained = explainSlots({});
+    expect(explained.slots).toBeNull();
+    expect(explained.warnings.join('\n')).toContain('ODUDU_ASSISTANT_MODELS');
+  });
+
+  it('agrees with resolveSlots on the slots and carries the same warnings', () => {
+    const env = { ODUDU_ASSISTANT_MODELS: 'standard=anthropic:m,junk', ANTHROPIC_API_KEY: 'k' };
+    const explained = explainSlots(env);
+    expect(explained.slots).toEqual(resolveSlots(env));
+    expect(explained.warnings).toEqual(explained.slots?.warnings);
+    expect(explained.warnings).toHaveLength(1);
+  });
+});
+
+describe('the warning bound', () => {
+  it('keeps the first warnings and counts the rest in one final line', () => {
+    const junk = Array.from({ length: MAX_WARNINGS + 7 }, (_, i) => `junk${String(i)}`).join(',');
+    const slots = resolveSlots({
+      ODUDU_ASSISTANT_MODELS: `standard=anthropic:m,${junk}`,
+      ANTHROPIC_API_KEY: 'k',
+    });
+    expect(slots?.warnings).toHaveLength(MAX_WARNINGS + 1);
+    expect(slots?.warnings.at(-1)).toBe('7 further entries ignored.');
+    expect(slots?.warnings[0]).toContain('entry 2');
+  });
+
+  it('adds no final line at the bound', () => {
+    const junk = Array.from({ length: MAX_WARNINGS }, (_, i) => `junk${String(i)}`).join(',');
+    const slots = resolveSlots({
+      ODUDU_ASSISTANT_MODELS: `standard=anthropic:m,${junk}`,
+      ANTHROPIC_API_KEY: 'k',
+    });
+    expect(slots?.warnings).toHaveLength(MAX_WARNINGS);
   });
 });
