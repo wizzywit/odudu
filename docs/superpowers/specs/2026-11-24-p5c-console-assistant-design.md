@@ -323,6 +323,11 @@ concurrency and per-person rate limits bound load; a provider outage degrades to
 clear message, with an optional fallback model per slot. Model IDs are pinned, never
 "latest".
 
+The assistant stream goes through a sibling `forwardStream` use case in the console
+gateway, not a streaming mode in `forward`, which every admin call shares. A stream
+has no body limit and no retry; its bound is the step cap and `maxTokens`, and a
+browser abort reaches the upstream through an `AbortSignal`.
+
 ## 6. Documentation owed
 
 Concepts page and a guide to enabling it with Bedrock, Anthropic and OpenAI; a guide

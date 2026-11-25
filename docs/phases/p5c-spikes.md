@@ -137,3 +137,57 @@ and `package.json` to run elsewhere.
 | prompt_cache_bedrock                        | pass    |
 
 No provider failed, so goal 2 of the spec is unchanged.
+
+## Gateway streaming (console gateway)
+
+Read first: `packages/console-gateway/src/usecase/forward.ts` (resolve the
+session, refuse a changed principal, take a fresh access token, call
+`odudu.forward`, end the session on a 401 confirmed at the tenant) and
+`adapter/odudu-client.ts` (`forward` calls `fastify.inject` and returns
+`res.rawPayload`, so the whole body is buffered). The CSRF guard is an
+`onRequest` hook on the gateway instance (`view/csrf-guard.ts`), so it runs
+before any route, a streaming one included.
+
+Command: a scratch script with two Fastify instances (an "admin API" that
+writes four chunks 200 ms apart, and a gateway whose stub `forwardStream`
+calls `inject({ payloadAsStream: true, signal })` and sends `res.stream()`),
+run with Node against `fastify@5.12.8` and `light-my-request@6.6.0`:
+
+```text
+no cookie -> 401
+first chunk "chunk0" after 12ms (upstream lasts ~800ms)
+upstream response closed at 902ms (writableFinished=false)
+full read: 4 chunks, done after 822ms
+browser abort sent at 909ms
+upstream response closed at 915ms (writableFinished=false)
+upstream stopped writing at chunk 1
+```
+
+- The first chunk reaches the browser after 12 ms while the upstream runs
+  for about 800 ms, so the body is not buffered.
+- A browser abort is seen by the upstream 6 ms later and the upstream stops
+  writing at the next chunk. The gateway wires the reply's `close` (when the
+  reply has not finished) to an `AbortController` whose signal is passed to
+  `inject`.
+- The cookie check, and any CSRF or tenant check placed in `onRequest` or in
+  the use case, run before the upstream is called, as for `forward`. In the
+  real use case the cookie's tenant half still scopes `resolveSession`, and
+  `forwardStream` reuses `resolveSession`, `principalChanged` and
+  `freshAccessToken` unchanged.
+- `forward` stays as it is: its buffering, `bodyLimit` and 401 handling are
+  what 163 admin routes depend on. The 401 check can run on the status line
+  before the first chunk is piped; a stream is never retried and never
+  refreshes a token mid-flight.
+- Needs a port method that returns a stream (`OduduPort.forwardStream`)
+  beside `forward`, implemented with `payloadAsStream` and `signal`.
+- `writableFinished=false` on the upstream's own close after a complete
+  read is how `light-my-request`'s response reports it; the four chunks and
+  the end arrived, so it is not an abort.
+
+| Field                            | Result                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------ |
+| stream_route                     | sibling                                                                  |
+| first_chunk_before_upstream_end  | pass                                                                     |
+| browser_abort_reaches_upstream   | pass                                                                     |
+| session_csrf_tenant_checks_apply | pass (hook runs before the pipe; session and tenant by `resolveSession`) |
+| inject_supports_streaming        | pass (`payloadAsStream`, `signal`)                                       |
