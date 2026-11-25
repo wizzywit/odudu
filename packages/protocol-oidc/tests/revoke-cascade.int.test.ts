@@ -7,10 +7,11 @@ import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import fc from 'fast-check';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { tokenGrantRepository } from '#/repository/grants';
+import { tokenGrants } from '#/schema/token-grants';
+import { lockSeedGrants, seedLockStatement, tokenGrantRepository } from '#/repository/grants';
 import { waitForLockWaiters, withHeldLock } from '#/testing/agent-fixture';
 
 function nth<T>(list: readonly T[], index: number): T {
@@ -751,14 +752,11 @@ describe('a revoke over many grants takes them in id order', () => {
   });
 });
 
-describe('a revoke racing a spend that holds a grant below it', () => {
-  // A spend carrying a grant with a lower id than the one revoked holds it
-  // while it waits for the revoked one. The revoke must not be the side a
-  // deadlock aborts: it takes everything below its seed before it updates it.
-  it('finishes the revoke, whichever grant sorts first', async () => {
+describe('revokes that seed a grant and its descendant', () => {
+  async function pair(w: World, descendantFirst: boolean): Promise<[string, string]> {
     const [a, b] = [newId(), newId()];
     const [low, high] = a < b ? [a, b] : [b, a];
-    const w = await newWorld();
+    const [root, child] = descendantFirst ? [high, low] : [low, high];
     await withTenant(app.db, w.tenantId, async (tx) => {
       const grants = tokenGrantRepository(tx);
       const base = {
@@ -768,40 +766,116 @@ describe('a revoke racing a spend that holds a grant below it', () => {
         scope: 'mcp:read',
         audience: ['https://odudu.test/mcp'],
       };
-      await grants.create({ ...base, id: high });
-      await grants.create({ ...base, id: low, exchangedFromGrantId: high });
+      await grants.create({ ...base, id: root });
+      await grants.create({ ...base, id: child, exchangedFromGrantId: root });
     });
+    return [root, child];
+  }
+
+  // A revoke of the root alone takes the root and then the child; one seeded
+  // with both takes only the root itself and leaves the child to the cascade.
+  // Taking the child first, because its id sorts first, deadlocked them.
+  it.each([
+    ['the single-seed revoke arrives first', true],
+    ['the multi-seed revoke arrives first', false],
+  ])('finish without a deadlock when the child sorts first and %s', async (_, singleFirst) => {
+    const w = await newWorld();
+    const [root, child] = await pair(w, true);
+    const single = () =>
+      withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(root, LATER));
+    const multi = () =>
+      withTenant(app.db, w.tenantId, (tx) =>
+        tokenGrantRepository(tx).revokeForSubjectClient(w.subjectId, w.clientDbId, LATER),
+      );
     const outcomes = await withHeldLock(
       app.db,
       w.tenantId,
       {
         lock: async (tx) => {
-          await tx.execute(sql`select id from token_grants where id = ${low} for share`);
-        },
-        afterRelease: async (tx) => {
-          await tx.execute(sql`select id from token_grants where id = ${high} for update`);
+          await tx.execute(sql`select id from token_grants where id = ${root} for no key update`);
         },
       },
       async (held) => {
-        const revoking = held.started(
-          withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(high, LATER)).then(
-            () => null,
-            (error: unknown) => error,
-          ),
-        );
+        const settle = (run: () => Promise<unknown>) =>
+          held.started(
+            run().then(
+              () => null,
+              (error: unknown) => error,
+            ),
+          );
+        const first = settle(singleFirst ? single : multi);
         await waitForLockWaiters(owner);
+        const second = settle(singleFirst ? multi : single);
+        await waitForLockWaiters(owner, 2);
         held.release();
-        const [revoked, spend] = await Promise.all([
-          revoking,
-          held.done.then(
-            () => null,
-            (error: unknown) => error,
-          ),
-        ]);
-        return { revoked, spend };
+        return Promise.all([first, second, held.done]);
       },
     );
-    expect(outcomes.revoked).toBeNull();
-    expect(await grantRevoked([high, low])).toEqual([true, true]);
+    expect(outcomes.slice(0, 2)).toEqual([null, null]);
+    expect(await grantRevoked([root, child])).toEqual([true, true]);
   });
+
+  it('locks only the seeds that have no seed above them, a batch at a time', async () => {
+    const w = await newWorld();
+    const { tops, below } = await withTenant(app.db, w.tenantId, async (tx) => {
+      const tops = [
+        await grant(tx, w, { sessionless: true }),
+        await grant(tx, w, { sessionless: true }),
+        await grant(tx, w, { sessionless: true }),
+      ];
+      const below = await grant(tx, w, { from: nth(tops, 1) });
+      return { tops, below };
+    });
+    const probe = (id: string) =>
+      owner.db
+        .transaction((tx) =>
+          tx.execute(sql`select id from token_grants where id = ${id} for update nowait`),
+        )
+        .then(
+          () => false,
+          () => true,
+        );
+    const held = await withHeldLock(
+      app.db,
+      w.tenantId,
+      {
+        lock: (tx) => lockSeedGrants(tx, eq(tokenGrants.subjectId, w.subjectId), 2),
+      },
+      async () => ({
+        tops: await Promise.all(tops.map(probe)),
+        below: await probe(below),
+      }),
+    );
+    expect(held).toEqual({ tops: [true, true, true], below: false });
+  });
+
+  it('takes the seeds under a sort below a lock, as its order depends on', async () => {
+    const w = await newWorld();
+    const lines = await withTenant(app.db, w.tenantId, async (tx) => {
+      const plan = await tx.execute(
+        sql`explain (costs off) ${seedLockStatement(eq(tokenGrants.subjectId, w.subjectId), 10, '00000000-0000-0000-0000-000000000000')}`,
+      );
+      return (plan as unknown as Record<string, string>[]).map(
+        (row) => Object.values(row)[0] ?? '',
+      );
+    });
+    const lock = lines.findIndex((line) => line.includes('LockRows'));
+    expect(lock).toBeGreaterThanOrEqual(0);
+    expect(lines.slice(lock).some((line) => /Sort Key: .*\bid\b/u.test(line))).toBe(true);
+  });
+
+  it('revokes a chain deeper than the structural depth while other revokers run', async () => {
+    for (let round = 0; round < 4; round += 1) {
+      const w = await newWorld();
+      const ids = await withTenant(app.db, w.tenantId, (tx) => chain(tx, w, 12));
+      const failures: unknown[] = [];
+      const revoke = (id: string) =>
+        withTenant(app.db, w.tenantId, (tx) => tokenGrantRepository(tx).revoke(id, LATER)).catch(
+          (error: unknown) => failures.push(error),
+        );
+      await Promise.all([revoke(nth(ids, 0)), revoke(nth(ids, 4)), revoke(nth(ids, 9))]);
+      expect(failures).toEqual([]);
+      expect(await grantRevoked(ids)).toEqual(Array(12).fill(true));
+    }
+  }, 120_000);
 });
