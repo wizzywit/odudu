@@ -1,11 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { JsonValue } from '@odudu/mcp';
 import type { Telemetry } from 'ai';
 import { traceRepository, type EventKind, type NewEvent } from '#/repository/trace';
 import type { AssistantTx } from '#/repository/tx';
 import { cleanJson, cleanText } from '#/service/clean-text';
 import { cutText } from '#/service/cut';
 import type { StopReason } from '#/service/limits';
-import { createMasker } from '#/service/mask-secrets';
+import { createMasker, type Masker } from '#/service/mask-secrets';
 import type { Slot } from '#/service/slots';
 import { createLedger } from '#/service/trace-ledger';
 import { boundPayload, errorPayload, payloadBytes, toJson } from '#/service/trace-payload';
@@ -32,6 +33,8 @@ export interface TraceDeps {
   readonly deadlineMs?: number;
   /** Secrets the server holds, masked wherever they turn up. */
   readonly known?: readonly string[];
+  /** The masker to use; one is made from `maskEmails` and `known` when absent. */
+  readonly masker?: Masker;
   /** How long a closing attempt waits before its one retry after a timeout; 300 ms. */
   readonly retryMs?: number;
 }
@@ -70,10 +73,12 @@ class TraceTimeout extends Error {
 }
 
 export function traceRecorder(deps: TraceDeps): TraceRecorder {
-  const masker = createMasker({
-    emails: deps.maskEmails,
-    ...(deps.known === undefined ? {} : { known: deps.known }),
-  });
+  const masker =
+    deps.masker ??
+    createMasker({
+      emails: deps.maskEmails,
+      ...(deps.known === undefined ? {} : { known: deps.known }),
+    });
   const ledger = createLedger();
   // A tool that runs another agent has its steps recorded under the step that called it.
   const nesting = new AsyncLocalStorage<{ readonly stepId: string }>();
@@ -102,7 +107,15 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
     if (failed) return;
     try {
       const clean = cleanJson(toJson(payload));
-      const kept = boundPayload(own ? masker.maskRecord(clean) : masker.mask(clean));
+      // A masker that throws on an input costs that one event, which is stored as
+      // unreadable and never raw; the turn's trace goes on.
+      let masked: JsonValue;
+      try {
+        masked = own ? masker.maskRecord(clean) : masker.mask(clean);
+      } catch {
+        masked = { unreadable: '[masked-unreadable]' };
+      }
+      const kept = boundPayload(masked);
       const seq = ledger.admit(payloadBytes(kept));
       if (seq !== undefined) pending.push({ seq, stepId, kind, payload: kept, at: deps.now() });
     } catch (error) {

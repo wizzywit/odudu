@@ -17,6 +17,7 @@ const PLAIN = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._~
 // What a quoted value may hold: quotes, backslashes, newlines, unicode, and punctuation
 // that would end an unquoted one.
 const HARD = `${PLAIN} ,;&"'\\\n\t}]{[é漢😀`;
+const USERINFO = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~!$&'()*+,;=%";
 const NAMES = ['client_secret', 'password', 'access_token', 'api_key', 'clientSecret', 'X-Api-Key'];
 
 type Pick = (alphabet: string, min: number, max: number) => string;
@@ -25,6 +26,10 @@ type Pick = (alphabet: string, min: number, max: number) => string;
 interface Carrier {
   readonly name: string;
   readonly hard: boolean;
+  // What the secret may be made of, when the carrier restricts it.
+  readonly alphabet?: string;
+  // A cut inside the secret leaves nothing to tell it by (no closing tag, no `@` yet).
+  readonly noCut?: boolean;
   readonly build: (secret: string, field: string) => string;
 }
 
@@ -88,11 +93,86 @@ const CARRIERS: Carrier[] = [
     hard: false,
     build: (s, f) => `Error: the provider refused (${f}: ${s}) at line 3`,
   },
+  {
+    name: 'url userinfo',
+    hard: false,
+    alphabet: USERINFO,
+    noCut: true,
+    build: (s) => `fetch failed: https://svc:${s}@api.example.com/v1/items?a=1 timed out`,
+  },
+  {
+    name: 'connection string',
+    hard: false,
+    alphabet: USERINFO,
+    noCut: true,
+    build: (s) => `could not connect to postgres://app:${s}@db:5432/odudu`,
+  },
+  {
+    name: 'unquoted with separators',
+    hard: false,
+    alphabet: `${PLAIN} ,;}]"'`,
+    build: (s, f) => `config ${f}=${s}\nnext=line`,
+  },
+  {
+    name: 'yaml block',
+    hard: false,
+    alphabet: `${PLAIN} ,;}]"'`,
+    build: (s, f) => `env:\n  ${f}: |\n    ${s}\n    more-${s}\n  other: ok`,
+  },
+  {
+    name: 'env list',
+    hard: true,
+    noCut: true,
+    build: (s, f) =>
+      JSON.stringify([
+        { name: f, value: s },
+        { name: 'LOG', value: 'debug' },
+      ]),
+  },
+  {
+    name: 'header list',
+    hard: true,
+    noCut: true,
+    build: (s) =>
+      JSON.stringify({
+        headers: [
+          ['Authorization', `Bearer ${s}`],
+          ['Accept', 'x'],
+        ],
+      }),
+  },
+  {
+    name: 'key value object',
+    hard: true,
+    noCut: true,
+    build: (s, f) => JSON.stringify({ request: { key: f, value: s } }),
+  },
+  {
+    name: 'deep nesting beside the secret',
+    hard: true,
+    build: (s, f) =>
+      JSON.stringify({ noise: `${'['.repeat(5_000)}${']'.repeat(5_000)}`, [f]: s, ok: 1 }),
+  },
+  {
+    name: 'xml tag',
+    hard: false,
+    alphabet: 'abcdefghijklmnopqrstuvwxyz0123456789-_.~!@#$%^*()+=/ ',
+    noCut: true,
+    build: (s, f) =>
+      `<config><${f.replaceAll(/[^A-Za-z0-9_]/gu, '_')}>${s}</${f.replaceAll(/[^A-Za-z0-9_]/gu, '_')}></config>`,
+  },
+  {
+    name: 'curl user',
+    hard: false,
+    alphabet: 'abcdefghijklmnopqrstuvwxyzABCDEF0123456789-_.~!@#$%^*()+=/',
+    build: (s) => `curl -u admin:${s} https://x`,
+  },
+  { name: 'password flag', hard: false, build: (s) => `run --password ${s}` },
 ];
 
 function secretFor(carrier: Carrier, pick: Pick): string {
   // A secret with a letter and a digit at both ends, so its prefix is no word of the carrier.
-  return `Q7${pick(carrier.hard ? HARD : PLAIN, 6, 30)}z9`;
+  return `Q7${pick(carrier.alphabet ?? (carrier.hard ? HARD : PLAIN), 6, 30)}z9`;
 }
 
 describe('masking a secret in any carrier', () => {
@@ -119,7 +199,9 @@ describe('masking a secret in any carrier', () => {
       // Half the cases are cut at a random point inside the secret, as a truncated body is.
       const at = whole.indexOf(secret.slice(0, 4));
       const cut =
-        random() < 0.5 && at >= 0 ? at + 4 + Math.floor(random() * (secret.length - 3)) : -1;
+        random() < 0.5 && at >= 0 && carrier.noCut !== true
+          ? at + 4 + Math.floor(random() * (secret.length - 3))
+          : -1;
       const text = cut >= 0 ? whole.slice(0, cut) : whole;
       const out = maskSecrets(text) as string;
       const forms = [secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret)];

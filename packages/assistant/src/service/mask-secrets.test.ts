@@ -103,7 +103,7 @@ describe('maskSecrets', () => {
   });
 
   it.each([
-    ['client_secret=hunter2hunter2 and more', 'client_secret=[masked] and more'],
+    ['client_secret=hunter2hunter2 and more', 'client_secret=[masked]'],
     ['failed with password: "pa ss" now', 'failed with password: "[masked]" now'],
     ["api-key = 'k-1234567'", "api-key = '[masked]'"],
   ])('masks the value of a secret named in an error or a header: %s', (text, expected) => {
@@ -231,7 +231,7 @@ describe('maskSecrets', () => {
 
   it('reads a member name of any length', () => {
     const name = `${'very_long_'.repeat(12)}token`;
-    expect(maskSecrets(`${name}=abc123def456 ok`)).toBe(`${name}=${MASKED} ok`);
+    expect(maskSecrets(`${name}=abc123def456 ok`)).toBe(`${name}=${MASKED}`);
   });
 
   it.each(['pwd', 'sig', 'signature', 'privateKey', 'apikey', 'x-api-key'])(
@@ -388,5 +388,192 @@ describe('the cost of masking', () => {
       maskSecrets(text.slice(0, 8_192));
       expect(performance.now() - started).toBeLessThan(LIMIT_MS);
     }
+  });
+});
+
+describe('deep nesting', () => {
+  const arrays = `${'['.repeat(10_000)}${']'.repeat(10_000)}`;
+  const objects = `${'{"a":'.repeat(10_000)}1${'}'.repeat(10_000)}`;
+
+  it.each([
+    ['arrays', arrays],
+    ['objects', objects],
+  ])('does not throw on 10,000 levels of %s in a string, and masks it whole', (_name, deep) => {
+    expect(maskSecrets(deep)).toContain(MASKED);
+    expect(JSON.stringify(maskSecrets({ a: deep }))).toContain(MASKED);
+    expect(maskSecrets(JSON.stringify({ a: deep }))).toContain(MASKED);
+  });
+
+  it('keeps masking the rest of an object when one member is that deep', () => {
+    const out = maskSecrets({
+      deep: arrays,
+      client_secret: 'abc',
+      ok: 'plain text',
+      n: 1,
+    }) as Record<string, string>;
+    expect(out.client_secret).toBe(MASKED);
+    expect(out.ok).toBe('plain text');
+    expect(out.n).toBe(1);
+  });
+
+  it('does not throw on an object nested 10,000 levels', () => {
+    let deep: JsonValue = 'leaf';
+    for (let i = 0; i < 10_000; i += 1) deep = { next: deep };
+    expect(JSON.stringify(maskSecrets(deep))).toContain(MASKED);
+  });
+});
+
+describe('connection strings and URLs', () => {
+  it.each([
+    [
+      'https://user:S3cr3tValueXyz9@host/path',
+      'S3cr3tValueXyz9',
+      'https://user:[masked]@host/path',
+    ],
+    ['postgres://app:hunter2@db:5432/odudu', 'hunter2', 'postgres://app:[masked]@db:5432/odudu'],
+    ['redis://:hunter2@cache:6379', 'hunter2', 'redis://:[masked]@cache:6379'],
+    ['amqp://guest:hunter2@mq/vhost?x=1', 'hunter2', 'amqp://guest:[masked]@mq/vhost?x=1'],
+    [
+      'mongodb+srv://u:hunter2@cluster.example.net/db',
+      'hunter2',
+      'mongodb+srv://u:[masked]@cluster.example.net/db',
+    ],
+    [
+      'connect failed: postgres://app:p@ss@db/odudu refused',
+      'p@ss',
+      'connect failed: postgres://app:[masked]@db/odudu refused',
+    ],
+  ])('masks the password in %s and keeps the user and host', (text, password, expected) => {
+    const out = maskSecrets(text) as string;
+    expect(out).not.toContain(password);
+    expect(out).toBe(expected);
+  });
+
+  it('keeps a URL with no password', () => {
+    const text = 'see https://example.com/a?b=c and ssh://git@host/repo';
+    expect(maskSecrets(text)).toBe(text);
+  });
+});
+
+describe('values that end late or oddly', () => {
+  it.each([
+    ['password=ab,cd-tail', 'cd-tail'],
+    ['password=ab;cd-tail', 'cd-tail'],
+    ['password=ab}cd-tail', 'cd-tail'],
+    ['password: my pass phrase here', 'phrase'],
+    ['password: |\n  first-secret-line\n  second-secret-line\nnext: ok', 'secret-line'],
+    ['password: >-\n  folded-secret-line\nnext: ok', 'secret-line'],
+    ["password='it''s-tail'", 's-tail'],
+    ['"password":"ab"cd-tail"', 'cd-tail'],
+    ['password="ab"cd-tail', 'cd-tail'],
+  ])('masks every part of %j', (text, tail) => {
+    const out = maskSecrets(text) as string;
+    expect(out).not.toContain(tail);
+    expect(out).toContain(MASKED);
+  });
+
+  it('keeps the lines after a block scalar that are not part of it', () => {
+    expect(maskSecrets('password: |\n  hidden\nnext: ok')).toContain('next: ok');
+  });
+
+  it('keeps what follows a closed quote at a clean end', () => {
+    expect(maskSecrets('password="x1y2z3", user=ada')).toBe(`password="${MASKED}", user=ada`);
+  });
+});
+
+describe('names and values in separate members', () => {
+  it.each([
+    [[{ name: 'DB_PASSWORD', value: 'hunter2xx' }], 'hunter2xx'],
+    [[{ name: 'Authorization', value: 'Bearer abc' }], 'Bearer abc'],
+    [{ key: 'client_secret', value: 'abc123' }, 'abc123'],
+    [{ header: 'X-Api-Key', value: 'k-1' }, 'k-1'],
+    [
+      [
+        ['Authorization', 'Bearer abc'],
+        ['X-Api-Key', 'k-2'],
+      ],
+      'k-2',
+    ],
+    [[['password', 'hunter2']], 'hunter2'],
+    [{ request: { headers: [{ name: 'Cookie', value: 'sid=abc' }] } }, 'sid=abc'],
+  ] as [JsonValue, string][])('masks the value beside a secret name in %j', (value, secret) => {
+    const out = JSON.stringify(maskSecrets(value));
+    expect(out).not.toContain(secret);
+    expect(out).toContain(MASKED);
+  });
+
+  it('keeps a value beside a name that is no secret', () => {
+    const value: JsonValue = [{ name: 'LOG_LEVEL', value: 'debug' }, ['accept', 'text/html']];
+    expect(maskSecrets(value)).toEqual(value);
+  });
+});
+
+describe('tags and command lines', () => {
+  it.each([
+    ['<password>hunter2</password>', 'hunter2', '<password>[masked]</password>'],
+    [
+      '<client_secret>hunter2xx</client_secret>',
+      'hunter2xx',
+      '<client_secret>[masked]</client_secret>',
+    ],
+    ['curl -u admin:hunter2 https://x', 'hunter2', 'curl -u admin:[masked] https://x'],
+    ['run --password hunter2 now', 'hunter2', 'run --password [masked] now'],
+    ['run --client-secret=hunter2xx now', 'hunter2xx', 'run --client-secret=[masked]'],
+    ['password => hunter2', 'hunter2', 'password => [masked]'],
+  ])('masks the secret in %s', (text, secret, expected) => {
+    const out = maskSecrets(text) as string;
+    expect(out).not.toContain(secret);
+    expect(out).toBe(expected);
+  });
+
+  it('keeps a tag and a flag that name no secret', () => {
+    const text = '<name>ada</name> ls -u --verbose --output file';
+    expect(maskSecrets(text)).toBe(text);
+  });
+});
+
+describe('what is learned and what is known', () => {
+  it('keeps a known secret out of the learning limit that junk can use up', () => {
+    const masker = createMasker({ emails: false });
+    for (let i = 0; i < 100; i += 1)
+      masker.mask({ token: `junkvalue-${String(i).padStart(4, '0')}-xxxx` });
+    masker.know('opaqueMintedTokenValue0123');
+    expect(masker.mask('using opaqueMintedTokenValue0123 now')).toBe(`using ${MASKED} now`);
+  });
+
+  it('hides a known secret in the forms it may be written again', () => {
+    const secret = 'p@ss w\"ord/secret-1';
+    const masker = createMasker({ emails: false, known: [secret] });
+    for (const form of [
+      secret,
+      encodeURIComponent(secret),
+      Buffer.from(secret).toString('base64'),
+      JSON.stringify(secret).slice(1, -1),
+    ]) {
+      expect(masker.mask(`see ${form} here`)).toBe(`see ${MASKED} here`);
+    }
+  });
+
+  it('hides a known secret in a record the server wrote, too', () => {
+    const masker = createMasker({ emails: false, known: ['server-held-secret-value'] });
+    expect(masker.maskRecord({ note: 'server-held-secret-value' })).toEqual({ note: MASKED });
+  });
+});
+
+describe('what is scanned', () => {
+  it('masks a secret held in a member name', () => {
+    const jwt = 'eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJhZGEifQ.c2lnbmF0dXJlLXBhcnQ';
+    expect(JSON.stringify(maskSecrets({ [jwt]: 1 }))).not.toContain('eyJhbGci');
+  });
+
+  it('replaces the members past the first 500 of an object or an array by a count', () => {
+    const list = Array.from({ length: 1_000 }, (_unused, i) => i);
+    const object = Object.fromEntries(list.map((i) => [`k${String(i)}`, i]));
+    const items = maskSecrets(list) as JsonValue[];
+    expect(items).toHaveLength(501);
+    expect(items.at(-1)).toBe('[500 more]');
+    const members = maskSecrets(object) as Record<string, JsonValue>;
+    expect(Object.keys(members)).toHaveLength(501);
+    expect(members['…']).toBe('500 more');
   });
 });

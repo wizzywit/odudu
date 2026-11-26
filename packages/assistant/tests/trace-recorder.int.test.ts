@@ -13,6 +13,7 @@ import { MockLanguageModelV3 } from 'ai/test';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { conversationRepository } from '#/repository/conversations';
+import type { Masker } from '#/service/mask-secrets';
 import { traceRecorder, type TraceRecorder } from '#/usecase/trace-recorder';
 
 let container: TestDatabase;
@@ -474,6 +475,79 @@ describe('the recorder over a real agent', () => {
     expect(step).toBeDefined();
     expect(step?.ended_at).not.toBeNull();
     expect((await rows('assistant_turns', turnId))[0]?.ended_at).not.toBeNull();
+  });
+
+  it('keeps recording after a tool result nested 10,000 levels deep', async () => {
+    const f = await fixture();
+    const { recorder, turnId } = recorderFor(f);
+    await recorder.begin(HASH);
+    const deep = `${'['.repeat(10_000)}${']'.repeat(10_000)}`;
+    const agent = new ToolLoopAgent({
+      model: model(call('c1', 'lookup', { id: 7 }), say('answered after the deep one')),
+      tools: {
+        lookup: tool({
+          description: 'looks up',
+          inputSchema: jsonSchema<{ id: number }>({
+            type: 'object',
+            properties: { id: { type: 'number' } },
+            required: ['id'],
+          }),
+          execute: () => ({ name: 'x', blob: deep, client_secret: 'abcdef-secret-1' }),
+        }),
+      },
+      telemetry: { integrations: [recorder] },
+    });
+    await agent.generate({ prompt: 'go' });
+    await recorder.end('done');
+
+    expect(recorder.lost()).toBe(false);
+    const events = await rows('assistant_events', turnId);
+    expect(events.map((e) => e.kind)).toContain('text');
+    expect(JSON.stringify(events)).not.toContain('abcdef-secret-1');
+    expect(JSON.stringify(events)).not.toContain('[[[[[[[[');
+  });
+
+  it('stores an event its masker could not read as unreadable, never raw, and goes on', async () => {
+    const f = await fixture();
+    const throwing: Masker = {
+      mask: (value) => {
+        if (JSON.stringify(value).includes('BOOM')) throw new RangeError('cannot be read');
+        return value;
+      },
+      maskRecord: (value) => value,
+      know: () => undefined,
+    };
+    const { recorder, turnId } = recorderFor(f, { masker: throwing });
+    await recorder.begin(HASH);
+    const agent = new ToolLoopAgent({
+      model: model(
+        call('c1', 'lookup', { id: 7, note: 'BOOM-raw-content' }),
+        say('fine afterwards'),
+      ),
+      tools: {
+        lookup: tool({
+          description: 'looks up',
+          inputSchema: jsonSchema<{ id: number }>({
+            type: 'object',
+            properties: { id: { type: 'number' }, note: { type: 'string' } },
+            required: ['id'],
+          }),
+          execute: () => ({ ok: true }),
+        }),
+      },
+      telemetry: { integrations: [recorder] },
+    });
+    await agent.generate({ prompt: 'go' });
+    await recorder.end('done');
+
+    expect(recorder.lost()).toBe(false);
+    const events = await rows('assistant_events', turnId);
+    expect(JSON.stringify(events)).not.toContain('BOOM-raw-content');
+    expect(events.find((e) => e.kind === 'tool_call')?.payload).toEqual({
+      unreadable: '[masked-unreadable]',
+    });
+    expect(events.map((e) => e.kind)).toContain('tool_result');
+    expect(events.map((e) => e.kind)).toContain('text');
   });
 
   it('ignores a decision that names another turn', async () => {

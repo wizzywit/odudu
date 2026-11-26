@@ -27,6 +27,13 @@ const SECRET_WORDS = new Set([
   'assertion',
   'sig',
   'signature',
+  'pass',
+  'pw',
+  'creds',
+  'jwt',
+  'bearer',
+  'totp',
+  'sessionid',
 ]);
 // Names with no such word, or that a word alone would not catch.
 const SECRET_NAMES = new Set([
@@ -82,6 +89,9 @@ const MAX_LEARNED = 64;
 const MAX_LEARNED_CHARS = 4_096;
 // A string longer than this is cut before it is read; the trace keeps far less.
 const MAX_TEXT = 65_536;
+// More members or items than this in one object or array are replaced by a count, so
+// a huge result is not walked whole.
+const MAX_ITEMS = 500;
 const COOKIE_ATTRIBUTES = new Set([
   'path',
   'domain',
@@ -163,7 +173,8 @@ function applySpans(text: string, spans: readonly Span[]): string {
 const isNameChar = (c: string | undefined): boolean => c !== undefined && /[A-Za-z0-9_.-]/u.test(c);
 const isSpace = (c: string | undefined): boolean => c === ' ' || c === '\t';
 const isBreak = (c: string | undefined): boolean => c === '\n' || c === '\r';
-const ENDS_UNQUOTED = /[\s,;&"'}\]]/u;
+// What may follow the end of a quoted value: anything else means the quote was not its end.
+const CLEAN_AFTER = /[\s,;&})\]]/u;
 
 function skip(text: string, from: number, chars: (c: string | undefined) => boolean): number {
   let i = from;
@@ -182,6 +193,22 @@ function escapedQuote(text: string, at: number): number {
 
 // Where the quoted value at `from` ends, honouring backslash escapes. A value
 // that is never closed is masked to the end of the text.
+function lineEnd(text: string, from: number): number {
+  let end = from;
+  while (end < text.length && !isBreak(text[end])) end += 1;
+  return end;
+}
+
+// A quoted value whose closing quote is followed by more of the same word
+// (`'it''s-tail'`, `"ab"cd-tail"`) was not closed there: it is masked to the line's end.
+function closed(text: string, from: number, end: number, open: string): Span {
+  const next = text[end];
+  if (next === undefined || CLEAN_AFTER.test(next)) {
+    return { start: from, end, text: `${open}${MASKED}${open}` };
+  }
+  return { start: from, end: lineEnd(text, end), text: `${open}${MASKED}${open}` };
+}
+
 function readQuoted(text: string, from: number, budget: Budget): Span {
   const b = escapedQuote(text, from);
   const open = b > 0 ? `${'\\'.repeat(b)}"` : (text[from] ?? '"');
@@ -192,10 +219,10 @@ function readQuoted(text: string, from: number, budget: Budget): Span {
       // Inside text serialised b times, the value's own quote is 2b+1 backslashes
       // and a quote, and its closing quote is b of them.
       const run = escapedQuote(text, i);
-      if (run === b) return { start: from, end: i + run + 1, text: `${open}${MASKED}${open}` };
+      if (run === b) return closed(text, from, i + run + 1, open);
       i += run > 0 ? run + 1 : 1;
     } else if (text[i] === '\\') i += 2;
-    else if (text[i] === open) return { start: from, end: i + 1, text: `${open}${MASKED}${open}` };
+    else if (text[i] === open) return closed(text, from, i + 1, open);
     else i += 1;
   }
   return { start: from, end: text.length, text: `${open}${MASKED}` };
@@ -260,10 +287,22 @@ function readValue(text: string, from: number, name: string, budget: Budget): Sp
   const c = text[from];
   if (c === '"' || c === "'" || escapedQuote(text, from) > 0) return readQuoted(text, from, budget);
   if (c === '[' || c === '{') return readBracket(text, from, budget);
-  let end = from;
-  while (end < text.length && !ENDS_UNQUOTED.test(text[end] ?? '')) end += 1;
+  // Whatever else follows runs to the end of the line, however it is punctuated:
+  // a passphrase or a password with a comma or a semicolon in it is one value.
+  let end = lineEnd(text, from);
   spent(budget, end - from);
-  return end === from ? undefined : { start: from, end, text: MASKED };
+  if (end === from) return undefined;
+  // A YAML block scalar (`password: |`): the indented lines under it are the value.
+  if (/^[|>][+-]?\d*\s*$/u.test(text.slice(from, end))) {
+    while (end < text.length) {
+      const next = lineEnd(text, skip(text, end, isBreak));
+      const line = text.slice(skip(text, end, isBreak), next);
+      if (line.trim() !== '' && !/^\s/u.test(line)) break;
+      if (spent(budget, next - end) || next === end) break;
+      end = next;
+    }
+  }
+  return { start: from, end, text: MASKED };
 }
 
 // Every `name<separator>value` where the name is a secret's: `client_secret=abc`,
@@ -288,8 +327,18 @@ function findPairs(text: string, budget: Budget): Span[] {
     else if (text[k] === '"' || text[k] === "'") k += 1;
     k = skip(text, k, isSpace);
     const name = text.slice(i, nameEnd);
-    if ((text[k] === '=' || text[k] === ':') && isSecretName(name)) {
-      const start = skip(text, k + 1, (c) => isSpace(c) || isBreak(c));
+    const sep =
+      text[k] === '='
+        ? text[k + 1] === '>'
+          ? 2
+          : 1
+        : text[k] === ':'
+          ? text[k + 1] === '='
+            ? 2
+            : 1
+          : 0;
+    if (sep > 0 && isSecretName(name)) {
+      const start = skip(text, k + sep, (c) => isSpace(c) || isBreak(c));
       const value = readValue(text, start, name, budget);
       if (value !== undefined) {
         spans.push(value);
@@ -340,8 +389,56 @@ function findPem(text: string): Span[] {
   return spans;
 }
 
+// `scheme://user:PASS@host`, whatever the scheme: the password is masked, the
+// user and the host stay. The password runs to the last `@` of the authority.
+const USERINFO = /[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s:/@?#]*:([^\s/?#]+)@/gu;
+// `<password>x</password>`, whose tag names a secret.
+const TAG = /<([A-Za-z_][A-Za-z0-9_.-]*)>([^<]+)<\/\1>/gu;
+// `curl -u user:PASS`, and `--password x`, `--client-secret=x` flags that name a secret.
+const BASIC_FLAG = /(?<![\w-])-u[ =]+[^\s:]+:(\S+)/gu;
+const NAMED_FLAG = /(?<![\w-])--([A-Za-z][\w-]*)(?:=|[ \t]+)(\S+)/gu;
+
+function findForms(text: string): Span[] {
+  const spans: Span[] = [];
+  for (const m of text.matchAll(USERINFO)) {
+    const password = m[1] ?? '';
+    spans.push({
+      start: m.index + m[0].length - 1 - password.length,
+      end: m.index + m[0].length - 1,
+      text: MASKED,
+    });
+  }
+  for (const m of text.matchAll(TAG)) {
+    if (!isSecretName(m[1] ?? '')) continue;
+    const inner = m[2] ?? '';
+    spans.push({
+      start: m.index + m[0].length - (m[1] ?? '').length - 3 - inner.length,
+      end: m.index + m[0].length - (m[1] ?? '').length - 3,
+      text: MASKED,
+    });
+  }
+  for (const m of text.matchAll(BASIC_FLAG)) {
+    const password = m[1] ?? '';
+    spans.push({
+      start: m.index + m[0].length - password.length,
+      end: m.index + m[0].length,
+      text: MASKED,
+    });
+  }
+  for (const m of text.matchAll(NAMED_FLAG)) {
+    if (!isSecretName(m[1] ?? '')) continue;
+    const value = m[2] ?? '';
+    spans.push({
+      start: m.index + m[0].length - value.length,
+      end: m.index + m[0].length,
+      text: MASKED,
+    });
+  }
+  return spans;
+}
+
 function findShapes(text: string): Span[] {
-  const spans = findPem(text);
+  const spans = [...findPem(text), ...findForms(text)];
   for (const m of text.matchAll(PASSWORD_HASH)) {
     spans.push({ start: m.index, end: m.index + m[0].length, text: MASKED });
   }
@@ -411,7 +508,12 @@ interface JsonSpan {
   readonly value: JsonValue;
 }
 
-function balancedEnd(text: string, from: number, budget: Budget): number | 'spent' | undefined {
+// A candidate nested deeper than the walker reads is not read at all: 'deep'.
+function balancedEnd(
+  text: string,
+  from: number,
+  budget: Budget,
+): number | 'spent' | 'deep' | undefined {
   let depth = 0;
   let inString = false;
   for (let i = from; i < text.length; i += 1) {
@@ -421,8 +523,10 @@ function balancedEnd(text: string, from: number, budget: Budget): number | 'spen
       if (c === '\\') i += 1;
       else if (c === '"') inString = false;
     } else if (c === '"') inString = true;
-    else if (c === '[' || c === '{') depth += 1;
-    else if ((c === ']' || c === '}') && (depth -= 1) === 0) return i + 1;
+    else if (c === '[' || c === '{') {
+      depth += 1;
+      if (depth > MAX_DEPTH) return 'deep';
+    } else if ((c === ']' || c === '}') && (depth -= 1) === 0) return i + 1;
   }
   return undefined;
 }
@@ -439,7 +543,7 @@ function findJson(
       continue;
     }
     const end = balancedEnd(text, i, budget);
-    if (end === 'spent') return { spans, spentAt: i };
+    if (end === 'spent' || end === 'deep') return { spans, spentAt: i };
     if (end === undefined) {
       i += 1;
       continue;
@@ -477,50 +581,79 @@ export interface MaskerOptions {
   readonly known?: readonly string[];
 }
 
+// A secret in the forms it may be written again: as read, as JSON escapes it,
+// percent-encoded and in base64.
+function formsOf(value: string): string[] {
+  const forms = [
+    value,
+    JSON.stringify(value).slice(1, -1),
+    encodeURIComponent(value),
+    Buffer.from(value).toString('base64'),
+    Buffer.from(value).toString('base64url'),
+  ];
+  return [...new Set(forms)];
+}
+
+// An object that names a secret and carries its value beside the name:
+// `{name: 'DB_PASSWORD', value: 'x'}`, a header or an environment entry.
+const NAME_MEMBERS = ['name', 'key', 'header'];
+function namesSecret(node: Record<string, JsonValue>): boolean {
+  return NAME_MEMBERS.some((member) => {
+    const name = node[member];
+    return typeof name === 'string' && isSecretName(name);
+  });
+}
+
 /**
- * A masker for one turn. Text that is or holds JSON is parsed and masked by
- * member name, so quotes, escapes and nesting are read as JSON reads them; the
- * rest is scanned for `name<separator>value` pairs and for the shapes secrets
- * take. A value that is cut off, or that outruns the read budget, is masked to
- * the end of the text. It remembers each value it hid under a secret member, so
- * a secret a tool returned is also hidden where the model repeats it; it learns
- * from structure only, never from prose such as `password: word`, only values of
- * 12 characters or more, and at most 64 values and 4,096 characters in a turn.
+ * A masker for one turn. Text that is or holds JSON is parsed and masked by member
+ * name; the rest is scanned for `name<separator>value` pairs and secret shapes. A
+ * value that is cut off or outruns the read budget is masked to the end. Values
+ * hidden under a secret member are remembered, never learned from prose, only at
+ * 12 characters or more, and at most 64 values and 4,096 characters per turn.
  */
 export function createMasker(options: MaskerOptions): Masker {
   const learned = new Set<string>();
   let learnedChars = 0;
+  // What the server holds is kept apart from what is learned from a turn's text, so
+  // text another person wrote cannot use up the room for it.
+  const known = new Set<string>();
   const remember = (value: string): void => {
-    for (const form of [value, JSON.stringify(value).slice(1, -1)]) {
-      if (learned.has(form)) continue;
-      if (learned.size >= MAX_LEARNED || learnedChars + form.length > MAX_LEARNED_CHARS) return;
-      learned.add(form);
-      learnedChars += form.length;
-    }
+    if (learned.has(value)) return;
+    if (learned.size >= MAX_LEARNED || learnedChars + value.length > MAX_LEARNED_CHARS) return;
+    for (const form of formsOf(value)) learned.add(form);
+    learnedChars += value.length;
   };
   // A secret held in an array or an object is learned member by member.
-  const learn = (value: string, depth = 0): void => {
+  const learn = (value: string, into: (secret: string) => void, depth = 0): void => {
     if (depth < MAX_DEPTH && /^[[{]/u.test(value)) {
       try {
-        learnAll(JSON.parse(value) as JsonValue, depth + 1);
+        learnAll(JSON.parse(value) as JsonValue, into, depth + 1);
         return;
       } catch {
         // Not JSON after all: what it holds is learned as text.
       }
     }
-    if (value.length >= MIN_LEARNED && value !== MASKED) remember(value);
+    if (value.length >= MIN_LEARNED && value !== MASKED) into(value);
   };
-  const learnAll = (value: JsonValue, depth: number): void => {
-    if (typeof value === 'string') learn(value, depth);
+  const learnAll = (value: JsonValue, into: (secret: string) => void, depth: number): void => {
+    if (typeof value === 'string') learn(value, into, depth);
     else if (depth < MAX_DEPTH && isList(value)) {
-      for (const item of value) learnAll(item, depth + 1);
+      for (const item of value) learnAll(item, into, depth + 1);
     } else if (depth < MAX_DEPTH && typeof value === 'object' && value !== null) {
-      for (const item of Object.values(value)) learnAll(item, depth + 1);
+      for (const item of Object.values(value)) learnAll(item, into, depth + 1);
     }
   };
-  for (const secret of options.known ?? []) learn(secret);
+  const know = (secret: string): void => {
+    learn(secret, (value) => {
+      for (const form of formsOf(value)) known.add(form);
+    });
+  };
+  for (const secret of options.known ?? []) know(secret);
 
   const run = (value: JsonValue, memory: boolean): JsonValue => {
+    // How many things the walk has changed; a JSON text that it changed nothing in
+    // is kept exactly as it was.
+    let changes = 0;
     const text = (whole: string, depth: number): string => {
       const input = whole.length > MAX_TEXT ? whole.slice(0, MAX_TEXT) : whole;
       const budget: Budget = { left: 8 * input.length + 4_096 };
@@ -529,30 +662,63 @@ export function createMasker(options: MaskerOptions): Masker {
       let at = 0;
       for (const span of found.spans) {
         out += maskPlain(input.slice(at, span.start), budget);
-        const masked = JSON.stringify(walk(span.value, depth + 1));
-        out += masked === JSON.stringify(span.value) ? input.slice(span.start, span.end) : masked;
+        const before = changes;
+        const masked = walk(span.value, depth + 1);
+        out += changes > before ? JSON.stringify(masked) : input.slice(span.start, span.end);
         at = span.end;
       }
       const stop = found.spentAt ?? input.length;
       out += maskPlain(input.slice(at, stop), budget);
       if (found.spentAt !== undefined) out += MASKED;
+      for (const secret of known) out = out.split(secret).join(MASKED);
       if (memory) for (const secret of learned) out = out.split(secret).join(MASKED);
       return options.emails ? maskEmailAddresses(out) : out;
     };
+    const hide = (item: JsonValue, depth: number): string => {
+      if (memory) learnAll(item, remember, depth + 1);
+      changes += 1;
+      return MASKED;
+    };
     const walk = (node: JsonValue, depth: number): JsonValue => {
-      if (typeof node === 'string') return text(node, depth);
+      if (typeof node === 'string') {
+        const out = text(node, depth);
+        if (out !== node) changes += 1;
+        return out;
+      }
       if (typeof node !== 'object' || node === null) return node;
-      if (depth >= MAX_DEPTH) return MASKED;
-      if (isList(node)) return node.map((item) => walk(item, depth + 1));
-      const isKey = 'kty' in node;
-      const out: Record<string, JsonValue> = {};
-      for (const [key, item] of Object.entries(node)) {
-        if (isSecretName(key) || (isKey && PRIVATE_KEY_MEMBERS.has(snake(key)))) {
-          if (memory) learnAll(item, depth + 1);
-          out[key] = MASKED;
-        } else {
-          out[key] = walk(item, depth + 1);
+      if (depth >= MAX_DEPTH) {
+        changes += 1;
+        return MASKED;
+      }
+      if (isList(node)) {
+        // A name and its value as a pair: ['Authorization', 'Bearer x'].
+        const [first, second] = node;
+        if (node.length === 2 && typeof first === 'string' && isSecretName(first)) {
+          return [first, hide(second ?? null, depth)];
         }
+        const items = node.slice(0, MAX_ITEMS).map((item) => walk(item, depth + 1));
+        if (node.length > MAX_ITEMS) {
+          changes += 1;
+          items.push(`[${String(node.length - MAX_ITEMS)} more]`);
+        }
+        return items;
+      }
+      const isKey = 'kty' in node;
+      const named = namesSecret(node as Record<string, JsonValue>);
+      const entries = Object.entries(node);
+      const out: Record<string, JsonValue> = {};
+      for (const [key, item] of entries.slice(0, MAX_ITEMS)) {
+        const shown = text(key, depth);
+        if (shown !== key) changes += 1;
+        const secret =
+          isSecretName(key) ||
+          (isKey && PRIVATE_KEY_MEMBERS.has(snake(key))) ||
+          (named && key.toLowerCase() === 'value');
+        out[shown] = secret ? hide(item, depth) : walk(item, depth + 1);
+      }
+      if (entries.length > MAX_ITEMS) {
+        changes += 1;
+        out['…'] = `${String(entries.length - MAX_ITEMS)} more`;
       }
       return out;
     };
@@ -562,9 +728,7 @@ export function createMasker(options: MaskerOptions): Masker {
   return {
     mask: (value) => run(value, true),
     maskRecord: (value) => run(value, false),
-    know: (secret) => {
-      learn(secret);
-    },
+    know,
   };
 }
 
