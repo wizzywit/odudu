@@ -191,13 +191,15 @@ export interface CallUsage {
 
 /**
  * What a finished call cost: the provider's total, else its input and output,
- * else, when it reported nothing, the whole reservation, since a call is never
- * free for having gone unmeasured.
+ * else, when it reported nothing or only zeros, the whole reservation, since a
+ * call is never free for having gone unmeasured.
  */
 export function actualSpend(usage: CallUsage, reserved: number): number {
-  if (usage.totalTokens !== undefined) return usage.totalTokens;
-  if (usage.inputTokens === undefined && usage.outputTokens === undefined) return reserved;
-  return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
+  const input = usage.inputTokens ?? 0;
+  const output = usage.outputTokens ?? 0;
+  const total = usage.totalTokens ?? 0;
+  if (total <= 0 && input <= 0 && output <= 0) return reserved;
+  return total > 0 ? total : input + output;
 }
 
 /**
@@ -219,3 +221,34 @@ export const LAPSED_LEASE_RETENTION_DAYS = 1;
 // The most rows of one kind a pass takes for a tenant, in rounds of this size.
 export const UPKEEP_BATCH = 1000;
 export const UPKEEP_MAX_ROUNDS = 10;
+
+// A turn's place in the database lapses this long after its deadline if nothing released it.
+export const LEASE_GRACE_MS = 60_000;
+
+/** How long a lease lives: the turn's deadline and the grace after it. */
+export function leaseTtlMs(deadlineMs: number): number {
+  return deadlineMs + LEASE_GRACE_MS;
+}
+
+/** The steps a turn may take: the profile's cap, lowered by the tenant's when that is less. */
+export function stepLimitFor(profileMaxSteps: number, tenantMaxSteps: number | undefined): number {
+  return Math.min(profileMaxSteps, tenantMaxSteps ?? profileMaxSteps);
+}
+
+const DAY_MS = 86_400_000;
+
+/** The instants before which the upkeep deletes each kind of spent row. */
+export function upkeepCutoffs(now: Date): {
+  readonly shortWindowsBefore: Date;
+  readonly monthlyWindowsBefore: Date;
+  readonly settledBefore: Date;
+  readonly leasesBefore: Date;
+} {
+  const before = (days: number): Date => new Date(now.getTime() - days * DAY_MS);
+  return {
+    shortWindowsBefore: before(SHORT_COUNTER_RETENTION_DAYS),
+    monthlyWindowsBefore: before(MONTHLY_COUNTER_RETENTION_DAYS),
+    settledBefore: before(SETTLED_RESERVATION_RETENTION_DAYS),
+    leasesBefore: before(LAPSED_LEASE_RETENTION_DAYS),
+  };
+}

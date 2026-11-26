@@ -7,6 +7,7 @@ import {
   tenantIdPages,
   tenants,
   withEachTenantExclusive,
+  withTenant,
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
@@ -775,28 +776,17 @@ async function reapTenant(
   tenantId: string,
   now: Date,
   policy: RetentionPolicy,
-): Promise<{ deleted: ReapReport; cleared: ClearReport; assistant: BudgetUpkeepReport }> {
+): Promise<{ deleted: ReapReport; cleared: ClearReport }> {
   const report = emptyReport();
   const tenant = await retentionTenantOf(tx, tenantId);
   // Deleted since its page was read: nothing of it is left to reap.
-  if (tenant === undefined) {
-    return {
-      deleted: report,
-      cleared: { client_previous_secrets: 0 },
-      assistant: NO_UPKEEP,
-    };
-  }
+  if (tenant === undefined) return { deleted: report, cleared: { client_previous_secrets: 0 } };
   for (const table of REAP_ORDER) {
     const result = await tx.execute(RETENTION_RULES[table].statement(now, policy, tenant));
     report[table] = result.count;
   }
   const clientPreviousSecrets = await expireRotatedClientSecrets(tx, now);
-  const assistant = await upkeepBudget(tx, now);
-  return {
-    deleted: report,
-    cleared: { client_previous_secrets: clientPreviousSecrets },
-    assistant,
-  };
+  return { deleted: report, cleared: { client_previous_secrets: clientPreviousSecrets } };
 }
 
 export interface ReapDeps {
@@ -815,6 +805,10 @@ export interface ReapDeps {
    * concurrency.
    */
   readonly onLockAttempt?: (acquired: boolean) => Promise<void> | void;
+  /** Where a tenant's failed assistant upkeep is told; a pass goes on to the next tenant. */
+  readonly log?: (event: string, detail: Record<string, unknown>) => void;
+  /** The assistant's budget upkeep for one tenant; only a test replaces it. */
+  readonly upkeep?: (tx: TenantScopedDatabase, now: Date) => Promise<BudgetUpkeepReport>;
 }
 
 async function* allTenantIds(owner: DatabaseHandle): AsyncGenerator<string> {
@@ -843,6 +837,28 @@ async function assertRolesAreRight(deps: ReapDeps): Promise<void> {
         'ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role',
     );
   }
+}
+
+// The assistant's budget upkeep, after the retention pass has committed, one
+// short transaction for each tenant: a failure there is logged for that tenant
+// and costs no other tenant's deletes, and no row it locks outlives its tenant's turn.
+async function upkeepEachTenant(deps: ReapDeps, now: Date): Promise<BudgetUpkeepReport> {
+  const upkeep = deps.upkeep ?? upkeepBudget;
+  let total = NO_UPKEEP;
+  for await (const tenantId of allTenantIds(deps.ownerDatabase)) {
+    try {
+      total = addUpkeep(
+        total,
+        await withTenant(deps.database.db, tenantId, (tx) => upkeep(tx, now)),
+      );
+    } catch (error) {
+      deps.log?.('assistant_upkeep_failed', {
+        tenantId,
+        error: error instanceof Error ? error.message : 'unknown',
+      });
+    }
+  }
+  return total;
 }
 
 /**
@@ -877,12 +893,11 @@ export async function reap(
 
   const deleted = emptyReport();
   let clientPreviousSecrets = 0;
-  let assistant = NO_UPKEEP;
   for (const tenantReport of pass.values) {
     for (const table of REAP_ORDER) deleted[table] += tenantReport.deleted[table];
     clientPreviousSecrets += tenantReport.cleared.client_previous_secrets;
-    assistant = addUpkeep(assistant, tenantReport.assistant);
   }
+  const assistant = await upkeepEachTenant(deps, now);
   return {
     ran: true,
     deleted,
@@ -917,7 +932,13 @@ export async function reapCommand(): Promise<ReapOutcome> {
 
   try {
     return await reap(
-      { database: runtime, ownerDatabase: owner },
+      {
+        database: runtime,
+        ownerDatabase: owner,
+        log: (event, detail) => {
+          process.stderr.write(`${JSON.stringify({ event, ...detail })}\n`);
+        },
+      },
       new Date(),
       retentionPolicyFromConfig(config),
     );

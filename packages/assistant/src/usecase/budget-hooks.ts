@@ -13,7 +13,7 @@ import {
   type LevelName,
   type Refusal,
 } from '#/service/limits';
-import { MAX_OUTPUT_TOKENS } from '#/service/request-size';
+import { reservationTokens, type RequestParts } from '#/service/request-size';
 import type { Slot } from '#/service/slots';
 
 /** Raised by the loop's `prepareStep` when a level refuses the next model call. */
@@ -31,7 +31,7 @@ export class BudgetRefused extends Error {
 
 /** What the loop needs of a turn's budget: three calls around each model call. */
 export interface TurnBudgetPort {
-  beforeCall(request: string): Promise<void>;
+  beforeCall(request: RequestParts): Promise<void>;
   markSent(): Promise<void>;
   afterCall(usage: CallUsage): Promise<void>;
 }
@@ -79,6 +79,8 @@ interface Open {
  */
 export function createTurnBudget(deps: TurnBudgetDeps): TurnBudget {
   let open: Open | undefined;
+  let carried = 0;
+  let previous: { inputTokens: number; messagesBytes: number } | undefined;
   let refusal: Refusal | undefined;
   const warned = new Set<LevelName>();
   // Settling and reserving never overlap, so a late callback cannot settle the next call's hold.
@@ -124,7 +126,12 @@ export function createTurnBudget(deps: TurnBudgetDeps): TurnBudget {
       serial(async () => {
         await settle(unsettledCharge);
         const at = deps.now();
-        const tokens = inputUpperBound(request) + MAX_OUTPUT_TOKENS;
+        carried = inputUpperBound(request.messages);
+        const tokens = reservationTokens({
+          fixedBytes: inputUpperBound(request.fixed),
+          messagesBytes: carried,
+          ...(previous === undefined ? {} : { previous }),
+        });
         const reserved = await deps.transact((tx) =>
           budgetRepository(tx).reserve({
             turnId: deps.turnId,
@@ -149,7 +156,13 @@ export function createTurnBudget(deps: TurnBudgetDeps): TurnBudget {
         await deps.transact((tx) => budgetRepository(tx).markSent(held.id));
       }),
 
-    afterCall: (usage) => serial(() => settle((reserved) => actualSpend(usage, reserved))),
+    afterCall: (usage) =>
+      serial(() => {
+        if ((usage.inputTokens ?? 0) > 0) {
+          previous = { inputTokens: usage.inputTokens ?? 0, messagesBytes: carried };
+        }
+        return settle((reserved) => actualSpend(usage, reserved));
+      }),
 
     finish: () => serial(() => settle(unsettledCharge)),
 

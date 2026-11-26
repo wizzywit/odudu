@@ -4,7 +4,7 @@ import { leaseRepository } from '#/repository/leases';
 import { messageRepository } from '#/repository/messages';
 import { visibleMessages } from '#/usecase/conversation-view';
 import { HISTORY_MESSAGES } from '#/service/context';
-import { stopReasonOf, type AssistantLimits, type StopReason } from '#/service/limits';
+import { leaseTtlMs, stopReasonOf, type AssistantLimits, type StopReason } from '#/service/limits';
 import { pageContextText, readPageContext } from '#/service/page-context';
 import { profileById } from '#/service/profile';
 import { budgetWarningChunk, errorTextFor, turnEndChunk } from '#/service/stream-parts';
@@ -29,8 +29,6 @@ export type SendOutcome =
 
 // How long a refused caller is told to wait before trying again.
 export const LIMITED_RETRY_SECONDS = 5;
-// A turn's place lapses this long after its deadline if nothing released it.
-const LEASE_GRACE_MS = 60_000;
 
 interface Prepared {
   readonly profileId: string;
@@ -128,7 +126,7 @@ export async function sendMessage(
         conversationId: id,
         max: prepared.limits.maxConcurrent,
         now: deps.now(),
-        ttlMs: deadlineMs + LEASE_GRACE_MS,
+        ttlMs: leaseTtlMs(deadlineMs),
       }),
     )
     .catch((error: unknown) => {

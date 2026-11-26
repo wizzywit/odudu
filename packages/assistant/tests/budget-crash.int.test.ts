@@ -86,7 +86,6 @@ describe('a process killed in the middle of a model call', () => {
       await tx.execute(
         sql`insert into subjects (id, tenant_id, type) values (${subjectId}, ${tenantId}, 'user')`,
       );
-      // One administrator may spend a quarter of this a day: room for one call, not two.
       await writeSettings(
         tx,
         tenantId,
@@ -120,6 +119,17 @@ describe('a process killed in the middle of a model call', () => {
     expect(afterSweep.reservations).toEqual([expect.objectContaining({ settled: true })]);
     expect(afterSweep.used.tenant_month).toBe(held);
     expect(afterSweep.used.admin_day).toBe(held);
+
+    // The administrator's day is then set to one and a half calls, so a second call
+    // cannot fit whatever the size of a call is.
+    await withTenant(app.db, tenantId, (tx) =>
+      writeSettings(
+        tx,
+        tenantId,
+        { ...ASSISTANT_SETTING_DEFAULTS, assistant_monthly_tokens_standard: held * 6 },
+        new Date(),
+      ),
+    );
 
     // A second attempt is refused at the administrator's daily level, because the
     // killed call still counts in full; nothing is spent past the limit.

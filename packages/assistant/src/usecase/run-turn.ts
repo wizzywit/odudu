@@ -11,12 +11,13 @@ import {
 import { compactHistory } from '#/service/compact';
 import { boundHistory } from '#/service/context';
 import { inputUpperBound } from '#/service/estimate';
+import { stepLimitFor } from '#/service/limits';
 import { maskEmailAddresses } from '#/service/mask-emails';
 import type { TaskProfile } from '#/service/profile';
 import {
   MAX_OUTPUT_TOKENS,
   MAX_REQUEST_TOKENS,
-  requestText,
+  requestParts,
   toolDefinitionsText,
 } from '#/service/request-size';
 import { buildSystemPrompt } from '#/service/system-prompt';
@@ -87,9 +88,8 @@ interface Progress {
   lastFinish: string | undefined;
 }
 
-function stepLimit(deps: RunTurnDeps): number {
-  return Math.min(deps.profile.maxSteps, deps.maxStepsPerTurn ?? deps.profile.maxSteps);
-}
+const stepLimit = (deps: RunTurnDeps): number =>
+  stepLimitFor(deps.profile.maxSteps, deps.maxStepsPerTurn);
 
 function buildAgent(
   deps: RunTurnDeps,
@@ -110,9 +110,9 @@ function buildAgent(
     // The compacted messages carry forward, so a long turn is trimmed once and
     // not again at every step, and what is reserved is what is sent.
     prepareStep: async ({ messages, instructions }) => {
-      const fixed = inputUpperBound(requestText(instructions, [], toolDefinitions));
+      const fixed = inputUpperBound(requestParts(instructions, [], toolDefinitions).fixed);
       const compacted = compactHistory(messages, Math.max(0, MAX_REQUEST_TOKENS - fixed));
-      await deps.budget?.beforeCall(requestText(instructions, compacted, toolDefinitions));
+      await deps.budget?.beforeCall(requestParts(instructions, compacted, toolDefinitions));
       if (typeof deps.model === 'string') await deps.budget?.markSent();
       return { messages: compacted };
     },

@@ -44,12 +44,16 @@ function usage(total: number, output = 2) {
   };
 }
 
-function answer(text: string, total = 5): Part[] {
+function answer(text: string, total = 5, output = 2): Part[] {
   return [
     { type: 'text-start', id: 'a' },
     { type: 'text-delta', id: 'a', delta: text },
     { type: 'text-end', id: 'a' },
-    { type: 'finish', finishReason: { unified: 'stop', raw: undefined }, usage: usage(total) },
+    {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: undefined },
+      usage: usage(total, output),
+    },
   ];
 }
 
@@ -262,7 +266,7 @@ describe('a level that refuses', () => {
       {
         type: 'finish',
         finishReason: { unified: 'tool-calls', raw: undefined },
-        usage: usage(950_000),
+        usage: usage(995_000, 994_000),
       },
     ];
     const { chat, audits } = chatOver(scripted([calls, answer('late')]));
@@ -271,6 +275,49 @@ describe('a level that refuses', () => {
     expect(body).toContain('"stopReason":"budget_turn"');
     expect(body).toContain('Ask again');
     expect(audits[0]).toMatchObject({ outcome: 'refused', level: 'turn' });
+  });
+});
+
+describe('what the provider reports', () => {
+  it('charges a call that cost more than was reserved, audits the overrun, and refuses the next turn', async () => {
+    const w = await world();
+    const { chat, audits } = chatOver(
+      scripted([answer('huge', 2_100_000, 2_099_000), answer('again')]),
+    );
+    const caller = callerOf(w);
+    const id = await conversation(chat, caller);
+    expect(await bodyOf(chat, caller, id)).toContain('"stopReason":"done"');
+    const held = await ledger(w);
+    expect(held.used.conversation).toBe(2_100_000);
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({ outcome: 'allowed' });
+    expect(audits[0]?.overrunTokens).toBeGreaterThan(0);
+
+    const next = await bodyOf(chat, caller, id);
+    // The administrator's day (a quarter of the month) is the first level, in count order, with no room left.
+    expect(next).toContain('"stopReason":"budget_admin"');
+    expect(audits[1]).toMatchObject({ outcome: 'refused', level: 'admin_day' });
+  });
+
+  it('charges the whole reservation for a call that reported no usage, or only zeros', async () => {
+    const w = await world();
+    const none = [
+      { type: 'text-start', id: 'a' },
+      { type: 'text-delta', id: 'a', delta: 'quiet' },
+      { type: 'text-end', id: 'a' },
+      {
+        type: 'finish',
+        finishReason: { unified: 'stop', raw: undefined },
+        usage: {
+          inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 0, text: 0, reasoning: 0 },
+        },
+      },
+    ];
+    const { chat } = chatOver(scripted([none]));
+    const caller = callerOf(w);
+    await bodyOf(chat, caller, await conversation(chat, caller));
+    expect((await ledger(w)).used.tenant_month).toBeGreaterThan(8192);
   });
 });
 

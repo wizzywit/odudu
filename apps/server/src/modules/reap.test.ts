@@ -155,7 +155,8 @@ describe('reapModule', () => {
     await vi.advanceTimersByTimeAsync(3_600_000 * (1 + REAP_JITTER_FRACTION));
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.deps).toBe(DEPS);
+    expect(calls[0]?.deps).toMatchObject(DEPS);
+    expect(calls[0]?.deps.log).toBeTypeOf('function');
     // The context's clock, not the wall clock a timer fired against.
     expect(calls[0]?.now).toEqual(NOW);
     expect(calls[0]?.policy).toEqual(retentionPolicyFromConfig(ctx.config));

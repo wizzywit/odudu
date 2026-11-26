@@ -103,7 +103,6 @@ export function pruneStatements(
             sql`, `,
           )})
           and window_start < ${before.toISOString()}::timestamptz
-        order by window_start
         limit ${batch})`;
   return {
     counters: [
@@ -291,10 +290,14 @@ export function budgetRepository(tx: AssistantTx) {
         }
       }
       await refundInLockOrder(refunds);
-      for (const reservation of open) {
+      if (open.length > 0) {
         await tx.execute(sql`
           update assistant_reservations set settled = true
-           where tenant_id = ${TENANT} and id = ${reservation.id}`);
+           where tenant_id = ${TENANT}
+             and id = any(array[${sql.join(
+               open.map((reservation) => sql`${reservation.id}::uuid`),
+               sql`, `,
+             )}])`);
       }
       return { released, charged };
     },

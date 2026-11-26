@@ -22,19 +22,19 @@ The last two are built into Odudu and have no setting. A month and a day are UTC
 
 ## Reserve, then settle
 
-Before a call the loop reserves the most it could cost: one token for every byte of the whole request (the instructions, the tool definitions and the messages), which no tokenizer exceeds, plus 8,192 tokens for the answer. A request is kept under 150,000 bytes by compacting the conversation first, so a reservation is at most about 170,000 tokens. The reservation is taken at all four levels in one step, in the same order every time, so calls made together can never spend past a limit.
+Before a call the loop reserves what it could cost: one token for every byte of the messages, which no tokenizer exceeds; the instructions and tool definitions, which are the same on every call, at one token for every 2.5 bytes, a ratio measured on them with a margin; and 8,192 tokens for the answer. From the second call of an answer on, the reservation is never less than the input the provider reported for the previous call plus the bytes of the messages added since. A request is kept under 150,000 bytes (counted at one token a byte) by compacting the conversation first: the oldest exchanges go, then the output of earlier tool calls, and the newest tool result is cut to a prefix that fits, with a note saying so. One tool result is cut at 60,000 characters before the model sees it. With the current tool set a reservation is about 33,000 tokens at the least and at most about 122,000. The reservation is taken at all four levels in one step, in the same order every time, so two calls made together cannot both take the last of a limit; a call can still overshoot by one call, as the next paragraph says.
 
 When the call ends, the provider's own count replaces the reservation. If a provider reports more than was reserved, the actual is charged and the difference is recorded in an `assistant.budget` audit event with `outcome` `allowed`; the next reservation then refuses, so one call can overshoot and a second cannot.
 
-A call that ends in an error or is aborted reports no count. If it reached the provider it is settled at its full reservation, because what it cost is unknown; if it never did, it is settled at nothing.
+The count is the provider's, and it is trusted only when it is not empty: a call that reports no usage, or only zeros, is charged its whole reservation. A self-hosted server that does not report usage (an OpenAI-compatible one without `includeUsage`) therefore makes the meter an estimate, always at the reserved size and never free. A call that ends in an error or is aborted reports no count. If it reached the provider it is settled at its full reservation, because what it cost is unknown; if it never did, it is settled at nothing.
 
-A level that has no room ends the answer. The person is told which limit was reached and who can change it, the audit trail gets an `assistant.budget` event with `outcome` `refused`, and the assistant does not move to a cheaper model. A monthly allowance below about 700,000 tokens can refuse every call, because a quarter of it is less than one reservation.
+A level that has no room ends the answer. The person is told which limit was reached and who can change it, the audit trail gets an `assistant.budget` event with `outcome` `refused`, and the assistant does not move to a cheaper model. A monthly allowance below about 134,000 tokens refuses every call, because a quarter of it is less than the smallest reservation, and one below about 490,000 can refuse some, because a quarter of it is less than the largest.
 
 ## When a process dies mid-call
 
 A reservation is written before the call is made and marked sent just before the request leaves, so a process that dies in between leaves a reservation behind that says which of the two it was. Nothing is lost by the death: the reserved tokens are already counted at every level.
 
-`odudu reap` does the rest, in every tenant, for reservations left open more than fifteen minutes:
+`odudu reap` does the rest, after its retention deletes have committed, in every tenant and each in a transaction of its own, for reservations left open more than fifteen minutes. A tenant whose upkeep fails (it waits at most two seconds for a row a live call holds) is logged as `assistant_upkeep_failed` and the next tenant goes on; no retention delete is undone by it:
 
 - A reservation whose call **was sent** is settled and stays counted in full. How much the provider charged is not known, so Odudu assumes all of it, and repeated crashes cannot spend past a limit.
 - A reservation whose call **was not sent** is settled and its tokens are given back at every level.
@@ -49,7 +49,7 @@ Per tenant, a bounded batch of each at a time, found through an index so a pass 
 - Settled reservations older than seven days.
 - Answer places (leases) that lapsed more than a day ago.
 
-An answer in progress holds a lease in the database so a tenant's **Answers at once** limit counts every server. A lease lapses six minutes after the answer's own five-minute deadline if nothing released it, so a server that died gives its place back without anyone's help.
+An answer in progress holds a lease in the database so a tenant's **Answers at once** limit counts every server. A lease lapses sixty seconds after the answer's own five-minute deadline, six minutes after it began, if nothing released it, so a server that died gives its place back without anyone's help.
 
 ## Running it
 

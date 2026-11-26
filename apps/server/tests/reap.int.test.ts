@@ -666,6 +666,56 @@ describe('audit_events retention', () => {
   });
 });
 
+describe('assistant budget upkeep inside the pass', () => {
+  async function tenantWithStaleAudit(): Promise<{ tenantId: string; staleId: string }> {
+    const tenantId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO tenants (id, name, audit_retention_days) VALUES (${tenantId}, ${`upkeep-${tenantId}`}, 30)
+    `);
+    const staleId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO audit_events (id, tenant_id, occurred_at, event_type, action, outcome)
+      VALUES (${staleId}, ${tenantId}, ${at(-40 * DAY)}::timestamptz, 'admin_mutation', 'client.create', 'allowed')
+    `);
+    return { tenantId, staleId };
+  }
+
+  it('keeps the retention deletes when the upkeep throws, and tells which tenant failed', async () => {
+    const { tenantId, staleId } = await tenantWithStaleAudit();
+    const told: Record<string, unknown>[] = [];
+    const outcome = await reap(
+      {
+        database: appDb,
+        ownerDatabase: owner,
+        upkeep: () => Promise.reject(new Error('the sweep timed out')),
+        log: (_event, detail) => told.push(detail),
+      },
+      NOW,
+      POLICY,
+    );
+    expect(ran(outcome).audit_events).toBeGreaterThanOrEqual(1);
+    const left = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM audit_events WHERE id = ${staleId}`,
+    );
+    expect(left).toHaveLength(0);
+    expect(told.some((detail) => detail.tenantId === tenantId)).toBe(true);
+  });
+
+  it('resolves a stale sent reservation and reports it under assistant, only then', async () => {
+    const { tenantId } = await tenantWithStaleAudit();
+    await owner.db.execute(sql`
+      INSERT INTO assistant_reservations (tenant_id, id, turn_id, slot, reserved, levels, sent, created_at)
+      VALUES (${tenantId}, ${newId()}, ${newId()}, 'standard', 10,
+              '[{"level":"turn","scopeKey":"k","slot":null,"windowStart":"2026-01-01T00:00:00.000Z"}]'::jsonb,
+              true, ${at(-2 * HOUR)}::timestamptz)
+    `);
+    const outcome = await runPass();
+    expect(outcome.ran && outcome.assistant?.reservationsCharged).toBe(1);
+    const again = await runPass();
+    expect(again.ran && again.assistant).toBeFalsy();
+  });
+});
+
 describe('rotated-out client secrets', () => {
   it('clears one past its window and audits it, and keeps one inside it', async () => {
     const tenantId = newId();

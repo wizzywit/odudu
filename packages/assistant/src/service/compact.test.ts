@@ -80,6 +80,24 @@ describe('compactHistory', () => {
     expect(size(out)).toBeLessThanOrEqual(600);
   });
 
+  it('cuts the newest tool result to a prefix that fits, keeping the call and saying so', () => {
+    const messages = [user('look'), call('1'), result('1', `START${'r'.repeat(300_000)}`)];
+    const out = compactHistory(messages, 20_000);
+    const text = JSON.stringify(out);
+    expect(size(out)).toBeLessThanOrEqual(20_000);
+    expect(out).toHaveLength(3);
+    expect(text).toContain('"toolCallId":"1"');
+    expect(text).toContain('START');
+    expect(text).toMatch(/cut to fit/u);
+    expect(text).not.toContain('left out to fit');
+  });
+
+  it('keeps in-flight calls and results when the last user message must be cut', () => {
+    const out = compactHistory([user('x'.repeat(40_000)), call('1'), result('1', 'short')], 5000);
+    expect(size(out)).toBeLessThanOrEqual(5000);
+    expect(JSON.stringify(out)).toContain('"toolCallId":"1"');
+  });
+
   it('shortens the last user message when nothing else is left to give up', () => {
     const out = compactHistory([user('x'.repeat(10_000))], 500);
     expect(size(out)).toBeLessThanOrEqual(500);

@@ -7,6 +7,7 @@ import {
   stopReasonOf,
   TURN_TOKEN_LIMIT,
   warnedLevels,
+  actualSpend,
   WARN_PERCENT,
   type AssistantLimits,
 } from '#/service/limits';
@@ -151,5 +152,19 @@ describe('stopReasonOf', () => {
       'aborted',
     );
     expect(stopReasonOf({ ...base, failed: true, lastFinish: 'stop' })).toBe('error');
+  });
+});
+
+describe('actualSpend', () => {
+  it('takes the provider total, else input plus output', () => {
+    expect(actualSpend({ totalTokens: 90 }, 500)).toBe(90);
+    expect(actualSpend({ inputTokens: 60, outputTokens: 7 }, 500)).toBe(67);
+  });
+
+  it('charges the whole reservation when nothing was reported, a zero total included', () => {
+    expect(actualSpend({}, 500)).toBe(500);
+    expect(actualSpend({ totalTokens: 0 }, 500)).toBe(500);
+    expect(actualSpend({ inputTokens: 0, outputTokens: 0, totalTokens: 0 }, 500)).toBe(500);
+    expect(actualSpend({ inputTokens: undefined, outputTokens: 0 }, 500)).toBe(500);
   });
 });

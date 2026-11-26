@@ -1,16 +1,10 @@
+import { sql } from 'drizzle-orm';
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { budgetRepository } from '#/repository/budgets';
 import { leaseRepository } from '#/repository/leases';
 import type { AssistantTx } from '#/repository/tx';
 import { drain } from '#/service/drain';
-import {
-  LAPSED_LEASE_RETENTION_DAYS,
-  MONTHLY_COUNTER_RETENTION_DAYS,
-  RESERVATION_SWEEP_AFTER_MS,
-  SETTLED_RESERVATION_RETENTION_DAYS,
-  SHORT_COUNTER_RETENTION_DAYS,
-  UPKEEP_BATCH,
-} from '#/service/limits';
+import { RESERVATION_SWEEP_AFTER_MS, UPKEEP_BATCH, upkeepCutoffs } from '#/service/limits';
 
 export interface BudgetUpkeepReport {
   /** Open reservations whose call never reached the provider, given back. */
@@ -22,10 +16,6 @@ export interface BudgetUpkeepReport {
   readonly leasesDeleted: number;
 }
 
-const DAY_MS = 86_400_000;
-
-const before = (now: Date, days: number): Date => new Date(now.getTime() - days * DAY_MS);
-
 /**
  * The assistant's budget upkeep for the tenant `tx` is bound to, taking `now`
  * as an argument so a test can place it. It resolves reservations a dead
@@ -35,6 +25,8 @@ const before = (now: Date, days: number): Date => new Date(now.getTime() - days 
  * next pass takes the rest.
  */
 export async function upkeepBudget(tx: AssistantTx, now: Date): Promise<BudgetUpkeepReport> {
+  // A row a live call holds is waited for briefly and then left to the next pass.
+  await tx.execute(sql`set local lock_timeout = '2s'`);
   const budget = budgetRepository(tx);
   const leases = leaseRepository(tx);
   let released = 0;
@@ -46,11 +38,7 @@ export async function upkeepBudget(tx: AssistantTx, now: Date): Promise<BudgetUp
     return swept.released + swept.charged;
   }, MAX_LIMIT);
 
-  const cutoffs = {
-    shortWindowsBefore: before(now, SHORT_COUNTER_RETENTION_DAYS),
-    monthlyWindowsBefore: before(now, MONTHLY_COUNTER_RETENTION_DAYS),
-    settledBefore: before(now, SETTLED_RESERVATION_RETENTION_DAYS),
-  };
+  const cutoffs = upkeepCutoffs(now);
   let reservations = 0;
   let counters = 0;
   await drain(async () => {
@@ -58,11 +46,8 @@ export async function upkeepBudget(tx: AssistantTx, now: Date): Promise<BudgetUp
     reservations += pruned.reservations;
     counters += pruned.counters;
     return pruned.reservations + pruned.counters;
-  }, 1);
-  const lapsed = await drain(
-    () => leases.prune(before(now, LAPSED_LEASE_RETENTION_DAYS), UPKEEP_BATCH),
-    1,
-  );
+  }, UPKEEP_BATCH);
+  const lapsed = await drain(() => leases.prune(cutoffs.leasesBefore, UPKEEP_BATCH), UPKEEP_BATCH);
   return {
     reservationsReleased: released,
     reservationsCharged: charged,
