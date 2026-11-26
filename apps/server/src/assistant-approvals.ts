@@ -39,7 +39,10 @@ export function writeDigest(
 ): string {
   return approvalDigest({
     name: tool,
-    input: { conversation: conversationId, arguments: JSON.parse(JSON.stringify(input ?? null)) },
+    input: {
+      conversation: conversationId,
+      arguments: JSON.parse(JSON.stringify(input ?? null)) as unknown,
+    },
     tenantId,
     ownerSubjectId,
     instanceId: null,
@@ -127,8 +130,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
           caller.grantId === undefined ? null : await tokenGrantRepository(tx).byId(caller.grantId);
         const client = grant === null ? null : await clientRepository(tx).byId(grant.clientId);
         if (
-          grant === null ||
-          grant.revokedAt !== null ||
+          grant?.revokedAt !== null ||
           grant.sessionId === null ||
           grant.subjectId !== caller.ownerSubjectId ||
           client?.builtinAdmin !== true

@@ -1,6 +1,6 @@
 import type { UIMessage } from 'ai';
 import { describe, expect, it } from 'vitest';
-import type { ApprovalCardRow, ApprovalState } from '#/repository/approvals';
+import type { ApprovalCardRow, ApprovalState } from '#/service/approval-types';
 import { settleParts } from '#/service/settle-approvals';
 
 const NOW = new Date('2026-11-26T10:00:00.000Z');

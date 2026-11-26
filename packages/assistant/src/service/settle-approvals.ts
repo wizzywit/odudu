@@ -1,5 +1,5 @@
 import type { UIMessage } from 'ai';
-import type { ApprovalCardRow } from '#/repository/approvals';
+import type { ApprovalCardRow } from '#/service/approval-types';
 
 type Part = UIMessage['parts'][number];
 

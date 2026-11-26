@@ -249,11 +249,11 @@ describe('proposing a change in Act mode', () => {
     expect(stream).toContain('"stopReason":"awaiting_approval"');
     expect(card).toMatchObject({
       tool: 'update_role_description',
-      title: expect.stringContaining('description of a role'),
       target: { type: 'role', id: role.id, name: role.name },
       before: { description: 'Old text' },
       after: { description: 'New text' },
     });
+    expect(card?.title).toContain('description of a role');
     expect(Date.parse(card?.expires_at ?? '')).toBeGreaterThan(Date.now());
     expect(await roleDescription(w, role.id)).toBe('Old text');
     expect(await approvalStates(w)).toEqual(['pending']);

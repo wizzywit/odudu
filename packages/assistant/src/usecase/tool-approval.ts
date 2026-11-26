@@ -64,6 +64,8 @@ export interface PolicyDeps {
 // A page of overrides holds at most 200 and a tenant at most 500 in all.
 const READ_PAGES = 3;
 
+const asRows = (value: unknown): unknown[] => (Array.isArray(value) ? (value as unknown[]) : []);
+
 type Found = { kind: 'data'; data: unknown } | { kind: 'missing' } | { kind: 'unreadable' };
 
 // Reads the target the way its plan says, following a cursor where the read is
@@ -88,10 +90,11 @@ async function readTarget(deps: PolicyDeps, tool: string, input: unknown): Promi
     }
     const data = result.structuredContent.data;
     cursor = cursorOf(tool, result.structuredContent);
-    if (cursor === undefined)
-      return { kind: 'data', data: rows.length === 0 ? data : [...rows, ...(data as unknown[])] };
+    if (cursor === undefined) {
+      return { kind: 'data', data: rows.length === 0 ? data : [...rows, ...asRows(data)] };
+    }
     if (!Array.isArray(data)) return { kind: 'unreadable' };
-    rows.push(...data);
+    rows.push(...asRows(data));
   }
   return { kind: 'unreadable' };
 }

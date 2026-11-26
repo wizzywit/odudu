@@ -1,4 +1,4 @@
-import type { ConversationMode } from '#/repository/conversations';
+import type { AssistantMode } from '@odudu/contracts/admin';
 import type { TaskProfile } from '#/service/profile';
 import { cutText } from '#/service/cut';
 import { fence, FENCE_CLOSE, FENCE_OPEN } from '#/service/fence';
@@ -35,7 +35,7 @@ const RULES = [
 export function buildSystemPrompt(
   profile: TaskProfile,
   tenantText: string,
-  mode: ConversationMode = 'ask',
+  mode: AssistantMode = 'ask',
 ): { static: string; tenant: string } {
   const cut = cutText(tenantText, TENANT_TEXT_CAP);
   return {

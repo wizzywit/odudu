@@ -146,9 +146,7 @@ describe('Ask mode', () => {
     expect(JSON.stringify(model.doStreamCalls[1]?.prompt)).toContain(ASK_MODE_DENIAL);
     // The SDK reports its own automatic refusal as a request that is already answered.
     const requests = out.chunks.filter((chunk) => chunk.type === 'tool-approval-request');
-    expect(requests.every((chunk) => 'isAutomatic' in chunk && chunk.isAutomatic === true)).toBe(
-      true,
-    );
+    expect(requests.every((chunk) => 'isAutomatic' in chunk && chunk.isAutomatic)).toBe(true);
   });
 });
 

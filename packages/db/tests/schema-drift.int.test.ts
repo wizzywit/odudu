@@ -273,6 +273,12 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((state = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))",
   'clients.clients_previous_secret_confidential':
     "CHECK (((previous_secret_hash IS NULL) OR (type = 'confidential'::text)))",
+  'assistant_approvals.assistant_approvals_card_shape':
+    "CHECK (((jsonb_typeof(card) = 'object'::text) AND (octet_length((card)::text) <= 65536)))",
+  'assistant_approvals.assistant_approvals_tool_call_length':
+    'CHECK (((char_length(tool_call_id) >= 1) AND (char_length(tool_call_id) <= 256)))',
+  'assistant_approvals.assistant_approvals_tool_length':
+    'CHECK (((char_length(tool) >= 1) AND (char_length(tool) <= 64)))',
   'assistant_budget_counters.assistant_budget_counters_key_length':
     'CHECK (((char_length(scope_key) >= 1) AND (char_length(scope_key) <= 128)))',
   'assistant_budget_counters.assistant_budget_counters_kind_check':

@@ -8,20 +8,11 @@ import {
   type RunTurnDeps,
 } from '@odudu/assistant';
 import { auditRepository } from '@odudu/domain-audit';
-import { type DatabaseHandle, withTenant, withTenantRetrying } from '@odudu/db';
+import { withTenant, withTenantRetrying } from '@odudu/db';
 import { agentInstanceRepository, type AgentInstanceRecord } from '@odudu/domain-agents';
 import { ADMIN_API_AUDIENCE, clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import {
-  callMcpTool,
-  createInProcessCaller,
-  TOOLS,
-  validatedMcpToken,
-  type RegisteredTool,
-  type ToolResult,
-  type WriteBudget,
-} from '@odudu/mcp';
-import { recordAgentToolCall } from '@odudu/protocol-admin';
+import { TOOLS, type WriteBudget } from '@odudu/mcp';
 import {
   AGENT_TOKEN_MAX_TTL_SECONDS,
   AgentTokenRefused,
@@ -34,8 +25,6 @@ import {
   tenantLookupRepository,
   tokenGrantRepository,
 } from '@odudu/protocol-oidc';
-import { type FastifyInstance } from 'fastify';
-import { type Logger as PinoLogger } from 'pino';
 import { callAsAssistant, type AssistantChatParts, type AssistantIdentity } from '#/assistant-call';
 import { approvalPortsFor } from '#/assistant-approvals';
 

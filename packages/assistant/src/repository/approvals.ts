@@ -1,13 +1,12 @@
 // The cards of a conversation's pending changes, read together with the state
 // and expiry of the P5 approval each belongs to. The decision itself is never
 // written here: `decideApproval` is its only writer.
-import {
-  assistantApprovalCardSchema,
-  CONVERSATION_APPROVALS_MAX,
-  type AssistantApprovalCard,
-} from '@odudu/contracts/admin';
+import { assistantApprovalCardSchema, CONVERSATION_APPROVALS_MAX } from '@odudu/contracts/admin';
 import { sql, type SQL } from 'drizzle-orm';
 import { type AssistantTx } from '#/repository/tx';
+import type { ApprovalCardRow, ApprovalState, CardBody } from '#/service/approval-types';
+
+export type { ApprovalCardRow, ApprovalState, CardBody } from '#/service/approval-types';
 
 const TENANT = sql`nullif(current_setting('app.tenant_id', true), '')::uuid`;
 
@@ -18,21 +17,8 @@ export const cardBodySchema = assistantApprovalCardSchema.pick({
   before: true,
   after: true,
 });
-export type CardBody = Pick<AssistantApprovalCard, 'title' | 'target' | 'before' | 'after'>;
 
-export type ApprovalState = 'pending' | 'approved' | 'denied' | 'expired' | 'consumed';
-
-export interface ApprovalCardRow {
-  readonly approvalId: string;
-  readonly conversationId: string;
-  readonly toolCallId: string;
-  readonly tool: string;
-  readonly body: CardBody;
-  readonly state: ApprovalState;
-  readonly expiresAt: Date;
-}
-
-type Row = {
+interface Row extends Record<string, unknown> {
   approval_id: string;
   conversation_id: string;
   tool_call_id: string;
@@ -40,7 +26,7 @@ type Row = {
   card: unknown;
   state: ApprovalState;
   expires_at: Date | string;
-};
+}
 
 function toRow(row: Row): ApprovalCardRow {
   return {

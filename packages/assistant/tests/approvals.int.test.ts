@@ -157,9 +157,10 @@ describe('the list of a conversation’s pending changes, at volume', () => {
   it('is served from the conversation’s index with no scan of the table', async () => {
     const tenantId = newId();
     const seeded = await withTenant(app.db, tenantId, (tx) => seedCard(tx, tenantId));
-    const [{ subject_id: subjectId = '', requesting_client_id: clientId = '' } = {}] =
-      await owner.sql<{ subject_id: string; requesting_client_id: string }[]>`
+    const [found] = await owner.sql<{ subject_id: string; requesting_client_id: string }[]>`
         select subject_id, requesting_client_id from agent_approvals where id = ${seeded.approvalId}`;
+    const subjectId = found?.subject_id ?? '';
+    const clientId = found?.requesting_client_id ?? '';
     // Twenty thousand approvals over two thousand conversations of one tenant.
     await owner.sql`
       insert into assistant_conversations

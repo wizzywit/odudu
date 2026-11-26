@@ -1,5 +1,5 @@
+import type { AssistantMode } from '@odudu/contracts/admin';
 import type { RegisteredTool } from '@odudu/mcp';
-import type { ConversationMode } from '#/repository/conversations';
 import { writeToolNames } from '#/service/approval-card';
 
 export type ApprovalVerdict = 'auto' | 'deny' | 'ask';
@@ -16,7 +16,7 @@ export const ASK_MODE_DENIAL =
  * whatever the mode, though it is never offered to the model.
  */
 export function approvalPolicy(input: {
-  readonly mode: ConversationMode;
+  readonly mode: AssistantMode;
   readonly annotations: RegisteredTool['annotations'];
   readonly tool: string;
 }): ApprovalVerdict {
