@@ -446,6 +446,35 @@ describe('the trace retention pass', () => {
       expect(report).toEqual({ turnsDeleted: 1, approvalCardsDeleted: 1, conversationsDeleted: 1 });
     });
 
+    it('covers every target, not only the first page of them', async () => {
+      const home = await freshTenant();
+      const ids = Array.from({ length: 101 }, () => newId()).sort();
+      for (const id of ids) {
+        await owner.sql`insert into tenants (id, name) values (${id}, ${`tg-${id.slice(-12)}`})`;
+      }
+      const last = ids[ids.length - 1] ?? '';
+      await withTenant(app.db, last, (tx) =>
+        writeSettings(
+          tx,
+          last,
+          { ...ASSISTANT_SETTING_DEFAULTS, assistant_trace_retention_days: 7 },
+          NOW,
+        ),
+      );
+      await withTenant(app.db, home.tenantId, async (tx) => {
+        for (const id of ids) {
+          const c = await conversation(tx, home.tenantId, home.subjectId, ago(10));
+          await tx.execute(
+            sql`update assistant_conversations set target_tenant_id = ${id} where id = ${c.id}`,
+          );
+          if (id === last) await turn(tx, c, { at: ago(10), stop: 'done' });
+        }
+      });
+      const report = await withTenant(app.db, home.tenantId, (tx) => reapTrace(tx, NOW, daysOf));
+      expect(report.turnsDeleted).toBe(1);
+      expect(report.conversationsDeleted).toBe(1);
+    }, 60_000);
+
     it('keeps it while both windows hold, and keeps a reported one past the target’s', async () => {
       const { home, target } = await bound(30, 7);
       await seed(home, target.tenantId, 5);

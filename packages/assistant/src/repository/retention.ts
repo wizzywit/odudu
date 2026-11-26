@@ -97,14 +97,16 @@ export function retentionRepository(tx: AssistantTx) {
     },
 
     /**
-     * The tenants this tenant's conversations are bound to, at most `limit`
-     * of them in id order. Through assistant_conversations_target, which holds
-     * only bound conversations, so the cost follows those and not the table.
+     * One page of the tenants this tenant's conversations are bound to, in id
+     * order, after `after`: at most `limit`. Through
+     * assistant_conversations_target, which holds only bound conversations, so
+     * the cost follows those and not the table.
      */
-    async targets(limit: number): Promise<string[]> {
+    async targets(after: string | undefined, limit: number): Promise<string[]> {
       const rows = await tx.execute<{ target_tenant_id: string }>(sql`
         select distinct c.target_tenant_id from assistant_conversations c
          where c.tenant_id = ${TENANT} and c.target_tenant_id is not null
+           ${after === undefined ? sql`` : sql`and c.target_tenant_id > ${after}`}
          order by c.target_tenant_id
          limit ${limit}`);
       return rows.map((row) => row.target_tenant_id);

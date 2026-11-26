@@ -46,17 +46,24 @@ export async function reapTrace(
     ),
   });
   let total = await sweep(before);
-  for (const target of await repository.targets(UPKEEP_MAX_TARGETS)) {
-    const days = await daysOfTenant(target);
-    if (days >= homeDays) continue;
-    const done = await sweep(retentionCutoff(now, days), target);
-    total = {
-      turnsDeleted: total.turnsDeleted + done.turnsDeleted,
-      approvalCardsDeleted: total.approvalCardsDeleted + done.approvalCardsDeleted,
-      conversationsDeleted: total.conversationsDeleted + done.conversationsDeleted,
-    };
+  // Every bound target is visited, a page at a time, so nothing but one page
+  // of ids is held however many tenants the conversations are bound to.
+  let after: string | undefined;
+  for (;;) {
+    const page = await repository.targets(after, UPKEEP_MAX_TARGETS);
+    for (const target of page) {
+      const days = await daysOfTenant(target);
+      if (days >= homeDays) continue;
+      const done = await sweep(retentionCutoff(now, days), target);
+      total = {
+        turnsDeleted: total.turnsDeleted + done.turnsDeleted,
+        approvalCardsDeleted: total.approvalCardsDeleted + done.approvalCardsDeleted,
+        conversationsDeleted: total.conversationsDeleted + done.conversationsDeleted,
+      };
+    }
+    if (page.length < UPKEEP_MAX_TARGETS) return total;
+    after = page[page.length - 1];
   }
-  return total;
 }
 
 /** A tenant's days of trace, for the pass of a tenant whose conversations are bound to it. */
