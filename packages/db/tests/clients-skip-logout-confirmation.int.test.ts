@@ -54,7 +54,12 @@ describe('clients.skip_logout_confirmation', () => {
       where tenant_id = (select id from tenants where name = 'existing')`;
     const skips = Object.fromEntries(rows.map((row) => [row.client_id, row.skip]));
     // The built-in MCP client a later migration adds to every tenant is off too.
-    expect(skips).toEqual({ 'odudu-admin': true, 'odudu-mcp': false, app: false });
+    expect(skips).toEqual({
+      'odudu-admin': true,
+      'odudu-mcp': false,
+      'odudu-assistant': false,
+      app: false,
+    });
   });
 
   it('is off for a client inserted without naming it', async () => {
