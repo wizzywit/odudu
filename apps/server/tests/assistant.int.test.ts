@@ -493,6 +493,9 @@ describe('the conversation routes in the running server', () => {
 
 // A model that asks for one read and then answers, so a turn makes a tool call.
 // `reads` is how many steps ask for a read before the answer.
+// What the answer says, when a test wants it to say something else.
+let spoken = ANSWER;
+
 function readingModel(reads: () => number) {
   let call = 0;
   return {
@@ -516,7 +519,7 @@ function readingModel(reads: () => number) {
             ]
           : [
               { type: 'text-start', id: 'a' },
-              { type: 'text-delta', id: 'a', delta: ANSWER },
+              { type: 'text-delta', id: 'a', delta: spoken },
               { type: 'text-end', id: 'a' },
               { type: 'finish', finishReason: { unified: 'stop', raw: undefined }, usage: USAGE },
             ];
@@ -612,6 +615,29 @@ describe('the audit rows of a turn in the running server', () => {
     }
   }
 
+  it('keeps the provider key out of the trace when the model repeats it', async () => {
+    const w = await s().world(['use-assistant', 'manage-tenant'], 'openid');
+    const token = await adminToken(w);
+    const id = await conversationOf(w, token);
+    spoken = `the key is ${SECRET}, keep it safe`;
+    readsPerTurn = 0;
+    try {
+      const turn = await post(app(), w, `/conversations/${id}/messages`, token, {
+        message: message(PRIVATE),
+      });
+      expect(turn.statusCode, turn.body).toBe(200);
+    } finally {
+      spoken = ANSWER;
+      readsPerTurn = 1;
+    }
+    const stored = await s().owner.db.execute(
+      sql`select payload::text as text from assistant_events where tenant_id = ${w.tenantId}`,
+    );
+    const text = JSON.stringify([...stored]);
+    expect(text).toContain('keep it safe');
+    expect(text).not.toContain(SECRET);
+  });
+
   it('leaves a started and an ended row, and tool-call rows naming both ids, with no message text', async () => {
     const w = await s().world(['use-assistant', 'manage-tenant'], 'openid');
     const token = await adminToken(w);
@@ -627,7 +653,12 @@ describe('the audit rows of a turn in the running server', () => {
     expect(details.map((d) => d.phase)).toEqual(['started', 'ended']);
     const [opened, closed] = details;
     expect(opened).toMatchObject({ conversation: id, profile: 'free-chat', mode: 'ask' });
-    expect(closed).toMatchObject({ conversation: id, turn: opened?.turn, stop_reason: 'done' });
+    expect(closed).toMatchObject({
+      conversation: id,
+      turn: opened?.turn,
+      stop_reason: 'done',
+      trace_lost: false,
+    });
     expect(closed?.steps).toBe(2);
     expect(Object.keys(closed?.tokens_by_slot as object)).toEqual(['standard']);
     expect(rows.every((row) => row.resourceId === id && row.outcome === 'allowed')).toBe(true);
@@ -668,6 +699,7 @@ describe('the audit rows of a turn in the running server', () => {
       steps: 0,
       stopReason: 'budget_tenant',
       outcome: 'refused',
+      traceLost: true,
     });
     const [started, ended] = await s().auditRows(w, 'assistant.turn');
     expect(Object.keys(started?.detail as object).sort()).toEqual(
@@ -685,9 +717,11 @@ describe('the audit rows of a turn in the running server', () => {
         'subject',
         'tenant',
         'tokens_by_slot',
+        'trace_lost',
         'turn',
       ].sort(),
     );
+    expect(ended?.detail).toMatchObject({ trace_lost: true });
     expect(ended).toMatchObject({ outcome: 'refused' });
     expect(started).toMatchObject({ outcome: 'allowed' });
   });

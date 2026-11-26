@@ -9,6 +9,7 @@ import { leaseTtlMs, stopReasonOf, type AssistantLimits, type StopReason } from 
 import { pageContextText, readPageContext } from '#/service/page-context';
 import { runKey } from '#/service/run-key';
 import { profileById } from '#/service/profile';
+import { slotDecision } from '#/service/trace-decisions';
 import { startOf, summaryOf } from '#/service/turn-summary';
 import {
   approvalCardChunk,
@@ -29,6 +30,7 @@ import { openEntitlements } from '#/usecase/entitlements';
 import { startTurn } from '#/usecase/run-turn';
 import { readSettings } from '#/usecase/settings';
 import type { TurnApprovals } from '#/usecase/tool-approval';
+import { traceRecorder } from '#/usecase/trace-recorder';
 
 export type SendOutcome =
   | {
@@ -137,6 +139,36 @@ function guarded(
       await reader.cancel(reason);
     },
   });
+}
+
+// What the server holds that must never reach the trace: the provider's keys it
+// was given and the secret that signs approvals, in the forms they could be written.
+function knownSecretsOf(deps: ChatDeps): string[] {
+  const signing = deps.approvalSecret;
+  const forms =
+    signing === undefined
+      ? []
+      : [
+          Buffer.from(signing).toString('base64'),
+          Buffer.from(signing).toString('base64url'),
+          Buffer.from(signing).toString('hex'),
+        ];
+  return [...(deps.knownSecrets ?? []), ...forms];
+}
+
+// A token minted for the turn is a secret the moment it exists.
+function mintingKnown(
+  turn: ReturnType<ChatDeps['turn']>,
+  trace: { know: (secret: string) => void },
+): ReturnType<ChatDeps['turn']> {
+  return {
+    ...turn,
+    mintToken: async (run, signal) => {
+      const minted = await turn.mintToken(run, signal);
+      trace.know(minted.accessToken);
+      return minted;
+    },
+  };
 }
 
 // Moves the conversation to its next run in a short transaction of its own, and
@@ -306,6 +338,19 @@ async function runConversationTurn(
 
   const raised: UIMessageChunk[] = [];
   const overruns: number[] = [];
+  const trace = traceRecorder({
+    transact: (fn) => deps.transact(caller.tenantId, fn),
+    now: deps.now,
+    newId: deps.newId,
+    tenantId: caller.tenantId,
+    turnId,
+    conversationId: id,
+    profile: profile.id,
+    slot: profile.slot,
+    maskEmails: prepared.maskEmails,
+    known: knownSecretsOf(deps),
+    ...(deps.log === undefined ? {} : { log: deps.log }),
+  });
   const budget = createTurnBudget({
     transact: (fn) => deps.transact(caller.tenantId, fn),
     now: deps.now,
@@ -320,6 +365,9 @@ async function runConversationTurn(
     },
     onOverrun: (tokens) => {
       overruns.push(tokens);
+    },
+    onReservation: (decision) => {
+      trace.decision(turnId, 'reservation', decision);
     },
   });
 
@@ -378,11 +426,17 @@ async function runConversationTurn(
   // logged and never changes what the person saw.
   const closeTurnRow = async (): Promise<void> => {
     try {
+      // The trace closes first, in its own transaction, so that the row says
+      // whether the trace is whole. The two cannot be one transaction: the
+      // audit row is the server's, written through its own repository.
+      const stopReason = ending();
+      await trace.end(stopReason);
       const summary = summaryOf({
         ...facts,
         steps: progress().steps,
         tokens: budget.charged(),
-        stopReason: ending(),
+        stopReason,
+        traceLost: trace.lost(),
       });
       await deps.recordTurn(summary);
     } catch (error) {
@@ -452,6 +506,8 @@ async function runConversationTurn(
     // been stored, reserved or sent to a model yet.
     await deps.recordTurnStart(startOf(facts));
     opened = true;
+    const model = deps.model(profile.slot);
+    trace.decision(turnId, 'slot_chosen', slotDecision(profile.slot, profile.id, model));
     const loaded = await loadMessages(deps, caller, id);
     if (start.kind === 'message') {
       const { message } = start;
@@ -465,7 +521,7 @@ async function runConversationTurn(
 
     const started = await startTurn(
       {
-        model: deps.model(profile.slot),
+        model,
         profile,
         tenantText: prepared.pageContext,
         maskEmails: prepared.maskEmails,
@@ -482,9 +538,16 @@ async function runConversationTurn(
               }),
             }),
         budget,
+        trace: {
+          integrations: [trace, ...(deps.telemetry ?? [])],
+          begin: (promptHash) => trace.begin(promptHash),
+          onDecision: (kind, payload) => {
+            trace.decision(turnId, kind, payload);
+          },
+        },
         maxStepsPerTurn: prepared.limits.maxStepsPerTurn,
         history: () => Promise.resolve(earlier),
-        ...deps.turn(caller, id, turnId),
+        ...mintingKnown(deps.turn(caller, id, turnId), trace),
         advanceRun: (observed) => advance(deps, caller, id, observed),
       },
       {

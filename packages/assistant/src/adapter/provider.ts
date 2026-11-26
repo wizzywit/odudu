@@ -48,3 +48,18 @@ export function createLanguageModel(slot: SlotModel, env: AssistantEnv): Languag
       }).chatModel(slot.model);
   }
 }
+
+const KEY_VARIABLES = [
+  'AWS_BEARER_TOKEN_BEDROCK',
+  'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  COMPATIBLE_API_KEY_VARIABLE,
+];
+
+/** The provider keys `env` holds, so the code that records a turn can keep them out of it. */
+export function providerSecrets(env: AssistantEnv): string[] {
+  return KEY_VARIABLES.flatMap((name) => {
+    const value = optional(env, name);
+    return value === undefined ? [] : [value];
+  });
+}

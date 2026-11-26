@@ -1072,6 +1072,13 @@
       "when": 1792704183737,
       "tag": "0152_assistant_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1792790583737,
+      "tag": "0153_assistant_trace",
+      "breakpoints": true
     }
   ]
 }

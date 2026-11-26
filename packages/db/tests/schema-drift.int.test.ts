@@ -279,6 +279,25 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK (((char_length(tool_call_id) >= 1) AND (char_length(tool_call_id) <= 256)))',
   'assistant_approvals.assistant_approvals_tool_length':
     'CHECK (((char_length(tool) >= 1) AND (char_length(tool) <= 64)))',
+  'assistant_events.assistant_events_kind_check':
+    "CHECK ((kind = ANY (ARRAY['model_call'::text, 'text'::text, 'tool_call'::text, 'tool_result'::text, 'tool_error'::text, 'error'::text, 'slot_chosen'::text, 'reservation'::text, 'narrowing'::text, 'policy'::text, 'trimming'::text, 'truncated'::text])))",
+  'assistant_events.assistant_events_payload_shape':
+    "CHECK (((jsonb_typeof(payload) = 'object'::text) AND (octet_length((payload)::text) <= 16384)))",
+  'assistant_events.assistant_events_seq_range': 'CHECK (((seq >= 0) AND (seq <= 499)))',
+  'assistant_steps.assistant_steps_model_length':
+    'CHECK (((char_length(model) >= 1) AND (char_length(model) <= 200)))',
+  'assistant_steps.assistant_steps_request_id_length':
+    'CHECK (((provider_request_id IS NULL) OR ((char_length(provider_request_id) >= 1) AND (char_length(provider_request_id) <= 256))))',
+  'assistant_steps.assistant_steps_slot_check':
+    "CHECK ((slot = ANY (ARRAY['fast'::text, 'standard'::text, 'deep'::text])))",
+  'assistant_steps.assistant_steps_tokens_floor':
+    'CHECK ((((input_tokens IS NULL) OR (input_tokens >= 0)) AND ((output_tokens IS NULL) OR (output_tokens >= 0))))',
+  'assistant_turns.assistant_turns_profile_length':
+    'CHECK (((char_length(profile) >= 1) AND (char_length(profile) <= 64)))',
+  'assistant_turns.assistant_turns_prompt_hash_shape':
+    "CHECK ((prompt_hash ~ '^[0-9a-f]{64}$'::text))",
+  'assistant_turns.assistant_turns_stop_reason_length':
+    'CHECK (((stop_reason IS NULL) OR ((char_length(stop_reason) >= 1) AND (char_length(stop_reason) <= 64))))',
   'assistant_budget_counters.assistant_budget_counters_key_length':
     'CHECK (((char_length(scope_key) >= 1) AND (char_length(scope_key) <= 128)))',
   'assistant_budget_counters.assistant_budget_counters_kind_check':
