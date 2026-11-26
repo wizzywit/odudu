@@ -52,7 +52,13 @@ import { profileWireShape } from '#/usecase/profile';
 
 // A client that arrived through its metadata document is rewritten from that
 // document when it is next used, so it is not part of what a tenant carries.
-const exportedClient = and(eq(clients.builtinAdmin, false), ne(clients.registrationOrigin, 'cimd'));
+// The assistant's client is the same kind of thing: every new tenant is
+// provisioned with it and nothing in it is the tenant's to describe.
+const exportedClient = and(
+  eq(clients.builtinAdmin, false),
+  eq(clients.builtinAssistant, false),
+  ne(clients.registrationOrigin, 'cimd'),
+);
 
 export interface TenantExportAuditEvent {
   readonly action: 'tenant.export';

@@ -39,6 +39,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
     "builtin_admin marks the client a tenant's administration roles hang from; changing it needs its own operation, not a general amendment",
   builtin_mcp:
     'builtin_mcp marks the client every tenant is provisioned with for MCP clients; it is not amendable',
+  builtin_assistant:
+    'builtin_assistant marks the client the console assistant acts as; it is not amendable',
   metadata_used_at:
     'metadata_used_at is set each time the client metadata document is resolved and ages a client out',
   approved_at:
@@ -82,6 +84,18 @@ export const BUILTIN_ADMIN_AMENDABLE_FIELDS: readonly string[] = [
   'userinfo_signed_response_alg',
   'userinfo_encrypted_response_alg',
   'userinfo_encrypted_response_enc',
+];
+
+// The assistant's client is amended in the words a person reads and in whether
+// it is on. Everything else is what keeps it unusable at the protocol endpoints
+// and keeps an instance behind each call: no redirect URI, one grant that a
+// public client is refused, an agent type.
+export const BUILTIN_ASSISTANT_AMENDABLE_FIELDS: readonly string[] = [
+  'name',
+  'description',
+  'name_i18n',
+  'description_i18n',
+  'enabled',
 ];
 
 export const BUILTIN_ADMIN_GUARDED_FIELDS: readonly string[] = AMENDABLE_CLIENT_FIELDS.filter(

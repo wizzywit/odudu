@@ -16,6 +16,7 @@ const confidentialClient: ClientRecord = {
   registrationOrigin: 'seeded',
   builtinAdmin: false,
   builtinMcp: false,
+  builtinAssistant: false,
   metadataUsedAt: null,
   skipLogoutConfirmation: false,
   nameI18n: {},

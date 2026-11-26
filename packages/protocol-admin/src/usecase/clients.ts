@@ -24,6 +24,7 @@ import { roles } from '@odudu/domain-authz';
 import { subjects } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  ASSISTANT_CLIENT_ID,
   ALLOWED_ACTION_NAMES,
   ALLOWED_ACTIONS_NEED_ME_READ,
   ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
@@ -74,6 +75,7 @@ import { readKeyedPage } from '#/service/in-order';
 import {
   AMENDABLE_CLIENT_FIELDS,
   BUILTIN_ADMIN_AMENDABLE_FIELDS,
+  BUILTIN_ASSISTANT_AMENDABLE_FIELDS,
   refusalFor,
 } from '#/service/client-patch';
 import { checkedFlowId, unknownFlowRefusal } from '#/service/client-flow';
@@ -607,9 +609,9 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): StoredVie
   };
 }
 
-// `odudu-admin` and `odudu-mcp` are reserved for the built-in clients every
-// tenant is provisioned with (`provisionAdminClient` and `provisionMcpClient`,
-// @odudu/protocol-oidc). Each refuses to *adopt* a client that already carries
+// `odudu-admin`, `odudu-mcp` and `odudu-assistant` are reserved for the built-in
+// clients every tenant is provisioned with (`provisionAdminClient`,
+// `provisionMcpClient` and `provisionAssistantClient`, @odudu/protocol-oidc). Each refuses to *adopt* a client that already carries
 // its id but is not the real thing (`admin_client_not_builtin`,
 // `mcp_client_not_builtin`, @odudu/domain-tenant), but that guard only fires
 // when a tenant is provisioned. Creation through this door is refused up front instead.
@@ -618,7 +620,11 @@ export async function createClient(
   deps: CreateClientDeps,
   input: CreateClientInput,
 ): Promise<CreateClientOutcome> {
-  if (input.clientId === ADMIN_CLIENT_ID || input.clientId === MCP_CLIENT_ID) {
+  if (
+    input.clientId === ADMIN_CLIENT_ID ||
+    input.clientId === MCP_CLIENT_ID ||
+    input.clientId === ASSISTANT_CLIENT_ID
+  ) {
     await deps.audit(tx, {
       action: 'client.create',
       resourceType: 'client',
@@ -1468,6 +1474,26 @@ export async function amendClient(
     }
   }
 
+  if (clientRow.builtinAssistant) {
+    const guarded = Object.keys(input.values).find(
+      (field) => !BUILTIN_ASSISTANT_AMENDABLE_FIELDS.includes(field),
+    );
+    if (guarded !== undefined) {
+      const reason = `${guarded} on ${clientRow.clientId}, this tenant's built-in assistant client, is not amendable: it would let something sign in through it or leave a conversation's calls with no agent instance`;
+      await deps.audit(tx, {
+        action: 'client.amend',
+        resourceType: 'client',
+        resourceId: input.clientDbId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { reason },
+      });
+      return { kind: 'builtin_admin_guarded', reason };
+    }
+  }
+
   const configRow = await clientOidcConfigRepository(tx).byClientId(input.clientDbId);
   if (configRow === null) {
     throw new Error(`client ${input.clientDbId} has no client_oidc_config row`);
@@ -1838,10 +1864,12 @@ async function deleteClientUnguarded(
     { type: 'client', id: input.clientDbId },
   );
   if (refused !== null) return refused;
-  if (clientRow.builtinAdmin || clientRow.builtinMcp) {
+  if (clientRow.builtinAdmin || clientRow.builtinMcp || clientRow.builtinAssistant) {
     const reason = clientRow.builtinAdmin
       ? `${clientRow.clientId} is this tenant's built-in admin client and cannot be deleted`
-      : `${clientRow.clientId} is this tenant's built-in MCP client and cannot be deleted; disable it instead`;
+      : clientRow.builtinAssistant
+        ? `${clientRow.clientId} is this tenant's built-in assistant client and cannot be deleted; disable it instead`
+        : `${clientRow.clientId} is this tenant's built-in MCP client and cannot be deleted; disable it instead`;
     await deps.audit(tx, {
       action: 'client.delete',
       resourceType: 'client',

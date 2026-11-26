@@ -123,7 +123,9 @@ export interface AssistantChatPort {
     caller: AssistantCaller,
     body: CreateConversationRequest,
   ): Promise<
-    { kind: 'created'; conversation: AssistantConversation } | { kind: 'unknown_profile' }
+    | { kind: 'created'; conversation: AssistantConversation }
+    | { kind: 'unknown_profile' }
+    | { kind: 'access_refused'; reason: string }
   >;
   load(caller: AssistantCaller, id: string): Promise<AssistantConversation | null>;
   send(
@@ -233,6 +235,13 @@ export function createConversationHandler(deps: AssistantChatRouteDeps): AdminRo
         reply,
         request,
         problem(400, 'about:blank', 'Bad Request', 'the profile is not one this server offers'),
+      );
+    }
+    if (outcome.kind === 'access_refused') {
+      return sendProblem(
+        reply,
+        request,
+        problem(403, 'about:blank', 'Forbidden', 'the assistant cannot act for this sign-in'),
       );
     }
     return reply.code(201).send(outcome.conversation);

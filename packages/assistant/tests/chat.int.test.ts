@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { TOOLS, type ToolResult } from '@odudu/mcp';
 import {
   createDatabase,
@@ -13,6 +14,7 @@ import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { messageRepository } from '#/repository/messages';
+import { runKey, RunLapsed } from '#/service/run-key';
 import { createChat, type Chat, type ChatCaller, type ChatDeps } from '#/view/chat-route';
 
 let container: TestDatabase;
@@ -150,11 +152,22 @@ function chatOver(
     tools: TOOLS,
     turn: () => ({ mintToken, callTool }),
     instanceIdFor: () => newId(),
+    withAccess: (caller, _conversation, fn) =>
+      withTenant(app.db, caller.tenantId, async (tx) => ({
+        kind: 'granted' as const,
+        value: await fn(tx),
+      })),
     now: () => new Date(),
     newId,
     ...overrides,
   });
   return { chat, mintToken, callTool };
+}
+
+// A stable uuid for each run key, as the server derives one.
+function runInstanceOf(key: string): string {
+  const hex = createHash('sha256').update(key).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
 const CONTEXT = { route: '/clients', objectType: 'client', objectId: 'web' };
@@ -213,6 +226,138 @@ describe('create and load', () => {
       page_context: CONTEXT,
     });
     expect(created.kind).toBe('unknown_profile');
+  });
+
+  it('asks for the conversation’s grant in the transaction that creates it, naming its id and mode', async () => {
+    const w = await world();
+    const seen: { id: string; mode: string }[] = [];
+    const { chat } = chatOver(scripted([answer('hi')]), {
+      withAccess: (caller, conversation, fn) => {
+        seen.push({ id: conversation.id, mode: conversation.mode });
+        return withTenant(app.db, caller.tenantId, async (tx) => ({
+          kind: 'granted' as const,
+          value: await fn(tx),
+        }));
+      },
+    });
+    const caller = callerOf(w, w.alice);
+    const created = await chat.create(caller, { mode: 'act', page_context: CONTEXT });
+    if (created.kind !== 'created') throw new Error(created.kind);
+    expect(seen).toEqual([{ id: created.conversation.id, mode: 'act' }]);
+  });
+
+  it('writes no conversation when the grant is refused', async () => {
+    const w = await world();
+    const { chat } = chatOver(scripted([answer('hi')]), {
+      withAccess: () => Promise.resolve({ kind: 'refused', reason: 'grant_not_console' }),
+    });
+    const created = await chat.create(callerOf(w, w.alice), {
+      mode: 'ask',
+      page_context: CONTEXT,
+    });
+    expect(created).toEqual({ kind: 'access_refused', reason: 'grant_not_console' });
+    const rows = await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(sql`select count(*)::int as n from assistant_conversations`),
+    );
+    expect((rows as unknown as { n: number }[])[0]?.n).toBe(0);
+  });
+
+  it('writes no conversation when making the grant fails part way', async () => {
+    const w = await world();
+    const { chat } = chatOver(scripted([answer('hi')]), {
+      // The conversation is written, then the grant fails: both roll back.
+      withAccess: (caller, _conversation, fn) =>
+        withTenant(app.db, caller.tenantId, async (tx) => {
+          await fn(tx);
+          throw new Error('the grant could not be made');
+        }),
+    });
+    await expect(
+      chat.create(callerOf(w, w.alice), { mode: 'ask', page_context: CONTEXT }),
+    ).rejects.toThrow('the grant could not be made');
+    const rows = await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(sql`select count(*)::int as n from assistant_conversations`),
+    );
+    expect((rows as unknown as { n: number }[])[0]?.n).toBe(0);
+  });
+});
+
+describe('a conversation whose instance lapsed', () => {
+  async function row(w: World, id: string) {
+    const rows = (await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(
+        sql`select run_generation, instance_id from assistant_conversations where id = ${id}`,
+      ),
+    )) as unknown as { run_generation: number; instance_id: string }[];
+    return rows[0];
+  }
+
+  it('starts on run 0 and, on a lapse, moves to run 1 once and carries on', async () => {
+    const w = await world();
+    const keys: string[] = [];
+    let lapsed = false;
+    const mintToken = vi.fn((run: { key: string }) => {
+      keys.push(run.key);
+      if (!lapsed) {
+        lapsed = true;
+        return Promise.reject(new RunLapsed());
+      }
+      return Promise.resolve({ accessToken: 'token' });
+    });
+    const { chat, callTool } = chatOver(
+      scripted([toolCalls(['c1', 'list_clients', '{}']), answer('Back again.')]),
+      {
+        turn: () => ({ mintToken, callTool: () => Promise.resolve(CLIENTS) }),
+        instanceIdFor: (_caller, _id, key) => runInstanceOf(key),
+      },
+    );
+    const caller = callerOf(w, w.alice);
+    const id = await started(chat, caller);
+    expect((await row(w, id))?.run_generation).toBe(0);
+    await (await streamOf(chat, caller, id, 'how many?')).text();
+    expect(keys).toEqual([runKey(id, 0), runKey(id, 1)]);
+    expect(await row(w, id)).toEqual({
+      run_generation: 1,
+      instance_id: runInstanceOf(runKey(id, 1)),
+    });
+    expect(callTool).toBeDefined();
+  });
+
+  it('does not move on for another refusal', async () => {
+    const w = await world();
+    const mintToken = vi.fn(() => Promise.reject(new Error('owner_ended')));
+    const { chat } = chatOver(
+      scripted([toolCalls(['c1', 'list_clients', '{}']), answer('Refused.')]),
+      { turn: () => ({ mintToken, callTool: () => Promise.resolve(CLIENTS) }) },
+    );
+    const caller = callerOf(w, w.alice);
+    const id = await started(chat, caller);
+    await (await streamOf(chat, caller, id, 'how many?')).text();
+    expect(mintToken).toHaveBeenCalledTimes(1);
+    expect((await row(w, id))?.run_generation).toBe(0);
+  });
+
+  it('is moved on once when two calls of one step both see it lapse', async () => {
+    const w = await world();
+    const lapsedKeys = new Set<string>();
+    const mintToken = vi.fn((run: { key: string }) => {
+      if (run.key.endsWith('.0')) {
+        lapsedKeys.add(run.key);
+        return Promise.reject(new RunLapsed());
+      }
+      return Promise.resolve({ accessToken: 'token' });
+    });
+    const { chat } = chatOver(
+      scripted([
+        toolCalls(['c1', 'list_clients', '{}'], ['c2', 'list_clients', '{"limit":1}']),
+        answer('Both.'),
+      ]),
+      { turn: () => ({ mintToken, callTool: () => Promise.resolve(CLIENTS) }) },
+    );
+    const caller = callerOf(w, w.alice);
+    const id = await started(chat, caller);
+    await (await streamOf(chat, caller, id, 'two lists')).text();
+    expect((await row(w, id))?.run_generation).toBe(1);
   });
 });
 
@@ -281,7 +426,7 @@ describe('a turn', () => {
     await (await streamOf(chat, caller, id, 'two lists')).text();
     expect(mintToken).toHaveBeenCalledTimes(2);
     for (const call of mintToken.mock.calls) {
-      expect((call as unknown[])[0]).toEqual({ key: id });
+      expect((call as unknown[])[0]).toEqual({ key: `${id}.0`, conversationId: id });
     }
   });
 

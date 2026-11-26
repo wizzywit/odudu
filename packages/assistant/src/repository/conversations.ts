@@ -104,6 +104,26 @@ export function conversationRepository(tx: AssistantTx) {
       return rows.length > 0;
     },
 
+    // Moves the conversation to the next run once, from the generation the caller
+    // saw lapse: a caller that lost the race to another gets the generation that
+    // won, not a second bump. The new run's instance id is stored with it.
+    async advanceRun(
+      id: string,
+      observed: number,
+      instanceIdOf: (generation: number) => string,
+    ): Promise<number | undefined> {
+      const next = observed + 1;
+      const rows = await tx
+        .update(assistantConversations)
+        .set({ runGeneration: next, instanceId: instanceIdOf(next) })
+        .where(
+          and(eq(assistantConversations.id, id), eq(assistantConversations.runGeneration, observed)),
+        )
+        .returning({ generation: assistantConversations.runGeneration });
+      if (rows[0] !== undefined) return rows[0].generation;
+      return (await this.byId(id))?.runGeneration;
+    },
+
     async setMode(id: string, mode: ConversationMode): Promise<boolean> {
       const rows = await tx
         .update(assistantConversations)

@@ -34,6 +34,7 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     builtinAdmin: row.builtinAdmin,
     skipLogoutConfirmation: row.skipLogoutConfirmation,
     builtinMcp: row.builtinMcp,
+    builtinAssistant: row.builtinAssistant,
     metadataUsedAt: row.metadataUsedAt,
   };
 }
@@ -53,6 +54,7 @@ export interface NewClient {
   builtinAdmin?: boolean;
   skipLogoutConfirmation?: boolean;
   builtinMcp?: boolean;
+  builtinAssistant?: boolean;
   // Required for, and only for, registrationOrigin 'cimd'
   // (clients_metadata_used_for_cimd).
   metadataUsedAt?: Date | null;
@@ -177,6 +179,7 @@ export function clientRepository(tx: TenantScopedDatabase) {
             builtinAdmin: input.builtinAdmin ?? false,
             skipLogoutConfirmation: input.skipLogoutConfirmation ?? false,
             builtinMcp: input.builtinMcp ?? false,
+            builtinAssistant: input.builtinAssistant ?? false,
             metadataUsedAt: input.metadataUsedAt ?? null,
             ...(input.registrationOrigin === undefined
               ? {}

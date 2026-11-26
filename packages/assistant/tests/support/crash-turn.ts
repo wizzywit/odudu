@@ -30,6 +30,11 @@ const chat = createChat({
     callTool: () => Promise.reject(new Error('no tools in this run')),
   }),
   instanceIdFor: () => newId(),
+  withAccess: (access, _conversation, fn) =>
+    withTenant(app.db, access.tenantId, async (tx) => ({
+      kind: 'granted' as const,
+      value: await fn(tx),
+    })),
   now: () => new Date(),
   newId,
 });

@@ -408,3 +408,5 @@ Keep-Alive: timeout=72
 ```
 
 This block was run again after the token exchange limits joined the client, so its ids and times are not those of the blocks around it.
+
+Every tenant is also provisioned with `odudu-assistant`, a public client the console assistant's conversations act as, beside `odudu-admin` and `odudu-mcp`. Its `client_id` is reserved the same way (`409`), and it has no redirect URI and no usable grant. The blocks on this page were captured before it existed and were not run again, so a client list shows one fewer client than a server now answers with, and a count one fewer.

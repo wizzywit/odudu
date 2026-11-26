@@ -1056,6 +1056,13 @@
       "idx": 150,
       "version": "7",
       "when": 1792531383737,
+      "tag": "0150_builtin_assistant_client",
+      "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1792617783737,
       "tag": "0151_assistant_budget_upkeep",
       "breakpoints": true
     }

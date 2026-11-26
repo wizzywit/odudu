@@ -291,6 +291,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((mode = ANY (ARRAY['ask'::text, 'act'::text])))",
   'assistant_conversations.assistant_conversations_profile_length':
     'CHECK (((char_length(profile) >= 1) AND (char_length(profile) <= 64)))',
+  'assistant_conversations.assistant_conversations_run_generation_floor':
+    'CHECK ((run_generation >= 0))',
   'assistant_conversations.assistant_conversations_title_length':
     'CHECK (((title IS NULL) OR ((char_length(title) >= 1) AND (char_length(title) <= 200))))',
   'assistant_messages.assistant_messages_parts_shape':

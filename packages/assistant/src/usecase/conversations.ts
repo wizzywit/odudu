@@ -2,12 +2,16 @@ import type { AssistantConversation, CreateConversationRequest } from '@odudu/co
 import { conversationRepository } from '#/repository/conversations';
 import { MAX_LOAD, messageRepository } from '#/repository/messages';
 import { conversationView, visibleMessages } from '#/usecase/conversation-view';
+import { runKey } from '#/service/run-key';
 import { PAGE_CONTEXT_PART } from '#/service/page-context';
 import { FREE_CHAT, profileById } from '#/service/profile';
 import type { ChatCaller, ChatDeps } from '#/usecase/chat-deps';
 
 export type CreateOutcome =
-  { kind: 'created'; conversation: AssistantConversation } | { kind: 'unknown_profile' };
+  | { kind: 'created'; conversation: AssistantConversation }
+  | { kind: 'unknown_profile' }
+  // The caller's sign-in cannot be given an assistant's identity: nothing was written.
+  | { kind: 'access_refused'; reason: string };
 
 export async function createConversation(
   deps: ChatDeps,
@@ -18,14 +22,15 @@ export async function createConversation(
   if (profileById(profile) === undefined) return { kind: 'unknown_profile' };
   const id = deps.newId();
   const now = deps.now();
-  const record = await deps.transact(caller.tenantId, async (tx) => {
+  const mode = request.mode ?? 'ask';
+  const outcome = await deps.withAccess(caller, { id, mode, now }, async (tx) => {
     const created = await conversationRepository(tx).create({
       id,
       tenantId: caller.tenantId,
       ownerSubjectId: caller.ownerSubjectId,
-      instanceId: deps.instanceIdFor(caller, id),
+      instanceId: deps.instanceIdFor(caller, id, runKey(id, 0)),
       profile,
-      mode: request.mode ?? 'ask',
+      mode,
       now,
     });
     await messageRepository(tx).append(id, {
@@ -34,6 +39,8 @@ export async function createConversation(
     });
     return created;
   });
+  if (outcome.kind === 'refused') return { kind: 'access_refused', reason: outcome.reason };
+  const record = outcome.value;
   return { kind: 'created', conversation: conversationView(record, []) };
 }
 

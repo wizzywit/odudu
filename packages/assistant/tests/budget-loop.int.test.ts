@@ -139,6 +139,11 @@ function chatOver(model: MockLanguageModelV3, overrides: Partial<ChatDeps> = {})
       callTool: vi.fn(() => Promise.resolve(CLIENTS)),
     }),
     instanceIdFor: () => newId(),
+    withAccess: (caller, _conversation, fn) =>
+      withTenant(app.db, caller.tenantId, async (tx) => ({
+        kind: 'granted' as const,
+        value: await fn(tx),
+      })),
     audit: (event) => {
       audits.push(event);
       return Promise.resolve();

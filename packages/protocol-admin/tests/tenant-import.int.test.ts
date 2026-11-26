@@ -627,6 +627,27 @@ describe('POST /admin/tenant-imports', () => {
     });
   }
 
+  it('leaves the assistant client out of the export, and refuses a document that names it', async () => {
+    const source = await fixture.createTenant(`assistant-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    expect(original.clients.map((client) => client.client_id)).not.toContain('odudu-assistant');
+    const template = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (template === undefined) throw new Error('the export has no odudu-mcp client');
+    const named = {
+      ...original,
+      clients: [...original.clients, { ...template, client_id: 'odudu-assistant' }],
+    };
+    const name = `assistant-copy-${newId()}`;
+    const res = await postImport(token, { name, document: named });
+    expect(res.statusCode, res.payload).toBe(400);
+    const errors = res.json<{ errors: { path: string; message: string }[] }>().errors;
+    expect(errors.map((e) => e.message)).toContain(
+      'odudu-assistant is provisioned by every new tenant',
+    );
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
   it('carries the built-in MCP client in the export and reproduces it on import, once', async () => {
     const source = await fixture.createTenant(`mcp-src-${newId()}`);
     const token = await operatorToken();
@@ -910,7 +931,7 @@ describe('POST /admin/tenant-imports', () => {
     });
     const document = (clients: TenantDocument['clients']): TenantDocument => ({
       ...original,
-      settings: { ...original.settings, max_clients: 2 },
+      settings: { ...original.settings, max_clients: 3 },
       clients,
     });
     const selfRegistered = [1, 2, 3].map((n) => made(n, 'anonymous'));
@@ -924,7 +945,33 @@ describe('POST /admin/tenant-imports', () => {
       document: document([...original.clients, made(2, 'operator')]),
     });
     expect(refused.statusCode).toBe(400);
-    expect(refused.payload).toContain('max_clients is 2');
+    expect(refused.payload).toContain('max_clients is 3');
+  });
+
+  it('admits a document that fills max_clients exactly once the built-in clients are counted', async () => {
+    const source = await fixture.createTenant(`fit-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    expect(original.clients.map((client) => client.client_id)).toEqual(['odudu-mcp']);
+    // odudu-admin and odudu-assistant are provisioned beside the document's one.
+    const fits = original.clients.length + 2;
+    const name = `fit-ok-${newId()}`;
+    const ok = await postImport(token, {
+      name,
+      document: { ...original, settings: { ...original.settings, max_clients: fits } },
+    });
+    expect(ok.statusCode, ok.payload).toBe(201);
+    const counted = await fixture.owner.sql<{ n: number }[]>`
+      select count(*)::int as n from clients
+       where tenant_id = ${(await tenantIdOf(name)) ?? ''}
+         and registration_origin not in ('cimd', 'anonymous')`;
+    expect(counted[0]?.n).toBe(fits);
+    const refused = await postImport(token, {
+      name: `fit-no-${newId()}`,
+      document: { ...original, settings: { ...original.settings, max_clients: fits - 1 } },
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.payload).toContain(`max_clients is ${String(fits - 1)}`);
   });
 
   it('refuses a document holding more self-registered clients than the tenant admits', async () => {

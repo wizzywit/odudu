@@ -40,6 +40,10 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'The MCP endpoint writes it for a call it serves; for a call made straight to the admin API ' +
     'with a token the endpoint did not sign (`odudu mcp`, or an exchanged token), the admin API writes it before the call runs, ' +
     'and the tool is the route (`admin.get.clients`).',
+  'assistant.access_refused':
+    'The console assistant was refused an identity for a conversation, or a token for one of ' +
+    'its tool calls. `detail` names the agent client (`odudu-assistant`), the person and a ' +
+    'fixed refusal code, never a token or a request body. The row\u2019s actor is the person.',
   'agent.instance_minted':
     'An agent instance was minted for its owner under an agent client. `detail` names the ' +
     'instance, the owner, the agent client and the instance\u2019s depth in its lineage.',

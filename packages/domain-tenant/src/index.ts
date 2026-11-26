@@ -137,6 +137,8 @@ export {
 } from '#/repository/client-registration-tokens';
 export { assignMcpScope } from '#/usecase/assign-mcp-scope';
 export { provisionMcpClient } from '#/usecase/provision-mcp-client';
+export { provisionAssistantClientRow } from '#/usecase/provision-assistant-client';
+export { ASSISTANT_CLIENT_ID, ASSISTANT_CLIENT_NAME } from '#/service/assistant-client';
 export {
   capabilityRoleGraph,
   provisionAdminClient,

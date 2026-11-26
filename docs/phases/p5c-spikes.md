@@ -421,9 +421,10 @@ administrator can tell the assistant's calls from their own.
 - `assumption:` `liveCeiling` (`agent-layer.ts`) admits the assistant. It walks
   `exchangedFromGrantId` to `odudu-admin`; with no `delegatedActors` and no delegation
   configured, `actorAdmission` returns a null ceiling (`agent-mint.ts:123-133`). An
-  operator who configures `delegatedActors` on `odudu-admin` makes the assistant refuse
-  `actor_not_permitted`: it fails closed, which is right, but the error should say how to
-  fix it. Prove with both configurations.
+  operator who configures `delegatedActors` on `odudu-admin` makes the assistant refuse:
+  it fails closed, which is right, but the error should say how to fix it. Prove with both
+  configurations. (Run on 2026-11-26: the refusal is `run_refused`, not `actor_not_permitted`,
+  because `mintAgentToken` folds every agent-layer refusal into `run_refused`.)
 - `assumption:` console sign-out or a revoke of the console grant revokes the derived
   grants and the instances rooted on them (`docs/phases/p5.md` item 5 says so for
   exchanged grants). Prove with an integration test of console sign-out, not only of a
@@ -495,7 +496,8 @@ a fixture of an MCP client.
     spend does not reduce the other's; a sub-agent's slice is carved from its parent's.
 14. Lineage: revoking a conversation's instance revokes its sub-agent children.
 15. `delegatedActors` configured on `odudu-admin`: the mint fails closed with
-    `actor_not_permitted`, and succeeds once the assistant is named.
+    `run_refused` (written `actor_not_permitted` before it was run), and succeeds once the
+    assistant is named.
 16. Provisioning: a new tenant has `odudu-assistant`; the backfill is idempotent; the
     client is refused at `/token` for every grant type.
 17. Attribution: every `agent.tool_call` row of a conversation names `odudu-assistant` as

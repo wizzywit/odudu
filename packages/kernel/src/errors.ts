@@ -30,6 +30,7 @@ export const ERROR_CODES = [
   'seed_system_tenant_conflict',
   'admin_client_not_builtin',
   'mcp_client_not_builtin',
+  'assistant_client_not_builtin',
   'admin_client_list_full',
   'insert_returned_no_row',
   'role_not_found',
