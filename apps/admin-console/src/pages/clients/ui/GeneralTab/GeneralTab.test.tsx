@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
-import { ADMIN, BILLING, C, clientRoutes, PORTAL } from '#/testing/clientsFixtures';
+import { ADMIN, ASSISTANT, BILLING, C, clientRoutes, MCP, PORTAL } from '#/testing/clientsFixtures';
 import { inTurn, json, problem, whoamiReads } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
@@ -411,6 +411,38 @@ it('fixes what would lock every administrator out of the built-in admin client',
   // Its name and consent are among what the server lets be amended.
   expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue(ADMIN.name);
   expect(screen.getByRole('switch', { name: 'Consent required' })).toBeVisible();
+});
+
+it('says the built-in assistant client cannot be deleted, keeps it switchable, and fixes the rest', async () => {
+  renderConsoleAt('/console/acme/clients/c-assistant', clientRoutes());
+  await screen.findByRole('heading', { level: 1, name: 'Odudu assistant' });
+  expect(
+    await screen.findByText(
+      'Odudu assistant is built in and cannot be deleted. Disable it to switch it off.',
+    ),
+  ).toBeVisible();
+  expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
+  expect(screen.getByRole('switch', { name: 'Enabled' })).toBeVisible();
+  expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue(ASSISTANT.name);
+  expect(
+    screen.getByText(/Only its name, description and whether it is enabled can be changed\./u),
+  ).toBeVisible();
+  expect(screen.queryByRole('switch', { name: 'Consent required' })).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Home page' })).toBeNull();
+});
+
+it('keeps the built-in MCP client switchable and editable, and only refuses its deletion', async () => {
+  renderConsoleAt('/console/acme/clients/c-mcp', clientRoutes());
+  await screen.findByRole('heading', { level: 1, name: 'Odudu MCP' });
+  expect(
+    await screen.findByText(
+      'Odudu MCP is built in and cannot be deleted. Disable it to switch it off.',
+    ),
+  ).toBeVisible();
+  expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
+  expect(screen.getByRole('switch', { name: 'Enabled' })).toBeVisible();
+  expect(screen.getByRole('switch', { name: 'Consent required' })).toBeVisible();
+  expect(MCP.builtin_mcp).toBe(true);
 });
 
 it('offers a public client its writes at once, since it has no service account to wait on', async () => {

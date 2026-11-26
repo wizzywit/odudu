@@ -456,7 +456,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'The subjects of a tenant, paged. `capability` narrows to the holders of one admin ' +
       'capability, of `tenant-admin`, or of `any`, held effectively; with it, each item carries ' +
-      '`admin_capabilities`, every name it holds and whether one is assigned to it directly.',
+      '`admin_capabilities`, every name it holds and whether one is assigned to it directly. ' +
+      'The people and service accounts only: an agent instance, which exists for one ' +
+      'conversation or run, is left out unless `type=agent_instance` is asked for.',
   },
   {
     method: 'GET',
@@ -464,6 +466,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'view-users',
     responseSchema: countResponseSchema,
     querystringSchema: countSubjectsQuerySchema,
+    description:
+      'How many subjects match, counting the people and service accounts only, as the list ' +
+      'does: an agent instance is counted only when `type=agent_instance` is asked for.',
   },
   {
     method: 'GET',

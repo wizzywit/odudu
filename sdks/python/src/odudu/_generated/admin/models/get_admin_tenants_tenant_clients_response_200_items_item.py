@@ -141,6 +141,9 @@ class GetAdminTenantsTenantClientsResponse200ItemsItem:
             when no rotation kept one. The secret itself is never shown.
         builtin_admin (bool): True for the tenant’s built-in admin console client, which cannot be deleted and is
             limited in what can be amended.
+        builtin_mcp (bool): True for the tenant’s built-in MCP client, which cannot be deleted. It can be disabled.
+        builtin_assistant (bool): True for the tenant’s built-in assistant client, which cannot be deleted. Only its
+            name, description and enabled state can be amended.
         service_subject_id (None | UUID): The service account a client authenticates as, or null when it holds no
             client_credentials grant or is public. Setting grant_types creates it when the grant is added and deletes it,
             with the roles and token grants it held, when the grant is removed.
@@ -202,6 +205,8 @@ class GetAdminTenantsTenantClientsResponse200ItemsItem:
     flow_id: None | str
     previous_secret_expires_at: None | str
     builtin_admin: bool
+    builtin_mcp: bool
+    builtin_assistant: bool
     service_subject_id: None | UUID
     scopes: list[ClientsGetResponseItemsItemScopesItem]
     service_account_admin_reach: list[
@@ -329,6 +334,10 @@ class GetAdminTenantsTenantClientsResponse200ItemsItem:
 
         builtin_admin = self.builtin_admin
 
+        builtin_mcp = self.builtin_mcp
+
+        builtin_assistant = self.builtin_assistant
+
         service_subject_id: None | str
         if isinstance(self.service_subject_id, UUID):
             service_subject_id = str(self.service_subject_id)
@@ -399,6 +408,8 @@ class GetAdminTenantsTenantClientsResponse200ItemsItem:
                 "flow_id": flow_id,
                 "previous_secret_expires_at": previous_secret_expires_at,
                 "builtin_admin": builtin_admin,
+                "builtin_mcp": builtin_mcp,
+                "builtin_assistant": builtin_assistant,
                 "service_subject_id": service_subject_id,
                 "scopes": scopes,
                 "service_account_admin_reach": service_account_admin_reach,
@@ -660,6 +671,10 @@ class GetAdminTenantsTenantClientsResponse200ItemsItem:
 
         builtin_admin = d.pop("builtin_admin")
 
+        builtin_mcp = d.pop("builtin_mcp")
+
+        builtin_assistant = d.pop("builtin_assistant")
+
         def _parse_service_subject_id(data: object) -> None | UUID:
             if data is None:
                 return data
@@ -742,6 +757,8 @@ class GetAdminTenantsTenantClientsResponse200ItemsItem:
             flow_id=flow_id,
             previous_secret_expires_at=previous_secret_expires_at,
             builtin_admin=builtin_admin,
+            builtin_mcp=builtin_mcp,
+            builtin_assistant=builtin_assistant,
             service_subject_id=service_subject_id,
             scopes=scopes,
             service_account_admin_reach=service_account_admin_reach,

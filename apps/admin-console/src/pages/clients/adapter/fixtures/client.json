@@ -47,6 +47,8 @@
   "flow_id": null,
   "previous_secret_expires_at": null,
   "builtin_admin": false,
+  "builtin_mcp": false,
+  "builtin_assistant": false,
   "service_subject_id": "01a1872d-c5c0-7f06-8ba9-0d74ae247824",
   "scopes": [
     {

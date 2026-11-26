@@ -11,7 +11,7 @@ import { DescriptionField } from '#/shared/ui/DescriptionField';
 import { LocalisedTextField } from '#/shared/ui/LocalisedTextField';
 import { Panel } from '#/shared/ui/Panel';
 import { CopyValue } from '#/shared/ui/CopyValue';
-import { TextField, ToggleField, UrlField } from '#/shared/ui/Field';
+import { ReadOnlyFields, TextField, ToggleField, UrlField } from '#/shared/ui/Field';
 import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { Timestamp } from '#/shared/ui/Timestamp';
@@ -229,9 +229,14 @@ export function GeneralTab({ tenant, client, etag, gone, writable }: ClientTabPr
       <Fixed client={client} text={general.text} />
       <Details general={general} />
       <Translations general={general} />
-      <Pages general={general} />
       <Availability general={general} />
-      <Consent general={general} />
+      {general.fieldsFixed === null ? null : (
+        <p className={recordTab.rule}>{general.fieldsFixed}</p>
+      )}
+      <ReadOnlyFields when={!writable || general.fieldsFixed !== null}>
+        <Pages general={general} />
+        <Consent general={general} />
+      </ReadOnlyFields>
       {writable ? (
         <Danger
           name={client.name}

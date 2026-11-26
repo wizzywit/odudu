@@ -856,6 +856,12 @@
           "builtin_admin": {
             "type": "boolean"
           },
+          "builtin_mcp": {
+            "type": "boolean"
+          },
+          "builtin_assistant": {
+            "type": "boolean"
+          },
           "service_subject_id": {
             "anyOf": [
               {
@@ -973,6 +979,8 @@
           "flow_id",
           "previous_secret_expires_at",
           "builtin_admin",
+          "builtin_mcp",
+          "builtin_assistant",
           "service_subject_id",
           "scopes",
           "service_account_admin_reach",
@@ -6157,6 +6165,12 @@
                 "builtin_admin": {
                   "type": "boolean"
                 },
+                "builtin_mcp": {
+                  "type": "boolean"
+                },
+                "builtin_assistant": {
+                  "type": "boolean"
+                },
                 "service_subject_id": {
                   "anyOf": [
                     {
@@ -6267,6 +6281,8 @@
                 "flow_id",
                 "previous_secret_expires_at",
                 "builtin_admin",
+                "builtin_mcp",
+                "builtin_assistant",
                 "service_subject_id",
                 "scopes",
                 "service_account_admin_reach"
@@ -8742,6 +8758,12 @@
           "builtin_admin": {
             "type": "boolean"
           },
+          "builtin_mcp": {
+            "type": "boolean"
+          },
+          "builtin_assistant": {
+            "type": "boolean"
+          },
           "service_subject_id": {
             "anyOf": [
               {
@@ -8859,6 +8881,8 @@
           "flow_id",
           "previous_secret_expires_at",
           "builtin_admin",
+          "builtin_mcp",
+          "builtin_assistant",
           "service_subject_id",
           "scopes",
           "service_account_admin_reach",

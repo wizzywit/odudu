@@ -42,6 +42,17 @@ it('lists subjects with their status and count, and offers creation', async () =
   );
 });
 
+it('asks for no type, in the list or the count, and offers no filter by one', async () => {
+  const { sent } = renderConsoleAt('/console/acme/subjects', routes());
+  await screen.findByRole('grid', { name: 'Subjects' });
+  await screen.findByText('3 subjects');
+  const asked = sent.filter((s) => s.path === S || s.path === `${S}/count`);
+  expect(asked.length).toBeGreaterThanOrEqual(2);
+  for (const each of asked) expect(each.search.has('type')).toBe(false);
+  expect(screen.queryByRole('button', { name: /agent/iu })).toBeNull();
+  expect(screen.queryByText(/agent_instance/u)).toBeNull();
+});
+
 it('searches one field at a time and opens a subject from its row', async () => {
   const user = userEvent.setup();
   const { sent, router } = renderConsoleAt('/console/acme/subjects', routes());

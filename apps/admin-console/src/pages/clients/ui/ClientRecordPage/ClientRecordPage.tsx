@@ -30,6 +30,7 @@ interface PanelProps extends ClientTabProps {
   branding: BrandingOffer;
   brandingHeld: { lead: string; needs: string };
   activityNote: string;
+  fieldsFixed: string | null;
 }
 
 function Activity({ tenant, id, lead }: { tenant: string; id: string; lead: string }) {
@@ -39,9 +40,20 @@ function Activity({ tenant, id, lead }: { tenant: string; id: string; lead: stri
   );
 }
 
-// What a tab saving the client's own record is given.
-function writes({ tenant, client, etag, gone, writable }: PanelProps) {
-  return { tenant, client, etag, gone, writable };
+// What a tab saving the client's own record is given: nothing to change
+// where the record fixes what the tab holds.
+function writes({ tenant, client, etag, gone, writable, fieldsFixed }: PanelProps) {
+  return { tenant, client, etag, gone, writable: writable && fieldsFixed === null };
+}
+
+// A tab whose settings are fixed says why above them.
+function Fixed({ props, children }: { props: PanelProps; children: ReactNode }) {
+  return (
+    <>
+      {props.fieldsFixed === null ? null : <Note>{props.fieldsFixed}</Note>}
+      {children}
+    </>
+  );
 }
 
 // One panel per tab, in CLIENT_TABS' order.
@@ -56,9 +68,17 @@ const PANELS: Readonly<Record<ClientTab, (props: PanelProps) => ReactNode>> = {
       writable={props.writable}
     />
   ),
-  tokens: (props) => <TokensTab {...writes(props)} />,
+  tokens: (props) => (
+    <Fixed props={props}>
+      <TokensTab {...writes(props)} />
+    </Fixed>
+  ),
   scopes: (props) => <ScopesTab tenant={props.tenant} client={props.client} reach={props.reach} />,
-  logout: (props) => <LogoutTab {...writes(props)} />,
+  logout: (props) => (
+    <Fixed props={props}>
+      <LogoutTab {...writes(props)} />
+    </Fixed>
+  ),
   branding: (props) => (
     <BrandingTab
       tenant={props.tenant}
@@ -67,7 +87,11 @@ const PANELS: Readonly<Record<ClientTab, (props: PanelProps) => ReactNode>> = {
       held={props.brandingHeld}
     />
   ),
-  advanced: (props) => <AdvancedTab {...writes(props)} />,
+  advanced: (props) => (
+    <Fixed props={props}>
+      <AdvancedTab {...writes(props)} />
+    </Fixed>
+  ),
   roles: (props) => <RolesTab tenant={props.tenant} client={props.client} />,
   service: (props) => (
     <ServiceAccountTab
@@ -102,6 +126,7 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
           branding: page.branding,
           brandingHeld: page.brandingHeld,
           activityNote: page.activityNote,
+          fieldsFixed: page.fieldsFixed,
         };
   return (
     <RecordPage

@@ -2,6 +2,7 @@ import type { ClientRecord } from '#/pages/clients/types/clientRecord';
 import { clientScope, useScopeEdits } from '#/features/branding-editor';
 import { useAuthority } from '#/entities/session';
 import { useClientRecord } from '#/pages/clients/repository/useClientRecord';
+import { fieldsFixed } from '#/pages/clients/services/builtinFixed';
 import { serviceRolesRecordOf } from '#/pages/clients/services/serviceAccess';
 import {
   BRANDING_HELD,
@@ -53,6 +54,9 @@ export interface ClientRecordPage {
   writable: boolean;
   // Why none is, in one line, once that is known.
   line: string | null;
+  // Why the settings of the tabs that follow the General tab are shown as
+  // text, where the client's own record fixes them.
+  fieldsFixed: string | null;
 }
 
 export function useClientRecordPage(tenant: string, id: string): ClientRecordPage {
@@ -86,5 +90,6 @@ export function useClientRecordPage(tenant: string, id: string): ClientRecordPag
     brandingHeld: { lead: BRANDING_HELD, needs: andList(changeNeeds) },
     writable: canChange(reach, changeNeeds),
     line: reachLine(reach, record.data?.name),
+    fieldsFixed: fieldsFixed(record.data),
   };
 }

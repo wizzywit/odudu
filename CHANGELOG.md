@@ -8,6 +8,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Added
 
+- A client on the admin API carries `builtin_mcp` and `builtin_assistant` beside `builtin_admin`, true for the tenant's own MCP client and assistant client. The console uses them: a built-in client's record says it is built in and cannot be deleted in place of the delete button, and the assistant client's other settings are shown as text, since only its name, description and whether it is enabled can change.
 - The subject of an agent instance can no longer be deleted by hand, through `DELETE` or the bulk delete on `/admin/tenants/<name>/subjects`, or in the console. It is refused with `409` (`about:blank#agent-instance`) and recorded as a refused `subject.delete`; revoke the instance instead, and `odudu reap` deletes it after its retention window. Deleting its owner still removes it.
 - Agent instances. A client marked as an agent (`agent_type`) that exchanges a person's token (RFC 8693) now starts a run of its own: the issued token keeps the person as `sub` and names the run in `act.sub`, and a run that exchanges its own token starts a run under it, nested in `act`. A run can only be narrower than the one above it: its scope is a subset, it ends no later than its parent or the person's session, its depth is within `agent_max_delegation_depth`, and a parent holds at most `agent_max_children` live runs and the tenant at most `agent_max_live_instances`. A client that is not an agent exchanges exactly as before.
 - `may_act` is now written into a person's access token, from the sign-in client's `delegated_actors` and from the person's own delegations (below), with the narrower scope ceiling applying to an agent client both name. The grant keeps it, so exchanging the refresh token is held to it as well. A sign-in with neither source has no `may_act`, as before.
@@ -44,6 +45,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Changed
 
+- The subjects list and its count, `GET /admin/tenants/<name>/subjects` and `.../subjects/count`, leave out agent instances unless a request names `type=agent_instance`, so the console's Subjects page and the Overview's subject count show people and service accounts only; the MCP tools `list_subjects` and `count_subjects` do the same. An instance's own page still opens by its id, and the Agents area lists them.
 - The fixed ceiling of eight on how deep an agent's runs may nest is now `agent_max_delegation_depth`, which defaults to 3 and takes 1 to 8. It applies to agent clients only.
 - Starting an assistant conversation (`POST /admin/tenants/<name>/assistant/conversations`) now needs an administrator's own console sign-in, which the conversation's grant is derived from. A token with no sign-in behind it, such as a service account's, is refused with `403`.
 - The MCP server's per-sign-in limits of 20 changing calls and 10 creations are the tenant settings `agent_writes_per_grant` and `agent_creates_per_grant`, with the same defaults.
