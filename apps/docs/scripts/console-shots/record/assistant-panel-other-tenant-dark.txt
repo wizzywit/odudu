@@ -132,8 +132,9 @@ Previous
 Page 1
 Next
 Assistant
-New conversation
 Close
+Conversations
+New conversation
 Mode
 Acting in demo
 Ask
@@ -152,3 +153,9 @@ This page
 /clients
 Enter sends. Shift and Enter start a new line.
 Send
+Back
+Your conversations
+New conversation
+New
+Loading your conversations
+A conversation is removed after it has been idle for the number of days your administrators have set.

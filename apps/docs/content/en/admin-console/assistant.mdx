@@ -1,6 +1,6 @@
 ---
 title: The assistant in the console
-description: Ask a question about a tenant, your own or one you administer as a system administrator, from a panel beside any page, watch the assistant read what it needs, stop it, and see why it stopped.
+description: Ask a question about a tenant, your own or one you administer as a system administrator, from a panel beside any page, watch the assistant read what it needs, stop it, see why it stopped, and come back to, archive, export or delete your own conversations.
 sidebar_position: 18
 ---
 
@@ -14,19 +14,19 @@ The button is **Ask the assistant**, in the menu and, on a narrow screen, in the
 
 <ConsoleShot
   name="assistant-panel"
-  alt="The Tenants page of the system tenant with the assistant’s panel open beside it: the mode switch set to Ask with Act dimmed and a sentence saying why, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button."
+  alt="The Tenants page of the system tenant with the assistant’s panel open beside it: Conversations and New conversation buttons under the title, the mode switch set to Ask with Act dimmed and a sentence saying why, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button."
   caption="The panel opens beside the page, with a notice the first time it is used."
 />
 
 ## 1. Open it
 
-Choose **Ask the assistant**, or press Command and K on a Mac, Control and K elsewhere. The panel takes the focus to its heading, so a screen reader starts at the top, and the message field is one Tab away. Escape or **Close** puts the panel away and the focus goes back to whatever opened it. Putting it away does not end an answer that is being written: the answer goes on, and is there when you open the panel again. Opened again, it comes back to the conversation you had, as long as you stay in this console page; a reload starts a new one. **New conversation**, at the top of the panel, starts one when no answer is being written.
+Choose **Ask the assistant**, or press Command and K on a Mac, Control and K elsewhere. The panel takes the focus to its heading, so a screen reader starts at the top, and the message field is one Tab away. Escape or **Close** puts the panel away and the focus goes back to whatever opened it. Putting it away does not end an answer that is being written: the answer goes on, and is there when you open the panel again. Opened again, it comes back to the conversation you had, and after a reload it reopens your latest one with its messages ([section 7](#7-your-conversations)). **New conversation**, under the title, starts one when no answer is being written.
 
 Where the console is wide enough, the panel has a column of its own beside the page and stays there as you move between pages. Where it is not, the panel lies over the page as a dialog: the page behind it is out of reach, Tab stays inside it, and on a phone it fills the screen.
 
 <ConsoleShot
   name="assistant-panel-phone"
-  alt="The assistant’s panel on a phone, filling the screen: the same mode switch, notice, description and message field in one column, with Close at the top right."
+  alt="The assistant’s panel on a phone, filling the screen: the same Conversations and New conversation buttons, mode switch, notice, description and message field in one column, with Close at the top right."
   caption="On a phone the panel fills the screen and the page behind it is out of reach."
 />
 
@@ -48,7 +48,7 @@ A system administrator who has opened another tenant, such as `demo` while signe
 
 <ConsoleShot
   name="assistant-panel-other-tenant"
-  alt="The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: a tag reading Acting in demo, the mode switch set to Ask with Act dimmed and the sentence Act is not available in another tenant, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text."
+  alt="The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: the Conversations and New conversation buttons, a tag reading Acting in demo, the mode switch set to Ask with Act dimmed and the sentence Act is not available in another tenant, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text."
   caption="In another tenant the panel names it, and Act is not available."
 />
 
@@ -80,10 +80,44 @@ An answer ends in one of a few ways, and the panel names which.
 
 The panel says nothing about your allowance until the server does. When a limit passes 80 percent during an answer, a line at the top says how much of which limit is used and what happens at the limit, and when one is reached it names it. Both stay until an answer ends well. The server sends the share at which it warned and not a running count, so the panel shows no more than that.
 
+## 7. Your conversations
+
+**Conversations**, under the title, shows every conversation of yours in this tenant, newest first, under **Today**, **Yesterday**, **Earlier this week** and **Earlier**. The list takes the panel's whole height and slides in over the conversation, which stays where it was, so an answer that is being written goes on behind it. **Back**, or Escape, returns to it. Each row is one line: the title, when the conversation was last active, its mode, and, when you are acting in another tenant, the tenant's name. The conversation that is open is marked. A title is made from the first thing you asked, with addresses, links, long numbers and anything that looks like a secret taken out. Use the arrow keys to move through the rows, Enter to open one, and type a few letters of a title to jump to it.
+
+<ConsoleShot
+  name="assistant-conversations"
+  alt="The assistant’s panel showing Your conversations, with Back and New conversation at the top and three conversations under the heading Today, each named Untitled conversation, with when it was last active, an Ask tag and an Actions button on its right."
+  caption="Your conversations, newest first, grouped by day; the one that is open is marked."
+/>
+
+On a phone the list is the same, and **New conversation** shortens to **New**.
+
+<ConsoleShot
+  name="assistant-conversations-phone"
+  alt="The same list of conversations on a phone, filling the screen: Back, the heading and a short New button at the top, and each conversation named Untitled conversation on one line with its time, its Ask tag and Actions."
+  caption="On a phone the list takes the panel’s whole height, and its rows stay one line each."
+/>
+
+A conversation belongs to one tenant: the list shows the conversations you had in the tenant you are looking at, and a system administrator acting in another tenant sees that tenant's own list.
+
+**Opening.** The panel opens on your latest conversation that is not archived, with its messages, and after a reload does the same. Choose a row to open another. If an answer is still being written, a note asks whether to **Stop and switch**, which ends the answer here and on the server and then opens the one you chose, or **Keep waiting**, which leaves everything as it was. Choosing the conversation that is already open just takes you back to it.
+
+**Actions.** **Actions**, on each row, opens a menu.
+
+- **Archive** hides the conversation at once and offers **Undo** for as long as you stay in the list. Nothing is removed. An **Archived** section at the foot of the list, with its count, holds what you hid; open one and the composer is replaced by a note and **Restore**.
+- **Export as Markdown** and **Export as JSON** save the conversation as a file: its first 500 messages, with secrets hidden, and the names of the tools an answer called but not what they were given or returned. Each export is recorded in the audit trail as an action, never with the text.
+- **Delete** asks first, naming the conversation. Its messages, its steps and its approval cards are removed and cannot be brought back, and the server keeps a record, without any text, that a conversation was deleted. **Delete conversation** is refused in plain words while an answer is running in it, and for a conversation that was reported, which is kept for review: you can archive it, and its menu shows **Delete** dimmed with the reason. A reported conversation carries a **Reported** tag.
+
+**A conversation that can be read but not continued.** A conversation can only take a message under the sign-in it was started in. After you sign in again, an older conversation opens for reading, and in place of the message field the panel says so and offers **Start a new conversation**. If you send a message to one the server then refuses, the panel says the same, takes the message back and offers the same button. Nothing is lost: the conversation can still be read, exported and deleted. Restoring an archived conversation brings the message field back.
+
+**If the assistant is switched off meanwhile.** When an administrator turns the assistant off for the tenant while a conversation is running, a tool's next call is refused and the panel says so, in a note under the conversation: the assistant was switched off, nothing further was run, and an administrator can switch it on again. What was already said is kept.
+
+A conversation is removed after it has had no new message for the number of days the tenant sets under **Keep traces for** in [Settings](./settings.mdx), 30 by default, and shortening it applies at the next pass of `odudu reap`. The list says so in a line under it, without the number, because the number is the administrators' to read. [The assistant's trace](../operating/assistant-trace.md) has the detail.
+
 ## Things that cannot be undone
 
-**Stop** cannot take back what has been sent. The request to the model provider is made as soon as you send a message, and what the provider has received stays with it. A step that has already run has run; in Ask mode every step only reads. The conversation is recorded, so putting the panel away does not delete it: it stays readable to you and to those the first-run notice names.
+**Stop** cannot take back what has been sent. The request to the model provider is made as soon as you send a message, and what the provider has received stays with it. A step that has already run has run; in Ask mode every step only reads. The conversation is recorded, so putting the panel away does not delete it: it stays readable to you and to those the first-run notice names. Deleting it yourself, from **Conversations**, removes its text for good; archiving only hides it.
 
 ## Do the same through the API
 
-The conversation, its messages and its stream are in the [assistant area of the admin API](../reference/generated/admin-api/assistant/index.md): starting a conversation sends the page you are on, a message is answered as a stream, a turn is stopped with its own call, and the mode is switched with another. The console reads the stream through the same gateway as every other call, so it carries the same session and the same refusals.
+The conversation, its messages and its stream are in the [assistant area of the admin API](../reference/generated/admin-api/assistant/index.md): starting a conversation sends the page you are on, a message is answered as a stream, a turn is stopped with its own call, and the mode is switched with another. The list, the latest conversation, hiding, exporting and deleting are routes of your own conversations that answer for you and for nobody else, and the panel's **Conversations** uses them. The console reads the stream through the same gateway as every other call, so it carries the same session and the same refusals.

@@ -23,6 +23,9 @@ const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g
 // is as long and as random as a secret and is served to anybody. The private
 // members (d, p, q, ...) are not named here, so they are still refused.
 const PUBLIC_KEY_MEMBER = /"(?:x|y|n)"\s*:\s*"[A-Za-z0-9_-]+"/gu;
+// A built chunk is named by what it holds and a hash, as in
+// /console/assets/useGridSelectionCheckbox-RPsVRr9v.js, and is as long and as mixed as a secret.
+const BUILT_ASSET = /\/assets\/[A-Za-z0-9_.-]+\.(?:js|css)\b/gu;
 // 24 random bytes as base64url, which is what a one-time password is.
 const GENERATED = /(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{32,}(?![A-Za-z0-9_-])/u;
 
@@ -53,7 +56,9 @@ export function findSecrets(visible: Visible, known: readonly string[]): string[
   }
   if (PASSWORD_LINE.test(visible.text)) found.push('a line shows a password');
   for (const value of surfaces) {
-    const token = GENERATED.exec(value.replaceAll(UUID, '').replaceAll(PUBLIC_KEY_MEMBER, ''))?.[0];
+    const token = GENERATED.exec(
+      value.replaceAll(UUID, '').replaceAll(PUBLIC_KEY_MEMBER, '').replaceAll(BUILT_ASSET, ''),
+    )?.[0];
     if (token !== undefined && looksRandom(token)) {
       found.push(
         `a token the shape of a generated secret is on the page (${token.slice(0, 4)}…, ${String(token.length)} characters)`,
