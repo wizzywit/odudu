@@ -14,10 +14,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/client": "2.4.0",
-    "@odudu-io/mcp-stdio": "^0.1.0"
+    "@odudu-io/mcp-stdio": "^0.1.1"
   },
   "devDependencies": {
-    "@odudu-io/admin-client": "^0.1.0",
+    "@odudu-io/admin-client": "^0.1.1",
     "@odudu-io/oidc": "^0.1.0",
     "@types/node": "24.19.2",
     "typescript": "6.0.3"
