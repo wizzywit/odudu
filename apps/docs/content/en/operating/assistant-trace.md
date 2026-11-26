@@ -1,6 +1,6 @@
 ---
 title: The assistant's trace
-description: What the console assistant records of each turn beyond the audit trail, what it masks or never stores, how it is bounded, and what happens when it cannot be written.
+description: What the console assistant records of each turn beyond the audit trail, what it masks or never stores, how it is bounded, and what a failed write does.
 ---
 
 # The assistant's trace
