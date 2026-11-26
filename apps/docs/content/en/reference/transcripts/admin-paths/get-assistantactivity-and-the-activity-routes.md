@@ -1,6 +1,6 @@
 ---
 title: 'Assistant activity: list, replay, export and report'
-description: 'How a holder of read-assistant-activity lists the console assistant conversations of a tenant, replays one, exports it as a test case, and how a conversation is reported.'
+description: 'How a holder of read-assistant-activity lists the console assistant conversations of a tenant, replays one, exports it as a test case and reports one.'
 ---
 
 # Assistant activity: list, replay, export and report
