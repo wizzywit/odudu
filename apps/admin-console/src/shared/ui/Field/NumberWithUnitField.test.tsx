@@ -110,24 +110,55 @@ describe('NumberWithUnitField with a unit picker', () => {
     );
   }
 
+  const unitButton = () => screen.getByRole('button', { name: /Idle, unit/u });
+
   it('shows the unit that fits and no reading beneath it', () => {
     render(<Seconds start={1800} />);
     expect(screen.getByRole('textbox', { name: 'Idle' })).toHaveValue('30');
-    expect(screen.getByRole('combobox', { name: 'Idle, unit' })).toHaveValue('min');
+    expect(unitButton()).toHaveTextContent('min');
     expect(screen.queryByText(/1800 s/u)).toBeNull();
+  });
+
+  it('is the design-system listbox, not the browser select', async () => {
+    const user = userEvent.setup();
+    render(<Seconds start={1800} />);
+    expect(screen.queryByRole('combobox')).toBeNull();
+    await user.click(unitButton());
+    expect(screen.getByRole('listbox', { name: 'Idle, unit' })).toBeInTheDocument();
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      expect.stringContaining('s'),
+      expect.stringContaining('min'),
+      expect.stringContaining('h'),
+      expect.stringContaining('d'),
+    ]);
   });
 
   it('keeps the seconds the same value in whatever unit it is typed', async () => {
     const user = userEvent.setup();
     render(<Seconds start={7200} />);
-    expect(screen.getByRole('combobox', { name: 'Idle, unit' })).toHaveValue('h');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Idle, unit' }), 'min');
+    expect(unitButton()).toHaveTextContent('h');
+    await user.click(unitButton());
+    await user.click(screen.getByRole('option', { name: 'min' }));
+    expect(unitButton()).toHaveTextContent('min');
     expect(screen.getByLabelText('seconds')).toHaveTextContent('7200');
     const input = screen.getByRole('textbox', { name: 'Idle' });
     await user.clear(input);
     await user.type(input, '180');
     await user.tab();
     expect(screen.getByLabelText('seconds')).toHaveTextContent('10800');
+  });
+
+  it('is picked from the keyboard', async () => {
+    const user = userEvent.setup();
+    render(<Seconds start={7200} />);
+    unitButton().focus();
+    await user.keyboard('{Enter}');
+    await user.keyboard('{ArrowUp}{Enter}');
+    expect(unitButton()).toHaveTextContent('min');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    await user.keyboard('{Enter}{Escape}');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(unitButton()).toHaveTextContent('min');
   });
 
   it('keeps the unit a value is typed in, even when another would fit it', async () => {
@@ -139,13 +170,15 @@ describe('NumberWithUnitField with a unit picker', () => {
     await user.tab();
     expect(screen.getByLabelText('seconds')).toHaveTextContent('3600');
     expect(input).toHaveValue('60');
-    expect(screen.getByRole('combobox', { name: 'Idle, unit' })).toHaveValue('min');
+    expect(unitButton()).toHaveTextContent('min');
   });
 
-  it('offers only the units the value is a whole count of, so looking changes nothing', () => {
+  it('offers only the units the value is a whole count of, so looking changes nothing', async () => {
+    const user = userEvent.setup();
     render(<Seconds start={5400} />);
-    expect(screen.getByRole('option', { name: 'h' })).toBeDisabled();
-    expect(screen.getByRole('option', { name: 'min' })).toBeEnabled();
+    await user.click(unitButton());
+    expect(screen.getByRole('option', { name: 'h' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('option', { name: 'min' })).not.toHaveAttribute('aria-disabled');
     expect(screen.getByLabelText('seconds')).toHaveTextContent('5400');
   });
 

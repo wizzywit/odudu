@@ -45,6 +45,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Changed
 
+- The unit dropdown beside a duration field in the console settings (seconds, minutes, hours, days) is now the same listbox the other dropdowns use, in place of the browser's own select; the values it saves are unchanged.
 - The subjects list and its count, `GET /admin/tenants/<name>/subjects` and `.../subjects/count`, leave out agent instances unless a request names `type=agent_instance`, so the console's Subjects page and the Overview's subject count show people and service accounts only; the MCP tools `list_subjects` and `count_subjects` do the same. An instance's own page still opens by its id, and the Agents area lists them.
 - The fixed ceiling of eight on how deep an agent's runs may nest is now `agent_max_delegation_depth`, which defaults to 3 and takes 1 to 8. It applies to agent clients only.
 - Starting an assistant conversation (`POST /admin/tenants/<name>/assistant/conversations`) now needs an administrator's own console sign-in, which the conversation's grant is derived from. A token with no sign-in behind it, such as a service account's, is refused with `403`.

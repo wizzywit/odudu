@@ -132,6 +132,8 @@ Verify email addresses
 Off
 The account is created when the person confirms their address from a mail.
 Verification link lifetime
+h
+▾
 s
 min
 h
@@ -148,6 +150,8 @@ Password reset by mail
 Off
 A person who forgot their password may ask for a reset link.
 Reset link lifetime
+min
+▾
 s
 min
 h
@@ -256,18 +260,24 @@ Failures before a lockout
 failures
 Allowed: 1 to 100 failures.
 First lockout
+min
+▾
 s
 min
 h
 d
 How long the first lockout lasts. At most the longest lockout. Allowed: 1 second to 1 day.
 Longest lockout
+min
+▾
 s
 min
 h
 d
 Lockouts grow with each repeat, up to this.
 Failures forgotten after
+h
+▾
 s
 min
 h
@@ -279,12 +289,16 @@ Clear all lockouts
 Sessions
 How long a sign-in lasts, and how long a person has to finish one.
 Idle timeout
+min
+▾
 s
 min
 h
 d
 A session ends after this long without activity. At most the maximum. Allowed: 1 minute to 30 days.
 Maximum lifetime
+h
+▾
 s
 min
 h
@@ -294,12 +308,16 @@ Sessions per browser
 sessions
 How many sessions one browser may hold at once. Allowed: 1 to 32 sessions.
 Time to finish a sign-in
+min
+▾
 s
 min
 h
 d
 A sign-in left unfinished this long has to be started again. Allowed: 1 minute to 1 day.
 Recent sign-in window
+min
+▾
 s
 min
 h
@@ -313,12 +331,16 @@ Offer remember me
 Off
 The sign-in page shows the choice only while this is on.
 Idle timeout
+d
+▾
 s
 min
 h
 d
 Without activity this long, a remembered session ends. At most the maximum. Allowed: 1 minute to 365 days.
 Maximum lifetime
+d
+▾
 s
 min
 h
@@ -327,24 +349,32 @@ A remembered session ends this long after sign-in. Allowed: 1 minute to 365 days
 Token lifetimes
 What a client gets unless it carries lifetimes of its own.
 Access token
+min
+▾
 s
 min
 h
 d
 Allowed: 1 second to 1 hour.
 ID token
+min
+▾
 s
 min
 h
 d
 Allowed: 1 second to 1 hour.
 Refresh token
+d
+▾
 s
 min
 h
 d
 Allowed: at least 1 second.
 Authorization code
+min
+▾
 s
 min
 h
@@ -378,12 +408,16 @@ Live instances
 instances
 How many instances the tenant may hold at once. Allowed: 1 to 100000 instances.
 Instance lifetime
+min
+▾
 s
 min
 h
 d
 An instance ends this long after it is made, never after its owner’s session. Allowed: 1 minute to 1 day.
 Instance idle timeout
+min
+▾
 s
 min
 h
@@ -391,6 +425,8 @@ d
 An instance ends after this long without a call, never after its owner’s session. Allowed: 1 minute to 1 day.
 Approvals
 Approval lifetime
+min
+▾
 s
 min
 h
