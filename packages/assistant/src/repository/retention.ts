@@ -14,10 +14,26 @@ const notReported = (alias: string, column: string): SQL => sql`not exists (
      and c.id = ${sql.raw(alias)}.${sql.raw(column)}
      and c.reported_at is not null)`;
 
+// A conversation bound to another tenant ends its trace by the stricter of the
+// two tenants' windows. The statements below take that target when they serve
+// one: they walk the conversations bound to it through assistant_conversations_target
+// and reach the turns and cards through the conversation's own keys.
+
 // The oldest turns first, through assistant_turns_started. The turns of a
 // reported conversation are skipped, and each round reads them again: the cost
 // is those turns, however many a reported conversation has.
-export function pruneTurnsStatement(before: Date, batch: number): SQL {
+export function pruneTurnsStatement(before: Date, batch: number, target?: string): SQL {
+  if (target !== undefined) {
+    return sql`
+      delete from assistant_turns
+       where ctid in (
+         select t.ctid from assistant_conversations c
+           join assistant_turns t on t.tenant_id = c.tenant_id and t.conversation_id = c.id
+          where c.tenant_id = ${TENANT} and c.target_tenant_id = ${target}
+            and c.reported_at is null
+            and t.started_at < ${before.toISOString()}::timestamptz
+          limit ${batch})`;
+  }
   return sql`
     delete from assistant_turns
      where ctid in (
@@ -29,7 +45,19 @@ export function pruneTurnsStatement(before: Date, batch: number): SQL {
         limit ${batch})`;
 }
 
-export function pruneCardsStatement(before: Date, batch: number): SQL {
+export function pruneCardsStatement(before: Date, batch: number, target?: string): SQL {
+  if (target !== undefined) {
+    return sql`
+      delete from assistant_approvals
+       where ctid in (
+         select a.ctid from assistant_conversations c
+           join assistant_approvals a
+             on a.tenant_id = c.tenant_id and a.conversation_id = c.id
+          where c.tenant_id = ${TENANT} and c.target_tenant_id = ${target}
+            and c.reported_at is null
+            and a.created_at < ${before.toISOString()}::timestamptz
+          limit ${batch})`;
+  }
   return sql`
     delete from assistant_approvals
      where ctid in (
@@ -41,14 +69,17 @@ export function pruneCardsStatement(before: Date, batch: number): SQL {
         limit ${batch})`;
 }
 
-// Through assistant_conversations_idle, which holds only the unreported.
-export function pruneConversationsStatement(before: Date, batch: number): SQL {
+// Through assistant_conversations_idle, which holds only the unreported; for a
+// target, through assistant_conversations_target.
+export function pruneConversationsStatement(before: Date, batch: number, target?: string): SQL {
+  const bound = target === undefined ? sql`` : sql`and c.target_tenant_id = ${target}`;
   return sql`
     delete from assistant_conversations
      where ctid in (
        select c.ctid from assistant_conversations c
         where c.tenant_id = ${TENANT}
           and c.reported_at is null
+          ${bound}
           and c.last_active_at < ${before.toISOString()}::timestamptz
         order by c.last_active_at
         limit ${batch})
@@ -65,16 +96,30 @@ export function retentionRepository(tx: AssistantTx) {
       return rows[0]?.days ?? ASSISTANT_SETTING_DEFAULTS.assistant_trace_retention_days;
     },
 
-    async pruneTurns(before: Date, batch: number): Promise<number> {
-      return (await tx.execute(pruneTurnsStatement(before, batch))).count;
+    /**
+     * The tenants this tenant's conversations are bound to, at most `limit`
+     * of them in id order. Through assistant_conversations_target, which holds
+     * only bound conversations, so the cost follows those and not the table.
+     */
+    async targets(limit: number): Promise<string[]> {
+      const rows = await tx.execute<{ target_tenant_id: string }>(sql`
+        select distinct c.target_tenant_id from assistant_conversations c
+         where c.tenant_id = ${TENANT} and c.target_tenant_id is not null
+         order by c.target_tenant_id
+         limit ${limit}`);
+      return rows.map((row) => row.target_tenant_id);
     },
 
-    async pruneCards(before: Date, batch: number): Promise<number> {
-      return (await tx.execute(pruneCardsStatement(before, batch))).count;
+    async pruneTurns(before: Date, batch: number, target?: string): Promise<number> {
+      return (await tx.execute(pruneTurnsStatement(before, batch, target))).count;
     },
 
-    async pruneConversations(before: Date, batch: number): Promise<number> {
-      return (await tx.execute(pruneConversationsStatement(before, batch))).count;
+    async pruneCards(before: Date, batch: number, target?: string): Promise<number> {
+      return (await tx.execute(pruneCardsStatement(before, batch, target))).count;
+    },
+
+    async pruneConversations(before: Date, batch: number, target?: string): Promise<number> {
+      return (await tx.execute(pruneConversationsStatement(before, batch, target))).count;
     },
   };
 }

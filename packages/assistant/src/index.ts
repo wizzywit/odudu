@@ -43,7 +43,7 @@ export type { BudgetAuditEvent } from '#/usecase/chat-deps';
 export type { TurnStart, TurnSummary } from '#/service/turn-summary';
 export { upkeepBudget } from '#/usecase/budget-upkeep';
 export type { BudgetUpkeepReport } from '#/usecase/budget-upkeep';
-export { reapTrace } from '#/usecase/reap-trace';
+export { reapTrace, traceRetentionDays } from '#/usecase/reap-trace';
 export type { TraceReapReport } from '#/usecase/reap-trace';
 export {
   exportPromptfoo,

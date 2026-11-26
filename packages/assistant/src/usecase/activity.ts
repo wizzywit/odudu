@@ -27,10 +27,22 @@ import {
 import { createMasker } from '#/service/mask-secrets';
 import { TEXT_WITHHELD } from '#/service/withhold-text';
 import { promptfooCaseOf } from '#/service/promptfoo-case';
+import { conversationIsCallers } from '#/service/conversation-access';
 import { decodePosition, encodePosition } from '#/service/activity-position';
 import { readSettings } from '#/usecase/settings';
 
 type Repository = ReturnType<typeof activityRepository>;
+
+// Who may read a conversation other than its owner is decided at the door, by
+// capability, so the owner stands in for the reader here; what this asks is the
+// rest of the rule: a conversation bound to another tenant is not served at the
+// path of the tenant that holds it.
+function servedAtPath(row: ActivityConversationRow, tenantId: string): boolean {
+  return conversationIsCallers(
+    { ...row, tenantId, targetTenantId: row.targetTenantId },
+    { tenantId, ownerSubjectId: row.ownerSubjectId },
+  );
+}
 
 export interface ActivityList {
   readonly items: AssistantActivityConversation[];
@@ -98,7 +110,7 @@ export async function replayConversation(
 ): Promise<AssistantActivityReplay | null> {
   const repository = activityRepository(tx);
   const row = await repository.byId(id);
-  if (row === undefined) return null;
+  if (row === undefined || !servedAtPath(row, tenantId)) return null;
   const settings = await readSettings(tx, tenantId);
   const latest = await repository.latestTurns(id, REPLAY_TURNS_MAX);
   const turns = [...latest.turns].reverse();
@@ -163,6 +175,7 @@ export type ReportOutcome =
   | { readonly kind: 'missing' };
 
 export interface ReportInput {
+  readonly tenantId: string;
   readonly conversationId: string;
   /** The person asking, who may report their own conversation. */
   readonly subjectId: string;
@@ -183,7 +196,7 @@ export async function reportConversation(
 ): Promise<ReportOutcome> {
   const repository = activityRepository(tx);
   const row = await repository.byId(input.conversationId);
-  if (row === undefined) return { kind: 'missing' };
+  if (row === undefined || !servedAtPath(row, input.tenantId)) return { kind: 'missing' };
   if (row.ownerSubjectId !== input.subjectId && !input.mayReadOthers) return { kind: 'missing' };
   return repository.report(input.conversationId, input.now, ASSISTANT_REPORTED_MAX);
 }

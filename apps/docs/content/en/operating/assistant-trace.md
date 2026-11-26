@@ -122,6 +122,8 @@ A turn exactly the window old is kept and one a moment older goes. The window is
 
 A conversation idle for longer than the window is removed whole, and so is what the person said in it: a person's history in the console lasts as long as the window after they last used it. Report a conversation to keep it.
 
+A conversation a system administrator started about another tenant ends by the shorter of the two tenants' windows: the administrator's tenant holds it and pays for it, and the other tenant's **Keep traces for** can shorten it. A pass applies a stricter window for at most 100 other tenants at a time, in id order, and the next pass takes the rest.
+
 The report of `odudu reap` carries what the pass did under `assistant`, as `turnsDeleted`, `approvalCardsDeleted` and `conversationsDeleted` beside the budget upkeep's counts, and `failed` counts the tenants for which either half failed. The command exits `1` when it is more than zero, so a scheduled job shows it, while the other tenants and the other half of that tenant's work stand. Shortening the setting removes more on the next pass; lengthening it does not bring back what a pass has removed.
 
 Deleting a person still deletes their conversations at once, and with them every turn, step and event.

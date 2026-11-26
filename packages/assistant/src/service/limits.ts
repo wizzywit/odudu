@@ -221,6 +221,9 @@ export const LAPSED_LEASE_RETENTION_DAYS = 1;
 // The most rows of one kind a pass takes for a tenant, in rounds of this size.
 export const UPKEEP_BATCH = 1000;
 export const UPKEEP_MAX_ROUNDS = 10;
+// The most other tenants one pass applies a stricter window for; a tenant whose
+// conversations are bound to more is taken in id order and the rest wait a pass.
+export const UPKEEP_MAX_TARGETS = 100;
 
 // A turn's place in the database lapses this long after its deadline if nothing released it.
 export const LEASE_GRACE_MS = 60_000;

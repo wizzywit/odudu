@@ -176,8 +176,6 @@ P5c, **a console assistant**, is [specified](superpowers/specs/2026-11-24-p5c-co
 
 The assistant's own token budgets, provider layer and screens are its spec's; nothing here places them.
 
-- **Cross-tenant retention.** Enforce `least(home, target)` trace retention in the trace pass (the I12 reaper) once I12 has merged; until then a system administrator's conversation about another tenant follows the administrator's tenant's retention and auditor visibility. The controller schedules it.
-
 ## What P5b inherits
 
 P5b, **MCP server: access-changing and destructive tools**, has [mcp-route-classes.md](protocols/mcp-route-classes.md) as its work list:

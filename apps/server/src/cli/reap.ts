@@ -1,5 +1,6 @@
 import {
   reapTrace,
+  traceRetentionDays,
   upkeepBudget,
   type BudgetUpkeepReport,
   type TraceReapReport,
@@ -857,7 +858,11 @@ export interface ReapDeps {
   /** The assistant's budget upkeep for one tenant; only a test replaces it. */
   readonly upkeep?: (tx: TenantScopedDatabase, now: Date) => Promise<BudgetUpkeepReport>;
   /** The assistant's trace retention for one tenant; only a test replaces it. */
-  readonly traceUpkeep?: (tx: TenantScopedDatabase, now: Date) => Promise<TraceReapReport>;
+  readonly traceUpkeep?: (
+    tx: TenantScopedDatabase,
+    now: Date,
+    daysOfTenant: (tenantId: string) => Promise<number>,
+  ) => Promise<TraceReapReport>;
 }
 
 async function* allTenantIds(owner: DatabaseHandle): AsyncGenerator<string> {
@@ -920,7 +925,11 @@ async function upkeepEachTenant(deps: ReapDeps, now: Date): Promise<AssistantRea
     );
     const trace = await attempt(
       'assistant_trace_reap_failed',
-      withTenant(deps.database.db, tenantId, (tx) => traceUpkeep(tx, now)),
+      withTenant(deps.database.db, tenantId, (tx) =>
+        traceUpkeep(tx, now, (other) =>
+          withTenant(deps.database.db, other, (otherTx) => traceRetentionDays(otherTx)),
+        ),
+      ),
     );
     total = addUpkeep(total, budget ?? NO_BUDGET, trace ?? NO_TRACE);
     if (state.failed) total = { ...total, failed: total.failed + 1 };

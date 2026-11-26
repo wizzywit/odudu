@@ -44,7 +44,7 @@ import {
   replayConversation,
   reportConversation,
 } from '#/usecase/activity';
-import { reapTrace } from '#/usecase/reap-trace';
+import { reapTrace, traceRetentionDays } from '#/usecase/reap-trace';
 import { writeSettings } from '#/usecase/settings';
 
 let container: TestDatabase;
@@ -171,6 +171,9 @@ async function turn(
   return { turnId, stepId };
 }
 
+const daysOf = (tenantId: string): Promise<number> =>
+  withTenant(app.db, tenantId, (tx) => traceRetentionDays(tx));
+
 async function counts(tenantId: string): Promise<Record<string, number>> {
   return withTenant(app.db, tenantId, async (tx) => {
     const out: Record<string, number> = {};
@@ -232,6 +235,43 @@ async function card(
   return approvalId;
 }
 
+describe('a conversation bound to another tenant', () => {
+  async function boundConversation() {
+    const home = await freshTenant();
+    const target = await freshTenant();
+    const c = await withTenant(app.db, home.tenantId, async (tx) => {
+      const made = await conversation(tx, home.tenantId, home.subjectId, NOW);
+      await tx.execute(
+        sql`update assistant_conversations set target_tenant_id = ${target.tenantId}
+             where id = ${made.id}`,
+      );
+      await turn(tx, made, { at: NOW, stop: 'done' });
+      return made;
+    });
+    return { home, c };
+  }
+
+  it('is not replayed, exported or reported at the path of the tenant that holds it', async () => {
+    const { home, c } = await boundConversation();
+    const result = await withTenant(app.db, home.tenantId, async (tx) => ({
+      replay: await replayConversation(tx, home.tenantId, c.id, true),
+      exported: await exportPromptfoo(tx, home.tenantId, c.id, true),
+      report: await reportConversation(tx, {
+        tenantId: home.tenantId,
+        conversationId: c.id,
+        subjectId: home.subjectId,
+        mayReadOthers: true,
+        now: NOW,
+      }),
+    }));
+    expect(result).toEqual({ replay: null, exported: null, report: { kind: 'missing' } });
+    const rows = await withTenant(app.db, home.tenantId, (tx) =>
+      tx.execute(sql`select 1 from assistant_conversations where reported_at is not null`),
+    );
+    expect(rows).toHaveLength(0);
+  });
+});
+
 describe('the trace retention pass', () => {
   it('keeps a turn exactly the window old and removes one a moment older, with its steps and events', async () => {
     const { tenantId, subjectId } = await freshTenant();
@@ -241,7 +281,7 @@ describe('the trace retention pass', () => {
       const old = await turn(tx, c, { at: ago(30, 1), tools: ['list_clients'], stop: 'done' });
       return { edge: edge.turnId, old: old.turnId };
     });
-    const report = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW));
+    const report = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW, daysOf));
     expect(report).toEqual({ turnsDeleted: 1, approvalCardsDeleted: 0, conversationsDeleted: 0 });
     const left = await withTenant(app.db, tenantId, (tx) =>
       tx.execute<{ id: string }>(sql`select id from assistant_turns`),
@@ -267,7 +307,7 @@ describe('the trace retention pass', () => {
       await turn(tx, c, { at: ago(8), stop: 'done' });
       await turn(tx, c, { at: ago(20), stop: 'done' });
     });
-    const report = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW));
+    const report = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW, daysOf));
     expect(report.turnsDeleted).toBe(2);
     expect((await counts(tenantId)).assistant_turns).toBe(1);
   });
@@ -290,7 +330,7 @@ describe('the trace retention pass', () => {
             values (${tenantId}, ${idle.id}, 1, 'user', '[{"type":"text","text":"hi"}]'::jsonb)`,
       );
     });
-    const report = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW));
+    const report = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW, daysOf));
     expect(report).toEqual({ turnsDeleted: 1, approvalCardsDeleted: 1, conversationsDeleted: 1 });
     expect(await counts(tenantId)).toMatchObject({
       assistant_conversations: 1,
@@ -309,7 +349,7 @@ describe('the trace retention pass', () => {
       await card(tx, c, subjectId, ago(31));
       await card(tx, c, subjectId, ago(1));
     });
-    const report = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW));
+    const report = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW, daysOf));
     expect(report.approvalCardsDeleted).toBe(1);
     expect((await counts(tenantId)).assistant_approvals).toBe(1);
   });
@@ -321,7 +361,7 @@ describe('the trace retention pass', () => {
       const c = await conversation(tx, a.tenantId, a.subjectId, ago(60));
       await turn(tx, c, { at: ago(60), stop: 'done' });
     });
-    const report = await withTenant(app.db, b.tenantId, (tx) => reapTrace(tx, NOW));
+    const report = await withTenant(app.db, b.tenantId, (tx) => reapTrace(tx, NOW, daysOf));
     expect(report).toEqual({ turnsDeleted: 0, approvalCardsDeleted: 0, conversationsDeleted: 0 });
     expect((await counts(a.tenantId)).assistant_turns).toBe(1);
   });
@@ -336,11 +376,90 @@ describe('the trace retention pass', () => {
       select ${tenantId}, gen_random_uuid(), ${c.id}, 'free-chat', ${HASH},
              ${ago(40).toISOString()}::timestamptz - (n || ' seconds')::interval
         from generate_series(1, 12000) n`;
-    const first = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW));
+    const first = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW, daysOf));
     expect(first.turnsDeleted).toBe(10_000);
-    const second = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW));
+    const second = await withTenant(app.db, tenantId, (tx) => reapTrace(tx, NOW, daysOf));
     expect(second.turnsDeleted).toBe(2_000);
   }, 60_000);
+
+  describe('for a conversation bound to another tenant', () => {
+    async function bound(window: number, targetDays: number) {
+      const home = await freshTenant();
+      const target = await freshTenant();
+      await withTenant(app.db, target.tenantId, (tx) =>
+        writeSettings(
+          tx,
+          target.tenantId,
+          { ...ASSISTANT_SETTING_DEFAULTS, assistant_trace_retention_days: targetDays },
+          NOW,
+        ),
+      );
+      await withTenant(app.db, home.tenantId, async (tx) => {
+        await writeSettings(
+          tx,
+          home.tenantId,
+          { ...ASSISTANT_SETTING_DEFAULTS, assistant_trace_retention_days: window },
+          NOW,
+        );
+        return undefined;
+      });
+      return { home, target };
+    }
+
+    async function seed(
+      home: { tenantId: string; subjectId: string },
+      targetId: string,
+      days: number,
+    ) {
+      return withTenant(app.db, home.tenantId, async (tx) => {
+        const c = await conversation(tx, home.tenantId, home.subjectId, ago(days));
+        await tx.execute(
+          sql`update assistant_conversations set target_tenant_id = ${targetId} where id = ${c.id}`,
+        );
+        await turn(tx, c, { at: ago(days), stop: 'done' });
+        await card(tx, c, home.subjectId, ago(days));
+        return c;
+      });
+    }
+
+    it('ends it by the target’s window when that is shorter than the home tenant’s', async () => {
+      const { home, target } = await bound(30, 7);
+      const kept = await withTenant(app.db, home.tenantId, async (tx) => {
+        const own = await conversation(tx, home.tenantId, home.subjectId, ago(10));
+        await turn(tx, own, { at: ago(10), stop: 'done' });
+        return own;
+      });
+      await seed(home, target.tenantId, 10);
+      const report = await withTenant(app.db, home.tenantId, (tx) => reapTrace(tx, NOW, daysOf));
+      expect(report).toEqual({ turnsDeleted: 1, approvalCardsDeleted: 1, conversationsDeleted: 1 });
+      const left = await withTenant(app.db, home.tenantId, (tx) =>
+        tx.execute<{ id: string }>(sql`select id from assistant_conversations`),
+      );
+      expect(left.map((row) => row.id)).toEqual([kept.id]);
+      expect((await counts(home.tenantId)).assistant_turns).toBe(1);
+    });
+
+    it('ends it by the home tenant’s window when that is shorter', async () => {
+      const { home, target } = await bound(7, 90);
+      await seed(home, target.tenantId, 10);
+      const report = await withTenant(app.db, home.tenantId, (tx) => reapTrace(tx, NOW, daysOf));
+      expect(report).toEqual({ turnsDeleted: 1, approvalCardsDeleted: 1, conversationsDeleted: 1 });
+    });
+
+    it('keeps it while both windows hold, and keeps a reported one past the target’s', async () => {
+      const { home, target } = await bound(30, 7);
+      await seed(home, target.tenantId, 5);
+      const reported = await seed(home, target.tenantId, 20);
+      await withTenant(app.db, home.tenantId, (tx) =>
+        tx.execute(
+          sql`update assistant_conversations set reported_at = ${NOW.toISOString()}::timestamptz
+               where id = ${reported.id}`,
+        ),
+      );
+      const report = await withTenant(app.db, home.tenantId, (tx) => reapTrace(tx, NOW, daysOf));
+      expect(report).toEqual({ turnsDeleted: 0, approvalCardsDeleted: 0, conversationsDeleted: 0 });
+    });
+  });
 
   it('probes each delete with a foreign tenant', async () => {
     for (const method of ['pruneTurns', 'pruneCards', 'pruneConversations'] as const) {
@@ -570,6 +689,7 @@ describe('the activity list', () => {
           page: await listActivity(tx, {}, undefined, 50, true),
           replay: await replayConversation(tx, newId(), id, true),
           report: await reportConversation(tx, {
+            tenantId: newId(),
             conversationId: id,
             subjectId: newId(),
             mayReadOthers: true,
@@ -846,6 +966,7 @@ describe('the replay, the export and the report', () => {
     const report = (id: string, at: Date, subject = subjectId, others = false) =>
       withTenant(app.db, tenantId, (tx) =>
         reportConversation(tx, {
+          tenantId: tenantId,
           conversationId: id,
           subjectId: subject,
           mayReadOthers: others,
@@ -882,6 +1003,7 @@ describe('the replay, the export and the report', () => {
     const attempt = (id: string) =>
       withTenant(app.db, full.tenantId, (tx) =>
         reportConversation(tx, {
+          tenantId: full.tenantId,
           conversationId: id,
           subjectId: full.subjectId,
           mayReadOthers: false,
@@ -908,6 +1030,7 @@ describe('the replay, the export and the report', () => {
       open.map((c) =>
         withTenant(app.db, tenantId, (tx) =>
           reportConversation(tx, {
+            tenantId: tenantId,
             conversationId: c.id,
             subjectId,
             mayReadOthers: false,
@@ -1006,6 +1129,9 @@ describe('the queries at volume', () => {
       turns: pruneTurnsStatement(ago(30), 1000),
       cards: pruneCardsStatement(ago(30), 1000),
       conversations: pruneConversationsStatement(ago(30), 1000),
+      boundTurns: pruneTurnsStatement(ago(7), 1000, newId()),
+      boundCards: pruneCardsStatement(ago(7), 1000, newId()),
+      boundConversations: pruneConversationsStatement(ago(7), 1000, newId()),
     });
     for (const [name, plan] of Object.entries(pruned)) {
       expect(plan, name).not.toContain('"Node Type":"Seq Scan"');
@@ -1013,5 +1139,8 @@ describe('the queries at volume', () => {
     expect(pruned.turns).toContain('assistant_turns_started');
     expect(pruned.cards).toContain('assistant_approvals_created');
     expect(pruned.conversations).toContain('assistant_conversations_idle');
+    expect(pruned.boundTurns).toContain('assistant_conversations_target');
+    expect(pruned.boundCards).toContain('assistant_conversations_target');
+    expect(pruned.boundConversations).toContain('assistant_conversations_target');
   }, 180_000);
 });

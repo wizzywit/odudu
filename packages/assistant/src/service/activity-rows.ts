@@ -16,6 +16,8 @@ export interface ActivityConversationRow {
   readonly createdAt: Date;
   readonly lastActiveAt: Date;
   readonly reportedAt: Date | null;
+  /** The tenant the conversation acts in, when not the one that holds it. */
+  readonly targetTenantId: string | null;
   readonly position: ActivityPosition;
 }
 

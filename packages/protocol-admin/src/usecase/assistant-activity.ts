@@ -48,6 +48,7 @@ export interface AssistantActivityStore {
   report(
     tx: TenantScopedDatabase,
     input: {
+      readonly tenantId: string;
       readonly conversationId: string;
       readonly subjectId: string;
       readonly mayReadOthers: boolean;
@@ -290,6 +291,7 @@ export async function reportAssistantConversation(
   // Only a person of this tenant has a conversation in it.
   const subjectId = input.actorTenantId === input.tenantId ? input.actorSubjectId : '';
   const result = await deps.store.report(tx, {
+    tenantId: input.tenantId,
     conversationId: input.conversationId,
     subjectId,
     mayReadOthers,

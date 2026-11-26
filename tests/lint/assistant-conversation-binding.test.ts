@@ -13,7 +13,7 @@ const PATTERNS = [
   'packages/protocol-admin/src/view/routes/assistant*.ts',
   'packages/protocol-admin/src/usecase/assistant*.ts',
 ];
-const READS_ONE = /conversationRepository\([^)]*\)\.byId\(/u;
+const READS_ONE = /(?:conversationRepository\([^)]*\)|\brepository)\.byId\(/u;
 
 async function files(): Promise<string[]> {
   const found: string[] = [];

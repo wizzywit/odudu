@@ -52,6 +52,7 @@ interface ConversationRow extends Record<string, unknown> {
   created_at: Date | string;
   last_active_at: Date | string;
   reported_at: Date | string | null;
+  target_tenant_id: string | null;
   last_active_text: string;
   hit?: boolean;
 }
@@ -134,7 +135,7 @@ export function hasDeepFilter(filters: ActivityFilters): boolean {
 
 const COLUMNS = sql`
   c.tenant_id, c.id, c.owner_subject_id, c.profile, c.mode, c.title, c.created_at,
-  c.last_active_at, c.reported_at, c.last_active_at::text as last_active_text`;
+  c.last_active_at, c.reported_at, c.target_tenant_id, c.last_active_at::text as last_active_text`;
 
 /**
  * The conversations of the tenant newest activity first, after `after`, at most
@@ -190,6 +191,7 @@ function toRow(row: ConversationRow): ActivityConversationRow {
     createdAt: new Date(row.created_at),
     lastActiveAt: new Date(row.last_active_at),
     reportedAt: row.reported_at === null ? null : new Date(row.reported_at),
+    targetTenantId: row.target_tenant_id,
     position: { lastActiveAt: row.last_active_text, id: row.id },
   };
 }
