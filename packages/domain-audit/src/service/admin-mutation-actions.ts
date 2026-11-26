@@ -6,6 +6,7 @@ export const ADMIN_MUTATION_ACTIONS = [
   'assistant.approval',
   'assistant.budget',
   'assistant.config',
+  'assistant.turn',
   'audit.export',
   'client.amend',
   'client.create',

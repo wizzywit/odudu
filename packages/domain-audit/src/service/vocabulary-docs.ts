@@ -12,7 +12,9 @@ type VocabularyAction = AuditAction<VocabularyEventType>;
 export const AUDIT_EVENT_TYPE_DOCS: Record<AuditEventType, string> = {
   admin_mutation:
     'A write made through the admin API, the `odudu console` command or, by a person for their ' +
-    'own account, the me API. Its action is free-form: one per mutation, named `<resource>.<verb>`.',
+    'own account, the me API. Its action is free-form: one per mutation, named `<resource>.<verb>`. ' +
+    'The console assistant’s own records (`assistant.turn`, `assistant.budget`) use this type ' +
+    'so a tenant cannot drop them, and are not writes.',
   admin_access:
     'A refusal at the admin API door: an authenticated caller without the capability, or a ' +
     'genuine token from another tenant.',
@@ -39,7 +41,10 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'the agent client, the owner, the tool and the admin route it reached, never its arguments. ' +
     'The MCP endpoint writes it for a call it serves; for a call made straight to the admin API ' +
     'with a token the endpoint did not sign (`odudu mcp`, or an exchanged token), the admin API writes it before the call runs, ' +
-    'and the tool is the route (`admin.get.clients`).',
+    'and the tool is the route (`admin.get.clients`). A call the console assistant made also ' +
+    'carries the `conversation` and the `turn` it was made in. The event is written after the call: ' +
+    'when it cannot be written the call has already run and only its result is withheld, and an ' +
+    'approved change stands, recorded by its `assistant.approval` and mutation events.',
   'assistant.access_refused':
     'The console assistant was refused an identity for a conversation, or a token for one of ' +
     'its tool calls. `detail` names the agent client (`odudu-assistant`), the person and a ' +
@@ -196,6 +201,17 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
     'A tenant’s settings for the console assistant changed: whether it is on, its default mode, ' +
     'email masking, trace retention, whether auditors see conversations, or a limit. `detail` ' +
     'gives each changed setting as before and after.',
+  'assistant.turn':
+    'A turn of the console assistant began or ended, one event for each. `detail.phase` is ' +
+    '`started` or `ended`; both name the tenant, the person, the conversation, the turn, the ' +
+    'profile, the mode and the slots. The `ended` event adds the tokens by slot, the steps taken and ' +
+    'why the turn stopped (`done`, `step_cap`, `awaiting_approval`, `aborted`, `error` or a ' +
+    'budget stop), and its outcome is `refused` for a budget stop and `failed` for an error. A ' +
+    '`started` event with no `ended` event after more than the turn deadline (five minutes by ' +
+    'default) means the server died, the stream was never read to its end, or the `ended` event ' +
+    'could not be written (the log line `assistant.turn_audit_failed` says the last); no monitor ' +
+    'for this ships. It holds no message text, tool output or name of anything in the tenant, and ' +
+    'a turn is not begun when its `started` event cannot be written.',
   'audit.export': 'The audit trail was exported.',
   'client.amend': 'A client was amended.',
   'client.create': 'A client was created.',

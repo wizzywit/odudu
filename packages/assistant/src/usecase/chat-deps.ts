@@ -6,6 +6,7 @@ import type { RunTurnDeps } from '#/usecase/run-turn';
 import type { Entitlements } from '#/service/entitlements';
 import type { LevelName, StopReason } from '#/service/limits';
 import type { Slot } from '#/service/slots';
+import type { TurnStart, TurnSummary } from '#/service/turn-summary';
 import type { CapRefusal } from '#/service/approval-limits';
 import type { WriteOutcome } from '#/service/tool-bridge';
 
@@ -106,6 +107,7 @@ export interface ApprovalPorts {
     caller: ChatCaller,
     input: {
       readonly conversationId: string;
+      readonly turnId: string;
       readonly toolCallId: string;
       readonly tool: string;
       readonly input: unknown;
@@ -121,11 +123,28 @@ interface ChatBase {
   readonly transact: <T>(tenantId: string, fn: (tx: AssistantTx) => Promise<T>) => Promise<T>;
   readonly model: (slot: Slot) => LanguageModel;
   readonly tools: readonly RegisteredTool[];
-  /** How a turn of one of the caller's conversations gets a token and runs a tool. */
+  /**
+   * How a turn of one of the caller's conversations gets a token and runs a tool.
+   * `turnId` names the turn, so each tool call's audit row can carry it.
+   */
   readonly turn: (
     caller: ChatCaller,
     conversationId: string,
+    turnId: string,
   ) => Pick<RunTurnDeps, 'mintToken' | 'callTool'>;
+  /**
+   * Writes the `assistant.turn` row that opens a turn, in a short transaction of
+   * its own (the server holds the audit repository, whose transaction is not the
+   * assistant's). A throw stops the turn before the model is called or anything
+   * is reserved.
+   */
+  readonly recordTurnStart: (start: TurnStart) => Promise<void>;
+  /**
+   * Writes the `assistant.turn` row that closes a turn: the slots and tokens it
+   * used, its steps and why it ended. A failure is logged and changes nothing
+   * the person saw.
+   */
+  readonly recordTurn: (summary: TurnSummary) => Promise<void>;
   /** The agent instance a conversation acts as under the run named `key`. */
   readonly instanceIdFor: (caller: ChatCaller, conversationId: string, key: string) => string;
   /**

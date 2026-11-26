@@ -205,7 +205,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'overview',
-    alt: "The demo tenant's Overview: nothing needs attention, the counts of its subjects, clients, groups, roles and scopes, and its discovery addresses, with the console's menu on the left.",
+    alt: "The demo tenant's Overview: nothing needs attention, the counts of its subjects, clients, groups, roles and scopes, and its discovery addresses, with the console's menu on the left and the Ask the assistant button at its foot.",
     caption: 'A tenant opens on its Overview: what needs attention, the counts and its addresses.',
     signedIn: true,
     expect: [{ heading: 'Overview' }, { heading: 'Needs attention' }, { heading: 'Counts' }],

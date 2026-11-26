@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
+import { turnAuditRecorder } from '#/assistant-chat';
 import { createLogger } from '#/logger';
 import { BASE, startMcpStack, type McpStack } from '#/testing/mcp-stack';
 import { type World } from '#/testing/mcp-world';
@@ -487,5 +488,246 @@ describe('the conversation routes in the running server', () => {
     expect(
       (await post(s().app, w, '/conversations', token, { page_context: CONTEXT })).statusCode,
     ).toBe(404);
+  });
+});
+
+// A model that asks for one read and then answers, so a turn makes a tool call.
+// `reads` is how many steps ask for a read before the answer.
+function readingModel(reads: () => number) {
+  let call = 0;
+  return {
+    ...FIXED_MODEL,
+    doStream: () => {
+      call += 1;
+      const parts =
+        (call - 1) % (reads() + 1) < reads()
+          ? [
+              {
+                type: 'tool-call',
+                toolCallId: `c${String(call)}`,
+                toolName: 'get_tenant',
+                input: '{}',
+              },
+              {
+                type: 'finish',
+                finishReason: { unified: 'tool-calls', raw: undefined },
+                usage: USAGE,
+              },
+            ]
+          : [
+              { type: 'text-start', id: 'a' },
+              { type: 'text-delta', id: 'a', delta: ANSWER },
+              { type: 'text-end', id: 'a' },
+              { type: 'finish', finishReason: { unified: 'stop', raw: undefined }, usage: USAGE },
+            ];
+      return Promise.resolve({
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'stream-start', warnings: [] });
+            for (const part of parts) controller.enqueue(part);
+            controller.close();
+          },
+        }),
+      });
+    },
+  };
+}
+
+describe('the audit rows of a turn in the running server', () => {
+  const CONTEXT = { route: '/clients', objectType: 'client', objectId: 'web' };
+  const PRIVATE = 'the Hadleigh payroll';
+  let reading: FastifyInstance | undefined;
+  let readsPerTurn = 1;
+  // The admin routes the assistant's tool calls reached, not its own.
+  const adminHits: string[] = [];
+
+  beforeAll(async () => {
+    reading = buildApp({
+      database: s().appDb,
+      ownerDatabase: s().owner,
+      kek: KEK,
+      logger: createLogger(loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' })),
+      tls: true,
+      publicBaseUrl: BASE,
+      throttle: { limit: 100_000, windowSeconds: 60 },
+      hostState: (host) => hostState(s().owner.db, host, new Date()),
+      assistant: { slots: resolveSlots(ENV), env: ENV },
+      assistantModels: () => readingModel(() => readsPerTurn) as never,
+    });
+    reading.addHook('onRequest', (request, _reply, done) => {
+      if (request.url.startsWith('/admin/tenants/') && !request.url.includes('/assistant')) {
+        adminHits.push(request.url);
+      }
+      done();
+    });
+    await reading.ready();
+  }, 60_000);
+  afterAll(async () => {
+    await reading?.close();
+  });
+
+  function app(): FastifyInstance {
+    if (reading === undefined) throw new Error('app not built');
+    return reading;
+  }
+
+  async function conversationOf(w: World, token: string): Promise<string> {
+    const created = await post(app(), w, '/conversations', token, { page_context: CONTEXT });
+    return created.json<{ id: string }>().id;
+  }
+
+  const message = (text: string) => ({
+    id: newId(),
+    role: 'user',
+    parts: [{ type: 'text', text }],
+  });
+
+  // Makes the database refuse an audit row of `action` for this tenant, for as long as `run` takes.
+  async function refusing<T>(
+    w: World,
+    action: string,
+    phase: string | null,
+    run: () => Promise<T>,
+  ) {
+    const name = `p5c_refuse_${newId().replaceAll('-', '')}`;
+    // DDL takes no parameters; both values are ones this test made.
+    const phaseTest = sql.raw(phase === null ? 'true' : `new.detail ->> 'phase' = '${phase}'`);
+    const tenant = sql.raw(`'${w.tenantId}'`);
+    await s().owner.db.execute(sql`
+      create function ${sql.identifier(name)}() returns trigger language plpgsql as $$
+      begin
+        if new.tenant_id = ${tenant}::uuid and ${phaseTest} then
+          raise exception 'audit refused';
+        end if;
+        return new;
+      end $$`);
+    await s().owner.db.execute(sql`
+      create trigger ${sql.identifier(name)} before insert on audit_events
+      for each row when (new.action = ${sql.raw(`'${action}'`)}) execute function ${sql.identifier(name)}()`);
+    try {
+      return await run();
+    } finally {
+      await s().owner.db.execute(sql`drop trigger ${sql.identifier(name)} on audit_events`);
+      await s().owner.db.execute(sql`drop function ${sql.identifier(name)}()`);
+    }
+  }
+
+  it('leaves a started and an ended row, and tool-call rows naming both ids, with no message text', async () => {
+    const w = await s().world(['use-assistant', 'manage-tenant'], 'openid');
+    const token = await adminToken(w);
+    const id = await conversationOf(w, token);
+    const turn = await post(app(), w, `/conversations/${id}/messages`, token, {
+      message: message(PRIVATE),
+    });
+    expect(turn.statusCode, turn.body).toBe(200);
+    expect(turn.body).toContain(ANSWER);
+
+    const rows = await s().auditRows(w, 'assistant.turn');
+    const details = rows.map((row) => row.detail as Record<string, unknown>);
+    expect(details.map((d) => d.phase)).toEqual(['started', 'ended']);
+    const [opened, closed] = details;
+    expect(opened).toMatchObject({ conversation: id, profile: 'free-chat', mode: 'ask' });
+    expect(closed).toMatchObject({ conversation: id, turn: opened?.turn, stop_reason: 'done' });
+    expect(closed?.steps).toBe(2);
+    expect(Object.keys(closed?.tokens_by_slot as object)).toEqual(['standard']);
+    expect(rows.every((row) => row.resourceId === id && row.outcome === 'allowed')).toBe(true);
+    expect(JSON.stringify(rows.map((row) => row.detail))).not.toContain('Hadleigh');
+
+    const calls = await s().auditRows(w, 'agent.tool_call');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.detail).toMatchObject({ conversation: id, turn: opened?.turn });
+  });
+
+  it('writes the rows of a tenant that keeps only the narrowest event types', async () => {
+    const w = await s().world(['use-assistant', 'manage-tenant'], 'openid');
+    await s().owner.db.execute(
+      sql`update tenants set audit_event_types = '{admin_mutation,admin_access}' where id = ${w.tenantId}`,
+    );
+    const token = await adminToken(w);
+    const id = await conversationOf(w, token);
+    await post(app(), w, `/conversations/${id}/messages`, token, { message: message(PRIVATE) });
+    expect(await s().auditRows(w, 'assistant.turn')).toHaveLength(2);
+  });
+
+  it('holds exactly the allowed keys for a turn that ended on a limit, as refused', async () => {
+    const w = await s().world(['use-assistant'], 'openid');
+    const recorder = turnAuditRecorder({ database: s().appDb });
+    const base = {
+      tenantId: w.tenantId,
+      subjectId: w.subjectId,
+      conversationId: newId(),
+      turnId: newId(),
+      profile: 'free-chat',
+      mode: 'ask' as const,
+      slots: ['standard' as const],
+    };
+    await recorder.recordTurnStart(base);
+    await recorder.recordTurn({
+      ...base,
+      tokensBySlot: { standard: 12 },
+      steps: 0,
+      stopReason: 'budget_tenant',
+      outcome: 'refused',
+    });
+    const [started, ended] = await s().auditRows(w, 'assistant.turn');
+    expect(Object.keys(started?.detail as object).sort()).toEqual(
+      ['conversation', 'mode', 'phase', 'profile', 'slots', 'subject', 'tenant', 'turn'].sort(),
+    );
+    expect(Object.keys(ended?.detail as object).sort()).toEqual(
+      [
+        'conversation',
+        'mode',
+        'phase',
+        'profile',
+        'slots',
+        'steps',
+        'stop_reason',
+        'subject',
+        'tenant',
+        'tokens_by_slot',
+        'turn',
+      ].sort(),
+    );
+    expect(ended).toMatchObject({ outcome: 'refused' });
+    expect(started).toMatchObject({ outcome: 'allowed' });
+  });
+
+  it('does not begin a turn whose opening row cannot be written', async () => {
+    const w = await s().world(['use-assistant', 'manage-tenant'], 'openid');
+    const token = await adminToken(w);
+    const id = await conversationOf(w, token);
+    const turn = await refusing(w, 'assistant.turn', 'started', () =>
+      post(app(), w, `/conversations/${id}/messages`, token, { message: message(PRIVATE) }),
+    );
+    expect(turn.statusCode).toBeGreaterThanOrEqual(500);
+    expect(await s().auditRows(w, 'assistant.turn')).toHaveLength(0);
+    expect(await s().auditRows(w, 'agent.tool_call')).toHaveLength(0);
+    const loaded = (await get(app(), w, `/conversations/${id}`, token)).json<{
+      messages: unknown[];
+    }>();
+    expect(loaded.messages).toEqual([]);
+  });
+
+  it('withholds a tool’s data when its row cannot be written, and still closes the turn', async () => {
+    const w = await s().world(['use-assistant', 'manage-tenant'], 'openid');
+    const token = await adminToken(w);
+    const id = await conversationOf(w, token);
+    readsPerTurn = 2;
+    adminHits.length = 0;
+    const turn = await refusing(w, 'agent.tool_call', null, () =>
+      post(app(), w, `/conversations/${id}/messages`, token, { message: message(PRIVATE) }),
+    );
+    readsPerTurn = 1;
+    // The first read was made, and only its data is withheld; the second was
+    // refused before it ran.
+    expect(adminHits).toHaveLength(1);
+    expect(turn.body).toContain('audit_unavailable');
+    expect(turn.body).not.toContain('"issuer"');
+    expect(await s().auditRows(w, 'agent.tool_call')).toHaveLength(0);
+    expect(
+      (await s().auditRows(w, 'assistant.turn')).map(
+        (row) => (row.detail as { phase: string }).phase,
+      ),
+    ).toEqual(['started', 'ended']);
   });
 });

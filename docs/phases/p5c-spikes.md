@@ -683,3 +683,33 @@ design stands unless the controller rules otherwise.
 - A pending request carries the SDK's signature, keyed by an HKDF of the KEK with a fixed label; it is a second line behind the digest and the consume.
 - Rotating `ODUDU_KEK` makes outstanding approval signatures fail verification; they expire within 15 minutes and a stuck conversation clears on the next message.
 - A write grant a dead process left is revoked by the budget upkeep once it is ten minutes old.
+
+## I10: audit rows for every turn
+
+- `assistant.turn` is an `admin_mutation` action, as `assistant.budget`, `assistant.approval` and
+  `assistant.config` are, so a tenant's `audit_event_types` cannot drop it. It is two rows a
+  turn, `phase: started` and `phase: ended`, not one: a single closing row cannot make a turn
+  fail closed at its start, and cannot exist at all for a process that died. The cost is two
+  rows for each turn, bounded by the turn lease, the budget and the tenant's step cap.
+- The `started` row is written in its own short transaction before the user's message is stored,
+  before any lease-held work, before the first reservation and before any model call. The
+  `ended` row is written after the budget settles and the lease is released, also in its own
+  transaction (the audit repository's transaction is the server's, not the assistant's, so the
+  port is `recordTurn(summary)`, not `recordTurn(tx, summary)`). A budget settle is a separate
+  transaction for each step, so there is no single one to join.
+- A turn refused by the lease limit, a resume with nothing waiting and a conversation not found
+  start nothing, so they leave no `assistant.turn` row; a budget refusal after the turn began
+  leaves both rows and an `assistant.budget` row.
+- A `started` row with no `ended` row after the turn deadline (five minutes by default)
+  means the server died, the stream was never drained, or the closing row failed
+  (`assistant.turn_audit_failed` is logged for the last). No monitor query is shipped.
+- Each assistant tool call keeps the post-call `agent.tool_call` row (so its outcome says
+  whether the admin API refused it), now with `conversation` and `turn`. When that row cannot
+  be written the call has run (a read, which changes nothing) and its data is withheld: the
+  model never sees it. A per-turn latch in the tool runner then refuses the turn's later calls
+  before they run, so at most one read goes unrecorded. For an approved write the change
+  stands: its `assistant.approval` row and the mutation's own rows exist, and the model is
+  told `audit_unavailable`. "Withheld" is not "did not happen". The brief asked that the call not run at all; recording before sending
+  was tried and dropped, because the row would then say `allowed` for a call the door refused,
+  which `assistant-identity.int.test.ts` pins as `refused`. `callMcpTool` is shared with the
+  SDKs and unchanged.

@@ -38,14 +38,17 @@ export interface AssistantIdentity {
 // holds the write scope.
 export interface CallAs {
   readonly grantId: string;
+  // The conversation and the turn the call is made in, named on its audit row.
+  readonly conversationId: string;
+  readonly turnId: string;
   readonly scope: readonly string[];
   readonly budget: WriteBudget;
   readonly holdsWrite: boolean;
 }
 
 // Runs one tool as the owner's agent, through the same bridge the MCP endpoint
-// uses, and leaves the same row: a call whose row cannot be written does not
-// return its data.
+// uses, and leaves the same row, naming the conversation and the turn: a call
+// whose row cannot be written does not return its data.
 export async function callAsAssistant(
   parts: AssistantChatParts,
   caller: ChatCaller,
@@ -85,16 +88,18 @@ export async function callAsAssistant(
     scopes: token.scope,
     agent: { clientId, ownerSubjectId: caller.ownerSubjectId },
   };
+  const ids = { conversation: as.conversationId, turn: as.turnId };
+  const write = (recorded: Parameters<typeof recordAgentToolCall>[2]) =>
+    withTenant(parts.database.db, caller.tenantId, (tx) =>
+      recordAgentToolCall(tx, principal, { ...recorded, ...ids }),
+    );
   return callMcpTool(
     {
       requestId: caller.requestId,
       deadlineMs: TOOL_DEADLINE_MS,
       budget: as.budget,
       holdsWrite: as.holdsWrite,
-      record: (recorded) =>
-        withTenant(parts.database.db, caller.tenantId, (tx) =>
-          recordAgentToolCall(tx, principal, recorded),
-        ),
+      record: write,
       logger: parts.logger,
     },
     tool,

@@ -15,6 +15,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { messageRepository } from '#/repository/messages';
 import { runKey, RunLapsed } from '#/service/run-key';
+import type { TurnStart, TurnSummary } from '#/service/turn-summary';
 import { createChat, type Chat, type ChatCaller, type ChatDeps } from '#/view/chat-route';
 
 let container: TestDatabase;
@@ -143,14 +144,33 @@ function callerOf(w: World, ownerSubjectId: string): ChatCaller {
 function chatOver(
   model: MockLanguageModelV3,
   overrides: Partial<ChatDeps> = {},
-): { chat: Chat; mintToken: ReturnType<typeof vi.fn>; callTool: ReturnType<typeof vi.fn> } {
+): {
+  chat: Chat;
+  mintToken: ReturnType<typeof vi.fn>;
+  callTool: ReturnType<typeof vi.fn>;
+  turns: { started: TurnStart[]; ended: TurnSummary[] };
+  turnIds: string[];
+} {
+  const turns = { started: [] as TurnStart[], ended: [] as TurnSummary[] };
+  const turnIds: string[] = [];
   const mintToken = vi.fn(() => Promise.resolve({ accessToken: 'token' }));
   const callTool = vi.fn(() => Promise.resolve(CLIENTS));
   const chat = createChat({
     transact: (tenantId, fn) => withTenant(app.db, tenantId, fn),
     model: () => model,
     tools: TOOLS,
-    turn: () => ({ mintToken, callTool }),
+    turn: (_caller, _conversation, turnId) => {
+      turnIds.push(turnId);
+      return { mintToken, callTool };
+    },
+    recordTurnStart: (start) => {
+      turns.started.push(start);
+      return Promise.resolve();
+    },
+    recordTurn: (summary) => {
+      turns.ended.push(summary);
+      return Promise.resolve();
+    },
     instanceIdFor: () => newId(),
     withAccess: (caller, _conversation, fn) =>
       withTenant(app.db, caller.tenantId, async (tx) => ({
@@ -161,7 +181,7 @@ function chatOver(
     newId,
     ...overrides,
   });
-  return { chat, mintToken, callTool };
+  return { chat, mintToken, callTool, turns, turnIds };
 }
 
 // A stable uuid for each run key, as the server derives one.
@@ -460,6 +480,120 @@ describe('a turn', () => {
       await again.response.text();
       return true;
     });
+  });
+});
+
+describe('the audit rows of a turn', () => {
+  const SECRET_WORDS = 'the quarterly payroll for Hadleigh Ltd';
+
+  async function lease(w: World, conversationId: string): Promise<number> {
+    const rows = await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(
+        sql`select count(*)::int as n from assistant_turn_leases where conversation_id = ${conversationId}`,
+      ),
+    );
+    return (rows as unknown as { n: number }[])[0]?.n ?? -1;
+  }
+
+  it('opens and closes each turn with one row, holding no message text', async () => {
+    const w = await world();
+    const { chat, turns, turnIds } = chatOver(scripted([answer('Nothing to report.')]));
+    const caller = callerOf(w, w.alice);
+    const id = await started(chat, caller);
+    await (await streamOf(chat, caller, id, SECRET_WORDS)).text();
+    await until(() => Promise.resolve(turns.ended.length === 1));
+
+    expect(turns.started).toHaveLength(1);
+    expect(turns.started[0]).toMatchObject({
+      tenantId: w.tenantId,
+      subjectId: w.alice,
+      conversationId: id,
+      profile: 'free-chat',
+      mode: 'ask',
+      slots: ['standard'],
+    });
+    expect(turns.ended[0]).toMatchObject({
+      conversationId: id,
+      turnId: turnIds[0],
+      steps: 1,
+      stopReason: 'done',
+      outcome: 'allowed',
+      slots: ['standard'],
+    });
+    expect(turns.ended[0]?.turnId).toBe(turns.started[0]?.turnId);
+    expect(turns.ended[0]?.tokensBySlot.standard ?? 0).toBeGreaterThan(0);
+    const recorded = JSON.stringify([turns.started, turns.ended]);
+    for (const word of SECRET_WORDS.split(' ')) expect(recorded).not.toContain(word);
+    expect(recorded).not.toContain('Nothing to report');
+  });
+
+  it('closes a turn that was ended by the person, with the reason', async () => {
+    const w = await world();
+    const { chat, turns } = chatOver(scripted(['hang']));
+    const caller = callerOf(w, w.alice);
+    const id = await started(chat, caller);
+    const reader = (await streamOf(chat, caller, id, 'go')).body?.getReader();
+    await reader?.read();
+    await chat.stop(caller, id);
+    await until(() => Promise.resolve(turns.ended.length === 1));
+    expect(turns.ended[0]).toMatchObject({ stopReason: 'aborted', outcome: 'allowed' });
+    await reader?.cancel().catch(() => undefined);
+  });
+
+  it('closes a turn the model failed, as failed', async () => {
+    const w = await world();
+    const failing = new MockLanguageModelV3({
+      doStream: () => Promise.reject(new Error('provider down')),
+    });
+    const { chat, turns } = chatOver(failing);
+    const caller = callerOf(w, w.alice);
+    const id = await started(chat, caller);
+    await (await streamOf(chat, caller, id, 'go')).text().catch(() => undefined);
+    await until(() => Promise.resolve(turns.ended.length === 1));
+    expect(turns.ended[0]).toMatchObject({ stopReason: 'error', outcome: 'failed' });
+  });
+
+  it('does not start the turn when the opening row cannot be written', async () => {
+    const w = await world();
+    const seen: Seen[] = [];
+    const log = vi.fn();
+    const { chat, turns } = chatOver(scripted([answer('never')], seen), {
+      recordTurnStart: () => Promise.reject(new Error('audit unavailable')),
+      log,
+    });
+    const caller = callerOf(w, w.alice);
+    const id = await started(chat, caller);
+    await expect(
+      chat.send(caller, id, say(SECRET_WORDS), new AbortController().signal),
+    ).rejects.toThrow('audit unavailable');
+
+    expect(seen).toHaveLength(0);
+    expect(turns.ended).toHaveLength(0);
+    expect((await stored(w, id)).filter((m) => m.role !== 'system')).toEqual([]);
+    expect(await lease(w, id)).toBe(0);
+    const reservations = await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(sql`select count(*)::int as n from assistant_reservations`),
+    );
+    expect((reservations as unknown as { n: number }[])[0]?.n).toBe(0);
+    // The place is given back, so the conversation takes a turn once the audit works again.
+    const retry = chatOver(scripted([answer('now')]));
+    expect(await (await streamOf(retry.chat, caller, id, 'again')).text()).toContain('now');
+  });
+
+  it('keeps the person’s answer when the closing row cannot be written, and says so in the log', async () => {
+    const w = await world();
+    const log = vi.fn();
+    const { chat } = chatOver(scripted([answer('Still here.')]), {
+      recordTurn: () => Promise.reject(new Error('audit unavailable')),
+      log,
+    });
+    const caller = callerOf(w, w.alice);
+    const id = await started(chat, caller);
+    expect(await (await streamOf(chat, caller, id, 'go')).text()).toContain('Still here.');
+    await until(() =>
+      Promise.resolve(log.mock.calls.some(([e]) => e === 'assistant.turn_audit_failed')),
+    );
+    expect(await lease(w, id)).toBe(0);
   });
 });
 

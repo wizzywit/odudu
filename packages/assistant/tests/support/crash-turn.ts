@@ -29,6 +29,8 @@ const chat = createChat({
     mintToken: () => Promise.resolve({ accessToken: 'token' }),
     callTool: () => Promise.reject(new Error('no tools in this run')),
   }),
+  recordTurnStart: () => Promise.resolve(),
+  recordTurn: () => Promise.resolve(),
   instanceIdFor: () => newId(),
   withAccess: (access, _conversation, fn) =>
     withTenant(app.db, access.tenantId, async (tx) => ({

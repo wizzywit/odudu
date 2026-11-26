@@ -278,6 +278,8 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
           caller,
           {
             grantId: approvalId,
+            conversationId: input.conversationId,
+            turnId: input.turnId,
             scope: [MCP_WRITE_SCOPE],
             budget: grantWriteBudget(
               parts.database,

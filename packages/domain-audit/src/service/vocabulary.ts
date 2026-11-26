@@ -148,6 +148,8 @@ type AdminAccessInput =
         owner: string;
         tool: string;
         route: string;
+        conversation?: string;
+        turn?: string;
       }>;
     });
 
@@ -399,7 +401,7 @@ export type AuditEventInput = AdminMutationInput | VocabularyEventInput;
 // vocabulary one — its own allowlist lives in audit-detail.ts.
 const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> = {
   'capability.refused': ['capability', 'also_admits'],
-  'agent.tool_call': ['agent_client', 'owner', 'tool', 'route'],
+  'agent.tool_call': ['agent_client', 'owner', 'tool', 'route', 'conversation', 'turn'],
   'agent.instance_minted': ['agent_client', 'owner', 'instance', 'depth'],
   'agent.instance_revoked': ['agent_client', 'owner', 'instance', 'depth', 'count', 'via'],
   'agent.delegation_created': ['agent_client', 'owner', 'delegation'],
@@ -489,8 +491,15 @@ function isValidDetailValue(action: string, key: string, value: unknown): boolea
       ).includes(value)
     );
   }
-  if (key === 'instance' || key === 'approval' || key === 'delegation')
+  if (
+    key === 'instance' ||
+    key === 'approval' ||
+    key === 'delegation' ||
+    key === 'conversation' ||
+    key === 'turn'
+  ) {
     return typeof value === 'string' && ID.test(value);
+  }
   if (key === 'depth' || key === 'count') return Number.isInteger(value) && Number(value) >= 0;
   if (key === 'state') return typeof value === 'string' && AGENT_APPROVAL_STATES.includes(value);
   if (key === 'notice') {

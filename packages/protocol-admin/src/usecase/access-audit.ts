@@ -66,6 +66,9 @@ export interface AgentToolCall {
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly reason?:
     'insufficient_scope' | 'missing_capability' | 'timeout_outcome_unknown' | 'write_budget';
+  // The console assistant's call names the conversation and the turn it was made in.
+  readonly conversation?: string;
+  readonly turn?: string;
 }
 
 // Only the tool's name and the route it reached are recorded, never what it
@@ -90,6 +93,8 @@ export async function recordAgentToolCall(
       owner: principal.agent.ownerSubjectId,
       tool: call.tool,
       route: call.route,
+      ...(call.conversation === undefined ? {} : { conversation: call.conversation }),
+      ...(call.turn === undefined ? {} : { turn: call.turn }),
       ...(call.reason === undefined ? {} : { reason: call.reason }),
     },
   });

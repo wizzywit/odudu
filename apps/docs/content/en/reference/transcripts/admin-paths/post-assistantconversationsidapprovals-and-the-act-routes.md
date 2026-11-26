@@ -1,6 +1,6 @@
 ---
 title: 'Assistant changes: approvals, resume and mode'
-description: 'How the console assistant proposes a change in Act mode, how its owner approves or refuses it, how the conversation carries on, and how Ask and Act are switched.'
+description: 'How the console assistant proposes a change in Act mode, how its owner approves or refuses it, and how a chat moves between Ask and Act mode.'
 ---
 
 # Assistant changes: approvals, resume and mode
