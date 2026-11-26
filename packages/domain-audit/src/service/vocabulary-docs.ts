@@ -203,6 +203,18 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
     'A tenant’s settings for the console assistant changed: whether it is on, its default mode, ' +
     'email masking, trace retention, whether auditors see conversations, or a limit. `detail` ' +
     'gives each changed setting as before and after.',
+  'assistant.conversation_deleted':
+    'A person deleted one of their own console assistant conversations. Its messages, trace and ' +
+    'approval cards were removed in the same transaction; a tombstone stays in the conversation’s ' +
+    'place and this row stays in the trail. `detail` names the tenant, the conversation, how many ' +
+    'messages and turns it held and `digest`, a keyed HMAC of its messages that confirms a copy of ' +
+    'the text to whoever holds the deployment’s key. It never holds the text. For a system ' +
+    'administrator in another tenant it also names that tenant as `target_tenant`.',
+  'assistant.conversation_exported':
+    'A person exported one of their own console assistant conversations as a document. `detail` ' +
+    'names the tenant, the conversation, the `format` (`json` or `markdown`), how many messages ' +
+    'the document carried and whether it was cut short. It never holds the text. Only the ' +
+    'conversation’s owner can export it, so no one else has a row like this for it.',
   'assistant.report':
     'A person reported a conversation of the console assistant, which keeps it, with its trace, ' +
     'past the tenant’s retention. `detail` names the conversation and its owner. Reporting one that ' +

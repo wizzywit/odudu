@@ -322,6 +322,12 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK (((title IS NULL) OR ((char_length(title) >= 1) AND (char_length(title) <= 200))))',
   'assistant_conversations.assistant_conversations_target_not_home':
     'CHECK (((target_tenant_id IS NULL) OR (target_tenant_id <> tenant_id)))',
+  'assistant_conversation_tombstones.assistant_conversation_tombstones_counts_floor':
+    'CHECK (((message_count >= 0) AND (turn_count >= 0)))',
+  'assistant_conversation_tombstones.assistant_conversation_tombstones_digest_shape':
+    "CHECK ((digest ~ '^[0-9a-f]{64}$'::text))",
+  'assistant_conversation_tombstones.assistant_conversation_tombstones_target_not_home':
+    'CHECK (((target_tenant_id IS NULL) OR (target_tenant_id <> tenant_id)))',
   'token_grants.token_grants_target_not_home':
     'CHECK (((target_tenant_id IS NULL) OR (target_tenant_id <> tenant_id)))',
   'assistant_messages.assistant_messages_parts_shape':

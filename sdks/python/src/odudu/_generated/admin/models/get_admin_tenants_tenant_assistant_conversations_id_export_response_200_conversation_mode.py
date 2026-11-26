@@ -3,11 +3,11 @@
 from enum import Enum
 
 
-class PostAdminTenantsTenantAssistantConversationsResponse201MessagesItemRole(
+class GetAdminTenantsTenantAssistantConversationsIdExportResponse200ConversationMode(
     str, Enum
 ):
-    ASSISTANT = "assistant"
-    USER = "user"
+    ACT = "act"
+    ASK = "ask"
 
     def __str__(self) -> str:
         return str(self.value)

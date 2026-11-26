@@ -256,8 +256,14 @@ import {
   type AssistantRouteDeps,
   createConversationHandler,
   decideApprovalHandler,
+  deleteConversationHandler,
+  exportConversationHandler,
+  exportConversationMarkdownHandler,
+  lastConversationHandler,
   listApprovalsHandler,
+  listConversationsHandler,
   loadConversationHandler,
+  setConversationArchivedHandler,
   resumeConversationHandler,
   sendMessageHandler,
   setConversationModeHandler,
@@ -897,7 +903,11 @@ function buildAdminRoutes(
       ownerDatabase: deps.ownerDatabase.db,
       now: () => clock.now(),
     };
-    const chatDeps = { chat: deps.assistantChat, offered: tenantOffersAssistant(assistantDeps) };
+    const chatDeps = {
+      chat: deps.assistantChat,
+      cursorKey: deps.cursorKey,
+      offered: tenantOffersAssistant(assistantDeps),
+    };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler({
         callerCapabilities,
@@ -907,7 +917,17 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/assistant/settings': readAssistantSettingsHandler(assistantDeps),
       'PUT /admin/tenants/:tenant/assistant/settings': putAssistantSettingsHandler(assistantDeps),
       'POST /admin/tenants/:tenant/assistant/conversations': createConversationHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/conversations': listConversationsHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/last-conversation': lastConversationHandler(chatDeps),
       'GET /admin/tenants/:tenant/assistant/conversations/:id': loadConversationHandler(chatDeps),
+      'DELETE /admin/tenants/:tenant/assistant/conversations/:id':
+        deleteConversationHandler(chatDeps),
+      'PUT /admin/tenants/:tenant/assistant/conversations/:id/archived':
+        setConversationArchivedHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/conversations/:id/export':
+        exportConversationHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/conversations/:id/export/markdown':
+        exportConversationMarkdownHandler(chatDeps),
       'POST /admin/tenants/:tenant/assistant/conversations/:id/messages':
         sendMessageHandler(chatDeps),
       'POST /admin/tenants/:tenant/assistant/conversations/:id/stop':

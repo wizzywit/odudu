@@ -24,7 +24,7 @@ class GetAdminTenantsTenantSubjectsIdConsentsResponse200:
     Attributes:
         items (list[GetAdminTenantsTenantSubjectsIdConsentsResponse200ItemsItem]): The overrides of the locale in key
             order.
-        next_ (str | Unset): An opaque cursor for the next page; absent on the last page.
+        next_ (str | Unset): The cursor for the next page. Absent on the last page.
     """
 
     items: list[GetAdminTenantsTenantSubjectsIdConsentsResponse200ItemsItem]

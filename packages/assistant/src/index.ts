@@ -5,6 +5,7 @@ export { readSettings, writeSettings } from '#/usecase/settings';
 export { runTurn } from '#/usecase/run-turn';
 export { RunLapsed } from '#/service/run-key';
 export { deriveApprovalSecret } from '#/service/approval-secret';
+export { deriveDigestKey } from '#/service/conversation-digest';
 export {
   ASSISTANT_PENDING_PER_CONVERSATION,
   ASSISTANT_PENDING_PER_OWNER,
@@ -20,10 +21,22 @@ export type {
   CreateOutcome,
   DecideResult,
   ResumeResult,
+  ArchiveOutcome,
+  DeleteOutcome,
+  ExportFormat,
+  ExportOutcome,
+  ListInput,
+  ListOutcome,
   SendResult,
   SetModeOutcome,
 } from '#/view/chat-route';
-export type { ApprovalPorts, DecidedTarget, WithdrawReason } from '#/usecase/chat-deps';
+export type {
+  ApprovalPorts,
+  ConversationAuditEvent,
+  ConversationPorts,
+  DecidedTarget,
+  WithdrawReason,
+} from '#/usecase/chat-deps';
 export type { WriteOutcome } from '#/service/tool-bridge';
 export {
   actsInTenantOf,

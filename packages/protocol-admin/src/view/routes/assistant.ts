@@ -1,9 +1,16 @@
 import {
   ASSISTANT_SETTING_DEFAULTS,
+  listAssistantConversationsQuerySchema,
   putAssistantSettingsRequestSchema,
   type AssistantApprovalCard,
   type AssistantConversation,
+  type AssistantConversationExport,
+  type AssistantConversationSummary,
   type AssistantMode,
+  type AssistantResumedConversation,
+  type ListAssistantConversationsResponse,
+  type SetConversationArchivedRequest,
+  type SetConversationArchivedResponse,
   type AssistantSettings,
   type AssistantStatus,
   type CreateConversationRequest,
@@ -23,7 +30,14 @@ import {
   type AssistantSettingsDeps,
   type AssistantSettingsStore,
 } from '#/usecase/assistant-settings';
-import { ifMatchStale, problem, sendProblem } from '#/view/problem';
+import {
+  coerceLimit,
+  decodeCursor,
+  encodeCursor,
+  filterDigest,
+  nextPageUrl,
+} from '#/service/cursor';
+import { cursorProblem, ifMatchStale, problem, queryProblem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -136,6 +150,39 @@ export interface AssistantChatPort {
     | { kind: 'access_refused'; reason: string }
   >;
   load(caller: AssistantCaller, id: string): Promise<AssistantConversation | null>;
+  /** One page of the caller's own conversations; `after` is where the last page ended. */
+  list(
+    caller: AssistantCaller,
+    input: { archived: boolean; after: string | undefined; limit: number },
+  ): Promise<
+    | { kind: 'ok'; items: AssistantConversationSummary[]; next: string | null }
+    | { kind: 'invalid_position' }
+  >;
+  last(caller: AssistantCaller): Promise<AssistantResumedConversation | null>;
+  setArchived(
+    caller: AssistantCaller,
+    id: string,
+    archived: boolean,
+  ): Promise<{ kind: 'set'; archivedAt: Date | null } | { kind: 'not_found' }>;
+  remove(
+    caller: AssistantCaller,
+    id: string,
+  ): Promise<
+    | { kind: 'deleted' }
+    | { kind: 'not_found' }
+    | { kind: 'held' }
+    | { kind: 'busy' }
+    | { kind: 'unavailable' }
+  >;
+  export(
+    caller: AssistantCaller,
+    id: string,
+    format: 'json' | 'markdown',
+  ): Promise<
+    | { kind: 'ok'; document: AssistantConversationExport; markdown: string | undefined }
+    | { kind: 'not_found' }
+    | { kind: 'unavailable' }
+  >;
   send(
     caller: AssistantCaller,
     id: string,
@@ -147,6 +194,7 @@ export interface AssistantChatPort {
     | { kind: 'busy' }
     | { kind: 'saturated' }
     | { kind: 'limited'; retryAfterSeconds: number }
+    | { kind: 'ended' }
   >;
   stop(caller: AssistantCaller, id: string): Promise<'stopped' | 'idle' | 'not_found'>;
   approvals(caller: AssistantCaller, id: string): Promise<AssistantApprovalCard[] | null>;
@@ -170,6 +218,7 @@ export interface AssistantChatPort {
     | { kind: 'busy' }
     | { kind: 'saturated' }
     | { kind: 'limited'; retryAfterSeconds: number }
+    | { kind: 'ended' }
     | { kind: 'waiting' }
     | { kind: 'nothing_waiting' }
   >;
@@ -184,6 +233,8 @@ export interface AssistantChatPort {
 
 export interface AssistantChatRouteDeps {
   readonly chat: AssistantChatPort | undefined;
+  // Signs the position a list resumes from, so a cursor is not one a caller wrote.
+  readonly cursorKey: Uint8Array;
   // Whether the tenant offers the assistant (`assistant_enabled`). Absent, it is.
   readonly offered?: ((request: AdminRequest, tenantId: string) => Promise<boolean>) | undefined;
 }
@@ -339,11 +390,24 @@ function refusedTurn(
     | { kind: 'not_found' }
     | { kind: 'busy' }
     | { kind: 'saturated' }
-    | { kind: 'limited'; retryAfterSeconds: number },
+    | { kind: 'limited'; retryAfterSeconds: number }
+    | { kind: 'ended' },
   request: AdminRequest,
   reply: FastifyReply,
 ): FastifyReply {
   if (outcome.kind === 'not_found') return notFound(request, reply);
+  if (outcome.kind === 'ended') {
+    return sendProblem(
+      reply,
+      request,
+      problem(
+        409,
+        'about:blank#conversation-ended',
+        'Conflict',
+        'the sign-in this conversation acts under has ended; start a new conversation',
+      ),
+    );
+  }
   if (outcome.kind === 'busy') {
     return sendProblem(
       reply,
@@ -475,4 +539,144 @@ async function* chunksOf(body: NonNullable<Response['body']>): AsyncGenerator<Ui
   } finally {
     await reader.cancel().catch(() => undefined);
   }
+}
+
+const LIST_COLLECTION = 'assistant-conversations';
+
+// A cursor is bound to the tenant of the path, the list it walks and the person
+// it is for, so one person's cannot be replayed as another's.
+function listDigest(archived: boolean, caller: AssistantCaller): string {
+  return filterDigest({ archived: String(archived), person: caller.ownerSubjectId });
+}
+
+export function listConversationsHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return async function handleList(request, reply, principal, tenantId) {
+    const caller = callerOf(request, principal, tenantId);
+    if (deps.chat === undefined || caller === null) return notFound(request, reply);
+    const parsed = listAssistantConversationsQuerySchema.safeParse(request.query);
+    if (!parsed.success) return sendProblem(reply, request, queryProblem(parsed.error));
+    const archived = parsed.data.archived === 'true';
+    const limit = coerceLimit(
+      parsed.data.limit === undefined ? undefined : String(parsed.data.limit),
+    );
+    let after: string | undefined;
+    if (parsed.data.cursor !== undefined) {
+      const decoded = decodeCursor(
+        deps.cursorKey,
+        LIST_COLLECTION,
+        tenantId,
+        listDigest(archived, caller),
+        parsed.data.cursor,
+      );
+      if (decoded.kind === 'invalid') return sendProblem(reply, request, cursorProblem());
+      after = decoded.after;
+    }
+    const page = await deps.chat.list(caller, { archived, after, limit });
+    if (page.kind === 'invalid_position') return sendProblem(reply, request, cursorProblem());
+    const body: ListAssistantConversationsResponse = { items: page.items };
+    if (page.next === null) return reply.code(200).send(body);
+    const next = encodeCursor(deps.cursorKey, {
+      after: page.next,
+      collection: LIST_COLLECTION,
+      tenantId,
+      filters: listDigest(archived, caller),
+    });
+    const url = nextPageUrl(
+      `/admin/tenants/${request.params.tenant ?? ''}/assistant/conversations`,
+      {
+        archived: parsed.data.archived,
+        limit,
+        cursor: next,
+      },
+    );
+    reply.header('link', `<${url}>; rel="next"`);
+    return reply.code(200).send({ ...body, next });
+  };
+}
+
+export function lastConversationHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return async function handleLast(request, reply, principal, tenantId) {
+    const caller = callerOf(request, principal, tenantId);
+    if (deps.chat === undefined || caller === null) return notFound(request, reply);
+    return reply.code(200).send({ conversation: await deps.chat.last(caller) });
+  };
+}
+
+export function setConversationArchivedHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    const body = request.body as SetConversationArchivedRequest;
+    const outcome = await chat.setArchived(caller, id, body.archived);
+    if (outcome.kind === 'not_found') return notFound(request, reply);
+    const answer: SetConversationArchivedResponse = {
+      archived: outcome.archivedAt !== null,
+      archived_at: outcome.archivedAt?.toISOString() ?? null,
+    };
+    return reply.code(200).send(answer);
+  });
+}
+
+// Deleting is the owner's, from the conversation's own path, and works while the
+// assistant is switched off: a person may always remove what they wrote.
+export function deleteConversationHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    const outcome = await chat.remove(caller, id);
+    if (outcome.kind === 'not_found' || outcome.kind === 'unavailable') {
+      return notFound(request, reply);
+    }
+    if (outcome.kind === 'held') {
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          409,
+          'about:blank#conversation-reported',
+          'Conflict',
+          'this conversation was reported and is kept for review; you can archive it but not delete it',
+        ),
+      );
+    }
+    if (outcome.kind === 'busy') {
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          409,
+          'about:blank#conversation-busy',
+          'Conflict',
+          'an answer is still running; stop it first',
+        ),
+      );
+    }
+    return reply.code(204).send();
+  });
+}
+
+function exportHandler(
+  deps: AssistantChatRouteDeps,
+  format: 'json' | 'markdown',
+): AdminRouteHandler {
+  return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    const outcome = await chat.export(caller, id, format);
+    if (outcome.kind !== 'ok') return notFound(request, reply);
+    reply.header('cache-control', 'no-store');
+    if (format === 'markdown' && outcome.markdown !== undefined) {
+      return reply
+        .header('content-disposition', `attachment; filename="conversation-${id}.md"`)
+        .type('text/markdown; charset=utf-8')
+        .code(200)
+        .send(outcome.markdown);
+    }
+    return reply
+      .header('content-disposition', `attachment; filename="conversation-${id}.json"`)
+      .code(200)
+      .send(outcome.document);
+  });
+}
+
+export function exportConversationHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return exportHandler(deps, 'json');
+}
+
+export function exportConversationMarkdownHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return exportHandler(deps, 'markdown');
 }

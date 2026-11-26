@@ -605,6 +605,18 @@ const NOT_DRIVEN: Readonly<Record<string, string>> = {
     'served only with a model configured; the reads of the replay',
   'POST /admin/tenants/:tenant/assistant/conversations/:id/report':
     'served only with a model configured; one advisory lock, one conversation by primary key, a count of at most 100 rows through assistant_conversations_reported, one update by primary key and one audit row',
+  'GET /admin/tenants/:tenant/assistant/conversations':
+    'served only with a model configured; one read of at most 201 rows through assistant_conversations_owner_open or assistant_conversations_owner_archived, in order and without a sort, for the caller alone (proved at 8,000 conversations in packages/assistant/tests/conversation-management.int.test.ts)',
+  'GET /admin/tenants/:tenant/assistant/last-conversation':
+    'served only with a model configured; the first row of the same list read, one conversation by primary key and its latest MAX_LOAD messages by primary-key prefix',
+  'PUT /admin/tenants/:tenant/assistant/conversations/:id/archived':
+    'served only with a model configured; one conversation by primary key and one update of it by primary key',
+  'DELETE /admin/tenants/:tenant/assistant/conversations/:id':
+    'served only with a model configured; one conversation locked by primary key, the tenant’s live leases read through assistant_turn_leases_live (at most the tenant’s limit on answers at once), the conversation’s messages read 50 at a time by primary-key prefix, a count of its turns through assistant_turns_conversation, one tombstone insert, one delete of the conversation row (its messages, turns, steps, events and cards go by their foreign keys), one audit row and a grant revoke by primary key',
+  'GET /admin/tenants/:tenant/assistant/conversations/:id/export':
+    'served only with a model configured; one conversation by primary key and its messages read 50 at a time by primary-key prefix, at most 500 exported, with one audit row',
+  'GET /admin/tenants/:tenant/assistant/conversations/:id/export/markdown':
+    'served only with a model configured; the reads of the JSON export',
   'PUT /admin/tenants/:tenant/assistant/conversations/:id/mode':
     'served only with a model configured; reads and updates one conversation by primary key, and withdraws pending changes as the stop route does',
 };

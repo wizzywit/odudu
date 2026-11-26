@@ -3,9 +3,7 @@
 from enum import Enum
 
 
-class GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItemRole(
-    str, Enum
-):
+class AssistantConversationsPostResponseMessagesItemRole(str, Enum):
     ASSISTANT = "assistant"
     USER = "user"
 

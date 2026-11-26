@@ -127,6 +127,49 @@ export interface ApprovalPorts {
   ) => Promise<WriteOutcome>;
 }
 
+/**
+ * What a person's deleting or exporting a conversation leaves in the audit
+ * trail: who, which conversation and what it held, and never its text.
+ */
+export type ConversationAuditEvent =
+  | {
+      readonly action: 'assistant.conversation_deleted';
+      readonly conversationId: string;
+      readonly targetTenantId?: string;
+      readonly messageCount: number;
+      readonly turnCount: number;
+      readonly digest: string;
+    }
+  | {
+      readonly action: 'assistant.conversation_exported';
+      readonly conversationId: string;
+      readonly targetTenantId?: string;
+      readonly format: 'json' | 'markdown';
+      readonly messageCount: number;
+      readonly truncated: boolean;
+    };
+
+/**
+ * What deleting and exporting a conversation need of the server, which holds the
+ * audit trail. Absent, neither is offered. `withAudit` runs `fn` in one
+ * transaction bound to the caller's tenant with a way to write an audit row in
+ * that same transaction, so a delete or an export and its row stand or fall together.
+ */
+export interface ConversationPorts {
+  readonly withAudit: <T>(
+    caller: ChatCaller,
+    fn: (tx: AssistantTx, record: (event: ConversationAuditEvent) => Promise<void>) => Promise<T>,
+  ) => Promise<T>;
+  /** The key a deleted conversation's digest is made under; see `deriveDigestKey`. */
+  readonly digestKey: Uint8Array;
+  /**
+   * Ends the conversation's own grant and what was derived from it, after the
+   * conversation is deleted. A failure is logged and changes nothing the person saw:
+   * the grant holds no text and ends with the sign-in it came from.
+   */
+  readonly endAccess?: (caller: ChatCaller, conversationId: string, now: Date) => Promise<void>;
+}
+
 interface ChatBase {
   /** Runs `fn` in one short transaction bound to the tenant. */
   readonly transact: <T>(tenantId: string, fn: (tx: AssistantTx) => Promise<T>) => Promise<T>;
@@ -168,6 +211,14 @@ interface ChatBase {
     conversation: { readonly id: string; readonly mode: ConversationMode; readonly now: Date },
     fn: (tx: AssistantTx) => Promise<T>,
   ) => Promise<AccessOutcome<T>>;
+  /** Deleting and exporting a person's own conversations; see `ConversationPorts`. */
+  readonly conversations?: ConversationPorts;
+  /**
+   * Whether the conversation's own grant is live and was made from the sign-in the
+   * caller holds now, so a message to it would be answered. Absent, every
+   * conversation counts as continuable.
+   */
+  readonly continuable?: (caller: ChatCaller, conversationId: string) => Promise<boolean>;
   /** What a tenant may use; the open implementation reads the tenant's settings. */
   readonly entitlements?: Entitlements;
   /** Writes an `assistant.budget` row. A failure is logged and does not change the outcome. */

@@ -524,6 +524,27 @@ export {
   type AssistantBudgetWarning,
 } from '#/admin/assistant';
 export {
+  EXPORT_MESSAGES_MAX,
+  assistantConversationExportSchema,
+  assistantConversationSummarySchema,
+  assistantExportMessageSchema,
+  assistantExportedConversationSchema,
+  assistantResumedConversationSchema,
+  lastAssistantConversationResponseSchema,
+  listAssistantConversationsQuerySchema,
+  listAssistantConversationsResponseSchema,
+  setConversationArchivedRequestSchema,
+  setConversationArchivedResponseSchema,
+  type AssistantConversationExport,
+  type AssistantConversationSummary,
+  type AssistantResumedConversation,
+  type LastAssistantConversationResponse,
+  type ListAssistantConversationsQuery,
+  type ListAssistantConversationsResponse,
+  type SetConversationArchivedRequest,
+  type SetConversationArchivedResponse,
+} from '#/admin/assistantConversations';
+export {
   ACTIVITY_TOOLS_MAX,
   ASSISTANT_ACTIVITY_KINDS,
   ASSISTANT_APPROVAL_STATES,

@@ -2,6 +2,7 @@ import type {
   AssistantApprovalCard,
   AssistantConversation,
   AssistantMode,
+  AssistantResumedConversation,
   CreateConversationRequest,
   SendMessageRequest,
 } from '@odudu/contracts/admin';
@@ -15,6 +16,19 @@ import {
   type ChatDeps,
   type DecideResult,
 } from '#/usecase/chat-deps';
+import {
+  deleteConversation,
+  exportConversation,
+  lastConversation,
+  listConversations,
+  setArchived,
+  type ArchiveOutcome,
+  type DeleteOutcome,
+  type ExportFormat,
+  type ExportOutcome,
+  type ListInput,
+  type ListOutcome,
+} from '#/usecase/conversation-management';
 import { createConversation, loadConversation, type CreateOutcome } from '#/usecase/conversations';
 import { resumeTurn, sendMessage, type SendOutcome } from '#/usecase/send-message';
 import { stopTurn } from '#/usecase/stop-turn';
@@ -22,13 +36,23 @@ import { stopTurn } from '#/usecase/stop-turn';
 export type { ChatCaller, ChatDeps, DecideResult } from '#/usecase/chat-deps';
 export type { CreateOutcome } from '#/usecase/conversations';
 export type { SetModeOutcome } from '#/usecase/approvals';
+export type {
+  ArchiveOutcome,
+  DeleteOutcome,
+  ExportFormat,
+  ExportOutcome,
+  ListInput,
+  ListOutcome,
+} from '#/usecase/conversation-management';
 
 export type SendResult =
   | { kind: 'stream'; response: Response }
   | { kind: 'not_found' }
   | { kind: 'busy' }
   | { kind: 'saturated' }
-  | { kind: 'limited'; retryAfterSeconds: number };
+  | { kind: 'limited'; retryAfterSeconds: number }
+  // The sign-in the conversation acts under has ended: it can be read, not continued.
+  | { kind: 'ended' };
 
 /** A resume adds two answers: a change still waits, or nothing does. */
 export type ResumeResult = SendResult | { kind: 'waiting' } | { kind: 'nothing_waiting' };
@@ -42,6 +66,16 @@ export type ResumeResult = SendResult | { kind: 'waiting' } | { kind: 'nothing_w
 export interface Chat {
   create(caller: ChatCaller, body: CreateConversationRequest): Promise<CreateOutcome>;
   load(caller: ChatCaller, id: string): Promise<AssistantConversation | null>;
+  /** One page of the caller's own conversations, newest activity first. */
+  list(caller: ChatCaller, input: ListInput): Promise<ListOutcome>;
+  /** The caller's latest conversation that is not hidden, with its messages, or null. */
+  last(caller: ChatCaller): Promise<AssistantResumedConversation | null>;
+  /** Hides the caller's conversation from their list, or brings it back. */
+  setArchived(caller: ChatCaller, id: string, archived: boolean): Promise<ArchiveOutcome>;
+  /** Deletes the caller's conversation, leaving a tombstone and an audit row. */
+  remove(caller: ChatCaller, id: string): Promise<DeleteOutcome>;
+  /** The caller's conversation as a document; no one else may take one. */
+  export(caller: ChatCaller, id: string, format: ExportFormat): Promise<ExportOutcome>;
   /** Streams the turn as UI message chunks (server-sent events). */
   send(
     caller: ChatCaller,
@@ -89,6 +123,11 @@ export function createChat(deps: ChatDeps): Chat {
   return {
     create: (caller, body) => createConversation(deps, caller, body),
     load: (caller, id) => loadConversation(deps, caller, id),
+    list: (caller, input) => listConversations(deps, caller, input),
+    last: (caller) => lastConversation(deps, caller),
+    setArchived: (caller, id, archived) => setArchived(deps, caller, id, archived),
+    remove: (caller, id) => deleteConversation(deps, caller, id),
+    export: (caller, id, format) => exportConversation(deps, caller, id, format),
 
     async send(caller, id, message, signal) {
       const outcome = streamed(await sendMessage(deps, registry, caller, id, message, signal));

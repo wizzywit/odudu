@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, sql } from 'drizzle-orm';
 import {
   assistantConversations,
   assistantMessages,
@@ -19,6 +19,10 @@ export interface NewMessage {
 // (the table's CHECK), so one read holds at most 100 MiB; older messages are
 // the compactor's to fold.
 export const MAX_LOAD = 100;
+
+// The most messages one page of a whole-conversation walk holds; a page may hold
+// at most 50 MiB, so a walk keeps its memory to that however long the conversation is.
+export const PAGE_MAX = 50;
 
 export class ConversationNotFoundError extends Error {
   constructor() {
@@ -128,6 +132,26 @@ export function messageRepository(tx: AssistantTx) {
         .orderBy(assistantMessages.seq)
         .limit(1);
       return row;
+    },
+
+    // The messages after `afterSeq` in order, at most `limit` and never more than
+    // PAGE_MAX, for a reader that walks a whole conversation a page at a time.
+    async pageAfter(
+      conversationId: string,
+      afterSeq: number,
+      limit: number,
+    ): Promise<MessageRecord[]> {
+      return tx
+        .select()
+        .from(assistantMessages)
+        .where(
+          and(
+            eq(assistantMessages.conversationId, conversationId),
+            gt(assistantMessages.seq, afterSeq),
+          ),
+        )
+        .orderBy(assistantMessages.seq)
+        .limit(boundedLimit(limit, PAGE_MAX));
     },
 
     // The latest `limit` messages, oldest first, never more than MAX_LOAD.

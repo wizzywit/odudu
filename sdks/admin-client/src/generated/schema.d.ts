@@ -126,7 +126,7 @@ export interface paths {
                                     direct: boolean;
                                 }[];
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -904,7 +904,7 @@ export interface paths {
                                 /** @description When the user agreed. */
                                 granted_at: string;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -963,7 +963,7 @@ export interface paths {
                                 /** @description When the user accepted it. */
                                 accepted_at: string;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -1642,7 +1642,7 @@ export interface paths {
                                     parent_name: string;
                                 })[];
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -1899,7 +1899,7 @@ export interface paths {
                                 /** @description An opaque id shared by the sessions opened on one browser, or null for a session opened before it was recorded. */
                                 device: string | null;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -2049,7 +2049,7 @@ export interface paths {
                                 /** @description When its refresh token expires, or null. */
                                 refresh_expires_at: string | null;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -2170,7 +2170,7 @@ export interface paths {
                                 /** @description That user’s username, or null. */
                                 username: string | null;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -2297,7 +2297,7 @@ export interface paths {
                         "application/json": {
                             /** @description The overrides of the locale in key order. */
                             items: components["schemas"]["GetResponseItemsItem"][];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -3866,7 +3866,7 @@ export interface paths {
                                 /** @description The version of this override, quoted as it is sent: the `ETag` header of a `PUT` answers the same value. Send it as `If-Match` to change or remove the override; one that names an older version is refused with `412`. */
                                 etag: string;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -4421,7 +4421,7 @@ export interface paths {
                                 scopes: components["schemas"]["ClientsGetResponseItemsItemScopesItem"][];
                                 service_account_admin_reach: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -5834,7 +5834,7 @@ export interface paths {
                                 /** @description When the client accepted it, or null. */
                                 delivered_at: string | null;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -6037,7 +6037,7 @@ export interface paths {
                                 /** @description That user’s username, or null. */
                                 username: string | null;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -6147,7 +6147,7 @@ export interface paths {
                                 /** @description When the token stops working. */
                                 expires_at: string;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -6287,7 +6287,7 @@ export interface paths {
                         "application/json": {
                             /** @description The overrides of the locale in key order. */
                             items: components["schemas"]["DomainsGetResponseItemsItem"][];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -6661,7 +6661,7 @@ export interface paths {
                         "application/json": {
                             /** @description The overrides of the locale in key order. */
                             items: components["schemas"]["RolesGetResponseItemsItem"][];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -7103,7 +7103,7 @@ export interface paths {
                         "application/json": {
                             /** @description The overrides of the locale in key order. */
                             items: components["schemas"]["GroupsGetResponseItemsItem"][];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -7478,7 +7478,7 @@ export interface paths {
                         "application/json": {
                             /** @description The overrides of the locale in key order. */
                             items: components["schemas"]["ScopesGetResponseItemsItem"][];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -8096,7 +8096,7 @@ export interface paths {
                                  */
                                 assignment: "default" | "optional";
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -8243,7 +8243,7 @@ export interface paths {
                         "application/json": {
                             /** @description The overrides of the locale in key order. */
                             items: components["schemas"]["KeysGetResponseItemsItem"][];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -8774,7 +8774,7 @@ export interface paths {
                                 /** @description When it was delivered, or null if it has not been. */
                                 sent_at: string | null;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -9255,7 +9255,7 @@ export interface paths {
                                     creates: number;
                                 };
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -9452,7 +9452,7 @@ export interface paths {
                                 /** @description Where the owner decided, the consent page of a backchannel request or the console. */
                                 decided_via: ("ciba_page" | "console") | null;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -9548,7 +9548,7 @@ export interface paths {
                                     [key: string]: unknown;
                                 };
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -9856,7 +9856,68 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Requires the "use-assistant" capability.
+         * @description The caller’s own conversations, newest activity first, each with a title made from the first thing they asked, when it last took a message, its mode, whether it is hidden and whether it is reported. Never another person’s: a person’s conversations are theirs alone, whatever other capability they hold. `archived=true` lists the hidden ones and the default lists the rest. A page is one indexed read of at most `limit` rows, `limit` is at most 200, and `next` carries on from where it ended. `404` when no model is configured. Not offered to an agent.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    cursor?: string;
+                    limit?: number;
+                    archived?: "true" | "false";
+                };
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The overrides of the locale in key order. */
+                            items: {
+                                /** @description The conversation’s id. */
+                                id: string;
+                                /** @description A short title made from the first thing the person asked, with addresses, links, long numbers and secrets taken out, or `null` before they have asked anything. */
+                                title: string | null;
+                                /** @description The kind of conversation it was started as. */
+                                profile: string;
+                                /**
+                                 * @description Whether it may only read (`ask`) or may also propose changes (`act`).
+                                 * @enum {string}
+                                 */
+                                mode: "ask" | "act";
+                                /** @description When it was started. */
+                                created_at: string;
+                                /** @description When it last took a message. Retention counts from here, and the list is ordered by it, newest first. */
+                                last_active_at: string;
+                                /** @description True while the person has hidden it from their list. Nothing is removed by hiding. */
+                                archived: boolean;
+                                /** @description When it was hidden, or `null` while it is not. */
+                                archived_at: string | null;
+                                /** @description True when it was reported, which keeps it past retention; a reported conversation cannot be deleted by its owner. */
+                                reported: boolean;
+                                /** @description The tenant it acts in when that is not the person’s own, as for a system administrator; `null` otherwise. */
+                                target_tenant_id: string | null;
+                            }[];
+                            /** @description The cursor for the next page. Absent on the last page. */
+                            next?: string;
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
         put?: never;
         /**
          * Requires the "use-assistant" capability.
@@ -9918,19 +9979,7 @@ export interface paths {
                             /** @description When it last took a message. */
                             last_active_at: string;
                             /** @description The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them. */
-                            messages: {
-                                /** @description The message’s id, stable across loads. */
-                                id: string;
-                                /**
-                                 * @description `user` for the person’s message, `assistant` for the answer.
-                                 * @enum {string}
-                                 */
-                                role: "user" | "assistant";
-                                /** @description The message’s parts as the AI SDK’s UI message format carries them: text, and the tool calls the assistant made with their results. */
-                                parts: {
-                                    [key: string]: unknown;
-                                }[];
-                            }[];
+                            messages: components["schemas"]["AssistantConversationsPostResponseMessagesItem"][];
                         };
                     };
                 };
@@ -9939,6 +9988,133 @@ export interface paths {
                 403: components["responses"]["Forbidden"];
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/last-conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "use-assistant" capability.
+         * @description The caller’s most recently active conversation that is not hidden, with its latest messages, or `{ "conversation": null }` when they have none, so the console can reopen it after a reload or a sign-in. `continuable` is false when the sign-in the conversation acts under has ended: it can be read and a new message to it is refused with `409`. `404` when no model is configured. Not offered to an agent.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The caller’s most recently active conversation that is not hidden, with its messages, or `null` when they have none. */
+                            conversation: {
+                                /** @description The conversation’s id. */
+                                id: string;
+                                /** @description The kind of conversation it was started as. */
+                                profile: string;
+                                /**
+                                 * @description Whether it may only read (`ask`) or may also propose changes (`act`).
+                                 * @enum {string}
+                                 */
+                                mode: "ask" | "act";
+                                /** @description A short title once the conversation has one, otherwise `null`. */
+                                title: string | null;
+                                /** @description When it was started. */
+                                created_at: string;
+                                /** @description When it last took a message. */
+                                last_active_at: string;
+                                /** @description The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them. */
+                                messages: components["schemas"]["AssistantConversationsPostResponseMessagesItem"][];
+                                /** @description True while the person has hidden it from their list. */
+                                archived: boolean;
+                                /** @description False when the sign-in the conversation acts under has ended, so a new message would be refused: the messages can be read, and a new conversation is the way to carry on. */
+                                continuable: boolean;
+                            } | null;
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/conversations/{id}/archived": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Requires the "use-assistant" capability.
+         * @description Hides the caller’s conversation from their list (`archived: true`) or brings it back. Nothing is removed, retention counts as before, and the conversation can still be opened by its id. Setting what is already set changes nothing. `404` for a conversation that is not the caller’s. Not offered to an agent.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description True to hide the conversation from the list, false to bring it back. */
+                        archived: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description Whether the conversation is hidden now. */
+                            archived: boolean;
+                            /** @description When it was hidden. Hiding one that is hidden already answers the first time, and bringing one back answers `null`. */
+                            archived_at: string | null;
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -9993,20 +10169,165 @@ export interface paths {
                             /** @description When it last took a message. */
                             last_active_at: string;
                             /** @description The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them. */
-                            messages: {
-                                /** @description The message’s id, stable across loads. */
+                            messages: components["schemas"]["AssistantConversationsPostResponseMessagesItem"][];
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Requires the "use-assistant" capability.
+         * @description Deletes the caller’s own conversation: its messages, its trace and its approval cards go at once. A tombstone stays in the conversation’s place (its id, owner, times, who deleted it, how many messages and turns it held and a keyed digest of its messages, never the text), and an `assistant.conversation_deleted` row is written in the same transaction; no audit row is touched. `409` while the conversation is reported (`about:blank#conversation-reported`) or an answer is running in it (`about:blank#conversation-busy`). It works while the tenant has the assistant switched off. `404` for a conversation that is not the caller’s. Not offered to an agent.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/conversations/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "use-assistant" capability.
+         * @description The caller’s own conversation as a JSON download: its fields and its messages, oldest first and at most 500, the text with secrets hidden (and email addresses where the tenant masks them) and, for an answer, the names of the tools it called but not their inputs or results. No one else can export a conversation: there is no route for an auditor or an operator. Audited as `assistant.conversation_exported`, in the transaction of the read. `404` for a conversation that is not the caller’s. Not offered to an agent.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description When the export was made. */
+                            exported_at: string;
+                            /** @description The conversation’s own fields. */
+                            conversation: {
+                                /** @description The conversation’s id. */
                                 id: string;
+                                /** @description Its title, or `null`. */
+                                title: string | null;
+                                /** @description The kind of conversation it was started as. */
+                                profile: string;
+                                /**
+                                 * @description Whether it may only read (`ask`) or may also propose changes (`act`).
+                                 * @enum {string}
+                                 */
+                                mode: "ask" | "act";
+                                /** @description When it was started. */
+                                created_at: string;
+                                /** @description When it last took a message. */
+                                last_active_at: string;
+                            };
+                            /** @description The conversation’s messages, oldest first, the first 500 at most. The page context the conversation started with is not among them. */
+                            messages: {
                                 /**
                                  * @description `user` for the person’s message, `assistant` for the answer.
                                  * @enum {string}
                                  */
                                 role: "user" | "assistant";
-                                /** @description The message’s parts as the AI SDK’s UI message format carries them: text, and the tool calls the assistant made with their results. */
-                                parts: {
-                                    [key: string]: unknown;
-                                }[];
+                                /** @description When the message was stored. */
+                                at: string;
+                                /** @description The message’s text with secrets hidden, and email addresses too where the tenant masks them. */
+                                text: string;
+                                /** @description For an answer, the names of the tools it called. Their inputs and results are not exported. */
+                                tools: string[];
                             }[];
+                            /** @description True when the conversation holds more messages than the export carries. */
+                            truncated: boolean;
                         };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/conversations/{id}/export/markdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "use-assistant" capability.
+         * @description The same export as a Markdown document: the title, then each message under who said it, with the tools an answer called. The same rules, the same audit row and the same `404`. Not offered to an agent.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/markdown": string;
                     };
                 };
                 401: components["responses"]["Unauthorized"];
@@ -10473,7 +10794,7 @@ export interface paths {
                                 /** @description When a person reported it, or null. A reported conversation is kept past retention. */
                                 reported_at: string | null;
                             }[];
-                            /** @description An opaque cursor for the next page; absent on the last page. */
+                            /** @description The cursor for the next page. Absent on the last page. */
                             next?: string;
                         };
                     };
@@ -10893,31 +11214,6 @@ export interface components {
             /** @description The text a screen reader says for the logo, at most 200 characters and not blank. */
             alt: string;
         };
-        AssistantSettingsGetResponse: {
-            /** @description Whether the tenant’s administrators are offered the assistant. False reads as `{ "enabled": false }` from the status route for this tenant alone, and starting a conversation or sending a message is refused as a path never served. */
-            assistant_enabled: boolean;
-            /**
-             * @description The mode a person starts in: `ask` reads only, `act` may also propose changes that wait for the person’s approval.
-             * @enum {string}
-             */
-            assistant_default_mode: "ask" | "act";
-            /** @description Whether an email address the assistant reads is replaced by its first character, three asterisks and its domain before it is sent to the model provider. */
-            assistant_mask_emails: boolean;
-            /** @description How many days the step-by-step trace of a conversation is kept, from 1 to 365, and how long a conversation may sit idle before it is removed with its messages. A conversation a person reported is kept. The audit trail follows its own retention. */
-            assistant_trace_retention_days: number;
-            /** @description Whether people who can read assistant activity may also read the text of conversations: what was asked and answered, and what the tools were given and returned. Off by default; they always see who, when, which tools, the tokens and how each answer ended. Each read of text is recorded as `assistant.text_read`. A tenant that saved a value keeps it when the default changes. */
-            assistant_auditor_visible: boolean;
-            /** @description The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant stops when it is used and names the limit. */
-            assistant_monthly_tokens_fast: number;
-            /** @description The tokens the tenant may spend each month on the standard model slot, from 0 to 1,000,000,000. */
-            assistant_monthly_tokens_standard: number;
-            /** @description The tokens the tenant may spend each month on the deep model slot, from 0 to 1,000,000,000. */
-            assistant_monthly_tokens_deep: number;
-            /** @description How many answers the tenant may have in progress at the same time, on any server, from 1 to 50. A further message is refused with `429`. */
-            assistant_max_concurrent: number;
-            /** @description The most model and tool calls one answer may take before it stops, from 1 to 100. */
-            assistant_max_steps_per_turn: number;
-        };
         ThemeGetResponse: {
             /**
              * @description `tenant` for the tenant’s own theme, `client` for one client’s.
@@ -10942,6 +11238,31 @@ export interface components {
             } | null;
             /** @description The parts of the draft (`tokens`, `assets`, `stylesheet`, `templates`) that differ from this scope’s own published theme, compared by the server on their stored form, in that order. Empty when there is no draft or the draft matches what is published; nothing published compares as the empty theme. Publishing is refused with `about:blank#theme-nothing-to-publish` while it is empty. */
             changed: ("tokens" | "assets" | "stylesheet" | "templates")[];
+        };
+        AssistantSettingsGetResponse: {
+            /** @description Whether the tenant’s administrators are offered the assistant. False reads as `{ "enabled": false }` from the status route for this tenant alone, and starting a conversation or sending a message is refused as a path never served. */
+            assistant_enabled: boolean;
+            /**
+             * @description The mode a person starts in: `ask` reads only, `act` may also propose changes that wait for the person’s approval.
+             * @enum {string}
+             */
+            assistant_default_mode: "ask" | "act";
+            /** @description Whether an email address the assistant reads is replaced by its first character, three asterisks and its domain before it is sent to the model provider. */
+            assistant_mask_emails: boolean;
+            /** @description How many days the step-by-step trace of a conversation is kept, from 1 to 365, and how long a conversation may sit idle before it is removed with its messages. A conversation a person reported is kept. The audit trail follows its own retention. */
+            assistant_trace_retention_days: number;
+            /** @description Whether people who can read assistant activity may also read the text of conversations: what was asked and answered, and what the tools were given and returned. Off by default; they always see who, when, which tools, the tokens and how each answer ended. Each read of text is recorded as `assistant.text_read`. */
+            assistant_auditor_visible: boolean;
+            /** @description The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant stops when it is used and names the limit. */
+            assistant_monthly_tokens_fast: number;
+            /** @description The tokens the tenant may spend each month on the standard model slot, from 0 to 1,000,000,000. */
+            assistant_monthly_tokens_standard: number;
+            /** @description The tokens the tenant may spend each month on the deep model slot, from 0 to 1,000,000,000. */
+            assistant_monthly_tokens_deep: number;
+            /** @description How many answers the tenant may have in progress at the same time, on any server, from 1 to 50. A further message is refused with `429`. */
+            assistant_max_concurrent: number;
+            /** @description The most model and tool calls one answer may take before it stops, from 1 to 100. */
+            assistant_max_steps_per_turn: number;
         };
         FlowsPostResponse: {
             /** @description The flow’s identifier in the admin API. */
@@ -11186,6 +11507,19 @@ export interface components {
             enabled: boolean;
             /** @description When the tenant was created. */
             created_at: string;
+        };
+        AssistantConversationsPostResponseMessagesItem: {
+            /** @description The message’s id, stable across loads. */
+            id: string;
+            /**
+             * @description `user` for the person’s message, `assistant` for the answer.
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+            /** @description The message’s parts as the AI SDK’s UI message format carries them: text, and the tool calls the assistant made with their results. */
+            parts: {
+                [key: string]: unknown;
+            }[];
         };
         ThemePublishPostResponsePublished: {
             /** @description The version’s identifier, which `restore` names. */

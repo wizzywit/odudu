@@ -24,7 +24,18 @@ interface Recorded {
   stopped: string[];
   decided: { id: string; approvalId: string; approve: boolean }[];
   modes: { id: string; mode: string }[];
+  lists: { archived: boolean; after: string | undefined; limit: number }[];
+  archived: { id: string; archived: boolean }[];
+  removed: string[];
+  exports: { id: string; format: string }[];
 }
+
+const ID = '11111111-1111-4111-8111-111111111111';
+const FOREIGN = '22222222-2222-4222-8222-222222222222';
+const BUSY = '33333333-3333-4333-8333-333333333333';
+const HELD = '44444444-4444-4444-8444-444444444444';
+// A position as PostgreSQL prints one, which is what a list resumes from.
+const POSITION = `2026-11-26 00:00:00+00|${ID}`;
 
 const CARD = {
   approval_id: '55555555-5555-4555-8555-555555555555',
@@ -119,12 +130,89 @@ function fakePort(recorded: Recorded): AssistantChatPort {
       if (id.startsWith('3')) return Promise.resolve({ kind: 'not_offered' as const });
       return Promise.resolve({ kind: 'set' as const, mode });
     },
+    list(caller, input) {
+      recorded.callers.push(caller);
+      recorded.lists.push(input);
+      const summary = (id: string) => ({
+        id,
+        title: 'A title',
+        profile: 'free-chat',
+        mode: 'ask' as const,
+        created_at: '2026-11-26T00:00:00.000Z',
+        last_active_at: '2026-11-26T00:00:00.000Z',
+        archived: input.archived,
+        archived_at: input.archived ? '2026-11-26T01:00:00.000Z' : null,
+        reported: false,
+        target_tenant_id: null,
+      });
+      // A first page that has another, then a second and last page.
+      return Promise.resolve(
+        input.after === undefined
+          ? { kind: 'ok' as const, items: [summary(ID)], next: POSITION }
+          : { kind: 'ok' as const, items: [summary(FOREIGN)], next: null },
+      );
+    },
+    last(caller) {
+      recorded.callers.push(caller);
+      return Promise.resolve({ ...conversation(ID), archived: false, continuable: true });
+    },
+    setArchived(caller, id, archived) {
+      recorded.callers.push(caller);
+      recorded.archived.push({ id, archived });
+      if (id.startsWith('2')) return Promise.resolve({ kind: 'not_found' as const });
+      return Promise.resolve({
+        kind: 'set' as const,
+        archivedAt: archived ? new Date('2026-11-26T01:00:00.000Z') : null,
+      });
+    },
+    remove(caller, id) {
+      recorded.callers.push(caller);
+      recorded.removed.push(id);
+      if (id.startsWith('2')) return Promise.resolve({ kind: 'not_found' as const });
+      if (id.startsWith('3')) return Promise.resolve({ kind: 'busy' as const });
+      if (id.startsWith('4')) return Promise.resolve({ kind: 'held' as const });
+      return Promise.resolve({ kind: 'deleted' as const });
+    },
+    export(caller, id, format) {
+      recorded.callers.push(caller);
+      recorded.exports.push({ id, format });
+      if (id.startsWith('2')) return Promise.resolve({ kind: 'not_found' as const });
+      return Promise.resolve({
+        kind: 'ok' as const,
+        document: {
+          exported_at: '2026-11-26T02:00:00.000Z',
+          conversation: {
+            id,
+            title: 'A title',
+            profile: 'free-chat',
+            mode: 'ask' as const,
+            created_at: '2026-11-26T00:00:00.000Z',
+            last_active_at: '2026-11-26T00:00:00.000Z',
+          },
+          messages: [
+            { role: 'user' as const, at: '2026-11-26T00:00:01.000Z', text: 'hi', tools: [] },
+          ],
+          truncated: false,
+        },
+        markdown: format === 'markdown' ? '# A title\n' : undefined,
+      });
+    },
   };
 }
 
 let fixture: AdminFixture | undefined;
 let bare: AdminFixture | undefined;
-const recorded: Recorded = { callers: [], signals: [], stopped: [], decided: [], modes: [] };
+const recorded: Recorded = {
+  callers: [],
+  signals: [],
+  stopped: [],
+  decided: [],
+  modes: [],
+  lists: [],
+  archived: [],
+  removed: [],
+  exports: [],
+};
 
 function fx(): AdminFixture {
   if (fixture === undefined) throw new Error('fixture not started');
@@ -144,9 +232,6 @@ afterAll(async () => {
 });
 
 const BASE = (tenant: string) => `/admin/tenants/${tenant}/assistant/conversations`;
-const ID = '11111111-1111-4111-8111-111111111111';
-const FOREIGN = '22222222-2222-4222-8222-222222222222';
-const BUSY = '33333333-3333-4333-8333-333333333333';
 
 async function bearer(capabilities: readonly string[] = ['use-assistant']) {
   const tenant = await fx().createTenant(`as-${newId()}`);
@@ -351,6 +436,12 @@ describe('access', () => {
         payload: { message: { id: 'm', role: 'user', parts: [{ type: 'text', text: 'x' }] } },
       },
       { method: 'POST', url: `${BASE(tenant.name)}/${ID}/stop` },
+      { method: 'GET', url: BASE(tenant.name) },
+      { method: 'GET', url: `/admin/tenants/${tenant.name}/assistant/last-conversation` },
+      { method: 'PUT', url: `${BASE(tenant.name)}/${ID}/archived`, payload: { archived: true } },
+      { method: 'DELETE', url: `${BASE(tenant.name)}/${ID}` },
+      { method: 'GET', url: `${BASE(tenant.name)}/${ID}/export` },
+      { method: 'GET', url: `${BASE(tenant.name)}/${ID}/export/markdown` },
     ] as const;
     for (const call of calls) {
       const res = await fx().http.inject({ ...call, headers });
@@ -378,6 +469,12 @@ describe('with no model configured', () => {
         payload: { message: { id: 'm', role: 'user', parts: [{ type: 'text', text: 'x' }] } },
       },
       { method: 'POST', url: `${BASE(tenant.name)}/${ID}/stop` },
+      { method: 'GET', url: BASE(tenant.name) },
+      { method: 'GET', url: `/admin/tenants/${tenant.name}/assistant/last-conversation` },
+      { method: 'PUT', url: `${BASE(tenant.name)}/${ID}/archived`, payload: { archived: true } },
+      { method: 'DELETE', url: `${BASE(tenant.name)}/${ID}` },
+      { method: 'GET', url: `${BASE(tenant.name)}/${ID}/export` },
+      { method: 'GET', url: `${BASE(tenant.name)}/${ID}/export/markdown` },
     ] as const;
     for (const call of calls) {
       const res = await bare.http.inject({ ...call, headers });
@@ -397,6 +494,11 @@ describe('a system-tenant administrator on another tenant', () => {
         payload: { message: { id: 'm', role: 'user', parts: [{ type: 'text', text: 'x' }] } },
       },
       { method: 'POST', url: `${BASE(tenant)}/${ID}/stop` },
+      { method: 'GET', url: BASE(tenant) },
+      { method: 'GET', url: `/admin/tenants/${tenant}/assistant/last-conversation` },
+      { method: 'PUT', url: `${BASE(tenant)}/${ID}/archived`, payload: { archived: true } },
+      { method: 'DELETE', url: `${BASE(tenant)}/${ID}` },
+      { method: 'GET', url: `${BASE(tenant)}/${ID}/export` },
     ] as const;
 
   it('reaches the port as themselves, with the path tenant as the target', async () => {
@@ -410,7 +512,7 @@ describe('a system-tenant administrator on another tenant', () => {
       expect(res.statusCode, `${call.method} ${call.url}`).toBeLessThan(300);
     }
     const seen = recorded.callers.slice(before);
-    expect(seen.length).toBe(2);
+    expect(seen.length).toBe(7);
     for (const caller of seen) {
       expect(caller.tenantId).toBe(fx().systemTenantId);
       expect(caller.tenantName).toBe('system');
@@ -639,5 +741,234 @@ describe('the approval routes', () => {
       payload: { mode: 'root' },
     });
     expect(bad.statusCode).toBe(400);
+  });
+});
+
+describe('GET /assistant/conversations', () => {
+  it('lists the caller’s own conversations and carries a signed cursor to the next page', async () => {
+    const { tenant, headers } = await bearer();
+    const first = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}?limit=1`,
+      headers,
+    });
+    expect(first.statusCode, first.body).toBe(200);
+    const page = first.json<{ items: { id: string }[]; next?: string }>();
+    expect(page.items.map((item) => item.id)).toEqual([ID]);
+    expect(page.next).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u);
+    expect(first.headers.link).toContain('rel="next"');
+    expect(recorded.lists.at(-1)).toEqual({ archived: false, after: undefined, limit: 1 });
+
+    const second = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}?limit=1&cursor=${page.next ?? ''}`,
+      headers,
+    });
+    expect(second.statusCode, second.body).toBe(200);
+    expect(second.json<{ items: { id: string }[]; next?: string }>().items[0]?.id).toBe(FOREIGN);
+    expect(second.json<{ next?: string }>().next).toBeUndefined();
+    expect(recorded.lists.at(-1)?.after).toBe(POSITION);
+  });
+
+  it('lists the hidden ones for archived=true and refuses a value it does not know', async () => {
+    const { tenant, headers } = await bearer();
+    const hidden = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}?archived=true`,
+      headers,
+    });
+    expect(hidden.statusCode).toBe(200);
+    expect(hidden.json<{ items: { archived: boolean }[] }>().items[0]?.archived).toBe(true);
+    expect(recorded.lists.at(-1)?.archived).toBe(true);
+    const bad = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}?archived=maybe`,
+      headers,
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it('refuses a cursor it did not write, one from the other list and one from another tenant', async () => {
+    const { tenant, headers } = await bearer();
+    const page = await fx().http.inject({ method: 'GET', url: `${BASE(tenant)}?limit=1`, headers });
+    const next = page.json<{ next: string }>().next;
+    const forged = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}?cursor=${next.slice(0, -2)}xx`,
+      headers,
+    });
+    expect(forged.statusCode).toBe(400);
+    const otherList = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}?archived=true&cursor=${next}`,
+      headers,
+    });
+    expect(otherList.statusCode).toBe(400);
+    const other = await bearer();
+    const otherTenant = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(other.tenant)}?cursor=${next}`,
+      headers: other.headers,
+    });
+    expect(otherTenant.statusCode).toBe(400);
+  });
+
+  it('needs use-assistant and is not served where no model is configured', async () => {
+    const denied = await bearer(['manage-clients']);
+    const refused = await fx().http.inject({
+      method: 'GET',
+      url: BASE(denied.tenant),
+      headers: denied.headers,
+    });
+    expect(refused.statusCode).toBe(403);
+    const none = await bare?.createTenant(`as-${newId()}`);
+    const token = await bare?.adminToken(none?.name ?? '', ['use-assistant']);
+    const res = await bare?.http.inject({
+      method: 'GET',
+      url: BASE(none?.name ?? ''),
+      headers: { authorization: `Bearer ${token ?? ''}` },
+    });
+    expect(res?.statusCode).toBe(404);
+  });
+});
+
+describe('GET /assistant/last-conversation', () => {
+  it('answers the latest conversation with its messages', async () => {
+    const { tenant, headers } = await bearer();
+    const res = await fx().http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${tenant}/assistant/last-conversation`,
+      headers,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json()).toMatchObject({
+      conversation: { id: ID, archived: false, continuable: true, messages: [] },
+    });
+  });
+
+  it('needs use-assistant', async () => {
+    const { tenant, headers } = await bearer(['read-assistant-activity']);
+    const res = await fx().http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${tenant}/assistant/last-conversation`,
+      headers,
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('PUT /assistant/conversations/:id/archived', () => {
+  it('hides and restores, answering what is set, and 404 for one that is not the caller’s', async () => {
+    const { tenant, headers } = await bearer();
+    const hidden = await fx().http.inject({
+      method: 'PUT',
+      url: `${BASE(tenant)}/${ID}/archived`,
+      headers,
+      payload: { archived: true },
+    });
+    expect(hidden.statusCode, hidden.body).toBe(200);
+    expect(hidden.json()).toEqual({ archived: true, archived_at: '2026-11-26T01:00:00.000Z' });
+    const back = await fx().http.inject({
+      method: 'PUT',
+      url: `${BASE(tenant)}/${ID}/archived`,
+      headers,
+      payload: { archived: false },
+    });
+    expect(back.json()).toEqual({ archived: false, archived_at: null });
+    const foreign = await fx().http.inject({
+      method: 'PUT',
+      url: `${BASE(tenant)}/${FOREIGN}/archived`,
+      headers,
+      payload: { archived: true },
+    });
+    expect(foreign.statusCode).toBe(404);
+    const bad = await fx().http.inject({
+      method: 'PUT',
+      url: `${BASE(tenant)}/${ID}/archived`,
+      headers,
+      payload: { archived: 'yes' },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+});
+
+describe('DELETE /assistant/conversations/:id', () => {
+  it('answers 204, and says why it will not when one is reported or running', async () => {
+    const { tenant, headers } = await bearer();
+    const gone = await fx().http.inject({
+      method: 'DELETE',
+      url: `${BASE(tenant)}/${ID}`,
+      headers,
+    });
+    expect(gone.statusCode, gone.body).toBe(204);
+    expect(gone.body).toBe('');
+    const busy = await fx().http.inject({
+      method: 'DELETE',
+      url: `${BASE(tenant)}/${BUSY}`,
+      headers,
+    });
+    expect(busy.statusCode).toBe(409);
+    expect(busy.body).toContain('conversation-busy');
+    const held = await fx().http.inject({
+      method: 'DELETE',
+      url: `${BASE(tenant)}/${HELD}`,
+      headers,
+    });
+    expect(held.statusCode).toBe(409);
+    expect(held.body).toContain('conversation-reported');
+    const foreign = await fx().http.inject({
+      method: 'DELETE',
+      url: `${BASE(tenant)}/${FOREIGN}`,
+      headers,
+    });
+    expect(foreign.statusCode).toBe(404);
+  });
+
+  it('needs use-assistant', async () => {
+    const { tenant, headers } = await bearer(['manage-clients']);
+    const res = await fx().http.inject({ method: 'DELETE', url: `${BASE(tenant)}/${ID}`, headers });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('GET /assistant/conversations/:id/export', () => {
+  it('downloads the owner’s conversation as JSON or Markdown and never caches it', async () => {
+    const { tenant, headers } = await bearer();
+    const json = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}/${ID}/export`,
+      headers,
+    });
+    expect(json.statusCode, json.body).toBe(200);
+    expect(json.headers['content-disposition']).toContain(`conversation-${ID}.json`);
+    expect(json.headers['cache-control']).toBe('no-store');
+    expect(json.json<{ messages: unknown[] }>().messages).toHaveLength(1);
+
+    const markdown = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}/${ID}/export/markdown`,
+      headers,
+    });
+    expect(markdown.statusCode, markdown.body).toBe(200);
+    expect(markdown.headers['content-type']).toContain('text/markdown');
+    expect(markdown.headers['content-disposition']).toContain(`conversation-${ID}.md`);
+    expect(markdown.body).toBe('# A title\n');
+
+    const foreign = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}/${FOREIGN}/export`,
+      headers,
+    });
+    expect(foreign.statusCode).toBe(404);
+  });
+
+  it('is refused to an auditor who does not hold use-assistant, whatever else they hold', async () => {
+    const { tenant, headers } = await bearer(['read-assistant-activity', 'manage-assistant']);
+    const res = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}/${ID}/export`,
+      headers,
+    });
+    expect(res.statusCode).toBe(403);
   });
 });

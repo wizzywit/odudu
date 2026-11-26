@@ -212,6 +212,12 @@ shown once — a registration token, a client secret, a one-time password.
 | `GET`    | `/admin/tenants/{tenant}/assistant/activity/conversations/:id`              | Replay one conversation                    |
 | `GET`    | `/admin/tenants/{tenant}/assistant/activity/conversations/:id/promptfoo`    | Export a conversation as a test case       |
 | `POST`   | `/admin/tenants/{tenant}/assistant/conversations/:id/report`                | Keep a conversation past retention         |
+| `GET`    | `/admin/tenants/{tenant}/assistant/conversations`                           | List the caller's own conversations        |
+| `GET`    | `/admin/tenants/{tenant}/assistant/last-conversation`                       | Reopen the latest conversation             |
+| `DELETE` | `/admin/tenants/{tenant}/assistant/conversations/:id`                       | Delete a conversation, leaving a tombstone |
+| `PUT`    | `/admin/tenants/{tenant}/assistant/conversations/:id/archived`              | Hide a conversation or bring it back       |
+| `GET`    | `/admin/tenants/{tenant}/assistant/conversations/:id/export`                | Export a conversation as JSON              |
+| `GET`    | `/admin/tenants/{tenant}/assistant/conversations/:id/export/markdown`       | Export a conversation as Markdown          |
 | `GET`    | `/admin/tenants/{tenant}/domains`                                           | List domains                               |
 | `POST`   | `/admin/tenants/{tenant}/domains`                                           | Register a domain                          |
 | `GET`    | `/admin/tenants/{tenant}/domains/passkey-impact`                            | Count the passkeys a switch hides          |

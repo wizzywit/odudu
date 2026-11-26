@@ -166,7 +166,12 @@ describe('every method refuses a foreign tenant', () => {
       seed: seedConversation,
       verifySeeded,
       attempt: async (tx, seeded) =>
-        conversationRepository(tx).listByOwner(seeded.subjectId, null, 10, null),
+        conversationRepository(tx).listByOwner(seeded.subjectId, {
+          archived: false,
+          tenant: seeded.tenantId,
+          target: null,
+          limit: 10,
+        }),
       expectBlocked: (result) => {
         expect(result).toEqual({ items: [], next: null });
       },
@@ -341,8 +346,22 @@ describe('conversationRepository', () => {
       const repo = conversationRepository(tx);
       for (let n = 0; n < 3; n += 1) await repo.create(conversation(tenantId, subjectId));
       return [
-        (await repo.listByOwner(subjectId, null, 2.5, null)).items.length,
-        (await repo.listByOwner(subjectId, null, Number.NaN, null)).items.length,
+        (
+          await repo.listByOwner(subjectId, {
+            archived: false,
+            tenant: tenantId,
+            target: null,
+            limit: 2.5,
+          })
+        ).items.length,
+        (
+          await repo.listByOwner(subjectId, {
+            archived: false,
+            tenant: tenantId,
+            target: null,
+            limit: Number.NaN,
+          })
+        ).items.length,
       ];
     });
 
@@ -371,9 +390,26 @@ describe('conversationRepository', () => {
         const at = new Date(NOW.getTime() + Math.floor(n / 2) * 1000);
         ids.push((await repo.create(conversation(tenantId, subjectId, { now: at }))).id);
       }
-      const first = await repo.listByOwner(subjectId, null, 2, null);
-      const second = await repo.listByOwner(subjectId, first.next, 2, null);
-      const third = await repo.listByOwner(subjectId, second.next, 2, null);
+      const first = await repo.listByOwner(subjectId, {
+        archived: false,
+        tenant: tenantId,
+        target: null,
+        limit: 2,
+      });
+      const second = await repo.listByOwner(subjectId, {
+        archived: false,
+        tenant: tenantId,
+        target: null,
+        after: first.next ?? undefined,
+        limit: 2,
+      });
+      const third = await repo.listByOwner(subjectId, {
+        archived: false,
+        tenant: tenantId,
+        target: null,
+        after: second.next ?? undefined,
+        limit: 2,
+      });
       return { ids, first, second, third };
     });
 
@@ -394,7 +430,14 @@ describe('conversationRepository', () => {
       const repo = conversationRepository(tx);
       await repo.create(conversation(tenantId, subjectId));
       await repo.create(conversation(tenantId, otherId));
-      return (await repo.listByOwner(otherId, null, 10, null)).items;
+      return (
+        await repo.listByOwner(otherId, {
+          archived: false,
+          tenant: tenantId,
+          target: null,
+          limit: 10,
+        })
+      ).items;
     });
 
     expect(items).toHaveLength(1);
@@ -402,14 +445,19 @@ describe('conversationRepository', () => {
 
   it('never reads more than MAX_LIMIT rows however large a limit it is given', async () => {
     recorded = [];
-    await inTenant(async (tx, _tenantId, subjectId) =>
-      conversationRepository(tx).listByOwner(subjectId, null, MAX_LIMIT * 10, null),
+    await inTenant(async (tx, tenantId, subjectId) =>
+      conversationRepository(tx).listByOwner(subjectId, {
+        archived: false,
+        tenant: tenantId,
+        target: null,
+        limit: MAX_LIMIT * 10,
+      }),
     );
 
     const listing = recorded.find((entry) =>
-      entry.query.includes('from "assistant_conversations"'),
+      entry.query.includes('from assistant_conversations c'),
     );
-    expect(listing?.parameters).toContain(String(MAX_LIMIT + 1));
+    expect(listing?.parameters.map(String)).toContain(String(MAX_LIMIT + 1));
   });
 
   it('serves a page from the owner index, in order, without a sort', async () => {
@@ -434,10 +482,15 @@ describe('conversationRepository', () => {
 
     recorded = [];
     await withTenant(app.db, tenantId, async (tx) =>
-      conversationRepository(tx).listByOwner(target, null, 20, null),
+      conversationRepository(tx).listByOwner(target, {
+        archived: false,
+        tenant: tenantId,
+        target: null,
+        limit: 20,
+      }),
     );
     const listing = recorded.find((entry) =>
-      entry.query.includes('from "assistant_conversations"'),
+      entry.query.includes('from assistant_conversations c'),
     );
     expect(listing).toBeDefined();
 
@@ -449,7 +502,7 @@ describe('conversationRepository', () => {
       );
       return JSON.stringify(rows[0]?.['QUERY PLAN']);
     });
-    expect(plan).toContain('assistant_conversations_owner_activity');
+    expect(plan).toContain('assistant_conversations_owner_open');
     expect(plan).not.toContain('"Node Type":"Sort"');
     expect(plan).not.toContain('"Node Type":"Seq Scan"');
   });

@@ -60,3 +60,22 @@ past retention.
   duplicate work this phase was asked to avoid.
 - **A hash-chained, tamper-evident log.** Valuable, and not asked for; recorded as a
   possible later hardening.
+
+## Amendment: the person may delete, and deleting touches no audit row
+
+Decided by the owner on 2026-11-26. The trace is not a record the person is kept from:
+the owner of a conversation can export it and delete it. Deleting removes the messages,
+the trace and the approval cards and leaves a tombstone (ids, owner, times, who deleted
+it, counts and an HMAC of the messages under a key derived per tenant from the KEK) and
+an `assistant.conversation_deleted` audit row, in one transaction. The audit rows that
+say a turn happened and what an approval changed stay, with the same retention as ever:
+content and audit retention are independent, and a delete or an expiry never reaches
+the audit table. A reported conversation cannot be deleted by its owner. Auditors read
+metadata always and text only where the tenant sets `assistant_auditor_visible`, which
+defaults to off; every read of text by someone other than the owner is
+`assistant.text_read`, and no operator or system-tenant path reads a tenant's text. The
+digest confirms a copy of the text to a holder of the key and is not evidence of what
+was said; the conversation's text itself is mutable and is not tamper-evident, which the
+documentation says. Rejected: archive only (an administrator pastes secrets and subject
+emails into a chat and needs a way to remove them, and an erasure request needs a
+remedy); an unkeyed hash on the tombstone (a confirmation oracle for short text).
