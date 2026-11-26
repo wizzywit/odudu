@@ -500,6 +500,7 @@ export {
   CARD_FIELD_MAX,
   CONVERSATION_APPROVALS_MAX,
   assistantApprovalCardSchema,
+  assistantApprovalTargetSchema,
   type AssistantApprovalCard,
   assistantApprovalListSchema,
   type AssistantApprovalList,

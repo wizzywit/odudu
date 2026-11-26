@@ -34,7 +34,11 @@ describe('assistantWriteTools', () => {
   });
 
   it('leave out a write that is not among the twelve', () => {
-    const stray = { name: 'delete_client', access: 'write', routeKey: 'DELETE /x' } as RegisteredTool;
+    const stray = {
+      name: 'delete_client',
+      access: 'write',
+      routeKey: 'DELETE /x',
+    } as RegisteredTool;
     expect(assistantWriteTools([stray])).toEqual([]);
   });
 });

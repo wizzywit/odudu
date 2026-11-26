@@ -86,7 +86,7 @@ export interface ApprovalPorts {
    * same transaction; undefined means this conversation holds no such card.
    * `withdrawn` says the person moved on rather than answered.
    */
-  readonly decide: (
+  readonly answer: (
     caller: ChatCaller,
     input: {
       readonly approvalId: string;

@@ -590,7 +590,15 @@ const NOT_DRIVEN: Readonly<Record<string, string>> = {
   'POST /admin/tenants/:tenant/assistant/conversations/:id/messages':
     'served only with a model configured, and its time is the model\u2019s; each statement is a primary-key read, an append or a tail replacement on one conversation, a point read or update of at most four budget counters by their unique key, a reservation by primary key, or the tenant\u2019s live leases counted through assistant_turn_leases_live and bounded by the tenant\u2019s own limit on answers at once (the upkeep deletes are proved against their indexes in packages/assistant/tests/budget-upkeep.int.test.ts)',
   'POST /admin/tenants/:tenant/assistant/conversations/:id/stop':
-    'served only with a model configured; reads one conversation by primary key and touches an in-process map',
+    'served only with a model configured; reads one conversation by primary key, touches an in-process map and withdraws the conversation\u2019s pending changes, at most 20, read through assistant_approvals_call (proved in packages/assistant/tests/approvals.int.test.ts) and decided by primary key',
+  'GET /admin/tenants/:tenant/assistant/conversations/:id/approvals':
+    'served only with a model configured; one conversation by primary key, then the conversation\u2019s pending cards through assistant_approvals_call joined to agent_approvals by primary key, limited to 20 (proved at 20,000 approvals in packages/assistant/tests/approvals.int.test.ts)',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/approvals/:approvalId':
+    'served only with a model configured; one grant, one conversation and one card by primary key, one conditional update of one agent_approvals row by primary key and one audit row',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/resume':
+    'served only with a model configured, and its time is the model\u2019s; the statements are those of a message, the cards of the last message\u2019s tool calls read through assistant_approvals_call (at most 50), and for an approved change one conditional update of its approval, a grant insert and revoke by primary key and the write\u2019s own admin route',
+  'PUT /admin/tenants/:tenant/assistant/conversations/:id/mode':
+    'served only with a model configured; reads and updates one conversation by primary key, and withdraws pending changes as the stop route does',
 };
 
 function routePattern(pattern: string): RegExp {

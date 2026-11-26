@@ -6,7 +6,7 @@ import {
   CONVERSATION_APPROVALS_MAX,
   type AssistantApprovalCard,
 } from '@odudu/contracts/admin';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { type AssistantTx } from '#/repository/tx';
 
 const TENANT = sql`nullif(current_setting('app.tenant_id', true), '')::uuid`;
@@ -61,6 +61,19 @@ const COLUMNS = sql`
   c.approval_id, c.conversation_id, c.tool_call_id, c.tool, c.card,
   a.state, a.expires_at`;
 
+// The conversation's pending cards, served by the (tenant, conversation) prefix
+// of `assistant_approvals_call` and the approval's primary key.
+export function pendingCardsStatement(conversationId: string, now: Date): SQL {
+  return sql`
+    select ${COLUMNS}
+      from assistant_approvals c
+      join agent_approvals a on a.id = c.approval_id
+     where c.tenant_id = ${TENANT} and c.conversation_id = ${conversationId}
+       and a.state = 'pending' and a.expires_at > ${now.toISOString()}::timestamptz
+     order by c.created_at desc, c.approval_id desc
+     limit ${CONVERSATION_APPROVALS_MAX}`;
+}
+
 export function approvalCardRepository(tx: AssistantTx) {
   return {
     async create(input: {
@@ -89,10 +102,7 @@ export function approvalCardRepository(tx: AssistantTx) {
     },
 
     // The card for a tool call of a conversation, through the unique index.
-    async byCall(
-      conversationId: string,
-      toolCallId: string,
-    ): Promise<ApprovalCardRow | undefined> {
+    async byCall(conversationId: string, toolCallId: string): Promise<ApprovalCardRow | undefined> {
       const rows = await tx.execute<Row>(sql`
         select ${COLUMNS}
           from assistant_approvals c
@@ -126,14 +136,7 @@ export function approvalCardRepository(tx: AssistantTx) {
     // at most CONVERSATION_APPROVALS_MAX pending approvals, and the read is
     // bounded by it all the same.
     async pending(conversationId: string, now: Date): Promise<ApprovalCardRow[]> {
-      const rows = await tx.execute<Row>(sql`
-        select ${COLUMNS}
-          from assistant_approvals c
-          join agent_approvals a on a.id = c.approval_id
-         where c.tenant_id = ${TENANT} and c.conversation_id = ${conversationId}
-           and a.state = 'pending' and a.expires_at > ${now.toISOString()}::timestamptz
-         order by c.created_at desc, c.approval_id desc
-         limit ${CONVERSATION_APPROVALS_MAX}`);
+      const rows = await tx.execute<Row>(pendingCardsStatement(conversationId, now));
       return rows.map(toRow);
     },
   };

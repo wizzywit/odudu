@@ -146,7 +146,7 @@ export interface AssistantChatPort {
   >;
   stop(caller: AssistantCaller, id: string): Promise<'stopped' | 'idle' | 'not_found'>;
   approvals(caller: AssistantCaller, id: string): Promise<AssistantApprovalCard[] | null>;
-  decide(
+  answerApproval(
     caller: AssistantCaller,
     id: string,
     approvalId: string,
@@ -408,7 +408,7 @@ export function decideApprovalHandler(deps: AssistantChatRouteDeps): AdminRouteH
     const approvalId = request.params.approvalId;
     if (approvalId === undefined) return notFound(request, reply);
     const body = request.body as DecideApprovalRequest;
-    const outcome = await chat.decide(caller, id, approvalId, body.approve);
+    const outcome = await chat.answerApproval(caller, id, approvalId, body.approve);
     if (outcome.kind === 'not_found') return notFound(request, reply);
     if (outcome.kind === 'not_pending') {
       return sendProblem(

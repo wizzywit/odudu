@@ -54,7 +54,7 @@ export interface Chat {
   /** The conversation's changes still waiting for the person, or null for one that is not theirs. */
   approvals(caller: ChatCaller, id: string): Promise<AssistantApprovalCard[] | null>;
   /** The person's decision on one change, recorded as the approval's owner. */
-  decide(
+  answerApproval(
     caller: ChatCaller,
     id: string,
     approvalId: string,
@@ -95,7 +95,8 @@ export function createChat(deps: ChatDeps): Chat {
 
     approvals: (caller, id) => listApprovals(deps, caller, id),
 
-    decide: (caller, id, approvalId, approve) => decideCard(deps, caller, id, approvalId, approve),
+    answerApproval: (caller, id, approvalId, approve) =>
+      decideCard(deps, caller, id, approvalId, approve),
 
     async resume(caller, id, signal) {
       return streamed(await resumeTurn(deps, registry, caller, id, signal));

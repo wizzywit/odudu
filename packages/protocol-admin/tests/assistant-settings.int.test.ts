@@ -35,8 +35,8 @@ const chat: AssistantChatPort = {
     reached.push('approvals');
     return Promise.resolve(null);
   },
-  decide: () => {
-    reached.push('decide');
+  answerApproval: () => {
+    reached.push('answerApproval');
     return Promise.resolve({ kind: 'not_found' });
   },
   resume: () => {

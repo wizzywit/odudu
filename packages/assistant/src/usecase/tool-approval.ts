@@ -158,9 +158,7 @@ function inHistory(messages: readonly HistoryMessage[], toolCallId: string): boo
  * anything the model wrote. The SDK asks again for a call whose decision has
  * come back, and that second question opens nothing.
  */
-export function toolApprovalFor(
-  deps: PolicyDeps,
-): (options: {
+export function toolApprovalFor(deps: PolicyDeps): (options: {
   readonly toolCall: {
     readonly toolName: string;
     readonly toolCallId: string;

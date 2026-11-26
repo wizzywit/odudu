@@ -352,7 +352,9 @@ describe('who may decide', () => {
       return { subjectId: subject.id, grantId };
     });
     const stranger = callerOf(w, { ownerSubjectId: other.subjectId, grantId: other.grantId });
-    expect(await chat.decide(stranger, id, approvalId, true)).toEqual({ kind: 'not_found' });
+    expect(await chat.answerApproval(stranger, id, approvalId, true)).toEqual({
+      kind: 'not_found',
+    });
     expect(await chat.approvals(stranger, id)).toBeNull();
     expect(await approvalStates(w)).toEqual(['pending']);
   });
@@ -360,9 +362,11 @@ describe('who may decide', () => {
   it('is never a grant that is not a console sign-in, such as the conversation’s own', async () => {
     const { w, chat, id, card } = await proposed();
     const viaAssistantGrant = callerOf(w, { grantId: id });
-    expect(await chat.decide(viaAssistantGrant, id, card?.approval_id ?? '', true)).toEqual({
-      kind: 'not_found',
-    });
+    expect(await chat.answerApproval(viaAssistantGrant, id, card?.approval_id ?? '', true)).toEqual(
+      {
+        kind: 'not_found',
+      },
+    );
     expect(await approvalStates(w)).toEqual(['pending']);
   });
 
@@ -412,7 +416,7 @@ describe('who may decide', () => {
 describe('deciding and running a change', () => {
   it('runs an approved change once, as the owner, under a grant that ends with it', async () => {
     const { w, role, chat, id, card } = await proposed();
-    const decided = await chat.decide(callerOf(w), id, card?.approval_id ?? '', true);
+    const decided = await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', true);
     expect(decided).toEqual({ kind: 'decided', state: 'approved' });
     expect(await roleDescription(w, role.id)).toBe('Old text');
 
@@ -450,7 +454,7 @@ describe('deciding and running a change', () => {
 
   it('records a refusal, closes the change and lets the model answer from it', async () => {
     const { w, role, chat, id, card, script } = await proposed();
-    expect(await chat.decide(callerOf(w), id, card?.approval_id ?? '', false)).toEqual({
+    expect(await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', false)).toEqual({
       kind: 'decided',
       state: 'denied',
     });
@@ -465,8 +469,10 @@ describe('deciding and running a change', () => {
   it('decides once: a second decision, or one after a refusal, is not pending', async () => {
     const { w, chat, id, card } = await proposed();
     const approvalId = card?.approval_id ?? '';
-    expect((await chat.decide(callerOf(w), id, approvalId, true)).kind).toBe('decided');
-    expect(await chat.decide(callerOf(w), id, approvalId, false)).toEqual({ kind: 'not_pending' });
+    expect((await chat.answerApproval(callerOf(w), id, approvalId, true)).kind).toBe('decided');
+    expect(await chat.answerApproval(callerOf(w), id, approvalId, false)).toEqual({
+      kind: 'not_pending',
+    });
     expect(await approvalStates(w)).toEqual(['approved']);
   });
 
@@ -485,7 +491,7 @@ describe('deciding and running a change', () => {
       sql`update agent_approvals set expires_at = now() - interval '1 minute'
            where tenant_id = ${w.tenantId}`,
     );
-    expect(await chat.decide(callerOf(w), id, card?.approval_id ?? '', true)).toEqual({
+    expect(await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', true)).toEqual({
       kind: 'not_pending',
     });
     const out = await resume(chat, w, id);
@@ -496,7 +502,7 @@ describe('deciding and running a change', () => {
 
   it('refuses a call whose input changed after the approval, and keeps the approval unspent', async () => {
     const { w, role, chat, id, card } = await proposed();
-    await chat.decide(callerOf(w), id, card?.approval_id ?? '', true);
+    await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', true);
     await s().owner.db.execute(
       sql`update assistant_messages
              set parts = replace(parts::text, 'New text', 'Something else')::jsonb
@@ -511,7 +517,7 @@ describe('deciding and running a change', () => {
 
   it('leaves it to one of two servers resuming at once: the write happens once', async () => {
     const { w, role, chat, id, card } = await proposed();
-    await chat.decide(callerOf(w), id, card?.approval_id ?? '', true);
+    await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', true);
     const second = chatFor(scripted([answer('Done on the other server.')]).model);
     const [a, b] = await Promise.allSettled([resume(chat, w, id), resume(second, w, id)]);
     expect([a.status, b.status]).toContain('fulfilled');
@@ -549,7 +555,7 @@ describe('deciding and running a change', () => {
     const id = await start(chat, w);
     await say(chat, w, id, 'change it');
     const [card] = (await chat.approvals(callerOf(w), id)) ?? [];
-    await chat.decide(callerOf(w), id, card?.approval_id ?? '', true);
+    await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', true);
     const out = await resume(chat, w, id);
     expect(out).toContain('It could not be changed.');
     expect(await roleDescription(w, role.id)).toBe('Old text');
@@ -592,7 +598,7 @@ describe('what the person does instead of deciding', () => {
 
   it('runs no change for an approval given while the conversation was in Ask mode', async () => {
     const { w, role, chat, id, card } = await proposed();
-    await chat.decide(callerOf(w), id, card?.approval_id ?? '', true);
+    await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', true);
     await chat.setMode(callerOf(w), id, 'ask');
     const out = await resume(chat, w, id);
     expect(out).toContain('"stopReason"');

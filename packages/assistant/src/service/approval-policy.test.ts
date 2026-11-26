@@ -12,12 +12,12 @@ describe('approvalPolicy', () => {
   });
 
   it('denies a write in Ask mode and asks for it in Act mode', () => {
-    expect(approvalPolicy({ mode: 'ask', annotations: WRITE, tool: 'update_client_metadata' })).toBe(
-      'deny',
-    );
-    expect(approvalPolicy({ mode: 'act', annotations: WRITE, tool: 'update_client_metadata' })).toBe(
-      'ask',
-    );
+    expect(
+      approvalPolicy({ mode: 'ask', annotations: WRITE, tool: 'update_client_metadata' }),
+    ).toBe('deny');
+    expect(
+      approvalPolicy({ mode: 'act', annotations: WRITE, tool: 'update_client_metadata' }),
+    ).toBe('ask');
   });
 
   it('denies a write that is not one of the twelve, in either mode', () => {

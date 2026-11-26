@@ -87,7 +87,7 @@ function fakePort(recorded: Recorded): AssistantChatPort {
       recorded.callers.push(caller);
       return Promise.resolve(id.startsWith('2') ? null : [CARD]);
     },
-    decide(caller, id, approvalId, approve) {
+    answerApproval(caller, id, approvalId, approve) {
       recorded.callers.push(caller);
       recorded.decided.push({ id, approvalId, approve });
       if (id.startsWith('2')) return Promise.resolve({ kind: 'not_found' as const });

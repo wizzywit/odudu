@@ -25,6 +25,7 @@ import {
 import {
   assistantApprovalCardSchema,
   assistantApprovalListSchema,
+  assistantApprovalTargetSchema,
   assistantConversationSchema,
   assistantMessageSchema,
   assistantPageContextSchema,
@@ -1288,7 +1289,8 @@ describeFields(assistantConversationSchema, {
 
 describeFields(assistantApprovalCardSchema, {
   approval_id: 'The approval to decide, the id the decision route takes.',
-  tool_call_id: 'The model’s call this change is for; the same id the stream’s approval request names.',
+  tool_call_id:
+    'The model’s call this change is for; the same id the stream’s approval request names.',
   tool: 'The name of the change tool, one of the twelve the assistant may propose.',
   title: 'What the change does, in one line, written by the server.',
   target:
@@ -1299,6 +1301,11 @@ describeFields(assistantApprovalCardSchema, {
     'What the call would set, as short text per field, taken from the stored call; null for a removal.',
   expires_at:
     'When the approval ends, by the server’s clock. A decision after it is refused; a card never extends it.',
+});
+describeFields(assistantApprovalTargetSchema, {
+  type: 'The kind of object: `client`, `scope`, `role`, `group`, `message`, `tenant settings` or a theme draft.',
+  id: 'Its id, or for a message the language and key; absent for something the change creates.',
+  name: 'Its name, as the server read it just before the proposal; absent where there is none to read.',
 });
 describeFields(assistantApprovalListSchema, {
   items: 'The conversation’s pending changes, newest first, at most 20.',

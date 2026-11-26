@@ -118,7 +118,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
       });
     },
 
-    async decide(caller, input, load) {
+    async answer(caller, input, load) {
       const tenant = await tenantOf(caller);
       return withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
         // Only a person's own console sign-in decides: a token of another kind,

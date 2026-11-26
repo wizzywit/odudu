@@ -54,7 +54,7 @@ export async function decideCard(
   approve: boolean,
 ): Promise<DecideResult> {
   if (deps.approvals === undefined) return { kind: 'not_found' };
-  return deps.approvals.decide(
+  return deps.approvals.answer(
     caller,
     { approvalId, approve, now: deps.now() },
     loadCard(caller, conversationId, approvalId),
@@ -81,7 +81,7 @@ export async function withdrawPending(
   });
   let withdrawn = 0;
   for (const card of cards) {
-    const result = await deps.approvals.decide(
+    const result = await deps.approvals.answer(
       caller,
       { approvalId: card.approvalId, approve: false, now: deps.now(), withdrawn: reason },
       loadCard(caller, conversationId, card.approvalId),

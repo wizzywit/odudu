@@ -164,6 +164,11 @@ export type AssistantConversation = z.infer<typeof assistantConversationSchema>;
 // not exist yet) and `after` what the call would set; values are short text,
 // cut, so a card is bounded whatever the call carries.
 export const CARD_FIELD_MAX = 2_000;
+export const assistantApprovalTargetSchema = z.object({
+  type: z.string(),
+  id: z.string().optional(),
+  name: z.string().optional(),
+});
 const cardFieldsSchema = z.record(
   z.string(),
   z.union([z.string(), z.number(), z.boolean(), z.null()]),
@@ -173,11 +178,7 @@ export const assistantApprovalCardSchema = z.object({
   tool_call_id: z.string(),
   tool: z.string(),
   title: z.string(),
-  target: z.object({
-    type: z.string(),
-    id: z.string().optional(),
-    name: z.string().optional(),
-  }),
+  target: assistantApprovalTargetSchema,
   before: cardFieldsSchema.nullable(),
   after: cardFieldsSchema.nullable(),
   // Server time: the client counts down to it and never extends it.
