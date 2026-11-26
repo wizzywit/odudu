@@ -7,21 +7,40 @@ import { z } from 'zod';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { type AssistantActivityStore } from '#/usecase/assistant-activity';
+import { type AssistantChatPort } from '#/view/routes/assistant';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
-// The activity routes answer 404 where no assistant is wired, so a cursor
-// check on them needs a store; it is never reached for a cursor it refuses.
+// The activity and conversation routes answer 404 where no assistant is wired,
+// so a cursor check on them needs a store and a chat port; neither is reached
+// for a cursor it refuses.
 const emptyActivity: AssistantActivityStore = {
   list: () => Promise.resolve({ items: [], next: null }),
   replay: () => Promise.resolve(null),
   export: () => Promise.resolve(null),
   report: () => Promise.resolve({ kind: 'missing' }),
 };
+const notReached = (): Promise<never> => Promise.reject(new Error('not reached'));
+const unusedChat: AssistantChatPort = {
+  create: notReached,
+  load: notReached,
+  list: notReached,
+  last: notReached,
+  setArchived: notReached,
+  remove: notReached,
+  export: notReached,
+  send: notReached,
+  stop: notReached,
+  approvals: notReached,
+  answerApproval: notReached,
+  resume: notReached,
+  setMode: notReached,
+};
 
 beforeAll(async () => {
   fixtureHandle = await startAdminFixture({
     assistantActivity: emptyActivity,
+    assistantChat: unusedChat,
     assistantSettings: {
       read: () => Promise.resolve({ ...ASSISTANT_SETTING_DEFAULTS }),
       write: () => Promise.resolve(),
