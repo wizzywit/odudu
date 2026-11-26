@@ -8,8 +8,7 @@ import {
 } from '@odudu/assistant';
 import { type DatabaseHandle, withTenant, withTenantRetrying } from '@odudu/db';
 import { agentInstanceRepository, type AgentInstanceRecord } from '@odudu/domain-agents';
-import { auditRepository } from '@odudu/domain-audit';
-import { ADMIN_API_AUDIENCE, ASSISTANT_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import {
   callMcpTool,
@@ -27,6 +26,7 @@ import {
   grantAssistantAccess,
   MCP_READ_SCOPE,
   mintAgentToken,
+  recordAssistantRefusal,
   runInstanceId,
   tenantLookupRepository,
   tokenGrantRepository,
@@ -89,28 +89,17 @@ function lapsedFromIdleness(instance: AgentInstanceRecord | null, at: Date): boo
 }
 
 // What the audit trail holds of a refusal: who, which client and a fixed code.
-async function auditRefusal(
+function auditRefusal(
   tx: Parameters<typeof grantAssistantAccess>[0],
   caller: ChatCaller,
   conversationId: string,
   refusal: string,
 ): Promise<void> {
-  const assistant = await clientRepository(tx).byClientId(ASSISTANT_CLIENT_ID);
-  await auditRepository(tx).record({
-    eventType: 'agent_identity',
-    action: 'assistant.access_refused',
-    outcome: 'refused',
-    actorTenantId: caller.tenantId,
-    actorSubjectId: caller.ownerSubjectId,
-    actorClientId: assistant?.id ?? null,
-    resourceType: 'assistant_conversation',
-    resourceId: conversationId,
-    detail: {
-      reason: 'denied',
-      agent_client: ASSISTANT_CLIENT_ID,
-      owner: caller.ownerSubjectId,
-      refusal,
-    },
+  return recordAssistantRefusal(tx, {
+    tenantId: caller.tenantId,
+    subjectId: caller.ownerSubjectId,
+    conversationId,
+    refusal,
   });
 }
 
