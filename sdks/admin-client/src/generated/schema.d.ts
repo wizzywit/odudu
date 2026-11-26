@@ -9753,8 +9753,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Requires the "manage-assistant" capability.
-         * @description What this tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the mode a person starts in, email masking, how long traces are kept, whether auditors see conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and the steps of one turn. `404` where the deployment has no assistant configured.
+         * Requires the "manage-assistant" capability, or "read-assistant-activity".
+         * @description Needs `manage-assistant`, or `read-assistant-activity`, which may read but not change. What this tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the mode a person starts in, email masking, how long traces are kept, whether auditors see conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and the steps of one turn. `404` where the deployment has no assistant configured.
          */
         get: {
             parameters: {
@@ -9920,6 +9920,31 @@ export interface components {
             /** @description The steps in the order they run. */
             steps: components["schemas"]["FlowsGetResponseItemsItemStepsItem"][];
         };
+        AssistantSettingsGetResponse: {
+            /** @description Whether the tenant’s administrators are offered the assistant. False reads as `{ "enabled": false }` from the status route for this tenant alone. */
+            assistant_enabled: boolean;
+            /**
+             * @description The mode a person starts in: `ask` reads only, `act` may also propose changes that wait for the person’s approval.
+             * @enum {string}
+             */
+            assistant_default_mode: "ask" | "act";
+            /** @description Whether email addresses are masked before anything is sent to the model provider. */
+            assistant_mask_emails: boolean;
+            /** @description How many days the step-by-step trace of a conversation is kept, from 1 to 365. The audit trail follows its own retention. */
+            assistant_trace_retention_days: number;
+            /** @description Whether people who can read assistant activity may see conversations. People using the assistant are told. */
+            assistant_auditor_visible: boolean;
+            /** @description The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. Past it the assistant stops and names the limit; it never falls back to another model. */
+            assistant_monthly_tokens_fast: number;
+            /** @description The tokens the tenant may spend each month on the standard model slot, from 0 to 1,000,000,000. */
+            assistant_monthly_tokens_standard: number;
+            /** @description The tokens the tenant may spend each month on the deep model slot, from 0 to 1,000,000,000. */
+            assistant_monthly_tokens_deep: number;
+            /** @description How many answers the tenant may have in progress at the same time, from 1 to 50. */
+            assistant_max_concurrent: number;
+            /** @description The most model and tool calls one answer may take before it stops, from 1 to 100. */
+            assistant_max_steps_per_turn: number;
+        };
         ScopesGetResponseItemsItem: {
             /** @description The scope’s identifier. */
             id: string;
@@ -10068,19 +10093,6 @@ export interface components {
                 /** @description The text on the button. */
                 button_ink: string;
             };
-        };
-        AssistantSettingsGetResponse: {
-            assistant_enabled: boolean;
-            /** @enum {string} */
-            assistant_default_mode: "ask" | "act";
-            assistant_mask_emails: boolean;
-            assistant_trace_retention_days: number;
-            assistant_auditor_visible: boolean;
-            assistant_monthly_tokens_fast: number;
-            assistant_monthly_tokens_standard: number;
-            assistant_monthly_tokens_deep: number;
-            assistant_max_concurrent: number;
-            assistant_max_steps_per_turn: number;
         };
         ExportGetResponseFlowItemSettings: {
             /**

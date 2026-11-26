@@ -33,8 +33,14 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+// The answer a path that was never served gets, word for word, so that a
+// deployment without an assistant cannot be told from one that never had these routes.
 function notServed(request: AdminRequest, reply: FastifyReply): FastifyReply {
-  return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+  return sendProblem(
+    reply,
+    request,
+    problem(404, 'about:blank#not-found', 'Not Found', 'No resource at this path'),
+  );
 }
 
 export function assistantStatusHandler(deps: AssistantRouteDeps): AdminRouteHandler {

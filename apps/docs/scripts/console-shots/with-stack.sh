@@ -32,7 +32,11 @@ export ODUDU_CONSOLE_CLIENT_KEY="${ODUDU_CONSOLE_CLIENT_KEY:-$("$DOCKER_DIR/cons
 export ODUDU_HOST_PORT="$host_port"
 export POSTGRES_HOST_PORT="$postgres_port"
 export COMPOSE_PROJECT_NAME="${SHOTS_COMPOSE_PROJECT:-odudu-shots}"
-export COMPOSE_FILE="$DOCKER_DIR/compose.yaml"
+export COMPOSE_FILE="$DOCKER_DIR/compose.yaml:$DOCKER_DIR/compose.assistant.yaml"
+# The settings page lists the assistant's section only where a model is
+# configured. No call is ever made to it: the key only has to be present.
+export ODUDU_ASSISTANT_MODELS="standard=anthropic:claude-model-for-screenshots"
+export ANTHROPIC_API_KEY="not-a-real-key-the-capture-never-calls-a-model"
 build_flag=(--build)
 if [ "${SHOTS_PREBUILT:-}" = "1" ]; then
   build_flag=()

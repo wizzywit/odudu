@@ -23,18 +23,17 @@ export type AssistantStatus = z.infer<typeof assistantStatusSchema>;
 
 // The ranges the server holds each setting to. The database repeats them as
 // CHECK constraints; the console reads them to say what a field accepts.
+const TOKENS_RANGE = { min: 0, max: 1_000_000_000 } as const;
 export const ASSISTANT_SETTING_RANGES = {
   assistant_trace_retention_days: { min: 1, max: 365 },
-  assistant_monthly_tokens: { min: 0, max: 1_000_000_000 },
+  assistant_monthly_tokens_fast: TOKENS_RANGE,
+  assistant_monthly_tokens_standard: TOKENS_RANGE,
+  assistant_monthly_tokens_deep: TOKENS_RANGE,
   assistant_max_concurrent: { min: 1, max: 50 },
   assistant_max_steps_per_turn: { min: 1, max: 100 },
 } as const;
 
-const tokenLimit = z
-  .number()
-  .int()
-  .min(ASSISTANT_SETTING_RANGES.assistant_monthly_tokens.min)
-  .max(ASSISTANT_SETTING_RANGES.assistant_monthly_tokens.max);
+const tokenLimit = z.number().int().min(TOKENS_RANGE.min).max(TOKENS_RANGE.max);
 
 // What one tenant has chosen for its assistant. A tenant that has chosen
 // nothing reads the defaults: on, Ask first, addresses unmasked, traces kept

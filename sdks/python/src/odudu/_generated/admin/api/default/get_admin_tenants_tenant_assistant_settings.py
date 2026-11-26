@@ -67,10 +67,11 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[AssistantSettingsGetResponse | ProblemDetails]:
-    """Requires the "manage-assistant" capability.
+    """Requires the "manage-assistant" capability, or "read-assistant-activity".
 
-     What this tenant chose for its assistant, each setting at its default until it chooses: whether it
-    is on, the mode a person starts in, email masking, how long traces are kept, whether auditors see
+     Needs `manage-assistant`, or `read-assistant-activity`, which may read but not change. What this
+    tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the
+    mode a person starts in, email masking, how long traces are kept, whether auditors see
     conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and
     the steps of one turn. `404` where the deployment has no assistant configured.
 
@@ -101,10 +102,11 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> AssistantSettingsGetResponse | ProblemDetails | None:
-    """Requires the "manage-assistant" capability.
+    """Requires the "manage-assistant" capability, or "read-assistant-activity".
 
-     What this tenant chose for its assistant, each setting at its default until it chooses: whether it
-    is on, the mode a person starts in, email masking, how long traces are kept, whether auditors see
+     Needs `manage-assistant`, or `read-assistant-activity`, which may read but not change. What this
+    tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the
+    mode a person starts in, email masking, how long traces are kept, whether auditors see
     conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and
     the steps of one turn. `404` where the deployment has no assistant configured.
 
@@ -130,10 +132,11 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[AssistantSettingsGetResponse | ProblemDetails]:
-    """Requires the "manage-assistant" capability.
+    """Requires the "manage-assistant" capability, or "read-assistant-activity".
 
-     What this tenant chose for its assistant, each setting at its default until it chooses: whether it
-    is on, the mode a person starts in, email masking, how long traces are kept, whether auditors see
+     Needs `manage-assistant`, or `read-assistant-activity`, which may read but not change. What this
+    tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the
+    mode a person starts in, email masking, how long traces are kept, whether auditors see
     conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and
     the steps of one turn. `404` where the deployment has no assistant configured.
 
@@ -162,10 +165,11 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> AssistantSettingsGetResponse | ProblemDetails | None:
-    """Requires the "manage-assistant" capability.
+    """Requires the "manage-assistant" capability, or "read-assistant-activity".
 
-     What this tenant chose for its assistant, each setting at its default until it chooses: whether it
-    is on, the mode a person starts in, email masking, how long traces are kept, whether auditors see
+     Needs `manage-assistant`, or `read-assistant-activity`, which may read but not change. What this
+    tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the
+    mode a person starts in, email masking, how long traces are kept, whether auditors see
     conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and
     the steps of one turn. `404` where the deployment has no assistant configured.
 

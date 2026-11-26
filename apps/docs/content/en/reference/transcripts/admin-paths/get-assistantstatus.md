@@ -14,7 +14,7 @@ The answer is decided when the server starts, from `ODUDU_ASSISTANT_MODELS` and 
 With no `standard` slot that resolves it is `{"enabled":false}`. Otherwise it names the model each slot runs (a `fast` or `deep`
 slot that is not set runs the `standard` model), the modes offered, the default mode, the distinct models in slot order and
 the provider of the `standard` slot, with the host of a self-hosted endpoint for `openai-compatible` and nothing else of its
-address. No key is ever in it. No other assistant path exists yet, so any other path under `/assistant/` is the ordinary `404`.
+address. No key is ever in it. A tenant that has switched the assistant off reads `{"enabled":false}` too, and its default mode is the one it chose, both from its own settings, which [`GET /assistant/settings`](./get-assistantsettings-and-put-assistantsettings.md) reads. Where no model is configured the settings path is the ordinary `404`, as the last request below shows, and so is any other path under `/assistant/` that does not exist.
 
 Both runs are on one stack, on port `3112`, from an empty volume. The tenant and its two clients are made with the CLI, and each client's
 token is got with `client_credentials`:

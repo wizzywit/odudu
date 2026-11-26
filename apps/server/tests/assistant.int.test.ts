@@ -247,9 +247,16 @@ describe('the assistant settings route', () => {
   });
 
   it('refuses a caller holding use-assistant alone, for a read and a write', async () => {
-    const w = await s().world(['use-assistant', 'read-assistant-activity'], 'openid');
+    const w = await s().world(['use-assistant', 'view-audit'], 'openid');
     const token = await adminToken(w);
     expect((await get(on(), w, '/settings', token)).statusCode).toBe(403);
+    expect((await put(on(), w, token, CHOSEN)).statusCode).toBe(403);
+  });
+
+  it('lets a holder of read-assistant-activity read the settings but not change them', async () => {
+    const w = await s().world(['read-assistant-activity'], 'openid');
+    const token = await adminToken(w);
+    expect((await get(on(), w, '/settings', token)).statusCode).toBe(200);
     expect((await put(on(), w, token, CHOSEN)).statusCode).toBe(403);
   });
 
@@ -302,7 +309,17 @@ describe('the assistant settings route', () => {
   it('is not served where no model is configured, and a tenant never reads another tenant row', async () => {
     const a = await s().world(['manage-assistant'], 'openid');
     const b = await s().world(['manage-assistant'], 'openid');
-    expect((await get(s().app, a, '/settings', await adminToken(a))).statusCode).toBe(404);
+    const aToken = await adminToken(a);
+    const unserved = await get(s().app, a, '/settings', aToken);
+    const never = await get(s().app, a, '/conversations', aToken);
+    expect(unserved.statusCode).toBe(404);
+    const withoutInstance = (body: string): unknown =>
+      Object.fromEntries(
+        Object.entries(JSON.parse(body) as Record<string, unknown>).filter(
+          ([name]) => name !== 'instance',
+        ),
+      );
+    expect(withoutInstance(unserved.body)).toEqual(withoutInstance(never.body));
     await put(on(), a, await adminToken(a), CHOSEN);
     expect((await get(on(), b, '/settings', await adminToken(b))).json()).toEqual(DEFAULTS);
   });

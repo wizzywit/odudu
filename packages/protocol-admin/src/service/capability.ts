@@ -2107,8 +2107,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     method: 'GET',
     pattern: '/admin/tenants/:tenant/assistant/settings',
     capability: 'manage-assistant',
+    alsoAdmits: ['read-assistant-activity'],
     responseSchema: assistantSettingsSchema,
     description:
+      'Needs `manage-assistant`, or `read-assistant-activity`, which may read but not change. ' +
       'What this tenant chose for its assistant, each setting at its default until it chooses: ' +
       'whether it is on, the mode a person starts in, email masking, how long traces are kept, ' +
       'whether auditors see conversations, a month’s tokens for each model slot, the ' +

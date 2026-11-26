@@ -9,7 +9,7 @@ import { buildAdminOpenApiDocument } from '#/view/routes/openapi';
 // The pretty-printed size before problem responses and repeated schemas were
 // shared, and the size now plus 5 per cent, rounded up to a whole kilobyte.
 const ADMIN_DOCUMENT_BASELINE_BYTES = 2_304_007;
-const ADMIN_DOCUMENT_MAX_BYTES = 815_104;
+const ADMIN_DOCUMENT_MAX_BYTES = 859_136;
 
 type Document = ReturnType<typeof buildAdminOpenApiDocument>;
 
