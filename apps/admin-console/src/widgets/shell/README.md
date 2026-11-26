@@ -7,6 +7,9 @@ every area page stands behind.
 
 - `entities/session` for who is signed in and what they may do, and
   `entities/area` for the catalogue the rail is built from.
+- `entities/assistant` for the assistant's button and panel, which the shell
+  places in the rail and the top bar and beside the page. The shell decides the
+  gate from whoami (`useAssistantAvailable`), because an entity imports no entity.
 
 ## Rules owned
 
