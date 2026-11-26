@@ -77,6 +77,10 @@ export function usernamePolicyKey(tenant: string) {
   return ['username-policy', tenant] as const;
 }
 
+export function assistantStatusKey(tenant: string) {
+  return ['assistant-status', tenant] as const;
+}
+
 export function authorityKey(tenant: string, subject: string | null) {
   return ['authority', tenant, subject] as const;
 }

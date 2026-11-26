@@ -41,7 +41,7 @@ function SignedInShell({
     );
   }
   return (
-    <AssistantGate tenant={tenant} available={assistantAvailable}>
+    <AssistantGate tenant={tenant} available={assistantAvailable} paused={shell.dialogOpen}>
       {({ control, panel }) => (
         <AppShell
           brand={shell.brand}

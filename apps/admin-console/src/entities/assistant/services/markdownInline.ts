@@ -5,6 +5,9 @@ const MAX_DEPTH = 4;
 // emphasis run in it would cost the square of its length.
 const INLINE_MAX_CHARS = 4_000;
 const DESTINATION_MAX_CHARS = 2_048;
+// How far one candidate looks for its closing mark: a link label or an
+// emphasis span longer than this is plain text, so no scan costs more.
+const SPAN_MAX_CHARS = 256;
 const CONSOLE_PATH = /^\/console\/[A-Za-z0-9._~/-]*$/u;
 const EXTERNAL = /^https?:\/\/[!-~]+$/iu;
 
@@ -56,9 +59,11 @@ function closingParen(source: string, from: number): number {
 
 // `[label](target)` starting at the `[` at `from`, or null.
 function bracketed(source: string, from: number): Destination | null {
+  const closing = source.indexOf(']', from);
+  if (closing === -1 || closing - from > SPAN_MAX_CHARS) return null;
   let depth = 0;
   let at = from;
-  for (; at < source.length && at - from < INLINE_MAX_CHARS; at += 1) {
+  for (; at < source.length && at - from < SPAN_MAX_CHARS; at += 1) {
     const char = source[at];
     if (char === '\\') at += 1;
     else if (char === '[') depth += 1;
@@ -92,13 +97,21 @@ function linkNodes(found: Destination, nodes: SafeNode[], budget: Budget): void 
   if (EXTERNAL.test(target) && !target.includes('\\')) pushText(nodes, ` (${target})`, budget);
 }
 
-function closer(source: string, delimiter: string, from: number): number {
-  const stop = Math.min(source.length, from + INLINE_MAX_CHARS);
-  for (let at = source.indexOf(delimiter, from); at !== -1 && at < stop;) {
-    const before = source[at - 1] ?? '';
-    if (at > from && !/\s/u.test(before)) return at;
+// What a failed search for each mark has already ruled out: no closing mark
+// stands in [from, to). A later opener inside that stretch starts where it ends,
+// so a line of openers none of which closes costs one pass, not one each.
+type Ruledout = Map<string, { from: number; to: number }>;
+
+function closer(source: string, delimiter: string, from: number, ruled: Ruledout): number {
+  const stop = Math.min(source.length, from + SPAN_MAX_CHARS);
+  const known = ruled.get(delimiter);
+  const skip = known !== undefined && from >= known.from && from < known.to;
+  for (let at = source.indexOf(delimiter, skip ? known.to : from); at !== -1 && at < stop;) {
+    const before = source.charCodeAt(at - 1);
+    if (at > from && !(before <= 32 || before === 160)) return at;
     at = source.indexOf(delimiter, at + 1);
   }
+  ruled.set(delimiter, { from: skip ? known.from : from, to: stop });
   return -1;
 }
 
@@ -107,6 +120,7 @@ function emphasis(
   at: number,
   depth: number,
   budget: Budget,
+  ruled: Ruledout,
 ): { node: SafeNode; end: number } | null {
   const char = source[at] ?? '';
   const delimiter = source.startsWith(char + char, at) ? char + char : char;
@@ -115,7 +129,7 @@ function emphasis(
   const prior = source[at - 1] ?? ' ';
   const wordInner = char === '_' && /[\p{L}\p{N}]/u.test(prior);
   if (depth >= MAX_DEPTH || next === '' || /\s/u.test(next) || wordInner) return null;
-  const end = closer(source, delimiter, start);
+  const end = closer(source, delimiter, start, ruled);
   if (end === -1 || end === start) return null;
   if (!spend(budget)) return null;
   return {
@@ -139,6 +153,7 @@ function codeSpan(source: string, at: number): { text: string; end: number } | n
 // One line of text as nodes: emphasis, code, links and plain text.
 export function inline(source: string, depth: number, budget: Budget): SafeNode[] {
   const nodes: SafeNode[] = [];
+  const ruled: Ruledout = new Map();
   if (source.length > INLINE_MAX_CHARS) {
     pushText(nodes, source, budget);
     return nodes;
@@ -178,7 +193,7 @@ export function inline(source: string, depth: number, budget: Budget): SafeNode[
       }
     }
     if (char === '*' || char === '_') {
-      const made = emphasis(source, at, depth, budget);
+      const made = emphasis(source, at, depth, budget, ruled);
       if (made !== null) {
         flush();
         nodes.push(made.node);

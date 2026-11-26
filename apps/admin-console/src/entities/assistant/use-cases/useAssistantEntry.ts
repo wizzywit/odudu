@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useId, useRef, useState, type RefObject } from 'react';
 import { PLATFORM } from '#/shared/lib/platform/platform';
-import { focusedElement, listenToKeys } from '#/shared/lib/platform/documentKeys';
-import { opensAssistant, shortcutName } from '#/entities/assistant/services/shortcut';
+import { focusedElement, listenToKeys, returnFocusTo } from '#/shared/lib/platform/documentKeys';
+import { shortcutName, shortcutOutcome } from '#/entities/assistant/services/shortcut';
 import { ASSISTANT_WORDING } from '#/entities/assistant/services/wording';
 import { useAssistantStatus } from '#/entities/assistant/use-cases/useAssistantStatus';
 import type { AssistantView } from '#/entities/assistant/services/gate';
@@ -24,8 +24,13 @@ export interface AssistantEntry {
 
 // The assistant's one place in the shell: whether it is offered, whether its
 // panel is open, and the shortcut that opens it. Closing returns the focus to
-// whatever opened it. `available` is the gate whoami decides.
-export function useAssistantEntry(tenant: string, available: boolean): AssistantEntry {
+// whatever opened it. `available` is the gate whoami decides; `paused` is true
+// while a dialog is open, when the shortcut would act behind it.
+export function useAssistantEntry(
+  tenant: string,
+  available: boolean,
+  paused: boolean,
+): AssistantEntry {
   const view = useAssistantStatus(tenant, available);
   const [opened, setOpened] = useState(false);
   const panelId = useId();
@@ -36,7 +41,7 @@ export function useAssistantEntry(tenant: string, available: boolean): Assistant
 
   const close = (): void => {
     setOpened(false);
-    opener.current?.focus();
+    returnFocusTo(opener.current);
     opener.current = null;
   };
   const toggle = (from: HTMLElement | null): void => {
@@ -48,9 +53,10 @@ export function useAssistantEntry(tenant: string, available: boolean): Assistant
     setOpened(true);
   };
   const press = useEffectEvent((event: KeyboardEvent): void => {
-    if (!opensAssistant(event, PLATFORM)) return;
+    const outcome = shortcutOutcome(event, PLATFORM, { paused, open });
+    if (outcome === 'ignore') return;
     event.preventDefault();
-    if (open) headingRef.current?.focus();
+    if (outcome === 'focus') headingRef.current?.focus();
     else toggle(focusedElement());
   });
   useEffect(() => {

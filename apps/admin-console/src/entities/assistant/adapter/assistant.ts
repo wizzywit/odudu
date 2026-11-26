@@ -1,9 +1,5 @@
-import { assistantConversationSchema, assistantStatusSchema } from '@odudu/contracts/admin';
-import type {
-  AssistantConversation,
-  AssistantStatus,
-  CreateConversationRequest,
-} from '#/entities/assistant/types/assistant';
+import { assistantStatusSchema } from '@odudu/contracts/admin';
+import type { AssistantStatus } from '#/entities/assistant/types/assistant';
 import { adminCall } from '#/shared/api/adapter/route';
 import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 
@@ -16,26 +12,5 @@ export function readAssistantStatus(
 ): Promise<GatewayResult<AssistantStatus>> {
   return adminCall(gateway, 'GET', tenant, ['assistant', 'status'], {
     schema: assistantStatusSchema,
-  });
-}
-
-export function createConversation(
-  gateway: Gateway,
-  tenant: string,
-  request: CreateConversationRequest,
-): Promise<GatewayResult<AssistantConversation>> {
-  return adminCall(gateway, 'POST', tenant, ['assistant', 'conversations'], {
-    body: request,
-    schema: assistantConversationSchema,
-  });
-}
-
-export function readConversation(
-  gateway: Gateway,
-  tenant: string,
-  id: string,
-): Promise<GatewayResult<AssistantConversation>> {
-  return adminCall(gateway, 'GET', tenant, ['assistant', 'conversations', id], {
-    schema: assistantConversationSchema,
   });
 }

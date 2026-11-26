@@ -33,6 +33,7 @@ it('reports slots, modes and provider only for an assistant that is on', () => {
     slots: ON.slots,
     modes: ['ask'],
     defaultMode: 'ask',
+    modelChoices: ['s'],
     provider: { kind: 'anthropic' },
   });
   expect(assistantView(true, { enabled: false })).toEqual({ enabled: false });

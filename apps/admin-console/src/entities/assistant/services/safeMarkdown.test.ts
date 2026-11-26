@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { hasInvisible } from '#/entities/assistant/services/textClean';
 import {
   MARKDOWN_MAX_CHARS,
   SAFE_NODE_KINDS,
@@ -55,25 +56,34 @@ describe('renderSafeMarkdown', () => {
     expect(textOf(nodes)).toContain('let a = 1;');
   });
 
-  it('drops a script element with its content and any other raw tag', () => {
-    const nodes = renderSafeMarkdown(
-      'a<script>alert(1)</script>b <img src=x onerror=alert(1)> <b>c</b> <STYLE>p{}</STYLE>d',
+  it('shows raw markup literally and never interprets it', () => {
+    const text = textOf(
+      renderSafeMarkdown(
+        'List<String> x = new ArrayList<>(); GET /tenants/<tenant>/x if a<b and b>c',
+      ),
     );
-    const text = textOf(nodes);
-    expect(text).not.toContain('alert');
-    expect(text).not.toContain('<');
-    expect(text).not.toContain('p{}');
-    expect(text).toContain('a');
-    expect(text).toContain('c');
-    expect(text).toContain('d');
+    expect(text).toBe('List<String> x = new ArrayList<>(); GET /tenants/<tenant>/x if a<b and b>c');
+    expect(textOf(renderSafeMarkdown('<a href="x">t</a> and <script>alert(1)</script>'))).toBe(
+      '<a href="x">t</a> and <script>alert(1)</script>',
+    );
   });
 
-  it('drops an unclosed script element to the end of the text', () => {
-    expect(textOf(renderSafeMarkdown('safe <script>alert(1)'))).toBe('safe ');
+  it('shows markup in code spans and fences literally too', () => {
+    const text = textOf(
+      renderSafeMarkdown('`Map<String,Integer>`\n\n```\nMap<String,Integer> m;\n```'),
+    );
+    expect(text).toContain('Map<String,Integer>Map<String,Integer> m;');
   });
 
-  it('keeps a lone less-than sign as text', () => {
-    expect(textOf(renderSafeMarkdown('1 < 2 and 3 > 2'))).toBe('1 < 2 and 3 > 2');
+  it('never lets an unterminated style or script element swallow the message', () => {
+    expect(textOf(renderSafeMarkdown('<style>a{} text after'))).toBe('<style>a{} text after');
+    expect(textOf(renderSafeMarkdown('safe <script>alert(1)'))).toBe('safe <script>alert(1)');
+  });
+
+  it('shows an angle-bracket address as text, not a link', () => {
+    const nodes = renderSafeMarkdown('see <https://x>');
+    expect(links(nodes)).toEqual([]);
+    expect(textOf(nodes)).toBe('see <https://x>');
   });
 
   it('never makes an image element: a remote image becomes its alt text', () => {
@@ -134,15 +144,12 @@ describe('renderSafeMarkdown', () => {
     }
   });
 
-  it('puts HTML in link text and in an alt text out of the way', () => {
+  it('keeps HTML in link text and in an alt text as text', () => {
     const nodes = renderSafeMarkdown(
-      '[<img src=x onerror=alert(1)>hi](https://e.example/) ![<b>alt</b>](http://e.example/x)',
+      '[<b>hi</b>](https://e.example/) ![<i>alt</i>](http://e.example/x)',
     );
-    const text = textOf(nodes);
-    expect(text).not.toContain('<');
-    expect(text).not.toContain('onerror');
-    expect(text).toContain('hi');
-    expect(text).toContain('alt');
+    expect(links(nodes)).toEqual([]);
+    expect(textOf(nodes)).toBe('<b>hi</b> (https://e.example/) <i>alt</i>');
   });
 
   it('does not autolink a bare address', () => {
@@ -159,13 +166,28 @@ describe('renderSafeMarkdown', () => {
     expect(depthOf(nested)).toBeLessThanOrEqual(8);
   });
 
+  it('stays fast on inputs that make every candidate scan far ahead', () => {
+    const hostile = [
+      '['.repeat(4_000) + '\n',
+      '*x '.repeat(1_300) + '\n',
+      '_a '.repeat(1_300) + '\n',
+      '[a'.repeat(2_000) + '\n',
+    ];
+    for (const line of hostile) {
+      const input = line.repeat(15);
+      const started = performance.now();
+      renderSafeMarkdown(input);
+      expect(performance.now() - started, line.slice(0, 6)).toBeLessThan(50);
+    }
+  });
+
   it('bounds the work for a very long line and a very long input', () => {
     const started = performance.now();
     const line = renderSafeMarkdown('word '.repeat(MARKDOWN_MAX_CHARS));
     renderSafeMarkdown('[a](b'.repeat(20_000));
     renderSafeMarkdown('`'.repeat(100_000));
     renderSafeMarkdown('- x\n'.repeat(100_000));
-    expect(performance.now() - started).toBeLessThan(5_000);
+    expect(performance.now() - started).toBeLessThan(500);
     expect(textOf(line).length).toBeLessThanOrEqual(MARKDOWN_MAX_CHARS + 200);
     expect(textOf(line)).toContain('too long');
   });
@@ -242,9 +264,13 @@ describe('renderSafeMarkdown', () => {
       const nodes = renderSafeMarkdown(input);
       for (const kind of kinds(nodes)) expect(SAFE_NODE_KINDS).toContain(kind);
       walk(nodes, (node) => {
-        if (node.kind === 'text') expect(node.text).not.toMatch(/<\/?(script|img|iframe|style)/iu);
+        if ('text' in node) expect(hasInvisible(node.text)).toBe(false);
       });
-      for (const href of links(nodes)) expect(href).toMatch(/^\/console\/[A-Za-z0-9._~/-]*$/u);
+      expect(depthOf(nodes)).toBeLessThanOrEqual(8);
+      for (const href of links(nodes)) {
+        expect(href).toMatch(/^\/console\/[A-Za-z0-9._~/-]*$/u);
+        expect(href).not.toContain('..');
+      }
     }
   });
 });

@@ -16,13 +16,16 @@ export interface AssistantSlots {
 export function AssistantGate({
   tenant,
   available,
+  paused,
   children,
 }: {
   tenant: string;
   available: boolean;
+  // A dialog is open: the shortcut would act behind it.
+  paused: boolean;
   children: (slots: AssistantSlots) => ReactNode;
 }) {
-  const entry = useAssistantEntry(tenant, available);
+  const entry = useAssistantEntry(tenant, available, paused);
   const { words } = entry;
   return children({
     control: entry.shown ? (

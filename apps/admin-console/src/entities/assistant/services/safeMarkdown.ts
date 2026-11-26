@@ -1,5 +1,5 @@
 import { inline, spend } from '#/entities/assistant/services/markdownInline';
-import { cleanText } from '#/entities/assistant/services/markupStrip';
+import { cleanText } from '#/entities/assistant/services/textClean';
 import { ASSISTANT_WORDING } from '#/entities/assistant/services/wording';
 import type { Budget, SafeNode } from '#/entities/assistant/types/safeNode';
 

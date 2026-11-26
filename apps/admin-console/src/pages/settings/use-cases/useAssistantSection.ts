@@ -1,6 +1,6 @@
 import type { AssistantSettings } from '#/pages/settings/types/assistant';
 import { useAuthority, useRefusal } from '#/entities/session';
-import { assistantSave } from '#/pages/settings/repository/assistantSave';
+import { useAssistantSave } from '#/pages/settings/repository/useAssistantSave';
 import { useAssistantRead } from '#/pages/settings/repository/useAssistantRead';
 import {
   ASSISTANT_HEADING_ID,
@@ -77,6 +77,6 @@ export function useAssistantSection({
     refusal,
     explain: writeRefusal,
     fields,
-    save: assistantSave(tenant),
+    save: useAssistantSave(tenant),
   });
 }

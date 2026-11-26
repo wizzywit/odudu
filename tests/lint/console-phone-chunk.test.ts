@@ -28,9 +28,9 @@ const ENTRY_GZIP_BUDGET = 153_000;
 // imports statically. Set at 229,800 B plus 5%, rounded up to a whole kB; reset
 // to 244,911 B (the failure screens load first) plus 5%; raised by 1 kB for the
 // contracts' NUL-refusing free-text pattern (258,018 B measured), and to
-// 265,000 when the shell gained the assistant button, its status read and the
-// contract's assistant schemas (263,315 B measured). Lazy chunks are not budgeted.
-const FIRST_LOAD_GZIP_BUDGET = 265_000;
+// 262,600 when the shell gained the assistant button and its status read
+// (261,569 B measured, from 258,813 B before). Lazy chunks are not budgeted.
+const FIRST_LOAD_GZIP_BUDGET = 262_600;
 
 interface Chunk {
   readonly name: string;

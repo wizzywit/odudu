@@ -26,7 +26,7 @@ function harness() {
 
 function gate(available: boolean) {
   return (
-    <AssistantGate tenant="acme" available={available}>
+    <AssistantGate tenant="acme" available={available} paused={false}>
       {({ control, panel }) => (
         <div>
           {control}

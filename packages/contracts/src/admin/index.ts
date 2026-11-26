@@ -475,6 +475,8 @@ export {
   type AssistantMode,
   assistantStatusSchema,
   type AssistantStatus,
+} from '#/admin/assistantStatus';
+export {
   ASSISTANT_SETTING_DEFAULTS,
   ASSISTANT_SETTING_RANGES,
   assistantSettingsSchema,

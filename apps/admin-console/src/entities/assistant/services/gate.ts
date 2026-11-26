@@ -16,6 +16,7 @@ export interface AssistantView {
   slots?: { fast: string; standard: string; deep: string };
   modes?: readonly AssistantMode[];
   defaultMode?: AssistantMode;
+  modelChoices?: readonly string[];
   provider?: { kind: string; host?: string | undefined };
 }
 
@@ -33,6 +34,7 @@ export function assistantView(
     slots: status.slots,
     modes: status.modes,
     defaultMode: status.defaultMode,
+    modelChoices: status.modelChoices,
     provider: status.provider,
   };
 }

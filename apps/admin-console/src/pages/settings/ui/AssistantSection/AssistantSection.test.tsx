@@ -73,6 +73,50 @@ it('saves the whole document on the ETag it was read with, after one change', as
   ).not.toBeChecked();
 });
 
+const STATUS_ON = {
+  enabled: true,
+  slots: { fast: 'f', standard: 's', deep: 'd' },
+  modes: ['ask'],
+  defaultMode: 'ask',
+  modelChoices: ['s'],
+  provider: { kind: 'anthropic' },
+};
+
+it('shows the assistant button once a save switches it on, and drops it once one switches it off', async () => {
+  const user = userEvent.setup();
+  const status = `${ACME_ADMIN}/assistant/status`;
+  for (const [before, after, saved, visibleBefore] of [
+    [{ enabled: false }, STATUS_ON, true, false],
+    [STATUS_ON, { enabled: false }, false, true],
+  ] as const) {
+    const first = assistantAnswer({ assistant_enabled: !saved });
+    renderConsoleAt(
+      AT,
+      withAssistant(undefined, {
+        [`GET ${AS}`]: first,
+        [`GET ${status}`]: inTurn(json(before), json(after)),
+        [`PUT ${AS}`]: assistantAnswer({ assistant_enabled: saved }, '"a2"'),
+      }),
+    );
+    const assistant = await section();
+    if (visibleBefore) {
+      expect(await screen.findAllByRole('button', { name: 'Ask the assistant' })).not.toHaveLength(
+        0,
+      );
+    } else {
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: 'Ask the assistant' })).toBeNull();
+      });
+    }
+    await user.click(within(assistant).getByRole('switch', { name: 'Offer the assistant' }));
+    await user.click(within(assistant).getByRole('button', { name: 'Save Console assistant' }));
+    await waitFor(() => {
+      expect(screen.queryAllByRole('button', { name: 'Ask the assistant' }).length > 0).toBe(saved);
+    });
+    resetConsole();
+  }
+});
+
 it('sets the mode a person starts in', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(

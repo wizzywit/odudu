@@ -1,9 +1,14 @@
 import { expect, it } from 'vitest';
-import { opensAssistant, type ShortcutEvent } from '#/entities/assistant/services/shortcut';
+import {
+  opensAssistant,
+  shortcutOutcome,
+  type ShortcutEvent,
+} from '#/entities/assistant/services/shortcut';
 
 function press(over: Partial<ShortcutEvent>): ShortcutEvent {
   return {
     key: 'k',
+    code: 'KeyK',
     metaKey: false,
     ctrlKey: false,
     altKey: false,
@@ -16,33 +21,52 @@ function press(over: Partial<ShortcutEvent>): ShortcutEvent {
 }
 
 it('answers Command K on a Mac and Control K elsewhere, and neither the other way round', () => {
-  expect(opensAssistant(press({ metaKey: true }), 'mac')).toBe(true);
-  expect(opensAssistant(press({ ctrlKey: true }), 'mac')).toBe(false);
-  expect(opensAssistant(press({ ctrlKey: true }), 'other')).toBe(true);
-  expect(opensAssistant(press({ metaKey: true }), 'other')).toBe(false);
-  expect(opensAssistant(press({ key: 'K', ctrlKey: true }), 'other')).toBe(true);
+  expect(opensAssistant(press({ metaKey: true }), 'mac', false)).toBe(true);
+  expect(opensAssistant(press({ ctrlKey: true }), 'mac', false)).toBe(false);
+  expect(opensAssistant(press({ ctrlKey: true }), 'other', false)).toBe(true);
+  expect(opensAssistant(press({ metaKey: true }), 'other', false)).toBe(false);
+  expect(opensAssistant(press({ key: 'K', ctrlKey: true }), 'other', false)).toBe(true);
+});
+
+it('finds the K key by its place on a layout where it types another letter', () => {
+  expect(opensAssistant(press({ key: 'л', code: 'KeyK', ctrlKey: true }), 'other', false)).toBe(
+    true,
+  );
+  expect(opensAssistant(press({ key: 'л', code: 'KeyL', ctrlKey: true }), 'other', false)).toBe(
+    false,
+  );
 });
 
 it('leaves a chord with another modifier, a composing key and a handled key alone', () => {
-  expect(opensAssistant(press({ ctrlKey: true, shiftKey: true }), 'other')).toBe(false);
-  expect(opensAssistant(press({ ctrlKey: true, altKey: true }), 'other')).toBe(false);
-  expect(opensAssistant(press({ ctrlKey: true, isComposing: true }), 'other')).toBe(false);
-  expect(opensAssistant(press({ ctrlKey: true, defaultPrevented: true }), 'other')).toBe(false);
-  expect(opensAssistant(press({ ctrlKey: true, key: 'j' }), 'other')).toBe(false);
+  const ctrl = { ctrlKey: true };
+  expect(opensAssistant(press({ ...ctrl, shiftKey: true }), 'other', false)).toBe(false);
+  expect(opensAssistant(press({ ...ctrl, altKey: true }), 'other', false)).toBe(false);
+  expect(opensAssistant(press({ ...ctrl, isComposing: true }), 'other', false)).toBe(false);
+  expect(opensAssistant(press({ ...ctrl, defaultPrevented: true }), 'other', false)).toBe(false);
+  expect(opensAssistant(press({ ...ctrl, key: 'j', code: 'KeyJ' }), 'other', false)).toBe(false);
 });
 
-it('does nothing while a text field in a dialog has the focus, but works in a page field', () => {
+it('does nothing behind a modal: while one is open, and from anything inside a dialog', () => {
   const dialog = document.createElement('div');
   dialog.setAttribute('role', 'dialog');
-  const inside = document.createElement('input');
-  dialog.append(inside);
+  const field = document.createElement('input');
   const button = document.createElement('button');
-  dialog.append(button);
+  dialog.append(field, button);
   const outside = document.createElement('textarea');
   document.body.append(dialog, outside);
-  expect(opensAssistant(press({ ctrlKey: true, target: inside }), 'other')).toBe(false);
-  expect(opensAssistant(press({ ctrlKey: true, target: button }), 'other')).toBe(true);
-  expect(opensAssistant(press({ ctrlKey: true, target: outside }), 'other')).toBe(true);
+  const ctrl = { ctrlKey: true };
+  expect(opensAssistant(press({ ...ctrl, target: field }), 'other', false)).toBe(false);
+  expect(opensAssistant(press({ ...ctrl, target: button }), 'other', false)).toBe(false);
+  expect(opensAssistant(press({ ...ctrl, target: outside }), 'other', false)).toBe(true);
+  expect(opensAssistant(press({ ...ctrl, target: outside }), 'other', true)).toBe(false);
   dialog.remove();
   outside.remove();
+});
+
+it('opens a closed panel, moves to an open one, and ignores what is not the chord', () => {
+  const chord = press({ ctrlKey: true });
+  expect(shortcutOutcome(chord, 'other', { paused: false, open: false })).toBe('open');
+  expect(shortcutOutcome(chord, 'other', { paused: false, open: true })).toBe('focus');
+  expect(shortcutOutcome(chord, 'other', { paused: true, open: false })).toBe('ignore');
+  expect(shortcutOutcome(press({}), 'other', { paused: false, open: false })).toBe('ignore');
 });

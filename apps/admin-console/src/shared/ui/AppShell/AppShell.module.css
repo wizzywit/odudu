@@ -237,7 +237,7 @@
 }
 
 /* The assistant's panel lies over the page, from the right, where there is
-   no room beside it; from 1024 it takes a column of its own. */
+   no room beside it; from 1280 it takes a column of its own. */
 .dock {
   position: fixed;
   inset-block: 0;
@@ -261,7 +261,7 @@
   }
 }
 
-@container shell (width >= 1024px) {
+@container shell (width >= 1280px) {
   .frame[data-assistant] {
     grid-template-columns: var(--rail-width) minmax(0, 1fr) var(--assistant-width);
   }

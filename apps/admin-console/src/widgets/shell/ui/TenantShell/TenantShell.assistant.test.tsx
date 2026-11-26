@@ -147,18 +147,21 @@ it('opens the panel on the shortcut, and focuses it when it is already open', as
   expect(heading).toHaveFocus();
 });
 
-it('does nothing on the shortcut while a text field in a dialog has the focus', async () => {
+it('does nothing on the shortcut behind a dialog, whether a field or a button has the focus', async () => {
   const user = userEvent.setup();
   renderConsoleAt('/console/acme', routes(OPEN, json(ON)));
   await screen.findAllByRole('button', { name: 'Ask the assistant' });
   const dialog = document.createElement('div');
   dialog.setAttribute('role', 'dialog');
   const field = document.createElement('input');
-  dialog.append(field);
+  const cancel = document.createElement('button');
+  dialog.append(field, cancel);
   document.body.append(dialog);
-  field.focus();
-  await user.keyboard('{Control>}k{/Control}');
-  expect(screen.queryByRole('complementary', { name: 'Assistant panel' })).toBeNull();
+  for (const target of [field, cancel]) {
+    target.focus();
+    await user.keyboard('{Control>}k{/Control}');
+    expect(screen.queryByRole('complementary', { name: 'Assistant panel' })).toBeNull();
+  }
   dialog.remove();
 });
 
