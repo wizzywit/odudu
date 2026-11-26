@@ -159,14 +159,18 @@ reset limiters), all **P11**, which also owes the Helm chart or manifests.
 
 ## What P5c inherits
 
-P5c, **a console assistant**, is [specified](superpowers/specs/2026-11-24-p5c-console-assistant-design.md), decided in ADRs 0055 to 0059, and writes through P5's approvals. What P5 built that it uses:
+P5c, **a console assistant**, is [specified](superpowers/specs/2026-11-24-p5c-console-assistant-design.md), decided in ADRs 0055 to 0060, and writes through P5's approvals. What P5 built that it uses:
 
 - **One approval object, two channels** ([ADR 0059](adr/0059-an-approval-is-one-object-with-two-channels.md)). `requestApproval`
   and `decideApproval` (`@odudu/protocol-oidc`) are the only writers of an approval's state; a console card calls
   `decideApproval` with `decided_via` `console`, and a client can never move one out of `pending`. An approval covers one action by its
   digest (`approvalDigest`, `@odudu/domain-agents`): name, validated input, tenant, owner and instance.
 - **A run for the assistant's conversation.** `mintAgentToken` finds or mints the instance for a run and puts its id in `act.sub`; an
-  agent client needs `agent_type`, and only client-level actors (`delegated_actors`) are needed, not a person's delegation.
+  agent client needs `agent_type`, and only client-level actors (`delegated_actors`) are needed, not a person's delegation. The
+  grant it is given is the conversation's, derived from the console sign-in for the built-in `odudu-assistant` client
+  ([ADR 0060](adr/0060-the-assistant-acts-through-a-grant-derived-from-the-console-session.md)); a console client that lists
+  `delegated_actors` must name it. A sub-agent's slice
+  carved from its parent's, and the lineage that ends a conversation's children with it, wait for sub-agents to exist.
 - **Budgets.** The sign-in, the instance and the daily window are one atomic spend.
 - **Operator view.** The console's Agents area and the admin routes already list and end the assistant's runs, whatever starts them.
 

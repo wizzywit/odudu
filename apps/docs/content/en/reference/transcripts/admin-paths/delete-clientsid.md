@@ -66,3 +66,5 @@ Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-mcp is this tenant's built-in MCP client and cannot be deleted; disable it instead","instance":"01a1ac04-0e93-7ef9-bf55-8cab0d743972"}
 ```
+
+The built-in assistant client, `odudu-assistant`, is refused the same way, with `409` and `odudu-assistant is this tenant's built-in assistant client and cannot be deleted; disable it instead`. That answer is not shown here: it was checked by the server's tests and not run against a stack for this page.

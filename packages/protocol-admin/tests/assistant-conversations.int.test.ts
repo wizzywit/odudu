@@ -34,10 +34,12 @@ function fakePort(recorded: Recorded): AssistantChatPort {
       return Promise.resolve(
         body.profile === 'nonesuch'
           ? { kind: 'unknown_profile' as const }
-          : {
-              kind: 'created' as const,
-              conversation: conversation('11111111-1111-4111-8111-111111111111'),
-            },
+          : body.profile === 'denied'
+            ? { kind: 'access_refused' as const, reason: 'grant_not_console' }
+            : {
+                kind: 'created' as const,
+                conversation: conversation('11111111-1111-4111-8111-111111111111'),
+              },
       );
     },
     load(caller, id) {
@@ -156,6 +158,18 @@ describe('POST /assistant/conversations', () => {
       payload: { profile: 'nonesuch', page_context: CONTEXT },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it('answers 403 when the sign-in cannot be given an assistant, without naming why', async () => {
+    const { tenant, headers } = await bearer();
+    const res = await fx().http.inject({
+      method: 'POST',
+      url: BASE(tenant),
+      headers,
+      payload: { profile: 'denied', page_context: CONTEXT },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.body).not.toContain('grant_not_console');
   });
 });
 

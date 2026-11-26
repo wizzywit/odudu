@@ -210,6 +210,32 @@ describe('admission of an agent by its scope', () => {
     expect(described.statusCode).toBe(200);
   });
 
+  it('refuses an agent the name of the built-in assistant client, and still lets it describe it', async () => {
+    const w = await world();
+    const token = await fixture.agentToken(w.t.name, OWNER, {
+      scope: 'mcp:write',
+      act: { sub: 'a' },
+    });
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${w.t.name}/clients?client_id=odudu-assistant`,
+      headers: { authorization: `Bearer ${w.admin}` },
+    });
+    const found = listed
+      .json<{ items: { id: string; client_id: string }[] }>()
+      .items.find((client) => client.client_id === 'odudu-assistant');
+    if (found === undefined) throw new Error('the tenant has no odudu-assistant client');
+    const before = await read(w.t.name, `clients/${found.id}`, w.admin);
+    for (const payload of [{ name: 'Trusted helper' }, { name_i18n: { en: 'Trusted helper' } }]) {
+      const res = await patch(w.t.name, `clients/${found.id}`, token, payload);
+      expect(res.statusCode, JSON.stringify(payload)).toBe(403);
+    }
+    expect(await read(w.t.name, `clients/${found.id}`, w.admin)).toEqual(before);
+    expect(await refusals(w.t.id)).toHaveLength(2);
+    const described = await patch(w.t.name, `clients/${found.id}`, token, { description: 'ok' });
+    expect(described.statusCode).toBe(200);
+  });
+
   it('refuses an agent the export reads, to either scope, and records it', async () => {
     const w = await world();
     for (const scope of ['mcp:read', 'mcp:write']) {

@@ -62,6 +62,11 @@ export const clients = pgTable('clients', {
   // (clients_one_builtin_mcp); provisioning adopts a client by this column,
   // never by the client_id alone.
   builtinMcp: boolean('builtin_mcp').notNull().default(false),
+  // Marks the client the console assistant's conversations act as
+  // (`ASSISTANT_CLIENT_ID`). At most one true per tenant
+  // (clients_one_builtin_assistant); the guard that refuses to delete it and
+  // the provisioning that adopts it read this, never the client_id alone.
+  builtinAssistant: boolean('builtin_assistant').notNull().default(false),
   // The last time the client's metadata document was resolved; set exactly
   // for registration_origin 'cimd' (clients_metadata_used_for_cimd), and what
   // `reap` ages such a client out by.
@@ -107,5 +112,6 @@ export interface ClientRecord {
   builtinAdmin: boolean;
   skipLogoutConfirmation: boolean;
   builtinMcp: boolean;
+  builtinAssistant: boolean;
   metadataUsedAt: Date | null;
 }

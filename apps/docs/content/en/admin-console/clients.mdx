@@ -18,6 +18,8 @@ A client is an application that signs people in through your tenant: a web app, 
 
 Every tenant also lists `odudu-mcp`, the public client a local MCP tool signs in through. It asks for the `mcp:read` scope, and `mcp:write` if the person allows it, and shows each person a consent screen. Its redirect URIs are `http://127.0.0.1` and `http://[::1]`, which accept any port, because such a tool listens on a free one. You can disable it, which stops those sign-ins, but you cannot delete it, and its ID is reserved. Its other settings stay yours to change.
 
+Every tenant also lists `odudu-assistant`, the client the console assistant's conversations act as. Nobody signs in through it: it has no redirect URI and no usable grant, and a conversation's access is a grant of it that the server derives from the administrator's own console sign-in. You can disable it, which turns the assistant off for the tenant, but you cannot delete it, and its ID is reserved.
+
 ## 1. Register a client
 
 Choose **Create a client** and fill in the form.

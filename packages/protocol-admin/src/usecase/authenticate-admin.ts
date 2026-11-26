@@ -66,6 +66,7 @@ export interface ClientState {
   readonly enabled: boolean;
   readonly builtinMcp: boolean;
   readonly builtinAdmin: boolean;
+  readonly builtinAssistant: boolean;
   // The client's service account, when it has one.
   readonly serviceSubjectId?: string | null;
 }

@@ -3,6 +3,7 @@ export { explainSlots, resolveSlots } from '#/service/slots';
 export { status } from '#/usecase/status';
 export { readSettings, writeSettings } from '#/usecase/settings';
 export { runTurn } from '#/usecase/run-turn';
+export { RunLapsed } from '#/service/run-key';
 export type { RunTurnDeps, StreamResult, TurnInput } from '#/usecase/run-turn';
 export { createChat } from '#/view/chat-route';
 export type { Chat, ChatCaller, ChatDeps, CreateOutcome, SendResult } from '#/view/chat-route';

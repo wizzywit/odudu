@@ -148,7 +148,28 @@ A conversation is one agent _instance_ of P5, owned by the signed-in administrat
 with a sliding idle lifetime that never passes their session; each model-driven tool
 call gets a short admin token from `mintAgentToken` (P5 section 5.1), whose `act.sub`
 is that instance, so its scopes, expiry and budget slice are P5's invariants and a
-sub-agent is a child instance. No grant is made. A turn is a `ToolLoopAgent` run.
+sub-agent is a child instance.
+
+The conversation's identity is derived from the administrator's console session
+(ADR 0060). When a conversation is created, the server makes one grant for the
+built-in client `odudu-assistant` that every tenant has: the same subject and session as
+the console grant, `exchangedFromGrantId` the console grant, and a scope that is
+`mcp:read` in Ask mode and nothing wider. The grant is made from the verified console
+principal, never from the request body, and is stored under the conversation's id, in the
+transaction that creates the conversation. `mintAgentToken` is called with that grant,
+unchanged, so the instance, its expiry, its budget slice and its revocation are P5's, and
+its `scope_widened` rule is the ceiling. Ending the console session or revoking the
+console grant ends every conversation under it. A conversation that rests past the
+instance's idle lifetime is not ended: its run key is the conversation's id and a
+generation, and the next tool call finds the instance lapsed, moves the conversation to the
+next generation once and mints a new instance for it, while the old one stays ended. No
+other refusal moves it on. Changing a conversation to a mode that
+writes is a new grant with its own scope and its own approval, not a widening of this
+one. Audit rows name `odudu-assistant` as the actor client and the administrator as the
+actor subject. Cost: one grant row per conversation, removed with its session by the same
+reaper that removes any grant; administrators are few and a conversation is a human act.
+A tenant that lists `delegated_actors` on its console client must name `odudu-assistant`
+there, or the assistant fails closed. A turn is a `ToolLoopAgent` run.
 Our code lives in the SDK's hooks:
 
 - `prepareStep`: reserve budget (5.5); pick the slot from the task profile and

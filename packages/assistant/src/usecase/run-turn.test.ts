@@ -4,6 +4,7 @@ import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test';
 import { describe, expect, it, vi } from 'vitest';
 import type { TaskProfile } from '#/service/profile';
 import { FENCE_OPEN } from '#/service/tool-bridge';
+import { RunLapsed } from '#/service/run-key';
 import { runTurn, type RunTurnDeps } from '#/usecase/run-turn';
 
 const PROFILE: TaskProfile = { id: 'ask-anything', slot: 'standard', maxSteps: 4 };
@@ -123,8 +124,9 @@ describe('runTurn', () => {
     const { deps, mintToken, callTool } = depsFor(model);
     await finish(deps);
     expect(mintToken).toHaveBeenCalledTimes(2);
-    expect(mintToken).toHaveBeenNthCalledWith(1, { key: CONVERSATION }, expect.any(AbortSignal));
-    expect(mintToken).toHaveBeenNthCalledWith(2, { key: CONVERSATION }, expect.any(AbortSignal));
+    const run = { key: `${CONVERSATION}.0`, conversationId: CONVERSATION };
+    expect(mintToken).toHaveBeenNthCalledWith(1, run, expect.any(AbortSignal));
+    expect(mintToken).toHaveBeenNthCalledWith(2, run, expect.any(AbortSignal));
     expect(callTool.mock.calls.map((call) => call[0])).toEqual(['token-1', 'token-2']);
   });
 
@@ -234,5 +236,83 @@ describe('runTurn', () => {
     await finish(deps, 'second question');
     const sent = JSON.stringify(model.doStreamCalls[0]?.prompt);
     expect(sent.indexOf('first question')).toBeLessThan(sent.indexOf('second question'));
+  });
+
+  it('offers no tool that reads the assistant’s own audit or trace', async () => {
+    const model = scripted([answer('hi')]);
+    const { deps } = depsFor(model);
+    await finish(deps);
+    const offered = (model.doStreamCalls[0]?.tools ?? []).map((tool) => tool.name);
+    expect(TOOLS.map((tool) => tool.name)).toEqual(expect.arrayContaining(['list_audit', 'count_audit']));
+    expect(offered).not.toContain('list_audit');
+    expect(offered).not.toContain('count_audit');
+    expect(offered).toContain('list_clients');
+  });
+
+  describe('when the conversation’s instance has lapsed', () => {
+    it('moves to the next run once and carries on with a new key', async () => {
+      const model = scripted([toolCall('c1', 'list_clients', '{}'), answer('Back.')]);
+      let lapsed = true;
+      const { deps, mintToken, callTool } = depsFor(model, {
+        advanceRun: vi.fn((observed: number) => Promise.resolve(observed + 1)),
+      });
+      mintToken.mockImplementation((run) => {
+        if (lapsed && run.key.endsWith('.0')) {
+          lapsed = false;
+          return Promise.reject(new RunLapsed());
+        }
+        return Promise.resolve({ accessToken: `token-for-${run.key}` });
+      });
+      const out = await finish({ ...deps, mintToken });
+      expect(out.text).toBe('Back.');
+      expect(deps.advanceRun).toHaveBeenCalledTimes(1);
+      expect(deps.advanceRun).toHaveBeenCalledWith(0);
+      expect(mintToken.mock.calls.map((call) => call[0].key)).toEqual([
+        `${CONVERSATION}.0`,
+        `${CONVERSATION}.1`,
+      ]);
+      expect(callTool.mock.calls[0]?.[0]).toBe(`token-for-${CONVERSATION}.1`);
+    });
+
+    it('asks again exactly once: a second lapse is the call’s refusal', async () => {
+      const model = scripted([toolCall('c1', 'list_clients', '{}'), answer('Could not.')]);
+      const { deps, mintToken, callTool } = depsFor(model, {
+        advanceRun: vi.fn((observed: number) => Promise.resolve(observed + 1)),
+      });
+      mintToken.mockImplementation(() => Promise.reject(new RunLapsed()));
+      const out = await finish(deps);
+      expect(out.text).toBe('Could not.');
+      expect(mintToken).toHaveBeenCalledTimes(2);
+      expect(deps.advanceRun).toHaveBeenCalledTimes(1);
+      expect(callTool).not.toHaveBeenCalled();
+    });
+
+    it('does not move on for any other refusal', async () => {
+      const model = scripted([toolCall('c1', 'list_clients', '{}'), answer('Refused.')]);
+      const { deps, mintToken, callTool } = depsFor(model, {
+        advanceRun: vi.fn((observed: number) => Promise.resolve(observed + 1)),
+      });
+      mintToken.mockImplementation(() => Promise.reject(new Error('owner_ended')));
+      await finish(deps);
+      expect(mintToken).toHaveBeenCalledTimes(1);
+      expect(deps.advanceRun).not.toHaveBeenCalled();
+      expect(callTool).not.toHaveBeenCalled();
+    });
+
+    it('starts from the run the conversation is on', async () => {
+      const model = scripted([toolCall('c1', 'list_clients', '{}'), answer('ok')]);
+      const { deps, mintToken } = depsFor(model);
+      const result = await runTurn(deps, {
+        conversationId: CONVERSATION,
+        generation: 3,
+        message: ask('x'),
+        signal: new AbortController().signal,
+      });
+      await result.text;
+      expect(mintToken.mock.calls[0]?.[0]).toEqual({
+        key: `${CONVERSATION}.3`,
+        conversationId: CONVERSATION,
+      });
+    });
   });
 });
