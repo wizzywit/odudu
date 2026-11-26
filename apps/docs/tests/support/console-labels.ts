@@ -625,6 +625,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Password lifetime': page(PASSWORD, "label: 'Password lifetime'"),
   'Failures before a lockout': page(ACCESS, "label: 'Failures before a lockout'"),
   'Keep events for': page(PLATFORM, "label: 'Keep events for'"),
+  'Ask the assistant': entity('assistant/services/wording.ts', "openButton: 'Ask the assistant'"),
   Assistant: page(ASSISTANT, "ASSISTANT_NAV_GROUP = 'Assistant'"),
   'Console assistant': page(ASSISTANT, "title: 'Console assistant'"),
   'Offer the assistant': page(ASSISTANT, "label: 'Offer the assistant'"),
