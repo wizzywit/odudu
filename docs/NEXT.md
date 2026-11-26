@@ -169,7 +169,8 @@ P5c, **a console assistant**, is [specified](superpowers/specs/2026-11-24-p5c-co
   agent client needs `agent_type`, and only client-level actors (`delegated_actors`) are needed, not a person's delegation. The
   grant it is given is the conversation's, derived from the console sign-in for the built-in `odudu-assistant` client
   ([ADR 0060](adr/0060-the-assistant-acts-through-a-grant-derived-from-the-console-session.md)); a console client that lists
-  `delegated_actors` must name it.
+  `delegated_actors` must name it. A sub-agent's slice
+  carved from its parent's, and the lineage that ends a conversation's children with it, wait for sub-agents to exist.
 - **Budgets.** The sign-in, the instance and the daily window are one atomic spend.
 - **Operator view.** The console's Agents area and the admin routes already list and end the assistant's runs, whatever starts them.
 

@@ -222,7 +222,7 @@ describe('the conversation routes in the running server', () => {
     const rows = (await s().owner.db.execute(
       sql`select instance_id from assistant_conversations where id = ${id}`,
     )) as unknown as { instance_id: string }[];
-    expect(rows[0]?.instance_id).toBe(runInstanceId(w.tenantId, id, id));
+    expect(rows[0]?.instance_id).toBe(runInstanceId(w.tenantId, id, `${id}.0`));
 
     const loaded = await get(on(), w, `/conversations/${id}`, token);
     expect(loaded.statusCode, loaded.body).toBe(200);

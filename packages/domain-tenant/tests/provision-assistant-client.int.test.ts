@@ -9,7 +9,7 @@ import {
 import {
   ASSISTANT_CLIENT_ID,
   clientRepository,
-  provisionAssistantClient,
+  provisionAssistantClientRow,
   provisionTenantDefaults,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -42,11 +42,11 @@ async function freshTenant(): Promise<string> {
   return tenantId;
 }
 
-describe('provisionAssistantClient', () => {
+describe('provisionAssistantClientRow', () => {
   it('creates the built-in public client, marked, with no secret', async () => {
     const tenantId = await freshTenant();
     const client = await withTenant(app.db, tenantId, (tx) =>
-      provisionAssistantClient(tx, tenantId),
+      provisionAssistantClientRow(tx, tenantId),
     );
     expect(client).toMatchObject({
       clientId: ASSISTANT_CLIENT_ID,
@@ -63,10 +63,10 @@ describe('provisionAssistantClient', () => {
   it('finds the client it made and writes nothing the second time', async () => {
     const tenantId = await freshTenant();
     const first = await withTenant(app.db, tenantId, (tx) =>
-      provisionAssistantClient(tx, tenantId),
+      provisionAssistantClientRow(tx, tenantId),
     );
     const second = await withTenant(app.db, tenantId, (tx) =>
-      provisionAssistantClient(tx, tenantId),
+      provisionAssistantClientRow(tx, tenantId),
     );
     expect(second.id).toBe(first.id);
   });
@@ -83,7 +83,7 @@ describe('provisionAssistantClient', () => {
       }),
     );
     await expect(
-      withTenant(app.db, tenantId, (tx) => provisionAssistantClient(tx, tenantId)),
+      withTenant(app.db, tenantId, (tx) => provisionAssistantClientRow(tx, tenantId)),
     ).rejects.toMatchObject({ code: 'assistant_client_not_builtin' });
   });
 });

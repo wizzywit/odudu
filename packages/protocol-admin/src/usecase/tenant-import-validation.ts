@@ -564,16 +564,19 @@ function clientProblems(
     (client) => `the client_id ${client.client_id}`,
     problems,
   );
-  // `lockCapacity` (@odudu/domain-tenant) counts the built-in admin client too,
-  // and no client that registered itself.
+  // `lockCapacity` (@odudu/domain-tenant) counts the built-in admin and assistant
+  // clients too, which every new tenant is provisioned with and no document
+  // carries, and no client that registered itself.
   const operatorMade = document.clients.filter(
     (client) => client.registration_origin !== 'anonymous',
   ).length;
-  if (operatorMade + 1 > document.settings.max_clients) {
+  const provisioned = 2;
+  if (operatorMade + provisioned > document.settings.max_clients) {
     problems.add(
       'document.clients',
       `max_clients is ${String(document.settings.max_clients)}, which admits ` +
-        `${String(document.settings.max_clients - 1)} clients besides ${ADMIN_CLIENT_ID}`,
+        `${String(Math.max(document.settings.max_clients - provisioned, 0))} clients besides ` +
+        `${ADMIN_CLIENT_ID} and ${ASSISTANT_CLIENT_ID}`,
     );
   }
   // Registrations evict at most one client each, so an excess would stay.

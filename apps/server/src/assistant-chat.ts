@@ -1,12 +1,15 @@
 import {
   createChat,
+  RunLapsed,
   type Chat,
   type ChatCaller,
   type ChatDeps,
   type RunTurnDeps,
 } from '@odudu/assistant';
 import { type DatabaseHandle, withTenant, withTenantRetrying } from '@odudu/db';
-import { ADMIN_API_AUDIENCE, clientRepository } from '@odudu/domain-tenant';
+import { agentInstanceRepository, type AgentInstanceRecord } from '@odudu/domain-agents';
+import { auditRepository } from '@odudu/domain-audit';
+import { ADMIN_API_AUDIENCE, ASSISTANT_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import {
   callMcpTool,
@@ -72,13 +75,54 @@ function unlessAborted<T>(work: Promise<T>, signal: AbortSignal | undefined): Pr
   });
 }
 
+// An instance that ran out from idleness and was not revoked: the one refusal
+// of a run that a next run answers. A hard expiry is the session's end and an
+// owner who has gone, which a new instance would meet again.
+function lapsedFromIdleness(instance: AgentInstanceRecord | null, at: Date): boolean {
+  return (
+    instance !== null &&
+    instance.revokedAt === null &&
+    instance.idleExpiresAt !== null &&
+    instance.idleExpiresAt.getTime() <= at.getTime() &&
+    instance.expiresAt.getTime() > at.getTime()
+  );
+}
+
+// What the audit trail holds of a refusal: who, which client and a fixed code.
+async function auditRefusal(
+  tx: Parameters<typeof grantAssistantAccess>[0],
+  caller: ChatCaller,
+  conversationId: string,
+  refusal: string,
+): Promise<void> {
+  const assistant = await clientRepository(tx).byClientId(ASSISTANT_CLIENT_ID);
+  await auditRepository(tx).record({
+    eventType: 'agent_identity',
+    action: 'assistant.access_refused',
+    outcome: 'refused',
+    actorTenantId: caller.tenantId,
+    actorSubjectId: caller.ownerSubjectId,
+    actorClientId: assistant?.id ?? null,
+    resourceType: 'assistant_conversation',
+    resourceId: conversationId,
+    detail: {
+      reason: 'denied',
+      agent_client: ASSISTANT_CLIENT_ID,
+      owner: caller.ownerSubjectId,
+      refusal,
+    },
+  });
+}
+
 /**
  * The token a turn's tool call acts with, for the conversation's run: the
  * same `act.sub` instance for every call of the run, however many are made at
  * once, since the mint locks the grant before it looks for the instance. The
- * run's key is the conversation's id, which is also the id of the grant
- * `grantAssistantAccess` made for it, so a call names no grant of its own: the
- * one it acts on is the conversation's, and only the assistant's client holds one.
+ * run's `conversationId` is also the id of the grant `grantAssistantAccess`
+ * made for it, so a call names no grant of its own: the one it acts on is the
+ * conversation's, and only the assistant's client holds one. A run whose
+ * instance lapsed from idleness throws `RunLapsed`, which moves the
+ * conversation to its next run; any other refusal is the call's own.
  */
 export function assistantTokenMint(
   parts: AssistantChatParts,
@@ -93,11 +137,24 @@ export function assistantTokenMint(
     if (tenant?.id !== caller.tenantId) throw new Error('the tenant is not available');
     const at = now();
     // A refusal is returned out of the transaction so it commits: a run whose
-    // owner ended has its instance revoked in that same transaction.
+    // owner ended has its instance revoked in that same transaction, and the
+    // refusal is audited in it.
     const outcome = await withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
-      const grant = await tokenGrantRepository(tx).byId(run.key);
+      const grant = await tokenGrantRepository(tx).byId(run.conversationId);
       const client = grant === null ? null : await clientRepository(tx).byId(grant.clientId);
-      if (client?.builtinAssistant !== true) return new AgentTokenRefused('grant_not_found');
+      const refused = async (error: AgentTokenRefused): Promise<'lapsed' | AgentTokenRefused> => {
+        if (error.reason === 'run_refused') {
+          const instance = await agentInstanceRepository(tx).byId(
+            runInstanceId(tenant.id, run.conversationId, run.key),
+          );
+          if (lapsedFromIdleness(instance, at)) return 'lapsed';
+        }
+        await auditRefusal(tx, caller, run.conversationId, error.reason);
+        return error;
+      };
+      if (client?.builtinAssistant !== true) {
+        return refused(new AgentTokenRefused('grant_not_found'));
+      }
       try {
         return await mintAgentToken(
           tx,
@@ -114,21 +171,22 @@ export function assistantTokenMint(
             },
           },
           {
-            subjectGrantId: run.key,
+            subjectGrantId: run.conversationId,
             expectedSubjectId: caller.ownerSubjectId,
             agentClientId: client.clientId,
             audience: ADMIN_API_AUDIENCE,
             scope: [MCP_READ_SCOPE],
             notAfter: new Date(at.getTime() + AGENT_TOKEN_MAX_TTL_SECONDS * 1000),
             now: at,
-            run,
+            run: { key: run.key },
           },
         );
       } catch (error) {
-        if (error instanceof AgentTokenRefused) return error;
+        if (error instanceof AgentTokenRefused) return refused(error);
         throw error;
       }
     });
+    if (outcome === 'lapsed') throw new RunLapsed();
     if (outcome instanceof AgentTokenRefused) {
       parts.logger.warn(
         {
@@ -144,11 +202,13 @@ export function assistantTokenMint(
   };
 }
 
-// A run is refused for several reasons the mint does not tell apart; the one an
-// operator can fix is a `delegated_actors` list on the console client that does
-// not name the assistant, which makes the agent layer fail closed.
+// A run that did not lapse and was still refused: the agent layer turned it
+// away. The cause an operator can fix is a `delegated_actors` list on the
+// console client that does not name the assistant; otherwise a tenant limit on
+// live instances or children was reached.
 const RUN_REFUSED_HINT =
-  'if the console client lists delegated_actors, it must include odudu-assistant';
+  'the agent layer refused the run: if the console client lists delegated_actors it must ' +
+  'include odudu-assistant, otherwise a limit on live instances or children was reached';
 
 // Runs one tool as the owner's agent, through the same bridge the MCP endpoint
 // uses, and leaves the same row: a call whose row cannot be written does not
@@ -219,43 +279,48 @@ function toolRunner(parts: AssistantChatParts, caller: ChatCaller, conversationI
   };
 }
 
-// Makes the conversation's grant from the console sign-in the request came on.
-// The grant's id is the conversation's, so nothing else has to remember it.
-function accessGranter(parts: AssistantChatParts): ChatDeps['grantAccess'] {
+// Creates the conversation in a transaction of its own that begins with its
+// grant, made from the console sign-in the request came on. The grant's id is
+// the conversation's, so nothing else has to remember it. A refusal commits its
+// audit row and nothing else.
+function accessGranter(parts: AssistantChatParts): ChatDeps['withAccess'] {
   const lookup = tenantLookupRepository(parts.ownerDatabase.db);
-  return async (tx, caller, conversation) => {
+  return async (caller, conversation, fn) => {
     const tenant = await lookup.byName(caller.tenantName);
     if (tenant?.id !== caller.tenantId) throw new Error('the tenant is not available');
-    if (caller.grantId === undefined) return { kind: 'refused', reason: 'grant_not_found' };
-    try {
-      await grantAssistantAccess(
-        tx as Parameters<typeof grantAssistantAccess>[0],
-        {
-          tenantId: tenant.id,
-          lifespans: {
-            ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
-            ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
-            rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
-            rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+    return withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
+      const refusal = async (reason: string) => {
+        parts.logger.warn({ reason, tenantId: tenant.id }, 'the assistant was refused an identity');
+        await auditRefusal(tx, caller, conversation.id, reason);
+        return { kind: 'refused' as const, reason };
+      };
+      if (caller.grantId === undefined) return refusal('grant_not_found');
+      try {
+        await grantAssistantAccess(
+          tx,
+          {
+            tenantId: tenant.id,
+            lifespans: {
+              ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+              ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+              rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+              rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+            },
           },
-        },
-        {
-          newGrantId: conversation.id,
-          consoleGrantId: caller.grantId,
-          expectedSubjectId: caller.ownerSubjectId,
-          mode: conversation.mode,
-          now: conversation.now,
-        },
-      );
-      return { kind: 'granted' };
-    } catch (error) {
-      if (!(error instanceof AssistantGrantRefused)) throw error;
-      parts.logger.warn(
-        { reason: error.reason, tenantId: tenant.id },
-        'the assistant was refused an identity for a conversation',
-      );
-      return { kind: 'refused', reason: error.reason };
-    }
+          {
+            newGrantId: conversation.id,
+            consoleGrantId: caller.grantId,
+            expectedSubjectId: caller.ownerSubjectId,
+            mode: conversation.mode,
+            now: conversation.now,
+          },
+        );
+      } catch (error) {
+        if (error instanceof AssistantGrantRefused) return refusal(error.reason);
+        throw error;
+      }
+      return { kind: 'granted' as const, value: await fn(tx) };
+    });
   };
 }
 
@@ -266,9 +331,9 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
     transact: (tenantId, fn) => withTenantRetrying(parts.database.db, tenantId, fn),
     model: parts.models,
     tools: TOOLS,
-    instanceIdFor: (caller, conversationId) =>
-      runInstanceId(caller.tenantId, conversationId, conversationId),
-    grantAccess: accessGranter(parts),
+    instanceIdFor: (caller, conversationId, key) =>
+      runInstanceId(caller.tenantId, conversationId, key),
+    withAccess: accessGranter(parts),
     now: parts.now ?? (() => new Date()),
     newId,
     log: (event, detail) => {

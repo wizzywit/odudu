@@ -63,6 +63,7 @@ function deps(f: Fakes = {}): ValidateMcpTokenDeps {
         enabled: f.clientEnabled ?? true,
         builtinMcp: true,
         builtinAdmin: false,
+        builtinAssistant: false,
       }),
     isSubjectEnabled: () => Promise.resolve(f.subjectEnabled ?? true),
     acceptedIssuers: () => Promise.resolve(f.accepted ?? [ISSUER]),

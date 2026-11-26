@@ -13,6 +13,7 @@ export const AUDIT_ACTIONS = {
     'agent.delegation_revoked',
     'agent.approval_requested',
     'agent.approval_decided',
+    'assistant.access_refused',
     'ciba.requested',
     'ciba.poll_refused',
     'ciba.token_issued',
@@ -151,6 +152,11 @@ type AdminAccessInput =
     });
 
 type AgentIdentityInput =
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'assistant.access_refused';
+      readonly detail: WithReason<{ agent_client: string; owner: string; refusal: string }>;
+    })
   | (EventCommon & {
       readonly eventType: 'agent_identity';
       readonly action: 'agent.instance_minted';
@@ -400,6 +406,7 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'agent.delegation_revoked': ['agent_client', 'owner', 'delegation'],
   'agent.approval_requested': ['agent_client', 'owner', 'approval', 'instance'],
   'agent.approval_decided': ['owner', 'approval', 'state', 'via'],
+  'assistant.access_refused': ['agent_client', 'owner', 'refusal'],
   'ciba.requested': ['agent_client', 'owner', 'approval'],
   'ciba.poll_refused': ['agent_client', 'owner', 'approval'],
   'ciba.token_issued': ['agent_client', 'owner', 'approval'],

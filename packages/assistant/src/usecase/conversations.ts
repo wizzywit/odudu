@@ -2,6 +2,7 @@ import type { AssistantConversation, CreateConversationRequest } from '@odudu/co
 import { conversationRepository } from '#/repository/conversations';
 import { MAX_LOAD, messageRepository } from '#/repository/messages';
 import { conversationView, visibleMessages } from '#/usecase/conversation-view';
+import { runKey } from '#/service/run-key';
 import { PAGE_CONTEXT_PART } from '#/service/page-context';
 import { FREE_CHAT, profileById } from '#/service/profile';
 import type { ChatCaller, ChatDeps } from '#/usecase/chat-deps';
@@ -22,14 +23,12 @@ export async function createConversation(
   const id = deps.newId();
   const now = deps.now();
   const mode = request.mode ?? 'ask';
-  const record = await deps.transact(caller.tenantId, async (tx) => {
-    const access = await deps.grantAccess(tx, caller, { id, mode, now });
-    if (access.kind === 'refused') return access;
+  const outcome = await deps.withAccess(caller, { id, mode, now }, async (tx) => {
     const created = await conversationRepository(tx).create({
       id,
       tenantId: caller.tenantId,
       ownerSubjectId: caller.ownerSubjectId,
-      instanceId: deps.instanceIdFor(caller, id),
+      instanceId: deps.instanceIdFor(caller, id, runKey(id, 0)),
       profile,
       mode,
       now,
@@ -40,7 +39,8 @@ export async function createConversation(
     });
     return created;
   });
-  if ('kind' in record) return { kind: 'access_refused', reason: record.reason };
+  if (outcome.kind === 'refused') return { kind: 'access_refused', reason: outcome.reason };
+  const record = outcome.value;
   return { kind: 'created', conversation: conversationView(record, []) };
 }
 

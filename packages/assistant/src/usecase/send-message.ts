@@ -4,6 +4,7 @@ import { messageRepository } from '#/repository/messages';
 import { visibleMessages } from '#/usecase/conversation-view';
 import { HISTORY_MESSAGES } from '#/service/context';
 import { pageContextText, readPageContext } from '#/service/page-context';
+import { runKey } from '#/service/run-key';
 import { profileById } from '#/service/profile';
 import type { TurnRegistry } from '#/service/turn-registry';
 import { DEFAULT_TURN_DEADLINE_MS, type ChatCaller, type ChatDeps } from '#/usecase/chat-deps';
@@ -24,6 +25,7 @@ interface Prepared {
   readonly profileId: string;
   readonly earlier: UIMessage[];
   readonly pageContext: string;
+  readonly generation: number;
 }
 
 async function prepare(deps: ChatDeps, caller: ChatCaller, id: string): Promise<Prepared | null> {
@@ -34,6 +36,7 @@ async function prepare(deps: ChatDeps, caller: ChatCaller, id: string): Promise<
     const head = await messages.first(id);
     return {
       profileId: record.profile,
+      generation: record.runGeneration,
       earlier: visibleMessages(id, await messages.load(id, HISTORY_MESSAGES)),
       pageContext: pageContextText(readPageContext(head?.parts)),
     };
@@ -65,6 +68,22 @@ function guarded(
       await reader.cancel(reason);
     },
   });
+}
+
+// Moves the conversation to its next run in a short transaction of its own, and
+// names the instance that run acts as.
+async function advance(
+  deps: ChatDeps,
+  caller: ChatCaller,
+  id: string,
+  observed: number,
+): Promise<number> {
+  const next = await deps.transact(caller.tenantId, (tx) =>
+    conversationRepository(tx).advanceRun(id, observed, (generation) =>
+      deps.instanceIdFor(caller, id, runKey(id, generation)),
+    ),
+  );
+  return next ?? observed;
 }
 
 /**
@@ -115,8 +134,9 @@ export async function sendMessage(
         tools: deps.tools,
         history: () => Promise.resolve(prepared.earlier),
         ...deps.turn(caller, id),
+        advanceRun: (observed) => advance(deps, caller, id, observed),
       },
-      { conversationId: id, message, signal: AbortSignal.any([signal, turn.signal]) },
+      { conversationId: id, generation: prepared.generation, message, signal: AbortSignal.any([signal, turn.signal]) },
     );
 
     let seq: number | undefined;

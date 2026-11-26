@@ -10,6 +10,8 @@ export const assistantConversations = pgTable(
     id: uuid('id').notNull(),
     ownerSubjectId: uuid('owner_subject_id').notNull(),
     instanceId: uuid('instance_id').notNull(),
+    // Which run of the conversation's agent instance is current; see the migration.
+    runGeneration: integer('run_generation').notNull().default(0),
     profile: text('profile').notNull(),
     mode: text('mode').notNull(),
     title: text('title'),

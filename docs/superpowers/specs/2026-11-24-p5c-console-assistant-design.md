@@ -159,7 +159,11 @@ principal, never from the request body, and is stored under the conversation's i
 transaction that creates the conversation. `mintAgentToken` is called with that grant,
 unchanged, so the instance, its expiry, its budget slice and its revocation are P5's, and
 its `scope_widened` rule is the ceiling. Ending the console session or revoking the
-console grant ends every conversation under it. Changing a conversation to a mode that
+console grant ends every conversation under it. A conversation that rests past the
+instance's idle lifetime is not ended: its run key is the conversation's id and a
+generation, and the next tool call finds the instance lapsed, moves the conversation to the
+next generation once and mints a new instance for it, while the old one stays ended. No
+other refusal moves it on. Changing a conversation to a mode that
 writes is a new grant with its own scope and its own approval, not a widening of this
 one. Audit rows name `odudu-assistant` as the actor client and the administrator as the
 actor subject. Cost: one grant row per conversation, removed with its session by the same

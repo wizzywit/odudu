@@ -470,6 +470,7 @@ export function adminAuthDeps(deps: AdminAuthParts): AuthenticateAdminDeps {
               enabled: client.enabled,
               builtinMcp: client.builtinMcp,
               builtinAdmin: client.builtinAdmin,
+              builtinAssistant: client.builtinAssistant,
               serviceSubjectId: client.serviceSubjectId,
             };
       }),

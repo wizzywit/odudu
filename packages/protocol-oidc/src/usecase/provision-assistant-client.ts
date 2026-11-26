@@ -1,7 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   ADMIN_API_AUDIENCE,
-  provisionAssistantClient as provisionClientRow,
+  provisionAssistantClientRow as provisionClientRow,
   type ClientRecord,
 } from '@odudu/domain-tenant';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';

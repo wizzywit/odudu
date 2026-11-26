@@ -9,6 +9,22 @@
 -- ROW LEVEL SECURITY is lifted around the inserts and restored, only for a
 -- migrating role that is neither SUPERUSER nor BYPASSRLS, as
 -- 0114_builtin_mcp_client.sql does.
+--
+-- It also gives a conversation a run generation. The agent instance a
+-- conversation acts as is named by the conversation and its generation, and an
+-- instance that lapsed from idleness is never revived for its old name, so the
+-- generation moves on when one lapses and the conversation carries on.
+ALTER TABLE assistant_conversations ADD COLUMN IF NOT EXISTS run_generation integer NOT NULL DEFAULT 0;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'assistant_conversations_run_generation_floor'
+  ) THEN
+    ALTER TABLE assistant_conversations
+      ADD CONSTRAINT assistant_conversations_run_generation_floor CHECK (run_generation >= 0);
+  END IF;
+END $$;
+
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS builtin_assistant boolean NOT NULL DEFAULT false;
 CREATE UNIQUE INDEX IF NOT EXISTS clients_one_builtin_assistant
   ON clients (tenant_id) WHERE builtin_assistant;

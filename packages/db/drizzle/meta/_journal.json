@@ -1046,7 +1046,7 @@
       "breakpoints": true
     },
     {
-      "idx": 150,
+      "idx": 149,
       "version": "7",
       "when": 1792531383737,
       "tag": "0150_builtin_assistant_client",

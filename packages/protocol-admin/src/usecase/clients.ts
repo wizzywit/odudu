@@ -75,6 +75,7 @@ import { readKeyedPage } from '#/service/in-order';
 import {
   AMENDABLE_CLIENT_FIELDS,
   BUILTIN_ADMIN_AMENDABLE_FIELDS,
+  BUILTIN_ASSISTANT_AMENDABLE_FIELDS,
   refusalFor,
 } from '#/service/client-patch';
 import { checkedFlowId, unknownFlowRefusal } from '#/service/client-flow';
@@ -1459,6 +1460,26 @@ export async function amendClient(
           ? null
           : `${guarded} on ${clientRow.clientId}, this tenant's built-in admin client, is not amendable: it could leave every administrator of this tenant locked out`;
     if (reason !== null) {
+      await deps.audit(tx, {
+        action: 'client.amend',
+        resourceType: 'client',
+        resourceId: input.clientDbId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { reason },
+      });
+      return { kind: 'builtin_admin_guarded', reason };
+    }
+  }
+
+  if (clientRow.builtinAssistant) {
+    const guarded = Object.keys(input.values).find(
+      (field) => !BUILTIN_ASSISTANT_AMENDABLE_FIELDS.includes(field),
+    );
+    if (guarded !== undefined) {
+      const reason = `${guarded} on ${clientRow.clientId}, this tenant's built-in assistant client, is not amendable: it would let something sign in through it or leave a conversation's calls with no agent instance`;
       await deps.audit(tx, {
         action: 'client.amend',
         resourceType: 'client',

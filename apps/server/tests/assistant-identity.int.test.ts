@@ -1,4 +1,4 @@
-import { resolveSlots, type ChatCaller } from '@odudu/assistant';
+import { resolveSlots, RunLapsed, type ChatCaller } from '@odudu/assistant';
 import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import {
@@ -154,6 +154,15 @@ async function open(
   return newGrantId;
 }
 
+// The run a conversation's calls are made under: its id and generation.
+function run(conversationId: string, generation = 0) {
+  return { key: `${conversationId}.${String(generation)}`, conversationId };
+}
+
+function runKey(conversationId: string, generation: number): string {
+  return run(conversationId, generation).key;
+}
+
 function callerOf(w: World): ChatCaller {
   return {
     tenantId: w.tenantId,
@@ -223,12 +232,12 @@ describe('the conversation’s token', () => {
   it('is mcp:read only, for the administrator, as the assistant’s instance', async () => {
     const w = await consoleWorld(s().appDb, BASE, ['view-users']);
     const grantId = await open(w);
-    const { accessToken } = await mintWith(() => new Date())(callerOf(w), { key: grantId });
+    const { accessToken } = await mintWith(() => new Date())(callerOf(w), run(grantId));
     expect(claimsOf(accessToken)).toMatchObject({
       scope: 'mcp:read',
       client_id: ASSISTANT_CLIENT_ID,
       sub: w.subjectId,
-      act: { sub: runInstanceId(w.tenantId, grantId, grantId) },
+      act: { sub: runInstanceId(w.tenantId, grantId, runKey(grantId, 0)) },
     });
     expect(await count('agent_instances', 'root_grant_id', grantId)).toBe(1);
   });
@@ -237,9 +246,9 @@ describe('the conversation’s token', () => {
     const w = await consoleWorld(s().appDb, BASE, ['view-users']);
     const grantId = await open(w);
     const mint = mintWith(() => new Date());
-    await mint(callerOf(w), { key: grantId });
+    await mint(callerOf(w), run(grantId));
     const tokens = await Promise.all(
-      Array.from({ length: 6 }, () => mint(callerOf(w), { key: grantId })),
+      Array.from({ length: 6 }, () => mint(callerOf(w), run(grantId))),
     );
     expect(
       new Set(tokens.map((t) => (claimsOf(t.accessToken).act as { sub: string }).sub)).size,
@@ -251,8 +260,8 @@ describe('the conversation’s token', () => {
     const w = await consoleWorld(s().appDb, BASE, ['view-users']);
     const [first, second] = [await open(w), await open(w)];
     const mint = mintWith(() => new Date());
-    await mint(callerOf(w), { key: first });
-    await mint(callerOf(w), { key: second });
+    await mint(callerOf(w), run(first));
+    await mint(callerOf(w), run(second));
     const settings = await withTenant(s().appDb.db, w.tenantId, (tx) =>
       readAgentSettings(tx, w.tenantId),
     );
@@ -277,12 +286,12 @@ describe('the conversation’s token', () => {
 
   it('refuses a conversation id that is no assistant grant, whoever asks', async () => {
     const w = await mcpWorld(s().appDb, BASE, ['view-users']);
-    await expect(mintWith(() => new Date())(callerOf(w), { key: w.grantId })).rejects.toMatchObject(
-      { reason: 'grant_not_found' },
-    );
+    await expect(mintWith(() => new Date())(callerOf(w), run(w.grantId))).rejects.toMatchObject({
+      reason: 'grant_not_found',
+    });
     const console = await consoleWorld(s().appDb, BASE, ['view-users']);
     await expect(
-      mintWith(() => new Date())(callerOf(console), { key: console.grantId }),
+      mintWith(() => new Date())(callerOf(console), run(console.grantId)),
     ).rejects.toMatchObject({ reason: 'grant_not_found' });
   });
 
@@ -291,12 +300,7 @@ describe('the conversation’s token', () => {
     const grantId = await open(w);
     const other = await consoleWorld(s().appDb, BASE, ['view-users']);
     await expect(
-      mintWith(() => new Date())(
-        { ...callerOf(w), ownerSubjectId: other.subjectId },
-        {
-          key: grantId,
-        },
-      ),
+      mintWith(() => new Date())({ ...callerOf(w), ownerSubjectId: other.subjectId }, run(grantId)),
     ).rejects.toMatchObject({ reason: 'subject_mismatch' });
   });
 });
@@ -376,7 +380,7 @@ describe('what the minted token can do at the admin API', () => {
   it('reads what the owner may read and is refused what they may not', async () => {
     const w = await consoleWorld(s().appDb, BASE, ['view-users']);
     const { accessToken } = await mintWith(() => new Date())(callerOf(w), {
-      key: await open(w),
+      ...run(await open(w)),
     });
     expect((await get(w, '/subjects', accessToken)).statusCode).toBe(200);
     expect((await get(w, '/clients', accessToken)).statusCode).toBe(403);
@@ -385,7 +389,7 @@ describe('what the minted token can do at the admin API', () => {
   it('changes nothing: a write route is refused in Ask mode even for an owner who may write', async () => {
     const w = await consoleWorld(s().appDb, BASE, ['manage-users', 'view-users']);
     const { accessToken } = await mintWith(() => new Date())(callerOf(w), {
-      key: await open(w),
+      ...run(await open(w)),
     });
     const before = await count('subjects', 'tenant_id', w.tenantId);
     const res = await s().app.inject({
@@ -415,11 +419,11 @@ describe('the instance’s lifetime', () => {
     const t0 = new Date();
     clock = t0;
     const mint = mintWith(() => clock);
-    await mint(callerOf(w), { key: grantId });
+    await mint(callerOf(w), run(grantId));
     clock = new Date(t0.getTime() + idle - 10_000);
-    await mint(callerOf(w), { key: grantId });
+    await mint(callerOf(w), run(grantId));
     clock = new Date(t0.getTime() + idle + 10_000);
-    await expect(mint(callerOf(w), { key: grantId })).resolves.toBeTruthy();
+    await expect(mint(callerOf(w), run(grantId))).resolves.toBeTruthy();
     const rows = (await s().owner.db.execute(
       sql`select idle_expires_at, expires_at from agent_instances where root_grant_id = ${grantId}`,
     )) as unknown as { idle_expires_at: Date; expires_at: Date }[];
@@ -428,9 +432,7 @@ describe('the instance’s lifetime', () => {
       new Date(row?.expires_at ?? 0).getTime(),
     );
     clock = new Date(clock.getTime() + idle + 10_000);
-    await expect(mint(callerOf(w), { key: grantId })).rejects.toMatchObject({
-      reason: 'run_refused',
-    });
+    await expect(mint(callerOf(w), run(grantId))).rejects.toBeInstanceOf(RunLapsed);
   });
 });
 
@@ -572,6 +574,28 @@ describe('a console administrator’s conversation, end to end', () => {
     return { id, body: turn.body };
   }
 
+  async function say(w: World, id: string, text: string) {
+    const { accessToken } = await mintAdmin(w);
+    const message = { id: `m-${newId()}`, role: 'user', parts: [{ type: 'text', text }] };
+    const turn = await route(on(), w, `/conversations/${id}/messages`, accessToken, { message });
+    expect(turn.statusCode, turn.body).toBe(200);
+    return turn.body;
+  }
+
+  async function instancesOf(id: string) {
+    return (await s().owner.db.execute(
+      sql`select id, idle_expires_at > now() as live, revoked_at is not null as revoked
+            from agent_instances where root_grant_id = ${id} order by created_at`,
+    )) as unknown as { id: string; live: boolean; revoked: boolean }[];
+  }
+
+  async function generationOf(id: string) {
+    const rows = (await s().owner.db.execute(
+      sql`select run_generation from assistant_conversations where id = ${id}`,
+    )) as unknown as { run_generation: number }[];
+    return rows[0]?.run_generation;
+  }
+
   async function toolRows(w: World) {
     return (await s().owner.db.execute(
       sql`select a.outcome, a.actor_subject_id, c.client_id as actor_client, a.detail
@@ -624,5 +648,139 @@ describe('a console administrator’s conversation, end to end', () => {
     const res = await route(on(), w, '/conversations', agentToken, { page_context: CONTEXT });
     expect(res.statusCode).not.toBe(201);
     expect(await count('assistant_conversations', 'tenant_id', w.tenantId)).toBe(0);
+  });
+  it('carries on after the instance lapsed, with a new instance, and leaves the old one ended', async () => {
+    const w = await consoleWorld(s().appDb, BASE, ['use-assistant', 'view-users']);
+    const { id } = await converse(w, 'count_subjects');
+    const [first] = await instancesOf(id);
+    expect(first?.live).toBe(true);
+    await s().owner.db.execute(
+      sql`update agent_instances set idle_expires_at = now() - interval '1 minute'
+           where root_grant_id = ${id}`,
+    );
+
+    const body = await say(w, id, 'how many, after a break?');
+
+    expect(body).toContain('tool-output-available');
+    expect(body).not.toContain('Forbidden');
+    expect(await generationOf(id)).toBe(1);
+    const instances = await instancesOf(id);
+    expect(instances).toHaveLength(2);
+    expect(instances[0]).toMatchObject({ id: first?.id, live: false, revoked: false });
+    expect(instances[1]).toMatchObject({ live: true, revoked: false });
+    expect(instances[1]?.id).toBe(runInstanceId(w.tenantId, id, runKey(id, 1)));
+    const stored = (await s().owner.db.execute(
+      sql`select instance_id from assistant_conversations where id = ${id}`,
+    )) as unknown as { instance_id: string }[];
+    expect(stored[0]?.instance_id).toBe(instances[1]?.id);
+    expect(await toolRows(w)).toHaveLength(2);
+  });
+
+  it('does not move to a new run for any other refusal, and audits it', async () => {
+    const w = await consoleWorld(s().appDb, BASE, ['use-assistant', 'view-users']);
+    const { id } = await converse(w, 'count_subjects');
+    await withTenant(s().appDb.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(w.grantId, new Date()),
+    );
+    const { accessToken } = await mintAdmin(w);
+    expect(accessToken).toBeTruthy();
+    // The console grant is gone, so the door refuses the person's own token too;
+    // the refusal under test is the mint's, reached with the grant revoked below it.
+    const rows = (await s().owner.db.execute(
+      sql`select run_generation from assistant_conversations where id = ${id}`,
+    )) as unknown as { run_generation: number }[];
+    expect(rows[0]?.run_generation).toBe(0);
+    const mint = mintWith(() => new Date());
+    await expect(mint(callerOf(w), run(id))).rejects.toMatchObject({ reason: 'grant_revoked' });
+    expect(await generationOf(id)).toBe(0);
+    const audited = (await s().owner.db.execute(
+      sql`select a.outcome, a.actor_subject_id, c.client_id as actor_client, a.detail
+            from audit_events a left join clients c on c.id = a.actor_client_id
+           where a.tenant_id = ${w.tenantId} and a.action = 'assistant.access_refused'`,
+    )) as unknown as {
+      outcome: string;
+      actor_subject_id: string;
+      actor_client: string;
+      detail: Record<string, string>;
+    }[];
+    expect(audited).toHaveLength(1);
+    expect(audited[0]).toMatchObject({
+      outcome: 'refused',
+      actor_subject_id: w.subjectId,
+      actor_client: ASSISTANT_CLIENT_ID,
+      detail: {
+        reason: 'denied',
+        agent_client: ASSISTANT_CLIENT_ID,
+        owner: w.subjectId,
+        refusal: 'grant_revoked',
+      },
+    });
+    expect(JSON.stringify(audited[0]?.detail)).not.toMatch(/eyJ/u);
+  });
+});
+
+describe('what ends a conversation’s access', () => {
+  async function state(w: World, derived: string) {
+    const grants = (await s().owner.db.execute(
+      sql`select revoked_at is not null as revoked from token_grants where id = ${derived}`,
+    )) as unknown as { revoked: boolean }[];
+    const instances = (await s().owner.db.execute(
+      sql`select revoked_at is not null as revoked from agent_instances where root_grant_id = ${derived}`,
+    )) as unknown as { revoked: boolean }[];
+    return { grant: grants[0]?.revoked, instances: instances.map((i) => i.revoked) };
+  }
+
+  it('is refused for a disabled subject, writing no grant', async () => {
+    const w = await consoleWorld(s().appDb, BASE, ['view-users']);
+    await s().owner.db.execute(
+      sql`update subjects set disabled_at = now() where id = ${w.subjectId}`,
+    );
+    const before = await count('token_grants', 'tenant_id', w.tenantId);
+    await expect(open(w)).rejects.toMatchObject({ reason: 'subject_disabled' });
+    expect(await count('token_grants', 'tenant_id', w.tenantId)).toBe(before);
+  });
+
+  it('is ended with the instance when the subject’s access is revoked, as disabling or recovering does', async () => {
+    const w = await consoleWorld(s().appDb, BASE, ['view-users']);
+    const derived = await open(w);
+    await mintWith(() => new Date())(callerOf(w), run(derived));
+    expect(await state(w, derived)).toEqual({ grant: false, instances: [false] });
+    await withTenant(s().appDb.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSubject(w.subjectId, new Date()),
+    );
+    expect(await state(w, derived)).toEqual({ grant: true, instances: [true] });
+  });
+
+  it('leaves no live grant under a console grant that was revoked while conversations were being made', async () => {
+    for (let round = 0; round < 8; round += 1) {
+      const w = await consoleWorld(s().appDb, BASE, ['view-users']);
+      const opened = await Promise.allSettled([
+        open(w),
+        open(w),
+        withTenant(s().appDb.db, w.tenantId, (tx) =>
+          tokenGrantRepository(tx).revoke(w.grantId, new Date()),
+        ),
+      ]);
+      const rows = (await s().owner.db.execute(
+        sql`select count(*)::int as live from token_grants
+             where exchanged_from_grant_id = ${w.grantId} and revoked_at is null`,
+      )) as unknown as { live: number }[];
+      expect(
+        rows[0]?.live,
+        `round ${String(round)}: ${JSON.stringify(opened.map((o) => o.status))}`,
+      ).toBe(0);
+    }
+  });
+
+  it('is made for an Act conversation with the same read scope, and no wider', async () => {
+    const w = await consoleWorld(s().appDb, BASE, ['view-users']);
+    const derived = await open(w, { mode: 'act' });
+    const grant = await withTenant(s().appDb.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).byId(derived),
+    );
+    expect(grant?.scope).toBe('mcp:read');
+    await expect(open(w, { mode: 'act', scope: ['mcp:read', 'mcp:write'] })).rejects.toMatchObject({
+      reason: 'scope_widened',
+    });
   });
 });

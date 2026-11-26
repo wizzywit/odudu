@@ -22,7 +22,9 @@ export interface ChatCaller {
   readonly ip: string;
 }
 
-export type AccessOutcome = { kind: 'granted' } | { kind: 'refused'; reason: string };
+export type AccessOutcome<T> =
+  | { kind: 'granted'; value: T }
+  | { kind: 'refused'; reason: string };
 
 export interface ChatDeps {
   /** Runs `fn` in one short transaction bound to the tenant. */
@@ -34,19 +36,20 @@ export interface ChatDeps {
     caller: ChatCaller,
     conversationId: string,
   ) => Pick<RunTurnDeps, 'mintToken' | 'callTool'>;
-  /** The agent instance a new conversation acts as. */
-  readonly instanceIdFor: (caller: ChatCaller, conversationId: string) => string;
+  /** The agent instance a conversation acts as under the run named `key`. */
+  readonly instanceIdFor: (caller: ChatCaller, conversationId: string, key: string) => string;
   /**
-   * Makes the conversation's own grant from the caller's console sign-in, in the
-   * transaction that creates the conversation, so there is never one without the
-   * other. The grant is stored under the conversation's id. A refusal is returned,
-   * not thrown, and nothing has been written when it is.
+   * Runs `fn` in the transaction that creates a conversation, after making the
+   * conversation's own grant from the caller's console sign-in in that same
+   * transaction, so there is never one without the other. The grant is stored
+   * under the conversation's id. A refusal is returned, not thrown, and nothing
+   * has been written when it is.
    */
-  readonly grantAccess: (
-    tx: AssistantTx,
+  readonly withAccess: <T>(
     caller: ChatCaller,
     conversation: { readonly id: string; readonly mode: ConversationMode; readonly now: Date },
-  ) => Promise<AccessOutcome>;
+    fn: (tx: AssistantTx) => Promise<T>,
+  ) => Promise<AccessOutcome<T>>;
   readonly now: () => Date;
   readonly newId: () => string;
   /** The most turns this process runs at once; 256 unless a test says otherwise. */

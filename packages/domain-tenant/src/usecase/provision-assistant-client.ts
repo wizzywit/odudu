@@ -12,7 +12,7 @@ import { ASSISTANT_CLIENT_ID, ASSISTANT_CLIENT_NAME } from '#/service/assistant-
  * unusable at the protocol endpoints lives in protocol-oidc, whose
  * `provisionAssistantClient` calls this and adds it.
  */
-export async function provisionAssistantClient(
+export async function provisionAssistantClientRow(
   tx: TenantScopedDatabase,
   tenantId: string,
 ): Promise<ClientRecord> {

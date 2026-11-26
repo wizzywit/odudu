@@ -86,6 +86,18 @@ export const BUILTIN_ADMIN_AMENDABLE_FIELDS: readonly string[] = [
   'userinfo_encrypted_response_enc',
 ];
 
+// The assistant's client is amended in the words a person reads and in whether
+// it is on. Everything else is what keeps it unusable at the protocol endpoints
+// and keeps an instance behind each call: no redirect URI, one grant that a
+// public client is refused, an agent type.
+export const BUILTIN_ASSISTANT_AMENDABLE_FIELDS: readonly string[] = [
+  'name',
+  'description',
+  'name_i18n',
+  'description_i18n',
+  'enabled',
+];
+
 export const BUILTIN_ADMIN_GUARDED_FIELDS: readonly string[] = AMENDABLE_CLIENT_FIELDS.filter(
   (field) => !BUILTIN_ADMIN_AMENDABLE_FIELDS.includes(field),
 );

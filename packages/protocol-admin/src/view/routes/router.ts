@@ -256,7 +256,7 @@ async function agentMayWrite(
   if (!agentGuardsWholeClient(route) && !agentBodyNamesGuardedField(request.body)) return true;
   const id = request.params.id;
   const target = id === undefined ? null : await deps.auth.loadClientState(granted.tenantId, id);
-  return target === null || !(target.builtinAdmin || target.builtinMcp);
+  return target === null || !(target.builtinAdmin || target.builtinMcp || target.builtinAssistant);
 }
 
 async function handleRoute(

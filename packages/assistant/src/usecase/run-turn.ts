@@ -9,6 +9,8 @@ import {
 } from 'ai';
 import { boundHistory } from '#/service/context';
 import type { TaskProfile } from '#/service/profile';
+import { runKey, RunLapsed } from '#/service/run-key';
+import { assistantTools } from '#/service/tool-set';
 import { buildSystemPrompt } from '#/service/system-prompt';
 import { toSdkTools } from '#/service/tool-bridge';
 
@@ -19,12 +21,18 @@ export interface RunTurnDeps {
   readonly tools: readonly RegisteredTool[];
   readonly history: (conversationId: string) => Promise<readonly UIMessage[]>;
   // A short admin token for one call, acting for the conversation's agent
-  // instance; `key` is the conversation, which names the run. Calls running
-  // at once in one step share that key, so the minting must be safe under it.
+  // instance; `key` names the run and `conversationId` the conversation whose
+  // grant it acts on. Calls running at once in one step share a key, so the
+  // minting must be safe under it. It throws `RunLapsed` when the instance ran
+  // out from idleness.
   readonly mintToken: (
-    run: { key: string },
+    run: { key: string; conversationId: string },
     signal?: AbortSignal,
   ) => Promise<{ accessToken: string }>;
+  // Moves the conversation to the run after `observed`, once however many
+  // callers saw it lapse, and answers the generation it is on. Without it a
+  // lapse is the call's refusal.
+  readonly advanceRun?: (observed: number) => Promise<number>;
   readonly callTool: (
     accessToken: string,
     name: string,
@@ -35,6 +43,8 @@ export interface RunTurnDeps {
 
 export interface TurnInput {
   readonly conversationId: string;
+  // The run the conversation is on; 0 for one that has never lapsed.
+  readonly generation?: number;
   readonly message: UIMessage;
   readonly signal: AbortSignal;
 }
@@ -66,9 +76,20 @@ export interface StartedTurn {
  * token for the conversation's instance, so none outlives the call it served.
  */
 export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<StartedTurn> {
-  const reads = deps.tools.filter((entry) => entry.access === 'read');
-  const tools = toSdkTools(reads, async (name, args, signal) => {
-    const { accessToken } = await deps.mintToken({ key: input.conversationId }, signal);
+  let generation = input.generation ?? 0;
+  const mint = async (signal: AbortSignal | undefined) => {
+    const { conversationId } = input;
+    const seen = generation;
+    try {
+      return await deps.mintToken({ key: runKey(conversationId, seen), conversationId }, signal);
+    } catch (error) {
+      if (!(error instanceof RunLapsed) || deps.advanceRun === undefined) throw error;
+      generation = Math.max(generation, await deps.advanceRun(seen));
+      return deps.mintToken({ key: runKey(conversationId, generation), conversationId }, signal);
+    }
+  };
+  const tools = toSdkTools(assistantTools(deps.tools), async (name, args, signal) => {
+    const { accessToken } = await mint(signal);
     return deps.callTool(accessToken, name, args, signal);
   });
   const agent = buildAgent(deps, tools);
