@@ -509,16 +509,17 @@ describe('the trace at volume', () => {
     await owner.sql`analyze assistant_steps`;
     await owner.sql`analyze assistant_events`;
 
-    // What a turn of three 1.5 KB events costs on disk with its indexes, so the
-    // estimate in the operating page rests on a measurement.
+    // What a turn of three 1.5 KB events costs on disk with its indexes (the
+    // tables over the turns that have events, which are 40,000 of the 50,000), so
+    // the estimate in the operating page rests on a measurement.
     const [{ bytes_per_turn: bytesPerTurn } = { bytes_per_turn: 0 }] = await owner.sql<
       { bytes_per_turn: number }[]
     >`select (
          (pg_total_relation_size('assistant_turns') + pg_total_relation_size('assistant_steps')
-          + pg_total_relation_size('assistant_events')) / (select count(*) from assistant_turns)
+          + pg_total_relation_size('assistant_events')) / (select count(distinct turn_id) from assistant_events)
        )::int as bytes_per_turn`;
-    expect(bytesPerTurn).toBeGreaterThan(4_000);
-    expect(bytesPerTurn).toBeLessThan(12_000);
+    expect(bytesPerTurn).toBeGreaterThan(5_000);
+    expect(bytesPerTurn).toBeLessThan(8_000);
     const [{ old: old } = { old: 0 }] = await owner.sql<{ old: number }[]>`
       select count(*)::int as old from assistant_turns
        where tenant_id = ${tenantId} and started_at < now() - interval '30 days'`;

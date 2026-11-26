@@ -125,7 +125,7 @@ const callerOf = (w: World): ChatCaller => ({
 function chatOver(
   model: MockLanguageModelV3,
   tool: ToolResult,
-  extra: { telemetry?: Telemetry[] } = {},
+  extra: { telemetry?: Telemetry[]; token?: string; knownSecrets?: string[] } = {},
 ): { chat: Chat; ended: TurnSummary[]; log: ReturnType<typeof vi.fn> } {
   const ended: TurnSummary[] = [];
   const log = vi.fn();
@@ -134,7 +134,7 @@ function chatOver(
     model: () => model,
     tools: TOOLS,
     turn: () => ({
-      mintToken: () => Promise.resolve({ accessToken: 'token' }),
+      mintToken: () => Promise.resolve({ accessToken: extra.token ?? 'token' }),
       callTool: () => Promise.resolve(tool),
     }),
     recordTurnStart: () => Promise.resolve(),
@@ -152,6 +152,7 @@ function chatOver(
     newId,
     log,
     ...(extra.telemetry === undefined ? {} : { telemetry: extra.telemetry }),
+    ...(extra.knownSecrets === undefined ? {} : { knownSecrets: extra.knownSecrets }),
   });
   return { chat, ended, log };
 }
@@ -317,6 +318,24 @@ describe('what the trace masks', () => {
     for (const secret of [S1, JWT, S2]) expect(t.text, secret).not.toContain(secret);
     expect(t.text).toContain('the provider refused');
     expect(t.turns[0]).toMatchObject({ stop_reason: 'error' });
+  });
+
+  it('holds neither the token minted for the turn nor a key the server was given, when the model repeats them', async () => {
+    const w = await world();
+    const minted = 'minted-access-token-9f3a';
+    const provider = 'sk-provider-key-0123';
+    const { chat } = chatOver(
+      scripted([
+        toolCall('c1', 'list_clients', {}),
+        answer(`token ${minted}, key ${provider}, still here`),
+      ]),
+      result([{ client_id: 'web' }]),
+      { token: minted, knownSecrets: [provider] },
+    );
+    await turnOf(chat, callerOf(w), 'show me');
+    const t = await trace(w);
+    expect(t.text).toContain('still here');
+    for (const secret of [minted, provider]) expect(t.text, secret).not.toContain(secret);
   });
 
   it('masks an email address in the model’s own text when the tenant masks them', async () => {

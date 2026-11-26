@@ -106,7 +106,6 @@ describe('maskSecrets', () => {
     ['client_secret=hunter2hunter2 and more', 'client_secret=[masked] and more'],
     ['failed with password: "pa ss" now', 'failed with password: "[masked]" now'],
     ["api-key = 'k-1234567'", "api-key = '[masked]'"],
-    ['Set-Cookie: sid=abc123def; Path=/', 'Set-Cookie: [masked]; Path=/'],
   ])('masks the value of a secret named in an error or a header: %s', (text, expected) => {
     expect(maskSecrets(text)).toBe(expected);
   });
@@ -178,6 +177,87 @@ describe('maskSecrets', () => {
     expect(maskSecrets('id 6f1e2d3c-1111-4222-8333-944455556666')).toContain('6f1e2d3c');
   });
 
+  it.each([
+    ['Cookie: theme=dark; sid=abc123def', 'Cookie: theme=[masked]; sid=[masked]'],
+    ['Set-Cookie: sid=abc123def; Path=/; HttpOnly', 'Set-Cookie: sid=[masked]; Path=/; HttpOnly'],
+    ['cookie: a=1; b=22', 'cookie: a=[masked]; b=[masked]'],
+  ])('masks every cookie pair and keeps the names: %s', (text, expected) => {
+    expect(maskSecrets(text)).toBe(expected);
+  });
+
+  // JSON carries its strings with escapes; a value is read to its real end.
+  it.each([
+    ['{"password": "ab\\"cd-tail-secret"}', 'cd-tail-secret'],
+    ['{"client_secret":"x\\\\y-back-secret"}', 'y-back-secret'],
+    ['{"error":{"client_secret":"q\\"r-tail-two"},"n":1}', 'r-tail-two'],
+    ['{"t":"{\\"password\\":\\"p\\\\\\"w-tail-three\\"}"}', 'w-tail-three'],
+  ])('reads an escaped quote or backslash inside a secret value: %s', (text, tail) => {
+    const out = maskSecrets(text);
+    expect(out).not.toContain(tail);
+    expect(out).toContain(MASKED);
+  });
+
+  // The scheme is not case sensitive, the credential may be quoted, and the
+  // header may arrive percent-encoded.
+  it.each([
+    ['authorization = bearer abc123def', 'abc123def'],
+    ['Authorization: BEARER abc123def456', 'abc123def456'],
+    ['Authorization: Bearer "abc123xyz"', 'abc123xyz'],
+    ["Authorization: Token 'abc123xyz'", 'abc123xyz'],
+    ['Authorization: Digest username="u", response="r3sp0nse"', 'r3sp0nse'],
+    ['bearer abcdefgh1234', 'abcdefgh1234'],
+    ['Authorization%3A%20Bearer%20abc123def456', 'abc123def456'],
+    ['access_token%3Dabc123def456&x=1', 'abc123def456'],
+    ['?client_secret=abc123def456&y=1', 'abc123def456'],
+  ])('leaves no part of the credential in %s', (text, token) => {
+    const out = maskSecrets(text);
+    expect(out).not.toContain(token);
+    expect(out).toContain(MASKED);
+  });
+
+  // A value cut off mid-way is masked to the end: what follows may be the rest of it.
+  it.each([
+    '{"password": "abcdef-trunc',
+    '{"password": ["abc", "def"',
+    '{"a":{"client_secret": {"k": "v',
+    'error body: {"client_secret":"abcdef',
+    'password="abc def',
+    'password=\\"abc \\\\ def',
+  ])('masks a truncated value to the end: %s', (text) => {
+    const out = maskSecrets(text);
+    expect(out).toContain(MASKED);
+    expect(out).not.toMatch(/abcdef|abc def|\bdef\b|\bv\b/u);
+  });
+
+  it('reads a member name of any length', () => {
+    const name = `${'very_long_'.repeat(12)}token`;
+    expect(maskSecrets(`${name}=abc123def456 ok`)).toBe(`${name}=${MASKED} ok`);
+  });
+
+  it.each(['pwd', 'sig', 'signature', 'privateKey', 'apikey', 'x-api-key'])(
+    'masks a member named %s',
+    (name) => {
+      expect(maskSecrets({ [name]: 'value-1' })).toEqual({ [name]: MASKED });
+    },
+  );
+
+  it('keeps members that are about a secret and hold none', () => {
+    const value: JsonValue = {
+      token_type: 'Bearer',
+      token_count: 3,
+      token_endpoint_auth_method: 'client_secret_basic',
+      password_policy: { min_length: 12, require_digit: true },
+      client_secret_expires_at: 0,
+      access_token_ttl: 300,
+    };
+    expect(maskSecrets(value)).toEqual(value);
+  });
+
+  it('keeps the shape of JSON text it does not change, and masks it by member', () => {
+    const text = '{\n  "a": 1,\n  "b": [ 1, 2 ]\n}';
+    expect(maskSecrets(text)).toBe(text);
+  });
+
   it('keeps ordinary text, identifiers and hex digests', () => {
     const text = 'Client 6f1e2d3c-1111-4222-8333-944455556666 uses sha256 ' + 'ab12'.repeat(16);
     expect(maskSecrets(text)).toBe(text);
@@ -226,6 +306,12 @@ describe('createMasker', () => {
       note: `Bearer ${MASKED}`,
       secret: MASKED,
     });
+  });
+
+  it('learns a secret it is told of while the turn runs', () => {
+    const masker = createMasker({ emails: false });
+    masker.know('minted-access-token-123');
+    expect(masker.mask('it said minted-access-token-123')).toBe(`it said ${MASKED}`);
   });
 
   it('learns from the secrets the server holds', () => {

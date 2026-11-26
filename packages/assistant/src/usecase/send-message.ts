@@ -141,6 +141,36 @@ function guarded(
   });
 }
 
+// What the server holds that must never reach the trace: the provider's keys it
+// was given and the secret that signs approvals, in the forms they could be written.
+function knownSecretsOf(deps: ChatDeps): string[] {
+  const signing = deps.approvalSecret;
+  const forms =
+    signing === undefined
+      ? []
+      : [
+          Buffer.from(signing).toString('base64'),
+          Buffer.from(signing).toString('base64url'),
+          Buffer.from(signing).toString('hex'),
+        ];
+  return [...(deps.knownSecrets ?? []), ...forms];
+}
+
+// A token minted for the turn is a secret the moment it exists.
+function mintingKnown(
+  turn: ReturnType<ChatDeps['turn']>,
+  trace: { know: (secret: string) => void },
+): ReturnType<ChatDeps['turn']> {
+  return {
+    ...turn,
+    mintToken: async (run, signal) => {
+      const minted = await turn.mintToken(run, signal);
+      trace.know(minted.accessToken);
+      return minted;
+    },
+  };
+}
+
 // Moves the conversation to its next run in a short transaction of its own, and
 // names the instance that run acts as.
 async function advance(
@@ -318,6 +348,7 @@ async function runConversationTurn(
     profile: profile.id,
     slot: profile.slot,
     maskEmails: prepared.maskEmails,
+    known: knownSecretsOf(deps),
     ...(deps.log === undefined ? {} : { log: deps.log }),
   });
   const budget = createTurnBudget({
@@ -516,7 +547,7 @@ async function runConversationTurn(
         },
         maxStepsPerTurn: prepared.limits.maxStepsPerTurn,
         history: () => Promise.resolve(earlier),
-        ...deps.turn(caller, id, turnId),
+        ...mintingKnown(deps.turn(caller, id, turnId), trace),
         advanceRun: (observed) => advance(deps, caller, id, observed),
       },
       {

@@ -364,6 +364,7 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
     withAccess: accessGranter(parts),
     approvals: approvalPortsFor(parts),
     approvalSecret: deriveApprovalSecret(parts.kek),
+    knownSecrets: parts.knownSecrets ?? [],
     now: parts.now ?? (() => new Date()),
     newId,
     audit: budgetAuditRecorder(parts),

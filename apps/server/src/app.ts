@@ -73,6 +73,7 @@ import {
 } from '@odudu/mcp';
 import { isMeRoute, meRefusalHeaders, registerMeOpenApiRoute, registerMeRoutes } from '@odudu/me';
 import {
+  providerSecrets,
   readSettings as readAssistantSettings,
   status as assistantStatus,
   writeSettings as writeAssistantSettings,
@@ -880,6 +881,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
               logger: deps.logger,
               publicBaseUrl: deps.publicBaseUrl,
               models: deps.assistantModels,
+              knownSecrets: providerSecrets(deps.assistant.env),
             }),
           }),
       retireResetLinks: (tx, subjectId) =>

@@ -32,6 +32,8 @@ export interface TraceDeps {
   readonly deadlineMs?: number;
   /** Secrets the server holds, masked wherever they turn up. */
   readonly known?: readonly string[];
+  /** How long a closing attempt waits before its one retry after a timeout; 300 ms. */
+  readonly retryMs?: number;
 }
 
 /**
@@ -47,6 +49,8 @@ export interface TraceRecorder extends Telemetry {
   decision(turnId: string, kind: DecisionKind, payload: Readonly<Record<string, unknown>>): void;
   /** Closes the steps still open and the turn, and writes what was held. Once. */
   end(stopReason: StopReason): Promise<void>;
+  /** A secret the server came to hold during the turn, such as a token it minted. */
+  know(secret: string): void;
   /** A write failed, so the trace of this turn is incomplete. */
   lost(): boolean;
 }
@@ -54,6 +58,7 @@ export interface TraceRecorder extends Telemetry {
 const MODEL_LENGTH = 200;
 const REQUEST_ID_LENGTH = 256;
 export const TRACE_DEADLINE_MS = 2_000;
+const RETRY_MS = 300;
 
 const orNull = (value: number | undefined): number | null => value ?? null;
 
@@ -225,7 +230,7 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
     onStepEnd: (step) => {
       const id = stepOf.get(step.callId);
       if (id === undefined) return undefined;
-      open.delete(id);
+      // Left open until its close is written, so the turn's end can try again.
       return commit(async (repo) => {
         await repo.closeStep({
           tenantId: deps.tenantId,
@@ -238,6 +243,7 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
           outputTokens: orNull(step.usage.outputTokens),
           endedAt: deps.now(),
         });
+        open.delete(id);
       });
     },
 
@@ -291,9 +297,12 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
       const endedAt = deps.now();
       const unfinished = [...open];
       open.clear();
-      const close = async (repo: ReturnType<typeof traceRepository>): Promise<void> => {
+      // Closes what is open; false when a row is not there to close, which is what
+      // a write that timed out and commits late looks like.
+      const close = async (repo: ReturnType<typeof traceRepository>): Promise<boolean> => {
+        let whole = true;
         for (const id of unfinished) {
-          await repo.closeStep({
+          const closed = await repo.closeStep({
             tenantId: deps.tenantId,
             id,
             providerRequestId: null,
@@ -301,16 +310,21 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
             outputTokens: null,
             endedAt,
           });
+          whole &&= closed;
         }
-        await repo.closeTurn(deps.tenantId, deps.turnId, endedAt, stopReason);
+        return (await repo.closeTurn(deps.tenantId, deps.turnId, endedAt, stopReason)) && whole;
       };
       if (failed) {
-        // One attempt, so that what stops short is not left looking as if it were
-        // still running; if the database is the trouble, this fails as well.
-        try {
-          await within(deps.transact((tx) => close(traceRepository(tx))));
-        } catch {
-          // The audit row says the trace was lost.
+        // A write that timed out may still commit, after this: one retry once it
+        // has had time to, and then the rows are left as they are. A step or turn
+        // can stay open for good, and `started_at` against the clock says so.
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          if (attempt > 0) await new Promise((r) => setTimeout(r, deps.retryMs ?? RETRY_MS));
+          try {
+            if (await within(deps.transact((tx) => close(traceRepository(tx))))) return;
+          } catch {
+            // The audit row says the trace was lost.
+          }
         }
         return;
       }
@@ -324,7 +338,13 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
           at: endedAt,
         });
       }
-      return commit(close);
+      return commit(async (repo) => {
+        await close(repo);
+      });
+    },
+
+    know: (secret) => {
+      masker.know(secret);
     },
 
     lost: () => failed,

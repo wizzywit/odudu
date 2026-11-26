@@ -1,4 +1,4 @@
-export { createLanguageModel } from '#/adapter/provider';
+export { createLanguageModel, providerSecrets } from '#/adapter/provider';
 export { explainSlots, resolveSlots } from '#/service/slots';
 export { status } from '#/usecase/status';
 export { readSettings, writeSettings } from '#/usecase/settings';

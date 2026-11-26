@@ -441,6 +441,41 @@ describe('the recorder over a real agent', () => {
     expect(turn?.ended_at).not.toBeNull();
   });
 
+  it('closes a step whose opening write committed after its deadline, with one retry', async () => {
+    const f = await fixture();
+    let calls = 0;
+    const { recorder, turnId } = recorderFor(f, {
+      deadlineMs: 30,
+      retryMs: 400,
+      transact: (fn) => {
+        calls += 1;
+        // The step's opening write is slow: past the deadline, then it commits.
+        return calls === 2
+          ? new Promise((resolve, reject) => {
+              setTimeout(() => {
+                withTenant(app.db, f.tenantId, fn).then(resolve, reject);
+              }, 120);
+            })
+          : withTenant(app.db, f.tenantId, fn);
+      },
+    });
+    await recorder.begin(HASH);
+    const agent = new ToolLoopAgent({
+      model: model(say('hi')),
+      telemetry: { integrations: [recorder] },
+    });
+    await agent.generate({ prompt: 'hello' });
+    await recorder.end('done');
+
+    expect(recorder.lost()).toBe(true);
+    // Long enough for the slow write to have landed, whichever way it was closed.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const [step] = await rows('assistant_steps', turnId);
+    expect(step).toBeDefined();
+    expect(step?.ended_at).not.toBeNull();
+    expect((await rows('assistant_turns', turnId))[0]?.ended_at).not.toBeNull();
+  });
+
   it('ignores a decision that names another turn', async () => {
     const f = await fixture();
     const { recorder, turnId } = recorderFor(f);

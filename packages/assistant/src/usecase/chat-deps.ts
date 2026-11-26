@@ -169,6 +169,8 @@ interface ChatBase {
    * replace any registered globally, so one registered globally gets none.
    */
   readonly telemetry?: readonly Telemetry[];
+  /** Secrets the server holds, such as the provider's keys; they never reach the trace. */
+  readonly knownSecrets?: readonly string[];
   readonly now: () => Date;
   readonly newId: () => string;
   /** The most turns this process runs at once; 256 unless a test says otherwise. */

@@ -25,6 +25,8 @@ export interface AssistantChatParts {
   readonly publicBaseUrl: string | undefined;
   /** The model a slot runs; the provider's key is read where it is built, not here. */
   readonly models: ChatDeps['model'];
+  /** Secrets the server holds, such as the provider's keys, kept out of the trace. */
+  readonly knownSecrets?: readonly string[];
   readonly now?: () => Date;
 }
 
