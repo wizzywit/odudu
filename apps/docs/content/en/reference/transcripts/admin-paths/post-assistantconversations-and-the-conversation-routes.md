@@ -1,6 +1,6 @@
 ---
 title: 'Assistant conversations: start, load, send and stop'
-description: "The console assistant's four conversation routes: start one with a page context, load it, send a message and read the turn as a stream, stop a running turn…"
+description: "The console assistant's four conversation routes: start, load, send a message and read the turn as a stream, and stop a turn."
 ---
 
 # Assistant conversations: start, load, send and stop

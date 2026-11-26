@@ -241,6 +241,38 @@ describe('the assistant settings route', () => {
     });
   });
 
+  it('lets only one of two saves on the same ETag through, and chains the audit before and after', async () => {
+    for (let round = 0; round < 5; round += 1) {
+      const w = await s().world(['manage-assistant', 'view-audit'], 'openid');
+      const token = await adminToken(w);
+      const etag = String((await get(on(), w, '/settings', token)).headers.etag);
+      const save = (steps: number) =>
+        on().inject({
+          method: 'PUT',
+          url: `/admin/tenants/${w.name}/assistant/settings`,
+          headers: {
+            host: HOST,
+            authorization: `Bearer ${token}`,
+            'content-type': 'application/json',
+            'if-match': etag,
+          },
+          payload: JSON.stringify({ ...DEFAULTS, assistant_max_steps_per_turn: steps }),
+        });
+      const results = await Promise.all([save(11), save(12)]);
+      expect(results.map((r) => r.statusCode).sort(), `round ${String(round)}`).toEqual([200, 412]);
+      const rows = await configRows(on(), w, token);
+      expect(rows).toHaveLength(1);
+      const winner = results
+        .find((r) => r.statusCode === 200)
+        ?.json<{
+          assistant_max_steps_per_turn: number;
+        }>();
+      expect(rows[0]?.detail).toEqual({
+        assistant_max_steps_per_turn: { before: 20, after: winner?.assistant_max_steps_per_turn },
+      });
+    }
+  });
+
   it('answers an ETag and refuses a save over a version it did not read', async () => {
     const w = await s().world(['manage-assistant'], 'openid');
     const token = await adminToken(w);

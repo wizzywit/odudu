@@ -10,7 +10,12 @@ import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odu
 import { auditRepository, type AdminMutationAction } from '@odudu/domain-audit';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { hashPassword, subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
-import { ADMIN_CLIENT_ID, clientRepository, hostState } from '@odudu/domain-tenant';
+import {
+  ADMIN_CLIENT_ID,
+  clientRepository,
+  hostState,
+  tenantSettingsRepository,
+} from '@odudu/domain-tenant';
 import { type inspectImage } from '@odudu/domain-theme';
 import {
   type ClaimMapperRegistry,
@@ -248,6 +253,7 @@ import {
   loadConversationHandler,
   sendMessageHandler,
   stopConversationHandler,
+  tenantOffersAssistant,
   type AssistantChatPort,
 } from '#/view/routes/assistant';
 import { whoamiHandler } from '#/view/routes/whoami';
@@ -717,6 +723,9 @@ function buildAdminRoutes(
     const assistantDeps: AssistantRouteDeps = {
       database: deps.database.db,
       audit: assistantSettingsAudit,
+      lock: async (tx, tenantId) => {
+        await tenantSettingsRepository(tx).lockById(tenantId);
+      },
       now: () => clock.now(),
       status: deps.assistantStatus ?? (() => ({ enabled: false })),
       ...(deps.assistantSettings === undefined ? {} : { store: deps.assistantSettings }),
@@ -856,7 +865,7 @@ function buildAdminRoutes(
       ownerDatabase: deps.ownerDatabase.db,
       now: () => clock.now(),
     };
-    const chatDeps = { chat: deps.assistantChat };
+    const chatDeps = { chat: deps.assistantChat, offered: tenantOffersAssistant(assistantDeps) };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
       'GET /admin/tenants/:tenant/assistant/status': assistantStatusHandler(assistantDeps),

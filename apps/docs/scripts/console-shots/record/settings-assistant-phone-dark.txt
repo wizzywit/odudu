@@ -5,10 +5,7 @@
 }
 Odudu console
 Skip to content
-odudu · system
-System
-Tenants
-System administrators
+odudu · demo
 Overview
 Identity
 Subjects
@@ -33,6 +30,8 @@ Observe
 Audit trail
 Signed in as 
 admin@odudu.local
+ from 
+system
 Theme
 System
 Light
@@ -42,9 +41,14 @@ Sign out
 Collapse menu
 or press 
 [
-odudu · system
+odudu · demo
 Menu
-system
+System
+Acting in 
+demo
+ with system authority
+Back to system
+demo
 Settings
 How this tenant signs people in, what it asks of their passwords, and how long it keeps what it records. Every section saves on its own.
 Tenant
@@ -75,7 +79,7 @@ Display name
 Leave it empty to use the tenant name.
 Enabled
 On
-system cannot be disabled: it is the tenant every cross-tenant administrator signs in to.
+Off stops every sign-in in this tenant. Saving it off asks you to type the tenant name first.
 Terms
 The terms a person accepts when asked to. Setting them asks nobody: an administrator asks a person from the Required actions tab of their record, and again when the terms change.
 Terms address
@@ -421,7 +425,7 @@ Whether this tenant’s administrators are offered the assistant, what it may do
 Availability
 Offer the assistant
 On
-Off stops offering it to anyone in this tenant; nothing already recorded is deleted. Default: on.
+Off refuses new conversations and messages for everyone in this tenant; what is already recorded stays, and can still be read. Default: on.
 Starts in
 Ask: the assistant only reads
 ▾
@@ -431,7 +435,7 @@ Act: it may propose changes, each waiting for approval
 Privacy and records
 Mask email addresses
 Off
-Replace email addresses before anything is sent to the model provider. Default: off.
+An address in what the assistant reads is replaced before it is sent to the model provider by its first letter, three asterisks and its domain, so the domain still shows. Default: off.
 Auditors can read conversations
 On
 People who can read assistant activity see what was asked and what the assistant did. Everyone using the assistant is told so. Default: on.
@@ -445,7 +449,7 @@ Fast model, each month
 tokens
 Titles, summaries and small reads. Default: 2,000,000 tokens. Allowed: 0 to 1,000,000,000 tokens.
 More
-When a limit is reached the assistant stops and says which one. It never falls back to a cheaper model on its own. The panel warns at 80%.
+These are the allowances a tenant holds; the assistant does not stop at them yet. Once it does, it will stop and name the limit, and never fall back to a cheaper model on its own.
 Standard model, each month
 tokens
 The main conversation. Default: 5,000,000 tokens. Allowed: 0 to 1,000,000,000 tokens.

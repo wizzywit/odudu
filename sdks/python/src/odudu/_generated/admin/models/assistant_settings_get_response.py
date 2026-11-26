@@ -19,16 +19,18 @@ class AssistantSettingsGetResponse:
     """
     Attributes:
         assistant_enabled (bool): Whether the tenant’s administrators are offered the assistant. False reads as `{
-            "enabled": false }` from the status route for this tenant alone.
+            "enabled": false }` from the status route for this tenant alone, and starting a conversation or sending a
+            message is refused as a path never served.
         assistant_default_mode (AssistantSettingsGetResponseAssistantDefaultMode): The mode a person starts in: `ask`
             reads only, `act` may also propose changes that wait for the person’s approval.
-        assistant_mask_emails (bool): Whether email addresses are masked before anything is sent to the model provider.
+        assistant_mask_emails (bool): Whether an email address the assistant reads is replaced by its first character,
+            three asterisks and its domain before it is sent to the model provider.
         assistant_trace_retention_days (int): How many days the step-by-step trace of a conversation is kept, from 1 to
             365. The audit trail follows its own retention.
         assistant_auditor_visible (bool): Whether people who can read assistant activity may see conversations. People
             using the assistant are told.
         assistant_monthly_tokens_fast (int): The tokens the tenant may spend each month on the fast model slot, from 0
-            to 1,000,000,000. Past it the assistant stops and names the limit; it never falls back to another model.
+            to 1,000,000,000. The assistant does not yet stop at it.
         assistant_monthly_tokens_standard (int): The tokens the tenant may spend each month on the standard model slot,
             from 0 to 1,000,000,000.
         assistant_monthly_tokens_deep (int): The tokens the tenant may spend each month on the deep model slot, from 0

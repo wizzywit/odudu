@@ -9754,7 +9754,7 @@ export interface paths {
         };
         /**
          * Requires the "manage-assistant" capability, or "read-assistant-activity".
-         * @description Needs `manage-assistant`, or `read-assistant-activity`, which may read but not change. What this tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the mode a person starts in, email masking, how long traces are kept, whether auditors see conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and the steps of one turn. `404` where the deployment has no assistant configured.
+         * @description Needs `manage-assistant`, or `read-assistant-activity`, which may read but not change. What this tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the mode a person starts in, email masking, how long traces are kept, whether auditors see conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and the steps of one turn. `404` where the deployment has no assistant configured. A system administrator holding `manage-tenants` and the capability may read another tenant’s settings.
          */
         get: {
             parameters: {
@@ -10203,31 +10203,21 @@ export interface components {
             /** @description The parts of the draft (`tokens`, `assets`, `stylesheet`, `templates`) that differ from this scope’s own published theme, compared by the server on their stored form, in that order. Empty when there is no draft or the draft matches what is published; nothing published compares as the empty theme. Publishing is refused with `about:blank#theme-nothing-to-publish` while it is empty. */
             changed: ("tokens" | "assets" | "stylesheet" | "templates")[];
         };
-        FlowsPostResponse: {
-            /** @description The flow’s identifier in the admin API. */
-            id: string;
-            /** @description The flow’s name, unique within the tenant. */
-            name: string;
-            /** @description True for the tenant’s default flow, which a client that names no flow signs in through. */
-            is_default: boolean;
-            /** @description The steps in the order they run. */
-            steps: components["schemas"]["FlowsGetResponseItemsItemStepsItem"][];
-        };
         AssistantSettingsGetResponse: {
-            /** @description Whether the tenant’s administrators are offered the assistant. False reads as `{ "enabled": false }` from the status route for this tenant alone. */
+            /** @description Whether the tenant’s administrators are offered the assistant. False reads as `{ "enabled": false }` from the status route for this tenant alone, and starting a conversation or sending a message is refused as a path never served. */
             assistant_enabled: boolean;
             /**
              * @description The mode a person starts in: `ask` reads only, `act` may also propose changes that wait for the person’s approval.
              * @enum {string}
              */
             assistant_default_mode: "ask" | "act";
-            /** @description Whether email addresses are masked before anything is sent to the model provider. */
+            /** @description Whether an email address the assistant reads is replaced by its first character, three asterisks and its domain before it is sent to the model provider. */
             assistant_mask_emails: boolean;
             /** @description How many days the step-by-step trace of a conversation is kept, from 1 to 365. The audit trail follows its own retention. */
             assistant_trace_retention_days: number;
             /** @description Whether people who can read assistant activity may see conversations. People using the assistant are told. */
             assistant_auditor_visible: boolean;
-            /** @description The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. Past it the assistant stops and names the limit; it never falls back to another model. */
+            /** @description The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant does not yet stop at it. */
             assistant_monthly_tokens_fast: number;
             /** @description The tokens the tenant may spend each month on the standard model slot, from 0 to 1,000,000,000. */
             assistant_monthly_tokens_standard: number;
@@ -10237,6 +10227,16 @@ export interface components {
             assistant_max_concurrent: number;
             /** @description The most model and tool calls one answer may take before it stops, from 1 to 100. */
             assistant_max_steps_per_turn: number;
+        };
+        FlowsPostResponse: {
+            /** @description The flow’s identifier in the admin API. */
+            id: string;
+            /** @description The flow’s name, unique within the tenant. */
+            name: string;
+            /** @description True for the tenant’s default flow, which a client that names no flow signs in through. */
+            is_default: boolean;
+            /** @description The steps in the order they run. */
+            steps: components["schemas"]["FlowsGetResponseItemsItemStepsItem"][];
         };
         ScopesGetResponseItemsItem: {
             /** @description The scope’s identifier. */

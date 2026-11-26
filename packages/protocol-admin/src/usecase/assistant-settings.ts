@@ -32,6 +32,10 @@ export interface AssistantSettingsStore {
 export interface AssistantSettingsDeps {
   readonly store: AssistantSettingsStore;
   readonly audit: Audit;
+  // Takes the tenant's row lock, so that what follows reads and replaces the
+  // settings with no other save in between (the tenants row, because the
+  // settings row may not exist yet).
+  readonly lock: (tx: TenantScopedDatabase, tenantId: string) => Promise<void>;
   readonly now: () => Date;
 }
 
@@ -74,6 +78,7 @@ export async function putAssistantSettings(
   tx: TenantScopedDatabase,
   input: PutAssistantSettingsInput,
 ): Promise<PutAssistantSettingsOutcome> {
+  await deps.lock(tx, input.tenantId);
   const before = await deps.store.read(tx, input.tenantId);
   if (matches(input.ifMatch, etagOf(before)) === 'mismatch') {
     return { kind: 'precondition_failed' };

@@ -13,10 +13,14 @@ const ACTOR = { actorSubjectId: 's', actorTenantId: 't', actorClientId: 'c' };
 const NOW = new Date('2026-11-26T10:00:00.000Z');
 
 function setup(stored: AssistantSettings) {
+  const order: string[] = [];
   const writes: AssistantSettings[] = [];
   const events: Parameters<Audit>[1][] = [];
   const store: AssistantSettingsStore = {
-    read: () => Promise.resolve(stored),
+    read: () => {
+      order.push('read');
+      return Promise.resolve(stored);
+    },
     write: (_tx, _tenant, settings) => {
       writes.push(settings);
       return Promise.resolve();
@@ -26,8 +30,24 @@ function setup(stored: AssistantSettings) {
     events.push(event);
     return Promise.resolve();
   };
-  return { writes, events, deps: { store, audit, now: () => NOW } };
+  const lock = (): Promise<void> => {
+    order.push('lock');
+    return Promise.resolve();
+  };
+  return { order, writes, events, deps: { store, audit, lock, now: () => NOW } };
 }
+
+describe('putAssistantSettings under concurrency', () => {
+  it('takes the tenant lock before it reads what it compares and replaces', async () => {
+    const { order, deps } = setup(ASSISTANT_SETTING_DEFAULTS);
+    await putAssistantSettings(deps, TX, {
+      tenantId: 'tenant',
+      settings: { ...ASSISTANT_SETTING_DEFAULTS, assistant_enabled: false },
+      ...ACTOR,
+    });
+    expect(order).toEqual(['lock', 'read']);
+  });
+});
 
 describe('putAssistantSettings', () => {
   it('stores the document and audits each changed setting as before and after', async () => {

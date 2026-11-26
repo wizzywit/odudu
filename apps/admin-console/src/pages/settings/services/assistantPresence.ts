@@ -10,9 +10,10 @@ export type AssistantPresence = 'absent' | 'pending' | 'failed' | 'ready';
 
 const READERS: readonly AdminCapability[] = ['manage-assistant', 'read-assistant-activity'];
 
-// Until whoami has answered the read is tried, as the rail does for an area.
+// Nothing is asked until whoami has answered, so a person who holds neither
+// capability is never sent a request that can only be refused.
 export function mayReadAssistant(authority: Authority | undefined): boolean {
-  return authority === undefined || READERS.some((capability) => holds(authority, capability));
+  return authority !== undefined && READERS.some((capability) => holds(authority, capability));
 }
 
 export function mayChangeAssistant(authority: Authority | undefined): boolean {

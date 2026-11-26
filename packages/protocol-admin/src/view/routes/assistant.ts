@@ -15,6 +15,7 @@ import {
   putAssistantSettings,
   readAssistantSettings,
   type Audit,
+  type AssistantSettingsDeps,
   type AssistantSettingsStore,
 } from '#/usecase/assistant-settings';
 import { ifMatchStale, problem, sendProblem } from '#/view/problem';
@@ -25,6 +26,8 @@ export interface AssistantRouteDeps {
   readonly database: Database;
   readonly audit: Audit;
   readonly now: () => Date;
+  // Takes the tenant's row lock for a save (see `AssistantSettingsDeps`).
+  readonly lock: AssistantSettingsDeps['lock'];
   // What the status answers for a tenant with these settings. The assistant
   // package computes it from the environment and cannot be imported here.
   readonly status: (settings: AssistantSettings) => AssistantStatus;
@@ -59,14 +62,13 @@ export function assistantStatusHandler(deps: AssistantRouteDeps): AdminRouteHand
   };
 }
 
-// Settings belong to the tenant the administrator signed in to: a system
-// administrator reaching another tenant is not served them, as for a chat call.
+// Settings are the tenant's configuration, with no owner subject: the door's
+// capability check (manage-tenants as well, from another tenant) is the whole
+// of who may reach them, as for every other tenant-configuration route.
 export function readAssistantSettingsHandler(deps: AssistantRouteDeps): AdminRouteHandler {
-  return async (request, reply, principal, tenantId): Promise<FastifyReply> => {
+  return async (request, reply, _principal, tenantId): Promise<FastifyReply> => {
     const store = deps.store;
-    if (store === undefined || principal.issuerTenantId !== tenantId) {
-      return notServed(request, reply);
-    }
+    if (store === undefined) return notServed(request, reply);
     const { settings, etag } = await adminTx(deps.database, request, tenantId, (tx) =>
       readAssistantSettings({ store }, tx, tenantId),
     );
@@ -77,12 +79,10 @@ export function readAssistantSettingsHandler(deps: AssistantRouteDeps): AdminRou
 export function putAssistantSettingsHandler(deps: AssistantRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, tenantId): Promise<FastifyReply> => {
     const store = deps.store;
-    if (store === undefined || principal.issuerTenantId !== tenantId) {
-      return notServed(request, reply);
-    }
+    if (store === undefined) return notServed(request, reply);
     const settings = putAssistantSettingsRequestSchema.parse(request.body);
     const outcome = await adminTx(deps.database, request, tenantId, (tx) =>
-      putAssistantSettings({ store, audit: deps.audit, now: deps.now }, tx, {
+      putAssistantSettings({ store, audit: deps.audit, lock: deps.lock, now: deps.now }, tx, {
         tenantId,
         settings,
         ifMatch: ifMatchHeader(request),
@@ -142,6 +142,31 @@ export interface AssistantChatPort {
 
 export interface AssistantChatRouteDeps {
   readonly chat: AssistantChatPort | undefined;
+  // Whether the tenant offers the assistant (`assistant_enabled`). Absent, it is.
+  readonly offered?: ((request: AdminRequest, tenantId: string) => Promise<boolean>) | undefined;
+}
+
+// A tenant that turned the assistant off is not served new work: create and
+// send answer as a path never served, while what a person already has can still
+// be read and a running turn stopped.
+async function offered(
+  deps: AssistantChatRouteDeps,
+  request: AdminRequest,
+  tenantId: string,
+): Promise<boolean> {
+  return deps.offered === undefined || (await deps.offered(request, tenantId));
+}
+
+// What `AssistantChatRouteDeps.offered` is, from the settings the routes read.
+export function tenantOffersAssistant(deps: AssistantRouteDeps): AssistantChatRouteDeps['offered'] {
+  const store = deps.store;
+  if (store === undefined) return undefined;
+  return async (request, tenantId) => {
+    const { settings } = await adminTx(deps.database, request, tenantId, (tx) =>
+      readAssistantSettings({ store }, tx, tenantId),
+    );
+    return settings.assistant_enabled;
+  };
 }
 
 function notFound(request: FastifyRequest, reply: FastifyReply): FastifyReply {
@@ -200,6 +225,7 @@ export function createConversationHandler(deps: AssistantChatRouteDeps): AdminRo
   return async function handleCreateConversation(request, reply, principal, tenantId) {
     const caller = callerOf(request, principal, tenantId);
     if (deps.chat === undefined || caller === null) return notFound(request, reply);
+    if (!(await offered(deps, request, tenantId))) return notFound(request, reply);
     const outcome = await deps.chat.create(caller, request.body as CreateConversationRequest);
     if (outcome.kind === 'unknown_profile') {
       return sendProblem(
@@ -240,6 +266,7 @@ function abortWhenClosed(reply: FastifyReply): AbortSignal {
 
 export function sendMessageHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
   return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    if (!(await offered(deps, request, caller.tenantId))) return notFound(request, reply);
     const body = request.body as SendMessageRequest;
     const outcome = await chat.send(caller, id, body.message, abortWhenClosed(reply));
     if (outcome.kind === 'not_found') return notFound(request, reply);

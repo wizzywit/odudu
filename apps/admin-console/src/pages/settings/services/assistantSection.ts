@@ -55,7 +55,7 @@ export const ASSISTANT_SECTION: SettingsSection = {
       label: 'Offer the assistant',
       control: 'toggle',
       group: ASSISTANT_WORDS.groups.availability,
-      description: `Off stops offering it to anyone in this tenant; nothing already recorded is deleted. ${defaultOnOff('assistant_enabled')}`,
+      description: `Off refuses new conversations and messages for everyone in this tenant; what is already recorded stays, and can still be read. ${defaultOnOff('assistant_enabled')}`,
     },
     {
       name: 'assistant_default_mode',
@@ -73,7 +73,7 @@ export const ASSISTANT_SECTION: SettingsSection = {
       label: 'Mask email addresses',
       control: 'toggle',
       group: ASSISTANT_WORDS.groups.privacy,
-      description: `Replace email addresses before anything is sent to the model provider. ${defaultOnOff('assistant_mask_emails')}`,
+      description: `An address in what the assistant reads is replaced before it is sent to the model provider by its first letter, three asterisks and its domain, so the domain still shows. ${defaultOnOff('assistant_mask_emails')}`,
     },
     {
       name: 'assistant_auditor_visible',
@@ -98,7 +98,7 @@ export const ASSISTANT_SECTION: SettingsSection = {
       unit: 'tokens',
       group: ASSISTANT_WORDS.groups.limits,
       description: `Titles, summaries and small reads. ${defaultAmount('assistant_monthly_tokens_fast', 'tokens')}`,
-      more: 'When a limit is reached the assistant stops and says which one. It never falls back to a cheaper model on its own. The panel warns at 80%.',
+      more: 'These are the allowances a tenant holds; the assistant does not stop at them yet. Once it does, it will stop and name the limit, and never fall back to a cheaper model on its own.',
     },
     {
       name: 'assistant_monthly_tokens_standard',

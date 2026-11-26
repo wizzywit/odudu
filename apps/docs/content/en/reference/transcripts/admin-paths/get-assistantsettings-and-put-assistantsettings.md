@@ -1,6 +1,6 @@
 ---
 title: 'GET /assistant/settings and PUT /assistant/settings'
-description: 'What a tenant chose for its console assistant: whether it is on, its default mode, masking, trace retention, auditor access and its limits, read and replaced on an ETag…'
+description: 'What a tenant chose for its console assistant, read and replaced on an ETag: mode, masking, retention, auditors and limits, with the audit row.'
 ---
 
 # `GET /assistant/settings` and `PUT /assistant/settings`
@@ -20,7 +20,7 @@ whatever it holds, since an agent reads and edits nothing of the assistant that 
 that sends an `If-Match` the settings have moved past is refused `412`. `PUT` replaces every setting, so a caller sends the whole
 document: a value outside its range, a missing setting and an unknown one are each refused `400`. A change is audited as
 `assistant.config`, in the same transaction, with each setting that changed as its value before and after; a `PUT` that changes nothing
-writes no row. Where the server has no assistant configured both routes answer exactly as a path that was never served does, and so they do to a system administrator reaching into another tenant, since the settings belong to the tenant the administrator signed in to (the conversation routes behave the same; this case has no block below).
+writes no row. Where the server has no assistant configured both routes answer exactly as a path that was never served does. A system administrator holding `manage-tenants` and `manage-assistant` may read and change another tenant's settings; the conversation routes, which belong to the administrator who started them, are not served to such a caller. For a tenant that has turned the assistant off, starting a conversation or sending a message answers `404` too, and a conversation can still be read and stopped (these cases have no block below).
 
 The first run is on one stack, port `3118`, from an empty volume, started with a second compose file that sets
 `ODUDU_ASSISTANT_MODELS` to `standard=anthropic:claude-model-for-transcript` and `ANTHROPIC_API_KEY` to a placeholder no call uses. The

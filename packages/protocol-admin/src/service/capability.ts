@@ -2119,8 +2119,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'whether it is on, the mode a person starts in, email masking, how long traces are kept, ' +
       'whether auditors see conversations, a month’s tokens for each model slot, the ' +
       'conversations a tenant may run at once and the steps of one turn. `404` where the ' +
-      'deployment has no assistant configured, and to a system administrator reaching into ' +
-      'another tenant, whose settings are its own administrators’.',
+      'deployment has no assistant configured. A system administrator holding ' +
+      '`manage-tenants` and the capability may read another tenant\u2019s settings.',
   },
   {
     method: 'PUT',

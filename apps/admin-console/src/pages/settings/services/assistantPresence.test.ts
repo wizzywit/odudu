@@ -13,8 +13,8 @@ const held = (...capabilities: Authority['capabilities']): Authority => ({
   crossTenant: false,
 });
 
-it('lets a person who manages or audits the assistant read its settings, and one who has not been told yet try', () => {
-  expect(mayReadAssistant(undefined)).toBe(true);
+it('lets a person who manages or audits the assistant read its settings, and nobody before whoami has answered', () => {
+  expect(mayReadAssistant(undefined)).toBe(false);
   expect(mayReadAssistant(held('manage-assistant'))).toBe(true);
   expect(mayReadAssistant(held('read-assistant-activity'))).toBe(true);
   expect(mayReadAssistant(held('manage-tenant', 'use-assistant'))).toBe(false);

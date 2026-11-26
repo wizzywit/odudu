@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
-import { json, problem, type Answer } from '#/testing/fakeTransport';
+import { inTurn, json, problem, type Answer } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
 import { AS, assistantAnswer, settingsRoutes } from '#/testing/settingsFixtures';
@@ -81,6 +81,39 @@ it('sets the mode a person starts in', async () => {
       assistant_default_mode: 'act',
     });
   });
+});
+
+it('shows a 412 as the other administrator’s value beside yours', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    withAssistant(undefined, {
+      [`PUT ${AS}`]: problem(412, 'about:blank', 'Precondition Failed'),
+      [`GET ${AS}`]: inTurn(
+        assistantAnswer(),
+        assistantAnswer({ assistant_max_concurrent: 9 }, '"a2"'),
+      ),
+    }),
+  );
+  const assistant = await section();
+  const field = within(assistant).getByRole('textbox', { name: 'Answers at once' });
+  await user.clear(field);
+  await user.type(field, '7');
+  await user.tab();
+  await user.click(within(assistant).getByRole('button', { name: 'Save Console assistant' }));
+  expect(await within(assistant).findByRole('button', { name: /Keep mine/u })).toBeVisible();
+});
+
+it('draws no section and keeps the page whole when the read is refused with 403', async () => {
+  renderConsoleAt(
+    AT,
+    withAssistant(undefined, { [`GET ${AS}`]: problem(403, 'about:blank', 'Forbidden') }),
+  );
+  await screen.findByRole('region', { name: 'General' });
+  await waitFor(() => {
+    expect(screen.queryByRole('region', { name: 'Console assistant' })).toBeNull();
+  });
+  expect(screen.queryByText('The assistant settings could not be loaded')).toBeNull();
 });
 
 it('puts the server’s refusal of a value under its field', async () => {

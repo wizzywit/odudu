@@ -73,7 +73,8 @@ def sync_detailed(
     tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the
     mode a person starts in, email masking, how long traces are kept, whether auditors see
     conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and
-    the steps of one turn. `404` where the deployment has no assistant configured.
+    the steps of one turn. `404` where the deployment has no assistant configured. A system
+    administrator holding `manage-tenants` and the capability may read another tenant’s settings.
 
     Args:
         tenant (str):
@@ -108,7 +109,8 @@ def sync(
     tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the
     mode a person starts in, email masking, how long traces are kept, whether auditors see
     conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and
-    the steps of one turn. `404` where the deployment has no assistant configured.
+    the steps of one turn. `404` where the deployment has no assistant configured. A system
+    administrator holding `manage-tenants` and the capability may read another tenant’s settings.
 
     Args:
         tenant (str):
@@ -138,7 +140,8 @@ async def asyncio_detailed(
     tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the
     mode a person starts in, email masking, how long traces are kept, whether auditors see
     conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and
-    the steps of one turn. `404` where the deployment has no assistant configured.
+    the steps of one turn. `404` where the deployment has no assistant configured. A system
+    administrator holding `manage-tenants` and the capability may read another tenant’s settings.
 
     Args:
         tenant (str):
@@ -171,7 +174,8 @@ async def asyncio(
     tenant chose for its assistant, each setting at its default until it chooses: whether it is on, the
     mode a person starts in, email masking, how long traces are kept, whether auditors see
     conversations, a month’s tokens for each model slot, the conversations a tenant may run at once and
-    the steps of one turn. `404` where the deployment has no assistant configured.
+    the steps of one turn. `404` where the deployment has no assistant configured. A system
+    administrator holding `manage-tenants` and the capability may read another tenant’s settings.
 
     Args:
         tenant (str):
