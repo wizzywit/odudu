@@ -60,13 +60,23 @@
 
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
 }
 
 .hint {
+  flex: 1 1 12rem;
   margin: 0;
   font-size: var(--type-12);
   color: var(--ink-muted);
+}
+
+/* The button keeps its own width and never breaks its word, however narrow
+   the panel: the hint wraps or drops to its own line instead. */
+.action {
+  flex: none;
+  margin-inline-start: auto;
+  white-space: nowrap;
 }

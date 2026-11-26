@@ -72,15 +72,17 @@ export function Composer({
         <p id={hintId} className={styles.hint}>
           {words.composerHint}
         </p>
-        {running ? (
-          <Button variant="secondary" size="small" onPress={composer.stop}>
-            {words.stop}
-          </Button>
-        ) : (
-          <Button variant="primary" size="small" type="submit" isDisabled={!composer.sendable}>
-            {words.send}
-          </Button>
-        )}
+        <span className={styles.action}>
+          {running ? (
+            <Button variant="secondary" size="small" onPress={composer.stop}>
+              {words.stop}
+            </Button>
+          ) : (
+            <Button variant="primary" size="small" type="submit" isDisabled={!composer.sendable}>
+              {words.send}
+            </Button>
+          )}
+        </span>
       </div>
     </form>
   );
