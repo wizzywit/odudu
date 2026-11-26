@@ -53,3 +53,59 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* A table wider than the message scrolls inside it and never moves the page.
+   Where it can scroll further a soft shadow shows at that edge: the covers
+   scroll with the content and hide the fixed shadows beneath them at the ends. */
+.tableScroll {
+  --scroll-shadow: color-mix(in srgb, var(--ink-primary) 12%, transparent);
+
+  max-inline-size: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: var(--hairline);
+  border-radius: var(--radius-s);
+  background:
+    linear-gradient(to right, var(--surface-panel), var(--surface-panel)) left center / 16px 100%
+      no-repeat local,
+    linear-gradient(to left, var(--surface-panel), var(--surface-panel)) right center / 16px 100%
+      no-repeat local,
+    linear-gradient(to right, var(--scroll-shadow), transparent) left center / 12px 100% no-repeat
+      scroll,
+    linear-gradient(to left, var(--scroll-shadow), transparent) right center / 12px 100% no-repeat
+      scroll;
+}
+
+.tableScroll:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-12);
+  line-height: 1.45;
+  text-align: start;
+}
+
+.cell {
+  min-inline-size: 14ch;
+  padding: var(--space-2) var(--space-3);
+  border-block-end: var(--hairline);
+  vertical-align: top;
+  text-align: start;
+  /* The message breaks a long word anywhere; a table cell would take that as
+     leave to shrink to a letter, so it breaks between words and scrolls. */
+  overflow-wrap: normal;
+}
+
+.table th {
+  font-weight: 600;
+  white-space: nowrap;
+  border-block-end: 2px solid var(--border-strong);
+}
+
+.table tbody tr:last-child .cell {
+  border-block-end: 0;
+}

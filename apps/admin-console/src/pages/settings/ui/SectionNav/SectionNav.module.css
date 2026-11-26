@@ -4,18 +4,36 @@
   position: sticky;
   inset-block-start: var(--sticky-top, 0px);
   z-index: 5;
+  min-inline-size: 0;
+  padding-block: var(--space-2);
+  background: var(--surface-page);
+  border-block-end: var(--hairline);
+}
+
+/* The strip scrolls sideways. Its right end fades, so a tab cut by the edge
+   reads as more to come and not as a label that was clipped, and the last
+   tab can be scrolled clear of the fade. */
+.strip {
   display: flex;
   gap: var(--space-4);
   min-inline-size: 0;
-  padding-block: var(--space-2);
+  padding-inline-end: var(--space-8);
   overflow-x: auto;
-  background: var(--surface-page);
-  border-block-end: var(--hairline);
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--space-4);
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--space-8)), transparent);
+}
+
+.strip::-webkit-scrollbar {
+  display: none;
 }
 
 .group {
   display: flex;
   flex: none;
+  scroll-snap-align: start;
   align-items: center;
   gap: var(--space-2);
 }
@@ -77,14 +95,25 @@
 
 @container settings (inline-size >= 64rem) {
   .nav {
+    padding: 0;
+    border-block-end: 0;
+    background: transparent;
+  }
+
+  .strip {
     flex-direction: column;
     gap: var(--space-4);
     max-block-size: calc(100vh - var(--sticky-top, 0px) - var(--space-6));
-    padding: 0;
+    padding-inline-end: 0;
     overflow-x: visible;
     overflow-y: auto;
-    border-block-end: 0;
-    background: transparent;
+    scroll-snap-type: none;
+    scrollbar-width: auto;
+    mask-image: none;
+  }
+
+  .strip::-webkit-scrollbar {
+    display: initial;
   }
 
   .group {

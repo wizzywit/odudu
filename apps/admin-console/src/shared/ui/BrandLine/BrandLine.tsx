@@ -22,10 +22,11 @@ function Mark() {
   );
 }
 
-// Decorative: the name beside it is what a screen reader reads.
-export function BrandLine({ children }: { children: ReactNode }) {
+// Decorative: the name beside it is what a screen reader reads. `single` keeps
+// the name on one line and cuts it with an ellipsis where the bar has no room.
+export function BrandLine({ children, single = false }: { children: ReactNode; single?: boolean }) {
   return (
-    <span className={styles.line}>
+    <span className={styles.line} data-single={single || undefined}>
       <Mark />
       <span className={styles.name}>{children}</span>
     </span>

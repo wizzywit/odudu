@@ -73,6 +73,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 - Deleting a client or a person now ends what was exchanged from their grants by other clients, the tokens an agent acted with under a deleted service account, and the agent instances they ran, together with the instances' own subjects. Before, those tokens stayed live, detached from the grant they came from, and the instance subjects were left listed.
 - The me API's CORS preflight now allows `POST` beside `GET`, `PATCH` and `DELETE`, which the delegation route needs from a browser application.
 - Revoking a grant whose cascade ended several thousand independent agent runs no longer fails: the audit rows are written in chunks instead of one insert that exceeded the database's limit of 65,535 bound values.
+- On a phone 320 pixels wide the console's Settings no longer run past the edge of the screen: a select holding a long value is cut to its card, the top bar keeps the tenant name on one line with **Ask** for the assistant's button, the list of sections fades at its end, and the assistant's panel fills the screen. An answer from the assistant that holds a table shows it as a table, scrolling sideways inside the answer where it is wide.
 
 ## [0.2.0] - 2026-11-23
 

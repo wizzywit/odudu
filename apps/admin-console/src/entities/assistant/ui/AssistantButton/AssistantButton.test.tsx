@@ -8,6 +8,7 @@ function button(over: { expanded?: boolean; onPress?: (opener: HTMLElement) => v
   return (
     <AssistantButton
       label="Ask the assistant"
+      shortLabel="Ask"
       hintLead="or press"
       shortcut="Control+K"
       expanded={over.expanded ?? false}
@@ -43,4 +44,14 @@ it('shows the shortcut beside the label without reading it out twice', () => {
 
 it('passes axe in both themes', async () => {
   expect(await axeInBothThemes(() => button())).toEqual({ light: [], dark: [] });
+});
+
+it('draws a shorter word where the bar is narrow, and is named by the whole label either way', () => {
+  render(button());
+  const control = screen.getByRole('button', { name: 'Ask the assistant' });
+  expect(control).toHaveAttribute('aria-label', 'Ask the assistant');
+  expect(control).toHaveTextContent('Ask the assistant');
+  expect(control).toHaveTextContent('Ask');
+  expect(control.querySelector('[data-short]')).toHaveTextContent('Ask');
+  expect(control.querySelector('[data-full]')).toHaveTextContent('Ask the assistant');
 });

@@ -38,6 +38,7 @@ export function MessageView({
                 key={`${String(index)}:text`}
                 settled={block.settled}
                 open={block.open}
+                tableLabel={words.tableLabel}
               />
             ) : (
               <ul

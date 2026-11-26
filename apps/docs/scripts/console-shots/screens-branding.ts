@@ -609,7 +609,7 @@ export const BRANDING_SCREENS: readonly Screen[] = [
   },
   {
     name: 'branding-narrow-theme',
-    alt: 'The Theme tab on a phone: the top bar holds the tenant name, Ask the assistant and Menu, the editor takes the whole width, the Publish bar is one row with Publish and More, the tabs scroll sideways, and a strip pinned to the bottom shows a miniature of the sign-in page with the words Sign in, Light and an Open preview button.',
+    alt: 'The Theme tab on a phone: the top bar holds the tenant name and Menu, the editor takes the whole width, the Publish bar is one row with Publish and More, the tabs scroll sideways, and a strip pinned to the bottom shows a miniature of the sign-in page with the words Sign in, Light and an Open preview button.',
     caption: 'On a phone the editor takes the width and the preview is a strip at the bottom.',
     signedIn: true,
     viewport: PHONE,

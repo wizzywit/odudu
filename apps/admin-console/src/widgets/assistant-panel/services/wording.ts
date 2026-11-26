@@ -61,6 +61,7 @@ export const PANEL_WORDING = {
   stepDenied: 'Refused',
   stepWaiting: 'Waiting for you',
   stepsLabel: 'Steps',
+  tableLabel: 'Table',
   untitled: 'Assistant',
 } as const;
 

@@ -37,6 +37,7 @@ export function AssistantGate({
     control: entry.shown ? (
       <AssistantButton
         label={words.openButton}
+        shortLabel={words.openButtonShort}
         hintLead={words.shortcutLead}
         shortcut={entry.shortcut}
         expanded={entry.open}

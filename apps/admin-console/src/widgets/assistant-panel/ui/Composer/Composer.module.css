@@ -80,3 +80,20 @@
   margin-inline-start: auto;
   white-space: nowrap;
 }
+
+@media (height < 600px) {
+  .hint {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .input {
+    min-block-size: 44px;
+  }
+}

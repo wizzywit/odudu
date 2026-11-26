@@ -21,6 +21,12 @@ export const SAFE_NODE_KINDS = [
   'ol',
   'li',
   'link',
+  'table',
+  'thead',
+  'tbody',
+  'tr',
+  'th',
+  'td',
 ] as const;
 
 export const MARKDOWN_MAX_CHARS = 64_000;
@@ -29,6 +35,9 @@ const BLANK = /^\s*$/u;
 const FENCE = /^ {0,3}```/u;
 const HEADING = /^ {0,3}#{1,6} +(.*)$/u;
 const ITEM = /^ {0,3}([-*+]|\d{1,9}[.)]) +(.*)$/u;
+const SEPARATOR = /^ {0,3}\|? *:?-+:? *(\| *:?-+:? *)*\|? *$/u;
+const MAX_TABLE_COLUMNS = 12;
+const MAX_TABLE_ROWS = 100;
 const QUOTE = /^ {0,3}> ?(.*)$/u;
 
 function lines(text: string, budget: Budget): SafeNode[] {
@@ -74,6 +83,83 @@ function list(cursor: Cursor, budget: Budget): SafeNode | null {
   return spend(budget) ? { kind: ordered ? 'ol' : 'ul', children: items } : null;
 }
 
+// The cells of one table row: split at each bar the text did not escape, the
+// bars at either end belonging to the row and not to a cell.
+function splitRow(row: string): string[] {
+  const text = row.trim();
+  const cells: string[] = [];
+  let cell = '';
+  for (let at = text.startsWith('|') ? 1 : 0; at < text.length; at += 1) {
+    const char = text[at] ?? '';
+    if (char === '\\' && text[at + 1] === '|') {
+      cell += '|';
+      at += 1;
+    } else if (char === '|') {
+      cells.push(cell.trim());
+      cell = '';
+    } else cell += char;
+  }
+  if (cell.trim() !== '' || !text.endsWith('|')) cells.push(cell.trim());
+  return cells;
+}
+
+function startsTable(cursor: Cursor): boolean {
+  const head = cursor.rows[cursor.at] ?? '';
+  const rule = cursor.rows[cursor.at + 1] ?? '';
+  if (!head.includes('|') || !SEPARATOR.test(rule)) return false;
+  const columns = splitRow(head).length;
+  return columns > 0 && columns === splitRow(rule).length;
+}
+
+function tableRow(cells: readonly string[], kind: 'th' | 'td', budget: Budget): SafeNode | null {
+  if (!spend(budget)) return null;
+  const children: SafeNode[] = [];
+  for (const cell of cells) {
+    if (!spend(budget)) break;
+    children.push({ kind, children: inline(cell, 0, budget) });
+  }
+  return { kind: 'tr', children };
+}
+
+// A header row, its separator row and the rows that follow, as a table. A row
+// with more cells than the header is cut to it and a short one is padded, so
+// every row has the header's width, itself cut to a fixed number of columns.
+function table(cursor: Cursor, budget: Budget): SafeNode[] {
+  const header = splitRow(cursor.rows[cursor.at] ?? '').slice(0, MAX_TABLE_COLUMNS);
+  const width = header.length;
+  cursor.at += 2;
+  const top = tableRow(header, 'th', budget);
+  const body: SafeNode[] = [];
+  let cut = false;
+  while (cursor.at < cursor.rows.length) {
+    const row = cursor.rows[cursor.at] ?? '';
+    if (BLANK.test(row) || !row.includes('|') || FENCE.test(row) || HEADING.test(row)) break;
+    cursor.at += 1;
+    if (body.length >= MAX_TABLE_ROWS) {
+      cut = true;
+      continue;
+    }
+    const cells = splitRow(row).slice(0, width);
+    while (cells.length < width) cells.push('');
+    const made = tableRow(cells, 'td', budget);
+    if (made !== null) body.push(made);
+  }
+  const out: SafeNode[] = [];
+  if (top !== null && spend(budget) && spend(budget) && spend(budget)) {
+    out.push({
+      kind: 'table',
+      children: [
+        { kind: 'thead', children: [top] },
+        { kind: 'tbody', children: body },
+      ],
+    });
+  }
+  if (cut && spend(budget)) {
+    out.push({ kind: 'p', children: [{ kind: 'text', text: ASSISTANT_WORDING.rowsNotShown }] });
+  }
+  return out;
+}
+
 function heading(text: string, budget: Budget): SafeNode | null {
   if (!spend(budget)) return null;
   return { kind: 'p', children: [{ kind: 'strong', children: inline(text, 1, budget) }] };
@@ -93,6 +179,11 @@ function blocks(text: string, budget: Budget): SafeNode[] {
   while (cursor.at < cursor.rows.length && budget.left > 0) {
     const row = cursor.rows[cursor.at] ?? '';
     const title = HEADING.exec(row);
+    if (startsTable(cursor)) {
+      flush();
+      out.push(...table(cursor, budget));
+      continue;
+    }
     if (FENCE.test(row) || ITEM.test(row)) {
       flush();
       push(FENCE.test(row) ? fenced(cursor, budget) : list(cursor, budget));

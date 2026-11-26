@@ -24,35 +24,37 @@ export function SectionNav({
 }) {
   return (
     <nav aria-label={label} className={styles.nav}>
-      {groups.map((group) => (
-        <div key={group.title} className={styles.group}>
-          <p className={styles.groupTitle}>{group.title}</p>
-          <ul className={styles.items}>
-            {group.items.map((item) => (
-              <li key={item.id}>
-                <a
-                  href={`#${item.headingId}`}
-                  className={styles.link}
-                  aria-current={current === item.id ? 'location' : undefined}
-                  data-dirty={item.dirty || undefined}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    go(item.headingId);
-                  }}
-                >
-                  {item.title}
-                  {item.dirty ? (
-                    <>
-                      <span className={styles.dot} aria-hidden="true" />
-                      <VisuallyHidden>{unsavedLabel}</VisuallyHidden>
-                    </>
-                  ) : null}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+      <div className={styles.strip}>
+        {groups.map((group) => (
+          <div key={group.title} className={styles.group}>
+            <p className={styles.groupTitle}>{group.title}</p>
+            <ul className={styles.items}>
+              {group.items.map((item) => (
+                <li key={item.id}>
+                  <a
+                    href={`#${item.headingId}`}
+                    className={styles.link}
+                    aria-current={current === item.id ? 'location' : undefined}
+                    data-dirty={item.dirty || undefined}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      go(item.headingId);
+                    }}
+                  >
+                    {item.title}
+                    {item.dirty ? (
+                      <>
+                        <span className={styles.dot} aria-hidden="true" />
+                        <VisuallyHidden>{unsavedLabel}</VisuallyHidden>
+                      </>
+                    ) : null}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
     </nav>
   );
 }
