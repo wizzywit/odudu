@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
+import { turnAuditRecorder } from '#/assistant-chat';
 import { createLogger } from '#/logger';
 import { BASE, startMcpStack, type McpStack } from '#/testing/mcp-stack';
 import { type World } from '#/testing/mcp-world';
@@ -491,14 +492,15 @@ describe('the conversation routes in the running server', () => {
 });
 
 // A model that asks for one read and then answers, so a turn makes a tool call.
-function readingModel() {
+// `reads` is how many steps ask for a read before the answer.
+function readingModel(reads: () => number) {
   let call = 0;
   return {
     ...FIXED_MODEL,
     doStream: () => {
       call += 1;
       const parts =
-        call % 2 === 1
+        (call - 1) % (reads() + 1) < reads()
           ? [
               {
                 type: 'tool-call',
@@ -535,6 +537,9 @@ describe('the audit rows of a turn in the running server', () => {
   const CONTEXT = { route: '/clients', objectType: 'client', objectId: 'web' };
   const PRIVATE = 'the Hadleigh payroll';
   let reading: FastifyInstance | undefined;
+  let readsPerTurn = 1;
+  // The admin routes the assistant's tool calls reached, not its own.
+  const adminHits: string[] = [];
 
   beforeAll(async () => {
     reading = buildApp({
@@ -547,7 +552,13 @@ describe('the audit rows of a turn in the running server', () => {
       throttle: { limit: 100_000, windowSeconds: 60 },
       hostState: (host) => hostState(s().owner.db, host, new Date()),
       assistant: { slots: resolveSlots(ENV), env: ENV },
-      assistantModels: () => readingModel() as never,
+      assistantModels: () => readingModel(() => readsPerTurn) as never,
+    });
+    reading.addHook('onRequest', (request, _reply, done) => {
+      if (request.url.startsWith('/admin/tenants/') && !request.url.includes('/assistant')) {
+        adminHits.push(request.url);
+      }
+      done();
     });
     await reading.ready();
   }, 60_000);
@@ -627,6 +638,60 @@ describe('the audit rows of a turn in the running server', () => {
     expect(calls[0]?.detail).toMatchObject({ conversation: id, turn: opened?.turn });
   });
 
+  it('writes the rows of a tenant that keeps only the narrowest event types', async () => {
+    const w = await s().world(['use-assistant', 'manage-tenant'], 'openid');
+    await s().owner.db.execute(
+      sql`update tenants set audit_event_types = '{admin_mutation,admin_access}' where id = ${w.tenantId}`,
+    );
+    const token = await adminToken(w);
+    const id = await conversationOf(w, token);
+    await post(app(), w, `/conversations/${id}/messages`, token, { message: message(PRIVATE) });
+    expect(await s().auditRows(w, 'assistant.turn')).toHaveLength(2);
+  });
+
+  it('holds exactly the allowed keys for a turn that ended on a limit, as refused', async () => {
+    const w = await s().world(['use-assistant'], 'openid');
+    const recorder = turnAuditRecorder({ database: s().appDb });
+    const base = {
+      tenantId: w.tenantId,
+      subjectId: w.subjectId,
+      conversationId: newId(),
+      turnId: newId(),
+      profile: 'free-chat',
+      mode: 'ask' as const,
+      slots: ['standard' as const],
+    };
+    await recorder.recordTurnStart(base);
+    await recorder.recordTurn({
+      ...base,
+      tokensBySlot: { standard: 12 },
+      steps: 0,
+      stopReason: 'budget_tenant',
+      outcome: 'refused',
+    });
+    const [started, ended] = await s().auditRows(w, 'assistant.turn');
+    expect(Object.keys(started?.detail as object).sort()).toEqual(
+      ['conversation', 'mode', 'phase', 'profile', 'slots', 'subject', 'tenant', 'turn'].sort(),
+    );
+    expect(Object.keys(ended?.detail as object).sort()).toEqual(
+      [
+        'conversation',
+        'mode',
+        'phase',
+        'profile',
+        'slots',
+        'steps',
+        'stop_reason',
+        'subject',
+        'tenant',
+        'tokens_by_slot',
+        'turn',
+      ].sort(),
+    );
+    expect(ended).toMatchObject({ outcome: 'refused' });
+    expect(started).toMatchObject({ outcome: 'allowed' });
+  });
+
   it('does not begin a turn whose opening row cannot be written', async () => {
     const w = await s().world(['use-assistant', 'manage-tenant'], 'openid');
     const token = await adminToken(w);
@@ -647,9 +712,15 @@ describe('the audit rows of a turn in the running server', () => {
     const w = await s().world(['use-assistant', 'manage-tenant'], 'openid');
     const token = await adminToken(w);
     const id = await conversationOf(w, token);
+    readsPerTurn = 2;
+    adminHits.length = 0;
     const turn = await refusing(w, 'agent.tool_call', null, () =>
       post(app(), w, `/conversations/${id}/messages`, token, { message: message(PRIVATE) }),
     );
+    readsPerTurn = 1;
+    // The first read was made, and only its data is withheld; the second was
+    // refused before it ran.
+    expect(adminHits).toHaveLength(1);
     expect(turn.body).toContain('audit_unavailable');
     expect(turn.body).not.toContain('"issuer"');
     expect(await s().auditRows(w, 'agent.tool_call')).toHaveLength(0);

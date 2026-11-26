@@ -700,10 +700,16 @@ design stands unless the controller rules otherwise.
 - A turn refused by the lease limit, a resume with nothing waiting and a conversation not found
   start nothing, so they leave no `assistant.turn` row; a budget refusal after the turn began
   leaves both rows and an `assistant.budget` row.
+- A `started` row with no `ended` row after the turn deadline (five minutes by default)
+  means the server died, the stream was never drained, or the closing row failed
+  (`assistant.turn_audit_failed` is logged for the last). No monitor query is shipped.
 - Each assistant tool call keeps the post-call `agent.tool_call` row (so its outcome says
   whether the admin API refused it), now with `conversation` and `turn`. When that row cannot
   be written the call has run (a read, which changes nothing) and its data is withheld: the
-  model never sees it. The brief asked that the call not run at all; recording before sending
+  model never sees it. A per-turn latch in the tool runner then refuses the turn's later calls
+  before they run, so at most one read goes unrecorded. For an approved write the change
+  stands: its `assistant.approval` row and the mutation's own rows exist, and the model is
+  told `audit_unavailable`. "Withheld" is not "did not happen". The brief asked that the call not run at all; recording before sending
   was tried and dropped, because the row would then say `allowed` for a call the door refused,
   which `assistant-identity.int.test.ts` pins as `refused`. `callMcpTool` is shared with the
   SDKs and unchanged.

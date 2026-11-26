@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { writeSettings } from '#/usecase/settings';
 import type { BudgetAuditEvent } from '#/usecase/chat-deps';
 import type { Slot } from '#/service/slots';
+import type { TurnStart, TurnSummary } from '#/service/turn-summary';
 import { createChat, type Chat, type ChatCaller, type ChatDeps } from '#/view/chat-route';
 
 let container: TestDatabase;
@@ -127,6 +128,7 @@ const callerOf = (w: World): ChatCaller => ({
 function chatOver(model: MockLanguageModelV3, overrides: Partial<ChatDeps> = {}) {
   const slots: Slot[] = [];
   const audits: BudgetAuditEvent[] = [];
+  const turns = { started: [] as TurnStart[], ended: [] as TurnSummary[] };
   const chat = createChat({
     transact: (tenantId, fn) => withTenant(app.db, tenantId, fn),
     model: (slot) => {
@@ -138,8 +140,14 @@ function chatOver(model: MockLanguageModelV3, overrides: Partial<ChatDeps> = {})
       mintToken: vi.fn(() => Promise.resolve({ accessToken: 'token' })),
       callTool: vi.fn(() => Promise.resolve(CLIENTS)),
     }),
-    recordTurnStart: () => Promise.resolve(),
-    recordTurn: () => Promise.resolve(),
+    recordTurnStart: (start) => {
+      turns.started.push(start);
+      return Promise.resolve();
+    },
+    recordTurn: (summary) => {
+      turns.ended.push(summary);
+      return Promise.resolve();
+    },
     instanceIdFor: () => newId(),
     withAccess: (caller, _conversation, fn) =>
       withTenant(app.db, caller.tenantId, async (tx) => ({
@@ -154,7 +162,7 @@ function chatOver(model: MockLanguageModelV3, overrides: Partial<ChatDeps> = {})
     newId,
     ...overrides,
   });
-  return { chat, slots, audits };
+  return { chat, slots, audits, turns };
 }
 
 async function conversation(chat: Chat, caller: ChatCaller): Promise<string> {
@@ -244,9 +252,17 @@ describe('a level that refuses', () => {
   it('ends the turn with a message naming the level and who can change it, never on a cheaper slot', async () => {
     const w = await world({ assistant_monthly_tokens_standard: 0 });
     const model = scripted([answer('never')]);
-    const { chat, slots, audits } = chatOver(model);
+    const { chat, slots, audits, turns } = chatOver(model);
     const caller = callerOf(w);
     const body = await bodyOf(chat, caller, await conversation(chat, caller));
+    expect(turns.started).toHaveLength(1);
+    expect(turns.ended).toHaveLength(1);
+    expect(turns.ended[0]).toMatchObject({
+      outcome: 'refused',
+      stopReason: 'budget_tenant',
+      steps: 0,
+      tokensBySlot: { standard: 0 },
+    });
 
     expect(body).toContain('monthly allowance for the standard model');
     expect(body).toContain('manage-assistant');
@@ -373,6 +389,8 @@ describe('answers at once', () => {
 
     const refused = await second.chat.send(caller, b, say('and me'), new AbortController().signal);
     expect(refused.kind).toBe('limited');
+    expect(second.turns.started).toHaveLength(0);
+    expect(second.turns.ended).toHaveLength(0);
 
     gone.abort();
     await running;
