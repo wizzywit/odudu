@@ -78,6 +78,8 @@ Odudu administration
 odudu-admin · confidential
 Odudu MCP
 odudu-mcp · public
+Odudu assistant
+odudu-assistant · public
 my-app
 my-app · public
 The message wears the tenant’s published theme. Choose a client to send the mail its sign-in would send: its theme over the tenant’s.

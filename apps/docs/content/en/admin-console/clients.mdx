@@ -12,13 +12,13 @@ A client is an application that signs people in through your tenant: a web app, 
 
 <ConsoleShot
   name="clients"
-  alt="The demo tenant's Clients list: the built-in odudu-admin and odudu-mcp clients and my-app, with a Create a client button."
-  caption="The demo tenant lists my-app beside its two built-in clients."
+  alt="The demo tenant's Clients list: the three built-in clients, odudu-admin, odudu-mcp and odudu-assistant, and my-app, with a Create a client button."
+  caption="The demo tenant lists my-app beside its three built-in clients."
 />
 
 Every tenant also lists `odudu-mcp`, the public client a local MCP tool signs in through. It asks for the `mcp:read` scope, and `mcp:write` if the person allows it, and shows each person a consent screen. Its redirect URIs are `http://127.0.0.1` and `http://[::1]`, which accept any port, because such a tool listens on a free one. You can disable it, which stops those sign-ins, but you cannot delete it, and its ID is reserved. Its other settings stay yours to change.
 
-Every tenant also lists `odudu-assistant`, the client the console assistant's conversations act as. Nobody signs in through it: it has no redirect URI and no usable grant, and a conversation's access is a grant of it that the server derives from the administrator's own console sign-in. You can disable it, which turns the assistant off for the tenant, but you cannot delete it, and its ID is reserved.
+Every tenant also lists `odudu-assistant`, the client the console assistant's conversations act as. Nobody signs in through it: it has no redirect URI and no usable grant, and a conversation's access is a grant of it that the server derives from the administrator's own console sign-in. You can disable it, which turns the assistant off for the tenant, but you cannot delete it, and its ID is reserved, so no other client can be created with it.
 
 ## 1. Register a client
 

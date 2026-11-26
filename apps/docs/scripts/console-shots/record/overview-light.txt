@@ -57,8 +57,8 @@ Counts
 Subjects
 1 subject
 Clients
-3 clients
- (3 of 200 made by administrators or tokens)
+4 clients
+ (4 of 200 made by administrators or tokens)
 Groups
 0 groups
 Roles

@@ -162,6 +162,8 @@ Odudu administration
 odudu-admin · confidential
 Odudu MCP
 odudu-mcp · public
+Odudu assistant
+odudu-assistant · public
 Storefront
 storefront · public
 Show the tenant’s own
