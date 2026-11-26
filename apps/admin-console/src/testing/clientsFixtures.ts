@@ -51,6 +51,8 @@ export interface ClientAnswer {
   flow_id: string | null;
   previous_secret_expires_at: string | null;
   builtin_admin: boolean;
+  builtin_mcp: boolean;
+  builtin_assistant: boolean;
   skip_logout_confirmation: boolean;
   name_i18n: Record<string, string>;
   supported_locales: readonly string[];
@@ -117,6 +119,8 @@ export function client(
     flow_id: null,
     previous_secret_expires_at: null,
     builtin_admin: false,
+    builtin_mcp: false,
+    builtin_assistant: false,
     skip_logout_confirmation: false,
     name_i18n: {},
     supported_locales: ['en', 'fr', 'de'],
@@ -145,7 +149,23 @@ export const ADMIN = client('c-admin', 'odudu-admin', {
   service_subject_id: null,
   name: 'Odudu admin',
 });
+export const MCP = client('c-mcp', 'odudu-mcp', {
+  builtin_mcp: true,
+  name: 'Odudu MCP',
+  service_subject_id: null,
+});
+export const ASSISTANT = client('c-assistant', 'odudu-assistant', {
+  type: 'public',
+  token_endpoint_auth_method: 'none',
+  builtin_assistant: true,
+  agent_type: true,
+  name: 'Odudu assistant',
+  service_subject_id: null,
+});
+// Opened by id only, so a list's count stays what the tests of it expect.
+export const BUILTIN_CLIENTS = [MCP, ASSISTANT];
 export const CLIENTS = [ADMIN, BILLING, PORTAL];
+const BY_ID = [...CLIENTS, ...BUILTIN_CLIENTS];
 
 function listed(request: Sent) {
   const name = request.search.get('name');
@@ -190,10 +210,10 @@ export function clientRoutes(
       [`GET ${C}/count`]: (request) =>
         json({ count: listed(request).length, capped: false })(request),
       ...Object.fromEntries(
-        CLIENTS.map((each) => [`GET ${C}/${each.id}`, json(each, 200, { etag: `"${each.id}-1"` })]),
+        BY_ID.map((each) => [`GET ${C}/${each.id}`, json(each, 200, { etag: `"${each.id}-1"` })]),
       ),
       ...Object.fromEntries(
-        CLIENTS.flatMap((each) => [
+        BY_ID.flatMap((each) => [
           [`GET ${C}/${each.id}/installation`, json(installationOf(each))],
           [`GET ${C}/${each.id}/logout-deliveries`, json({ items: [] })],
           [`GET ${C}/${each.id}/sessions`, json({ items: [] })],

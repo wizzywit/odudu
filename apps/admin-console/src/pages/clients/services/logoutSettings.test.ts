@@ -22,10 +22,11 @@ it('labels the toggle and says what off means', () => {
 });
 
 it('fixes the setting on the built-in admin client alone, and says it is on and why', () => {
-  expect(skipLogoutFixed({ builtin_admin: true, client_id: 'odudu-admin' })).toMatch(
+  const none = { builtin_mcp: false, builtin_assistant: false, name: 'Client' };
+  expect(skipLogoutFixed({ ...none, builtin_admin: true, client_id: 'odudu-admin' })).toMatch(
     /^odudu-admin always signs out at once and this cannot be changed\. This is the tenant's/u,
   );
-  expect(skipLogoutFixed({ builtin_admin: false, client_id: 'billing' })).toBeNull();
+  expect(skipLogoutFixed({ ...none, builtin_admin: false, client_id: 'billing' })).toBeNull();
 });
 
 it('says what on means beside the switch once it is on, and what off means otherwise', () => {

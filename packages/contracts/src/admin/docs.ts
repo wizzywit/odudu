@@ -399,6 +399,10 @@ describeFields(clientFieldsSchema, {
     'When the secret that a rotation replaced stops authenticating, or null when no rotation kept one. The secret itself is never shown.',
   builtin_admin:
     'True for the tenant’s built-in admin console client, which cannot be deleted and is limited in what can be amended.',
+  builtin_mcp:
+    'True for the tenant’s built-in MCP client, which cannot be deleted. It can be disabled.',
+  builtin_assistant:
+    'True for the tenant’s built-in assistant client, which cannot be deleted. Only its name, description and enabled state can be amended.',
   service_subject_id:
     'The service account a client authenticates as, or null when it holds no client_credentials grant or is public. Setting grant_types creates it when the grant is added and deletes it, with the roles and token grants it held, when the grant is removed.',
   scopes:
@@ -921,7 +925,7 @@ describeFields(listSubjectsQuerySchema, {
   group: 'Only members of this group, by group id.',
   capability:
     'Only holders of this admin capability, `tenant-admin`, or `any` admin capability; held effectively.',
-  type: 'Only subjects of this type.',
+  type: 'Only subjects of this type. Without it, `agent_instance` subjects are left out; name that type to list or count them.',
   locked: '`true` for subjects locked out by failed sign-ins only.',
 });
 describeFields(countSubjectsQuerySchema, {
@@ -935,7 +939,7 @@ describeFields(countSubjectsQuerySchema, {
   group: 'Only members of this group, by group id.',
   capability:
     'Only holders of this admin capability, `tenant-admin`, or `any` admin capability; held effectively.',
-  type: 'Only subjects of this type.',
+  type: 'Only subjects of this type. Without it, `agent_instance` subjects are left out; name that type to list or count them.',
   locked: '`true` for subjects locked out by failed sign-ins only.',
 });
 describeFields(subjectSchema, {

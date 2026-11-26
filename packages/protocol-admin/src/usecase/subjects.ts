@@ -269,7 +269,13 @@ function exactFilterConditions(
   now: Date,
 ): SQL[] {
   const conditions: SQL[] = [];
-  if (filters.type !== undefined) conditions.push(eq(subjects.type, filters.type));
+  // An agent instance exists for one conversation and is listed under Agents,
+  // so a listing that does not name the type leaves it out.
+  conditions.push(
+    filters.type === undefined
+      ? ne(subjects.type, 'agent_instance')
+      : eq(subjects.type, filters.type),
+  );
   if (filters.locked === 'true')
     conditions.push(sql`${subjects.id} = ANY (ARRAY(${lockedSubjects(tx, now)}))`);
   if (filters.locked === 'false') {

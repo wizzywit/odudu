@@ -13,6 +13,9 @@ export const CLIENT_ID_TAKEN = 'That client ID is taken';
 export const BUILTIN_FIXED =
   "This is the tenant's built-in admin client, which every administrator signs in through: what could lock them out is fixed.";
 
+export const ASSISTANT_FIXED =
+  "This is the tenant's built-in assistant client: the rest is what keeps anything from signing in through it.";
+
 export const TYPE_TEXT: Readonly<Record<string, string>> = {
   confidential: 'Confidential',
   public: 'Public',

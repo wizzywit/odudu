@@ -84,6 +84,8 @@ export const clientFieldsSchema = z.object({
   // has cleared it after that instant. Never the secret itself.
   previous_secret_expires_at: z.string().nullable(),
   builtin_admin: z.boolean(),
+  builtin_mcp: z.boolean(),
+  builtin_assistant: z.boolean(),
   service_subject_id: z.uuid().nullable(),
   // At most `CLIENT_SCOPE_LIMIT` for a client that has taken one since it was
   // set, since a client is read and listed whole.
