@@ -225,8 +225,10 @@ header. It serves the built documentation (`apps/docs`, image target, base
 `/docs/`) from the server's own origin at `/docs/`, read once at boot into a
 manifest the way `spa.ts` reads the console: a path that is not an exact key
 is `404`, so traversal, encoded separators, NUL and symlinks all end at the
-same lookup, and a tree past 5,000 files or 64 MiB makes `/docs/*` answer
-`503` with a log line naming `ODUDU_DOCS_DIR` and `ODUDU_DOCS=false`.
+same lookup, and a tree past 5,000 files or 96 MiB makes `/docs/*` answer
+`503` with a log line naming `ODUDU_DOCS_DIR` and `ODUDU_DOCS=false`. The byte
+bound began at 64 MiB and was raised when the built site passed the four fifths
+of it that `image-fits-server.test.ts` keeps free.
 
 **The policy is computed at build time, not by `pageHeaders`.** The site is
 Docusaurus, which is not strict-CSP clean: each page carries one inline
