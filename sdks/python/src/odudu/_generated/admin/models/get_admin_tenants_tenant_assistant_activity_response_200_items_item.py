@@ -33,7 +33,9 @@ class GetAdminTenantsTenantAssistantActivityResponse200ItemsItem:
         profile (str): The kind of conversation it was started as.
         mode (GetAdminTenantsTenantAssistantActivityResponse200ItemsItemMode): The mode it is in now: `ask` reads only,
             `act` may also propose changes.
-        title (None | str): A short title once it has one, otherwise null.
+        title (None | str): A short title once it has one, otherwise null. A title is text: where the tenant has not let
+            auditors read text it is replaced by a placeholder, and where it has, a list that returns one is recorded as
+            `assistant.text_read`.
         started_at (str): When it was started.
         last_active_at (str): When it last took a message. Retention counts idleness from here.
         turns (int): How many turns the trace holds for it.

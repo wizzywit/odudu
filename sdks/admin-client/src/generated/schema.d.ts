@@ -10399,7 +10399,7 @@ export interface paths {
         };
         /**
          * Requires the "read-assistant-activity" capability.
-         * @description The tenant’s assistant conversations, newest activity first, each with its person, mode, turns, steps, tokens by model slot, why the latest turn stopped, the tools it called, the changes it proposed and whether it is reported (`report_old` for one reported more than 180 days ago). This is metadata, and a holder of the capability always gets it; it holds no text. `person` and `conversation` narrow by owner and id; `tool`, `outcome` (the latest turn’s stop reason) and `kind` (`approval`, `budget_refusal` or `tool_error`) look inside each conversation, and look at no more than 1,000 conversations a request, so a page they do not fill is returned short, even empty, with `next` to carry on from. `limit` is at most 200. `404` where the deployment has no assistant. Not offered to an agent.
+         * @description The tenant’s assistant conversations, newest activity first, each with its person, mode, turns, steps, tokens by model slot, why the latest turn stopped, the tools it called, the changes it proposed and whether it is reported (`report_old` for one reported more than 180 days ago). This is metadata, and a holder of the capability always gets it. A conversation’s title is text: it is a placeholder unless the tenant’s **Let auditors read conversation text** setting is on, and a list that then returns a title of someone else’s conversation is audited once as `assistant.text_read` with part `list`. `person` and `conversation` narrow by owner and id; `tool`, `outcome` (the latest turn’s stop reason) and `kind` (`approval`, `budget_refusal` or `tool_error`) look inside each conversation, and look at no more than 1,000 conversations a request, so a page they do not fill is returned short, even empty, with `next` to carry on from. `limit` is at most 200. `404` where the deployment has no assistant. Not offered to an agent.
          */
         get: {
             parameters: {
@@ -10443,7 +10443,7 @@ export interface paths {
                                  * @enum {string}
                                  */
                                 mode: "ask" | "act";
-                                /** @description A short title once it has one, otherwise null. */
+                                /** @description A short title once it has one, otherwise null. A title is text: where the tenant has not let auditors read text it is replaced by a placeholder, and where it has, a list that returns one is recorded as `assistant.text_read`. */
                                 title: string | null;
                                 /** @description When it was started. */
                                 started_at: string;
@@ -10732,6 +10732,8 @@ export interface paths {
                                 conversation: string;
                                 /** @description How many turns the case covers: the conversation’s latest 25. */
                                 turns: number;
+                                /** @description How many earlier turns the conversation has that the case leaves out. */
+                                turns_omitted: number;
                                 /** @description What the case holds, in words. */
                                 contains: string[];
                                 /** @description What the case leaves out, in words. */

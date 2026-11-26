@@ -131,12 +131,14 @@ def sync_detailed(
      The tenant’s assistant conversations, newest activity first, each with its person, mode, turns,
     steps, tokens by model slot, why the latest turn stopped, the tools it called, the changes it
     proposed and whether it is reported (`report_old` for one reported more than 180 days ago). This is
-    metadata, and a holder of the capability always gets it; it holds no text. `person` and
-    `conversation` narrow by owner and id; `tool`, `outcome` (the latest turn’s stop reason) and `kind`
-    (`approval`, `budget_refusal` or `tool_error`) look inside each conversation, and look at no more
-    than 1,000 conversations a request, so a page they do not fill is returned short, even empty, with
-    `next` to carry on from. `limit` is at most 200. `404` where the deployment has no assistant. Not
-    offered to an agent.
+    metadata, and a holder of the capability always gets it. A conversation’s title is text: it is a
+    placeholder unless the tenant’s **Let auditors read conversation text** setting is on, and a list
+    that then returns a title of someone else’s conversation is audited once as `assistant.text_read`
+    with part `list`. `person` and `conversation` narrow by owner and id; `tool`, `outcome` (the latest
+    turn’s stop reason) and `kind` (`approval`, `budget_refusal` or `tool_error`) look inside each
+    conversation, and look at no more than 1,000 conversations a request, so a page they do not fill is
+    returned short, even empty, with `next` to carry on from. `limit` is at most 200. `404` where the
+    deployment has no assistant. Not offered to an agent.
 
     Args:
         tenant (str):
@@ -197,12 +199,14 @@ def sync(
      The tenant’s assistant conversations, newest activity first, each with its person, mode, turns,
     steps, tokens by model slot, why the latest turn stopped, the tools it called, the changes it
     proposed and whether it is reported (`report_old` for one reported more than 180 days ago). This is
-    metadata, and a holder of the capability always gets it; it holds no text. `person` and
-    `conversation` narrow by owner and id; `tool`, `outcome` (the latest turn’s stop reason) and `kind`
-    (`approval`, `budget_refusal` or `tool_error`) look inside each conversation, and look at no more
-    than 1,000 conversations a request, so a page they do not fill is returned short, even empty, with
-    `next` to carry on from. `limit` is at most 200. `404` where the deployment has no assistant. Not
-    offered to an agent.
+    metadata, and a holder of the capability always gets it. A conversation’s title is text: it is a
+    placeholder unless the tenant’s **Let auditors read conversation text** setting is on, and a list
+    that then returns a title of someone else’s conversation is audited once as `assistant.text_read`
+    with part `list`. `person` and `conversation` narrow by owner and id; `tool`, `outcome` (the latest
+    turn’s stop reason) and `kind` (`approval`, `budget_refusal` or `tool_error`) look inside each
+    conversation, and look at no more than 1,000 conversations a request, so a page they do not fill is
+    returned short, even empty, with `next` to carry on from. `limit` is at most 200. `404` where the
+    deployment has no assistant. Not offered to an agent.
 
     Args:
         tenant (str):
@@ -258,12 +262,14 @@ async def asyncio_detailed(
      The tenant’s assistant conversations, newest activity first, each with its person, mode, turns,
     steps, tokens by model slot, why the latest turn stopped, the tools it called, the changes it
     proposed and whether it is reported (`report_old` for one reported more than 180 days ago). This is
-    metadata, and a holder of the capability always gets it; it holds no text. `person` and
-    `conversation` narrow by owner and id; `tool`, `outcome` (the latest turn’s stop reason) and `kind`
-    (`approval`, `budget_refusal` or `tool_error`) look inside each conversation, and look at no more
-    than 1,000 conversations a request, so a page they do not fill is returned short, even empty, with
-    `next` to carry on from. `limit` is at most 200. `404` where the deployment has no assistant. Not
-    offered to an agent.
+    metadata, and a holder of the capability always gets it. A conversation’s title is text: it is a
+    placeholder unless the tenant’s **Let auditors read conversation text** setting is on, and a list
+    that then returns a title of someone else’s conversation is audited once as `assistant.text_read`
+    with part `list`. `person` and `conversation` narrow by owner and id; `tool`, `outcome` (the latest
+    turn’s stop reason) and `kind` (`approval`, `budget_refusal` or `tool_error`) look inside each
+    conversation, and look at no more than 1,000 conversations a request, so a page they do not fill is
+    returned short, even empty, with `next` to carry on from. `limit` is at most 200. `404` where the
+    deployment has no assistant. Not offered to an agent.
 
     Args:
         tenant (str):
@@ -322,12 +328,14 @@ async def asyncio(
      The tenant’s assistant conversations, newest activity first, each with its person, mode, turns,
     steps, tokens by model slot, why the latest turn stopped, the tools it called, the changes it
     proposed and whether it is reported (`report_old` for one reported more than 180 days ago). This is
-    metadata, and a holder of the capability always gets it; it holds no text. `person` and
-    `conversation` narrow by owner and id; `tool`, `outcome` (the latest turn’s stop reason) and `kind`
-    (`approval`, `budget_refusal` or `tool_error`) look inside each conversation, and look at no more
-    than 1,000 conversations a request, so a page they do not fill is returned short, even empty, with
-    `next` to carry on from. `limit` is at most 200. `404` where the deployment has no assistant. Not
-    offered to an agent.
+    metadata, and a holder of the capability always gets it. A conversation’s title is text: it is a
+    placeholder unless the tenant’s **Let auditors read conversation text** setting is on, and a list
+    that then returns a title of someone else’s conversation is audited once as `assistant.text_read`
+    with part `list`. `person` and `conversation` narrow by owner and id; `tool`, `outcome` (the latest
+    turn’s stop reason) and `kind` (`approval`, `budget_refusal` or `tool_error`) look inside each
+    conversation, and look at no more than 1,000 conversations a request, so a page they do not fill is
+    returned short, even empty, with `next` to carry on from. `limit` is at most 200. `404` where the
+    deployment has no assistant. Not offered to an agent.
 
     Args:
         tenant (str):

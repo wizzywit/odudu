@@ -34,6 +34,7 @@ class GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200M
         version (Literal[1]): The version of this shape, 1.
         conversation (str): The id of the conversation the case was made from.
         turns (int): How many turns the case covers: the conversation’s latest 25.
+        turns_omitted (int): How many earlier turns the conversation has that the case leaves out.
         contains (list[str]): What the case holds, in words.
         excludes (list[str]): What the case leaves out, in words.
         observed (GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200MetadataObserved): What the
@@ -44,6 +45,7 @@ class GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200M
     version: Literal[1]
     conversation: str
     turns: int
+    turns_omitted: int
     contains: list[str]
     excludes: list[str]
     observed: GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200MetadataObserved
@@ -56,6 +58,8 @@ class GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200M
         conversation = self.conversation
 
         turns = self.turns
+
+        turns_omitted = self.turns_omitted
 
         contains = self.contains
 
@@ -71,6 +75,7 @@ class GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200M
                 "version": version,
                 "conversation": conversation,
                 "turns": turns,
+                "turns_omitted": turns_omitted,
                 "contains": contains,
                 "excludes": excludes,
                 "observed": observed,
@@ -100,6 +105,8 @@ class GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200M
 
         turns = d.pop("turns")
 
+        turns_omitted = d.pop("turns_omitted")
+
         contains = cast(list[str], d.pop("contains"))
 
         excludes = cast(list[str], d.pop("excludes"))
@@ -113,6 +120,7 @@ class GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200M
             version=version,
             conversation=conversation,
             turns=turns,
+            turns_omitted=turns_omitted,
             contains=contains,
             excludes=excludes,
             observed=observed,
