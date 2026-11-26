@@ -11,8 +11,10 @@ import {
 import { RouterProvider as AriaRouterProvider } from 'react-aria-components';
 import { lazyFeatureRoute } from '#/app/lazyFeatureRoute';
 import { NavigationGuard } from '#/app/NavigationGuard';
+import type { AssistantPanelSlot } from '#/entities/assistant';
 import { RouteFailure, ShellFailure } from '#/widgets/failure';
 import { ConsoleHome } from '#/pages/console-home';
+import { AssistantPanel } from '#/widgets/assistant-panel';
 import { SessionGate } from '#/widgets/session-gate';
 import { pendingPage, PendingFrame, TenantShell } from '#/widgets/shell';
 import { PRODUCT_NAME } from '#/shared/lib/services/product';
@@ -57,13 +59,19 @@ const root = createRootRoute({
 
 const home = createRoute({ getParentRoute: () => root, path: '/', component: ConsoleHome });
 
+// The assistant's panel is a widget of its own, drawn inside the shell; the shell
+// takes it as a function so that neither widget imports the other.
+function renderAssistantPanel(slot: AssistantPanelSlot) {
+  return <AssistantPanel key={slot.tenant} {...slot} />;
+}
+
 const tenant = createRoute({
   getParentRoute: () => root,
   path: '$tenant',
   component: function Tenant() {
     const { tenant: name } = tenant.useParams();
     return (
-      <TenantShell tenant={name}>
+      <TenantShell tenant={name} renderAssistantPanel={renderAssistantPanel}>
         <Outlet />
       </TenantShell>
     );

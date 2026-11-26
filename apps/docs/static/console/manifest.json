@@ -111,6 +111,14 @@
     "width": 390,
     "height": 1500
   },
+  "assistant-panel": {
+    "width": 1440,
+    "height": 900
+  },
+  "assistant-panel-phone": {
+    "width": 390,
+    "height": 844
+  },
   "email": {
     "width": 1100,
     "height": 900

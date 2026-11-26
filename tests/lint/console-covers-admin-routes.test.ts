@@ -36,22 +36,10 @@ const NEVER: Readonly<Record<string, string>> = {
     'The audit trail has no count, by design: over a trail that long a capped total would be an estimate the page cannot stand behind, so it says how far back the loaded rows reach instead.',
   'GET /admin/tenants/:tenant/domains/:id':
     'The domains list carries every field of a domain and a tenant holds no more than one page of them, so no screen reads one by its id.',
-  'POST /admin/tenants/:tenant/assistant/conversations':
-    'Called by the assistant panel, which is added after this route; until it lands no screen starts a conversation. Remove this entry when the panel ships.',
-  'GET /admin/tenants/:tenant/assistant/conversations/:id':
-    'Called by the assistant panel, which is added after this route; until it lands no screen loads a conversation. Remove this entry when the panel ships.',
-  'POST /admin/tenants/:tenant/assistant/conversations/:id/messages':
-    'Called by the assistant panel, which is added after this route; until it lands no screen sends a message. Remove this entry when the panel ships.',
-  'POST /admin/tenants/:tenant/assistant/conversations/:id/stop':
-    'Called by the assistant panel, which is added after this route; until it lands no screen stops a turn. Remove this entry when the panel ships.',
   'GET /admin/tenants/:tenant/assistant/conversations/:id/approvals':
-    'Called by the assistant panel, which is added after this route; until it lands no screen lists a conversation\u2019s waiting changes. Remove this entry when the panel ships.',
+    'Called by the approval card, which is added after the panel; until it lands no screen lists a conversation\u2019s waiting changes. Remove this entry when the card ships.',
   'POST /admin/tenants/:tenant/assistant/conversations/:id/approvals/:approvalId':
-    'Called by the assistant panel\u2019s approval card, which is added after this route; until it lands no screen decides a change. Remove this entry when the panel ships.',
-  'POST /admin/tenants/:tenant/assistant/conversations/:id/resume':
-    'Called by the assistant panel after a decision, which is added after this route; until it lands no screen resumes a conversation. Remove this entry when the panel ships.',
-  'PUT /admin/tenants/:tenant/assistant/conversations/:id/mode':
-    'Called by the assistant panel\u2019s mode switch, which is added after this route; until it lands no screen switches a conversation\u2019s mode. Remove this entry when the panel ships.',
+    'Called by the approval card, which is added after the panel; until it lands no screen decides a change. Remove this entry when the card ships.',
   'GET /admin/tenants/:tenant/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/clients/:id/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/mail/preview': FRAMED,

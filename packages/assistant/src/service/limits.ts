@@ -1,7 +1,11 @@
-import type { AssistantMode } from '@odudu/contracts/admin';
+import {
+  ASSISTANT_BUDGET_LEVELS,
+  type AssistantMode,
+  type AssistantStopReason,
+} from '@odudu/contracts/admin';
 import type { Slot } from '#/service/slots';
 
-export const LEVEL_NAMES = ['tenant_month', 'admin_day', 'conversation', 'turn'] as const;
+export const LEVEL_NAMES = ASSISTANT_BUDGET_LEVELS;
 export type LevelName = (typeof LEVEL_NAMES)[number];
 
 // One spend limit a reservation counts against. windowStart names the window
@@ -28,16 +32,8 @@ export interface AssistantLimits {
   readonly maxStepsPerTurn: number;
 }
 
-export type StopReason =
-  | 'done'
-  | 'step_cap'
-  | 'awaiting_approval'
-  | 'budget_turn'
-  | 'budget_conversation'
-  | 'budget_admin'
-  | 'budget_tenant'
-  | 'aborted'
-  | 'error';
+// The wire vocabulary lives in the contracts, which the panel reads too.
+export type StopReason = AssistantStopReason;
 
 // An administrator's share of a tenant's month for one slot, per UTC day.
 export const ADMIN_DAY_PERCENT = 25;

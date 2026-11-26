@@ -513,6 +513,15 @@ export {
   setConversationModeRequestSchema,
   type SetConversationModeRequest,
   setConversationModeResponseSchema,
+  ASSISTANT_BUDGET_LEVELS,
+  assistantBudgetLevelSchema,
+  type AssistantBudgetLevel,
+  ASSISTANT_STOP_REASONS,
+  assistantStopReasonSchema,
+  type AssistantStopReason,
+  assistantTurnEndSchema,
+  assistantBudgetWarningSchema,
+  type AssistantBudgetWarning,
 } from '#/admin/assistant';
 export {
   executionRequirementSchema,

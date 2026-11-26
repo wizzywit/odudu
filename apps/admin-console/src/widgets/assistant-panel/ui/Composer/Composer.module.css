@@ -1,0 +1,72 @@
+.composer {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-block-start: var(--hairline);
+  background: var(--surface-panel);
+}
+
+.context {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  min-inline-size: 0;
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.contextLabel {
+  flex: none;
+}
+
+.chip {
+  min-inline-size: 0;
+  padding: 1px var(--space-2);
+  border: var(--hairline);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  color: var(--ink-primary);
+  background: var(--surface-sunken);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input {
+  inline-size: 100%;
+  min-block-size: 64px;
+  max-block-size: 192px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font: inherit;
+  font-size: var(--type-13);
+  line-height: 1.5;
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+  resize: none;
+  field-sizing: content;
+}
+
+.input::placeholder {
+  color: var(--ink-muted);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}

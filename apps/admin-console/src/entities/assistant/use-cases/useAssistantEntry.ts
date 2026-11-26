@@ -4,7 +4,7 @@ import { focusedElement, listenToKeys, returnFocusTo } from '#/shared/lib/platfo
 import { shortcutName, shortcutOutcome } from '#/entities/assistant/services/shortcut';
 import { ASSISTANT_WORDING } from '#/entities/assistant/services/wording';
 import { useAssistantStatus } from '#/entities/assistant/use-cases/useAssistantStatus';
-import type { AssistantView } from '#/entities/assistant/services/gate';
+import { conversationFor, type AssistantView } from '#/entities/assistant/services/gate';
 
 export interface AssistantEntry {
   // The gate is open and the tenant has the assistant on: nothing below
@@ -14,6 +14,10 @@ export interface AssistantEntry {
   panelId: string;
   headingRef: RefObject<HTMLHeadingElement | null>;
   view: AssistantView;
+  // The conversation the panel was last open on in this tenant, which it
+  // comes back to when opened again.
+  conversationId: string | null;
+  rememberConversation: (id: string) => void;
   words: typeof ASSISTANT_WORDING;
   // The chord as aria-keyshortcuts names it.
   shortcut: string;
@@ -33,17 +37,26 @@ export function useAssistantEntry(
 ): AssistantEntry {
   const view = useAssistantStatus(tenant, available);
   const [opened, setOpened] = useState(false);
+  const [remembered, setRemembered] = useState<{ tenant: string; id: string } | null>(null);
   const panelId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const shown = view.enabled;
   const open = shown && opened;
 
+  // The focus goes back once the panel is gone: a panel laid over the page holds
+  // it until then, and a focus sent earlier is refused.
+  const returning = useRef(false);
   const close = (): void => {
+    returning.current = true;
     setOpened(false);
+  };
+  useEffect(() => {
+    if (open || !returning.current) return;
+    returning.current = false;
     returnFocusTo(opener.current);
     opener.current = null;
-  };
+  }, [open]);
   const toggle = (from: HTMLElement | null): void => {
     if (open) {
       close();
@@ -72,6 +85,10 @@ export function useAssistantEntry(
     panelId,
     headingRef,
     view,
+    conversationId: conversationFor(remembered, tenant),
+    rememberConversation: (id) => {
+      setRemembered({ tenant, id });
+    },
     words: ASSISTANT_WORDING,
     shortcut: shortcutName(PLATFORM),
     toggle,

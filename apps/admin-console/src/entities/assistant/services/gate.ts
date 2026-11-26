@@ -38,3 +38,12 @@ export function assistantView(
     provider: status.provider,
   };
 }
+
+// The conversation the panel was last open on, for the tenant it is open in:
+// another tenant's is not offered, since its id means nothing here.
+export function conversationFor(
+  remembered: { tenant: string; id: string } | null,
+  tenant: string,
+): string | null {
+  return remembered?.tenant === tenant ? remembered.id : null;
+}

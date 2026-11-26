@@ -57,6 +57,12 @@ For an administrator of the system tenant only.
 17. [Tenants](./tenants.mdx): create, export, import, disable and delete a tenant. The Export entry of the menu is on this page too.
 18. [System administrators](./system-administrators.mdx): who can reach every tenant.
 
+### Beside every page
+
+For an administrator who may use the assistant, where the server has it on.
+
+19. [The assistant](./assistant.mdx): ask a question about a tenant from a panel beside any page.
+
 ## When you need the exact request
 
 The [Console paths](../reference/transcripts/console-paths/index.md) transcripts record every route the console uses, with the real output. [An admin signs in and changes a user](../guides/admin-signs-in-and-changes-a-user.md) follows one administrator from sign-in to a change.

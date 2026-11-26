@@ -10,3 +10,4 @@ export {
   type SafeNode,
 } from '#/entities/assistant/services/safeMarkdown';
 export type { AssistantView } from '#/entities/assistant/services/gate';
+export type { AssistantPanelSlot } from '#/entities/assistant/types/panelSlot';

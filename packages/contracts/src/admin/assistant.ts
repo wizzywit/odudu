@@ -185,3 +185,38 @@ export type DecideApprovalResponse = z.infer<typeof decideApprovalResponseSchema
 export const setConversationModeRequestSchema = z.strictObject({ mode: assistantModeSchema });
 export type SetConversationModeRequest = z.infer<typeof setConversationModeRequestSchema>;
 export const setConversationModeResponseSchema = z.object({ mode: assistantModeSchema });
+
+// The vocabulary of a streamed turn's closing and warning parts, the one the
+// panel reads: the limits a turn is counted against, and why a turn ended.
+export const ASSISTANT_BUDGET_LEVELS = [
+  'tenant_month',
+  'admin_day',
+  'conversation',
+  'turn',
+] as const;
+export const assistantBudgetLevelSchema = z.enum(ASSISTANT_BUDGET_LEVELS);
+export type AssistantBudgetLevel = z.infer<typeof assistantBudgetLevelSchema>;
+
+export const ASSISTANT_STOP_REASONS = [
+  'done',
+  'step_cap',
+  'awaiting_approval',
+  'budget_turn',
+  'budget_conversation',
+  'budget_admin',
+  'budget_tenant',
+  'aborted',
+  'error',
+] as const;
+export const assistantStopReasonSchema = z.enum(ASSISTANT_STOP_REASONS);
+export type AssistantStopReason = z.infer<typeof assistantStopReasonSchema>;
+
+// The data parts of a turn's stream: `data-turn_end` closes every turn, and
+// `data-budget_warning` is sent once per level that passed the warning share.
+export const assistantTurnEndSchema = z.object({ stopReason: assistantStopReasonSchema });
+export const assistantBudgetWarningSchema = z.object({
+  level: assistantBudgetLevelSchema,
+  percent: z.number().min(0).max(100),
+  slot: z.enum(['fast', 'standard', 'deep']),
+});
+export type AssistantBudgetWarning = z.infer<typeof assistantBudgetWarningSchema>;

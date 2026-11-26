@@ -132,9 +132,10 @@ function tabLabels(entry: TabSource | readonly string[]): string[] {
   return [...body.matchAll(/:\s*'([^']+)'/gu)].map((match) => match[1] ?? '');
 }
 
-// A page for a tab of a feature that is big enough to be a page of its own. It is
-// described with the feature it belongs to and checked as the other pages are.
-const PAGES_OF_TABS: readonly string[] = ['client-branding'];
+// A page for a tab of a feature that is big enough to be a page of its own, or
+// for a part of the console that has no menu entry (the assistant's panel). It
+// is described with the feature it belongs to and checked as the other pages are.
+const PAGES_OF_TABS: readonly string[] = ['client-branding', 'assistant'];
 
 const SLUGS = [...Object.values(PAGE_OF_FEATURE), ...PAGES_OF_TABS];
 

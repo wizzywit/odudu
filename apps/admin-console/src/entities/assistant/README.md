@@ -1,9 +1,9 @@
 # assistant
 
 What the shell and every later assistant screen share: whether the assistant
-is offered to this caller, the status it reports, the button and the panel it
-opens from, and the one function that turns model text into something safe to
-draw.
+is offered to this caller, the status it reports, the button that opens the
+panel, the one function that turns model text into something safe to draw, and
+what the shell hands the panel it draws.
 
 ## Rules owned
 
@@ -28,12 +28,12 @@ draw.
 
 Imports `shared` only. The shell decides the gate from whoami and hands it in.
 `useRefreshAssistantStatus` reads the status again after a settings save. The index exports `ui`,
-`use-cases` and `services` only. The conversation, its stream and the
-approval cards are `widgets/assistant-panel`'s; `AssistantPanel` here is the
-frame it fills.
+`use-cases` and `services` only, and the type `AssistantPanelSlot`. The
+conversation, its stream and the approval cards are `widgets/assistant-panel`'s:
+the gate takes a `renderPanel` function from the shell and calls it with what
+the panel needs (`AssistantPanelSlot`), because an entity cannot import a
+widget. The gate keeps the id of the conversation the panel was last open on,
+per tenant, so closing the panel and opening it again comes back to it.
 
-`adapter/assistant` reads the status. Starting and loading a conversation
-are added with the panel that calls them. The streamed message route is not read here: the
-gateway already forwards `POST …/messages` unbuffered
-(`packages/console-gateway/src/view/routes/proxy.ts`), and the panel reads it
-with `fetch`, not through the buffered `Gateway`.
+`adapter/assistant` reads the status; the conversation's own calls are the
+panel's.

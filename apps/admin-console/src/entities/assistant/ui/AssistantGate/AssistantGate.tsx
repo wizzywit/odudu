@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useAssistantEntry } from '#/entities/assistant/use-cases/useAssistantEntry';
 import { AssistantButton } from '#/entities/assistant/ui/AssistantButton';
-import { AssistantPanel } from '#/entities/assistant/ui/AssistantPanel';
+import type { AssistantPanelSlot } from '#/entities/assistant/types/panelSlot';
 
 export interface AssistantSlots {
   // The button that opens the panel, or null.
@@ -17,12 +17,16 @@ export function AssistantGate({
   tenant,
   available,
   paused,
+  renderPanel,
   children,
 }: {
   tenant: string;
   available: boolean;
   // A dialog is open: the shortcut would act behind it.
   paused: boolean;
+  // Draws the open panel, which a layer above this one provides: what it holds
+  // is the conversation, and an entity cannot import that.
+  renderPanel: (slot: AssistantPanelSlot) => ReactNode;
   children: (slots: AssistantSlots) => ReactNode;
 }) {
   const entry = useAssistantEntry(tenant, available, paused);
@@ -38,16 +42,19 @@ export function AssistantGate({
         onPress={entry.toggle}
       />
     ) : null,
-    panel: entry.open ? (
-      <AssistantPanel
-        id={entry.panelId}
-        label={words.panelLabel}
-        title={words.panelTitle}
-        ready={words.panelReady}
-        closeLabel={words.closeButton}
-        headingRef={entry.headingRef}
-        onClose={entry.close}
-      />
-    ) : null,
+    panel: entry.open
+      ? renderPanel({
+          tenant,
+          view: entry.view,
+          id: entry.panelId,
+          label: words.panelLabel,
+          title: words.panelTitle,
+          closeLabel: words.closeButton,
+          headingRef: entry.headingRef,
+          conversationId: entry.conversationId,
+          onConversation: entry.rememberConversation,
+          onClose: entry.close,
+        })
+      : null,
   });
 }

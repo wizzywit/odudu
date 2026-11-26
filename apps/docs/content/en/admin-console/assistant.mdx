@@ -1,0 +1,70 @@
+---
+title: The assistant in the console
+description: Ask a question about a tenant from a panel beside any page, watch the assistant read what it needs, stop it, and see why it stopped.
+sidebar_position: 18
+---
+
+import { ConsoleShot } from '@site/src/shared/ui/ConsoleShot';
+
+# The assistant in the console
+
+The assistant is a panel that opens beside any page of the console. You ask a question in plain words, and it reads what it needs from the tenant, as you could, and answers. It is not an area with a menu entry. It needs the `use-assistant` capability, and it is for the administrators of the tenant itself: an administrator of the system tenant who is looking at another tenant does not see it there, since the conversation would belong to nobody in that tenant.
+
+The button is **Ask the assistant**, in the menu and, on a narrow screen, in the top bar. It is drawn only where the server has the assistant switched on, the tenant offers it and you may use it. Where any of those is not true there is no button, no shortcut and nothing asked of the server. The tenant's own switch and limits are in [Settings](./settings.mdx), under **Console assistant**.
+
+<ConsoleShot
+  name="assistant-panel"
+  alt="The Tenants page of the system tenant with the assistant’s panel open beside it: the mode switch set to Ask, a line saying the usage is within the allowance, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button."
+  caption="The panel opens beside the page, with a notice the first time it is used."
+/>
+
+## 1. Open it
+
+Choose **Ask the assistant**, or press Command and K on a Mac, Control and K elsewhere. The panel takes the focus to its heading, so a screen reader starts at the top, and the message field is one Tab away. Escape or **Close** puts the panel away and the focus goes back to whatever opened it. Opened again, it comes back to the conversation you had.
+
+Where the console is wide enough, the panel has a column of its own beside the page and stays there as you move between pages. Where it is not, the panel lies over the page as a dialog: the page behind it is out of reach, Tab stays inside it, and on a phone it fills the screen.
+
+<ConsoleShot
+  name="assistant-panel-phone"
+  alt="The assistant’s panel on a phone, filling the screen: the same mode switch, notice, description and message field in one column, with Close at the top right."
+  caption="On a phone the panel fills the screen and the page behind it is out of reach."
+/>
+
+The first time you use it in a browser, a notice says where your messages go and who can read the conversation. It names the provider that receives your messages and the tenant data the assistant reads to answer them, or, for a model your operator runs, the host that does. It says that you can read the conversation again later, and that people who can read the tenant's audit trail can read it too unless an administrator has turned that off in Settings. Choose **Got it** and it does not come back in that browser. Where a browser cannot remember that, the notice shows again.
+
+## 2. Ask a question
+
+Type in the message field and press Enter. Shift and Enter start a new line. Next to the field a chip says where you are, such as `client my-app` on a client's page: that is sent with your first message, as the address of the page and, on a page of one record, its kind and id, and never as text you typed. The assistant can read what you can read there: clients, subjects, roles, settings and the audit trail.
+
+The conversation starts with your first message, not when the panel opens, so opening it and closing it again costs nothing. Your words appear as you typed them. The answer appears as it is written, with emphasis, lists and code. A link to a console page stays a link; any other address is shown as text, and an image is not shown, since an answer can carry text a tenant wrote.
+
+## 3. Choose Ask or Act
+
+**Ask** is the default: the assistant reads and explains, and changes nothing. **Act** lets it propose changes, and each one waits for your approval. You choose with the **Mode** switch at the top of the panel; the tenant's setting decides which one a conversation starts in. The switch is yours, in the console: the assistant cannot change it. It is dimmed while an answer is being written.
+
+In Act mode a change the assistant proposes stops the answer with the line **Waiting for you**. The panel says a change is waiting for your decision. The card that shows the change in full, with its before and after, comes with a later release of the panel; until then nothing is approved from here.
+
+## 4. Watch it work
+
+Under the conversation one short line says what the assistant is doing: **Connecting** while the server takes your message, **Thinking** while it works out an answer, the step it is on while it reads (**Listing clients**), **Waiting for you**, **Stopped**, **Finished** or **Failed**. A screen reader is told when that line changes, and never hears the words of the answer as they are written. Each step the assistant took is listed in its answer with what became of it.
+
+**Stop** takes the place of **Send** for as long as an answer is being written, and the message field keeps the focus, so you can go on typing the next question. Choosing **Stop** ends the answer here and on the server, which stops the spend, and says so: **Stopped. Nothing further was run.** Closing the panel while an answer is being written stops it the same way.
+
+## 5. Read why it stopped
+
+An answer ends in one of a few ways, and the panel names which.
+
+- **Finished.** The answer is complete.
+- **Stopped at the step limit.** One answer may take only so many model and tool calls, which [Settings](./settings.mdx) names. Ask again, with a narrower question, to carry on.
+- **Stopped: allowance used.** The assistant has four limits: the tenant's month for the model, your share of one day, one conversation's month and one answer. The panel names the one that was reached, in the server's words, which say what resets it and who can change it. The assistant never falls back to a cheaper model. A conversation or an answer that reached its own limit has no setting; start a new conversation or ask a narrower question.
+- **Failed.** The panel says in plain words what could not be done, and gives the request's own reference to copy when it has one, for whoever looks into it. It never shows an error's stack.
+
+At the top of the panel a line says **Within your allowance**. When a limit passes 80 percent it says how much of which limit is used and what happens at the limit, and when one is reached it names it. The server sends the share at which it warned and not a running count, so the line says no more than that.
+
+## Things that cannot be undone
+
+**Stop** cannot take back what has been sent. The request to the model provider is made as soon as you send a message, and what the provider has received stays with it. A step that has already run has run; in Ask mode every step only reads. The conversation is recorded, so closing the panel does not delete it: it stays readable to you and to those the first-run notice names.
+
+## Do the same through the API
+
+The conversation, its messages and its stream are in the [assistant area of the admin API](../reference/generated/admin-api/assistant/index.md): starting a conversation sends the page you are on, a message is answered as a stream, a turn is stopped with its own call, and the mode is switched with another. The console reads the stream through the same gateway as every other call, so it carries the same session and the same refusals.

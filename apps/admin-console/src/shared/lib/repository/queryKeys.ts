@@ -81,6 +81,12 @@ export function assistantStatusKey(tenant: string) {
   return ['assistant-status', tenant] as const;
 }
 
+// One conversation as the server holds it, read when the panel is opened on
+// one that already has messages.
+export function assistantConversationKey(tenant: string, id: string) {
+  return ['assistant-conversation', tenant, id] as const;
+}
+
 export function authorityKey(tenant: string, subject: string | null) {
   return ['authority', tenant, subject] as const;
 }

@@ -1,14 +1,15 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { json, offline, pending, problem, type Answer } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
-import { consoleAt, GRACE, renderConsoleAt, whoami } from '#/testing/renderConsole';
+import { consoleAt, GRACE, renderConsoleAt, ROOT, whoami } from '#/testing/renderConsole';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 
 afterEach(() => {
   resetConsole();
+  vi.unstubAllGlobals();
 });
 
 const STATUS = `${ACME_ADMIN}/assistant/status`;
@@ -60,6 +61,19 @@ it('draws no assistant control and asks nothing of a caller who may not use it',
     '/console/acme',
     routes(whoami(['read-assistant-activity', 'manage-assistant'], false, true), json(ON)),
   );
+  await shellReady();
+  await waitFor(() => {
+    expect(view.calls.length).toBeGreaterThan(1);
+  });
+  expect(screen.queryByRole('button', { name: 'Ask the assistant' })).toBeNull();
+  expect(assistantCalls(view.calls)).toEqual([]);
+});
+
+it('draws no assistant control and asks nothing of an administrator signed in to another tenant', async () => {
+  const view = renderConsoleAt('/console/acme', {
+    ...routes(whoami(['use-assistant'], true, true), json(ON)),
+    'GET /console/api/session': json(ROOT),
+  });
   await shellReady();
   await waitFor(() => {
     expect(view.calls.length).toBeGreaterThan(1);
@@ -121,20 +135,34 @@ it('offers a labelled button with its shortcut when the assistant is on', async 
   expect(screen.getAllByText(/or press/u).length).toBeGreaterThan(0);
 });
 
-it('opens the panel from the button, moves focus to it, and gives focus back on Escape', async () => {
-  const user = userEvent.setup();
-  renderConsoleAt('/console/acme', routes(OPEN, json(ON)));
-  const button = await assistantButton();
-  await user.click(button);
-  const panel = await screen.findByRole('complementary', { name: 'Assistant panel' });
-  expect(within(panel).getByRole('heading', { name: 'Assistant' })).toHaveFocus();
-  expect(button).toHaveAttribute('aria-expanded', 'true');
-  await user.keyboard('{Escape}');
-  expect(screen.queryByRole('complementary', { name: 'Assistant panel' })).toBeNull();
-  expect(button).toHaveFocus();
-});
+// The shell is as wide as the window, which jsdom has no layout for: 1400 gives
+// the panel a column of its own beside the page, and 800 lays it over the page.
+const PLACES = [
+  ['beside the page', 1400, 'complementary'],
+  ['over the page', 800, 'dialog'],
+] as const;
+
+it.each(PLACES)(
+  'opens the panel from the button %s, moves focus to it, and gives focus back on Escape',
+  async (_place, width, role) => {
+    vi.stubGlobal('innerWidth', width);
+    const user = userEvent.setup();
+    renderConsoleAt('/console/acme', routes(OPEN, json(ON)));
+    const button = await assistantButton();
+    await user.click(button);
+    const panel = await screen.findByRole(role, { name: 'Assistant panel' });
+    expect(within(panel).getByRole('heading', { name: 'Assistant' })).toHaveFocus();
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole(role, { name: 'Assistant panel' })).toBeNull();
+    });
+    expect(button).toHaveFocus();
+  },
+);
 
 it('opens the panel on the shortcut, and focuses it when it is already open', async () => {
+  vi.stubGlobal('innerWidth', 1400);
   const user = userEvent.setup();
   renderConsoleAt('/console/acme', routes(OPEN, json(ON)));
   await screen.findAllByRole('button', { name: 'Ask the assistant' });
@@ -145,6 +173,16 @@ it('opens the panel on the shortcut, and focuses it when it is already open', as
   screen.getByRole('main').focus();
   await user.keyboard('{Control>}k{/Control}');
   expect(heading).toHaveFocus();
+});
+
+it('keeps the page behind the panel out of reach while it lies over the page', async () => {
+  vi.stubGlobal('innerWidth', 800);
+  const user = userEvent.setup();
+  renderConsoleAt('/console/acme', routes(OPEN, json(ON)));
+  await user.click(await assistantButton());
+  await screen.findByRole('dialog', { name: 'Assistant panel' });
+  expect(screen.queryByRole('navigation', { name: 'Areas of acme' })).toBeNull();
+  expect(screen.queryByRole('main')).toBeNull();
 });
 
 it('does nothing on the shortcut behind a dialog, whether a field or a button has the focus', async () => {
@@ -165,16 +203,20 @@ it('does nothing on the shortcut behind a dialog, whether a field or a button ha
   dialog.remove();
 });
 
-it('passes axe in both themes with the control drawn and the panel open', async () => {
-  const user = userEvent.setup();
-  const shell = () => consoleAt('/console/acme', routes(OPEN, json(ON)));
-  expect(
-    await axeInBothThemes(
-      () => shell().element,
-      async () => {
-        await user.click(await assistantButton());
-        return screen.findByRole('complementary', { name: 'Assistant panel' });
-      },
-    ),
-  ).toEqual({ light: [], dark: [] });
-});
+it.each(PLACES)(
+  'passes axe in both themes with the control drawn and the panel open %s',
+  async (_place, width, role) => {
+    vi.stubGlobal('innerWidth', width);
+    const user = userEvent.setup();
+    const shell = () => consoleAt('/console/acme', routes(OPEN, json(ON)));
+    expect(
+      await axeInBothThemes(
+        () => shell().element,
+        async () => {
+          await user.click(await assistantButton());
+          return screen.findByRole(role, { name: 'Assistant panel' });
+        },
+      ),
+    ).toEqual({ light: [], dark: [] });
+  },
+);

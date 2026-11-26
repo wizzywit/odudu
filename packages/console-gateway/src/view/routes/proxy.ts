@@ -32,10 +32,14 @@ function refused(
   return sendProblem(reply, request, BAD_GATEWAY);
 }
 
-// The route whose response is read as it is written, one admin call among
-// the rest. It is registered ahead of the wildcard, which is the more specific
-// route's to win, and takes the body as bytes as the wildcard does.
-const STREAMED = '/admin/tenants/:tenant/assistant/conversations/:id/messages';
+// The routes whose response is read as it is written, two admin calls among
+// the rest: a message and the carrying on of a turn after a decision. They are
+// registered ahead of the wildcard, which is the more specific route's to win,
+// and take the body as bytes as the wildcard does.
+const STREAMED = [
+  '/admin/tenants/:tenant/assistant/conversations/:id/messages',
+  '/admin/tenants/:tenant/assistant/conversations/:id/resume',
+];
 
 // Its own scope, so the body reaches the admin API as the bytes the browser
 // sent, whatever its media type, rather than as a value parsed and
@@ -47,38 +51,40 @@ export function registerProxyRoutes(api: FastifyInstance, deps: ProxyRouteDeps):
       done(null, body);
     });
 
-    proxy.route({
-      method: 'POST',
-      url: STREAMED,
-      bodyLimit: SEND_MESSAGE_BODY_LIMIT,
-      handler: async (request, reply) => {
-        const path = upstreamPath(request.url);
-        if (path === null) {
-          return sendProblem(reply, request, {
-            status: 404,
-            type: 'about:blank#not-found',
-            title: 'Not Found',
+    for (const url of STREAMED) {
+      proxy.route({
+        method: 'POST',
+        url,
+        bodyLimit: SEND_MESSAGE_BODY_LIMIT,
+        handler: async (request, reply) => {
+          const path = upstreamPath(request.url);
+          if (path === null) {
+            return sendProblem(reply, request, {
+              status: 404,
+              type: 'about:blank#not-found',
+              title: 'Not Found',
+            });
+          }
+          const gone = new AbortController();
+          reply.raw.once('close', () => {
+            if (!reply.raw.writableFinished) gone.abort();
           });
-        }
-        const gone = new AbortController();
-        reply.raw.once('close', () => {
-          if (!reply.raw.writableFinished) gone.abort();
-        });
-        const result = await forwardAdminStream(deps, {
-          method: 'POST',
-          path,
-          headers: request.headers,
-          body: Buffer.isBuffer(request.body) ? request.body : undefined,
-          believedSubject: believedSubject(request.headers),
-          from: callerOf(request),
-          now: deps.now(),
-          signal: gone.signal,
-        });
-        if (result.kind !== 'streaming') return refused(result, request, reply, deps.tls);
-        reply.code(result.status).headers(result.headers);
-        return reply.send(result.body);
-      },
-    });
+          const result = await forwardAdminStream(deps, {
+            method: 'POST',
+            path,
+            headers: request.headers,
+            body: Buffer.isBuffer(request.body) ? request.body : undefined,
+            believedSubject: believedSubject(request.headers),
+            from: callerOf(request),
+            now: deps.now(),
+            signal: gone.signal,
+          });
+          if (result.kind !== 'streaming') return refused(result, request, reply, deps.tls);
+          reply.code(result.status).headers(result.headers);
+          return reply.send(result.body);
+        },
+      });
+    }
 
     proxy.route({
       method: [...METHODS],

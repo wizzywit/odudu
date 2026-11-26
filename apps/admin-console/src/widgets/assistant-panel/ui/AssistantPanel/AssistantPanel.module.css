@@ -1,0 +1,47 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  background: var(--surface-panel);
+  outline: none;
+}
+
+/* Where the panel has no column of its own it lies over the page, from the
+   right edge, and the whole screen on a phone. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(11 14 13 / 45%);
+}
+
+.overlay[data-entering] {
+  animation: fade var(--motion-panel) var(--ease);
+}
+
+.modal {
+  inline-size: min(420px, 100vw);
+  block-size: 100%;
+  border-inline-start: 1px solid var(--border-strong);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-overlay);
+}
+
+.modal[data-entering] {
+  animation: slide var(--motion-panel) var(--ease);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(100%);
+  }
+}

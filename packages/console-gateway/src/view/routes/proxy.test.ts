@@ -56,11 +56,12 @@ afterEach(async () => {
 });
 
 const MESSAGES = '/console/api/admin/tenants/acme/assistant/conversations/c1/messages';
+const RESUME = '/console/api/admin/tenants/acme/assistant/conversations/c1/resume';
 
 // The headers go out with the first chunk, as they do over a real turn, so
 // the upstream writes before the response is awaited.
-async function begin(port: number) {
-  const req = httpRequest({ host: '127.0.0.1', port, path: MESSAGES, method: 'POST' });
+async function begin(port: number, path: string = MESSAGES) {
+  const req = httpRequest({ host: '127.0.0.1', port, path, method: 'POST' });
   req.end('{}');
   for (let tick = 0; tick < 100 && upstream === undefined; tick += 1) {
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -86,6 +87,14 @@ describe('the streamed admin route', () => {
     });
     expect(first).toBe('data: first\n\n');
     expect(upstream?.writableEnded).toBe(false);
+    expect(seen.buffered).toBe(0);
+    req.destroy();
+  });
+
+  it('streams a resumed turn the same way', async () => {
+    const { req, res } = await begin(await serve(), RESUME);
+    expect(res.headers['content-type']).toBe('text/event-stream');
+    expect(seen.path).toBe('/admin/tenants/acme/assistant/conversations/c1/resume');
     expect(seen.buffered).toBe(0);
     req.destroy();
   });

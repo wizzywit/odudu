@@ -27,6 +27,9 @@ const TERMS_VIEW = { width: 1100, height: 1070 } as const;
 const AUTHENTICATORS_VIEW = { width: 1100, height: 1040 } as const;
 const PASSWORD_VIEW = { width: 1100, height: 890 } as const;
 const ASSISTANT_VIEW = { width: 1100, height: 1180 } as const;
+// Wide enough for the panel to have a column of its own beside the page.
+const PANEL_VIEW = { width: 1440, height: 900 } as const;
+const PANEL_PHONE_VIEW = { width: 390, height: 844 } as const;
 
 // Scrolled so the section's heading sits just under the strip of section links.
 async function openSection(
@@ -42,6 +45,16 @@ async function openSection(
     const top = element.closest('section')?.getBoundingClientRect().top ?? 0;
     window.scrollTo(0, window.scrollY + top - 72);
   });
+}
+
+// The panel is the system tenant's own: the signed-in administrator belongs to
+// it, which is whose conversation it would be. The button is in the menu and,
+// on a narrow screen, in the top bar; either one opens it.
+async function openAssistant(page: Page, context: Context): Promise<void> {
+  await page.goto(`${context.base}/console/system/tenants`);
+  await page.getByRole('heading', { level: 1 }).waitFor();
+  await page.getByRole('button', { name: 'Ask the assistant' }).first().click();
+  await page.getByRole('heading', { level: 2, name: 'Assistant', exact: true }).waitFor();
 }
 
 async function openList(page: Page, context: Context, area: string): Promise<void> {
@@ -479,6 +492,32 @@ export const SCREENS: readonly Screen[] = [
     viewport: { width: 390, height: 1500 },
     expect: [{ heading: 'Console assistant' }, { label: 'Offer the assistant' }],
     open: (page, context) => openSection(page, context, 'Console assistant'),
+  },
+  {
+    name: 'assistant-panel',
+    alt: 'The Tenants page of the system tenant with the assistant’s panel open beside it: the mode switch set to Ask, a line saying the usage is within the allowance, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button.',
+    caption: 'The panel opens beside the page, with a notice the first time it is used.',
+    signedIn: true,
+    viewport: PANEL_VIEW,
+    expect: [
+      { heading: 'Assistant' },
+      { label: 'Message to the assistant' },
+      { role: 'button', name: 'Got it' },
+    ],
+    open: (page, context) => openAssistant(page, context),
+  },
+  {
+    name: 'assistant-panel-phone',
+    alt: 'The assistant’s panel on a phone, filling the screen: the same mode switch, notice, description and message field in one column, with Close at the top right.',
+    caption: 'On a phone the panel fills the screen and the page behind it is out of reach.',
+    signedIn: true,
+    viewport: PANEL_PHONE_VIEW,
+    expect: [
+      { heading: 'Assistant' },
+      { label: 'Message to the assistant' },
+      { role: 'button', name: 'Close' },
+    ],
+    open: (page, context) => openAssistant(page, context),
   },
   {
     name: 'email',

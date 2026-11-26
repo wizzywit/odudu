@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { AssistantGate } from '#/entities/assistant/ui/AssistantGate';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
@@ -26,7 +27,12 @@ function harness() {
 
 function gate(available: boolean) {
   return (
-    <AssistantGate tenant="acme" available={available} paused={false}>
+    <AssistantGate
+      tenant="acme"
+      available={available}
+      paused={false}
+      renderPanel={(slot) => <aside aria-label={slot.label}>{`panel for ${slot.tenant}`}</aside>}
+    >
       {({ control, panel }) => (
         <div>
           {control}
@@ -49,6 +55,18 @@ it('hands over the control once the status says the assistant is on', async () =
   render(<Wrapper>{gate(true)}</Wrapper>);
   expect(await screen.findByRole('button', { name: 'Ask the assistant' })).toBeVisible();
   expect(calls.map((call) => call.path)).toEqual([`${ACME_ADMIN}/assistant/status`]);
+});
+
+it('hands the panel what it needs when the control is pressed, and takes it away on close', async () => {
+  const { wrapper: Wrapper } = harness();
+  const user = userEvent.setup();
+  render(<Wrapper>{gate(true)}</Wrapper>);
+  await user.click(await screen.findByRole('button', { name: 'Ask the assistant' }));
+  expect(screen.getByRole('complementary', { name: 'Assistant panel' })).toHaveTextContent(
+    'panel for acme',
+  );
+  await user.click(screen.getByRole('button', { name: 'Ask the assistant' }));
+  expect(screen.queryByRole('complementary')).toBeNull();
 });
 
 it('passes axe in both themes with the control handed over', async () => {

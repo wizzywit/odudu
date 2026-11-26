@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest';
-import { assistantView, mayUseAssistant } from '#/entities/assistant/services/gate';
+import {
+  assistantView,
+  conversationFor,
+  mayUseAssistant,
+} from '#/entities/assistant/services/gate';
 import type { AssistantStatus } from '#/entities/assistant/types/assistant';
 import type { Authority } from '#/shared/lib/services/principal';
 
@@ -42,4 +46,10 @@ it('reports slots, modes and provider only for an assistant that is on', () => {
 
 it('reports an assistant that is on as off while the gate is shut', () => {
   expect(assistantView(false, ON)).toEqual({ enabled: false });
+});
+
+it('offers the remembered conversation only in the tenant it was made in', () => {
+  expect(conversationFor({ tenant: 'acme', id: 'c1' }, 'acme')).toBe('c1');
+  expect(conversationFor({ tenant: 'acme', id: 'c1' }, 'other')).toBeNull();
+  expect(conversationFor(null, 'acme')).toBeNull();
 });

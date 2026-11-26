@@ -358,6 +358,11 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     purpose:
       'Forwards a message to the console assistant and streams the turn back as it is written, rather than buffering it as the other admin calls are.',
   },
+  'POST /console/api/admin/tenants/:tenant/assistant/conversations/:id/resume': {
+    auth: 'Console session',
+    purpose:
+      'Forwards the carrying on of a turn that waited for a decision to the console assistant and streams the rest of it back as it is written, as a message is.',
+  },
   ...Object.fromEntries(
     ALL_METHODS.map((method) => [
       `${method} /console/api/admin/*`,
