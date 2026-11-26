@@ -10116,6 +10116,254 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tenants/{tenant}/assistant/conversations/{id}/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "use-assistant" capability.
+         * @description The changes the assistant proposed in this conversation that still wait for the caller, newest first and never more than 20. Each card is written by the server: a title, the target, the state the server read just before the proposal, what the call would set and when the approval ends by the server’s clock. `404` for a conversation that is not the caller’s. Not offered to an agent.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description At most 20 versions, newest first, without their bodies. */
+                            items: {
+                                /** @description The approval to decide, the id the decision route takes. */
+                                approval_id: string;
+                                /** @description The model’s call this change is for; the same id the stream’s approval request names. */
+                                tool_call_id: string;
+                                /** @description The name of the change tool, one of the twelve the assistant may propose. */
+                                tool: string;
+                                /** @description What the change does, in one line, written by the server. */
+                                title: string;
+                                /** @description What it changes: the kind of object and, where there is one, its id and the name the server read. */
+                                target: {
+                                    /** @description The kind of object: `client`, `scope`, `role`, `group`, `message`, `tenant settings` or a theme draft. */
+                                    type: string;
+                                    /** @description Its id, or for a message the language and key; absent for something the change creates. */
+                                    id?: string;
+                                    /** @description Its name, as the server read it just before the proposal; absent where there is none to read. */
+                                    name?: string;
+                                };
+                                /** @description The target as the server read it just now, as short text per field, or null for something that does not exist yet. Never text the model wrote. */
+                                before: {
+                                    [key: string]: string | number | boolean | null;
+                                } | null;
+                                /** @description What the call would set, as short text per field, taken from the stored call; null for a removal. */
+                                after: {
+                                    [key: string]: string | number | boolean | null;
+                                } | null;
+                                /** @description When the approval ends, by the server’s clock. A decision after it is refused; a card never extends it. */
+                                expires_at: string;
+                            }[];
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/conversations/{id}/approvals/{approvalId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Requires the "use-assistant" capability.
+         * @description Approves or refuses one change, as the administrator the conversation belongs to and from their own console sign-in: a token the assistant or any agent holds is refused, and so is another administrator, whatever they may do elsewhere. Approving lets the one change run once, exactly as the card shows it, when the conversation is resumed. `404` for an approval that is not this conversation’s or not the caller’s, `409` for one that was already decided or has expired. Audited as `assistant.approval`. Takes no `Idempotency-Key`: the tenant is created outside the transaction a record of the call would share, so a request naming one is refused with `400` (`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that already happened is answered `409`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                    /** @description A row id. */
+                    approvalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description True to let the one change run, false to refuse it. Only the administrator the conversation belongs to may send it, from their own console session. */
+                        approve: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @description What was recorded: `approved` or `denied`.
+                             * @enum {string}
+                             */
+                            state: "approved" | "denied";
+                        };
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/conversations/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Requires the "use-assistant" capability.
+         * @description Carries the conversation on after the changes it was waiting on were decided, and streams the rest of the answer as a message does. An approved change runs once and the assistant reads its result; a refused or expired one is closed as such. `409` while a change still waits for a decision, or when there is none to carry on from, or while a turn runs on this server. `429` as for a message. `404` for a conversation that is not the caller’s. Takes no `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, which a record cannot cover without holding the call open, so a request naming one is refused with `400` (`about:blank#idempotency-external-io`) and nothing is applied.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/conversations/{id}/mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Requires the "use-assistant" capability.
+         * @description Switches the conversation between `ask` and `act`. Leaving `act` withdraws the changes still waiting, as refused. `409` where `act` is not offered: the deployment cannot propose changes, or the tenant’s limits do not allow the mode. `404` for a conversation that is not the caller’s. Not offered to an agent.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description The mode the conversation is now in.
+                         * @enum {string}
+                         */
+                        mode: "ask" | "act";
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @description The mode the conversation is now in.
+                             * @enum {string}
+                             */
+                            mode: "ask" | "act";
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {

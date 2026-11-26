@@ -108,6 +108,21 @@ from .get_admin_tenants_tenant_agents_response_200_items_item_state import (
     GetAdminTenantsTenantAgentsResponse200ItemsItemState,
 )
 from .get_admin_tenants_tenant_agents_state import GetAdminTenantsTenantAgentsState
+from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200 import (
+    GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200,
+)
+from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item import (
+    GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem,
+)
+from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_after_type_0 import (
+    GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemAfterType0,
+)
+from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_before_type_0 import (
+    GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemBeforeType0,
+)
+from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_target import (
+    GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTarget,
+)
 from .get_admin_tenants_tenant_assistant_conversations_id_response_200 import (
     GetAdminTenantsTenantAssistantConversationsIdResponse200,
 )
@@ -833,6 +848,15 @@ from .post_admin_tenants_tenant_assistant_conversations_body_mode import (
 from .post_admin_tenants_tenant_assistant_conversations_body_page_context import (
     PostAdminTenantsTenantAssistantConversationsBodyPageContext,
 )
+from .post_admin_tenants_tenant_assistant_conversations_id_approvals_approval_id_body import (
+    PostAdminTenantsTenantAssistantConversationsIdApprovalsApprovalIdBody,
+)
+from .post_admin_tenants_tenant_assistant_conversations_id_approvals_approval_id_response_200 import (
+    PostAdminTenantsTenantAssistantConversationsIdApprovalsApprovalIdResponse200,
+)
+from .post_admin_tenants_tenant_assistant_conversations_id_approvals_approval_id_response_200_state import (
+    PostAdminTenantsTenantAssistantConversationsIdApprovalsApprovalIdResponse200State,
+)
 from .post_admin_tenants_tenant_assistant_conversations_id_messages_body import (
     PostAdminTenantsTenantAssistantConversationsIdMessagesBody,
 )
@@ -1046,6 +1070,18 @@ from .post_admin_tenants_tenant_theme_publish_response_200_warnings_item_code im
 )
 from .problem_details import ProblemDetails
 from .problem_details_errors_item import ProblemDetailsErrorsItem
+from .put_admin_tenants_tenant_assistant_conversations_id_mode_body import (
+    PutAdminTenantsTenantAssistantConversationsIdModeBody,
+)
+from .put_admin_tenants_tenant_assistant_conversations_id_mode_body_mode import (
+    PutAdminTenantsTenantAssistantConversationsIdModeBodyMode,
+)
+from .put_admin_tenants_tenant_assistant_conversations_id_mode_response_200 import (
+    PutAdminTenantsTenantAssistantConversationsIdModeResponse200,
+)
+from .put_admin_tenants_tenant_assistant_conversations_id_mode_response_200_mode import (
+    PutAdminTenantsTenantAssistantConversationsIdModeResponse200Mode,
+)
 from .put_admin_tenants_tenant_clients_id_theme_body import (
     PutAdminTenantsTenantClientsIdThemeBody,
 )
@@ -1216,6 +1252,11 @@ __all__ = (
     "GetAdminTenantsTenantAgentsResponse200ItemsItemRemainingBudget",
     "GetAdminTenantsTenantAgentsResponse200ItemsItemState",
     "GetAdminTenantsTenantAgentsState",
+    "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200",
+    "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem",
+    "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemAfterType0",
+    "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemBeforeType0",
+    "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTarget",
     "GetAdminTenantsTenantAssistantConversationsIdResponse200",
     "GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItem",
     "GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItemPartsItem",
@@ -1473,6 +1514,9 @@ __all__ = (
     "PostAdminTenantsTenantAssistantConversationsBody",
     "PostAdminTenantsTenantAssistantConversationsBodyMode",
     "PostAdminTenantsTenantAssistantConversationsBodyPageContext",
+    "PostAdminTenantsTenantAssistantConversationsIdApprovalsApprovalIdBody",
+    "PostAdminTenantsTenantAssistantConversationsIdApprovalsApprovalIdResponse200",
+    "PostAdminTenantsTenantAssistantConversationsIdApprovalsApprovalIdResponse200State",
     "PostAdminTenantsTenantAssistantConversationsIdMessagesBody",
     "PostAdminTenantsTenantAssistantConversationsIdMessagesBodyMessage",
     "PostAdminTenantsTenantAssistantConversationsIdMessagesBodyMessagePartsItem",
@@ -1552,6 +1596,10 @@ __all__ = (
     "PostAdminTenantsTenantThemePublishResponse200WarningsItemCode",
     "ProblemDetails",
     "ProblemDetailsErrorsItem",
+    "PutAdminTenantsTenantAssistantConversationsIdModeBody",
+    "PutAdminTenantsTenantAssistantConversationsIdModeBodyMode",
+    "PutAdminTenantsTenantAssistantConversationsIdModeResponse200",
+    "PutAdminTenantsTenantAssistantConversationsIdModeResponse200Mode",
     "PutAdminTenantsTenantClientsIdThemeBody",
     "PutAdminTenantsTenantClientsIdThemeBodyTemplates",
     "PutAdminTenantsTenantFlowExecutionsBodyItem",
