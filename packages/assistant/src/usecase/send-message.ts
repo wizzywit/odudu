@@ -9,6 +9,7 @@ import { profileById } from '#/service/profile';
 import type { TurnRegistry } from '#/service/turn-registry';
 import { DEFAULT_TURN_DEADLINE_MS, type ChatCaller, type ChatDeps } from '#/usecase/chat-deps';
 import { startTurn } from '#/usecase/run-turn';
+import { readSettings } from '#/usecase/settings';
 
 export type SendOutcome =
   | {
@@ -26,6 +27,7 @@ interface Prepared {
   readonly earlier: UIMessage[];
   readonly pageContext: string;
   readonly generation: number;
+  readonly maskEmails: boolean;
 }
 
 async function prepare(deps: ChatDeps, caller: ChatCaller, id: string): Promise<Prepared | null> {
@@ -39,6 +41,7 @@ async function prepare(deps: ChatDeps, caller: ChatCaller, id: string): Promise<
       generation: record.runGeneration,
       earlier: visibleMessages(id, await messages.load(id, HISTORY_MESSAGES)),
       pageContext: pageContextText(readPageContext(head?.parts)),
+      maskEmails: (await readSettings(tx, caller.tenantId)).assistant_mask_emails,
     };
   });
 }
@@ -131,6 +134,7 @@ export async function sendMessage(
         model: deps.model(profile.slot),
         profile,
         tenantText: prepared.pageContext,
+        maskEmails: prepared.maskEmails,
         tools: deps.tools,
         history: () => Promise.resolve(prepared.earlier),
         ...deps.turn(caller, id),

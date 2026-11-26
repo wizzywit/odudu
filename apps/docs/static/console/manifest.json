@@ -103,6 +103,14 @@
     "width": 1100,
     "height": 890
   },
+  "settings-assistant": {
+    "width": 1100,
+    "height": 1180
+  },
+  "settings-assistant-phone": {
+    "width": 390,
+    "height": 1500
+  },
   "email": {
     "width": 1100,
     "height": 900

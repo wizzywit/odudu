@@ -299,6 +299,16 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'assistant_messages.assistant_messages_role_check':
     "CHECK ((role = ANY (ARRAY['system'::text, 'user'::text, 'assistant'::text])))",
   'assistant_messages.assistant_messages_seq_floor': 'CHECK ((seq >= 1))',
+  'assistant_settings.assistant_settings_mode_check':
+    "CHECK ((assistant_default_mode = ANY (ARRAY['ask'::text, 'act'::text])))",
+  'assistant_settings.assistant_settings_retention_range':
+    'CHECK (((assistant_trace_retention_days >= 1) AND (assistant_trace_retention_days <= 365)))',
+  'assistant_settings.assistant_settings_tokens_range':
+    'CHECK ((((assistant_monthly_tokens_fast >= 0) AND (assistant_monthly_tokens_fast <= 1000000000)) AND ((assistant_monthly_tokens_standard >= 0) AND (assistant_monthly_tokens_standard <= 1000000000)) AND ((assistant_monthly_tokens_deep >= 0) AND (assistant_monthly_tokens_deep <= 1000000000))))',
+  'assistant_settings.assistant_settings_concurrent_range':
+    'CHECK (((assistant_max_concurrent >= 1) AND (assistant_max_concurrent <= 50)))',
+  'assistant_settings.assistant_settings_steps_range':
+    'CHECK (((assistant_max_steps_per_turn >= 1) AND (assistant_max_steps_per_turn <= 100)))',
 };
 
 interface ColumnRow {

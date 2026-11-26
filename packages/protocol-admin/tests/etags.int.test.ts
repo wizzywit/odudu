@@ -129,9 +129,13 @@ describe('a create answers the ETag its record reads back with', () => {
   const SYSTEM_CREATES = ['POST /admin/tenants', 'POST /admin/tenant-imports'];
   // Issues a one-time password and creates no record to read back.
   // The image upload answers the stored image, which has no ETag or read.
+  // A conversation exists only for the person who owns it and is served only
+  // when a model is configured, which this fixture has none of; its read
+  // carries no ETag because a turn changes it while it is open.
   const EXEMPT = [
     'POST /admin/tenants/:tenant/subjects/:id/password',
     'POST /admin/tenants/:tenant/theme/assets',
+    'POST /admin/tenants/:tenant/assistant/conversations',
   ];
 
   it('covers every route that creates something', () => {

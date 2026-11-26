@@ -114,7 +114,9 @@ def sync_detailed(
 
      Whether the console assistant is on in this deployment: `{ "enabled": false }` when no model is
     configured, otherwise the model each slot runs, the modes offered and the default, the models a
-    person may choose and the provider, with the host of a self-hosted endpoint and never a key.
+    person may choose and the provider, with the host of a self-hosted endpoint and never a key. A
+    tenant that switched the assistant off reads `{ "enabled": false }` too, and the default mode is the
+    tenant’s own.
 
     Args:
         tenant (str):
@@ -152,7 +154,9 @@ def sync(
 
      Whether the console assistant is on in this deployment: `{ "enabled": false }` when no model is
     configured, otherwise the model each slot runs, the modes offered and the default, the models a
-    person may choose and the provider, with the host of a self-hosted endpoint and never a key.
+    person may choose and the provider, with the host of a self-hosted endpoint and never a key. A
+    tenant that switched the assistant off reads `{ "enabled": false }` too, and the default mode is the
+    tenant’s own.
 
     Args:
         tenant (str):
@@ -184,7 +188,9 @@ async def asyncio_detailed(
 
      Whether the console assistant is on in this deployment: `{ "enabled": false }` when no model is
     configured, otherwise the model each slot runs, the modes offered and the default, the models a
-    person may choose and the provider, with the host of a self-hosted endpoint and never a key.
+    person may choose and the provider, with the host of a self-hosted endpoint and never a key. A
+    tenant that switched the assistant off reads `{ "enabled": false }` too, and the default mode is the
+    tenant’s own.
 
     Args:
         tenant (str):
@@ -220,7 +226,9 @@ async def asyncio(
 
      Whether the console assistant is on in this deployment: `{ "enabled": false }` when no model is
     configured, otherwise the model each slot runs, the modes offered and the default, the models a
-    person may choose and the provider, with the host of a self-hosted endpoint and never a key.
+    person may choose and the provider, with the host of a self-hosted endpoint and never a key. A
+    tenant that switched the assistant off reads `{ "enabled": false }` too, and the default mode is the
+    tenant’s own.
 
     Args:
         tenant (str):

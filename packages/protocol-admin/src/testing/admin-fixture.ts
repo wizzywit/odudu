@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
 import { type AssistantStatus } from '@odudu/contracts/admin';
+import { type AssistantSettingsStore } from '#/usecase/assistant-settings';
 import {
   ACCOUNT_PREVIEW_PAGES,
   actionTokenRepository,
@@ -298,6 +299,8 @@ export interface AdminFixtureOptions {
   readonly openApp?: (url: string) => DatabaseHandle;
   /** What the assistant's status route answers; disabled when omitted. */
   readonly assistantStatus?: () => AssistantStatus;
+  /** Where the assistant's settings are kept; absent, the settings routes answer 404. */
+  readonly assistantSettings?: AssistantSettingsStore;
   /** The chat port behind the assistant's conversation routes; absent, they answer 404. */
   readonly assistantChat?: AssistantChatPort;
 }
@@ -422,6 +425,9 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
           ? {}
           : { assistantStatus: options.assistantStatus }),
         ...(options.assistantChat === undefined ? {} : { assistantChat: options.assistantChat }),
+        ...(options.assistantSettings === undefined
+          ? {}
+          : { assistantSettings: options.assistantSettings }),
         ...(options.auditReadTimeoutMs === undefined
           ? {}
           : { auditReadTimeoutMs: options.auditReadTimeoutMs }),

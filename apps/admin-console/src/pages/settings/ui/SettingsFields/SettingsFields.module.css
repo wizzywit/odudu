@@ -1,0 +1,16 @@
+.group {
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-block-start: var(--hairline);
+}
+
+.legend {
+  padding-inline-end: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}

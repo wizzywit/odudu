@@ -37,6 +37,7 @@ import {
   listAuditQuerySchema,
   listAuditResponseSchema,
 } from '#/admin/audit';
+import { assistantSettingsSchema } from '#/admin/assistant';
 import {
   clientFieldsSchema,
   clientInstallationSchema,
@@ -1348,6 +1349,29 @@ describeFields(mailMessageSchema, {
   created_at: 'When the message was queued.',
   next_attempt_at: 'When the sender will try it next.',
   sent_at: 'When it was delivered, or null if it has not been.',
+});
+
+describeFields(assistantSettingsSchema, {
+  assistant_enabled:
+    'Whether the tenant’s administrators are offered the assistant. False reads as `{ "enabled": false }` from the status route for this tenant alone, and starting a conversation or sending a message is refused as a path never served.',
+  assistant_default_mode:
+    'The mode a person starts in: `ask` reads only, `act` may also propose changes that wait for the person’s approval.',
+  assistant_mask_emails:
+    'Whether an email address the assistant reads is replaced by its first character, three asterisks and its domain before it is sent to the model provider.',
+  assistant_trace_retention_days:
+    'How many days the step-by-step trace of a conversation is kept, from 1 to 365. The audit trail follows its own retention.',
+  assistant_auditor_visible:
+    'Whether people who can read assistant activity may see conversations. People using the assistant are told.',
+  assistant_monthly_tokens_fast:
+    'The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant does not yet stop at it.',
+  assistant_monthly_tokens_standard:
+    'The tokens the tenant may spend each month on the standard model slot, from 0 to 1,000,000,000.',
+  assistant_monthly_tokens_deep:
+    'The tokens the tenant may spend each month on the deep model slot, from 0 to 1,000,000,000.',
+  assistant_max_concurrent:
+    'How many answers the tenant may have in progress at the same time, from 1 to 50.',
+  assistant_max_steps_per_turn:
+    'The most model and tool calls one answer may take before it stops, from 1 to 100.',
 });
 
 describeFields(smtpConfigSchema, {

@@ -1,4 +1,8 @@
-import { type AssistantStatus, type MessageCatalogueResponse } from '@odudu/contracts/admin';
+import {
+  type AssistantSettings,
+  type AssistantStatus,
+  type MessageCatalogueResponse,
+} from '@odudu/contracts/admin';
 import { type MailLookResolver } from '@odudu/email';
 import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
@@ -6,7 +10,12 @@ import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odu
 import { auditRepository, type AdminMutationAction } from '@odudu/domain-audit';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { hashPassword, subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
-import { ADMIN_CLIENT_ID, clientRepository, hostState } from '@odudu/domain-tenant';
+import {
+  ADMIN_CLIENT_ID,
+  clientRepository,
+  hostState,
+  tenantSettingsRepository,
+} from '@odudu/domain-tenant';
 import { type inspectImage } from '@odudu/domain-theme';
 import {
   type ClaimMapperRegistry,
@@ -36,6 +45,10 @@ import { type Audit as ScopeMapperAudit } from '#/usecase/scope-mappers';
 import { type Audit as SettingsAudit } from '#/usecase/settings';
 import { type Audit as ThemeAudit } from '#/usecase/theme';
 import { type Audit as MessageOverrideAudit } from '#/usecase/message-overrides';
+import {
+  type Audit as AssistantSettingsAudit,
+  type AssistantSettingsStore,
+} from '#/usecase/assistant-settings';
 import { type Audit as ThemeAssetAudit } from '#/usecase/theme-assets';
 import { type Audit as TenantExportAudit } from '#/usecase/tenant-export';
 import { type Audit as TenantImportAudit } from '#/usecase/tenant-import';
@@ -233,10 +246,14 @@ import {
 } from '#/view/routes/tenants';
 import {
   assistantStatusHandler,
+  putAssistantSettingsHandler,
+  readAssistantSettingsHandler,
+  type AssistantRouteDeps,
   createConversationHandler,
   loadConversationHandler,
   sendMessageHandler,
   stopConversationHandler,
+  tenantOffersAssistant,
   type AssistantChatPort,
 } from '#/view/routes/assistant';
 import { whoamiHandler } from '#/view/routes/whoami';
@@ -435,10 +452,15 @@ export interface AdminRoutesDeps {
   // How long an audit read may run before it is refused as too broad;
   // `AUDIT_READ_TIMEOUT_MS` unless a test shortens it.
   auditReadTimeoutMs?: number;
-  // What `GET …/assistant/status` answers, which @odudu/assistant computes
-  // from the environment and the composition root hands over: the assistant
-  // sits above this package and cannot be imported here. Omitted, it is off.
-  assistantStatus?: () => AssistantStatus;
+  // What `GET …/assistant/status` answers for a tenant with these settings,
+  // which @odudu/assistant computes from the environment and the composition
+  // root hands over: the assistant sits above this package and cannot be
+  // imported here. Omitted, it is off.
+  assistantStatus?: (settings: AssistantSettings) => AssistantStatus;
+  // Where a tenant's assistant settings are read and written, again from the
+  // package this one cannot import. Omitted, the deployment has no assistant:
+  // the settings routes answer 404 and the status reads `enabled: false`.
+  assistantSettings?: AssistantSettingsStore;
   // What the conversation routes call, which @odudu/assistant supplies. Omitted,
   // they answer 404 as if they were not served.
   assistantChat?: AssistantChatPort;
@@ -570,6 +592,7 @@ function buildAdminRoutes(
     const settingsAudit: SettingsAudit = recordAudit;
     const themeAudit: ThemeAudit = recordAudit;
     const messageOverrideAudit: MessageOverrideAudit = recordAudit;
+    const assistantSettingsAudit: AssistantSettingsAudit = recordAudit;
     const themeAssetAudit: ThemeAssetAudit = recordAudit;
     const tenantExportAudit: TenantExportAudit = recordAudit;
     const tenantImportAudit: TenantImportAudit = recordAudit;
@@ -697,6 +720,16 @@ function buildAdminRoutes(
       isKnownKey: deps.messageOverrides.isKnownKey,
       messageProblem: deps.messageOverrides.messageProblem,
       invalidate: deps.messageOverrides.invalidate,
+    };
+    const assistantDeps: AssistantRouteDeps = {
+      database: deps.database.db,
+      audit: assistantSettingsAudit,
+      lock: async (tx, tenantId) => {
+        await tenantSettingsRepository(tx).lockById(tenantId);
+      },
+      now: () => clock.now(),
+      status: deps.assistantStatus ?? (() => ({ enabled: false })),
+      ...(deps.assistantSettings === undefined ? {} : { store: deps.assistantSettings }),
     };
     const tenantTheme = themeHandlers(themeDeps, 'tenant');
     const clientTheme = themeHandlers(themeDeps, 'client');
@@ -833,12 +866,12 @@ function buildAdminRoutes(
       ownerDatabase: deps.ownerDatabase.db,
       now: () => clock.now(),
     };
-    const chatDeps = { chat: deps.assistantChat };
+    const chatDeps = { chat: deps.assistantChat, offered: tenantOffersAssistant(assistantDeps) };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
-      'GET /admin/tenants/:tenant/assistant/status': assistantStatusHandler({
-        status: deps.assistantStatus ?? (() => ({ enabled: false })),
-      }),
+      'GET /admin/tenants/:tenant/assistant/status': assistantStatusHandler(assistantDeps),
+      'GET /admin/tenants/:tenant/assistant/settings': readAssistantSettingsHandler(assistantDeps),
+      'PUT /admin/tenants/:tenant/assistant/settings': putAssistantSettingsHandler(assistantDeps),
       'POST /admin/tenants/:tenant/assistant/conversations': createConversationHandler(chatDeps),
       'GET /admin/tenants/:tenant/assistant/conversations/:id': loadConversationHandler(chatDeps),
       'POST /admin/tenants/:tenant/assistant/conversations/:id/messages':

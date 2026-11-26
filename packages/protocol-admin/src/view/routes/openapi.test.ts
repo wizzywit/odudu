@@ -7,9 +7,12 @@ import { idempotentMethod } from '#/service/idempotency';
 import { buildAdminOpenApiDocument } from '#/view/routes/openapi';
 
 // The pretty-printed size before problem responses and repeated schemas were
-// shared, and the size now plus 5 per cent, rounded up to a whole kilobyte.
+// shared, and a ceiling over the size now plus 5 per cent, rounded up to a whole
+// kilobyte. Measured at 837,042 bytes with the assistant's settings and chat
+// routes in; the ceiling was 815,104 before those routes were added and the
+// document then measured 817,624, so it is raised to 859,136, 2.6 per cent over.
 const ADMIN_DOCUMENT_BASELINE_BYTES = 2_304_007;
-const ADMIN_DOCUMENT_MAX_BYTES = 815_104;
+const ADMIN_DOCUMENT_MAX_BYTES = 859_136;
 
 type Document = ReturnType<typeof buildAdminOpenApiDocument>;
 
