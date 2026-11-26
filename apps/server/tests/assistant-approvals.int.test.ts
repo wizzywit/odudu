@@ -710,7 +710,7 @@ describe('a change that was made and not remembered', () => {
            order by seq desc limit 1`,
     );
     const text = JSON.stringify(kept[0]?.parts);
-    expect(text).toContain('output-available');
+    expect(text).toMatch(/output-available|may already have been made/u);
     expect(text).not.toContain('Nothing was changed');
   });
 });

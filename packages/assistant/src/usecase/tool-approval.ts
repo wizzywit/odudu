@@ -23,7 +23,9 @@ import {
   inHistory,
   oversizeDenial,
   readFailure,
-  targetDenial,
+  beforeDenial,
+  MISSING_DENIAL,
+  UNREADABLE_DENIAL,
 } from '#/service/proposal-rules';
 import { approvalPolicy, ASK_MODE_DENIAL } from '#/service/approval-policy';
 import type { CallWrite } from '#/service/tool-bridge';
@@ -103,18 +105,10 @@ async function propose(
   const tooLong = oversizeField(names, call.input);
   if (tooLong !== undefined) return { type: 'denied', reason: oversizeDenial(tooLong) };
   const found = await readTarget(deps, entry.name, call.input);
-  if (found.kind === 'missing')
-    return {
-      type: 'denied',
-      reason: targetDenial({ before: null, hasRead: true, mayCreate: false }) ?? '',
-    };
-  if (found.kind === 'unreadable')
-    return {
-      type: 'denied',
-      reason: targetDenial({ before: undefined, hasRead: true, mayCreate: false }) ?? '',
-    };
+  if (found.kind === 'missing') return { type: 'denied', reason: MISSING_DENIAL };
+  if (found.kind === 'unreadable') return { type: 'denied', reason: UNREADABLE_DENIAL };
   const before = beforeOf(entry.name, names, call.input, found.data);
-  const denial = targetDenial({
+  const denial = beforeDenial({
     before,
     hasRead: readStepOf(entry.name, call.input) !== undefined,
     mayCreate: mayCreate(entry.name),

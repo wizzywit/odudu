@@ -112,6 +112,7 @@ async function drain(deps: RunTurnDeps, message?: UIMessage) {
     signal: new AbortController().signal,
   });
   const chunks: UIMessageChunk[] = [];
+  const errors: unknown[] = [];
   let response: UIMessage | undefined;
   const history = [...(await deps.history(CONVERSATION))];
   const ui = toUIMessageStream({
@@ -119,6 +120,10 @@ async function drain(deps: RunTurnDeps, message?: UIMessage) {
     tools: started.tools,
     originalMessages: message === undefined ? history : [...history, message],
     generateMessageId: () => 'm-new',
+    onError: (error) => {
+      errors.push(error);
+      return 'failed';
+    },
     onEnd: ({ responseMessage }) => {
       response = responseMessage;
     },
@@ -129,7 +134,7 @@ async function drain(deps: RunTurnDeps, message?: UIMessage) {
     if (next.done) break;
     chunks.push(next.value);
   }
-  return { chunks, response };
+  return { chunks, response, errors };
 }
 
 const ask = (text: string): UIMessage => ({
@@ -359,7 +364,10 @@ describe('the signature on a pending request', () => {
     ];
     for (const change of edits) {
       const next = setup(scripted([answer('Done.')]), 'act', CLIENT_READ, secret);
-      await drain(next.deps(stored(part, change))).catch(() => undefined);
+      const refused = await drain(next.deps(stored(part, change)));
+      expect((refused.errors[0] as Error | undefined)?.name).toBe(
+        'AI_InvalidToolApprovalSignatureError',
+      );
       expect(next.write).not.toHaveBeenCalled();
     }
     const other = setup(
@@ -368,7 +376,10 @@ describe('the signature on a pending request', () => {
       CLIENT_READ,
       new Uint8Array(32).fill(1),
     );
-    await drain(other.deps(stored(part, () => undefined))).catch(() => undefined);
+    const refusedOther = await drain(other.deps(stored(part, () => undefined)));
+    expect((refusedOther.errors[0] as Error | undefined)?.name).toBe(
+      'AI_InvalidToolApprovalSignatureError',
+    );
     expect(other.write).not.toHaveBeenCalled();
   });
 });

@@ -681,4 +681,5 @@ design stands unless the controller rules otherwise.
 - A card never shows a prefix: a value longer than `CARD_FIELD_MAX` is refused, not cut, and the assistant tells the person they can make the edit in the console.
 - Pending assistant approvals are capped at 5 a conversation and 10 a person, counted under the owner's approval lock, in addition to P5's 20 shared with CIBA.
 - A pending request carries the SDK's signature, keyed by an HKDF of the KEK with a fixed label; it is a second line behind the digest and the consume.
+- Rotating `ODUDU_KEK` makes outstanding approval signatures fail verification; they expire within 15 minutes and a stuck conversation clears on the next message.
 - A write grant a dead process left is revoked by the budget upkeep once it is ten minutes old.

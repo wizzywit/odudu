@@ -72,3 +72,8 @@ when the call returns. The decision that spends nothing but a person's attention
 approval's, written only by `decideApproval` for the person it names, from their console
 sign-in. The design and what was rejected are in `docs/phases/p5c-spikes.md`, "P5c act-mode
 design". No P5 invariant changes.
+
+A pending request is signed with a key derived from `ODUDU_KEK`. Rotating the KEK makes every
+outstanding approval fail verification: unspent ones expire within 15 minutes, and a
+conversation stuck on an approved request is cleared by the person's next message, which
+closes it as not run. Nothing is lost.

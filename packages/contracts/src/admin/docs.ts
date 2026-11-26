@@ -1296,9 +1296,9 @@ describeFields(assistantApprovalCardSchema, {
   target:
     'What it changes: the kind of object and, where there is one, its id and the name the server read.',
   before:
-    'The target as the server read it just now, as short text per field, or null for something that does not exist yet. Never text the model wrote.',
+    'The target as the server read it just now, as text per field, each shown whole (a value over 2,000 characters is refused before a card is made), or null for something that does not exist yet. Never text the model wrote.',
   after:
-    'What the call would set, as short text per field, taken from the stored call; null for a removal.',
+    'What the call would set, as text per field, each shown whole, taken from the stored call; null for a removal.',
   expires_at:
     'When the approval ends, by the server’s clock. A decision after it is refused; a card never extends it.',
 });

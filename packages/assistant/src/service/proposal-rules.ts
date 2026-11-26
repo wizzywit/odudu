@@ -72,10 +72,11 @@ export function asRows(value: unknown): unknown[] {
 }
 
 /**
- * The denial for what the read showed, or null to go on: a target that is
+ * The denial for what the read showed of the fields the call names, or null to
+ * go on: an answer of an unexpected shape is unreadable, and a target that is
  * missing where the call does not create it is refused.
  */
-export function targetDenial(shown: {
+export function beforeDenial(shown: {
   readonly before: unknown;
   readonly hasRead: boolean;
   readonly mayCreate: boolean;

@@ -7,6 +7,8 @@
 -- conversation.
 -- The key a card's foreign key names, so a card cannot point at another tenant's approval.
 CREATE UNIQUE INDEX IF NOT EXISTS agent_approvals_tenant_id ON agent_approvals (tenant_id, id);
+-- It serves every read the plain index of 0146 on the same columns did, so that one goes.
+DROP INDEX IF EXISTS agent_approvals_tenant_id_id;
 
 CREATE TABLE IF NOT EXISTS assistant_approvals (
   tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
@@ -23,6 +25,9 @@ CREATE TABLE IF NOT EXISTS assistant_approvals (
     REFERENCES assistant_conversations (tenant_id, id) ON DELETE CASCADE,
   CONSTRAINT assistant_approvals_tool_call_length CHECK (char_length(tool_call_id) BETWEEN 1 AND 256),
   CONSTRAINT assistant_approvals_tool_length CHECK (char_length(tool) BETWEEN 1 AND 64),
+  -- A card is bounded by the assistant (each shown value at most 2,000 characters), far under
+  -- this; a value whose JSON escaping made the card larger would be refused here, which fails
+  -- closed: the proposal is not stored.
   CONSTRAINT assistant_approvals_card_shape CHECK (
     jsonb_typeof(card) = 'object' AND octet_length(card::text) <= 65536
   )
@@ -43,3 +48,9 @@ ALTER TABLE assistant_approvals FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS assistant_approvals_isolation ON assistant_approvals;
 CREATE POLICY assistant_approvals_isolation ON assistant_approvals
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+
+-- The sweep of write grants a dead process left (the budget upkeep): the live `mcp:write`
+-- grants, oldest first, without reading the tenant's other grants.
+CREATE INDEX IF NOT EXISTS token_grants_assistant_write_live
+  ON token_grants (tenant_id, created_at)
+  WHERE scope = 'mcp:write' AND revoked_at IS NULL;

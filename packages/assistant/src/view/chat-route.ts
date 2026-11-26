@@ -78,6 +78,13 @@ function streamed(outcome: SendOutcome): ResumeResult {
 }
 
 export function createChat(deps: ChatDeps): Chat {
+  // The type forbids it; a caller that got round the type is stopped here.
+  if (
+    deps.approvals !== undefined &&
+    (deps.approvalSecret as Uint8Array | undefined)?.length === undefined
+  ) {
+    throw new Error('approvals need an approval secret to sign their requests');
+  }
   const registry = createTurnRegistry(deps.maxRunning ?? DEFAULT_MAX_RUNNING);
   return {
     create: (caller, body) => createConversation(deps, caller, body),

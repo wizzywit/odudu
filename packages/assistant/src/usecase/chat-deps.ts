@@ -116,7 +116,7 @@ export interface ApprovalPorts {
   ) => Promise<WriteOutcome>;
 }
 
-export interface ChatDeps {
+interface ChatBase {
   /** Runs `fn` in one short transaction bound to the tenant. */
   readonly transact: <T>(tenantId: string, fn: (tx: AssistantTx) => Promise<T>) => Promise<T>;
   readonly model: (slot: Slot) => LanguageModel;
@@ -140,10 +140,6 @@ export interface ChatDeps {
     conversation: { readonly id: string; readonly mode: ConversationMode; readonly now: Date },
     fn: (tx: AssistantTx) => Promise<T>,
   ) => Promise<AccessOutcome<T>>;
-  /** Present, Act mode can propose changes; absent, every conversation reads only. */
-  readonly approvals?: ApprovalPorts;
-  /** The secret approval requests are signed with; present whenever `approvals` is. */
-  readonly approvalSecret?: Uint8Array;
   /** What a tenant may use; the open implementation reads the tenant's settings. */
   readonly entitlements?: Entitlements;
   /** Writes an `assistant.budget` row. A failure is logged and does not change the outcome. */
@@ -157,6 +153,16 @@ export interface ChatDeps {
   /** Where a failure the person is not told of is recorded: a name and details, never a key or token. */
   readonly log?: (event: string, detail: Record<string, unknown>) => void;
 }
+
+/**
+ * Act mode needs both its ports and the secret that signs a pending request, or
+ * neither: a deployment cannot propose changes it cannot sign.
+ */
+export type ChatDeps = ChatBase &
+  (
+    | { readonly approvals: ApprovalPorts; readonly approvalSecret: Uint8Array }
+    | { readonly approvals?: undefined; readonly approvalSecret?: undefined }
+  );
 
 export const DEFAULT_MAX_RUNNING = 256;
 export const DEFAULT_TURN_DEADLINE_MS = 300_000;

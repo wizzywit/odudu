@@ -19,6 +19,7 @@ import {
   type CardBody,
 } from '#/repository/approvals';
 import { conversationRepository } from '#/repository/conversations';
+import { revokeStaleStatement, writeGrantRepository } from '#/repository/write-grants';
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
@@ -211,6 +212,50 @@ describe('the list of a conversation’s pending changes, at volume', () => {
     });
     expect(plan).toContain('assistant_approvals_recent');
     expect(plan).not.toContain('"Node Type":"Seq Scan"');
+  }, 120_000);
+});
+
+describe('the sweep of write grants a dead process left, at volume', () => {
+  it('is served from its partial index, with no scan of token_grants, and takes a bounded batch', async () => {
+    const tenantId = newId();
+    const seeded = await withTenant(app.db, tenantId, (tx) => seedCard(tx, tenantId));
+    const [found] = await owner.sql<{ subject_id: string; requesting_client_id: string }[]>`
+      select subject_id, requesting_client_id from agent_approvals where id = ${seeded.approvalId}`;
+    const subjectId = found?.subject_id ?? '';
+    const clientId = found?.requesting_client_id ?? '';
+    // Thirty thousand old read grants of the assistant client, and twenty stale write grants.
+    await owner.sql`
+      insert into token_grants (id, tenant_id, client_id, subject_id, scope, created_at)
+      select gen_random_uuid(), ${tenantId}, ${clientId}, ${subjectId}, 'mcp:read',
+             now() - interval '2 days'
+        from generate_series(1, 30000)`;
+    await owner.sql`
+      insert into token_grants (id, tenant_id, client_id, subject_id, scope, created_at)
+      select gen_random_uuid(), ${tenantId}, ${clientId}, ${subjectId}, 'mcp:write',
+             now() - interval '1 hour'
+        from generate_series(1, 20)`;
+    await owner.sql`analyze token_grants`;
+
+    const before = new Date(Date.now() - 600_000);
+    const statement = new PgDialect().sqlToQuery(revokeStaleStatement(before, new Date(), 5));
+    const plan = await app.sql.begin(async (tx) => {
+      await tx`select set_config('app.tenant_id', ${tenantId}, true)`;
+      const rows = await tx.unsafe<{ 'QUERY PLAN': unknown }[]>(
+        `EXPLAIN (FORMAT JSON) ${statement.sql}`,
+        statement.params as never[],
+      );
+      return JSON.stringify(rows[0]?.['QUERY PLAN']);
+    });
+    expect(plan).toContain('token_grants_assistant_write_live');
+    expect(plan).not.toContain(
+      '"Node Type":"Seq Scan","Parallel Aware":false,"Async Capable":false,"Relation Name":"token_grants"',
+    );
+    expect(plan).not.toMatch(/"Node Type":"Seq Scan"[^}]*"Relation Name":"token_grants"/u);
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      writeGrantRepository(tx).revokeStale(before, new Date(), 5),
+    );
+    expect(revoked).toBe(5);
   }, 120_000);
 });
 

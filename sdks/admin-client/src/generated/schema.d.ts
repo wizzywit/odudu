@@ -10167,11 +10167,11 @@ export interface paths {
                                     /** @description Its name, as the server read it just before the proposal; absent where there is none to read. */
                                     name?: string;
                                 };
-                                /** @description The target as the server read it just now, as short text per field, or null for something that does not exist yet. Never text the model wrote. */
+                                /** @description The target as the server read it just now, as text per field, each shown whole (a value over 2,000 characters is refused before a card is made), or null for something that does not exist yet. Never text the model wrote. */
                                 before: {
                                     [key: string]: string | number | boolean | null;
                                 } | null;
-                                /** @description What the call would set, as short text per field, taken from the stored call; null for a removal. */
+                                /** @description What the call would set, as text per field, each shown whole, taken from the stored call; null for a removal. */
                                 after: {
                                     [key: string]: string | number | boolean | null;
                                 } | null;

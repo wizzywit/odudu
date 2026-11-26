@@ -36,10 +36,10 @@ class GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem
         target (GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTarget): What it changes: the
             kind of object and, where there is one, its id and the name the server read.
         before (GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemBeforeType0 | None): The
-            target as the server read it just now, as short text per field, or null for something that does not exist yet.
-            Never text the model wrote.
+            target as the server read it just now, as text per field, each shown whole (a value over 2,000 characters is
+            refused before a card is made), or null for something that does not exist yet. Never text the model wrote.
         after (GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemAfterType0 | None): What the
-            call would set, as short text per field, taken from the stored call; null for a removal.
+            call would set, as text per field, each shown whole, taken from the stored call; null for a removal.
         expires_at (str): When the approval ends, by the server’s clock. A decision after it is refused; a card never
             extends it.
     """

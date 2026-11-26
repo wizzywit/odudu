@@ -161,8 +161,9 @@ export type AssistantConversation = z.infer<typeof assistantConversationSchema>;
 // What a person is shown for one change the assistant proposes, written by the
 // server from the stored call and the state it read, never from the model's
 // words. `before` is the target as the server read it (null for one that does
-// not exist yet) and `after` what the call would set; values are short text,
-// cut, so a card is bounded whatever the call carries.
+// not exist yet) and `after` what the call would set. Each value is shown whole
+// as text, at most CARD_FIELD_MAX characters: a call with a longer value is not
+// proposed, so a card never shows a prefix of what is approved.
 export const CARD_FIELD_MAX = 2_000;
 export const assistantApprovalTargetSchema = z.object({
   type: z.string(),
