@@ -13,6 +13,7 @@ import {
   AgentTokenRefused,
   AssistantGrantRefused,
   grantAssistantAccess,
+  grantAssistantWrite,
   mintAgentToken,
   runInstanceId,
   standardClaimMappers,
@@ -780,6 +781,110 @@ describe('what ends a conversation’s access', () => {
     );
     expect(grant?.scope).toBe('mcp:read');
     await expect(open(w, { mode: 'act', scope: ['mcp:read', 'mcp:write'] })).rejects.toMatchObject({
+      reason: 'scope_widened',
+    });
+  });
+});
+
+describe('the grant of one approved write', () => {
+  async function write(
+    w: World,
+    approvalId: string,
+    over: Partial<Parameters<typeof grantAssistantWrite>[2]> = {},
+  ) {
+    const deps = { tenantId: w.tenantId, lifespans: await lifespans(w) };
+    return withTenant(s().appDb.db, w.tenantId, (tx) =>
+      grantAssistantWrite(tx, deps, {
+        approvalId,
+        consoleGrantId: w.grantId,
+        expectedSubjectId: w.subjectId,
+        now: new Date(),
+        ...over,
+      }),
+    );
+  }
+
+  it('holds mcp:write alone, under the approval’s id, derived from the console sign-in', async () => {
+    const w = await consoleWorld(s().appDb, BASE, ['manage-tenant']);
+    const approvalId = newId();
+    const grant = await write(w, approvalId);
+    expect(grant).toMatchObject({
+      id: approvalId,
+      scope: 'mcp:write',
+      subjectId: w.subjectId,
+      sessionId: w.sessionId,
+      exchangedFromGrantId: w.grantId,
+    });
+  });
+
+  it('is made once for an approval, and not from a conversation’s own grant', async () => {
+    const w = await consoleWorld(s().appDb, BASE, ['manage-tenant']);
+    const approvalId = newId();
+    await write(w, approvalId);
+    await expect(write(w, approvalId)).rejects.toThrow();
+    const conversation = await open(w, { mode: 'act' });
+    await expect(write(w, newId(), { consoleGrantId: conversation })).rejects.toMatchObject({
+      reason: 'grant_not_console',
+    });
+  });
+
+  it('is refused for another person, a revoked sign-in and an ended session', async () => {
+    const w = await consoleWorld(s().appDb, BASE, ['manage-tenant']);
+    const other = await consoleWorld(s().appDb, BASE, ['manage-tenant']);
+    await expect(write(w, newId(), { expectedSubjectId: other.subjectId })).rejects.toMatchObject({
+      reason: 'subject_mismatch',
+    });
+    await withTenant(s().appDb.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(w.grantId, new Date()),
+    );
+    await expect(write(w, newId())).rejects.toMatchObject({ reason: 'grant_revoked' });
+  });
+
+  it('mints a write token that amends a role and is refused the rest of the admin API', async () => {
+    const w = await consoleWorld(s().appDb, BASE, ['manage-tenant', 'manage-users', 'view-users']);
+    const approvalId = newId();
+    await write(w, approvalId);
+    const now = new Date();
+    const minted = await withTenant(s().appDb.db, w.tenantId, async (tx) =>
+      mintAgentToken(
+        tx,
+        {
+          tenantId: w.tenantId,
+          issuer: w.issuer,
+          kek: KEK,
+          claimMappers: standardClaimMappers(),
+          lifespans: await lifespans(w),
+        },
+        {
+          subjectGrantId: approvalId,
+          expectedSubjectId: w.subjectId,
+          agentClientId: ASSISTANT_CLIENT_ID,
+          audience: ADMIN_API_AUDIENCE,
+          scope: ['mcp:write'],
+          notAfter: new Date(now.getTime() + 300_000),
+          now,
+        },
+      ),
+    );
+    expect(claimsOf(minted.accessToken)).toMatchObject({
+      scope: 'mcp:write',
+      client_id: ASSISTANT_CLIENT_ID,
+      act: { sub: ASSISTANT_CLIENT_ID },
+    });
+    expect(await count('agent_instances', 'root_grant_id', approvalId)).toBe(0);
+    const post = await s().app.inject({
+      method: 'POST',
+      url: `/admin/tenants/${w.name}/subjects`,
+      headers: {
+        host: HOST,
+        authorization: `Bearer ${minted.accessToken}`,
+        'content-type': 'application/json',
+      },
+      payload: JSON.stringify({ type: 'user', username: 'mallory' }),
+    });
+    expect(post.statusCode).toBe(403);
+    // It cannot be minted for the read scope: its grant holds no more than the write.
+    await expect(rawMint(w, approvalId, ['mcp:read'])).rejects.toMatchObject({
       reason: 'scope_widened',
     });
   });
