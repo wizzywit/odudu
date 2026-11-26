@@ -1475,7 +1475,7 @@ The assistant's conversation routes (`post-assistantconversations-and-the-conver
 
 `GET /whoami` gained `assistant_available` and was run on 2026-11-26 on a compose project, `odudu-p5c-i8c` (port `3000`), built from the branch commit `394dfc92f` with the change uncommitted, on a database that began empty: tenants `demo` and `assist-demo`, a `client_credentials` client holding `use-assistant`, one script writing the output as it came back; the stack was started again over the same volume with `infra/docker/compose.assistant.yaml` for the `true` block. The cross-tenant block of `get-whoami.md`, and the whoami bodies in `getting-the-token.md`, `delete-sessions.md`, `get-audit.md`, `get-export.md`, `get-mail.md`, `get-roles-post-roles-get-rolesid-patch-rolesid-and-delete-rolesid.md` and `get-subjectsidgroups-and-put-subjectsidgroups.md`, show the answer before `assistant_available` was added and were not run again. `GET /admin/openapi.json` (122 paths, 449,100 bytes) was fetched again from the same build.
 
-The assistant's changes page, `post-assistantconversationsidapprovals-and-the-act-routes.md`, and the OpenAPI page's block were captured on
+The assistant's changes page, `post-assistantconversationsidapprovals-and-the-act-routes.md`, was captured on
 2026-11-26 on a freshly built compose project, `odudu-i9` (port `3115`, `ODUDU_REAP_ENABLED=false`, throttles at `1000`), built from the
 branch commit `7b164736b` with nothing uncommitted and started from an empty volume. The model was a script outside the repository, an
 OpenAI-compatible endpoint on the host (`ODUDU_ASSISTANT_MODELS=standard=openai-compatible:demo-model`), that reads the role a message
@@ -1484,3 +1484,5 @@ names and proposes changing its description. The page's blocks are one script ru
 first pass found a mistake in the script's reading of the `etag` and was run again from the start on the same image; the page is from
 the second. The refusal of the assistant's own token and of another administrator is not on the page, because no sign-in can produce
 either; `apps/server/tests/assistant-approvals.int.test.ts` runs them.
+
+The OpenAPI page's block was captured again on the same day on a fresh build of the same project, from the working tree of the commit after `7b164736b` that changed the card's wording (the image labels itself `bbca6958f`, the commit before it): 126 paths and 458408 bytes.
