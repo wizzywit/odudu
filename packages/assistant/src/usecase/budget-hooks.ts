@@ -61,6 +61,8 @@ export interface TurnBudget extends TurnBudgetPort {
   finish(): Promise<void>;
   /** The level that refused a call, if one did. */
   refused(): Refusal | undefined;
+  /** The tokens settled against the ledger so far, for the turn's audit row. */
+  charged(): number;
 }
 
 interface Open {
@@ -80,6 +82,7 @@ interface Open {
 export function createTurnBudget(deps: TurnBudgetDeps): TurnBudget {
   let open: Open | undefined;
   let carried = 0;
+  let spent = 0;
   let previous: { inputTokens: number; messagesBytes: number } | undefined;
   let refusal: Refusal | undefined;
   const warned = new Set<LevelName>();
@@ -110,7 +113,9 @@ export function createTurnBudget(deps: TurnBudgetDeps): TurnBudget {
     const at = deps.now();
     const { overrun, usage } = await deps.transact(async (tx) => {
       const repo = budgetRepository(tx);
-      const settled = await repo.settle(held.id, actual(held.reserved, held.sent));
+      const charge = actual(held.reserved, held.sent);
+      const settled = await repo.settle(held.id, charge);
+      spent += charge;
       return { overrun: settled.overrun, usage: await repo.usage(levelsAt(at, startedAt)) };
     });
     if (overrun > 0) deps.onOverrun(overrun);
@@ -167,5 +172,7 @@ export function createTurnBudget(deps: TurnBudgetDeps): TurnBudget {
     finish: () => serial(() => settle(unsettledCharge)),
 
     refused: () => refusal,
+
+    charged: () => spent,
   };
 }

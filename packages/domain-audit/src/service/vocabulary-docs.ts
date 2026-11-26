@@ -39,7 +39,8 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'the agent client, the owner, the tool and the admin route it reached, never its arguments. ' +
     'The MCP endpoint writes it for a call it serves; for a call made straight to the admin API ' +
     'with a token the endpoint did not sign (`odudu mcp`, or an exchanged token), the admin API writes it before the call runs, ' +
-    'and the tool is the route (`admin.get.clients`).',
+    'and the tool is the route (`admin.get.clients`). A call the console assistant made also ' +
+    'carries the `conversation` and the `turn` it was made in.',
   'assistant.access_refused':
     'The console assistant was refused an identity for a conversation, or a token for one of ' +
     'its tool calls. `detail` names the agent client (`odudu-assistant`), the person and a ' +
@@ -196,6 +197,15 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
     'A tenant’s settings for the console assistant changed: whether it is on, its default mode, ' +
     'email masking, trace retention, whether auditors see conversations, or a limit. `detail` ' +
     'gives each changed setting as before and after.',
+  'assistant.turn':
+    'A turn of the console assistant began or ended, one row for each. `detail.phase` is ' +
+    '`started` or `ended`; both name the tenant, the person, the conversation, the turn, the ' +
+    'profile, the mode and the slots. The `ended` row adds the tokens by slot, the steps taken and ' +
+    'why the turn stopped (`done`, `step_cap`, `awaiting_approval`, `aborted`, `error` or a ' +
+    'budget stop), and its outcome is `refused` for a budget stop and `failed` for an error. A ' +
+    '`started` row with no `ended` row is a turn the server died in. It holds no message text, ' +
+    'tool output or name of anything in the tenant, and a turn is not begun when its row cannot ' +
+    'be written.',
   'audit.export': 'The audit trail was exported.',
   'client.amend': 'A client was amended.',
   'client.create': 'A client was created.',

@@ -9,6 +9,7 @@ import { leaseTtlMs, stopReasonOf, type AssistantLimits, type StopReason } from 
 import { pageContextText, readPageContext } from '#/service/page-context';
 import { runKey } from '#/service/run-key';
 import { profileById } from '#/service/profile';
+import { startOf, summaryOf } from '#/service/turn-summary';
 import {
   approvalCardChunk,
   budgetWarningChunk,
@@ -197,6 +198,7 @@ function turnApprovals(
   deps: ChatDeps,
   caller: ChatCaller,
   id: string,
+  turnId: string,
   proposed: TurnApprovals['proposed'],
 ): TurnApprovals {
   return {
@@ -241,6 +243,7 @@ function turnApprovals(
         caller,
         {
           conversationId: id,
+          turnId,
           toolCallId: context.toolCallId,
           tool,
           input,
@@ -332,6 +335,8 @@ async function runConversationTurn(
   let maxSteps = profile.maxSteps;
   // A change was stored for the person and the turn is ending on it.
   let awaitingApproval = false;
+  // The row that opens the turn was written, so one that closes it is owed.
+  let opened = false;
   const audit = async (event: Parameters<NonNullable<ChatDeps['audit']>>[0]): Promise<void> => {
     try {
       await deps.audit?.(event);
@@ -360,6 +365,33 @@ async function runConversationTurn(
       lastFinish: progress().lastFinish,
       awaitingApproval,
     });
+  const facts = {
+    tenantId: caller.tenantId,
+    subjectId: caller.ownerSubjectId,
+    conversationId: id,
+    turnId,
+    profile: profile.id,
+    mode: prepared.mode,
+    slot: profile.slot,
+  };
+  // The closing row is written once the turn has settled; a failure of it is
+  // logged and never changes what the person saw.
+  const closeTurnRow = async (): Promise<void> => {
+    try {
+      const summary = summaryOf({
+        ...facts,
+        steps: progress().steps,
+        tokens: budget.charged(),
+        stopReason: ending(),
+      });
+      await deps.recordTurn(summary);
+    } catch (error) {
+      deps.log?.('assistant.turn_audit_failed', {
+        conversation: id,
+        error: error instanceof Error ? error.name : 'unknown',
+      });
+    }
+  };
   // Settles what the turn still holds and gives its place back, once, whichever
   // way it ends; the audit rows follow, and a failure of one never changes
   // what the person saw.
@@ -383,6 +415,7 @@ async function runConversationTurn(
         });
       }
       admitted.end();
+      if (opened) await closeTurnRow();
       const refusal = budget.refused();
       if (refusal !== undefined) {
         await audit(
@@ -415,6 +448,10 @@ async function runConversationTurn(
       await conclude();
       return { kind: 'nothing_waiting' };
     }
+    // The turn does not begin unless its opening row is written: nothing has
+    // been stored, reserved or sent to a model yet.
+    await deps.recordTurnStart(startOf(facts));
+    opened = true;
     const loaded = await loadMessages(deps, caller, id);
     if (start.kind === 'message') {
       const { message } = start;
@@ -439,7 +476,7 @@ async function runConversationTurn(
         ...(deps.approvals === undefined
           ? {}
           : {
-              approvals: turnApprovals(deps.approvals, deps, caller, id, (card) => {
+              approvals: turnApprovals(deps.approvals, deps, caller, id, turnId, (card) => {
                 awaitingApproval = true;
                 raised.push(approvalCardChunk(card));
               }),
@@ -447,7 +484,7 @@ async function runConversationTurn(
         budget,
         maxStepsPerTurn: prepared.limits.maxStepsPerTurn,
         history: () => Promise.resolve(earlier),
-        ...deps.turn(caller, id),
+        ...deps.turn(caller, id, turnId),
         advanceRun: (observed) => advance(deps, caller, id, observed),
       },
       {

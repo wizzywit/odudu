@@ -49,6 +49,19 @@ describe('agent.tool_call', () => {
       assertDetailAllowed('agent.tool_call', { ...detail, tool: { name: 'x' } });
     }).toThrow(/invalid value/);
   });
+
+  it('carries the conversation and turn of an assistant call, as ids and nothing else', () => {
+    const id = '0198a3c2-7d1e-7b3a-8c55-2f9e4a1b6d70';
+    expect(() => {
+      assertDetailAllowed('agent.tool_call', { ...detail, conversation: id, turn: id });
+    }).not.toThrow();
+    expect(() => {
+      assertDetailAllowed('agent.tool_call', { ...detail, conversation: 'show me clients' });
+    }).toThrow(/invalid value/);
+    expect(() => {
+      assertDetailAllowed('agent.tool_call', { ...detail, turn: 7 });
+    }).toThrow(/invalid value/);
+  });
 });
 
 describe('assertDetailAllowed', () => {

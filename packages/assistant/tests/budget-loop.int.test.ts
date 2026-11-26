@@ -138,6 +138,8 @@ function chatOver(model: MockLanguageModelV3, overrides: Partial<ChatDeps> = {})
       mintToken: vi.fn(() => Promise.resolve({ accessToken: 'token' })),
       callTool: vi.fn(() => Promise.resolve(CLIENTS)),
     }),
+    recordTurnStart: () => Promise.resolve(),
+    recordTurn: () => Promise.resolve(),
     instanceIdFor: () => newId(),
     withAccess: (caller, _conversation, fn) =>
       withTenant(app.db, caller.tenantId, async (tx) => ({

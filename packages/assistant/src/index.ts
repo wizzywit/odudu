@@ -33,5 +33,6 @@ export { openEntitlements } from '#/usecase/entitlements';
 export type { Entitlements } from '#/service/entitlements';
 export type { AssistantLimits, StopReason } from '#/service/limits';
 export type { BudgetAuditEvent } from '#/usecase/chat-deps';
+export type { TurnStart, TurnSummary } from '#/service/turn-summary';
 export { upkeepBudget } from '#/usecase/budget-upkeep';
 export type { BudgetUpkeepReport } from '#/usecase/budget-upkeep';

@@ -7,6 +7,8 @@ import {
   type ChatCaller,
   type ChatDeps,
   type RunTurnDeps,
+  type TurnStart,
+  type TurnSummary,
 } from '@odudu/assistant';
 import { auditRepository } from '@odudu/domain-audit';
 import { withTenant, withTenantRetrying } from '@odudu/db';
@@ -178,7 +180,12 @@ const RUN_REFUSED_HINT =
   'include odudu-assistant, otherwise a limit on live instances or children was reached';
 
 // The read-only runner of a conversation: its own grant, `mcp:read`, no writes.
-function toolRunner(parts: AssistantChatParts, caller: ChatCaller, conversationId: string) {
+function toolRunner(
+  parts: AssistantChatParts,
+  caller: ChatCaller,
+  conversationId: string,
+  turnId: string,
+) {
   let identity: Promise<AssistantIdentity> | undefined;
   const identityOf = (): Promise<AssistantIdentity> => {
     identity ??= withTenant(parts.database.db, caller.tenantId, async (tx) => {
@@ -196,7 +203,14 @@ function toolRunner(parts: AssistantChatParts, caller: ChatCaller, conversationI
     return callAsAssistant(
       parts,
       caller,
-      { grantId: conversationId, scope: [MCP_READ_SCOPE], budget: NO_WRITES, holdsWrite: false },
+      {
+        grantId: conversationId,
+        conversationId,
+        turnId,
+        scope: [MCP_READ_SCOPE],
+        budget: NO_WRITES,
+        holdsWrite: false,
+      },
       await identityOf(),
       accessToken,
       tool,
@@ -229,6 +243,49 @@ function budgetAuditRecorder(parts: AssistantChatParts): NonNullable<ChatDeps['a
         },
       }),
     );
+}
+
+// The `assistant.turn` rows: who, which conversation and turn, the profile and
+// mode, the slots and, once it ends, the tokens, steps and reason. Each is its
+// own short transaction. Nothing here can carry message text, tool output or the
+// name of a tenant object: the summary has no field for one.
+function turnAuditRecorder(
+  parts: AssistantChatParts,
+): Pick<ChatDeps, 'recordTurnStart' | 'recordTurn'> {
+  const write = (
+    phase: 'started' | 'ended',
+    row: TurnStart,
+    outcome: 'allowed' | 'refused' | 'failed',
+    ended: Partial<Pick<TurnSummary, 'tokensBySlot' | 'steps' | 'stopReason'>>,
+  ) =>
+    withTenantRetrying(parts.database.db, row.tenantId, (tx) =>
+      auditRepository(tx).record({
+        eventType: 'admin_mutation',
+        action: 'assistant.turn',
+        outcome,
+        actorTenantId: row.tenantId,
+        actorSubjectId: row.subjectId,
+        resourceType: 'assistant_conversation',
+        resourceId: row.conversationId,
+        detail: {
+          phase,
+          tenant: row.tenantId,
+          subject: row.subjectId,
+          conversation: row.conversationId,
+          turn: row.turnId,
+          profile: row.profile,
+          mode: row.mode,
+          slots: [...row.slots],
+          ...(ended.tokensBySlot === undefined ? {} : { tokens_by_slot: ended.tokensBySlot }),
+          ...(ended.steps === undefined ? {} : { steps: ended.steps }),
+          ...(ended.stopReason === undefined ? {} : { stop_reason: ended.stopReason }),
+        },
+      }),
+    );
+  return {
+    recordTurnStart: (start) => write('started', start, 'allowed', {}),
+    recordTurn: (summary) => write('ended', summary, summary.outcome, summary),
+  };
 }
 
 // Creates the conversation in a transaction of its own that begins with its
@@ -291,11 +348,12 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
     now: parts.now ?? (() => new Date()),
     newId,
     audit: budgetAuditRecorder(parts),
+    ...turnAuditRecorder(parts),
     log: (event, detail) => {
       parts.logger.warn(detail, event);
     },
-    turn: (caller, conversationId) => {
-      const run = toolRunner(parts, caller, conversationId);
+    turn: (caller, conversationId, turnId) => {
+      const run = toolRunner(parts, caller, conversationId, turnId);
       return {
         mintToken: (key, signal) => unlessAborted(mint(caller, key), signal),
         callTool: (accessToken, name, input, signal) =>
