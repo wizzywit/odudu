@@ -1789,7 +1789,10 @@ describe('odudu reap', () => {
   // A table that carries a lifecycle timestamp either has a retention rule
   // or is named here with a reason. `email_outbox` will arrive carrying
   // `sent_at`, and this is what will not let it arrive unreaped.
-  const NOT_REAPED: Record<string, string> = {};
+  const NOT_REAPED: Record<string, string> = {
+    assistant_turn_leases:
+      'deleted by the assistant budget upkeep that the pass runs for each tenant, which reports it apart from REAP_ORDER',
+  };
 
   it('accounts for every table carrying a lifecycle timestamp', async () => {
     const rows = await owner.db.execute<{ table_name: string }>(sql`

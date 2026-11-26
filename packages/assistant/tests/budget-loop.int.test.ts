@@ -276,8 +276,9 @@ describe('a level that refuses', () => {
 
 describe('the warning', () => {
   it('sends a budget_warning part when a level passes 80 percent, once for that level', async () => {
-    const w = await world();
-    const { chat } = chatOver(scripted([answer('big', 130_000)]));
+    // A quarter of 400,000 is the day's 100,000, and 85,000 is past 80 percent of it.
+    const w = await world({ assistant_monthly_tokens_standard: 400_000 });
+    const { chat } = chatOver(scripted([answer('big', 85_000)]));
     const caller = callerOf(w);
     const body = await bodyOf(chat, caller, await conversation(chat, caller));
     expect(body).toContain('"type":"data-budget_warning"');

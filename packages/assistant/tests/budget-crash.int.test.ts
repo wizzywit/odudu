@@ -133,12 +133,13 @@ describe('a process killed in the middle of a model call', () => {
 
   it('gives back a reservation whose call never reached the provider', async () => {
     const tenantId = newId();
+    const windowStart = new Date(Math.floor(Date.now() / 1000) * 1000).toISOString();
     await withTenant(app.db, tenantId, async (tx) => {
       await tx.insert(tenants).values({ id: tenantId, name: `crash-${tenantId.slice(-12)}` });
       await tx.execute(sql`
         insert into assistant_budget_counters
           (tenant_id, scope_kind, scope_key, slot, used, limit_tokens, window_start)
-        values (${tenantId}, 'tenant_month', ${tenantId}, 'standard', 500, 1000, now())`);
+        values (${tenantId}, 'tenant_month', ${tenantId}, 'standard', 500, 1000, ${windowStart}::timestamptz)`);
       await tx.execute(sql`
         insert into assistant_reservations
           (tenant_id, id, turn_id, slot, reserved, levels, sent, created_at)
@@ -148,7 +149,7 @@ describe('a process killed in the middle of a model call', () => {
                     level: 'tenant_month',
                     scopeKey: tenantId,
                     slot: 'standard',
-                    windowStart: new Date().toISOString(),
+                    windowStart,
                   },
                 ])}::jsonb, false, now() - interval '1 hour')`);
     });
