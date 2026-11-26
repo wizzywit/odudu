@@ -69,6 +69,10 @@ Anybody can cause a refusal, and each is a row, so one is recorded only where so
 
 When an AI agent acts through the MCP endpoint, each tool call, reads included, is an `agent.tool_call` event. The actor is the person who signed in and the actor client is the agent's client. The details name the tool and the admin route, never the arguments. A refused call is recorded too. A change made with `mcp:write` is also the console's event for that change. Access-changing, credential and destructive operations are not available to an agent yet ([classes](../guides/protect-an-mcp-server.md#what-an-agent-can-and-cannot-do-and-why)). A message override and the display name are live on sign-in pages and mail the moment they are saved, with nothing checking them for links. A manipulated agent could publish text it read elsewhere. Review what an agent reads; overrides are audited with their text, and one tool clears them.
 
+### A change the console assistant proposes
+
+The console assistant changes nothing by itself. In Act mode a change it proposes is stored as an approval for the administrator whose conversation it is, with a card the server writes from the call and from the state it read, and the assistant waits. Only that administrator, from their own console sign-in, can approve it: no token the assistant or any agent holds can, and no other administrator. Approving lets that one change run once, exactly as the card shows it, under a grant made for it alone that ends when it returns. The deciding is an `assistant.approval` event naming the person, the conversation, the approval, the tool and the state, and never the change or any message text. The change itself is an `agent.tool_call` event, like any other tool call, and the console's own event for what it changed.
+
 ### How long it is kept
 
 Nothing in the server or the admin API edits or deletes an event, apart from the retention pass below. Events are not signed or chained, so whoever holds the database owner's login could change them: export what you must keep somewhere that person cannot reach.

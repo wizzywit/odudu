@@ -56,3 +56,19 @@ keeps refusing any scope the grant does not hold.
   child limit. It is the fallback if the grant insert is ever unacceptable.
 - **An RFC 8693 exchange in process:** it only narrows, and a console token holds no MCP
   scope to keep.
+
+## Amendment: an approved write has a grant of its own
+
+The conversation's grant stays `mcp:read` in both modes, as this decision says. What
+"until a write has a grant of its own" comes to is one more grant, made for one approved
+change: `grantAssistantWrite`, in the transaction that spends the approval
+(`consumeApproval`, for the digest of the call about to run), of the built-in client, for
+the console grant's subject and session, `exchangedFromGrantId` the console grant, scope
+`mcp:write` alone, and the approval's id as its own id, so one approval makes at most one.
+`mintAgentToken` is called with it unchanged and no `run`, so the token's `act.sub` is the
+client and no instance is made. The call goes through `callMcpTool` with `holdsWrite` and the
+grant's write budget, which an exchanged grant draws from its root, and the grant is revoked
+when the call returns. The decision that spends nothing but a person's attention is the
+approval's, written only by `decideApproval` for the person it names, from their console
+sign-in. The design and what was rejected are in `docs/phases/p5c-spikes.md`, "P5c act-mode
+design". No P5 invariant changes.
