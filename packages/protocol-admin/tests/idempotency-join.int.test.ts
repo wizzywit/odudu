@@ -7,10 +7,12 @@ import { makePng } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ASSISTANT_SETTING_DEFAULTS } from '@odudu/contracts/admin';
 import { ADMIN_ROUTES } from '#/service/capability';
 import { idempotentMethod } from '#/service/idempotency';
 import { createVerifyThrottle } from '#/service/domain-throttle';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import { type AssistantActivityStore } from '#/usecase/assistant-activity';
 
 interface Seen {
   readonly query: string;
@@ -20,10 +22,24 @@ const seen: Seen[] = [];
 let txt: string[][] = [];
 const resolver: ResolveTxt = () => Promise.resolve(txt);
 
+// Reporting writes its audit row through the transaction the key shares; the
+// store only has to say the conversation was reported.
+const reporting: AssistantActivityStore = {
+  list: () => Promise.resolve({ items: [], next: null }),
+  replay: () => Promise.resolve(null),
+  export: () => Promise.resolve(null),
+  report: () => Promise.resolve({ kind: 'reported', at: new Date(), count: 1 }),
+};
+
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
 beforeAll(async () => {
   fixtureHandle = await startAdminFixture({
+    assistantActivity: reporting,
+    assistantSettings: {
+      read: () => Promise.resolve({ ...ASSISTANT_SETTING_DEFAULTS }),
+      write: () => Promise.resolve(),
+    },
     deploymentSmtp: true,
     publicBaseUrl: true,
     domainsBaseUrl: 'https://odudu.example.com',
@@ -162,6 +178,8 @@ async function domainsEtag(ctx: Ctx): Promise<string> {
 // route needs. A setup that leaves the route at 404 or 409 proves nothing
 // about where its writes go, so the test fails the drive instead.
 const DRIVES: Record<string, (ctx: Ctx) => Promise<Sent>> = {
+  '/admin/tenants/:tenant/assistant/conversations/:id/report': () =>
+    Promise.resolve({ path: `/assistant/conversations/${newId()}/report` }),
   '/admin/tenants/:tenant/subjects': () =>
     Promise.resolve({ path: '/subjects', body: { username: `u-${newId()}` } }),
   '/admin/tenants/:tenant/subjects/bulk': async (ctx) => {
