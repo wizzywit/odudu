@@ -39,6 +39,7 @@ How they were captured is in [How the transcripts are captured and checked](../.
 - [GET /assistant/settings and PUT /assistant/settings](./get-assistantsettings-and-put-assistantsettings.md)
 - [Assistant conversations: start, load, send and stop](./post-assistantconversations-and-the-conversation-routes.md)
 - [Assistant changes: approvals, resume and mode](./post-assistantconversationsidapprovals-and-the-act-routes.md)
+- [Assistant conversations: list, reopen, hide, export and delete](./get-assistantconversations-and-the-conversation-management-routes.md)
 - [Assistant activity: list, replay, export and report](./get-assistantactivity-and-the-activity-routes.md)
 - [Domains: register, verify, switch, remove](./get-domains-post-domains-and-the-domain-routes.md)
 - [GET /whoami](./get-whoami.md)

@@ -2035,7 +2035,7 @@ placed on P5b; the door admits an agent no field of a route it has no allowlist 
 | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | W2    | 36     | access-changing writes: grants, mappings, redirect and grant settings, security settings, identity fields, publishing a theme, sending mail |
 | C     | 7      | credentials and secrets: passwords, client secrets, registration tokens, signing-key creation, relay credentials, imports                   |
-| D     | 29     | destructive: deletes, ending sessions, clearing lockouts, changing signing keys, discarding drafts                                          |
+| D     | 30     | destructive: deletes, ending sessions, clearing lockouts, changing signing keys, discarding drafts                                          |
 
 - **The confirmation step is the first design question.** Three options, none built. MCP elicitation has the
   server ask the client, which an injected agent could answer itself. CIBA through P5, the out-of-band approval

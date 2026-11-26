@@ -108,6 +108,14 @@ The same `404` that a path never served gets answers a deployment with no model 
 
 `POST /admin/tenants/{tenant}/assistant/conversations/{id}/report` keeps a conversation, with its turns, steps, events and approval cards, past retention. The person it belongs to may report it, and so may someone holding `read-assistant-activity`, whatever the setting says, since reporting shows no text; anyone else gets `404`. Reporting one already reported answers the same `reported_at` and changes nothing. A tenant keeps at most 100 reported conversations, and a further one is refused with `409`, because a conversation kept for good is not weighed by the retention that bounds the rest. The response says `near_limit` from 80, and the list flags a conversation reported more than 180 days ago, so someone can see what has been kept; nothing removes one. The route does not un-report. A report that takes effect is audited as `assistant.report`; one that changes nothing is not.
 
+## A person's own conversations
+
+A person manages their own conversations through routes that answer for the caller's conversations and no one else's, whatever else they hold: `GET /assistant/conversations` lists them (newest activity first, one indexed page at a time, hidden ones with `archived=true`), `GET /assistant/last-conversation` reopens the latest, and `PUT /assistant/conversations/{id}/archived` hides one or brings it back without removing anything. Each conversation gets a title from the first thing the person asked, with addresses, links, long numbers and secrets taken out.
+
+**Delete.** `DELETE /assistant/conversations/{id}` removes the conversation's messages, its trace and its approval cards at once, ends the grant it acted under and writes an `assistant.conversation_deleted` audit row in the same transaction. It is refused while the conversation is reported or an answer is running in it, and a delete whose audit row cannot be written deletes nothing. A tombstone stays in the table `assistant_conversation_tombstones`: the conversation's id, its owner, when it began and was last used, who deleted it and when, how many messages and turns it held, and a digest of its messages. The digest is an HMAC-SHA256 under a key derived from `ODUDU_KEK` and the tenant, so it confirms a copy of the text to whoever holds the key and tells nobody else anything; it is not evidence of what was said. Rotating the key makes old digests unverifiable and nothing else. The tombstone goes when the person or the tenant is deleted. No audit row is touched by a delete: the person's `assistant.turn` and `assistant.approval` rows stay for as long as the audit retention says.
+
+**Export.** `GET /assistant/conversations/{id}/export` and `.../export/markdown` give the person their own conversation as a download: the first 500 messages with secrets hidden, and for an answer the names of the tools it called, not their inputs or results. No one else can export a conversation, an auditor and an operator included, and each export is an `assistant.conversation_exported` row. These are not conversation reads by a holder of `read-assistant-activity`, which stay governed by the setting above.
+
 ## Retention
 
 A tenant's **Keep traces for** setting (`assistant_trace_retention_days`, 1 to 365, 30 by default) is applied by `odudu reap`, which the server also runs on its own timer, so the trace is bounded the way the audit trail is. The pass runs after the retention deletes of every tenant have committed, in a transaction of its own for each tenant, and takes three things, each against the tenant's window counted back from the pass:
@@ -126,7 +134,7 @@ A conversation a system administrator started about another tenant ends by the s
 
 The report of `odudu reap` carries what the pass did under `assistant`, as `turnsDeleted`, `approvalCardsDeleted` and `conversationsDeleted` beside the budget upkeep's counts, and `failed` counts the tenants for which either half failed. The command exits `1` when it is more than zero, so a scheduled job shows it, while the other tenants and the other half of that tenant's work stand. Shortening the setting removes more on the next pass; lengthening it does not bring back what a pass has removed.
 
-Deleting a person still deletes their conversations at once, and with them every turn, step and event.
+Deleting a person still deletes their conversations at once, and with them every turn, step and event, and the tombstones of any they had deleted. A person who deletes a conversation does it at once and is not waiting for this pass.
 
 ## OpenTelemetry
 

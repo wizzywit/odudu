@@ -402,6 +402,11 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       'work inside P5c, whose console assistant row already places the assistant screens',
     ],
     [
+      'Carrying an old conversation on',
+      ['P5c'],
+      'work inside P5c, whose console assistant row already places the conversation list',
+    ],
+    [
       'Twelve administrative capabilities',
       ['P7'],
       'carried by the gap-audit capability check above',

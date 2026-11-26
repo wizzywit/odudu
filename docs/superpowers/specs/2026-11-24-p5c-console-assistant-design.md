@@ -344,6 +344,58 @@ conversation past retention; export a trace as a promptfoo test case so a defect
 becomes a permanent regression test. Retention removes traces through a command-first
 reaper (ADR 0024).
 
+### 5.9a A person's conversations: list, reopen, hide, export, delete (owner decisions of 2026-11-26)
+
+This adds to 5.9 what the plan's fourth gap (no self-delete) had left out, by the
+owner's decision of 2026-11-26, and states 5.9's retention once. What is built is below.
+
+- **The list and the reopen are the caller's own.** `GET .../assistant/conversations`
+  lists the caller's conversations, newest activity first, hidden or not by
+  `archived`, one indexed page of at most `limit` rows (partial indexes by owner for
+  each state; the tenant filter is the key's first column). `GET .../assistant/last-conversation`
+  returns the most recent one that is not hidden, with its messages, or null. Both
+  take `use-assistant` and filter on the token's subject, so another capability, an
+  auditor's included, reads none of it; a conversation made for another tenant lists
+  only at that tenant's path (`conversationIsCallers`). The title is derived once, on
+  the first message, by `titleOf`: the first line, with emails, links, long numbers
+  and masked secrets removed, 60 characters.
+- **Hide is `PUT .../archived`.** A timestamp, reversible, removes nothing, and does
+  not change retention.
+- **Delete is the owner's, with a tombstone.** `DELETE .../conversations/{id}` removes
+  messages, trace and approval cards in one transaction and keeps a row in
+  `assistant_conversation_tombstones` (ids, owner, times, who deleted it, message and
+  turn counts, an HMAC-SHA256 of the messages under a per-tenant key derived from the
+  KEK) beside an `assistant.conversation_deleted` audit row written in the same
+  transaction. It is refused with `409` while the conversation is reported or a turn
+  holds a live lease on it; a delete whose audit row fails deletes nothing. No audit row
+  is ever touched by a delete. The conversation's grant is revoked after the commit.
+- **Export is the owner's alone.** JSON or Markdown, the first 500 messages, secrets
+  hidden, tool names and no tool input or result, each export an
+  `assistant.conversation_exported` row. No route lets an operator or an auditor take a
+  conversation's text out; auditors read through the activity routes only, where the
+  setting and `assistant.text_read` apply.
+- **Retention** is unchanged in shape and stated here once: 30 days by default, 1 to 365,
+  counted from the last message, a shorter value applying at the next pass, a reported
+  conversation kept. Content retention and audit retention are independent: a delete or
+  an expiry never touches an audit row. The default of `assistant_auditor_visible` is off
+  (migration 0156), so auditors see metadata and read text only where a tenant allows it.
+- **Reopening after a sign-in is read-only for now.** A conversation's grant is derived from
+  the console grant that was live when it began and ends with it. `last-conversation`
+  therefore says `continuable: false` once that sign-in has ended, and a message to such a
+  conversation is refused `409` before any turn. Carrying one on needs a new grant for the
+  old conversation: a `grant_id` column on the conversation beside `run_generation`, a new
+  derived grant made from the new console grant under the same checks as
+  `grantAssistantAccess`, and the next run key. Updating the revoked grant in place was
+  rejected: it would revive a grant someone revoked on purpose and break the budget lineage
+  its instances hang from. It is recorded in `docs/NEXT.md`.
+- **Bounds at 1,000,000 subjects and 100,000,000 audit events.** A list page is one read
+  by `(tenant_id, owner_subject_id, last_active_at, id)` of at most 201 rows. Reopening is
+  one list row and one message read of at most 100. Hiding, titling and a delete's lookup
+  are by primary key. A delete or an export walks the messages 50 at a time, so memory
+  is bounded by a page and the work by one conversation (an export stops at 500
+  messages). A tombstone is one row for each deleted conversation, removed with its
+  person or tenant, and no list reads it. Nothing here reads the audit table.
+
 ### 5.10 Testing and evals
 
 Unit tests with a mock model (`assumption:` the SDK exports mock models from `ai/test`)

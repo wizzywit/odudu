@@ -69,7 +69,7 @@ When an AI agent acts through the MCP endpoint, each tool call, reads included, 
 
 ### The console assistant in the trail
 
-In Act mode the assistant only proposes a change, and only the administrator whose conversation it is can approve it, from their own console sign-in. Deciding is an `assistant.approval` event that never holds the change or any message text, and the change is an `agent.tool_call` event like any other. A system administrator using the assistant in another tenant leaves the tool calls in that tenant's trail and the conversation in the system tenant's. [The operating page](../operating/assistant-budget.md#what-the-audit-trail-records-of-a-turn) has the limits and each turn's events.
+In Act mode the assistant only proposes a change, and only the administrator whose conversation it is can approve it, from their own console sign-in. Deciding is an `assistant.approval` event that never holds the change or any message text, and the change is an `agent.tool_call` event. A system administrator using the assistant in another tenant leaves the tool calls in that tenant's trail and the conversation in the system tenant's. Deleting a conversation touches no audit row. [The operating page](../operating/assistant-budget.md#what-the-audit-trail-records-of-a-turn) has the limits and each turn's events.
 
 ### How long it is kept
 
