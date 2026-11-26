@@ -108,6 +108,7 @@ async function newTenant(): Promise<Tenant> {
            grant_types = grant_types || array[${EXCHANGE}]::text[],
            token_exchange_impersonation_allowed = true
      where tenant_id = ${tenantId}
+       and client_id = (select id from clients where tenant_id = ${tenantId} and client_id = 'portal')
   `);
   return { name, id: tenantId, username };
 }
