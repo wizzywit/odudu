@@ -1,0 +1,11 @@
+export { AssistantGate, type AssistantSlots } from '#/entities/assistant/ui/AssistantGate';
+export { useAssistantStatus } from '#/entities/assistant/use-cases/useAssistantStatus';
+export { mayUseAssistant } from '#/entities/assistant/services/gate';
+export { ASSISTANT_WORDING } from '#/entities/assistant/services/wording';
+export {
+  MARKDOWN_MAX_CHARS,
+  SAFE_NODE_KINDS,
+  renderSafeMarkdown,
+  type SafeNode,
+} from '#/entities/assistant/services/safeMarkdown';
+export type { AssistantView } from '#/entities/assistant/services/gate';

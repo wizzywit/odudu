@@ -90,6 +90,8 @@ export function AppShell({
   collapsed = false,
   onCollapsedChange,
   shortcutsPaused = false,
+  assistant,
+  assistantPanel,
   children,
 }: {
   rail: ReactNode;
@@ -99,6 +101,11 @@ export function AppShell({
   onCollapsedChange?: (collapsed: boolean) => void;
   // While a dialog is open the shortcut would act behind it.
   shortcutsPaused?: boolean;
+  // The control that opens the assistant, drawn in the rail and in the top
+  // bar, of which the width shows one; and the panel it opens, docked beside
+  // the page or laid over it where there is no room to dock.
+  assistant?: ReactNode;
+  assistantPanel?: ReactNode;
   children: ReactNode;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -138,16 +145,23 @@ export function AppShell({
 
   return (
     <div className={styles.shell} data-shell>
-      <div className={styles.frame} data-collapsed={railShown ? undefined : true}>
+      <div
+        className={styles.frame}
+        data-collapsed={railShown ? undefined : true}
+        data-assistant={assistantPanel ? true : undefined}
+      >
         <a href="#main" className={styles.skip}>
           Skip to content
         </a>
         {railShown ? (
           <section ref={railColumn} aria-label="Menu" className={styles.rail}>
             <div className={styles.railBody}>{rail}</div>
-            {collapsible ? (
+            {collapsible || assistant ? (
               <div className={styles.railFoot}>
-                <Toggle label="Collapse menu" onPress={toggle} focusRef={collapseButton} />
+                {assistant ? <div className={styles.railAssistant}>{assistant}</div> : null}
+                {collapsible ? (
+                  <Toggle label="Collapse menu" onPress={toggle} focusRef={collapseButton} />
+                ) : null}
               </div>
             ) : null}
           </section>
@@ -163,6 +177,7 @@ export function AppShell({
                   <Toggle label="Expand menu" onPress={toggle} focusRef={expandButton} />
                 </span>
               )}
+              {assistant}
               <DialogTrigger isOpen={sheetOpen} onOpenChange={setSheetOpen}>
                 <Button size="small">Menu</Button>
                 <ModalOverlay isDismissable className={styles.overlay ?? ''}>
@@ -182,6 +197,7 @@ export function AppShell({
             {children}
           </main>
         </div>
+        {assistantPanel ? <div className={styles.dock}>{assistantPanel}</div> : null}
       </div>
     </div>
   );

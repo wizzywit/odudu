@@ -6,6 +6,8 @@ import {
   useTenantMissing,
   type Principal,
 } from '#/entities/session';
+import { AssistantGate } from '#/entities/assistant';
+import { useAssistantAvailable } from '#/widgets/shell/use-cases/useAssistantAvailable';
 import { useShell } from '#/widgets/shell/use-cases/useShell';
 import { useTenantFrame } from '#/widgets/shell/use-cases/useTenantFrame';
 import { RailFooter } from '#/widgets/shell/ui/RailFooter';
@@ -28,6 +30,7 @@ function SignedInShell({
   children: ReactNode;
 }) {
   const shell = useShell(tenant, principal);
+  const assistantAvailable = useAssistantAvailable(tenant);
   const { productName } = useTenantFrame(tenant);
   const missing = useTenantMissing(tenant);
   if (missing === true) {
@@ -38,41 +41,47 @@ function SignedInShell({
     );
   }
   return (
-    <AppShell
-      brand={shell.brand}
-      collapsed={shell.collapsed}
-      onCollapsedChange={shell.setCollapsed}
-      shortcutsPaused={shell.dialogOpen}
-      contextBar={
-        shell.systemAuthority ? (
-          <ContextBar tenant={tenant} backHref={shell.systemRecordHref} />
-        ) : undefined
-      }
-      rail={
-        <Rail
-          label={shell.areasLabel}
-          groups={shell.groups}
-          checking={shell.checking}
-          {...(shell.currentHref === undefined ? {} : { currentHref: shell.currentHref })}
-          header={
-            <strong className={styles.brand}>
-              <BrandLine>{shell.brand}</BrandLine>
-            </strong>
+    <AssistantGate tenant={tenant} available={assistantAvailable}>
+      {({ control, panel }) => (
+        <AppShell
+          brand={shell.brand}
+          collapsed={shell.collapsed}
+          onCollapsedChange={shell.setCollapsed}
+          shortcutsPaused={shell.dialogOpen}
+          assistant={control}
+          assistantPanel={panel}
+          contextBar={
+            shell.systemAuthority ? (
+              <ContextBar tenant={tenant} backHref={shell.systemRecordHref} />
+            ) : undefined
           }
-          footer={
-            <RailFooter
-              username={shell.username}
-              from={shell.signedInFrom}
-              switchHref={shell.switchHref}
-              theme={shell.theme}
-              onSignOut={shell.signOut}
+          rail={
+            <Rail
+              label={shell.areasLabel}
+              groups={shell.groups}
+              checking={shell.checking}
+              {...(shell.currentHref === undefined ? {} : { currentHref: shell.currentHref })}
+              header={
+                <strong className={styles.brand}>
+                  <BrandLine>{shell.brand}</BrandLine>
+                </strong>
+              }
+              footer={
+                <RailFooter
+                  username={shell.username}
+                  from={shell.signedInFrom}
+                  switchHref={shell.switchHref}
+                  theme={shell.theme}
+                  onSignOut={shell.signOut}
+                />
+              }
             />
           }
-        />
-      }
-    >
-      {children}
-    </AppShell>
+        >
+          {children}
+        </AppShell>
+      )}
+    </AssistantGate>
   );
 }
 
