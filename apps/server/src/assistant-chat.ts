@@ -17,7 +17,8 @@ import {
   createInProcessCaller,
   TOOLS,
   validatedMcpToken,
-  type McpLogger,
+  type RegisteredTool,
+  type ToolResult,
   type WriteBudget,
 } from '@odudu/mcp';
 import { recordAgentToolCall } from '@odudu/protocol-admin';
@@ -35,31 +36,16 @@ import {
 } from '@odudu/protocol-oidc';
 import { type FastifyInstance } from 'fastify';
 import { type Logger as PinoLogger } from 'pino';
-import { TOOL_DEADLINE_MS } from '#/mcp-deps';
+import { callAsAssistant, type AssistantChatParts, type AssistantIdentity } from '#/assistant-call';
+import { approvalPortsFor } from '#/assistant-approvals';
 
-export interface AssistantChatParts {
-  readonly app: Pick<FastifyInstance, 'inject'>;
-  readonly database: DatabaseHandle;
-  readonly ownerDatabase: DatabaseHandle;
-  readonly kek: Uint8Array;
-  readonly claimMappers: Parameters<typeof mintAgentToken>[1]['claimMappers'];
-  readonly logger: PinoLogger;
-  readonly publicBaseUrl: string | undefined;
-  /** The model a slot runs; the provider's key is read where it is built, not here. */
-  readonly models: ChatDeps['model'];
-  readonly now?: () => Date;
-}
+export type { AssistantChatParts } from '#/assistant-call';
 
 // The assistant offers reads only, so no call has a change to reserve.
 const NO_WRITES: WriteBudget = {
   reserve: () => Promise.resolve(false),
   release: () => Promise.resolve(),
 };
-
-interface Identity {
-  readonly clientId: string;
-  readonly clientDbId: string;
-}
 
 // Gives up waiting for `work` when the turn is ended; the work itself is left to
 // finish, as an admin call already sent is.
@@ -201,14 +187,10 @@ const RUN_REFUSED_HINT =
   'the agent layer refused the run: if the console client lists delegated_actors it must ' +
   'include odudu-assistant, otherwise a limit on live instances or children was reached';
 
-// Runs one tool as the owner's agent, through the same bridge the MCP endpoint
-// uses, and leaves the same row: a call whose row cannot be written does not
-// return its data.
+// The read-only runner of a conversation: its own grant, `mcp:read`, no writes.
 function toolRunner(parts: AssistantChatParts, caller: ChatCaller, conversationId: string) {
-  const now = parts.now ?? (() => new Date());
-  const logger: McpLogger = parts.logger;
-  let identity: Promise<Identity> | undefined;
-  const identityOf = (): Promise<Identity> => {
+  let identity: Promise<AssistantIdentity> | undefined;
+  const identityOf = (): Promise<AssistantIdentity> => {
     identity ??= withTenant(parts.database.db, caller.tenantId, async (tx) => {
       const grant = await tokenGrantRepository(tx).byId(conversationId);
       const client = grant === null ? null : await clientRepository(tx).byId(grant.clientId);
@@ -221,50 +203,13 @@ function toolRunner(parts: AssistantChatParts, caller: ChatCaller, conversationI
   return async (accessToken: string, name: string, input: unknown) => {
     const tool = TOOLS.find((entry) => entry.name === name);
     if (tool?.access !== 'read') throw new Error('not an assistant tool');
-    const { clientId, clientDbId } = await identityOf();
-    const token = validatedMcpToken({
-      tenant: { id: caller.tenantId, name: caller.tenantName },
-      issuer: caller.issuer,
-      subjectId: caller.ownerSubjectId,
-      clientId,
-      grantId: conversationId,
-      scope: [MCP_READ_SCOPE],
-      expSeconds: Math.floor(now().getTime() / 1000) + AGENT_TOKEN_MAX_TTL_SECONDS,
-    });
-    const admin = createInProcessCaller(
-      {
-        inject: (options) => parts.app.inject(options),
-        adminBearer: () => Promise.resolve(accessToken),
-        requestId: caller.requestId,
-        ip: caller.ip,
-        adminHost:
-          parts.publicBaseUrl === undefined ? undefined : new URL(parts.publicBaseUrl).host,
-        logger,
-      },
-      token,
-    );
-    const principal = {
-      subjectId: caller.ownerSubjectId,
-      issuerTenantId: caller.tenantId,
-      issuerTenantName: caller.tenantName,
-      clientDbId,
-      scopes: token.scope,
-      agent: { clientId, ownerSubjectId: caller.ownerSubjectId },
-    };
-    return callMcpTool(
-      {
-        requestId: caller.requestId,
-        deadlineMs: TOOL_DEADLINE_MS,
-        budget: NO_WRITES,
-        holdsWrite: false,
-        record: (recorded) =>
-          withTenant(parts.database.db, caller.tenantId, (tx) =>
-            recordAgentToolCall(tx, principal, recorded),
-          ),
-        logger: parts.logger,
-      },
+    return callAsAssistant(
+      parts,
+      caller,
+      { grantId: conversationId, scope: [MCP_READ_SCOPE], budget: NO_WRITES, holdsWrite: false },
+      await identityOf(),
+      accessToken,
       tool,
-      admin,
       input,
     );
   };
@@ -351,6 +296,7 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
     instanceIdFor: (caller, conversationId, key) =>
       runInstanceId(caller.tenantId, conversationId, key),
     withAccess: accessGranter(parts),
+    approvals: approvalPortsFor(parts),
     now: parts.now ?? (() => new Date()),
     newId,
     audit: budgetAuditRecorder(parts),

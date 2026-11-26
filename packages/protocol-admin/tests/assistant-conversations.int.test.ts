@@ -22,7 +22,20 @@ interface Recorded {
   callers: AssistantCaller[];
   signals: AbortSignal[];
   stopped: string[];
+  decided: { id: string; approvalId: string; approve: boolean }[];
+  modes: { id: string; mode: string }[];
 }
+
+const CARD = {
+  approval_id: '55555555-5555-4555-8555-555555555555',
+  tool_call_id: 'call-1',
+  tool: 'update_client_metadata',
+  title: 'Change the name or description of a client',
+  target: { type: 'client', id: 'c1', name: 'Acme app' },
+  before: { description: 'Old' },
+  after: { description: 'New' },
+  expires_at: '2026-11-26T10:05:00.000Z',
+};
 
 // A port whose turn streams one chunk at once, then waits for the call to be
 // aborted before it ends, so a test can see the first chunk arrive while the
@@ -70,12 +83,48 @@ function fakePort(recorded: Recorded): AssistantChatPort {
       recorded.stopped.push(id);
       return Promise.resolve(id.startsWith('2') ? ('not_found' as const) : ('stopped' as const));
     },
+    approvals(caller, id) {
+      recorded.callers.push(caller);
+      return Promise.resolve(id.startsWith('2') ? null : [CARD]);
+    },
+    decide(caller, id, approvalId, approve) {
+      recorded.callers.push(caller);
+      recorded.decided.push({ id, approvalId, approve });
+      if (id.startsWith('2')) return Promise.resolve({ kind: 'not_found' as const });
+      if (id.startsWith('3')) return Promise.resolve({ kind: 'not_pending' as const });
+      return Promise.resolve({ kind: 'decided' as const, state: approve ? 'approved' : 'denied' });
+    },
+    resume(caller, id, signal) {
+      recorded.callers.push(caller);
+      if (id.startsWith('2')) return Promise.resolve({ kind: 'not_found' as const });
+      if (id.startsWith('3')) return Promise.resolve({ kind: 'waiting' as const });
+      if (id.startsWith('4')) return Promise.resolve({ kind: 'nothing_waiting' as const });
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('data: {"type":"start"}\n\n'));
+          signal.addEventListener('abort', () => {
+            controller.close();
+          });
+        },
+      });
+      return Promise.resolve({
+        kind: 'stream' as const,
+        response: new Response(body, { headers: { 'content-type': 'text/event-stream' } }),
+      });
+    },
+    setMode(caller, id, mode) {
+      recorded.callers.push(caller);
+      recorded.modes.push({ id, mode });
+      if (id.startsWith('2')) return Promise.resolve({ kind: 'not_found' as const });
+      if (id.startsWith('3')) return Promise.resolve({ kind: 'not_offered' as const });
+      return Promise.resolve({ kind: 'set' as const, mode });
+    },
   };
 }
 
 let fixture: AdminFixture | undefined;
 let bare: AdminFixture | undefined;
-const recorded: Recorded = { callers: [], signals: [], stopped: [] };
+const recorded: Recorded = { callers: [], signals: [], stopped: [], decided: [], modes: [] };
 
 function fx(): AdminFixture {
   if (fixture === undefined) throw new Error('fixture not started');
@@ -359,5 +408,151 @@ describe('a system-tenant administrator on another tenant', () => {
       expect(res.json(), call.url).toMatchObject({ title: 'Not Found' });
     }
     expect(recorded.callers.length).toBe(before);
+  });
+});
+
+describe('the approval routes', () => {
+  const APPROVAL = CARD.approval_id;
+
+  it('lists the cards of a conversation, and 404 for one that is not the caller’s', async () => {
+    const { tenant, headers } = await bearer();
+    const ok = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}/${ID}/approvals`,
+      headers,
+    });
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect(ok.json()).toEqual({ items: [CARD] });
+    const gone = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE(tenant)}/${FOREIGN}/approvals`,
+      headers,
+    });
+    expect(gone.statusCode).toBe(404);
+  });
+
+  it('records a decision with the caller’s own subject, and says which was recorded', async () => {
+    const { tenant, headers } = await bearer();
+    const approve = await fx().http.inject({
+      method: 'POST',
+      url: `${BASE(tenant)}/${ID}/approvals/${APPROVAL}`,
+      headers,
+      payload: { approve: true },
+    });
+    expect(approve.statusCode, approve.body).toBe(200);
+    expect(approve.json()).toEqual({ state: 'approved' });
+    const deny = await fx().http.inject({
+      method: 'POST',
+      url: `${BASE(tenant)}/${ID}/approvals/${APPROVAL}`,
+      headers,
+      payload: { approve: false },
+    });
+    expect(deny.json()).toEqual({ state: 'denied' });
+    expect(recorded.decided.at(-1)).toEqual({ id: ID, approvalId: APPROVAL, approve: false });
+  });
+
+  it('answers 404 for another conversation’s approval, 409 for one already decided', async () => {
+    const { tenant, headers } = await bearer();
+    const foreign = await fx().http.inject({
+      method: 'POST',
+      url: `${BASE(tenant)}/${FOREIGN}/approvals/${APPROVAL}`,
+      headers,
+      payload: { approve: true },
+    });
+    expect(foreign.statusCode).toBe(404);
+    const decided = await fx().http.inject({
+      method: 'POST',
+      url: `${BASE(tenant)}/${BUSY}/approvals/${APPROVAL}`,
+      headers,
+      payload: { approve: true },
+    });
+    expect(decided.statusCode).toBe(409);
+  });
+
+  it('refuses a body that is anything but { approve }, and an approval id that is not an id', async () => {
+    const { tenant, headers } = await bearer();
+    for (const payload of [{}, { approve: 'yes' }, { approve: true, reason: 'because' }]) {
+      const res = await fx().http.inject({
+        method: 'POST',
+        url: `${BASE(tenant)}/${ID}/approvals/${APPROVAL}`,
+        headers,
+        payload,
+      });
+      expect(res.statusCode, JSON.stringify(payload)).toBe(400);
+    }
+    const bad = await fx().http.inject({
+      method: 'POST',
+      url: `${BASE(tenant)}/${ID}/approvals/not-an-id`,
+      headers,
+      payload: { approve: true },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it('needs use-assistant', async () => {
+    const { tenant, headers } = await bearer(['manage-clients']);
+    const res = await fx().http.inject({
+      method: 'POST',
+      url: `${BASE(tenant)}/${ID}/approvals/${APPROVAL}`,
+      headers,
+      payload: { approve: true },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('resumes as a stream, and says why it cannot when a change waits or none does', async () => {
+    const { tenant, headers } = await bearer();
+    const gone = new AbortController();
+    const ok = await fx().http.inject({
+      method: 'POST',
+      url: `${BASE(tenant)}/${ID}/resume`,
+      headers,
+      payloadAsStream: true,
+      signal: gone.signal,
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.headers['content-type']).toContain('text/event-stream');
+    gone.abort();
+    ok.raw.res.destroy();
+    const waiting = await fx().http.inject({
+      method: 'POST',
+      url: `${BASE(tenant)}/${BUSY}/resume`,
+      headers,
+    });
+    expect(waiting.statusCode).toBe(409);
+    expect(waiting.body).toContain('still waits');
+    const none = await fx().http.inject({
+      method: 'POST',
+      url: `${BASE(tenant)}/44444444-4444-4444-8444-444444444444/resume`,
+      headers,
+    });
+    expect(none.statusCode).toBe(409);
+    expect(none.body).toContain('no decision');
+  });
+
+  it('switches the mode, refuses a mode that is not offered, and takes only ask or act', async () => {
+    const { tenant, headers } = await bearer();
+    const act = await fx().http.inject({
+      method: 'PUT',
+      url: `${BASE(tenant)}/${ID}/mode`,
+      headers,
+      payload: { mode: 'act' },
+    });
+    expect(act.statusCode, act.body).toBe(200);
+    expect(act.json()).toEqual({ mode: 'act' });
+    const refused = await fx().http.inject({
+      method: 'PUT',
+      url: `${BASE(tenant)}/${BUSY}/mode`,
+      headers,
+      payload: { mode: 'act' },
+    });
+    expect(refused.statusCode).toBe(409);
+    const bad = await fx().http.inject({
+      method: 'PUT',
+      url: `${BASE(tenant)}/${ID}/mode`,
+      headers,
+      payload: { mode: 'root' },
+    });
+    expect(bad.statusCode).toBe(400);
   });
 });

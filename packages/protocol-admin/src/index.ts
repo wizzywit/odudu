@@ -250,8 +250,12 @@ import {
   readAssistantSettingsHandler,
   type AssistantRouteDeps,
   createConversationHandler,
+  decideApprovalHandler,
+  listApprovalsHandler,
   loadConversationHandler,
+  resumeConversationHandler,
   sendMessageHandler,
+  setConversationModeHandler,
   stopConversationHandler,
   tenantOffersAssistant,
   type AssistantChatPort,
@@ -881,6 +885,14 @@ function buildAdminRoutes(
         sendMessageHandler(chatDeps),
       'POST /admin/tenants/:tenant/assistant/conversations/:id/stop':
         stopConversationHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/conversations/:id/approvals':
+        listApprovalsHandler(chatDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations/:id/approvals/:approvalId':
+        decideApprovalHandler(chatDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations/:id/resume':
+        resumeConversationHandler(chatDeps),
+      'PUT /admin/tenants/:tenant/assistant/conversations/:id/mode':
+        setConversationModeHandler(chatDeps),
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/count': countSubjectsHandler(countsDeps),
       'GET /admin/tenants/:tenant/subjects/username-policy':

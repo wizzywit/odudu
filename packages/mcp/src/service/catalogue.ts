@@ -287,11 +287,19 @@ const WITHHELD: readonly Entry[] = [
     'sensitive',
   ],
   [
-    "The console assistant's own calls, which start, feed and stop a conversation of the signed-in administrator and answer a stream: not offered to an agent, which starts none.",
+    'The changes the console assistant proposed to its owner and still waits on, with the state of each target as the server read it: not offered to an agent, which reads nothing of the assistant that may be running it.',
+    [R('GET', '/assistant/conversations/:id/approvals')],
+    'sensitive',
+  ],
+  [
+    "The console assistant's own calls, which start, feed, stop, switch the mode of and resume a conversation of the signed-in administrator, answer a stream and decide the changes it proposed: not offered to an agent, which starts none and never decides what is asked of its owner.",
     [
       R('POST', '/assistant/conversations'),
       R('POST', '/assistant/conversations/:id/messages'),
       R('POST', '/assistant/conversations/:id/stop'),
+      R('POST', '/assistant/conversations/:id/approvals/:approvalId'),
+      R('POST', '/assistant/conversations/:id/resume'),
+      R('PUT', '/assistant/conversations/:id/mode'),
     ],
     'not-useful',
   ],

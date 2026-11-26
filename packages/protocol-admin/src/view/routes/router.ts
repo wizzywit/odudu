@@ -54,6 +54,7 @@ export interface AdminRouteParams {
   readonly tenant?: string;
   readonly id?: string;
   readonly credentialId?: string;
+  readonly approvalId?: string;
   readonly sid?: string;
   readonly clientId?: string;
   readonly childId?: string;

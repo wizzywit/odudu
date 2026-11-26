@@ -31,6 +31,22 @@ const chat: AssistantChatPort = {
     reached.push('stop');
     return Promise.resolve('not_found');
   },
+  approvals: () => {
+    reached.push('approvals');
+    return Promise.resolve(null);
+  },
+  decide: () => {
+    reached.push('decide');
+    return Promise.resolve({ kind: 'not_found' });
+  },
+  resume: () => {
+    reached.push('resume');
+    return Promise.resolve({ kind: 'not_found' });
+  },
+  setMode: () => {
+    reached.push('setMode');
+    return Promise.resolve({ kind: 'not_found' });
+  },
 };
 
 beforeAll(async () => {

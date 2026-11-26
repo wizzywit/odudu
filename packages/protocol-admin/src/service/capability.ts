@@ -108,9 +108,14 @@ import {
   assistantSettingsSchema,
   assistantStatusSchema,
   putAssistantSettingsRequestSchema,
+  assistantApprovalListSchema,
   assistantConversationSchema,
   createConversationRequestSchema,
+  decideApprovalRequestSchema,
+  decideApprovalResponseSchema,
   sendMessageRequestSchema,
+  setConversationModeRequestSchema,
+  setConversationModeResponseSchema,
   SEND_MESSAGE_BODY_LIMIT,
   listEffectiveRolesResponseSchema,
   listTenantsQuerySchema,
@@ -2190,6 +2195,59 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Ends the conversation\u2019s running turn: `{ "stopped": true }` when this server was ' +
       'running one, `false` when it was not. The turn stores what it had said.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/approvals',
+    capability: 'use-assistant',
+    responseSchema: assistantApprovalListSchema,
+    description:
+      'The changes the assistant proposed in this conversation that still wait for the caller, ' +
+      'newest first and never more than 20. Each card is written by the server: a title, the ' +
+      'target, the state the server read just before the proposal, what the call would set and ' +
+      'when the approval ends by the server\u2019s clock. `404` for a conversation that is not the ' +
+      'caller\u2019s. Not offered to an agent.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/approvals/:approvalId',
+    capability: 'use-assistant',
+    responseSchema: decideApprovalResponseSchema,
+    bodySchema: decideApprovalRequestSchema,
+    noIdempotency: 'not-atomic',
+    description:
+      'Approves or refuses one change, as the administrator the conversation belongs to and from ' +
+      'their own console sign-in: a token the assistant or any agent holds is refused, and so is ' +
+      'another administrator, whatever they may do elsewhere. Approving lets the one change run ' +
+      'once, exactly as the card shows it, when the conversation is resumed. `404` for an ' +
+      'approval that is not this conversation\u2019s or not the caller\u2019s, `409` for one that was ' +
+      'already decided or has expired. Audited as `assistant.approval`.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/resume',
+    capability: 'use-assistant',
+    responseSchema: z.string(),
+    successMediaType: 'text/event-stream',
+    noIdempotency: 'external-io',
+    description:
+      'Carries the conversation on after the changes it was waiting on were decided, and streams ' +
+      'the rest of the answer as a message does. An approved change runs once and the assistant ' +
+      'reads its result; a refused or expired one is closed as such. `409` while a change still ' +
+      'waits for a decision, or when there is none to carry on from, or while a turn runs on ' +
+      'this server. `429` as for a message. `404` for a conversation that is not the caller\u2019s.',
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/mode',
+    capability: 'use-assistant',
+    responseSchema: setConversationModeResponseSchema,
+    bodySchema: setConversationModeRequestSchema,
+    description:
+      'Switches the conversation between `ask` and `act`. Leaving `act` withdraws the changes ' +
+      'still waiting, as refused. `409` where `act` is not offered: the deployment cannot ' +
+      'propose changes, or the tenant\u2019s limits do not allow the mode. `404` for a ' +
+      'conversation that is not the caller\u2019s. Not offered to an agent.',
   },
 ];
 

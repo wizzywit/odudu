@@ -1,11 +1,15 @@
 import {
   ASSISTANT_SETTING_DEFAULTS,
   putAssistantSettingsRequestSchema,
+  type AssistantApprovalCard,
   type AssistantConversation,
+  type AssistantMode,
   type AssistantSettings,
   type AssistantStatus,
   type CreateConversationRequest,
+  type DecideApprovalRequest,
   type SendMessageRequest,
+  type SetConversationModeRequest,
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { tenantIssuerFor } from '@odudu/protocol-oidc';
@@ -141,6 +145,37 @@ export interface AssistantChatPort {
     | { kind: 'limited'; retryAfterSeconds: number }
   >;
   stop(caller: AssistantCaller, id: string): Promise<'stopped' | 'idle' | 'not_found'>;
+  approvals(caller: AssistantCaller, id: string): Promise<AssistantApprovalCard[] | null>;
+  decide(
+    caller: AssistantCaller,
+    id: string,
+    approvalId: string,
+    approve: boolean,
+  ): Promise<
+    | { kind: 'decided'; state: 'approved' | 'denied' }
+    | { kind: 'not_found' }
+    | { kind: 'not_pending' }
+  >;
+  resume(
+    caller: AssistantCaller,
+    id: string,
+    signal: AbortSignal,
+  ): Promise<
+    | { kind: 'stream'; response: Response }
+    | { kind: 'not_found' }
+    | { kind: 'busy' }
+    | { kind: 'saturated' }
+    | { kind: 'limited'; retryAfterSeconds: number }
+    | { kind: 'waiting' }
+    | { kind: 'nothing_waiting' }
+  >;
+  setMode(
+    caller: AssistantCaller,
+    id: string,
+    mode: AssistantMode,
+  ): Promise<
+    { kind: 'set'; mode: AssistantMode } | { kind: 'not_found' } | { kind: 'not_offered' }
+  >;
 }
 
 export interface AssistantChatRouteDeps {
@@ -274,47 +309,131 @@ function abortWhenClosed(reply: FastifyReply): AbortSignal {
   return gone.signal;
 }
 
+// What a refused turn answers, for a message and a resume alike.
+function refusedTurn(
+  outcome:
+    | { kind: 'not_found' }
+    | { kind: 'busy' }
+    | { kind: 'saturated' }
+    | { kind: 'limited'; retryAfterSeconds: number },
+  request: AdminRequest,
+  reply: FastifyReply,
+): FastifyReply {
+  if (outcome.kind === 'not_found') return notFound(request, reply);
+  if (outcome.kind === 'busy') {
+    return sendProblem(
+      reply,
+      request,
+      problem(409, 'about:blank', 'Conflict', 'a turn is already running in this conversation'),
+    );
+  }
+  if (outcome.kind === 'saturated') {
+    reply.header('retry-after', '1');
+    return sendProblem(
+      reply,
+      request,
+      problem(429, 'about:blank', 'Too Many Requests', 'the assistant is busy; try again'),
+    );
+  }
+  reply.header('retry-after', String(outcome.retryAfterSeconds));
+  return sendProblem(
+    reply,
+    request,
+    problem(
+      429,
+      'about:blank',
+      'Too Many Requests',
+      `the tenant has as many answers in progress as its settings allow; try again in ${String(outcome.retryAfterSeconds)} seconds`,
+    ),
+  );
+}
+
+function sendStream(reply: FastifyReply, response: Response): FastifyReply {
+  reply.code(response.status);
+  response.headers.forEach((value, name) => {
+    reply.header(name, value);
+  });
+  if (response.body === null) return reply.send();
+  return reply.send(Readable.from(chunksOf(response.body)));
+}
+
 export function sendMessageHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
   return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
     if (!(await offered(deps, request, caller.tenantId))) return notFound(request, reply);
     const body = request.body as SendMessageRequest;
     const outcome = await chat.send(caller, id, body.message, abortWhenClosed(reply));
+    if (outcome.kind !== 'stream') return refusedTurn(outcome, request, reply);
+    return sendStream(reply, outcome.response);
+  });
+}
+
+// Carries the conversation on after the person decided a change, streaming the
+// rest of the answer as a message's reply does.
+export function resumeConversationHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    if (!(await offered(deps, request, caller.tenantId))) return notFound(request, reply);
+    const outcome = await chat.resume(caller, id, abortWhenClosed(reply));
+    if (outcome.kind === 'stream') return sendStream(reply, outcome.response);
+    if (outcome.kind === 'waiting') {
+      return sendProblem(
+        reply,
+        request,
+        problem(409, 'about:blank', 'Conflict', 'a change still waits for your decision'),
+      );
+    }
+    if (outcome.kind === 'nothing_waiting') {
+      return sendProblem(
+        reply,
+        request,
+        problem(409, 'about:blank', 'Conflict', 'no decision is waiting to be carried on'),
+      );
+    }
+    return refusedTurn(outcome, request, reply);
+  });
+}
+
+export function listApprovalsHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    const items = await chat.approvals(caller, id);
+    return items === null ? notFound(request, reply) : reply.code(200).send({ items });
+  });
+}
+
+// The decision of the person the conversation belongs to. The door has already
+// refused every token that acts for an agent, because no agent write names this
+// route; the port refuses a token that is not a console sign-in, and an approval
+// that is not this conversation's or this person's answers as one that is not there.
+export function decideApprovalHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    const approvalId = request.params.approvalId;
+    if (approvalId === undefined) return notFound(request, reply);
+    const body = request.body as DecideApprovalRequest;
+    const outcome = await chat.decide(caller, id, approvalId, body.approve);
     if (outcome.kind === 'not_found') return notFound(request, reply);
-    if (outcome.kind === 'busy') {
+    if (outcome.kind === 'not_pending') {
       return sendProblem(
         reply,
         request,
-        problem(409, 'about:blank', 'Conflict', 'a turn is already running in this conversation'),
+        problem(409, 'about:blank', 'Conflict', 'this change was already decided or has expired'),
       );
     }
-    if (outcome.kind === 'saturated') {
-      reply.header('retry-after', '1');
+    return reply.code(200).send({ state: outcome.state });
+  });
+}
+
+export function setConversationModeHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    const body = request.body as SetConversationModeRequest;
+    const outcome = await chat.setMode(caller, id, body.mode);
+    if (outcome.kind === 'not_found') return notFound(request, reply);
+    if (outcome.kind === 'not_offered') {
       return sendProblem(
         reply,
         request,
-        problem(429, 'about:blank', 'Too Many Requests', 'the assistant is busy; try again'),
+        problem(409, 'about:blank', 'Conflict', 'this mode is not offered here'),
       );
     }
-    if (outcome.kind === 'limited') {
-      reply.header('retry-after', String(outcome.retryAfterSeconds));
-      return sendProblem(
-        reply,
-        request,
-        problem(
-          429,
-          'about:blank',
-          'Too Many Requests',
-          `the tenant has as many answers in progress as its settings allow; try again in ${String(outcome.retryAfterSeconds)} seconds`,
-        ),
-      );
-    }
-    const { response } = outcome;
-    reply.code(response.status);
-    response.headers.forEach((value, name) => {
-      reply.header(name, value);
-    });
-    if (response.body === null) return reply.send();
-    return reply.send(Readable.from(chunksOf(response.body)));
+    return reply.code(200).send({ mode: outcome.mode });
   });
 }
 
