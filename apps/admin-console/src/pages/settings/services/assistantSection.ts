@@ -98,7 +98,7 @@ export const ASSISTANT_SECTION: SettingsSection = {
       unit: 'tokens',
       group: ASSISTANT_WORDS.groups.limits,
       description: `Titles, summaries and small reads. ${defaultAmount('assistant_monthly_tokens_fast', 'tokens')}`,
-      more: 'These are the allowances a tenant holds; the assistant does not stop at them yet. Once it does, it will stop and name the limit, and never fall back to a cheaper model on its own.',
+      more: 'The assistant stops when a month’s allowance for a model is used, says which limit it reached, and never falls back to a cheaper model on its own. A call holds back up to about 122,000 tokens while it is in flight, so an allowance below about 134,000 refuses every answer and one below about 490,000 can refuse some.',
     },
     {
       name: 'assistant_monthly_tokens_standard',

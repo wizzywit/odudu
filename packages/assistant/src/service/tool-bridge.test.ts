@@ -1,6 +1,12 @@
 import { TOOLS, type ToolResult } from '@odudu/mcp';
 import { describe, expect, it, vi } from 'vitest';
-import { fenceToolOutput, FENCE_CLOSE, FENCE_OPEN, toSdkTools } from '#/service/tool-bridge';
+import {
+  fenceToolOutput,
+  FENCE_CLOSE,
+  FENCE_OPEN,
+  TOOL_OUTPUT_LIMIT,
+  toSdkTools,
+} from '#/service/tool-bridge';
 
 const OK: ToolResult = {
   isError: false,
@@ -12,6 +18,14 @@ const reads = TOOLS.filter((tool) => tool.access === 'read');
 const OPTIONS = { toolCallId: 't1', messages: [], context: {} };
 
 describe('fenceToolOutput', () => {
+  it('cuts an oversize output to the limit, inside the fence, and says so', () => {
+    const text = fenceToolOutput({ data: 'y'.repeat(TOOL_OUTPUT_LIMIT * 3) });
+    expect(text.startsWith(FENCE_OPEN)).toBe(true);
+    expect(text.endsWith(FENCE_CLOSE)).toBe(true);
+    expect(text.length).toBeLessThan(TOOL_OUTPUT_LIMIT + 200);
+    expect(text).toContain('cut at');
+  });
+
   it('wraps the output in the data fence', () => {
     const text = fenceToolOutput({ data: ['x'] });
     expect(text.startsWith(FENCE_OPEN)).toBe(true);

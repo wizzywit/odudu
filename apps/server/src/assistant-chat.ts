@@ -1,11 +1,13 @@
 import {
   createChat,
+  type BudgetAuditEvent,
   RunLapsed,
   type Chat,
   type ChatCaller,
   type ChatDeps,
   type RunTurnDeps,
 } from '@odudu/assistant';
+import { auditRepository } from '@odudu/domain-audit';
 import { type DatabaseHandle, withTenant, withTenantRetrying } from '@odudu/db';
 import { agentInstanceRepository, type AgentInstanceRecord } from '@odudu/domain-agents';
 import { ADMIN_API_AUDIENCE, clientRepository } from '@odudu/domain-tenant';
@@ -268,6 +270,32 @@ function toolRunner(parts: AssistantChatParts, caller: ChatCaller, conversationI
   };
 }
 
+// What the budget leaves in the audit trail: who, which level and slot, and
+// never the conversation's text. A write failing is the caller's to log.
+function budgetAuditRecorder(parts: AssistantChatParts): NonNullable<ChatDeps['audit']> {
+  return (event: BudgetAuditEvent) =>
+    withTenantRetrying(parts.database.db, event.tenantId, (tx) =>
+      auditRepository(tx).record({
+        eventType: 'admin_mutation',
+        action: 'assistant.budget',
+        outcome: event.outcome,
+        actorTenantId: event.tenantId,
+        actorSubjectId: event.subjectId,
+        resourceType: 'assistant_conversation',
+        resourceId: event.conversationId,
+        detail: {
+          tenant: event.tenantId,
+          subject: event.subjectId,
+          turn: event.turnId,
+          slot: event.slot,
+          ...(event.level === undefined ? {} : { level: event.level }),
+          ...(event.stopReason === undefined ? {} : { stop_reason: event.stopReason }),
+          ...(event.overrunTokens === undefined ? {} : { overrun_tokens: event.overrunTokens }),
+        },
+      }),
+    );
+}
+
 // Creates the conversation in a transaction of its own that begins with its
 // grant, made from the console sign-in the request came on. The grant's id is
 // the conversation's, so nothing else has to remember it. A refusal commits its
@@ -325,6 +353,7 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
     withAccess: accessGranter(parts),
     now: parts.now ?? (() => new Date()),
     newId,
+    audit: budgetAuditRecorder(parts),
     log: (event, detail) => {
       parts.logger.warn(detail, event);
     },

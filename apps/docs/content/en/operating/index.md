@@ -30,4 +30,5 @@ The quick start's compose file is for trying Odudu out and is not a deployment. 
 5. [Scaling](./scaling.md) says why there is one instance and where more are placed.
 6. [Hardening](./hardening.md) is the checklist of every guard the server starts under.
 7. [Custom domains](./custom-domains.md) gives a tenant a public address of its own behind your proxy.
-8. [Releasing](./releasing.md) is for the people who publish a version.
+8. [The assistant's token budget](./assistant-budget.md) says how the console assistant counts what it spends and what `odudu reap` does about a call that was cut off.
+9. [Releasing](./releasing.md) is for the people who publish a version.

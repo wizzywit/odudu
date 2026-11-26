@@ -2170,9 +2170,16 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Sends the caller\u2019s message and streams the turn as server-sent events of AI SDK UI ' +
       'message chunks. The message is stored before the model is called and each step is stored ' +
-      'as it ends. Closing the connection ends the turn. `409` while a turn of this conversation ' +
-      'is running on this server, `429` when this server is running as many turns as it admits, ' +
-      '`404` for a conversation that is not the caller\u2019s.',
+      'as it ends. Closing the connection ends the turn. Each model call is reserved against the ' +
+      'tenant\u2019s token limits first, and a limit that refuses ends the turn with an error ' +
+      'part that names the level and who can change it, never moving to a cheaper model. A ' +
+      '`data-budget_warning` part says a level has passed 80 percent, and the last part, ' +
+      '`data-turn_end`, carries a `stopReason`: `done`, `step_cap`, `budget_turn`, ' +
+      '`budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`. `409` while ' +
+      'a turn of this conversation is running on this server. `429` with a `Retry-After` when ' +
+      'this server is running as many turns as it admits, or when the tenant already has as many ' +
+      'in progress, on any server, as its settings allow. `404` for a conversation that is not ' +
+      'the caller\u2019s.',
   },
   {
     method: 'POST',

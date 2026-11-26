@@ -1,25 +1,16 @@
 // The token ledger. A caller reserves max output plus the input upper bound,
 // because a sent reservation that is never settled is charged as reserved and
 // an under-sized one under-counts. sweep resolves at most MAX_LIMIT per call,
-// so a caller loops it while released + charged equals that bound.
+// so a caller loops it while released + charged equals that bound. prune
+// deletes what no decision can still read, a bounded batch of each at a time.
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { newId } from '@odudu/kernel';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { type AssistantTx } from '#/repository/tx';
+import { LEVEL_NAMES, type LevelLimit, type LevelName, type LevelUsage } from '#/service/limits';
 import { type Slot } from '#/service/slots';
 
-export const LEVEL_NAMES = ['tenant_month', 'admin_day', 'conversation', 'turn'] as const;
-export type LevelName = (typeof LEVEL_NAMES)[number];
-
-// One spend limit a reservation counts against. windowStart names the window
-// the counter belongs to: a counter holding an older window starts over.
-export interface LevelLimit {
-  readonly level: LevelName;
-  readonly scopeKey: string;
-  readonly slot: Slot | null;
-  readonly limitTokens: number;
-  readonly windowStart: Date;
-}
+export { LEVEL_NAMES, type LevelLimit, type LevelName } from '#/service/limits';
 
 export interface ReserveInput {
   readonly turnId: string;
@@ -82,6 +73,53 @@ function counterMatches(level: ChargedLevel) {
     and coalesce(slot, '') = ${level.slot ?? ''}`;
 }
 
+export interface PruneCutoffs {
+  // Counters of the short levels (turn, administrator day) whose window began before this.
+  readonly shortWindowsBefore: Date;
+  // Counters of the monthly levels (tenant, conversation) whose window began before this.
+  readonly monthlyWindowsBefore: Date;
+  readonly settledBefore: Date;
+}
+
+export interface PruneReport {
+  readonly counters: number;
+  readonly reservations: number;
+}
+
+// Each deletes the oldest `batch` rows past its cutoff for the bound tenant,
+// found through the index named beside it, so a pass costs the batch and not
+// the table.
+export function pruneStatements(
+  cutoffs: PruneCutoffs,
+  batch: number,
+): { counters: SQL[]; reservations: SQL } {
+  const counters = (kinds: readonly LevelName[], before: Date): SQL => sql`
+    delete from assistant_budget_counters
+     where ctid in (
+       select ctid from assistant_budget_counters
+        where tenant_id = ${TENANT}
+          and scope_kind in (${sql.join(
+            kinds.map((kind) => sql`${kind}`),
+            sql`, `,
+          )})
+          and window_start < ${before.toISOString()}::timestamptz
+        limit ${batch})`;
+  return {
+    counters: [
+      counters(['turn', 'admin_day'], cutoffs.shortWindowsBefore),
+      counters(['tenant_month', 'conversation'], cutoffs.monthlyWindowsBefore),
+    ],
+    reservations: sql`
+      delete from assistant_reservations
+       where ctid in (
+         select ctid from assistant_reservations
+          where tenant_id = ${TENANT} and settled
+            and created_at < ${cutoffs.settledBefore.toISOString()}::timestamptz
+          order by created_at
+          limit ${batch})`,
+  };
+}
+
 export function budgetRepository(tx: AssistantTx) {
   async function adjust(levels: readonly ChargedLevel[], delta: number): Promise<void> {
     for (const level of levels) {
@@ -142,6 +180,36 @@ export function budgetRepository(tx: AssistantTx) {
   }
 
   return {
+    // What the levels hold now, for the warning; a level with no counter yet
+    // holds nothing and is left out.
+    async usage(levels: readonly LevelLimit[]): Promise<LevelUsage[]> {
+      const found: LevelUsage[] = [];
+      for (const level of levels) {
+        const windowStart = level.windowStart.toISOString();
+        const rows = await tx.execute<{ used: string; limit_tokens: string }>(sql`
+          select used::text as used, limit_tokens::text as limit_tokens
+            from assistant_budget_counters
+           where ${counterMatches({ ...level, windowStart })}
+             and window_start = ${windowStart}::timestamptz`);
+        const row = rows[0];
+        if (row !== undefined) {
+          found.push({
+            level: level.level,
+            used: Number(row.used),
+            limit: Number(row.limit_tokens),
+          });
+        }
+      }
+      return found;
+    },
+
+    async prune(cutoffs: PruneCutoffs, batch: number): Promise<PruneReport> {
+      const statements = pruneStatements(cutoffs, batch);
+      let counters = 0;
+      for (const statement of statements.counters) counters += (await tx.execute(statement)).count;
+      return { counters, reservations: (await tx.execute(statements.reservations)).count };
+    },
+
     // Every level is charged in this transaction, so a refusal at a later
     // level gives back what the earlier ones took before the caller commits.
     async reserve(input: ReserveInput): Promise<ReserveResult> {
@@ -222,10 +290,14 @@ export function budgetRepository(tx: AssistantTx) {
         }
       }
       await refundInLockOrder(refunds);
-      for (const reservation of open) {
+      if (open.length > 0) {
         await tx.execute(sql`
           update assistant_reservations set settled = true
-           where tenant_id = ${TENANT} and id = ${reservation.id}`);
+           where tenant_id = ${TENANT}
+             and id = any(array[${sql.join(
+               open.map((reservation) => sql`${reservation.id}::uuid`),
+               sql`, `,
+             )}])`);
       }
       return { released, charged };
     },

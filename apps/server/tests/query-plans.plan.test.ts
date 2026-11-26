@@ -588,7 +588,7 @@ const NOT_DRIVEN: Readonly<Record<string, string>> = {
   'GET /admin/tenants/:tenant/assistant/conversations/:id':
     'served only with a model configured; reads one row by primary key and the latest MAX_LOAD messages of one conversation by its primary key, in descending order',
   'POST /admin/tenants/:tenant/assistant/conversations/:id/messages':
-    'served only with a model configured, and its time is the model\u2019s; each statement is a primary-key read, an append or a tail replacement on one conversation, none of which grows with the tenant',
+    'served only with a model configured, and its time is the model\u2019s; each statement is a primary-key read, an append or a tail replacement on one conversation, a point read or update of at most four budget counters by their unique key, a reservation by primary key, or the tenant\u2019s live leases counted through assistant_turn_leases_live and bounded by the tenant\u2019s own limit on answers at once (the upkeep deletes are proved against their indexes in packages/assistant/tests/budget-upkeep.int.test.ts)',
   'POST /admin/tenants/:tenant/assistant/conversations/:id/stop':
     'served only with a model configured; reads one conversation by primary key and touches an in-process map',
 };

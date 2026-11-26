@@ -138,6 +138,7 @@ export interface AssistantChatPort {
     | { kind: 'not_found' }
     | { kind: 'busy' }
     | { kind: 'saturated' }
+    | { kind: 'limited'; retryAfterSeconds: number }
   >;
   stop(caller: AssistantCaller, id: string): Promise<'stopped' | 'idle' | 'not_found'>;
 }
@@ -292,6 +293,19 @@ export function sendMessageHandler(deps: AssistantChatRouteDeps): AdminRouteHand
         reply,
         request,
         problem(429, 'about:blank', 'Too Many Requests', 'the assistant is busy; try again'),
+      );
+    }
+    if (outcome.kind === 'limited') {
+      reply.header('retry-after', String(outcome.retryAfterSeconds));
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          429,
+          'about:blank',
+          'Too Many Requests',
+          `the tenant has as many answers in progress as its settings allow; try again in ${String(outcome.retryAfterSeconds)} seconds`,
+        ),
       );
     }
     const { response } = outcome;

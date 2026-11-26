@@ -1363,13 +1363,13 @@ describeFields(assistantSettingsSchema, {
   assistant_auditor_visible:
     'Whether people who can read assistant activity may see conversations. People using the assistant are told.',
   assistant_monthly_tokens_fast:
-    'The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant does not yet stop at it.',
+    'The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant stops when it is used and names the limit.',
   assistant_monthly_tokens_standard:
     'The tokens the tenant may spend each month on the standard model slot, from 0 to 1,000,000,000.',
   assistant_monthly_tokens_deep:
     'The tokens the tenant may spend each month on the deep model slot, from 0 to 1,000,000,000.',
   assistant_max_concurrent:
-    'How many answers the tenant may have in progress at the same time, from 1 to 50.',
+    'How many answers the tenant may have in progress at the same time, on any server, from 1 to 50. A further message is refused with `429`.',
   assistant_max_steps_per_turn:
     'The most model and tool calls one answer may take before it stops, from 1 to 100.',
 });

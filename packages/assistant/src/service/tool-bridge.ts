@@ -4,6 +4,9 @@ import { fence, FENCE_CLOSE, FENCE_OPEN } from '#/service/fence';
 
 export { FENCE_CLOSE, FENCE_OPEN };
 
+// The most of one tool's output the model is given; the rest is cut and the cut said.
+export const TOOL_OUTPUT_LIMIT = 60_000;
+
 /**
  * What a tool returned, as the model reads it: inside a fence its rules say
  * holds data and never instructions. Both the answer and a refusal come back
@@ -13,7 +16,11 @@ export function fenceToolOutput(
   output: unknown,
   mask: (text: string) => string = (text) => text,
 ): string {
-  return fence(mask(JSON.stringify(output)));
+  const text = mask(JSON.stringify(output));
+  if (text.length <= TOOL_OUTPUT_LIMIT) return fence(text);
+  return fence(
+    `${text.slice(0, TOOL_OUTPUT_LIMIT)}\n[output cut at ${String(TOOL_OUTPUT_LIMIT)} characters]`,
+  );
 }
 
 export type CallTool = (name: string, input: unknown, signal?: AbortSignal) => Promise<ToolResult>;

@@ -84,7 +84,16 @@ export function reapModule(deps: ReapModuleDeps, pass: ReapPass = reap): OduduMo
         jitterMs: decision.jitterMs,
         log,
         run: async () => {
-          const outcome = await pass(deps, ctx.clock.now(), retentionPolicyFromConfig(ctx.config));
+          const outcome = await pass(
+            {
+              ...deps,
+              log: (event, detail) => {
+                log.warn(detail, event);
+              },
+            },
+            ctx.clock.now(),
+            retentionPolicyFromConfig(ctx.config),
+          );
           if (outcome.ran) {
             log.info(
               { deleted: outcome.deleted, cleared: outcome.cleared },

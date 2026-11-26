@@ -36,3 +36,17 @@ export const assistantReservations = pgTable(
   },
   (table) => [primaryKey({ columns: [table.tenantId, table.id] })],
 ).enableRLS();
+
+// One turn in progress. The foreign key, the policy and the (tenant, expiry)
+// index live in packages/db/drizzle/0151.
+export const assistantTurnLeases = pgTable(
+  'assistant_turn_leases',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    turnId: uuid('turn_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.tenantId, table.turnId] })],
+).enableRLS();

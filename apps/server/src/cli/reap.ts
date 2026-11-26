@@ -1,3 +1,4 @@
+import { upkeepBudget, type BudgetUpkeepReport } from '@odudu/assistant';
 import { CONSOLE_SESSION_IDLE_SECONDS } from '@odudu/console-gateway';
 import { lineageRootCtes } from '@odudu/domain-agents';
 import {
@@ -6,6 +7,7 @@ import {
   tenantIdPages,
   tenants,
   withEachTenantExclusive,
+  withTenant,
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
@@ -76,7 +78,17 @@ export type ReapSkipReason =
 
 export type ReapOutcome =
   | { readonly ran: false; readonly reason: ReapSkipReason }
-  | { readonly ran: true; readonly deleted: ReapReport; readonly cleared: ClearReport };
+  | {
+      readonly ran: true;
+      readonly deleted: ReapReport;
+      readonly cleared: ClearReport;
+      /**
+       * What the console assistant's budget upkeep did. Present only when it did
+       * something, so an install that never uses the assistant reads the same
+       * report as before.
+       */
+      readonly assistant?: BudgetUpkeepReport;
+    };
 
 /**
  * One window per table that has one of its own, in seconds. `refresh_tokens`
@@ -716,6 +728,28 @@ export function assertReapOrder(order: readonly TableName[] = REAP_ORDER): void 
   }
 }
 
+const NO_UPKEEP: BudgetUpkeepReport = {
+  reservationsReleased: 0,
+  reservationsCharged: 0,
+  reservationsDeleted: 0,
+  countersDeleted: 0,
+  leasesDeleted: 0,
+};
+
+function addUpkeep(a: BudgetUpkeepReport, b: BudgetUpkeepReport): BudgetUpkeepReport {
+  return {
+    reservationsReleased: a.reservationsReleased + b.reservationsReleased,
+    reservationsCharged: a.reservationsCharged + b.reservationsCharged,
+    reservationsDeleted: a.reservationsDeleted + b.reservationsDeleted,
+    countersDeleted: a.countersDeleted + b.countersDeleted,
+    leasesDeleted: a.leasesDeleted + b.leasesDeleted,
+  };
+}
+
+function didAnything(report: BudgetUpkeepReport): boolean {
+  return Object.values(report).some((count) => count > 0);
+}
+
 function emptyReport(): ReapReport {
   const report = {} as Record<TableName, number>;
   for (const table of REAP_ORDER) report[table] = 0;
@@ -771,6 +805,10 @@ export interface ReapDeps {
    * concurrency.
    */
   readonly onLockAttempt?: (acquired: boolean) => Promise<void> | void;
+  /** Where a tenant's failed assistant upkeep is told; a pass goes on to the next tenant. */
+  readonly log?: (event: string, detail: Record<string, unknown>) => void;
+  /** The assistant's budget upkeep for one tenant; only a test replaces it. */
+  readonly upkeep?: (tx: TenantScopedDatabase, now: Date) => Promise<BudgetUpkeepReport>;
 }
 
 async function* allTenantIds(owner: DatabaseHandle): AsyncGenerator<string> {
@@ -799,6 +837,28 @@ async function assertRolesAreRight(deps: ReapDeps): Promise<void> {
         'ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role',
     );
   }
+}
+
+// The assistant's budget upkeep, after the retention pass has committed, one
+// short transaction for each tenant: a failure there is logged for that tenant
+// and costs no other tenant's deletes, and no row it locks outlives its tenant's turn.
+async function upkeepEachTenant(deps: ReapDeps, now: Date): Promise<BudgetUpkeepReport> {
+  const upkeep = deps.upkeep ?? upkeepBudget;
+  let total = NO_UPKEEP;
+  for await (const tenantId of allTenantIds(deps.ownerDatabase)) {
+    try {
+      total = addUpkeep(
+        total,
+        await withTenant(deps.database.db, tenantId, (tx) => upkeep(tx, now)),
+      );
+    } catch (error) {
+      deps.log?.('assistant_upkeep_failed', {
+        tenantId,
+        error: error instanceof Error ? error.message : 'unknown',
+      });
+    }
+  }
+  return total;
 }
 
 /**
@@ -837,7 +897,13 @@ export async function reap(
     for (const table of REAP_ORDER) deleted[table] += tenantReport.deleted[table];
     clientPreviousSecrets += tenantReport.cleared.client_previous_secrets;
   }
-  return { ran: true, deleted, cleared: { client_previous_secrets: clientPreviousSecrets } };
+  const assistant = await upkeepEachTenant(deps, now);
+  return {
+    ran: true,
+    deleted,
+    cleared: { client_previous_secrets: clientPreviousSecrets },
+    ...(didAnything(assistant) ? { assistant } : {}),
+  };
 }
 
 // Reads its own configuration and opens its own connections, the way the
@@ -866,7 +932,13 @@ export async function reapCommand(): Promise<ReapOutcome> {
 
   try {
     return await reap(
-      { database: runtime, ownerDatabase: owner },
+      {
+        database: runtime,
+        ownerDatabase: owner,
+        log: (event, detail) => {
+          process.stderr.write(`${JSON.stringify({ event, ...detail })}\n`);
+        },
+      },
       new Date(),
       retentionPolicyFromConfig(config),
     );

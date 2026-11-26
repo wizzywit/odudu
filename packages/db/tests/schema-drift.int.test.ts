@@ -286,6 +286,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'assistant_reservations.assistant_reservations_reserved_floor': 'CHECK ((reserved >= 0))',
   'assistant_reservations.assistant_reservations_slot_check':
     "CHECK ((slot = ANY (ARRAY['fast'::text, 'standard'::text, 'deep'::text])))",
+  'assistant_turn_leases.assistant_turn_leases_lifetime': 'CHECK ((expires_at > created_at))',
   'assistant_conversations.assistant_conversations_mode_check':
     "CHECK ((mode = ANY (ARRAY['ask'::text, 'act'::text])))",
   'assistant_conversations.assistant_conversations_profile_length':

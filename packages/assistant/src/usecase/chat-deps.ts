@@ -3,6 +3,8 @@ import type { LanguageModel } from 'ai';
 import type { ConversationMode } from '#/repository/conversations';
 import type { AssistantTx } from '#/repository/tx';
 import type { RunTurnDeps } from '#/usecase/run-turn';
+import type { Entitlements } from '#/service/entitlements';
+import type { LevelName, StopReason } from '#/service/limits';
 import type { Slot } from '#/service/slots';
 
 /**
@@ -20,6 +22,23 @@ export interface ChatCaller {
   readonly grantId: string | undefined;
   readonly requestId: string;
   readonly ip: string;
+}
+
+/**
+ * What the budget leaves in the audit trail as `assistant.budget`: a turn a
+ * level refused, or a provider that charged more than was reserved. It names
+ * who, where and which level, and never message text, a key or a token.
+ */
+export interface BudgetAuditEvent {
+  readonly outcome: 'refused' | 'allowed';
+  readonly tenantId: string;
+  readonly subjectId: string;
+  readonly conversationId: string;
+  readonly turnId: string;
+  readonly slot: Slot;
+  readonly level?: LevelName;
+  readonly stopReason?: StopReason;
+  readonly overrunTokens?: number;
 }
 
 export type AccessOutcome<T> =
@@ -50,6 +69,10 @@ export interface ChatDeps {
     conversation: { readonly id: string; readonly mode: ConversationMode; readonly now: Date },
     fn: (tx: AssistantTx) => Promise<T>,
   ) => Promise<AccessOutcome<T>>;
+  /** What a tenant may use; the open implementation reads the tenant's settings. */
+  readonly entitlements?: Entitlements;
+  /** Writes an `assistant.budget` row. A failure is logged and does not change the outcome. */
+  readonly audit?: (event: BudgetAuditEvent) => Promise<void>;
   readonly now: () => Date;
   readonly newId: () => string;
   /** The most turns this process runs at once; 256 unless a test says otherwise. */
