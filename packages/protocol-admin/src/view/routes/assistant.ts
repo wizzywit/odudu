@@ -70,11 +70,20 @@ function notFound(request: FastifyRequest, reply: FastifyReply): FastifyReply {
   return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
 }
 
+// A conversation is its owner's, inside the tenant the owner belongs to. A
+// system-tenant administrator may reach another tenant's admin routes, but
+// has no subject there to own a conversation, so the assistant is not served
+// to them on it, with the answer a disabled assistant gives.
 function callerOf(
   request: AdminRequest,
-  principal: { readonly subjectId: string; readonly grantId?: string },
+  principal: {
+    readonly subjectId: string;
+    readonly grantId?: string;
+    readonly issuerTenantId: string;
+  },
   tenantId: string,
-): AssistantCaller {
+): AssistantCaller | null {
+  if (principal.issuerTenantId !== tenantId) return null;
   const tenantName = request.params.tenant ?? '';
   return {
     tenantId,
@@ -103,18 +112,17 @@ function onConversation(
   return async function handleConversation(request, reply, principal, tenantId) {
     const { chat } = deps;
     const id = request.params.id;
-    if (chat === undefined || id === undefined) return notFound(request, reply);
-    return run({ chat, caller: callerOf(request, principal, tenantId), request, reply }, id);
+    const caller = callerOf(request, principal, tenantId);
+    if (chat === undefined || id === undefined || caller === null) return notFound(request, reply);
+    return run({ chat, caller, request, reply }, id);
   };
 }
 
 export function createConversationHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
   return async function handleCreateConversation(request, reply, principal, tenantId) {
-    if (deps.chat === undefined) return notFound(request, reply);
-    const outcome = await deps.chat.create(
-      callerOf(request, principal, tenantId),
-      request.body as CreateConversationRequest,
-    );
+    const caller = callerOf(request, principal, tenantId);
+    if (deps.chat === undefined || caller === null) return notFound(request, reply);
+    const outcome = await deps.chat.create(caller, request.body as CreateConversationRequest);
     if (outcome.kind === 'unknown_profile') {
       return sendProblem(
         reply,

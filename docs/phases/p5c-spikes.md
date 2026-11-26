@@ -180,6 +180,15 @@ upstream stopped writing at chunk 1
   refreshes a token mid-flight.
 - Needs a port method that returns a stream (`OduduPort.forwardStream`)
   beside `forward`, implemented with `payloadAsStream` and `signal`.
+- **Correction, found building the chat route.** An abort signal passed to
+  `inject` destroys only the reading side of the call. It did not reach the
+  upstream handler's `reply.raw` `close` (an upstream handler observing
+  `close` with `writableFinished` false never saw it), so the figure above for
+  the upstream stopping rested on the stub's own writes failing. The gateway
+  therefore also destroys the upstream response itself, `res.raw.res.destroy()`,
+  when the browser goes (`forwardStream` returns it as `destroy`); with that
+  the handler sees `close` and aborts its model call. Tested in
+  `odudu-client.test.ts`, `forward-stream.test.ts` and `proxy.test.ts`.
 - `writableFinished=false` on the upstream's own close after a complete
   read is how `light-my-request`'s response reports it; the four chunks and
   the end arrived, so it is not an abort.

@@ -34,6 +34,11 @@ export interface ChatDeps {
   readonly newId: () => string;
   /** The most turns this process runs at once; 256 unless a test says otherwise. */
   readonly maxRunning?: number;
+  /** The longest a turn may run before it is ended; five minutes unless a test says otherwise. */
+  readonly turnDeadlineMs?: number;
+  /** Where a failure the person is not told of is recorded: a name and details, never a key or token. */
+  readonly log?: (event: string, detail: Record<string, unknown>) => void;
 }
 
 export const DEFAULT_MAX_RUNNING = 256;
+export const DEFAULT_TURN_DEADLINE_MS = 300_000;

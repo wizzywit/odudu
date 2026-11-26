@@ -322,3 +322,28 @@ describe('with no model configured', () => {
     }
   });
 });
+
+describe('a system-tenant administrator on another tenant', () => {
+  it('is told every conversation route does not exist, and nothing reaches the port', async () => {
+    const tenant = await fx().createTenant(`as-${newId()}`);
+    const token = await fx().systemAdminToken(['manage-tenants', 'use-assistant']);
+    const headers = { authorization: `Bearer ${token}` };
+    const before = recorded.callers.length;
+    const calls = [
+      { method: 'POST', url: BASE(tenant.name), payload: { page_context: CONTEXT } },
+      { method: 'GET', url: `${BASE(tenant.name)}/${ID}` },
+      {
+        method: 'POST',
+        url: `${BASE(tenant.name)}/${ID}/messages`,
+        payload: { message: { id: 'm', role: 'user', parts: [{ type: 'text', text: 'x' }] } },
+      },
+      { method: 'POST', url: `${BASE(tenant.name)}/${ID}/stop` },
+    ] as const;
+    for (const call of calls) {
+      const res = await fx().http.inject({ ...call, headers });
+      expect(res.statusCode, `${call.method} ${call.url}`).toBe(404);
+      expect(res.json(), call.url).toMatchObject({ title: 'Not Found' });
+    }
+    expect(recorded.callers.length).toBe(before);
+  });
+});

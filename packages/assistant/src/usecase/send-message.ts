@@ -1,11 +1,12 @@
 import { toUIMessageStream, type UIMessage, type UIMessageChunk } from 'ai';
 import { conversationRepository } from '#/repository/conversations';
-import { MAX_LOAD, messageRepository } from '#/repository/messages';
+import { messageRepository } from '#/repository/messages';
 import { visibleMessages } from '#/usecase/conversation-view';
+import { HISTORY_MESSAGES } from '#/service/context';
 import { pageContextText, readPageContext } from '#/service/page-context';
 import { profileById } from '#/service/profile';
 import type { TurnRegistry } from '#/service/turn-registry';
-import type { ChatCaller, ChatDeps } from '#/usecase/chat-deps';
+import { DEFAULT_TURN_DEADLINE_MS, type ChatCaller, type ChatDeps } from '#/usecase/chat-deps';
 import { startTurn } from '#/usecase/run-turn';
 
 export type SendOutcome =
@@ -33,7 +34,7 @@ async function prepare(deps: ChatDeps, caller: ChatCaller, id: string): Promise<
     const head = await messages.first(id);
     return {
       profileId: record.profile,
-      earlier: visibleMessages(id, await messages.load(id, MAX_LOAD)),
+      earlier: visibleMessages(id, await messages.load(id, HISTORY_MESSAGES)),
       pageContext: pageContextText(readPageContext(head?.parts)),
     };
   });
@@ -90,7 +91,15 @@ export async function sendMessage(
     turn.abort();
   });
   if (admitted.kind !== 'started') return { kind: admitted.kind };
-  const { end } = admitted;
+  // A turn the provider has stalled still gives its place back.
+  const deadline = setTimeout(() => {
+    deps.log?.('assistant.turn_deadline', { conversation: id });
+    turn.abort();
+  }, deps.turnDeadlineMs ?? DEFAULT_TURN_DEADLINE_MS);
+  const end = () => {
+    clearTimeout(deadline);
+    admitted.end();
+  };
 
   try {
     await deps.transact(caller.tenantId, async (tx) => {
@@ -111,21 +120,34 @@ export async function sendMessage(
     );
 
     let seq: number | undefined;
+    let stored = '';
     // Stores run one after another, so a step never overtakes the one before.
     let stores: Promise<void> = Promise.resolve();
     const store = (parts: UIMessage['parts']): Promise<void> => {
-      if (parts.length === 0) return stores;
+      const text = JSON.stringify(parts);
+      if (parts.length === 0 || text === stored) return stores;
       stores = stores.then(async () => {
-        seq = await deps.transact(caller.tenantId, async (tx) => {
-          const messages = messageRepository(tx);
-          const written =
-            seq === undefined
-              ? await messages.append(id, { role: 'assistant', parts })
-              : (await messages.replaceTail(id, seq, [{ role: 'assistant', parts }]))[0];
-          await conversationRepository(tx).touch(id, deps.now());
-          if (written === undefined) throw new Error('the assistant message was not stored');
-          return written;
-        });
+        try {
+          seq = await deps.transact(caller.tenantId, async (tx) => {
+            const messages = messageRepository(tx);
+            const written =
+              seq === undefined
+                ? await messages.append(id, { role: 'assistant', parts })
+                : await messages.replaceLast(id, seq, { role: 'assistant', parts });
+            await conversationRepository(tx).touch(id, deps.now());
+            return written;
+          });
+          stored = text;
+        } catch (error) {
+          // What cannot be kept is not carried on with: the turn ends, and its
+          // later steps are not stored over whatever is there now.
+          deps.log?.('assistant.store_failed', {
+            conversation: id,
+            error: error instanceof Error ? error.name : 'unknown',
+          });
+          turn.abort();
+          throw error;
+        }
       });
       return stores;
     };

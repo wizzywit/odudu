@@ -72,9 +72,9 @@ export const assistantUserMessageSchema = z.strictObject({
 export const sendMessageRequestSchema = z.strictObject({ message: assistantUserMessageSchema });
 export type SendMessageRequest = z.infer<typeof sendMessageRequestSchema>;
 
-// Eight parts of the text cap, at up to four bytes a character, with room for
-// the JSON around them.
-export const SEND_MESSAGE_BODY_LIMIT = MESSAGE_TEXT_MAX * MESSAGE_PARTS_MAX * 4 + 4_096;
+// Eight parts of the text cap, at up to six bytes a character (JSON writes a
+// control character as `\u0001`), with room for the JSON around them.
+export const SEND_MESSAGE_BODY_LIMIT = MESSAGE_TEXT_MAX * MESSAGE_PARTS_MAX * 6 + 4_096;
 
 // A stored message as the console renders it. `parts` are the AI SDK's UI
 // message parts, which the contract does not restate.

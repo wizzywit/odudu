@@ -14,7 +14,12 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { conversationRepository, type NewConversation } from '#/repository/conversations';
-import { ConversationNotFoundError, MAX_LOAD, messageRepository } from '#/repository/messages';
+import {
+  ConversationNotFoundError,
+  ConversationTailChangedError,
+  MAX_LOAD,
+  messageRepository,
+} from '#/repository/messages';
 
 interface Recorded {
   query: string;
@@ -234,6 +239,23 @@ describe('every method refuses a foreign tenant', () => {
       attempt: async (tx, seeded) => messageRepository(tx).first(seeded.conversationId),
       expectBlocked: (result) => {
         expect(result).toBeUndefined();
+      },
+    });
+  });
+
+  it('replaceLast', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedConversation,
+      verifySeeded,
+      attempt: async (tx, seeded) =>
+        errorNameOf(
+          messageRepository(tx).replaceLast(seeded.conversationId, 1, {
+            role: 'assistant',
+            parts: [{ type: 'text', text: 'x' }],
+          }),
+        ),
+      expectBlocked: (result) => {
+        expect(result).toBe('ConversationNotFoundError');
       },
     });
   });
@@ -567,5 +589,26 @@ describe('messageRepository', () => {
     });
 
     expect(remaining).toHaveLength(0);
+  });
+});
+
+describe('replaceLast', () => {
+  it('replaces the last message, and refuses to touch one that is no longer last', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      const subject = await seedTenant(tx, tenantId);
+      const created = await conversationRepository(tx).create(conversation(tenantId, subject));
+      const messages = messageRepository(tx);
+      const seq = await messages.append(created.id, { role: 'assistant', parts: [{ n: 1 }] });
+      await messages.replaceLast(created.id, seq, { role: 'assistant', parts: [{ n: 2 }] });
+      await messages.append(created.id, { role: 'user', parts: [{ n: 3 }] });
+      expect(
+        await errorNameOf(
+          messages.replaceLast(created.id, seq, { role: 'assistant', parts: [{ n: 4 }] }),
+        ),
+      ).toBe(ConversationTailChangedError.name);
+      const kept = await messages.load(created.id, 10);
+      expect(kept.map((m) => m.parts)).toEqual([[{ n: 2 }], [{ n: 3 }]]);
+    });
   });
 });

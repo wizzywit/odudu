@@ -27,6 +27,15 @@ export class ConversationNotFoundError extends Error {
   }
 }
 
+// Another turn wrote to the conversation after this one last did, so what this
+// one holds is no longer the end of it.
+export class ConversationTailChangedError extends Error {
+  constructor() {
+    super('the conversation changed since this turn last wrote to it');
+    this.name = 'ConversationTailChangedError';
+  }
+}
+
 // A whole number from 1 to `ceiling`; anything not a number becomes 1.
 function boundedLimit(limit: number, ceiling: number): number {
   return Number.isNaN(limit) ? 1 : Math.max(1, Math.min(Math.trunc(limit), ceiling));
@@ -76,6 +85,22 @@ export function messageRepository(tx: AssistantTx) {
       const { tenantId, tail } = await lockedTail(conversationId);
       const [seq] = await insertFrom(conversationId, tenantId, tail + 1, [message]);
       if (seq === undefined) throw new Error('the message insert returned no row');
+      return seq;
+    },
+
+    // Rewrites `seq` in place, only while it is still the conversation's last
+    // message. The check and the write hold the conversation row, so a turn on
+    // another server that has appended since is never overwritten or cut off:
+    // this one fails instead, and both turns' messages stay.
+    async replaceLast(conversationId: string, seq: number, message: NewMessage): Promise<number> {
+      const { tail } = await lockedTail(conversationId);
+      if (tail !== seq) throw new ConversationTailChangedError();
+      await tx
+        .update(assistantMessages)
+        .set({ role: message.role, parts: message.parts })
+        .where(
+          and(eq(assistantMessages.conversationId, conversationId), eq(assistantMessages.seq, seq)),
+        );
       return seq;
     },
 

@@ -377,6 +377,85 @@ describe('ending a turn', () => {
   });
 });
 
+describe('a turn ended while a tool call is pending', () => {
+  it('leaves a conversation that takes the next message', async () => {
+    const w = await world();
+    const caller = callerOf(w, w.alice);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { chat } = chatOver(
+      scripted([toolCalls(['c1', 'list_clients', '{"limit":3}']), answer('Back again.')]),
+      {
+        // A token that is slow to come and ignores the abort, as a mint may.
+        turn: () => ({
+          mintToken: async () => {
+            await held;
+            return { accessToken: 'token' };
+          },
+          callTool: () => Promise.resolve(CLIENTS),
+        }),
+      },
+    );
+    const id = await started(chat, caller);
+    const first = await streamOf(chat, caller, id, 'list them');
+    const reader = first.body?.getReader();
+    if (reader === undefined) throw new Error('no body');
+    const drained = (async () => {
+      for (;;) {
+        const chunk = await reader.read().catch(() => ({ done: true }));
+        if (chunk.done) return;
+      }
+    })();
+    // Wait until the model's call to the tool has been streamed, then stop.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(await chat.stop(caller, id)).toBe('stopped');
+    release();
+    await drained;
+
+    await until(async () => {
+      const again = await chat.send(caller, id, say('and now?'), new AbortController().signal);
+      if (again.kind !== 'stream') return false;
+      expect(await again.response.text()).toContain('Back again.');
+      return true;
+    });
+  });
+});
+
+describe('a turn that outlasts its deadline', () => {
+  it('is aborted, and the conversation takes the next message', async () => {
+    const w = await world();
+    const caller = callerOf(w, w.alice);
+    const seen: Seen[] = [];
+    const events: string[] = [];
+    const { chat } = chatOver(scripted(['hang', answer('Later.')], seen), {
+      turnDeadlineMs: 150,
+      log: (event) => {
+        events.push(event);
+      },
+    });
+    const id = await started(chat, caller);
+    const first = await streamOf(chat, caller, id, 'stall');
+    const reader = first.body?.getReader();
+    const drained = (async () => {
+      for (;;) {
+        const chunk = await reader?.read().catch(() => ({ done: true }));
+        if (chunk?.done ?? true) return;
+      }
+    })();
+    await until(() => Promise.resolve(seen[0]?.signal?.aborted === true));
+    await drained;
+    expect(events).toContain('assistant.turn_deadline');
+    await until(async () => {
+      const again = await chat.send(caller, id, say('again'), new AbortController().signal);
+      if (again.kind !== 'stream') return false;
+      await again.response.text();
+      return true;
+    });
+  });
+});
+
 describe('a second server instance', () => {
   it('resumes a conversation from its stored messages', async () => {
     const w = await world();
@@ -394,5 +473,40 @@ describe('a second server instance', () => {
     expect(prompt).toContain('Blue is the colour.');
     expect(prompt).toContain('and again?');
     expect((await stored(w, id)).filter((m) => m.role !== 'system')).toHaveLength(4);
+  });
+});
+
+describe('two server instances on one conversation', () => {
+  it('lose neither turn’s messages when their turns overlap', async () => {
+    const w = await world();
+    const caller = callerOf(w, w.alice);
+    const a = chatOver(scripted([toolCalls(['c1', 'list_clients', '{"limit":3}']), 'hang']));
+    const b = chatOver(scripted([answer('From the second server.')]));
+    const id = await started(a.chat, caller);
+
+    const first = await streamOf(a.chat, caller, id, 'first question');
+    const reader = first.body?.getReader();
+    if (reader === undefined) throw new Error('no body');
+    const drained = (async () => {
+      for (;;) {
+        const chunk = await reader.read().catch(() => ({ done: true }));
+        if (chunk.done) return;
+      }
+    })();
+    await until(async () => {
+      const assistant = (await stored(w, id)).find((m) => m.role === 'assistant');
+      return JSON.stringify(assistant?.parts ?? []).includes('list_clients');
+    });
+
+    // The second server's registry knows nothing of the first's turn.
+    await (await streamOf(b.chat, caller, id, 'second question')).text();
+    expect(await a.chat.stop(caller, id)).toBe('stopped');
+    await drained;
+
+    const messages = (await stored(w, id)).filter((m) => m.role !== 'system');
+    const text = JSON.stringify(messages.map((m) => m.parts));
+    expect(text).toContain('first question');
+    expect(text).toContain('second question');
+    expect(text).toContain('From the second server.');
   });
 });

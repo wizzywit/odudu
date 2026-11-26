@@ -54,6 +54,22 @@ interface Identity {
   readonly clientDbId: string;
 }
 
+// Gives up waiting for `work` when the turn is ended; the work itself is left to
+// finish, as an admin call already sent is.
+function unlessAborted<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return work;
+  if (signal.aborted) return Promise.reject(new Error('the turn was ended'));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      reject(new Error('the turn was ended'));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(resolve, reject).finally(() => {
+      signal.removeEventListener('abort', onAbort);
+    });
+  });
+}
+
 function grantOf(caller: ChatCaller): string {
   if (caller.grantId === undefined) throw new Error('the administrator token names no grant');
   return caller.grantId;
@@ -114,7 +130,13 @@ export function assistantTokenMint(
         throw error;
       }
     });
-    if (outcome instanceof AgentTokenRefused) throw outcome;
+    if (outcome instanceof AgentTokenRefused) {
+      parts.logger.warn(
+        { reason: outcome.reason, tenantId: tenant.id },
+        'the assistant could not get a token for a tool call',
+      );
+      throw outcome;
+    }
     return { accessToken: outcome.accessToken };
   };
 }
@@ -123,6 +145,7 @@ export function assistantTokenMint(
 // uses, and leaves the same row: a call whose row cannot be written does not
 // return its data.
 function toolRunner(parts: AssistantChatParts, caller: ChatCaller) {
+  const now = parts.now ?? (() => new Date());
   const logger: McpLogger = parts.logger;
   let identity: Promise<Identity> | undefined;
   const identityOf = (): Promise<Identity> => {
@@ -145,7 +168,7 @@ function toolRunner(parts: AssistantChatParts, caller: ChatCaller) {
       clientId,
       grantId: grantOf(caller),
       scope: [MCP_READ_SCOPE],
-      expSeconds: Math.floor(Date.now() / 1000) + AGENT_TOKEN_MAX_TTL_SECONDS,
+      expSeconds: Math.floor(now().getTime() / 1000) + AGENT_TOKEN_MAX_TTL_SECONDS,
     });
     const admin = createInProcessCaller(
       {
@@ -197,11 +220,15 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
       runInstanceId(caller.tenantId, grantOf(caller), conversationId),
     now: parts.now ?? (() => new Date()),
     newId,
+    log: (event, detail) => {
+      parts.logger.warn(detail, event);
+    },
     turn: (caller) => {
       const run = toolRunner(parts, caller);
       return {
-        mintToken: (key) => mint(caller, key),
-        callTool: (accessToken, name, input) => run(accessToken, name, input),
+        mintToken: (key, signal) => unlessAborted(mint(caller, key), signal),
+        callTool: (accessToken, name, input, signal) =>
+          unlessAborted(run(accessToken, name, input), signal),
       };
     },
   });

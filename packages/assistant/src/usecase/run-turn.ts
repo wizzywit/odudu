@@ -73,7 +73,9 @@ export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<St
   });
   const agent = buildAgent(deps, tools);
   const earlier = boundHistory(await deps.history(input.conversationId));
-  const messages = await convertToModelMessages([...earlier, input.message]);
+  const messages = await convertToModelMessages([...earlier, input.message], {
+    ignoreIncompleteToolCalls: true,
+  });
   return { result: await agent.stream({ messages, abortSignal: input.signal }), tools };
 }
 
