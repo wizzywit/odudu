@@ -177,7 +177,9 @@ describe('renderSafeMarkdown', () => {
       const input = line.repeat(15);
       const started = performance.now();
       renderSafeMarkdown(input);
-      expect(performance.now() - started, line.slice(0, 6)).toBeLessThan(50);
+      // The quadratic scan took about 340 ms on these; linear work takes a few
+      // ms, so 150 ms catches a regression and tolerates a loaded runner.
+      expect(performance.now() - started, line.slice(0, 6)).toBeLessThan(150);
     }
   });
 
