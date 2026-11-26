@@ -20,17 +20,18 @@ const FEATURE_ONLY = [
 ] as const;
 
 // The entry chunk's gzip size, in bytes (ADR 0041). Set at 145,018 B, the
-// size once the React Compiler was on, plus 5%, rounded up to a whole kB of
-// 1,000 B. A larger entry is a decision: raise this beside the reason.
-const ENTRY_GZIP_BUDGET = 153_000;
+// size once the React Compiler was on, plus 5%; lowered to 127,700 B when the
+// assistant panel became a lazy chunk (126,661 B measured, from 145,474 B).
+// A larger entry is a decision: raise this beside the reason.
+const ENTRY_GZIP_BUDGET = 127_700;
 
 // The same bound over everything loaded first: the entry and each chunk it
-// imports statically. Set at 229,800 B plus 5%, rounded up to a whole kB; reset
-// to 244,911 B (the failure screens load first) plus 5%; raised by 1 kB for the
-// contracts' NUL-refusing free-text pattern (258,018 B measured), and to
-// 262,600 when the shell gained the assistant button and its status read
-// (261,569 B measured, from 258,813 B before). Lazy chunks are not budgeted.
-const FIRST_LOAD_GZIP_BUDGET = 262_600;
+// imports statically. 244,911 B (failure screens) plus 5%, then raised for the
+// contracts' free-text pattern (258,018 B) and the shell's assistant button
+// (261,569 B). 267,000 for the lazy assistant panel: 265,925 B measured, from
+// 261,906 B at its parent, 258,813 B at the baseline. The chat client is not
+// first load; zod (+1.6 kB) and the re-split shared chunks (+2.4 kB) are.
+const FIRST_LOAD_GZIP_BUDGET = 267_000;
 
 interface Chunk {
   readonly name: string;

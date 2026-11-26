@@ -14,7 +14,7 @@ import {
   storedOf,
 } from '#/widgets/assistant-panel/services/history';
 import { statusLine } from '#/widgets/assistant-panel/services/statusLine';
-import { ChatCallError } from '#/widgets/assistant-panel/services/chatCallError';
+import { startedId } from '#/widgets/assistant-panel/services/conversationStart';
 import {
   type AssistantMode,
   type Meter,
@@ -76,18 +76,18 @@ export function useAssistantChat(
   const latest = useLatest({ profile, pageContext, onConversation: env.onConversation });
 
   const startConversation = async (): Promise<string> => {
-    if (known.current !== null) return known.current;
     const now = latest();
-    const created = await calls.create({
-      profile: now.profile,
-      mode: 'ask',
-      page_context: now.pageContext,
-    });
-    if (!created.ok) throw new ChatCallError(created, 'start');
-    known.current = created.data.id;
-    setCreatedId(created.data.id);
-    now.onConversation(created.data.id);
-    return created.data.id;
+    const id =
+      known.current ??
+      startedId(
+        await calls.create({ profile: now.profile, mode: 'ask', page_context: now.pageContext }),
+      );
+    if (known.current === null) {
+      known.current = id;
+      setCreatedId(id);
+      now.onConversation(id);
+    }
+    return id;
   };
   const session = useChatSession({
     tenant,

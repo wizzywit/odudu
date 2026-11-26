@@ -14,7 +14,7 @@ export const PANEL_WORDING = {
   modeActHint: 'Act proposes changes. Each one waits for your approval.',
   modeFailed: 'The mode could not be changed. Try again.',
   modelsSummary: 'Models',
-  modelsNote: 'The standard model answers. The others take over for work that needs them.',
+  modelsNote: 'The model each slot is set to run.',
   contextLabel: 'This page',
   emptyTitle: 'Ask about this tenant',
   emptyText:
