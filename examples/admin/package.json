@@ -13,9 +13,9 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@odudu-io/admin-client": "^0.1.0",
-    "@odudu-io/me-client": "^0.1.0",
-    "@odudu-io/oidc": "^0.1.0"
+    "@odudu-io/admin-client": "^0.1.1",
+    "@odudu-io/me-client": "^0.1.1",
+    "@odudu-io/oidc": "^0.1.1"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
