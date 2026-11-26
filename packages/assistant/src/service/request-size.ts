@@ -8,10 +8,11 @@ export const MAX_OUTPUT_TOKENS = 8192;
 // are compacted to what this leaves after the instructions and the tools.
 export const MAX_REQUEST_TOKENS = 150_000;
 
-// What the fixed part of a request (instructions and tool definitions) measured
-// at: about 3 to 4 bytes a token on JSON schema, so 2.5 leaves a margin. The
-// messages keep the bound of one token a byte, which no tokenizer exceeds.
-export const FIXED_BYTES_PER_TOKEN = 2.5;
+// Bytes a token holds in the fixed part of a request (instructions and tool
+// definitions): Bedrock counted 2.38 and llama3.2 3.79 (docs/phases/p5c-spikes.md,
+// "Bytes per token of the fixed part"), and 1.9 is the lower figure less 20 percent.
+// The messages keep the bound of one token a byte, which no tokenizer exceeds.
+export const FIXED_BYTES_PER_TOKEN = 1.9;
 
 export interface ReservationInput {
   readonly fixedBytes: number;

@@ -1,5 +1,7 @@
 import type { ModelMessage } from 'ai';
+import { cutText } from '#/service/cut';
 import { inputUpperBound } from '#/service/estimate';
+import { FENCE_CLOSE } from '#/service/fence';
 
 const OMITTED = '[an earlier tool result was left out to fit the context]';
 const CUT = '\n[this tool result was cut to fit the context]';
@@ -39,32 +41,28 @@ function resultText(output: { type: string; value?: unknown }): string {
 }
 
 // Replaces the longest result of a tool message with a shorter prefix of it,
-// by `excess` characters and the note, or returns undefined when none is left to cut.
+// by `excess` characters and the note, closing the data fence again when the
+// result had one, or returns undefined when none is left to cut.
 function cutLongest(message: ModelMessage, excess: number): ModelMessage | undefined {
   if (message.role !== 'tool') return undefined;
   let longest = -1;
-  let longestLength = 0;
+  let text = '';
   message.content.forEach((part, index) => {
     if (part.type !== 'tool-result') return;
-    const length = resultText(part.output).length;
-    if (length > longestLength) {
+    const candidate = resultText(part.output);
+    if (candidate.length > text.length) {
       longest = index;
-      longestLength = length;
+      text = candidate;
     }
   });
-  if (longest === -1 || longestLength <= CUT.length) return undefined;
-  const keep = Math.max(0, longestLength - excess - CUT.length);
+  if (longest === -1 || text.length <= CUT.length) return undefined;
+  const closing = text.endsWith(FENCE_CLOSE) ? FENCE_CLOSE : '';
+  const value = `${cutText(text, text.length - excess - CUT.length - closing.length)}${CUT}${closing}`;
   return {
     role: 'tool',
     content: message.content.map((part, index) =>
       part.type === 'tool-result' && index === longest
-        ? {
-            ...part,
-            output: {
-              type: 'text' as const,
-              value: `${resultText(part.output).slice(0, keep)}${CUT}`,
-            },
-          }
+        ? { ...part, output: { type: 'text' as const, value } }
         : part,
     ),
   };
@@ -83,7 +81,7 @@ function textOf(message: ModelMessage): string {
 function shortened(kept: ModelMessage[], at: number, max: number): ModelMessage[] {
   const text = textOf(kept[at] ?? { role: 'user', content: '' });
   const build = (length: number): ModelMessage[] =>
-    kept.with(at, { role: 'user', content: text.slice(0, length) });
+    kept.with(at, { role: 'user', content: cutText(text, length) });
   let low = 0;
   let high = text.length;
   while (low < high) {

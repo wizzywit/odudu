@@ -11,6 +11,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   reap,
+  reapExitCode,
   REAP_LOCK_KEY,
   REAP_ORDER,
   RETENTION_RULES,
@@ -694,6 +695,8 @@ describe('assistant budget upkeep inside the pass', () => {
       POLICY,
     );
     expect(ran(outcome).audit_events).toBeGreaterThanOrEqual(1);
+    expect(outcome.ran && outcome.assistant?.failed).toBeGreaterThanOrEqual(1);
+    expect(reapExitCode(outcome)).toBe(1);
     const left = await owner.db.execute<{ id: string }>(
       sql`SELECT id FROM audit_events WHERE id = ${staleId}`,
     );

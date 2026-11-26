@@ -87,7 +87,7 @@ export type ReapOutcome =
        * something, so an install that never uses the assistant reads the same
        * report as before.
        */
-      readonly assistant?: BudgetUpkeepReport;
+      readonly assistant?: AssistantReapReport;
     };
 
 /**
@@ -728,26 +728,38 @@ export function assertReapOrder(order: readonly TableName[] = REAP_ORDER): void 
   }
 }
 
-const NO_UPKEEP: BudgetUpkeepReport = {
+/** The assistant's upkeep summed over tenants, with how many tenants' upkeep failed. */
+export interface AssistantReapReport extends BudgetUpkeepReport {
+  readonly failed: number;
+}
+
+const NO_UPKEEP: AssistantReapReport = {
   reservationsReleased: 0,
   reservationsCharged: 0,
   reservationsDeleted: 0,
   countersDeleted: 0,
   leasesDeleted: 0,
+  failed: 0,
 };
 
-function addUpkeep(a: BudgetUpkeepReport, b: BudgetUpkeepReport): BudgetUpkeepReport {
+function addUpkeep(a: AssistantReapReport, b: BudgetUpkeepReport): AssistantReapReport {
   return {
     reservationsReleased: a.reservationsReleased + b.reservationsReleased,
     reservationsCharged: a.reservationsCharged + b.reservationsCharged,
     reservationsDeleted: a.reservationsDeleted + b.reservationsDeleted,
     countersDeleted: a.countersDeleted + b.countersDeleted,
     leasesDeleted: a.leasesDeleted + b.leasesDeleted,
+    failed: a.failed,
   };
 }
 
-function didAnything(report: BudgetUpkeepReport): boolean {
+function didAnything(report: AssistantReapReport): boolean {
   return Object.values(report).some((count) => count > 0);
+}
+
+/** 1 when any tenant's assistant upkeep failed, else 0, so a scheduler sees the failure. */
+export function reapExitCode(outcome: ReapOutcome): number {
+  return outcome.ran && (outcome.assistant?.failed ?? 0) > 0 ? 1 : 0;
 }
 
 function emptyReport(): ReapReport {
@@ -840,9 +852,13 @@ async function assertRolesAreRight(deps: ReapDeps): Promise<void> {
 }
 
 // The assistant's budget upkeep, after the retention pass has committed, one
-// short transaction for each tenant: a failure there is logged for that tenant
-// and costs no other tenant's deletes, and no row it locks outlives its tenant's turn.
-async function upkeepEachTenant(deps: ReapDeps, now: Date): Promise<BudgetUpkeepReport> {
+// short transaction for each tenant: a failure there is logged and counted for
+// that tenant and costs no other tenant's deletes.
+// It runs outside the reap lock, so another instance's upkeep may overlap this
+// one. That is safe: the sweep skips rows another transaction holds, and a prune
+// delete that waits on the other's rows gives up after the lock timeout, is
+// counted as failed for this pass and is taken by the next.
+async function upkeepEachTenant(deps: ReapDeps, now: Date): Promise<AssistantReapReport> {
   const upkeep = deps.upkeep ?? upkeepBudget;
   let total = NO_UPKEEP;
   for await (const tenantId of allTenantIds(deps.ownerDatabase)) {
@@ -852,6 +868,7 @@ async function upkeepEachTenant(deps: ReapDeps, now: Date): Promise<BudgetUpkeep
         await withTenant(deps.database.db, tenantId, (tx) => upkeep(tx, now)),
       );
     } catch (error) {
+      total = { ...total, failed: total.failed + 1 };
       deps.log?.('assistant_upkeep_failed', {
         tenantId,
         error: error instanceof Error ? error.message : 'unknown',

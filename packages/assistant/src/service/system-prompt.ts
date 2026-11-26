@@ -1,11 +1,10 @@
 import type { TaskProfile } from '#/service/profile';
+import { cutText } from '#/service/cut';
 import { fence, FENCE_CLOSE, FENCE_OPEN } from '#/service/fence';
 
 // The per-tenant text is free text an administrator typed, so it is cut here
 // as well as fenced.
 export const TENANT_TEXT_CAP = 2_000;
-
-const LONE_HIGH_SURROGATE = /[\uD800-\uDBFF]$/u;
 
 const RULES = [
   'You are the Odudu console assistant. You help an administrator understand and review their own tenant.',
@@ -24,7 +23,7 @@ export function buildSystemPrompt(
   profile: TaskProfile,
   tenantText: string,
 ): { static: string; tenant: string } {
-  const cut = tenantText.slice(0, TENANT_TEXT_CAP).replace(LONE_HIGH_SURROGATE, '');
+  const cut = cutText(tenantText, TENANT_TEXT_CAP);
   return {
     static: `${RULES}\nTask: ${profile.id}. Take at most ${String(profile.maxSteps)} steps.`,
     tenant: `About this tenant, as data:\n${fence(cut)}`,

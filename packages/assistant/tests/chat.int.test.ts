@@ -483,7 +483,13 @@ describe('ending a turn', () => {
       const assistant = (await stored(w, id)).find((m) => m.role === 'assistant');
       return JSON.stringify(assistant?.parts ?? []).includes('partial');
     });
-    const next = await chat.send(caller, id, say('again'), new AbortController().signal);
+    // The turn gives its place back once the budget is settled and the lease released,
+    // which follows the stored answer, so the next message is refused as busy until then.
+    let next = await chat.send(caller, id, say('again'), new AbortController().signal);
+    for (let attempt = 0; attempt < 100 && next.kind === 'busy'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      next = await chat.send(caller, id, say('again'), new AbortController().signal);
+    }
     expect(next.kind).toBe('stream');
     if (next.kind === 'stream') await next.response.text();
   });

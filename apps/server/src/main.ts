@@ -47,8 +47,10 @@ if (process.argv[2] === 'init') {
 
 if (process.argv[2] === 'reap') {
   try {
-    console.log(JSON.stringify(await (await import('#/cli/reap')).reapCommand()));
-    process.exit(0);
+    const outcome = await (await import('#/cli/reap')).reapCommand();
+    console.log(JSON.stringify(outcome));
+    // A tenant whose assistant upkeep failed leaves a green cron job otherwise.
+    process.exit((await import('#/cli/reap')).reapExitCode(outcome));
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);

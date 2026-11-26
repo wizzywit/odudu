@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   assertReapOrder,
   reapCommand,
+  reapExitCode,
+  type ReapOutcome,
   REAP_ORDER,
   retentionPolicyFromConfig,
   type TableName,
@@ -112,5 +114,35 @@ describe('the connection the command reaps on', () => {
     process.env.ODUDU_KEK = MINIMAL.ODUDU_KEK;
 
     await expect(reapCommand()).rejects.toThrow(/ODUDU_APP_DATABASE_URL/u);
+  });
+});
+
+describe('the exit code of a pass', () => {
+  const ranWith = (failed: number | undefined): ReapOutcome => ({
+    ran: true,
+    deleted: {} as never,
+    cleared: { client_previous_secrets: 0 },
+    ...(failed === undefined
+      ? {}
+      : {
+          assistant: {
+            reservationsReleased: 0,
+            reservationsCharged: 0,
+            reservationsDeleted: 0,
+            countersDeleted: 0,
+            leasesDeleted: 0,
+            failed,
+          },
+        }),
+  });
+
+  it('is 1 when any tenant’s assistant upkeep failed', () => {
+    expect(reapExitCode(ranWith(1))).toBe(1);
+  });
+
+  it('is 0 when none failed, when the upkeep did nothing, and when the pass was skipped', () => {
+    expect(reapExitCode(ranWith(0))).toBe(0);
+    expect(reapExitCode(ranWith(undefined))).toBe(0);
+    expect(reapExitCode({ ran: false, reason: 'no tenant was enumerated' })).toBe(0);
   });
 });

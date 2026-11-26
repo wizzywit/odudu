@@ -322,7 +322,13 @@ describe('what the provider reports', () => {
     const { chat } = chatOver(scripted([none]));
     const caller = callerOf(w);
     await bodyOf(chat, caller, await conversation(chat, caller));
-    expect((await ledger(w)).used.tenant_month).toBeGreaterThan(8192);
+    const reserved = await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute<{ reserved: string }>(
+        sql`select reserved::text as reserved from assistant_reservations`,
+      ),
+    );
+    expect(reserved).toHaveLength(1);
+    expect((await ledger(w)).used.tenant_month).toBe(Number(reserved[0]?.reserved));
   });
 });
 

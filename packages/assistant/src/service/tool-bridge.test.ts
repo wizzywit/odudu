@@ -18,6 +18,14 @@ const reads = TOOLS.filter((tool) => tool.access === 'read');
 const OPTIONS = { toolCallId: 't1', messages: [], context: {} };
 
 describe('fenceToolOutput', () => {
+  it('ends the cut with the note and the closing mark, and never inside an emoji', () => {
+    // The stringified output opens with nine characters, so the pair straddles the limit.
+    const lead = 'a'.repeat(TOOL_OUTPUT_LIMIT - 1 - 9);
+    const text = fenceToolOutput({ data: `${lead}\u{1F600}tail` });
+    expect(/\p{Surrogate}/u.test(text)).toBe(false);
+    expect(text.endsWith(`characters]${FENCE_CLOSE}`)).toBe(true);
+  });
+
   it('cuts an oversize output to the limit, inside the fence, and says so', () => {
     const text = fenceToolOutput({ data: 'y'.repeat(TOOL_OUTPUT_LIMIT * 3) });
     expect(text.startsWith(FENCE_OPEN)).toBe(true);

@@ -1,5 +1,6 @@
 import type { RegisteredTool, ToolResult } from '@odudu/mcp';
 import { tool, type ToolSet } from 'ai';
+import { cutText } from '#/service/cut';
 import { fence, FENCE_CLOSE, FENCE_OPEN } from '#/service/fence';
 
 export { FENCE_CLOSE, FENCE_OPEN };
@@ -19,7 +20,7 @@ export function fenceToolOutput(
   const text = mask(JSON.stringify(output));
   if (text.length <= TOOL_OUTPUT_LIMIT) return fence(text);
   return fence(
-    `${text.slice(0, TOOL_OUTPUT_LIMIT)}\n[output cut at ${String(TOOL_OUTPUT_LIMIT)} characters]`,
+    `${cutText(text, TOOL_OUTPUT_LIMIT)}\n[output cut at ${String(TOOL_OUTPUT_LIMIT)} characters]`,
   );
 }
 

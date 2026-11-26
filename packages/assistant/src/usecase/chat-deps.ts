@@ -41,9 +41,7 @@ export interface BudgetAuditEvent {
   readonly overrunTokens?: number;
 }
 
-export type AccessOutcome<T> =
-  | { kind: 'granted'; value: T }
-  | { kind: 'refused'; reason: string };
+export type AccessOutcome<T> = { kind: 'granted'; value: T } | { kind: 'refused'; reason: string };
 
 export interface ChatDeps {
   /** Runs `fn` in one short transaction bound to the tenant. */

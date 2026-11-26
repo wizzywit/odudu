@@ -16,6 +16,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { budgetRepository, pruneStatements } from '#/repository/budgets';
 import { leaseRepository, pruneLeasesStatement } from '#/repository/leases';
 import { levelLimitsFor, type AssistantLimits } from '#/service/limits';
+import { MAX_OUTPUT_TOKENS } from '#/service/request-size';
+import { createTurnBudget } from '#/usecase/budget-hooks';
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
@@ -304,4 +306,57 @@ describe('budgetRepository.usage and prune', () => {
     expect(plans[3]).toContain('assistant_turn_leases_live');
     for (const plan of plans) expect(plan).not.toContain('"Node Type":"Seq Scan"');
   }, 120_000);
+});
+
+describe('the floor from the previous step’s reported input', () => {
+  const GENEROUS: AssistantLimits = {
+    monthlyTokensBySlot: { fast: 50_000_000, standard: 50_000_000, deep: 50_000_000 },
+    allowedModels: [],
+    toolClasses: ['read'],
+    modes: ['ask'],
+    maxConcurrent: 5,
+    maxStepsPerTurn: 20,
+  };
+
+  it('is recorded from the step that reported it, and left alone by a step that reported none', async () => {
+    const tenantId = await freshTenant();
+    const budget = createTurnBudget({
+      transact: (fn) => withTenant(app.db, tenantId, fn),
+      now: () => NOW,
+      limits: GENEROUS,
+      tenantId,
+      ownerSubjectId: 's',
+      conversationId: 'c',
+      turnId: newId(),
+      slot: 'standard',
+      onWarning: () => undefined,
+      onOverrun: () => undefined,
+    });
+    const request = (bytes: number) => ({ fixed: 'f', messages: 'm'.repeat(bytes) });
+    const reservations = async () =>
+      (
+        await withTenant(app.db, tenantId, (tx) =>
+          tx.execute<{ reserved: string }>(
+            sql`select reserved::text as reserved from assistant_reservations order by created_at, id`,
+          ),
+        )
+      ).map((row) => Number(row.reserved));
+    const [m1, m2, m3, m4] = [1000, 3000, 7000, 12_000];
+
+    await budget.beforeCall(request(m1));
+    await budget.afterCall({ inputTokens: 200_000, totalTokens: 10 });
+    await budget.beforeCall(request(m2));
+    // Zero input reported: the floor stays at the first step's.
+    await budget.afterCall({ inputTokens: 0, outputTokens: 0, totalTokens: 0 });
+    await budget.beforeCall(request(m3));
+    await budget.afterCall({ inputTokens: 300_000, totalTokens: 10 });
+    await budget.beforeCall(request(m4));
+    await budget.finish();
+
+    const [first, second, third, fourth] = await reservations();
+    expect(first).toBeLessThan(10_000 + MAX_OUTPUT_TOKENS * 2);
+    expect(second).toBe(200_000 + (m2 - m1) + MAX_OUTPUT_TOKENS);
+    expect(third).toBe(200_000 + (m3 - m1) + MAX_OUTPUT_TOKENS);
+    expect(fourth).toBe(300_000 + (m4 - m3) + MAX_OUTPUT_TOKENS);
+  });
 });

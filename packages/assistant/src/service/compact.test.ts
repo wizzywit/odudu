@@ -3,6 +3,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { compactHistory } from '#/service/compact';
 import { inputUpperBound } from '#/service/estimate';
+import { fence, FENCE_CLOSE } from '#/service/fence';
 
 const size = (messages: readonly ModelMessage[]): number =>
   inputUpperBound(JSON.stringify(messages));
@@ -90,6 +91,26 @@ describe('compactHistory', () => {
     expect(text).toContain('START');
     expect(text).toMatch(/cut to fit/u);
     expect(text).not.toContain('left out to fit');
+  });
+
+  it('closes the data fence again after the cut note', () => {
+    const fenced = fence(`START${'r'.repeat(300_000)}`);
+    const out = compactHistory([user('look'), call('1'), result('1', fenced)], 20_000);
+    expect(JSON.stringify(out)).toContain(`cut to fit the context]${FENCE_CLOSE}`);
+  });
+
+  it('never leaves half of an emoji at a cut', () => {
+    for (const lead of ['', 'x']) {
+      const fenced = fence(`${lead}${'\u{1F600}'.repeat(60_000)}`);
+      const out = compactHistory([user('look'), call('1'), result('1', fenced)], 20_000);
+      const parts = out.flatMap((message) => (message.role === 'tool' ? message.content : []));
+      for (const part of parts) {
+        if (part.type === 'tool-result' && part.output.type === 'text') {
+          expect(/\p{Surrogate}/u.test(part.output.value)).toBe(false);
+        }
+      }
+      expect(size(out)).toBeLessThanOrEqual(20_000);
+    }
   });
 
   it('keeps in-flight calls and results when the last user message must be cut', () => {

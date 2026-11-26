@@ -502,3 +502,42 @@ a fixture of an MCP client.
     client is refused at `/token` for every grant type.
 17. Attribution: every `agent.tool_call` row of a conversation names `odudu-assistant` as
     actor client and the administrator as actor subject.
+
+## Bytes per token of the fixed part of a request
+
+Run 2026-11-27 on macOS arm64, Node 24.15.0, `ai@7.0.181`, from a scratch script placed
+in `packages/assistant` for the run and removed afterwards. The fixed part is what
+`requestParts` serialises as `fixed`: the two system messages of `buildSystemPrompt` for
+the free-chat profile (tenant text `Acme`) followed by the tool definitions of
+`toolDefinitionsText(toSdkTools(assistantTools(TOOLS), …))`, so 62 tools. The request
+was that system text, the tools and one user message `hi`, with `maxOutputTokens` 1.
+The Bedrock key was read from the environment and never printed.
+
+Commands (each printed sizes only):
+
+- `node zz-measure.ts bedrock`: `generateText` through `@ai-sdk/amazon-bedrock`, model
+  `eu.anthropic.claude-haiku-5-5`.
+- `node zz-measure.ts ollama-compat`: `generateText` through `@ai-sdk/openai-compatible`
+  with `includeUsage: true`, base URL `http://localhost:11434/v1`, model `llama3.2`.
+- `node zz-measure.ts ollama-native`: `POST /api/generate` on the same Ollama with the
+  `fixed` text as the raw prompt, `num_ctx` 65536, `num_predict` 1, reading
+  `prompt_eval_count`.
+
+| Provider                 | fixedBytes | inputTokens | bytes per token |
+| ------------------------ | ---------- | ----------- | --------------- |
+| Bedrock, Claude Haiku    | 54,715     | 22,983      | 2.381           |
+| Ollama llama3.2 (native) | 54,715     | 14,441      | 3.789           |
+| Ollama via `/v1`         | 54,715     | 2,050       | not valid       |
+
+The Bedrock count includes the provider's own wrapping of the tools and the one-word
+message, so it is the count a reservation has to cover. The `/v1` figure is the context
+window of the model's default configuration (2,048 tokens, plus a few) and not the size
+of the prompt, which Ollama cut silently; it is recorded because it shows that a
+self-hosted server can report a count far below the request. The native run with a large
+`num_ctx` is the llama3.2 measure.
+
+result: the Bedrock ratio, 2.381 bytes per token, is below the 2.5 the estimate first
+used, so 2.5 was not an upper bound there. The divisor is now 1.9, the Bedrock ratio less
+20 percent, which reserves 28,798 tokens against the 22,983 Bedrock counted and 28,798
+against the 14,441 llama3.2 counted. Two providers and one prompt are measured; a
+provider whose tokenizer is harsher on JSON than Claude's is not.

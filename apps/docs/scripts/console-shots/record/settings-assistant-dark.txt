@@ -449,7 +449,7 @@ Fast model, each month
 tokens
 Titles, summaries and small reads. Default: 2,000,000 tokens. Allowed: 0 to 1,000,000,000 tokens.
 More
-The assistant stops when a month’s allowance for a model is used, says which limit it reached, and never falls back to a cheaper model on its own. A call holds back up to about 122,000 tokens while it is in flight, so an allowance below about 134,000 refuses every answer and one below about 490,000 can refuse some.
+The assistant stops when a month’s allowance for a model is used, says which limit it reached, and never falls back to a cheaper model on its own. A call holds back up to about 132,000 tokens while it is in flight, so an allowance below about 150,000 refuses every answer and one below about 530,000 can refuse some.
 Standard model, each month
 tokens
 The main conversation. Default: 5,000,000 tokens. Allowed: 0 to 1,000,000,000 tokens.

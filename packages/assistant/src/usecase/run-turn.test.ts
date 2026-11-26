@@ -243,7 +243,9 @@ describe('runTurn', () => {
     const { deps } = depsFor(model);
     await finish(deps);
     const offered = (model.doStreamCalls[0]?.tools ?? []).map((tool) => tool.name);
-    expect(TOOLS.map((tool) => tool.name)).toEqual(expect.arrayContaining(['list_audit', 'count_audit']));
+    expect(TOOLS.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['list_audit', 'count_audit']),
+    );
     expect(offered).not.toContain('list_audit');
     expect(offered).not.toContain('count_audit');
     expect(offered).toContain('list_clients');

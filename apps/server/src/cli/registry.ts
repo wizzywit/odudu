@@ -89,7 +89,7 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
   {
     name: 'reap',
     summary:
-      'Delete expired and retention-bound rows in every tenant and print the counts as JSON.',
+      'Delete expired and retention-bound rows in every tenant and print the counts as JSON. Exits 1 when the assistant budget upkeep failed for any tenant.',
     options: [],
     subcommands: NONE,
     example: 'odudu reap',
