@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
 import { expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
+import { actingInText } from '#/widgets/assistant-panel/services/crossTenant';
 import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import type { AssistantMode, Meter } from '#/widgets/assistant-panel/types/chat';
 import { PanelHeader } from '#/widgets/assistant-panel/ui/PanelHeader';
@@ -33,7 +34,7 @@ function header(
       onStartNew={options.onStartNew ?? vi.fn<() => void>()}
       mode="ask"
       modes={options.modes ?? ['ask', 'act']}
-      actingIn={options.actingIn ?? null}
+      acting={actingInText(options.actingIn ?? null)}
       meter={options.meter ?? null}
       models={options.models ?? null}
       words={PANEL_WORDING}

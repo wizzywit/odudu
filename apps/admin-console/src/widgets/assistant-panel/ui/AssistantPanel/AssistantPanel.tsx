@@ -49,7 +49,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
         onStartNew={chat.startNew}
         mode={panel.mode}
         modes={panel.modeChoices}
-        actingIn={panel.actingIn}
+        acting={panel.acting}
         meter={chat.meter}
         models={panel.models}
         words={panel.words}

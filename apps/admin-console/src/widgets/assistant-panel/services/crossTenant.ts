@@ -1,7 +1,8 @@
 import type { AssistantMode } from '#/widgets/assistant-panel/types/chat';
 
-export function actingInText(tenant: string): string {
-  return `Acting in ${tenant}`;
+// The tag's words, or null where the conversation is in the person's own tenant.
+export function actingInText(tenant: string | null): string | null {
+  return tenant === null ? null : `Acting in ${tenant}`;
 }
 
 // What the mode switch offers. In another tenant the assistant only reads, so

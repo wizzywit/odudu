@@ -7,6 +7,13 @@
   border-inline-start: 3px solid var(--signal-active-ink);
   border-radius: var(--radius-s);
   background: var(--surface-sunken);
+  max-block-size: 45dvh;
+  overflow-y: auto;
+}
+
+.notice:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .title {

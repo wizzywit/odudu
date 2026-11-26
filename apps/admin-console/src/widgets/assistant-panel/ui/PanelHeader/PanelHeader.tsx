@@ -1,7 +1,6 @@
 import type { RefObject } from 'react';
 import { Label, RadioButton, RadioField, RadioGroup } from 'react-aria-components';
 import { Button } from '#/shared/ui/Button';
-import { actingInText } from '#/widgets/assistant-panel/services/crossTenant';
 import type { PanelWords } from '#/widgets/assistant-panel/types/words';
 import type { AssistantMode, Meter } from '#/widgets/assistant-panel/types/chat';
 import styles from '#/widgets/assistant-panel/ui/PanelHeader/PanelHeader.module.css';
@@ -25,7 +24,7 @@ export function PanelHeader({
   onStartNew,
   mode,
   modes,
-  actingIn = null,
+  acting = null,
   meter,
   models,
   words,
@@ -38,15 +37,21 @@ export function PanelHeader({
   onStartNew: () => void;
   mode: AssistantMode;
   modes: readonly AssistantMode[];
-  // The tenant the conversation acts in when it is not the person's own: named
-  // for as long as the panel is open, and Act is never offered there.
-  actingIn?: string | null;
+  // What names the tenant the conversation acts in, when it is not the person's
+  // own: shown for as long as the panel is open, and Act is never offered there.
+  acting?: string | null;
   // Null until the server has said something about the allowance.
   meter: Meter | null;
   // Named only where there is a choice of more than one.
   models: readonly { slot: string; model: string }[] | null;
   words: PanelWords;
 }) {
+  const actingTag =
+    acting === null ? null : (
+      <p className={styles.acting} title={acting}>
+        {acting}
+      </p>
+    );
   return (
     <header className={styles.header}>
       <div className={styles.top}>
@@ -62,11 +67,6 @@ export function PanelHeader({
           </Button>
         </div>
       </div>
-      {actingIn === null ? null : (
-        <p className={styles.acting} title={actingInText(actingIn)}>
-          {actingInText(actingIn)}
-        </p>
-      )}
       {modes.length > 1 ? (
         <RadioGroup
           value={mode}
@@ -74,7 +74,10 @@ export function PanelHeader({
           isDisabled={mode === 'act'}
           className={styles.modes ?? ''}
         >
-          <Label className={styles.modeLabel ?? ''}>{words.modeLabel}</Label>
+          <div className={styles.modeRow}>
+            <Label className={styles.modeLabel ?? ''}>{words.modeLabel}</Label>
+            {actingTag}
+          </div>
           <div className={styles.segments}>
             {modes.map((choice) => (
               <RadioField
@@ -91,10 +94,12 @@ export function PanelHeader({
           </div>
           <p className={styles.modeHint}>{modeWords(words)[mode].hint}</p>
           <p className={styles.modeHint}>
-            {actingIn === null ? words.actNote : words.actOtherTenantNote}
+            {acting === null ? words.actNote : words.actOtherTenantNote}
           </p>
         </RadioGroup>
-      ) : null}
+      ) : (
+        actingTag
+      )}
       {meter === null && models === null ? null : (
         <div className={styles.meterRow}>
           {meter === null ? null : (

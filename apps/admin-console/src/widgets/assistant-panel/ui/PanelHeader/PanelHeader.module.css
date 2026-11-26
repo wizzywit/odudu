@@ -46,8 +46,15 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  justify-self: start;
   max-inline-size: 100%;
+}
+
+.modeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-inline-size: 0;
 }
 
 .acting::before {

@@ -6,7 +6,7 @@ import { useFirstRunNotice } from '#/widgets/assistant-panel/repository/useFirst
 import { noticeScopeOf, noticeToShow } from '#/widgets/assistant-panel/services/firstRun';
 import { modelsOf, type ModelEntry } from '#/widgets/assistant-panel/services/models';
 import { pageContextOf, pageLabel } from '#/widgets/assistant-panel/services/pageContext';
-import { modeChoices } from '#/widgets/assistant-panel/services/crossTenant';
+import { actingInText, modeChoices } from '#/widgets/assistant-panel/services/crossTenant';
 import { COMPOSER_MAX } from '#/widgets/assistant-panel/services/composer';
 import { contentSize } from '#/widgets/assistant-panel/services/scroll';
 import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
@@ -24,7 +24,8 @@ export interface AssistantPanelState {
   // The conversation's mode: Ask, or Act for one that is already in it.
   mode: AssistantMode;
   // The tenant the conversation acts in when it is not the administrator's own.
-  actingIn: string | null;
+  // The words that name it, or null in the administrator's own.
+  acting: string | null;
   // The modes the switch draws.
   modeChoices: readonly AssistantMode[];
   // Where the administrator is, in the words the chip beside the composer shows.
@@ -71,7 +72,7 @@ export function useAssistantPanel(options: {
   return {
     chat,
     mode: chat.mode,
-    actingIn,
+    acting: actingInText(actingIn),
     modeChoices: modeChoices(view.modes ?? [], actingIn),
     where: pageLabel(pageContext),
     notice: noticeToShow(read.unread, view.provider, actingIn),

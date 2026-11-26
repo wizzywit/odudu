@@ -15,7 +15,7 @@ export function FirstRunNotice({
   onDismiss: () => void;
 }) {
   return (
-    <section className={styles.notice} aria-labelledby="assistant-first-run-title">
+    <section className={styles.notice} aria-labelledby="assistant-first-run-title" tabIndex={0}>
       <h3 id="assistant-first-run-title" className={styles.title}>
         {words.firstRunTitle}
       </h3>
