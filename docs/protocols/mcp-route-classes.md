@@ -33,7 +33,7 @@ fields, and the admin door admits the write by field, so a body that names anyth
 | C     | returns or sets a credential or secret: passwords, client secrets, registration tokens, key material, relay credentials, imports that carry secrets                                                          | P5b, with human confirmation                                                 |
 | D     | destructive: deletes, ends sessions, clears locks, changes signing keys, discards drafts (a save that replaces a draft is shipped W1: see "Mixed routes, field by field")                                    | P5b, with human confirmation                                                 |
 | I     | instance-level read (no `:tenant`): the tenant list and its count; creating a tenant is W2 and importing one is C                                                                                            | a tool, for an agent of the system tenant whose owner holds `manage-tenants` |
-| N     | not data: HTML rendered for a browser frame                                                                                                                                                                  | never a tool; the console frames it by address                               |
+| N     | not data an agent can use: HTML rendered for a browser frame, and the console assistant's own calls to start, feed and stop a conversation                                                                   | never a tool; the console frames it by address                               |
 
 **Why the line is access, not reversibility.** "Reversible" is a property of the data: a redirect URI or a role
 grant is reversible too, after the damage. What matters for an injected agent is whether one wrong call changes who
@@ -67,18 +67,18 @@ begins with its class and says why, and names no phase.
 
 ## How many
 
-All **166 routes** are in exactly one class.
+All **170 routes** are in exactly one class.
 
 | Class | Routes |
 | ----- | ------ |
 | R     | 62     |
-| RS    | 13     |
+| RS    | 14     |
 | W1    | 13     |
 | W2    | 36     |
 | C     | 7      |
 | D     | 29     |
 | I     | 2      |
-| N     | 4      |
+| N     | 7      |
 
 Of the 13 W1 routes, 12 are meant for a tool and **12 of them have a tool today**; the thirteenth, the theme image upload, needs a binary payload and
 answers nothing an agent can read, so a person uploads images in the console.
@@ -255,8 +255,12 @@ confirm each call, and `never` means no tool will serve it.
 | 162 | `DELETE ~/agents/:id`                                  | manage-sessions                             | D     | not a tool                       | P5b        | Agents                    | revokes an instance, everything beneath it and the grants it acted in; `?dry_run=true` reads the counts and changes nothing, but is the same route                                                                          |
 | 163 | `GET ~/agent-approvals`                                | manage-sessions                             | RS    | not a tool                       | never      | Agents                    | what agents asked their owners, in the words they chose                                                                                                                                                                     |
 | 164 | `GET ~/assistant/status`                               | use-assistant                               | RS    | not a tool                       | never      | Assistant panel           | the console assistant's own status and configuration: an agent reads nothing of the assistant that may be running it                                                                                                        |
-| 165 | `GET ~/assistant/settings`                             | manage-assistant (+read-assistant-activity) | RS    | not a tool                       | never      | Settings, Assistant       | the assistant's own mode, budget and visibility: an agent reads nothing of the assistant that may be running it                                                                                                             |
-| 166 | `PUT ~/assistant/settings`                             | manage-assistant                            | W2    | not a tool                       | P5b        | Settings, Assistant       | sets the assistant's own mode, budget and who may read its conversations; the assistant never edits its own configuration                                                                                                   |
+| 165 | `POST ~/assistant/conversations`                       | use-assistant                               | N     | not a tool                       | never      | Assistant panel           | starts a conversation of the signed-in administrator with the console assistant: an agent starts none                                                                                                                       |
+| 166 | `GET ~/assistant/conversations/:id`                    | use-assistant                               | RS    | not a tool                       | never      | Assistant panel           | a conversation is its owner’s alone: an agent reads nothing of the assistant that may be running it                                                                                                                         |
+| 167 | `POST ~/assistant/conversations/:id/messages`          | use-assistant                               | N     | not a tool                       | never      | Assistant panel           | a turn of the console assistant, streamed to the administrator who sent it                                                                                                                                                  |
+| 168 | `POST ~/assistant/conversations/:id/stop`              | use-assistant                               | N     | not a tool                       | never      | Assistant panel           | ends the administrator’s own running turn                                                                                                                                                                                   |
+| 169 | `GET ~/assistant/settings`                             | manage-assistant (+read-assistant-activity) | RS    | not a tool                       | never      | Settings, Assistant       | the assistant's own mode, budget and visibility: an agent reads nothing of the assistant that may be running it                                                                                                             |
+| 170 | `PUT ~/assistant/settings`                             | manage-assistant                            | W2    | not a tool                       | P5b        | Settings, Assistant       | sets the assistant's own mode, budget and who may read its conversations; the assistant never edits its own configuration                                                                                                   |
 
 ## Mixed routes, field by field
 

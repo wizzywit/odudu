@@ -1,4 +1,4 @@
-import { type StatusDeps } from '@odudu/assistant';
+import { type ChatDeps, type StatusDeps } from '@odudu/assistant';
 import { type DatabaseHandle } from '@odudu/db';
 import { type Config, consoleBaseUrl } from '@odudu/kernel';
 import { type Logger as PinoLogger } from 'pino';
@@ -19,6 +19,7 @@ export function appDepsFromConfig(
     readonly consoleKeys: ConsoleKeys | undefined;
     readonly deploymentSmtp: boolean;
     readonly assistant?: StatusDeps;
+    readonly assistantModels?: ChatDeps['model'];
   },
 ): AppDeps {
   return {
@@ -43,5 +44,6 @@ export function appDepsFromConfig(
     deploymentSmtp: parts.deploymentSmtp,
     outboxMaxAttempts: config.ODUDU_OUTBOX_MAX_ATTEMPTS,
     ...(parts.assistant === undefined ? {} : { assistant: parts.assistant }),
+    ...(parts.assistantModels === undefined ? {} : { assistantModels: parts.assistantModels }),
   };
 }

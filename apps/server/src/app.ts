@@ -76,6 +76,7 @@ import {
   readSettings as readAssistantSettings,
   status as assistantStatus,
   writeSettings as writeAssistantSettings,
+  type ChatDeps,
   type StatusDeps,
 } from '@odudu/assistant';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
@@ -128,6 +129,7 @@ import { mailGate as createMailGate } from '#/mail-limiter';
 import { queueOwnVerification } from '#/own-verification';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
+import { assistantChatFor } from '#/assistant-chat';
 import { mcpRouteDepsFor } from '#/mcp-deps';
 import { meRouteDepsFor } from '#/me-deps';
 import { mcpRegistrationBudget } from '#/mcp-registration-budget';
@@ -338,6 +340,11 @@ export interface AppDeps {
    * which `GET …/assistant/status` reports. Omitted, the assistant is off.
    */
   readonly assistant?: StatusDeps;
+  /**
+   * The model each slot runs, which `serve.ts` builds with the provider keys
+   * in hand. With the slots resolved, it turns the conversation routes on.
+   */
+  readonly assistantModels?: ChatDeps['model'];
   /** `ODUDU_OUTBOX_MAX_ATTEMPTS`, what the admin API's mail listing calls `failed`. */
   readonly outboxMaxAttempts?: number;
   /**
@@ -860,6 +867,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
               read: readAssistantSettings,
               write: writeAssistantSettings,
             },
+          }),
+      ...(deps.assistant?.slots == null || deps.assistantModels === undefined
+        ? {}
+        : {
+            assistantChat: assistantChatFor({
+              app,
+              database: deps.database,
+              ownerDatabase: deps.ownerDatabase,
+              kek: deps.kek,
+              claimMappers,
+              logger: deps.logger,
+              publicBaseUrl: deps.publicBaseUrl,
+              models: deps.assistantModels,
+            }),
           }),
       retireResetLinks: (tx, subjectId) =>
         actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subjectId),

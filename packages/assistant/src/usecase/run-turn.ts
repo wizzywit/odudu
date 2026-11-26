@@ -54,12 +54,18 @@ function buildAgent(deps: RunTurnDeps, tools: ToolSet) {
 
 export type StreamResult = Awaited<ReturnType<ReturnType<typeof buildAgent>['stream']>>;
 
+export interface StartedTurn {
+  readonly result: StreamResult;
+  /** The tools the turn runs with, which turning its stream into UI chunks needs. */
+  readonly tools: ToolSet;
+}
+
 /**
  * One turn of a conversation: the model answers, reading through the read
  * tools only, up to the profile's step cap. Every tool call takes its own
  * token for the conversation's instance, so none outlives the call it served.
  */
-export async function runTurn(deps: RunTurnDeps, input: TurnInput): Promise<StreamResult> {
+export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<StartedTurn> {
   const reads = deps.tools.filter((entry) => entry.access === 'read');
   const tools = toSdkTools(reads, async (name, args, signal) => {
     const { accessToken } = await deps.mintToken({ key: input.conversationId }, signal);
@@ -67,6 +73,12 @@ export async function runTurn(deps: RunTurnDeps, input: TurnInput): Promise<Stre
   });
   const agent = buildAgent(deps, tools);
   const earlier = boundHistory(await deps.history(input.conversationId));
-  const messages = await convertToModelMessages([...earlier, input.message]);
-  return agent.stream({ messages, abortSignal: input.signal });
+  const messages = await convertToModelMessages([...earlier, input.message], {
+    ignoreIncompleteToolCalls: true,
+  });
+  return { result: await agent.stream({ messages, abortSignal: input.signal }), tools };
+}
+
+export async function runTurn(deps: RunTurnDeps, input: TurnInput): Promise<StreamResult> {
+  return (await startTurn(deps, input)).result;
 }

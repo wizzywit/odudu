@@ -9821,6 +9821,299 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tenants/{tenant}/assistant/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Requires the "use-assistant" capability.
+         * @description Starts a conversation for the caller, in `ask` mode unless `act` is named, with the page the administrator has open as `page_context`: a `route` and, optionally, an `objectType` and `objectId`, each a short identifier and never free text. `400` for a profile this server does not offer. `404` when no model is configured. Takes no `Idempotency-Key`: the tenant is created outside the transaction a record of the call would share, so a request naming one is refused with `400` (`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that already happened is answered `409`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description The kind of conversation. `free-chat`, the default, is the only one this server offers; any other is refused with `400`. */
+                        profile?: string;
+                        /**
+                         * @description Whether the assistant may only read (`ask`, the default) or may also propose changes (`act`).
+                         * @enum {string}
+                         */
+                        mode?: "ask" | "act";
+                        /** @description Where the administrator is. Nothing else the browser knows reaches the assistant. */
+                        page_context: {
+                            /** @description The console route the administrator has open, for example `/clients`: a path of letters, digits and `._~/-`, at most 200 characters. It is what the assistant is told about where they are. */
+                            route: string;
+                            /** @description The kind of object that page shows, for example `client`: lower-case letters and hyphens. Sent with `objectId`. */
+                            objectType?: string;
+                            /** @description The id of that object: letters, digits and `._:-`, at most 128 characters. Sent with `objectType`. */
+                            objectId?: string;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The conversation’s id. */
+                            id: string;
+                            /** @description The kind of conversation it was started as. */
+                            profile: string;
+                            /**
+                             * @description Whether it may only read (`ask`) or may also propose changes (`act`).
+                             * @enum {string}
+                             */
+                            mode: "ask" | "act";
+                            /** @description A short title once the conversation has one, otherwise `null`. */
+                            title: string | null;
+                            /** @description When it was started. */
+                            created_at: string;
+                            /** @description When it last took a message. */
+                            last_active_at: string;
+                            /** @description The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them. */
+                            messages: {
+                                /** @description The message’s id, stable across loads. */
+                                id: string;
+                                /**
+                                 * @description `user` for the person’s message, `assistant` for the answer.
+                                 * @enum {string}
+                                 */
+                                role: "user" | "assistant";
+                                /** @description The message’s parts as the AI SDK’s UI message format carries them: text, and the tool calls the assistant made with their results. */
+                                parts: {
+                                    [key: string]: unknown;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/conversations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Requires the "use-assistant" capability.
+         * @description A conversation and its latest messages, oldest first, as the caller’s own. `404` for one that does not exist or belongs to another administrator, and when no model is configured.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The conversation’s id. */
+                            id: string;
+                            /** @description The kind of conversation it was started as. */
+                            profile: string;
+                            /**
+                             * @description Whether it may only read (`ask`) or may also propose changes (`act`).
+                             * @enum {string}
+                             */
+                            mode: "ask" | "act";
+                            /** @description A short title once the conversation has one, otherwise `null`. */
+                            title: string | null;
+                            /** @description When it was started. */
+                            created_at: string;
+                            /** @description When it last took a message. */
+                            last_active_at: string;
+                            /** @description The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them. */
+                            messages: {
+                                /** @description The message’s id, stable across loads. */
+                                id: string;
+                                /**
+                                 * @description `user` for the person’s message, `assistant` for the answer.
+                                 * @enum {string}
+                                 */
+                                role: "user" | "assistant";
+                                /** @description The message’s parts as the AI SDK’s UI message format carries them: text, and the tool calls the assistant made with their results. */
+                                parts: {
+                                    [key: string]: unknown;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/conversations/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Requires the "use-assistant" capability.
+         * @description Sends the caller’s message and streams the turn as server-sent events of AI SDK UI message chunks. The message is stored before the model is called and each step is stored as it ends. Closing the connection ends the turn. `409` while a turn of this conversation is running on this server, `429` when this server is running as many turns as it admits, `404` for a conversation that is not the caller’s. Takes no `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, which a record cannot cover without holding the call open, so a request naming one is refused with `400` (`about:blank#idempotency-external-io`) and nothing is applied.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description The replacement text, 1 to 2,000 characters. It may use the placeholders the catalogue message uses; a placeholder a page does not supply makes the page show the catalogue’s text instead. */
+                        message: {
+                            /** @description The message’s id, stable across loads. */
+                            id: string;
+                            /**
+                             * @description `user` for the person’s message, `assistant` for the answer.
+                             * @constant
+                             */
+                            role: "user";
+                            /** @description The message’s parts as the AI SDK’s UI message format carries them: text, and the tool calls the assistant made with their results. */
+                            parts: {
+                                /**
+                                 * @description Always `text`: a person sends words, and no other kind of part.
+                                 * @constant
+                                 */
+                                type: "text";
+                                /** @description What the person typed, one to 20,000 characters. */
+                                text: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tenants/{tenant}/assistant/conversations/{id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Requires the "use-assistant" capability.
+         * @description Ends the conversation’s running turn: `{ "stopped": true }` when this server was running one, `false` when it was not. The turn stores what it had said. Takes no `Idempotency-Key`: the tenant is created outside the transaction a record of the call would share, so a request naming one is refused with `400` (`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that already happened is answered `409`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant being administered, addressed by name. */
+                    tenant: components["parameters"]["tenant"];
+                    /** @description A row id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            stopped: boolean;
+                        };
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {

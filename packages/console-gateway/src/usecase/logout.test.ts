@@ -53,6 +53,7 @@ function fakePort(overrides: Partial<OduduPort> = {}): OduduPort {
     revoke: () => Promise.resolve(undefined),
     refresh: () => Promise.resolve({ kind: 'failed' }),
     forward: () => Promise.resolve({ status: 200, headers: {}, body: Buffer.alloc(0) }),
+    forwardStream: () => Promise.reject(new Error('not streamed')),
     ...overrides,
   };
 }

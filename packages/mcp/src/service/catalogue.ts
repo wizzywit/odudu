@@ -282,6 +282,20 @@ const WITHHELD: readonly Entry[] = [
     'access-changing',
   ],
   [
+    "A conversation with the console assistant, which is its owner's alone: not offered to an agent, which reads nothing of the assistant that may be running it.",
+    [R('GET', '/assistant/conversations/:id')],
+    'sensitive',
+  ],
+  [
+    "The console assistant's own calls, which start, feed and stop a conversation of the signed-in administrator and answer a stream: not offered to an agent, which starts none.",
+    [
+      R('POST', '/assistant/conversations'),
+      R('POST', '/assistant/conversations/:id/messages'),
+      R('POST', '/assistant/conversations/:id/stop'),
+    ],
+    'not-useful',
+  ],
+  [
     "Answers one subject's id token, access token and userinfo claims, which are personal data, under manage-clients, which does not include view-users; its open claim records have no schema to bound them.",
     [R('GET', '/clients/:id/evaluate')],
     'sensitive',

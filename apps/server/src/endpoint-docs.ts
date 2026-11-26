@@ -353,6 +353,11 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     auth: 'Console session',
     purpose: 'A tenant\u2019s public signing keys.',
   },
+  'POST /console/api/admin/tenants/:tenant/assistant/conversations/:id/messages': {
+    auth: 'Console session',
+    purpose:
+      'Forwards a message to the console assistant and streams the turn back as it is written, rather than buffering it as the other admin calls are.',
+  },
   ...Object.fromEntries(
     ALL_METHODS.map((method) => [
       `${method} /console/api/admin/*`,

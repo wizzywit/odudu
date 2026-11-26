@@ -20,7 +20,7 @@ whatever it holds, since an agent reads and edits nothing of the assistant that 
 that sends an `If-Match` the settings have moved past is refused `412`. `PUT` replaces every setting, so a caller sends the whole
 document: a value outside its range, a missing setting and an unknown one are each refused `400`. A change is audited as
 `assistant.config`, in the same transaction, with each setting that changed as its value before and after; a `PUT` that changes nothing
-writes no row. Where the server has no assistant configured both routes answer exactly as a path that was never served does.
+writes no row. Where the server has no assistant configured both routes answer exactly as a path that was never served does, and so they do to a system administrator reaching into another tenant, since the settings belong to the tenant the administrator signed in to (the conversation routes behave the same; this case has no block below).
 
 The first run is on one stack, port `3118`, from an empty volume, started with a second compose file that sets
 `ODUDU_ASSISTANT_MODELS` to `standard=anthropic:claude-model-for-transcript` and `ANTHROPIC_API_KEY` to a placeholder no call uses. The

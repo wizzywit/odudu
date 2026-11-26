@@ -23,6 +23,15 @@ import {
   revokeAgentResponseSchema,
 } from '#/admin/agents';
 import {
+  assistantConversationSchema,
+  assistantMessageSchema,
+  assistantPageContextSchema,
+  assistantTextPartSchema,
+  assistantUserMessageSchema,
+  createConversationRequestSchema,
+  sendMessageRequestSchema,
+} from '#/admin/assistant';
+import {
   auditEventSchema,
   countAuditQuerySchema,
   listAuditQuerySchema,
@@ -1226,6 +1235,49 @@ describeFields(tenantSchema, {
   display_name: 'The name shown to people on sign-in pages, or null.',
   enabled: 'A disabled tenant refuses every sign-in and token request.',
   created_at: 'When the tenant was created.',
+});
+
+describeFields(assistantPageContextSchema, {
+  route:
+    'The console route the administrator has open, for example `/clients`: a path of letters, digits and `._~/-`, at most 200 characters. It is what the assistant is told about where they are.',
+  objectType:
+    'The kind of object that page shows, for example `client`: lower-case letters and hyphens. Sent with `objectId`.',
+  objectId:
+    'The id of that object: letters, digits and `._:-`, at most 128 characters. Sent with `objectType`.',
+});
+describeFields(createConversationRequestSchema, {
+  profile:
+    'The kind of conversation. `free-chat`, the default, is the only one this server offers; any other is refused with `400`.',
+  mode: 'Whether the assistant may only read (`ask`, the default) or may also propose changes (`act`).',
+  page_context: 'Where the administrator is. Nothing else the browser knows reaches the assistant.',
+});
+describeFields(assistantTextPartSchema, {
+  type: 'Always `text`: a person sends words, and no other kind of part.',
+  text: 'What the person typed, one to 20,000 characters.',
+});
+describeFields(sendMessageRequestSchema, {
+  message: 'The person’s message: a `user` message of one to eight text parts.',
+});
+describeFields(assistantUserMessageSchema, {
+  id: 'An id the caller chose for the message, at most 128 characters.',
+  role: 'Always `user`.',
+  parts: 'The message’s text parts.',
+});
+describeFields(assistantMessageSchema, {
+  id: 'The message’s id, stable across loads.',
+  role: '`user` for the person’s message, `assistant` for the answer.',
+  parts:
+    'The message’s parts as the AI SDK’s UI message format carries them: text, and the tool calls the assistant made with their results.',
+});
+describeFields(assistantConversationSchema, {
+  id: 'The conversation’s id.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'Whether it may only read (`ask`) or may also propose changes (`act`).',
+  title: 'A short title once the conversation has one, otherwise `null`.',
+  created_at: 'When it was started.',
+  last_active_at: 'When it last took a message.',
+  messages:
+    'The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them.',
 });
 
 const GROUP_WORDS: Fields = {

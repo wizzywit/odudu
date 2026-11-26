@@ -18,6 +18,8 @@ export interface AdminPrincipal {
   // The name of that tenant, as the token's issuer resolved it.
   readonly issuerTenantName: string;
   readonly clientDbId: string;
+  // The grant the token was issued under, which an agent instance is derived from.
+  readonly grantId?: string;
   // The token's `scope` claim, split; empty when it carries none.
   readonly scopes: readonly string[];
   // Present when the token was minted for an AI agent acting for `subjectId`.
@@ -387,6 +389,7 @@ export async function authenticateAdmin(
     issuerTenantId: matched.id,
     issuerTenantName: matched.name,
     clientDbId: grant.clientId,
+    grantId: grant.id,
     scopes: claims.scopes,
   };
   if (!isAgent) return { kind: 'authenticated', principal: base };

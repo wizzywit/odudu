@@ -273,6 +273,19 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((state = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))",
   'clients.clients_previous_secret_confidential':
     "CHECK (((previous_secret_hash IS NULL) OR (type = 'confidential'::text)))",
+  'assistant_budget_counters.assistant_budget_counters_key_length':
+    'CHECK (((char_length(scope_key) >= 1) AND (char_length(scope_key) <= 128)))',
+  'assistant_budget_counters.assistant_budget_counters_kind_check':
+    "CHECK ((scope_kind = ANY (ARRAY['tenant_month'::text, 'admin_day'::text, 'conversation'::text, 'turn'::text])))",
+  'assistant_budget_counters.assistant_budget_counters_limit_floor': 'CHECK ((limit_tokens >= 0))',
+  'assistant_budget_counters.assistant_budget_counters_slot_check':
+    "CHECK (((slot IS NULL) OR (slot = ANY (ARRAY['fast'::text, 'standard'::text, 'deep'::text]))))",
+  'assistant_budget_counters.assistant_budget_counters_used_floor': 'CHECK ((used >= 0))',
+  'assistant_reservations.assistant_reservations_levels_shape':
+    "CHECK (((jsonb_typeof(levels) = 'array'::text) AND ((jsonb_array_length(levels) >= 1) AND (jsonb_array_length(levels) <= 4))))",
+  'assistant_reservations.assistant_reservations_reserved_floor': 'CHECK ((reserved >= 0))',
+  'assistant_reservations.assistant_reservations_slot_check':
+    "CHECK ((slot = ANY (ARRAY['fast'::text, 'standard'::text, 'deep'::text])))",
   'assistant_conversations.assistant_conversations_mode_check':
     "CHECK ((mode = ANY (ARRAY['ask'::text, 'act'::text])))",
   'assistant_conversations.assistant_conversations_profile_length':

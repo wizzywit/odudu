@@ -200,6 +200,10 @@ shown once — a registration token, a client secret, a one-time password.
 | `GET`    | `/admin/tenants/{tenant}/assistant/status`                              | Read whether the assistant is on           |
 | `GET`    | `/admin/tenants/{tenant}/assistant/settings`                            | Read a tenant's assistant settings         |
 | `PUT`    | `/admin/tenants/{tenant}/assistant/settings`                            | Replace a tenant's assistant settings      |
+| `POST`   | `/admin/tenants/{tenant}/assistant/conversations`                       | Start an assistant conversation            |
+| `GET`    | `/admin/tenants/{tenant}/assistant/conversations/:id`                   | Read an assistant conversation             |
+| `POST`   | `/admin/tenants/{tenant}/assistant/conversations/:id/messages`          | Send a message and stream the turn         |
+| `POST`   | `/admin/tenants/{tenant}/assistant/conversations/:id/stop`              | Stop a running assistant turn              |
 | `GET`    | `/admin/tenants/{tenant}/domains`                                       | List domains                               |
 | `POST`   | `/admin/tenants/{tenant}/domains`                                       | Register a domain                          |
 | `GET`    | `/admin/tenants/{tenant}/domains/passkey-impact`                        | Count the passkeys a switch hides          |

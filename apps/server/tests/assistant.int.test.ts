@@ -3,7 +3,8 @@ import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import { ADMIN_API_AUDIENCE, ADMIN_CLIENT_ID, hostState } from '@odudu/domain-tenant';
 import { loadConfig, newId } from '@odudu/kernel';
-import { tokenGrantRepository } from '@odudu/protocol-oidc';
+import { runInstanceId, tokenGrantRepository } from '@odudu/protocol-oidc';
+import { sql } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
@@ -21,6 +22,38 @@ const ENV = {
 
 let stack: McpStack | undefined;
 let assisted: FastifyInstance | undefined;
+
+// A model that answers with one fixed sentence. `ai` is the assistant package's
+// alone to import, so the stub is the provider interface written out.
+const ANSWER = 'You have one client.';
+const USAGE = {
+  inputTokens: { total: 3, noCache: 3, cacheRead: 0, cacheWrite: 0 },
+  outputTokens: { total: 2, text: 2, reasoning: 0 },
+};
+const FIXED_MODEL = {
+  specificationVersion: 'v3',
+  provider: 'stub',
+  modelId: 'stub',
+  supportedUrls: {},
+  doGenerate: () => Promise.reject(new Error('streaming only')),
+  doStream: () =>
+    Promise.resolve({
+      stream: new ReadableStream({
+        start(controller) {
+          for (const part of [
+            { type: 'stream-start', warnings: [] },
+            { type: 'text-start', id: 'a' },
+            { type: 'text-delta', id: 'a', delta: ANSWER },
+            { type: 'text-end', id: 'a' },
+            { type: 'finish', finishReason: { unified: 'stop', raw: undefined }, usage: USAGE },
+          ]) {
+            controller.enqueue(part);
+          }
+          controller.close();
+        },
+      }),
+    }),
+};
 
 function s(): McpStack {
   if (stack === undefined) throw new Error('stack not started');
@@ -43,6 +76,7 @@ beforeAll(async () => {
     throttle: { limit: 100_000, windowSeconds: 60 },
     hostState: (host) => hostState(s().owner.db, host, new Date()),
     assistant: { slots: resolveSlots(ENV), env: ENV },
+    assistantModels: () => FIXED_MODEL as never,
   });
   await assisted.ready();
 }, 180_000);
@@ -124,7 +158,9 @@ describe('the assistant status route in the running server', () => {
     const w = await s().world(['use-assistant', 'manage-assistant'], 'openid');
     const token = await adminToken(w);
     for (const app of [s().app, on()]) {
-      expect((await get(app, w, '/conversations', token)).statusCode).toBe(404);
+      for (const tail of ['/conversations', '/activity']) {
+        expect((await get(app, w, tail, token)).statusCode, tail).toBe(404);
+      }
     }
   });
 });
@@ -357,5 +393,75 @@ describe('the MCP endpoint with and without a configured assistant', () => {
       expect(withSlot.payload).toBe(without.payload);
       expect(withSlot.headers['content-type']).toBe(without.headers['content-type']);
     }
+  });
+});
+
+function post(app: FastifyInstance, w: World, tail: string, token: string, payload?: unknown) {
+  return app.inject({
+    method: 'POST',
+    url: `/admin/tenants/${w.name}/assistant${tail}`,
+    headers: { host: HOST, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    ...(payload === undefined ? {} : { payload: JSON.stringify(payload) }),
+  });
+}
+
+function grantOf(token: string): string {
+  const [, payload = ''] = token.split('.');
+  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+    grant_id: string;
+  };
+  return claims.grant_id;
+}
+
+describe('the conversation routes in the running server', () => {
+  const CONTEXT = { route: '/clients', objectType: 'client', objectId: 'web' };
+
+  it('creates a conversation acting as the instance of its run, and loads it', async () => {
+    const w = await s().world(['use-assistant'], 'openid');
+    const token = await adminToken(w);
+    const created = await post(on(), w, '/conversations', token, { page_context: CONTEXT });
+    expect(created.statusCode, created.body).toBe(201);
+    const { id } = created.json<{ id: string }>();
+
+    const rows = (await s().owner.db.execute(
+      sql`select instance_id from assistant_conversations where id = ${id}`,
+    )) as unknown as { instance_id: string }[];
+    expect(rows[0]?.instance_id).toBe(runInstanceId(w.tenantId, grantOf(token), id));
+
+    const loaded = await get(on(), w, `/conversations/${id}`, token);
+    expect(loaded.statusCode, loaded.body).toBe(200);
+    expect(loaded.json()).toMatchObject({ id, profile: 'free-chat', mode: 'ask', messages: [] });
+  });
+
+  it('streams a turn and stores it, so a later load shows both messages', async () => {
+    const w = await s().world(['use-assistant'], 'openid');
+    const token = await adminToken(w);
+    const { id } = (await post(on(), w, '/conversations', token, { page_context: CONTEXT })).json<{
+      id: string;
+    }>();
+    const message = { id: 'm1', role: 'user', parts: [{ type: 'text', text: 'how many?' }] };
+    const turn = await post(on(), w, `/conversations/${id}/messages`, token, { message });
+    expect(turn.statusCode, turn.body).toBe(200);
+    expect(turn.headers['content-type']).toContain('text/event-stream');
+    expect(turn.body).toContain(ANSWER);
+
+    const loaded = (await get(on(), w, `/conversations/${id}`, token)).json<{
+      messages: { role: string }[];
+    }>();
+    expect(loaded.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
+  });
+
+  it('answers 404 for a conversation in another tenant’s path, and with no model configured', async () => {
+    const w = await s().world(['use-assistant'], 'openid');
+    const token = await adminToken(w);
+    const { id } = (await post(on(), w, '/conversations', token, { page_context: CONTEXT })).json<{
+      id: string;
+    }>();
+    const other = await s().world(['use-assistant'], 'openid');
+    const otherToken = await adminToken(other);
+    expect((await get(on(), other, `/conversations/${id}`, otherToken)).statusCode).toBe(404);
+    expect(
+      (await post(s().app, w, '/conversations', token, { page_context: CONTEXT })).statusCode,
+    ).toBe(404);
   });
 });

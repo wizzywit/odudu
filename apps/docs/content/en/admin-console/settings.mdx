@@ -12,7 +12,7 @@ Most of what makes one tenant behave differently from another is a setting: how 
 
 <ConsoleShot
   name="settings"
-  alt="The Settings page: a strip of section links from General to Console assistant, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min."
+  alt="The Settings page: a strip of section links from General to Audit retention, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min."
   caption="Every section of the settings saves on its own."
 />
 
@@ -31,7 +31,7 @@ Choosing a name moves to that section and puts the focus on its heading. The sec
 
 <ConsoleShot
   name="settings-rail"
-  alt="The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications, Records and Assistant, with the section in view marked."
+  alt="The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications and Records, with the section in view marked."
   caption="On a wide screen the list stays beside the sections, grouped, with the section in view marked."
 />
 
@@ -253,7 +253,13 @@ The limits on agent instances and on what an agent may write under a person's gr
   caption="The assistant’s settings, each with its default beside it."
 />
 
-The last section of the page, and only where the server has the assistant switched on: an operator who configured no model leaves it out, and nobody sees a section or a link for it. It needs `manage-assistant` to change. A person with `read-assistant-activity` and not `manage-assistant` sees every value as text under a note that names the capability, and a person with neither sees no section and the console asks nothing of the server for it. The settings are a tenant's own, and each starts at a default a tenant that has never opened this page already runs on. The section names the default beside each setting, and a save sends all ten settings at once, on the ETag it was read with, so another administrator's change is shown beside yours and is not overwritten.
+<ConsoleShot
+  name="settings-assistant-phone"
+  alt="The Console assistant section of the Settings page on a phone: the same groups in a single column, with each setting’s switch or field above its default and range."
+  caption="On a narrow screen the assistant’s settings stack in one column."
+/>
+
+The last section of the page, and only where the server has the assistant switched on: an operator who configured no model leaves it out, and nobody sees a section or a link for it. It needs `manage-assistant` to change. The settings belong to the tenant the administrator signed in to, so a system administrator who has reached into another tenant sees no section there and the server answers it as a path that was never served; they are changed from the tenant's own administrators. A person with `read-assistant-activity` and not `manage-assistant` sees every value as text under a note that names the capability, and a person with neither sees no section and the console asks nothing of the server for it. The settings are a tenant's own, and each starts at a default a tenant that has never opened this page already runs on. The section names the default beside each setting, and a save sends all ten settings at once, on the ETag it was read with, so another administrator's change is shown beside yours and is not overwritten.
 
 **Availability**
 

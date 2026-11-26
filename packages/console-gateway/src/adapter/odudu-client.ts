@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   type AdminCall,
   type AdminResponse,
+  type AdminStreamResponse,
   type Caller,
   type CodeExchange,
   type DiscoveryDocument,
@@ -212,6 +213,26 @@ export function oduduClient(
         ...(call.body === undefined ? {} : { payload: call.body }),
       });
       return { status: res.statusCode, headers: res.headers, body: res.rawPayload };
+    },
+
+    async forwardStream(call: AdminCall, signal: AbortSignal): Promise<AdminStreamResponse> {
+      const res = await fastify.inject({
+        method: call.method,
+        url: call.path,
+        headers: { ...call.headers, ...headersFor(call.from) },
+        remoteAddress: call.from.ip,
+        ...(call.body === undefined ? {} : { payload: call.body }),
+        payloadAsStream: true,
+        signal,
+      });
+      return {
+        status: res.statusCode,
+        headers: res.headers,
+        body: res.stream(),
+        destroy: () => {
+          res.raw.res.destroy();
+        },
+      };
     },
   };
 }

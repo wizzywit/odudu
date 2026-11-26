@@ -5,7 +5,10 @@
 }
 Odudu console
 Skip to content
-odudu · demo
+odudu · system
+System
+Tenants
+System administrators
 Overview
 Identity
 Subjects
@@ -30,8 +33,6 @@ Observe
 Audit trail
 Signed in as 
 admin@odudu.local
- from 
-system
 Theme
 System
 Light
@@ -41,14 +42,9 @@ Sign out
 Collapse menu
 or press 
 [
-odudu · demo
+odudu · system
 Menu
-System
-Acting in 
-demo
- with system authority
-Back to system
-demo
+system
 Settings
 How this tenant signs people in, what it asks of their passwords, and how long it keeps what it records. Every section saves on its own.
 Tenant
@@ -79,7 +75,7 @@ Display name
 Leave it empty to use the tenant name.
 Enabled
 On
-Off stops every sign-in in this tenant. Saving it off asks you to type the tenant name first.
+system cannot be disabled: it is the tenant every cross-tenant administrator signs in to.
 Terms
 The terms a person accepts when asked to. Setting them asks nobody: an administrator asks a person from the Required actions tab of their record, and again when the terms change.
 Terms address

@@ -29,8 +29,13 @@ const PASSWORD_VIEW = { width: 1100, height: 890 } as const;
 const ASSISTANT_VIEW = { width: 1100, height: 1180 } as const;
 
 // Scrolled so the section's heading sits just under the strip of section links.
-async function openSection(page: Page, context: Context, heading: string): Promise<void> {
-  await openArea(page, context, `${DEMO}/settings`);
+async function openSection(
+  page: Page,
+  context: Context,
+  heading: string,
+  tenant = DEMO,
+): Promise<void> {
+  await openArea(page, context, `${tenant}/settings`);
   const title = page.getByRole('heading', { level: 2, name: heading, exact: true });
   await title.waitFor();
   await title.evaluate((element) => {
@@ -405,7 +410,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'settings',
-    alt: 'The Settings page: a strip of section links from General to Console assistant, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min.',
+    alt: 'The Settings page: a strip of section links from General to Audit retention, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min.',
     caption: 'Every section of the settings saves on its own.',
     signedIn: true,
     expect: [
@@ -417,7 +422,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'settings-rail',
-    alt: 'The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications, Records and Assistant, with the section in view marked.',
+    alt: 'The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications and Records, with the section in view marked.',
     caption:
       'On a wide screen the list stays beside the sections, grouped, with the section in view marked.',
     signedIn: true,
@@ -464,7 +469,16 @@ export const SCREENS: readonly Screen[] = [
     signedIn: true,
     viewport: ASSISTANT_VIEW,
     expect: [{ heading: 'Console assistant' }, { label: 'Offer the assistant' }],
-    open: (page, context) => openSection(page, context, 'Console assistant'),
+    open: (page, context) => openSection(page, context, 'Console assistant', 'system'),
+  },
+  {
+    name: 'settings-assistant-phone',
+    alt: 'The Console assistant section of the Settings page on a phone: the same groups in a single column, with each setting’s switch or field above its default and range.',
+    caption: 'On a narrow screen the assistant’s settings stack in one column.',
+    signedIn: true,
+    viewport: { width: 390, height: 1500 },
+    expect: [{ heading: 'Console assistant' }, { label: 'Offer the assistant' }],
+    open: (page, context) => openSection(page, context, 'Console assistant', 'system'),
   },
   {
     name: 'email',

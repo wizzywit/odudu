@@ -11,6 +11,7 @@ const PASSED_RESPONSE_HEADERS = [
   'location',
   'link',
   'cache-control',
+  'x-accel-buffering',
   'content-security-policy',
   'referrer-policy',
   'x-content-type-options',

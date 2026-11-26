@@ -2027,7 +2027,7 @@ that increment, for every caller, not for the tool alone.
 ## What P5b inherits
 
 P5b is **MCP server: access-changing and destructive tools**. Its work list is
-[MCP route classes](../protocols/mcp-route-classes.md), which gives every one of the 166 admin routes a class
+[MCP route classes](../protocols/mcp-route-classes.md), which gives every one of the 170 admin routes a class
 and holds the table to the route table and the tool catalogue. The three classes below have no tool and are
 placed on P5b; the door admits an agent no field of a route it has no allowlist entry for.
 

@@ -1,11 +1,16 @@
 import {
   ASSISTANT_SETTING_DEFAULTS,
   putAssistantSettingsRequestSchema,
+  type AssistantConversation,
   type AssistantSettings,
   type AssistantStatus,
+  type CreateConversationRequest,
+  type SendMessageRequest,
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
-import { type FastifyReply } from 'fastify';
+import { tenantIssuerFor } from '@odudu/protocol-oidc';
+import { type FastifyReply, type FastifyRequest } from 'fastify';
+import { Readable } from 'node:stream';
 import {
   putAssistantSettings,
   readAssistantSettings,
@@ -54,10 +59,14 @@ export function assistantStatusHandler(deps: AssistantRouteDeps): AdminRouteHand
   };
 }
 
+// Settings belong to the tenant the administrator signed in to: a system
+// administrator reaching another tenant is not served them, as for a chat call.
 export function readAssistantSettingsHandler(deps: AssistantRouteDeps): AdminRouteHandler {
-  return async (request, reply, _principal, tenantId): Promise<FastifyReply> => {
+  return async (request, reply, principal, tenantId): Promise<FastifyReply> => {
     const store = deps.store;
-    if (store === undefined) return notServed(request, reply);
+    if (store === undefined || principal.issuerTenantId !== tenantId) {
+      return notServed(request, reply);
+    }
     const { settings, etag } = await adminTx(deps.database, request, tenantId, (tx) =>
       readAssistantSettings({ store }, tx, tenantId),
     );
@@ -68,7 +77,9 @@ export function readAssistantSettingsHandler(deps: AssistantRouteDeps): AdminRou
 export function putAssistantSettingsHandler(deps: AssistantRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, tenantId): Promise<FastifyReply> => {
     const store = deps.store;
-    if (store === undefined) return notServed(request, reply);
+    if (store === undefined || principal.issuerTenantId !== tenantId) {
+      return notServed(request, reply);
+    }
     const settings = putAssistantSettingsRequestSchema.parse(request.body);
     const outcome = await adminTx(deps.database, request, tenantId, (tx) =>
       putAssistantSettings({ store, audit: deps.audit, now: deps.now }, tx, {
@@ -85,4 +96,174 @@ export function putAssistantSettingsHandler(deps: AssistantRouteDeps): AdminRout
     }
     return reply.header('etag', outcome.etag).code(200).send(outcome.settings);
   };
+}
+
+/**
+ * The administrator a chat call is made for, as this door resolved them. The
+ * assistant package, which sits above this one, supplies the port below and
+ * takes this shape structurally.
+ */
+export interface AssistantCaller {
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly issuer: string;
+  readonly ownerSubjectId: string;
+  readonly grantId: string | undefined;
+  readonly requestId: string;
+  readonly ip: string;
+}
+
+/**
+ * What the chat routes call. Absent when no model is configured, in which case
+ * every route but `status` answers 404, so the assistant's existence is not
+ * disclosed to a caller who holds the capability.
+ */
+export interface AssistantChatPort {
+  create(
+    caller: AssistantCaller,
+    body: CreateConversationRequest,
+  ): Promise<
+    { kind: 'created'; conversation: AssistantConversation } | { kind: 'unknown_profile' }
+  >;
+  load(caller: AssistantCaller, id: string): Promise<AssistantConversation | null>;
+  send(
+    caller: AssistantCaller,
+    id: string,
+    message: SendMessageRequest['message'],
+    signal: AbortSignal,
+  ): Promise<
+    | { kind: 'stream'; response: Response }
+    | { kind: 'not_found' }
+    | { kind: 'busy' }
+    | { kind: 'saturated' }
+  >;
+  stop(caller: AssistantCaller, id: string): Promise<'stopped' | 'idle' | 'not_found'>;
+}
+
+export interface AssistantChatRouteDeps {
+  readonly chat: AssistantChatPort | undefined;
+}
+
+function notFound(request: FastifyRequest, reply: FastifyReply): FastifyReply {
+  return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+}
+
+// A conversation is its owner's, inside the tenant the owner belongs to. A
+// system-tenant administrator may reach another tenant's admin routes, but
+// has no subject there to own a conversation, so the assistant is not served
+// to them on it, with the answer a disabled assistant gives.
+function callerOf(
+  request: AdminRequest,
+  principal: {
+    readonly subjectId: string;
+    readonly grantId?: string;
+    readonly issuerTenantId: string;
+  },
+  tenantId: string,
+): AssistantCaller | null {
+  if (principal.issuerTenantId !== tenantId) return null;
+  const tenantName = request.params.tenant ?? '';
+  return {
+    tenantId,
+    tenantName,
+    issuer: tenantIssuerFor(request, tenantName),
+    ownerSubjectId: principal.subjectId,
+    grantId: principal.grantId,
+    requestId: request.id,
+    ip: request.ip,
+  };
+}
+
+interface Call {
+  readonly chat: AssistantChatPort;
+  readonly caller: AssistantCaller;
+  readonly request: AdminRequest;
+  readonly reply: FastifyReply;
+}
+
+// The conversation routes share what they need: the port, the caller and the
+// conversation's id, or a 404 when there is no assistant.
+function onConversation(
+  deps: AssistantChatRouteDeps,
+  run: (call: Call, id: string) => Promise<FastifyReply>,
+): AdminRouteHandler {
+  return async function handleConversation(request, reply, principal, tenantId) {
+    const { chat } = deps;
+    const id = request.params.id;
+    const caller = callerOf(request, principal, tenantId);
+    if (chat === undefined || id === undefined || caller === null) return notFound(request, reply);
+    return run({ chat, caller, request, reply }, id);
+  };
+}
+
+export function createConversationHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return async function handleCreateConversation(request, reply, principal, tenantId) {
+    const caller = callerOf(request, principal, tenantId);
+    if (deps.chat === undefined || caller === null) return notFound(request, reply);
+    const outcome = await deps.chat.create(caller, request.body as CreateConversationRequest);
+    if (outcome.kind === 'unknown_profile') {
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', 'the profile is not one this server offers'),
+      );
+    }
+    return reply.code(201).send(outcome.conversation);
+  };
+}
+
+export function loadConversationHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    const conversation = await chat.load(caller, id);
+    return conversation === null ? notFound(request, reply) : reply.code(200).send(conversation);
+  });
+}
+
+export function stopConversationHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    const outcome = await chat.stop(caller, id);
+    return outcome === 'not_found'
+      ? notFound(request, reply)
+      : reply.code(200).send({ stopped: outcome === 'stopped' });
+  });
+}
+
+// The model call is aborted when the caller's connection closes before the
+// response has finished, so a closed tab stops the spend.
+function abortWhenClosed(reply: FastifyReply): AbortSignal {
+  const gone = new AbortController();
+  reply.raw.once('close', () => {
+    if (!reply.raw.writableFinished) gone.abort();
+  });
+  return gone.signal;
+}
+
+export function sendMessageHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
+  return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
+    const body = request.body as SendMessageRequest;
+    const outcome = await chat.send(caller, id, body.message, abortWhenClosed(reply));
+    if (outcome.kind === 'not_found') return notFound(request, reply);
+    if (outcome.kind === 'busy') {
+      return sendProblem(
+        reply,
+        request,
+        problem(409, 'about:blank', 'Conflict', 'a turn is already running in this conversation'),
+      );
+    }
+    if (outcome.kind === 'saturated') {
+      reply.header('retry-after', '1');
+      return sendProblem(
+        reply,
+        request,
+        problem(429, 'about:blank', 'Too Many Requests', 'the assistant is busy; try again'),
+      );
+    }
+    const { response } = outcome;
+    reply.code(response.status);
+    response.headers.forEach((value, name) => {
+      reply.header(name, value);
+    });
+    if (response.body === null) return reply.send();
+    return reply.send(Readable.fromWeb(response.body));
+  });
 }
