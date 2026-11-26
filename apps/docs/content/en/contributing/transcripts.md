@@ -1485,4 +1485,16 @@ first pass found a mistake in the script's reading of the `etag` and was run aga
 the second. The refusal of the assistant's own token and of another administrator is not on the page, because no sign-in can produce
 either; `apps/server/tests/assistant-approvals.int.test.ts` runs them.
 
+The section "A system administrator in another tenant" of `post-assistantconversations-and-the-conversation-routes.md` was run on
+2026-11-26 from the branch commit `45ae27fe5` with the page and the other documentation changes of the increment uncommitted. It was
+not a compose project: Postgres 17 ran in a container named `odudu-p5c-i5c-pg` (host port `5517`, the compose file's `initdb` role
+script) and the server ran from the branch's sources with `node src/main.ts` on port `3117` with `ODUDU_CONSOLE=true`,
+`ODUDU_REAP_ENABLED=false`, throttles at `10000` and `ODUDU_ASSISTANT_MODELS=standard=openai-compatible:demo-model`, pointed at a local
+script on the host that asks for `count_subjects` when a message says "how many". The database began empty: `odudu seed admin
+--username ada`, her loopback sign-in as in [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md), the tenants
+`acme` and `globex` and one `client_credentials` client with `odudu seed`, and five people through the admin API as `ada`. One script ran
+every block in the order the section shows them and wrote each output as it came back. The first pass, with `ODUDU_CONSOLE=false`, could
+not sign `ada` in, because the console assertion needs the console's key, so its blocks answered 401 and it was discarded. The container and the
+processes were removed afterwards. The rest of the page keeps its earlier capture.
+
 The OpenAPI page's block was captured again on the same day on a fresh build of the same project, from the working tree of the commit after `7b164736b` that changed the card's wording (the image labels itself `bbca6958f`, the commit before it): 126 paths and 458408 bytes.
