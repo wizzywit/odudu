@@ -69,7 +69,7 @@ When an AI agent acts through the MCP endpoint, each tool call, reads included, 
 
 ### A change the console assistant proposes
 
-In Act mode the console assistant only proposes a change. Only the administrator whose conversation it is can approve it, from their own console sign-in, and no token an agent holds can. The approval lets that one change run once, as the card shows it. Deciding is an `assistant.approval` event that never holds the change or any message text, and the change is an `agent.tool_call` event like any other. The limits are in [the assistant's token budget](../operating/assistant-budget.md#changes-in-act-mode), and each turn's own events are described in [what the audit trail records of a turn](../operating/assistant-budget.md#what-the-audit-trail-records-of-a-turn).
+In Act mode the console assistant only proposes a change. Only the administrator whose conversation it is can approve it, from their own console sign-in, and no token an agent holds can. The approval lets that one change run once, as the card shows it. Deciding is an `assistant.approval` event that never holds the change or any message text, and the change is an `agent.tool_call` event like any other. [The operating page](../operating/assistant-budget.md#what-the-audit-trail-records-of-a-turn) has the limits and each turn's events.
 
 ### How long it is kept
 
