@@ -30,6 +30,7 @@ function gate(available: boolean, tenant = 'acme') {
     <AssistantGate
       tenant={tenant}
       available={available}
+      actingIn={null}
       paused={false}
       renderPanel={(slot) =>
         slot.open ? (

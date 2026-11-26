@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { json, offline, pending, problem, type Answer } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
@@ -69,17 +69,65 @@ it('draws no assistant control and asks nothing of a caller who may not use it',
   expect(assistantCalls(view.calls)).toEqual([]);
 });
 
-it('draws no assistant control and asks nothing of an administrator signed in to another tenant', async () => {
-  const view = renderConsoleAt('/console/acme', {
-    ...routes(whoami(['use-assistant'], true, true), json(ON)),
+describe('for a system administrator in another tenant', () => {
+  const OPERATOR = whoami(['use-assistant', 'manage-tenants'], true, true);
+  const at = (who: Answer, status: Answer) => ({
+    ...routes(who, status),
     'GET /console/api/session': json(ROOT),
   });
-  await shellReady();
-  await waitFor(() => {
-    expect(view.calls.length).toBeGreaterThan(1);
+
+  it('draws no control and asks nothing without manage-tenants', async () => {
+    const view = renderConsoleAt(
+      '/console/acme',
+      at(whoami(['use-assistant'], true, true), json(ON)),
+    );
+    await shellReady();
+    await waitFor(() => {
+      expect(view.calls.length).toBeGreaterThan(1);
+    });
+    expect(screen.queryByRole('button', { name: 'Ask the assistant' })).toBeNull();
+    expect(assistantCalls(view.calls)).toEqual([]);
   });
-  expect(screen.queryByRole('button', { name: 'Ask the assistant' })).toBeNull();
-  expect(assistantCalls(view.calls)).toEqual([]);
+
+  it('draws no control and asks nothing where the deployment has no assistant', async () => {
+    const view = renderConsoleAt(
+      '/console/acme',
+      at(whoami(['use-assistant', 'manage-tenants'], true, false), json(ON)),
+    );
+    await shellReady();
+    await waitFor(() => {
+      expect(view.calls.length).toBeGreaterThan(1);
+    });
+    expect(screen.queryByRole('button', { name: 'Ask the assistant' })).toBeNull();
+    expect(assistantCalls(view.calls)).toEqual([]);
+  });
+
+  it('draws nothing for a tenant that switched the assistant off', async () => {
+    const view = renderConsoleAt('/console/acme', at(OPERATOR, json({ enabled: false })));
+    await shellReady();
+    await waitFor(() => {
+      expect(assistantCalls(view.calls)).toEqual([STATUS]);
+    });
+    expect(screen.queryByRole('button', { name: 'Ask the assistant' })).toBeNull();
+  });
+
+  it('draws the control when the tenant has it on, and the panel names the tenant it acts in', async () => {
+    vi.stubGlobal('innerWidth', 1400);
+    const user = userEvent.setup();
+    renderConsoleAt('/console/acme', at(OPERATOR, json(ON)));
+    await user.click(await assistantButton());
+    const panel = await screen.findByRole('complementary', { name: 'Assistant panel' });
+    expect(within(panel).getByText('Acting in acme')).toBeVisible();
+  });
+
+  it('names no tenant for an administrator in their own', async () => {
+    vi.stubGlobal('innerWidth', 1400);
+    const user = userEvent.setup();
+    renderConsoleAt('/console/acme', routes(OPEN, json(ON)));
+    await user.click(await assistantButton());
+    const panel = await screen.findByRole('complementary', { name: 'Assistant panel' });
+    expect(within(panel).queryByText(/Acting in/u)).toBeNull();
+  });
 });
 
 it('draws nothing and asks nothing while whoami is still being asked', async () => {

@@ -13,6 +13,7 @@ const BASE: ChatViewInput = {
   meter: NO_METER,
   expectsEnd: false,
   act: false,
+  actingIn: null,
 };
 
 function view(input: Partial<ChatViewInput>) {

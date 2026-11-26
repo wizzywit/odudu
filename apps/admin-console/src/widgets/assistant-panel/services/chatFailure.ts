@@ -36,27 +36,46 @@ function conflictOf(during: ChatCallError['during'], detail: string | undefined)
   return detail === STILL_WAITS ? WAITING : NOTHING_WAITING;
 }
 
+// In another tenant a refusal has two more causes the person can act on: the
+// tenant (or their own) switched the assistant off, or they no longer hold
+// what the server asks of a system administrator there.
+function otherTenantCause(
+  status: number,
+  during: ChatCallError['during'],
+  tenant: string,
+): string | undefined {
+  if (status === 403) {
+    return `You need use-assistant and manage-tenants to use the assistant in ${tenant}. Ask an administrator of your own tenant.`;
+  }
+  return during === 'start' && status === 404
+    ? `The assistant is not available in ${tenant}. ${tenant} may have switched it off, or your own tenant has.`
+    : undefined;
+}
+
 function causeOf(
   status: number,
   detail: string | undefined,
   during: ChatCallError['during'],
+  actingIn: string | null,
 ): string | undefined {
   if (status === 409) return conflictOf(during, detail);
+  const other = actingIn === null ? undefined : otherTenantCause(status, during, actingIn);
+  if (other !== undefined) return other;
   return during === 'start' && status === 404 ? NOT_OFFERED : BY_STATUS[status];
 }
 
-function ofCall(error: ChatCallError): Failure {
+function ofCall(error: ChatCallError, actingIn: string | null): Failure {
   const { failure } = error;
   if (failure.kind !== 'problem') return { cause: UNREACHED, trace: null };
   const { status, instance, detail } = failure.problem;
-  const cause = causeOf(status, detail, error.during);
+  const cause = causeOf(status, detail, error.during, actingIn);
   return { cause: cause ?? UNREACHED, trace: instance ?? null };
 }
 
 // What a failed turn is shown as: a plain cause and, when the request has one,
 // its reference. Never an error's stack or the text of a defect.
-export function failureOf(error: unknown): Failure {
-  if (error instanceof ChatCallError) return ofCall(error);
+export function failureOf(error: unknown, actingIn: string | null = null): Failure {
+  if (error instanceof ChatCallError) return ofCall(error, actingIn);
   if (error instanceof TypeError) return { cause: UNREACHED, trace: null };
   if (error instanceof Error && !(error instanceof SyntaxError)) {
     const text = error.message.trim();

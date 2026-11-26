@@ -1,6 +1,6 @@
 ---
 title: The assistant in the console
-description: Ask a question about a tenant from a panel beside any page, watch the assistant read what it needs, stop it, and see why it stopped.
+description: Ask a question about a tenant, your own or one you administer as a system administrator, from a panel beside any page, watch the assistant read what it needs, stop it, and see why it stopped.
 sidebar_position: 18
 ---
 
@@ -8,7 +8,7 @@ import { ConsoleShot } from '@site/src/shared/ui/ConsoleShot';
 
 # The assistant in the console
 
-The assistant is a panel that opens beside any page of the console. You ask a question in plain words, and it reads what it needs from the tenant, as you could, and answers. It is not an area with a menu entry. It needs the `use-assistant` capability, and it is for the administrators of the tenant itself: an administrator of the system tenant who is looking at another tenant does not see it there, since the conversation would belong to nobody in that tenant.
+The assistant is a panel that opens beside any page of the console. You ask a question in plain words, and it reads what it needs from the tenant, as you could, and answers. It is not an area with a menu entry. It needs the `use-assistant` capability. A system administrator who is looking at another tenant has it there too, in Ask mode only, when they also hold `manage-tenants` ([below](#4-in-another-tenant)).
 
 The button is **Ask the assistant**, in the menu and, on a narrow screen, in the top bar, where it reads **Ask** to leave room for the name of the tenant and the menu button. It is drawn only where the server has the assistant switched on, the tenant offers it and you may use it. Where any of those is not true there is no button, no shortcut and nothing asked of the server. The tenant's own switch and limits are in [Settings](./settings.mdx), under **Console assistant**.
 
@@ -42,13 +42,33 @@ The conversation starts with your first message, not when the panel opens, so op
 
 **Ask** is the mode: the assistant reads and explains, and changes nothing. **Act** lets it propose changes, each waiting for your approval, and needs the approval card, which arrives next. Until then the **Mode** switch shows Act dimmed with a sentence that says so, and every conversation starts in Ask, whatever the tenant's setting says. A conversation that was already in Act, such as one made through the API, shows **Waiting for you** and takes no new message here.
 
-## 4. Watch it work
+## 4. In another tenant
+
+A system administrator who has opened another tenant, such as `demo` while signed in to `system`, sees **Ask the assistant** there when they hold both `use-assistant` and `manage-tenants`, the server has the assistant on, and `demo` has not switched it off. The tenant's own administrators are unaffected, and an administrator without `manage-tenants` is offered nothing in another tenant.
+
+<ConsoleShot
+  name="assistant-panel-other-tenant"
+  alt="The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: a tag reading Acting in demo, the mode switch set to Ask with Act dimmed and the sentence Act is not available in another tenant, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text."
+  caption="In another tenant the panel names it, and Act is not available."
+/>
+
+The panel says where it acts for as long as it is open, in a tag at the top: `Acting in demo`. The assistant reads what you can read in that tenant, with your own authority, which the server checks on every call, so a role removed from you in the middle of a conversation takes effect on the next step. It makes no change: **Act** is dimmed with **Act is not available in another tenant.**, and every conversation starts in Ask.
+
+A few things differ from your own tenant, and the first-run notice for another tenant, which is remembered apart from the other one, says them.
+
+- **Your own tenant pays.** The conversation, its allowance and its record belong to your own tenant. The tenant's switch, its masking of email addresses and its Act setting apply as well as your tenant's, and the stricter of the two wins.
+- **They see actions, not text.** The administrators of `demo` can see in their audit trail that you used the assistant there and which tools it ran, and never what you wrote or what it answered.
+- **The conversation is separate.** A conversation made in `demo` is not offered in `system`, or in another tenant.
+
+If the assistant cannot be used there, the panel says why in plain words. The tenant, or your own, has switched it off: “The assistant is not available in demo. demo may have switched it off, or your own tenant has.” You no longer hold what the server asks: “You need use-assistant and manage-tenants to use the assistant in demo. Ask an administrator of your own tenant.” A tool the server refuses mid-answer is listed in the answer as **Refused**.
+
+## 5. Watch it work
 
 Under the conversation one short line says what the assistant is doing: **Connecting** while the server takes your message, **Thinking** while it works out an answer, the step it is on while it reads (**Listing clients**), **Waiting for you**, **Stopped** or **Finished**. A failure is shown in a notice of its own, not on that line. A screen reader is told when that line changes, and never hears the words of the answer as they are written. Each step the assistant took is listed in its answer with what became of it.
 
 **Stop** takes the place of **Send** for as long as an answer is being written, and the message field keeps the focus, so you can go on typing the next question. Choosing **Stop** ends the answer here and on the server, which stops the spend, and says so: **Stopped. Nothing further was run.** Stop is the only thing that ends an answer: putting the panel away does not, and leaving the console does.
 
-## 5. Read why it stopped
+## 6. Read why it stopped
 
 An answer ends in one of a few ways, and the panel names which.
 

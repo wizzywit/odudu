@@ -57,6 +57,14 @@ async function openAssistant(page: Page, context: Context): Promise<void> {
   await page.getByRole('heading', { level: 2, name: 'Assistant', exact: true }).waitFor();
 }
 
+async function openAssistantIn(page: Page, context: Context, tenant: string): Promise<void> {
+  await page.goto(`${context.base}/console/${tenant}/clients`);
+  await page.getByRole('heading', { level: 1 }).waitFor();
+  await page.getByRole('button', { name: 'Ask the assistant' }).first().click();
+  await page.getByRole('heading', { level: 2, name: 'Assistant', exact: true }).waitFor();
+  await page.getByText(`Acting in ${tenant}`, { exact: true }).waitFor();
+}
+
 async function openList(page: Page, context: Context, area: string): Promise<void> {
   await page.goto(`${context.base}/console/${DEMO}/${area}`);
 }
@@ -505,6 +513,19 @@ export const SCREENS: readonly Screen[] = [
       { role: 'button', name: 'Got it' },
     ],
     open: (page, context) => openAssistant(page, context),
+  },
+  {
+    name: 'assistant-panel-other-tenant',
+    alt: 'The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: a tag reading Acting in demo, the mode switch set to Ask with Act dimmed and the sentence Act is not available in another tenant, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text.',
+    caption: 'In another tenant the panel names it, and Act is not available.',
+    signedIn: true,
+    viewport: PANEL_VIEW,
+    expect: [
+      { heading: 'Assistant' },
+      { label: 'Message to the assistant' },
+      { role: 'button', name: 'Got it' },
+    ],
+    open: (page, context) => openAssistantIn(page, context, DEMO),
   },
   {
     name: 'assistant-panel-phone',

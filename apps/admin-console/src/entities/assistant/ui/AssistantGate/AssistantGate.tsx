@@ -18,12 +18,15 @@ export interface AssistantSlots {
 export function AssistantGate({
   tenant,
   available,
+  actingIn,
   paused,
   renderPanel,
   children,
 }: {
   tenant: string;
   available: boolean;
+  // The tenant the assistant acts in when it is not the caller's own.
+  actingIn: string | null;
   // A dialog is open: the shortcut would act behind it.
   paused: boolean;
   // Draws the open panel, which a layer above this one provides: what it holds
@@ -49,6 +52,7 @@ export function AssistantGate({
     panel: entry.opened
       ? renderPanel({
           tenant,
+          actingIn,
           view: entry.view,
           id: entry.panelId,
           label: words.panelLabel,

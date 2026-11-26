@@ -1,0 +1,154 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · demo
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Agents
+Tenant
+Settings
+Branding
+Email
+Domains
+Export
+Observe
+Audit trail
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
+Collapse menu
+or press 
+[
+odudu · demo
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
+Menu
+System
+Acting in 
+demo
+ with system authority
+Back to system
+demo
+Clients
+A client is an application that signs people in through this tenant. A search matches the start of a client's name, or of its ID, and reaches every client, however many there are.
+Create a client
+Name
+▾
+Name
+Client ID
+Clear
+Search
+or press 
+↩ 
+Return
+Type
+Any type
+▾
+Any type
+Confidential
+Public
+Status
+Any status
+▾
+Any status
+Enabled
+Disabled
+4 clients
+Client
+Type
+Status
+Created
+Client
+Odudu administration
+odudu-admin
+Type
+Confidential
+Status
+enabled
+Created
+recently
+Client
+Odudu MCP
+odudu-mcp
+Type
+Public
+Status
+enabled
+Created
+recently
+Client
+Odudu assistant
+odudu-assistant
+Type
+Public
+Status
+enabled
+Created
+recently
+Client
+my-app
+my-app
+Type
+Public
+Status
+enabled
+Created
+recently
+Previous
+Page 1
+Next
+Assistant
+New conversation
+Close
+Mode
+Acting in demo
+Ask
+Act
+Ask reads and explains. It changes nothing.
+Act is not available in another tenant.
+Before you start
+Your messages, and the tenant data the assistant reads to answer them, are sent to Anthropic.
+You can read it again later. People who can read your own tenant’s audit trail can read it too, unless an administrator there has turned that off in Settings.
+Your own tenant pays for this conversation. Administrators of demo see that you used the assistant there and which tools it ran, not what you wrote or what it answered.
+Got it
+Ask about this tenant
+The assistant can read what you can read here: clients, subjects, roles, settings and the audit trail.
+In Ask mode it never changes anything.
+This page
+/clients
+Enter sends. Shift and Enter start a new line.
+Send

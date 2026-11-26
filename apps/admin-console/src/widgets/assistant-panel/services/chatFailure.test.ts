@@ -104,3 +104,29 @@ describe('what a failed call is told to the person', () => {
     expect(failureOf(new Error('x'.repeat(1000))).cause).toBe(GENERIC_FAILURE);
   });
 });
+
+describe('a refusal in another tenant', () => {
+  const start = (status: number) =>
+    new ChatCallError(
+      { ok: false, kind: 'problem', problem: { type: 'about:blank', title: 'x', status } },
+      'start',
+    );
+
+  it('says the tenant, or the administrator’s own, may have switched the assistant off', () => {
+    expect(failureOf(start(404), 'demo').cause).toBe(
+      'The assistant is not available in demo. demo may have switched it off, or your own tenant has.',
+    );
+  });
+
+  it('names the two capabilities when the server refuses the person', () => {
+    expect(failureOf(start(403), 'demo').cause).toBe(
+      'You need use-assistant and manage-tenants to use the assistant in demo. Ask an administrator of your own tenant.',
+    );
+    expect(failureOf(refused(403), 'demo').cause).toContain('manage-tenants');
+  });
+
+  it('leaves every other cause as it is', () => {
+    expect(failureOf(refused(429), 'demo').cause).toContain('busy');
+    expect(failureOf(refused(404), 'demo').cause).toContain('no longer available');
+  });
+});

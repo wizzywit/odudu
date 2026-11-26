@@ -62,6 +62,7 @@ export function useAssistantChat(
   pageContext: PageContext,
   env: {
     tenant: string;
+    actingIn: string | null;
     onConversation: (id: string | null) => void;
   },
 ): AssistantChat {
@@ -133,6 +134,7 @@ export function useAssistantChat(
     meter,
     expectsEnd,
     act: mode === 'act',
+    actingIn: env.actingIn,
   });
 
   const stop = (): void => {

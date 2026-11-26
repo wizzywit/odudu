@@ -43,6 +43,7 @@ export const PANEL_WORDING = {
   waitingNote:
     'A change is waiting for your decision. Deciding it needs the approval card, which arrives next, so nothing is approved from here yet.',
   actNote: 'Act needs the approval card, which arrives next.',
+  actOtherTenantNote: 'Act is not available in another tenant.',
   actConversationNote:
     'This conversation is in Act mode. Act needs the approval card, which arrives next, so it waits here and takes no new message.',
   closedNote: 'The connection closed before the answer finished.',

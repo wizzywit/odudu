@@ -12,7 +12,10 @@ what the shell hands the panel it draws.
   `use-assistant`; then `GET …/assistant/status` decides, and `enabled: false`
   draws nothing. While whoami is out or failed, or the status read fails or is
   refused, there is no button, no panel, no shortcut and no further request
-  (`mayUseAssistant`, `assistantView`).
+  (`mayUseAssistant`, `assistantView`). In a tenant other than the one signed
+  in to, a system administrator also needs `manage-tenants`, and the panel is
+  told the tenant it acts in (`actingInOf`); the status read of that tenant
+  still decides whether anything is drawn.
 - **The shortcut.** Command K on a Mac, Control K elsewhere, with no other
   modifier. It opens the panel, or focuses it when it is open. It does nothing
   while a dialog is open or from anything inside one (`opensAssistant`).

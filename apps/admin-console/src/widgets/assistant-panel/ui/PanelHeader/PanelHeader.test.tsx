@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
 import { expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
+import { actingInText } from '#/widgets/assistant-panel/services/crossTenant';
 import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import type { AssistantMode, Meter } from '#/widgets/assistant-panel/types/chat';
 import { PanelHeader } from '#/widgets/assistant-panel/ui/PanelHeader';
@@ -15,6 +16,7 @@ const MODELS = [
 function header(
   options: {
     modes?: AssistantMode[];
+    actingIn?: string | null;
     meter?: Meter | null;
     models?: { slot: string; model: string }[] | null;
     onClose?: () => void;
@@ -32,6 +34,7 @@ function header(
       onStartNew={options.onStartNew ?? vi.fn<() => void>()}
       mode="ask"
       modes={options.modes ?? ['ask', 'act']}
+      acting={actingInText(options.actingIn ?? null)}
       meter={options.meter ?? null}
       models={options.models ?? null}
       words={PANEL_WORDING}
@@ -93,6 +96,27 @@ it.each([
   ['refused', { level: 'refused', text: 'Allowance used: this answer’s allowance', percent: null }],
 ] as const)('passes axe in both themes, meter %s', async (_name, meter) => {
   expect(await axeInBothThemes(() => header({ meter, models: MODELS }))).toEqual({
+    light: [],
+    dark: [],
+  });
+});
+
+it('names the tenant it acts in and says Act is not available there, in a tag no screen reader misses', () => {
+  render(header({ actingIn: 'demo' }));
+  expect(screen.getByText('Acting in demo')).toBeVisible();
+  expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
+  expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
+  expect(screen.getByText('Act is not available in another tenant.')).toBeInTheDocument();
+  expect(screen.queryByText(/approval card/u)).toBeNull();
+});
+
+it('names no tenant in the administrator’s own', () => {
+  render(header());
+  expect(screen.queryByText(/Acting in/u)).toBeNull();
+});
+
+it('passes axe in both themes, acting in another tenant', async () => {
+  expect(await axeInBothThemes(() => header({ actingIn: 'demo' }))).toEqual({
     light: [],
     dark: [],
   });

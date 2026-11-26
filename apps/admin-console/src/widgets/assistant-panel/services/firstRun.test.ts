@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { firstRunNotice, noticeToShow } from '#/widgets/assistant-panel/services/firstRun';
+import {
+  firstRunNotice,
+  noticeScopeOf,
+  noticeToShow,
+} from '#/widgets/assistant-panel/services/firstRun';
 
 describe('the notice a person reads once', () => {
   it.each([
@@ -34,5 +38,29 @@ describe('whether the notice is shown', () => {
     expect(noticeToShow(true, { kind: 'bedrock' })?.sentTo).toContain('Amazon Bedrock');
     expect(noticeToShow(false, { kind: 'bedrock' })).toBeNull();
     expect(noticeToShow(true, undefined)).toBeNull();
+  });
+});
+
+describe('the notice for a conversation in another tenant', () => {
+  const notice = firstRunNotice({ kind: 'anthropic' }, 'demo');
+
+  it('says whose allowance pays and that the tenant’s administrators see actions, not text', () => {
+    expect(notice.acting).toBe(
+      'Your own tenant pays for this conversation. Administrators of demo see that you used the assistant there and which tools it ran, not what you wrote or what it answered.',
+    );
+  });
+
+  it('places the readers of the conversation in the administrator’s own tenant', () => {
+    expect(notice.seenBy).toContain('your own tenant’s audit trail');
+  });
+
+  it('has nothing more to say in the administrator’s own tenant', () => {
+    expect(firstRunNotice({ kind: 'anthropic' }).acting).toBeNull();
+    expect(noticeToShow(true, { kind: 'anthropic' }, 'demo')?.acting).toContain('demo');
+  });
+
+  it('is remembered apart from the notice for the own tenant', () => {
+    expect(noticeScopeOf('demo')).toBe('other-tenant');
+    expect(noticeScopeOf(null)).toBe('own');
   });
 });

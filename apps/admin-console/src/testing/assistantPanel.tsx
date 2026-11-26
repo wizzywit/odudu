@@ -96,14 +96,13 @@ export function panelElement(
     conversationId?: string | null;
     docked?: boolean;
     url?: string;
+    // The tenant acted in, as a system administrator in another tenant.
+    actingIn?: string;
   } = {},
 ) {
-  const {
-    view = VIEW,
-    conversationId = null,
-    docked = true,
-    url = '/console/acme/clients/c1',
-  } = options;
+  const { view = VIEW, conversationId = null, docked = true, actingIn = null } = options;
+  const tenant = actingIn ?? 'acme';
+  const url = options.url ?? `/console/${tenant}/clients/c1`;
   vi.stubGlobal('innerWidth', docked ? 1400 : 800);
   const fake = fakeTransport({
     [`POST ${CONVERSATIONS}`]: json(CONVERSATION, 201),
@@ -123,7 +122,8 @@ export function panelElement(
     }, [setOpen]);
     return (
       <AssistantPanel
-        tenant="acme"
+        tenant={tenant}
+        actingIn={actingIn}
         view={view}
         id="assistant-panel"
         label="Assistant panel"

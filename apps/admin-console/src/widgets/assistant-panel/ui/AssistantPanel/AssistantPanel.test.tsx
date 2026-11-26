@@ -1,7 +1,8 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { json, problem } from '#/testing/fakeTransport';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { json, problem, type Answer } from '#/testing/fakeTransport';
+import { ACME_ADMIN } from '#/testing/tenantPaths';
 import {
   CONVERSATION,
   CONVERSATIONS,
@@ -710,4 +711,103 @@ it.each([
       () => screen.findByRole('textbox', { name: 'Message to the assistant' }),
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+describe('for a system administrator acting in another tenant', () => {
+  const DEMO = ACME_ADMIN.replace('acme', 'demo');
+  const DEMO_CONVERSATIONS = `${DEMO}/assistant/conversations`;
+  const DEMO_MESSAGES = `${DEMO_CONVERSATIONS}/c1/messages`;
+  const routes = (more: Record<string, Answer> = {}) => ({
+    [`POST ${DEMO_CONVERSATIONS}`]: json(CONVERSATION, 201),
+    ...more,
+  });
+
+  it('names the tenant it acts in, and does not offer Act, saying why', async () => {
+    await renderPanel(routes(), { actingIn: 'demo' });
+    expect(screen.getByText('Acting in demo')).toBeVisible();
+    expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
+    expect(screen.getByText('Act is not available in another tenant.')).toBeInTheDocument();
+  });
+
+  it('keeps the tag while the conversation runs and after it, and draws none in the own tenant', async () => {
+    const user = userEvent.setup();
+    await renderPanel(routes({ [`POST ${DEMO_MESSAGES}`]: wholeStream(...TEXT_TURN) }), {
+      actingIn: 'demo',
+    });
+    await ask(user);
+    expect(await screen.findByText(/clients\./u)).toBeInTheDocument();
+    expect(screen.getByText('Acting in demo')).toBeVisible();
+  });
+
+  it('starts the conversation in Ask at the target tenant’s path, which is where the server binds it', async () => {
+    const user = userEvent.setup();
+    const { sent } = await renderPanel(
+      routes({ [`POST ${DEMO_MESSAGES}`]: wholeStream(...TEXT_TURN) }),
+      { actingIn: 'demo' },
+    );
+    await ask(user);
+    await screen.findByText(/clients\./u);
+    expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual([
+      `POST ${DEMO_CONVERSATIONS}`,
+      `POST ${DEMO_MESSAGES}`,
+    ]);
+    expect(sent[0]?.body).toMatchObject({ mode: 'ask' });
+  });
+
+  it('tells the person whose allowance pays and what the tenant’s administrators see', async () => {
+    await renderPanel(routes(), { actingIn: 'demo' });
+    const notice = screen.getByRole('region', { name: 'Before you start' });
+    expect(notice).toHaveTextContent('Your own tenant pays for this conversation.');
+    expect(notice).toHaveTextContent('Administrators of demo see that you used the assistant');
+  });
+
+  it('shows the notice for another tenant even after the own tenant’s was read', async () => {
+    window.localStorage.setItem('odudu.console.assistant.notice-read', '1');
+    await renderPanel(routes(), { actingIn: 'demo' });
+    expect(screen.getByRole('region', { name: 'Before you start' })).toBeInTheDocument();
+  });
+
+  it('says the tenant has switched the assistant off when the conversation is refused as unserved', async () => {
+    const user = userEvent.setup();
+    await renderPanel({ [`POST ${DEMO_CONVERSATIONS}`]: problem(404) }, { actingIn: 'demo' });
+    await ask(user);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The assistant is not available in demo. demo may have switched it off, or your own tenant has.',
+    );
+  });
+
+  it('names the two capabilities when the administrator no longer holds them', async () => {
+    const user = userEvent.setup();
+    await renderPanel({ [`POST ${DEMO_CONVERSATIONS}`]: problem(403) }, { actingIn: 'demo' });
+    await ask(user);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'You need use-assistant and manage-tenants to use the assistant in demo.',
+    );
+  });
+
+  it('draws a tool the target refused as a refused step, not as a failed turn', async () => {
+    const user = userEvent.setup();
+    await renderPanel(
+      routes({
+        [`POST ${DEMO_MESSAGES}`]: wholeStream(
+          event({ type: 'start', messageId: 'a1' }),
+          event({ type: 'tool-input-start', toolCallId: 't1', toolName: 'list_subjects' }),
+          event({
+            type: 'tool-input-available',
+            toolCallId: 't1',
+            toolName: 'list_subjects',
+            input: {},
+          }),
+          event({ type: 'tool-output-denied', toolCallId: 't1' }),
+          event({ type: 'data-turn_end', data: { stopReason: 'done' }, transient: true }),
+          event({ type: 'finish' }),
+        ),
+      }),
+      { actingIn: 'demo' },
+    );
+    await ask(user);
+    expect(await screen.findByText('Refused')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

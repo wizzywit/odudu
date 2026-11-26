@@ -24,3 +24,9 @@ it('says it was not read when the browser refuses to say, and does not throw on 
     rememberNoticeRead();
   }).not.toThrow();
 });
+
+it('remembers the notice for another tenant apart from the one for the own tenant', () => {
+  rememberNoticeRead('other-tenant');
+  expect(noticeWasRead('other-tenant')).toBe(true);
+  expect(noticeWasRead('own')).toBe(false);
+});
