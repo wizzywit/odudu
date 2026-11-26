@@ -71,6 +71,10 @@ When an AI agent acts through the MCP endpoint, each tool call, reads included, 
 
 In Act mode the console assistant only proposes a change. Only the administrator whose conversation it is can approve it, from their own console sign-in, and no token an agent holds can. The approval lets that one change run once, as the card shows it. Deciding is an `assistant.approval` event that never holds the change or any message text, and the change is an `agent.tool_call` event like any other. [The operating page](../operating/assistant-budget.md#what-the-audit-trail-records-of-a-turn) has the limits and each turn's events.
 
+### The console assistant in another tenant
+
+A system administrator who holds `manage-tenants` and `use-assistant` can use the assistant in another tenant, from that tenant's own path. The conversation is fixed to that tenant when it starts and is served nowhere else. Each tool call is an `agent.tool_call` event in that tenant's trail, with the administrator as actor and the system tenant as their tenant, so that tenant's administrators can see which tools were called and when. The conversation, its turns and its token spend are recorded in the system tenant, where `assistant.turn` and `assistant.budget` events name the tenant as `target_tenant`. The other tenant's administrators never see what was asked or answered.
+
 ### How long it is kept
 
 Only the retention pass below deletes an event. Events are not signed or chained, so whoever holds the database owner's login could change them: export what you must keep somewhere that person cannot reach.

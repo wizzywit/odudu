@@ -115,6 +115,8 @@ const CLIENT_VIEW_COLUMNS = {
   skipLogoutConfirmation: clients.skipLogoutConfirmation,
   registrationOrigin: clients.registrationOrigin,
   builtinAdmin: clients.builtinAdmin,
+  builtinMcp: clients.builtinMcp,
+  builtinAssistant: clients.builtinAssistant,
   serviceSubjectId: clients.serviceSubjectId,
   redirectUris: clientOidcConfig.redirectUris,
   grantTypes: clientOidcConfig.grantTypes,
@@ -170,6 +172,8 @@ export interface ClientView {
   readonly skipLogoutConfirmation: boolean;
   readonly registrationOrigin: ClientRecord['registrationOrigin'];
   readonly builtinAdmin: boolean;
+  readonly builtinMcp: boolean;
+  readonly builtinAssistant: boolean;
   readonly serviceSubjectId: string | null;
   readonly redirectUris: string[];
   readonly grantTypes: string[];
@@ -570,6 +574,8 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): StoredVie
     skipLogoutConfirmation: client.skipLogoutConfirmation,
     registrationOrigin: client.registrationOrigin,
     builtinAdmin: client.builtinAdmin,
+    builtinMcp: client.builtinMcp,
+    builtinAssistant: client.builtinAssistant,
     serviceSubjectId: client.serviceSubjectId,
     redirectUris: config.redirectUris,
     grantTypes: config.grantTypes,
@@ -886,6 +892,8 @@ export function clientWireShape(view: ClientView): ClientFields {
     flow_id: view.flowId,
     previous_secret_expires_at: view.previousSecretExpiresAt?.toISOString() ?? null,
     builtin_admin: view.builtinAdmin,
+    builtin_mcp: view.builtinMcp,
+    builtin_assistant: view.builtinAssistant,
     service_subject_id: view.serviceSubjectId,
     scopes: view.scopes.map((scope) => ({
       id: scope.id,

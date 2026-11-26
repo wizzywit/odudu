@@ -1,3 +1,4 @@
+import { isSystemTenantId } from '@odudu/domain-tenant';
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
 
 export type AssistantMode = 'ask' | 'act';
@@ -12,6 +13,10 @@ export type AssistantGrantRefusal =
   | 'subject_disabled'
   | 'tenant_disabled'
   | 'assistant_unavailable'
+  | 'target_not_allowed'
+  | 'target_unavailable'
+  | 'target_assistant_disabled'
+  | 'owner_lacks_capability'
   | 'scope_widened';
 
 // The most a conversation's grant may hold, which is the most its tokens may
@@ -57,6 +62,36 @@ export interface AssistantGrantGrounds {
   // Null where the grant is bound to no session.
   readonly sessionLive: boolean | null;
   readonly subjectEnabled: boolean;
+  // The tenant a system administrator's conversation acts in, as the caller read
+  // it from that tenant: null for one that was not found. Left out for a
+  // conversation in the administrator's own tenant.
+  readonly target?: AssistantTargetFacts | null;
+  // The admin capabilities the console grant's owner holds now, read by the grant's
+  // own transaction. A conversation in another tenant needs `manage-tenants` and
+  // `use-assistant` here, so the grant does not rest on a route having checked.
+  readonly ownerCapabilities?: readonly string[];
+}
+
+export interface AssistantTargetFacts {
+  readonly id: string;
+  readonly enabled: boolean;
+  readonly assistantEnabled: boolean;
+}
+
+// A target other than the home tenant is the one case a grant reaches across
+// tenants, so it is held to three things: the administrator's tenant is the
+// system tenant, the target exists and is enabled, and it offers the assistant.
+function targetRefusal(grounds: AssistantGrantGrounds): AssistantGrantRefusal | null {
+  const { target } = grounds;
+  if (target === undefined) return null;
+  if (target?.id === grounds.tenantId) return null;
+  if (!isSystemTenantId(grounds.tenantId)) return 'target_not_allowed';
+  if (!target?.enabled) return 'target_unavailable';
+  if (!target.assistantEnabled) return 'target_assistant_disabled';
+  const held = grounds.ownerCapabilities ?? [];
+  return held.includes('manage-tenants') && held.includes('use-assistant')
+    ? null
+    : 'owner_lacks_capability';
 }
 
 // What must stand before a conversation may have a grant derived from a
@@ -83,6 +118,8 @@ export function assistantGrantRefusal(
     return 'scope_widened';
   }
   if (!grounds.tenantEnabled) return 'tenant_disabled';
+  const targeted = targetRefusal(grounds);
+  if (targeted !== null) return targeted;
   if (grounds.sessionLive !== true) return 'session_ended';
   if (!grounds.subjectEnabled) return 'subject_disabled';
   if (

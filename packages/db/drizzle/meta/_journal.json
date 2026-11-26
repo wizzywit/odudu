@@ -1084,14 +1084,21 @@
       "idx": 154,
       "version": "7",
       "when": 1792876983737,
-      "tag": "0154_assistant_activity",
+      "tag": "0154_assistant_target_tenant",
       "breakpoints": true
     },
     {
       "idx": 155,
       "version": "7",
       "when": 1792963383737,
-      "tag": "0155_assistant_auditor_text_default",
+      "tag": "0155_assistant_activity",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1793049783737,
+      "tag": "0156_assistant_auditor_text_default",
       "breakpoints": true
     }
   ]

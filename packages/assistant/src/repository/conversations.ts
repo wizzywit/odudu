@@ -1,5 +1,5 @@
 import { MAX_LIMIT } from '@odudu/contracts/admin';
-import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import { assistantConversations, type ConversationRecord } from '#/schema/assistant-conversations';
 import { type AssistantTx } from '#/repository/tx';
 
@@ -14,6 +14,8 @@ export interface NewConversation {
   instanceId: string;
   profile: string;
   mode: ConversationMode;
+  // The tenant the conversation acts in, when it is not `tenantId`; omitted otherwise.
+  targetTenantId?: string;
   now: Date;
 }
 
@@ -40,6 +42,7 @@ export function conversationRepository(tx: AssistantTx) {
           instanceId: input.instanceId,
           profile: input.profile,
           mode: input.mode,
+          targetTenantId: input.targetTenantId ?? null,
           createdAt: input.now,
           lastActiveAt: input.now,
         })
@@ -60,10 +63,14 @@ export function conversationRepository(tx: AssistantTx) {
     // One person's conversations, newest first. The limit is bounded at
     // MAX_LIMIT whatever the caller passes; one extra row says whether a
     // further page exists.
+    // `target` is the tenant the list is for: null lists the owner's conversations
+    // in their own tenant, a tenant id those made for that tenant, so a list never
+    // mixes the two.
     async listByOwner(
       owner: string,
       cursor: ConversationCursor | null,
       limit: number,
+      target: string | null,
     ): Promise<ConversationPage> {
       const size = Number.isNaN(limit) ? 1 : Math.max(1, Math.min(Math.trunc(limit), MAX_LIMIT));
       const after =
@@ -79,7 +86,15 @@ export function conversationRepository(tx: AssistantTx) {
       const rows = await tx
         .select()
         .from(assistantConversations)
-        .where(and(eq(assistantConversations.ownerSubjectId, owner), after))
+        .where(
+          and(
+            eq(assistantConversations.ownerSubjectId, owner),
+            target === null
+              ? isNull(assistantConversations.targetTenantId)
+              : eq(assistantConversations.targetTenantId, target),
+            after,
+          ),
+        )
         .orderBy(desc(assistantConversations.lastActiveAt), desc(assistantConversations.id))
         .limit(size + 1);
       const items = rows.slice(0, size);

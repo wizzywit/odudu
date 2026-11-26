@@ -1,6 +1,6 @@
 ---
 title: The assistant's trace
-description: What the console assistant records of each turn beyond the audit trail, what it masks or never stores, how it is bounded, and what happens when it cannot be written.
+description: What the console assistant records of each turn beyond the audit trail, what it masks or never stores, how it is bounded, and what a failed write does
 ---
 
 # The assistant's trace
@@ -90,7 +90,7 @@ Not the model: the assistant has no tool that reads these tables, and the audit 
 
 **Metadata, always.** A holder of the capability sees who used the assistant, the profile and mode, when a conversation started and was last active, its turns, steps and tokens by model slot, the tools it called by name, how each turn stopped and why, the changes it proposed and what was decided, whether it is reported, and, in a replay, the kind, time and size of every event. The list never hides a row because of the setting.
 
-**Text, when the tenant allows it.** What the person asked, what the model answered, and what each tool was given and returned are shown only while the setting is on. While it is off the replay and the export give the same structure with the placeholder `[text not visible to auditors in this tenant]` where the words were, and the size of what was left out; `text_visible` says which. The default changed before anything shipped, and migration 0155 set every saved value to off, so no tenant holds an on it never chose. A conversation's title is text too: the list shows a placeholder for it, and the approval's target is withheld with it.
+**Text, when the tenant allows it.** What the person asked, what the model answered, and what each tool was given and returned are shown only while the setting is on. While it is off the replay and the export give the same structure with the placeholder `[text not visible to auditors in this tenant]` where the words were, and the size of what was left out; `text_visible` says which. The default changed before anything shipped, and migration 0156 set every saved value to off, so no tenant holds an on it never chose. A conversation's title is text too: the list shows a placeholder for it, and the approval's target is withheld with it.
 
 **Every read of text is recorded.** When a replay or an export returns text to someone other than the person the conversation belongs to, an `assistant.text_read` event is written in the same transaction as the read, naming the reader, the conversation, its owner and the part (`replay`, `export` or, for a list that returns titles of other people's conversations, `list`, once for the request), never the text. A read that is refused or returns no text leaves none, and a read whose record cannot be written returns no text either: it fails with the record. The event is an admin change, so a tenant's audit event types cannot drop it, and the owner is on its `resource` and `detail`, so the reads of a person's conversations can be listed for them with `GET /admin/tenants/{tenant}/audit?action=assistant.text_read`. Telling the person, in the console or by mail, is not done yet: it belongs to the increment that lists a person's own conversations, and until then the record is the only trace of a read.
 

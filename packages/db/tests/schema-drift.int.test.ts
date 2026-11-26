@@ -320,6 +320,10 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK ((run_generation >= 0))',
   'assistant_conversations.assistant_conversations_title_length':
     'CHECK (((title IS NULL) OR ((char_length(title) >= 1) AND (char_length(title) <= 200))))',
+  'assistant_conversations.assistant_conversations_target_not_home':
+    'CHECK (((target_tenant_id IS NULL) OR (target_tenant_id <> tenant_id)))',
+  'token_grants.token_grants_target_not_home':
+    'CHECK (((target_tenant_id IS NULL) OR (target_tenant_id <> tenant_id)))',
   'assistant_messages.assistant_messages_parts_shape':
     "CHECK (((jsonb_typeof(parts) = 'array'::text) AND (octet_length((parts)::text) <= 1048576)))",
   'assistant_messages.assistant_messages_role_check':

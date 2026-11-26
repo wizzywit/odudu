@@ -40,6 +40,7 @@ import {
 import {
   ADMIN_API_AUDIENCE,
   ADMIN_CLIENT_ID,
+  ASSISTANT_CLIENT_ID,
   MCP_CLIENT_ID,
   clientRepository,
   clients,
@@ -107,6 +108,18 @@ export interface TestClient {
   readonly token: string;
 }
 
+// How a test shapes the agent token it asks for. `assistant` signs it through the
+// tenant's built-in assistant client rather than the MCP client or the admin
+// client, and `targetTenantId` is the tenant its grant names.
+export interface AgentTokenOptions {
+  scope: string;
+  act?: unknown;
+  viaMcpClient?: boolean;
+  via?: 'mcp';
+  assistant?: boolean;
+  targetTenantId?: string;
+}
+
 export interface AdminFixture {
   readonly owner: DatabaseHandle;
   readonly app: DatabaseHandle;
@@ -140,13 +153,10 @@ export interface AdminFixture {
   agentToken(
     tenantName: string,
     capabilities: readonly string[],
-    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
+    options: AgentTokenOptions,
   ): Promise<string>;
   // `agentToken` for a subject of the system tenant, which is not created by `createTenant`.
-  systemAgentToken(
-    capabilities: readonly string[],
-    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
-  ): Promise<string>;
+  systemAgentToken(capabilities: readonly string[], options: AgentTokenOptions): Promise<string>;
   // The owner's grant behind an MCP token held by `agentClientId` (the
   // built-in MCP client by default), and the admin-audience token
   // `mintAgentToken` mints from it, so a test reaches the admin API with a
@@ -537,6 +547,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
       scope?: string;
       act?: unknown;
       via?: 'mcp';
+      targetTenantId?: string;
     },
   ): Promise<string> {
     const key: SigningKeyRecord = await signingKeyRepository(tx).active();
@@ -551,6 +562,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
       scope,
       audience: input.audience,
       sessionId: input.sessionId,
+      ...(input.targetTenantId === undefined ? {} : { targetTenantId: input.targetTenantId }),
     });
     recordGrant(ctx.id, grantId);
     return signJwt(
@@ -595,7 +607,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     ctx: TenantContext,
     capabilities: readonly string[],
     audience: string[],
-    extra: { scope?: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' } = {},
+    extra: Partial<AgentTokenOptions> = {},
   ): Promise<string> {
     return withTenant(app.db, ctx.id, async (tx) => {
       const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
@@ -613,10 +625,13 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         authenticators: ['pwd'],
         secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
-      const signingClient =
-        extra.viaMcpClient === true
-          ? await clientRepository(tx).byClientId(MCP_CLIENT_ID)
-          : adminClient;
+      const signingClient = await clientRepository(tx).byClientId(
+        extra.assistant === true
+          ? ASSISTANT_CLIENT_ID
+          : extra.viaMcpClient === true
+            ? MCP_CLIENT_ID
+            : ADMIN_CLIENT_ID,
+      );
       if (signingClient === null) {
         throw new Error(`fixture: ${ctx.name} has no built-in MCP client`);
       }
@@ -628,6 +643,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         ...(extra.scope === undefined ? {} : { scope: extra.scope }),
         ...(extra.act === undefined ? {} : { act: extra.act }),
         ...(extra.via === undefined ? {} : { via: extra.via }),
+        ...(extra.targetTenantId === undefined ? {} : { targetTenantId: extra.targetTenantId }),
       });
     });
   }
@@ -635,7 +651,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   async function agentToken(
     tenantName: string,
     capabilities: readonly string[],
-    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
+    options: AgentTokenOptions,
   ): Promise<string> {
     return mintAdminLikeToken(
       requireTenant(tenantName),
@@ -647,7 +663,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
 
   async function systemAgentToken(
     capabilities: readonly string[],
-    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
+    options: AgentTokenOptions,
   ): Promise<string> {
     return mintAdminLikeToken(systemTenant, capabilities, [ADMIN_API_AUDIENCE], options);
   }

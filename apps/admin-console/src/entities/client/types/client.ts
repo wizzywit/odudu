@@ -58,6 +58,8 @@ export interface Client {
   flow_id: string | null;
   previous_secret_expires_at: string | null;
   builtin_admin: boolean;
+  builtin_mcp: boolean;
+  builtin_assistant: boolean;
   service_subject_id: string | null;
   scopes: ClientScopeAssignment[];
   // What the client's service account holds of the admin vocabulary: derived

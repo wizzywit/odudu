@@ -154,6 +154,9 @@ def sync_detailed(
 ) -> Response[ProblemDetails | SubjectsCountGetResponse]:
     """Requires the "view-users" capability.
 
+     How many subjects match, counting the people and service accounts only, as the list does: an agent
+    instance is counted only when `type=agent_instance` is asked for.
+
     Args:
         tenant (str):
         username (str | Unset): Only subjects whose username starts with this, ignoring case.
@@ -168,6 +171,7 @@ def sync_detailed(
         capability (GetAdminTenantsTenantSubjectsCountCapability | Unset): Only holders of this
             admin capability, `tenant-admin`, or `any` admin capability; held effectively.
         type_ (GetAdminTenantsTenantSubjectsCountType | Unset): Only subjects of this type.
+            Without it, `agent_instance` subjects are left out; name that type to list or count them.
         locked (GetAdminTenantsTenantSubjectsCountLocked | Unset): `true` for subjects locked out
             by failed sign-ins only.
 
@@ -219,6 +223,9 @@ def sync(
 ) -> ProblemDetails | SubjectsCountGetResponse | None:
     """Requires the "view-users" capability.
 
+     How many subjects match, counting the people and service accounts only, as the list does: an agent
+    instance is counted only when `type=agent_instance` is asked for.
+
     Args:
         tenant (str):
         username (str | Unset): Only subjects whose username starts with this, ignoring case.
@@ -233,6 +240,7 @@ def sync(
         capability (GetAdminTenantsTenantSubjectsCountCapability | Unset): Only holders of this
             admin capability, `tenant-admin`, or `any` admin capability; held effectively.
         type_ (GetAdminTenantsTenantSubjectsCountType | Unset): Only subjects of this type.
+            Without it, `agent_instance` subjects are left out; name that type to list or count them.
         locked (GetAdminTenantsTenantSubjectsCountLocked | Unset): `true` for subjects locked out
             by failed sign-ins only.
 
@@ -279,6 +287,9 @@ async def asyncio_detailed(
 ) -> Response[ProblemDetails | SubjectsCountGetResponse]:
     """Requires the "view-users" capability.
 
+     How many subjects match, counting the people and service accounts only, as the list does: an agent
+    instance is counted only when `type=agent_instance` is asked for.
+
     Args:
         tenant (str):
         username (str | Unset): Only subjects whose username starts with this, ignoring case.
@@ -293,6 +304,7 @@ async def asyncio_detailed(
         capability (GetAdminTenantsTenantSubjectsCountCapability | Unset): Only holders of this
             admin capability, `tenant-admin`, or `any` admin capability; held effectively.
         type_ (GetAdminTenantsTenantSubjectsCountType | Unset): Only subjects of this type.
+            Without it, `agent_instance` subjects are left out; name that type to list or count them.
         locked (GetAdminTenantsTenantSubjectsCountLocked | Unset): `true` for subjects locked out
             by failed sign-ins only.
 
@@ -342,6 +354,9 @@ async def asyncio(
 ) -> ProblemDetails | SubjectsCountGetResponse | None:
     """Requires the "view-users" capability.
 
+     How many subjects match, counting the people and service accounts only, as the list does: an agent
+    instance is counted only when `type=agent_instance` is asked for.
+
     Args:
         tenant (str):
         username (str | Unset): Only subjects whose username starts with this, ignoring case.
@@ -356,6 +371,7 @@ async def asyncio(
         capability (GetAdminTenantsTenantSubjectsCountCapability | Unset): Only holders of this
             admin capability, `tenant-admin`, or `any` admin capability; held effectively.
         type_ (GetAdminTenantsTenantSubjectsCountType | Unset): Only subjects of this type.
+            Without it, `agent_instance` subjects are left out; name that type to list or count them.
         locked (GetAdminTenantsTenantSubjectsCountLocked | Unset): `true` for subjects locked out
             by failed sign-ins only.
 

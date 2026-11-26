@@ -59,6 +59,10 @@ export const tokenGrants = pgTable('token_grants', {
   // (RFC 8693 §4.4); an untyped boundary, narrowed at the point of use.
   // Null when nothing named an actor.
   mayAct: jsonb('may_act'),
+  // The tenant a console assistant conversation's grant acts in when it is not
+  // this row's own: set only by `grantAssistantAccess`, for a system
+  // administrator in another tenant, and read by the admin API's door.
+  targetTenantId: uuid('target_tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
 }).enableRLS();
 
 export interface TokenGrantRecord {
@@ -80,4 +84,5 @@ export interface TokenGrantRecord {
   expCeiling: Date | null;
   requestedUserinfoClaims: string[] | null;
   mayAct: unknown;
+  targetTenantId: string | null;
 }

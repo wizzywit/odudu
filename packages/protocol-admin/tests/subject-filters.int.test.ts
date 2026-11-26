@@ -97,6 +97,60 @@ describe('GET /subjects?type=', () => {
   });
 });
 
+describe('agent_instance subjects in the list and the count', () => {
+  async function seedInstance(tenantId: string): Promise<string> {
+    return withTenant(
+      fixture.app.db,
+      tenantId,
+      async (tx) => (await subjectRepository(tx).create({ tenantId, type: 'agent_instance' })).id,
+    );
+  }
+
+  it('leaves them out unless the type is named, in the list, the count and every page', async () => {
+    const t = await fixture.createTenant(`instances-${newId()}`);
+    const people = [
+      await seedUser(t.id, 'ada'),
+      await seedUser(t.id, 'bob'),
+      await seedUser(t.id, 'cy'),
+    ];
+    const instances = [await seedInstance(t.id), await seedInstance(t.id)];
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const all = idsOf(await get(t.name, token, 'subjects?limit=200'));
+    for (const id of people) expect(all).toContain(id);
+    for (const id of instances) expect(all).not.toContain(id);
+    const listed = await get(t.name, token, 'subjects/count');
+    const everyone = (await get(t.name, token, 'subjects?limit=200')).json<{ items: unknown[] }>();
+    expect(listed.json()).toEqual({ count: everyone.items.length, capped: false });
+
+    const paged: string[] = [];
+    let tail = 'subjects?limit=2';
+    for (;;) {
+      const page = await get(t.name, token, tail);
+      expect(page.statusCode, page.body).toBe(200);
+      paged.push(...idsOf(page));
+      const next = page.json<{ next?: string }>().next;
+      if (next === undefined) break;
+      tail = `subjects?limit=2&cursor=${encodeURIComponent(next)}`;
+    }
+    expect(paged.sort()).toEqual(all.sort());
+
+    const named = await get(t.name, token, 'subjects?type=agent_instance&limit=200');
+    expect(idsOf(named).sort()).toEqual([...instances].sort());
+    const namedCount = await get(t.name, token, 'subjects/count?type=agent_instance');
+    expect(namedCount.json()).toEqual({ count: 2, capped: false });
+  });
+
+  it('still reads one by its id, as an audit link to act.sub does', async () => {
+    const t = await fixture.createTenant(`instances-${newId()}`);
+    const instance = await seedInstance(t.id);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    const read = await get(t.name, token, `subjects/${instance}`);
+    expect(read.statusCode).toBe(200);
+    expect(read.json<{ type: string }>().type).toBe('agent_instance');
+  });
+});
+
 describe('GET /subjects?locked=', () => {
   it('lists the subjects locked now, by the clock GET …/lockout judges with', async () => {
     const t = await fixture.createTenant(`locked-${newId()}`);

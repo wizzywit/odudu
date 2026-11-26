@@ -63,7 +63,7 @@ export interface paths {
         };
         /**
          * Requires the "view-users" capability.
-         * @description The subjects of a tenant, paged. `capability` narrows to the holders of one admin capability, of `tenant-admin`, or of `any`, held effectively; with it, each item carries `admin_capabilities`, every name it holds and whether one is assigned to it directly.
+         * @description The subjects of a tenant, paged. `capability` narrows to the holders of one admin capability, of `tenant-admin`, or of `any`, held effectively; with it, each item carries `admin_capabilities`, every name it holds and whether one is assigned to it directly. The people and service accounts only: an agent instance, which exists for one conversation or run, is left out unless `type=agent_instance` is asked for.
          */
         get: {
             parameters: {
@@ -208,7 +208,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Requires the "view-users" capability. */
+        /**
+         * Requires the "view-users" capability.
+         * @description How many subjects match, counting the people and service accounts only, as the list does: an agent instance is counted only when `type=agent_instance` is asked for.
+         */
         get: {
             parameters: {
                 query?: {
@@ -4408,6 +4411,10 @@ export interface paths {
                                 previous_secret_expires_at: string | null;
                                 /** @description True for the tenant’s built-in admin console client, which cannot be deleted and is limited in what can be amended. */
                                 builtin_admin: boolean;
+                                /** @description True for the tenant’s built-in MCP client, which cannot be deleted. It can be disabled. */
+                                builtin_mcp: boolean;
+                                /** @description True for the tenant’s built-in assistant client, which cannot be deleted. Only its name, description and enabled state can be amended. */
+                                builtin_assistant: boolean;
                                 /** @description The service account a client authenticates as, or null when it holds no client_credentials grant or is public. Setting grant_types creates it when the grant is added and deletes it, with the roles and token grants it held, when the grant is removed. */
                                 service_subject_id: string | null;
                                 /** @description The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for). */
@@ -4561,6 +4568,10 @@ export interface paths {
                             previous_secret_expires_at: string | null;
                             /** @description True for the tenant’s built-in admin console client, which cannot be deleted and is limited in what can be amended. */
                             builtin_admin: boolean;
+                            /** @description True for the tenant’s built-in MCP client, which cannot be deleted. It can be disabled. */
+                            builtin_mcp: boolean;
+                            /** @description True for the tenant’s built-in assistant client, which cannot be deleted. Only its name, description and enabled state can be amended. */
+                            builtin_assistant: boolean;
                             /** @description The service account a client authenticates as, or null when it holds no client_credentials grant or is public. Setting grant_types creates it when the grant is added and deletes it, with the roles and token grants it held, when the grant is removed. */
                             service_subject_id: string | null;
                             /** @description The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for). */
@@ -4768,6 +4779,10 @@ export interface paths {
                             previous_secret_expires_at: string | null;
                             /** @description True for the tenant’s built-in admin console client, which cannot be deleted and is limited in what can be amended. */
                             builtin_admin: boolean;
+                            /** @description True for the tenant’s built-in MCP client, which cannot be deleted. It can be disabled. */
+                            builtin_mcp: boolean;
+                            /** @description True for the tenant’s built-in assistant client, which cannot be deleted. Only its name, description and enabled state can be amended. */
+                            builtin_assistant: boolean;
                             /** @description The service account a client authenticates as, or null when it holds no client_credentials grant or is public. Setting grant_types creates it when the grant is added and deletes it, with the roles and token grants it held, when the grant is removed. */
                             service_subject_id: string | null;
                             /** @description The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for). */
@@ -4952,6 +4967,10 @@ export interface paths {
                             previous_secret_expires_at: string | null;
                             /** @description True for the tenant’s built-in admin console client, which cannot be deleted and is limited in what can be amended. */
                             builtin_admin: boolean;
+                            /** @description True for the tenant’s built-in MCP client, which cannot be deleted. It can be disabled. */
+                            builtin_mcp: boolean;
+                            /** @description True for the tenant’s built-in assistant client, which cannot be deleted. Only its name, description and enabled state can be amended. */
+                            builtin_assistant: boolean;
                             /** @description The service account a client authenticates as, or null when it holds no client_credentials grant or is public. Setting grant_types creates it when the grant is added and deletes it, with the roles and token grants it held, when the grant is removed. */
                             service_subject_id: string | null;
                             /** @description The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for). */
@@ -5110,6 +5129,10 @@ export interface paths {
                             previous_secret_expires_at: string | null;
                             /** @description True for the tenant’s built-in admin console client, which cannot be deleted and is limited in what can be amended. */
                             builtin_admin: boolean;
+                            /** @description True for the tenant’s built-in MCP client, which cannot be deleted. It can be disabled. */
+                            builtin_mcp: boolean;
+                            /** @description True for the tenant’s built-in assistant client, which cannot be deleted. Only its name, description and enabled state can be amended. */
+                            builtin_assistant: boolean;
                             /** @description The service account a client authenticates as, or null when it holds no client_credentials grant or is public. Setting grant_types creates it when the grant is added and deletes it, with the roles and token grants it held, when the grant is removed. */
                             service_subject_id: string | null;
                             /** @description The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for). */

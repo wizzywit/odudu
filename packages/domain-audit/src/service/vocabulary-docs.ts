@@ -196,7 +196,9 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
     'The console assistant stopped a turn because a token limit was reached, or a model provider ' +
     'charged more than was reserved for a call. `detail` names the level (`tenant_month`, ' +
     '`admin_day`, `conversation` or `turn`), the model slot, the tenant, the person and the turn, ' +
-    'and for an overrun the tokens beyond the reservation. It never holds message text.',
+    'and for an overrun the tokens beyond the reservation. For a system administrator using the ' +
+    'assistant in another tenant it also names that tenant as `target_tenant`, and the row is in ' +
+    'the administrator’s own tenant. It never holds message text.',
   'assistant.config':
     'A tenant’s settings for the console assistant changed: whether it is on, its default mode, ' +
     'email masking, trace retention, whether auditors see conversations, or a limit. `detail` ' +
@@ -224,7 +226,9 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
     'for this ships. It holds no message text, tool output or name of anything in the tenant, and ' +
     'a turn is not begun when its `started` event cannot be written. The `ended` event also ' +
     'says whether the turn\u2019s trace stops short: `trace_lost` is `true` when a write to the trace ' +
-    'failed, and the turn went on.',
+    'failed, and the turn went on. For a system administrator using the assistant in another ' +
+    'tenant the row is in the administrator’s own tenant and names that tenant as `target_tenant`; ' +
+    'the tool calls of that turn are `agent.tool_call` rows in the other tenant’s trail.',
   'audit.export': 'The audit trail was exported.',
   'client.amend': 'A client was amended.',
   'client.create': 'A client was created.',

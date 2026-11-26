@@ -77,3 +77,56 @@ A pending request is signed with a key derived from `ODUDU_KEK`. Rotating the KE
 outstanding approval fail verification: unspent ones expire within 15 minutes, and a
 conversation stuck on an approved request is cleared by the person's next message, which
 closes it as not run. Nothing is lost.
+
+## Amendment: a system administrator in another tenant
+
+Decided by the owner on 2026-11-26: a system administrator acting in another tenant has the
+assistant for that tenant. This reverses P5a's decision 3 (no cross-tenant reach for an
+agent) **for the console assistant only**. `odudu mcp`, the MCP endpoint and every external
+agent keep the rule that an agent acts only in the tenant that issued its token.
+
+The conversation, its grant, its instance, its approvals, its budget and its trace are rows of
+the administrator's own tenant (the system tenant), because the console grant they derive
+from, the subject that owns them and the tenant-composite keys of every table involved are
+there. `assistant_conversations.target_tenant_id` and `token_grants.target_tenant_id` name the
+tenant the conversation acts in; both are null for a conversation in the administrator's own
+tenant, which is unchanged, and neither can equal the row's own tenant. `grantAssistantAccess`
+writes the target and refuses unless the console grant's tenant is the system tenant, the
+target exists and is enabled and offers the assistant. `mintAgentToken` is not changed: the
+token is issued by the system tenant, for the administrator, with the instance as `act.sub`.
+
+The admin API's rule that an agent acts only in the tenant its token names gains one
+exception, and only one (`agentReaches`, `@odudu/protocol-admin`): an agent token whose grant
+is the built-in assistant client's, whose grant names a target, that carries the endpoint
+marker, whose issuer is the system tenant and holds no write scope, is admitted at the path of
+that target, which must be enabled, and at no other tenant, the system tenant included. The
+administrator's `manage-tenants` and the route's capability are then checked on every call, as
+for the console, so a role removed mid-conversation takes effect on the next call. The
+binding is a database row read from the grant, not a claim in the token, so a leaked
+five-minute token reaches one tenant. A grant with no target, any other agent client and any
+other tenant keep the rule as it was.
+
+The target is fixed when the conversation is created, from the verified path, and never from
+the request body or the model. A tool names no tenant, and a conversation in another tenant is
+not offered the two reads whose route has none (`list_tenants`, `count_tenants`). A
+conversation bound to one tenant is answered as a path never served at any other, the
+administrator's own included. Where a system administrator uses the assistant in another
+tenant, that tenant's switch, email masking and Act setting apply as well as their own tenant's
+and the stricter wins; the token limits and the four budget levels are the administrator's
+tenant's, which pays. Trace retention and auditor visibility follow the administrator's
+tenant, where the text lives, until the trace pass applies the shorter retention of the two. A conversation in another tenant is Ask only until approvals carry the
+target.
+
+A tool call's `agent.tool_call` row is written in the target's trail with the administrator as
+actor and the system tenant as actor tenant, so the target's own administrators can see that an
+operator used the assistant there and which tools, never the conversation. The assistant's own
+rows (`assistant.turn`, `.budget`, `.access_refused`) are in the administrator's trail and name
+the target in `detail.target_tenant`.
+
+Rejected, beside the list above: **a conversation in the target tenant with a foreign owner**
+(it gives up the single transaction and the rule that a token's issuer is its subject's
+tenant); **a stand-in subject per tenant** (its authority is kept equal to the operator's by a
+sync, not by the door); **the console token as the agent's** (no ceiling, no instance, the
+audit names `odudu-admin`). The design and the failing paths it replaces are in
+`docs/phases/p5c-spikes.md`, "P5c spike: the assistant for a system administrator in another
+tenant".

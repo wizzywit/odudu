@@ -48,7 +48,7 @@ test('sessions, the password policy and the recorded events are saved, each on i
 
   const sessions = region(page, 'Sessions');
   const idle = sessions.getByRole('textbox', { name: 'Idle timeout' });
-  await expect(sessions.getByRole('combobox', { name: 'Idle timeout, unit' })).toHaveValue('min');
+  await expect(sessions.getByRole('button', { name: /Idle timeout, unit/u })).toContainText('min');
   await type(idle, '60');
   await expect(idle).toHaveValue('60');
   await expectAccessible(page);
@@ -81,16 +81,17 @@ test('sessions, the password policy and the recorded events are saved, each on i
     '1',
   );
   await expect(
-    region(page, 'Sessions').getByRole('combobox', { name: 'Idle timeout, unit' }),
-  ).toHaveValue('h');
+    region(page, 'Sessions').getByRole('button', { name: /Idle timeout, unit/u }),
+  ).toContainText('h');
   await expect(
     region(page, 'Audit retention').getByRole('checkbox', { name: /Tokens issued/u }),
   ).not.toBeChecked();
 
   // An idle lifetime past the maximum is the server's to refuse, and it names the field.
   await region(page, 'Sessions')
-    .getByRole('combobox', { name: 'Idle timeout, unit' })
-    .selectOption('s');
+    .getByRole('button', { name: /Idle timeout, unit/u })
+    .click();
+  await page.getByRole('option', { name: 's', exact: true }).click();
   await type(region(page, 'Sessions').getByRole('textbox', { name: 'Idle timeout' }), '99999999');
   await region(page, 'Sessions').getByRole('button', { name: 'Save Sessions' }).click();
   await expect(region(page, 'Sessions').getByText(/must not exceed/u)).toBeVisible();

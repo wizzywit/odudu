@@ -46,7 +46,8 @@ images in. No memory across conversations in the first scope. No agent gallery.
 
 **Anti-goals.** An assistant with a door of its own. A model that can approve its
 own change. A spend nobody bounded. A trace the agent can read or edit. A screen
-that shows AI to a person whose operator never configured it.
+that shows AI to a person whose operator never configured it. An assistant that
+reaches a tenant its conversation was not created for.
 
 ## 3. What already exists and is reused
 
@@ -142,6 +143,14 @@ Entitlements are an interface the paid layer replaces:
 maxConcurrent, maxStepsPerTurn }`. The open default reads tenant settings. The open
 product never depends on the paid implementation.
 
+Where a system administrator uses the assistant in another tenant, that tenant's switch,
+email masking and Act setting apply as well as their own tenant's, and the stricter wins:
+both must have the assistant on, either may mask, and a mode is offered only where both
+offer it. The token limits and the four budget levels are the administrator's tenant's,
+which pays. Trace retention and whether auditors see conversations are the administrator's
+tenant's, because the conversation's text lives there; enforcing the shorter of the two
+retentions waits for the trace pass (docs/NEXT.md, "What P5c inherits").
+
 ### 5.3 The engine
 
 A conversation is one agent _instance_ of P5, owned by the signed-in administrator,
@@ -168,6 +177,16 @@ writes is a new grant with its own scope and its own approval, not a widening of
 one. Audit rows name `odudu-assistant` as the actor client and the administrator as the
 actor subject. Cost: one grant row per conversation, removed with its session by the same
 reaper that removes any grant; administrators are few and a conversation is a human act.
+
+When the administrator is a system administrator acting in another tenant (the owner's
+decision of 2026-11-26, ADR 0060's last amendment, which reverses P5a's decision 3 for the
+assistant alone), the conversation, its grant, instance, approvals, budget and trace belong
+to their own tenant, and the conversation names the tenant it acts in, fixed at creation from
+the verified path. The tool calls are made in that tenant with the administrator's own
+authority: the admin API checks `manage-tenants` and the route's capability on every call,
+and admits the assistant's token at that one tenant's routes only. The assistant names no
+tenant in a tool call, and `odudu mcp` and external agents keep the same-tenant rule. A
+conversation in another tenant is Ask only in its first scope.
 A tenant that lists `delegated_actors` on its console client must name `odudu-assistant`
 there, or the assistant fails closed. A turn is a `ToolLoopAgent` run.
 Our code lives in the SDK's hooks:
@@ -299,7 +318,11 @@ provider is a tenant option. Prompt injection is tested against a real model, ni
 **Audit** (long retention, existing `audit_events`): `assistant.turn` (conversation,
 turn, profile, slots used, tokens by slot, steps, stop reason), `assistant.approval`,
 `assistant.budget`, `assistant.config`, and the existing `agent.tool_call` with the new
-ids. No message text.
+ids. No message text. A tool call made in another tenant leaves its
+`agent.tool_call` row in that tenant's trail, naming the administrator and the
+conversation; the turn, budget and refusal rows stay in the administrator's tenant and name
+the target, and an approval is recorded in both. The target's own administrators therefore
+see the actions, and never the conversation text.
 
 **Trace** (short retention, default 30 days, tenant-scoped tables):
 `assistant_conversations`, `assistant_turns`, `assistant_steps`, `assistant_events`. A
@@ -412,6 +435,11 @@ provider the operator chose; the notice and masking are the control. A self-host
 model may be weaker at multi-step tool use than a hosted one; the supported list is
 what the golden tasks proved, and approval and the door bound what a weaker model can
 do.
+
+A system administrator's conversation holds the target tenant's data, as masked tool results
+in the operator's own messages and trace, under the operator's retention and auditor
+visibility; the target's retention and auditor setting are not applied to it yet. The
+target's administrators see the actions in their own audit trail and not the text.
 
 ## 10. Open decisions (my calls, for the owner to confirm)
 

@@ -450,3 +450,248 @@ docker exec odudu-p5c-i5b-pg psql -U odudu -d odudu -c "select g.id = '$ID' as i
  t               | odudu-assistant | mcp:read | {urn:odudu:params:admin-api} | t       | t           | f
 (1 row)
 ```
+
+## A system administrator in another tenant
+
+A system administrator who holds `manage-tenants` and `use-assistant` can start a conversation at another tenant's path. The
+conversation is that tenant's alone to act in: it is fixed to the tenant in the path when it starts, and every other path
+answers `404` for it, the administrator's own tenant included. The conversation, its messages and its budget belong to the
+administrator's own tenant, which pays; each tool call is made in the other tenant, with the administrator's own
+capabilities checked on every call, and leaves its `agent.tool_call` row in that tenant's audit trail. The assistant is not
+offered a tool that names a tenant, nor the tenant list. Only Ask mode is offered in another tenant for now.
+
+`ada` is the system tenant's
+administrator, who signed in through the loopback flow of [Getting the token](./getting-the-token.md): `ADA` is her token. The
+tenants `acme` and `globex` were made with `odudu seed tenant`; `acme` has two people, `alice` and `bob`, and a service
+account of its `client_credentials` client `acme-ops`, which holds `use-assistant` and `view-users`, and `globex` has three
+people. `OPS` is the token of `acme-ops`. The stand-in model asks for `count_subjects` when a message says "how many".
+
+```bash
+API=http://localhost:3117/admin/tenants
+CTX='{"page_context":{"route":"/subjects","objectType":"subject","objectId":"all"}}'
+```
+
+### Start, ask and load, in acme
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADA" -H 'Content-Type: application/json' -d "$CTX" $API/acme/assistant/conversations
+ID=01a2178a-d0e2-7b8f-9865-98724ccfc378
+curl -sS -D - -H "Authorization: Bearer $ADA" -H 'Content-Type: application/json' -d '{"message":{"id":"m1","role":"user","parts":[{"type":"text","text":"how many people are in this tenant?"}]}}' $API/acme/assistant/conversations/$ID/messages
+curl -sS -D - -H "Authorization: Bearer $ADA" $API/acme/assistant/conversations/$ID
+```
+
+```
+HTTP/1.1 201 Created
+x-request-id: 01a2178a-cf39-7703-b460-a2d2790ff38a
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 191
+Date: Thu, 26 Nov 2026 11:08:23 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a2178a-d0e2-7b8f-9865-98724ccfc378","profile":"free-chat","mode":"ask","title":null,"created_at":"2026-11-26T11:08:23.138Z","last_active_at":"2026-11-26T11:08:23.138Z","messages":[]}
+
+HTTP/1.1 200 OK
+x-request-id: 01a2178a-d5d4-7544-8f42-ad44dea46314
+cache-control: no-store
+connection: keep-alive
+content-type: text/event-stream
+x-accel-buffering: no
+x-vercel-ai-ui-message-stream: v1
+Date: Thu, 26 Nov 2026 11:08:25 GMT
+Transfer-Encoding: chunked
+
+data: {"type":"start","messageId":"01a2178a-da14-7ef1-a483-4b303e650d0c"}
+
+data: {"type":"start-step"}
+
+data: {"type":"tool-input-start","toolCallId":"call_1795691305833","toolName":"count_subjects"}
+
+data: {"type":"tool-input-delta","toolCallId":"call_1795691305833","inputTextDelta":"{}"}
+
+data: {"type":"tool-input-available","toolCallId":"call_1795691305833","toolName":"count_subjects","input":{}}
+
+data: {"type":"tool-output-available","toolCallId":"call_1795691305833","output":"<tool-data>{\"data\":{\"count\":3,\"capped\":false}}</tool-data>"}
+
+data: {"type":"finish-step"}
+
+data: {"type":"start-step"}
+
+data: {"type":"text-start","id":"txt-0"}
+
+data: {"type":"text-delta","id":"txt-0","delta":"This tenant has 3 people."}
+
+data: {"type":"text-end","id":"txt-0"}
+
+data: {"type":"finish-step"}
+
+data: {"type":"finish","finishReason":"stop"}
+
+data: {"type":"data-turn_end","data":{"stopReason":"done"},"transient":true}
+
+data: [DONE]
+
+HTTP/1.1 200 OK
+x-request-id: 01a2178a-e3ac-7548-a62c-d82d1938427a
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 689
+Date: Thu, 26 Nov 2026 11:08:28 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a2178a-d0e2-7b8f-9865-98724ccfc378","profile":"free-chat","mode":"ask","title":null,"created_at":"2026-11-26T11:08:23.138Z","last_active_at":"2026-11-26T11:08:27.433Z","messages":[{"id":"01a2178a-d0e2-7b8f-9865-98724ccfc378-2","role":"user","parts":[{"text":"how many people are in this tenant?","type":"text"}]},{"id":"01a2178a-d0e2-7b8f-9865-98724ccfc378-3","role":"assistant","parts":[{"type":"step-start"},{"type":"tool-count_subjects","input":{},"state":"output-available","output":"<tool-data>{\"data\":{\"count\":3,\"capped\":false}}</tool-data>","toolCallId":"call_1795691305833"},{"type":"step-start"},{"text":"This tenant has 3 people.","type":"text","state":"done"}]}]}
+```
+
+`count` is `acme`'s three subjects, `alice`, `bob` and the service account of `acme-ops`, and not `globex`'s three, which
+the same question would count in a conversation started there.
+
+### The conversation is acme's alone
+
+The same conversation, loaded and sent to at `globex`'s path and loaded at the system tenant's own, as `ada`, who holds every
+capability that would let her call any of them. Each is the answer to a path that was never served:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADA" $API/globex/assistant/conversations/$ID
+curl -sS -D - -H "Authorization: Bearer $ADA" -H 'Content-Type: application/json' -d "'{"message":{"id":"m1","role":"user","parts":[{"type":"text","text":"how many people are in this tenant?"}]}}'" $API/globex/assistant/conversations/$ID/messages
+curl -sS -D - -H "Authorization: Bearer $ADA" $API/system/assistant/conversations/$ID
+```
+
+```
+HTTP/1.1 404 Not Found
+x-request-id: 01a2178a-e5a4-794e-961d-5383fb25514b
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 105
+Date: Thu, 26 Nov 2026 11:08:28 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a2178a-e5a4-794e-961d-5383fb25514b"}-- globex send
+HTTP/1.1 404 Not Found
+x-request-id: 01a2178a-e6fc-72bd-9fa0-de6b86c665e3
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 105
+Date: Thu, 26 Nov 2026 11:08:29 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a2178a-e6fc-72bd-9fa0-de6b86c665e3"}-- system load
+HTTP/1.1 404 Not Found
+x-request-id: 01a2178a-e89a-7cb1-8b36-39008532905d
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 105
+Date: Thu, 26 Nov 2026 11:08:29 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a2178a-e89a-7cb1-8b36-39008532905d"}
+
+HTTP/1.1 404 Not Found
+x-request-id: 01a2178a-e6fc-72bd-9fa0-de6b86c665e3
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 105
+Date: Thu, 26 Nov 2026 11:08:29 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a2178a-e6fc-72bd-9fa0-de6b86c665e3"}-- system load
+HTTP/1.1 404 Not Found
+x-request-id: 01a2178a-e89a-7cb1-8b36-39008532905d
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 105
+Date: Thu, 26 Nov 2026 11:08:29 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a2178a-e89a-7cb1-8b36-39008532905d"}
+
+HTTP/1.1 404 Not Found
+x-request-id: 01a2178a-e89a-7cb1-8b36-39008532905d
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 105
+Date: Thu, 26 Nov 2026 11:08:29 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a2178a-e89a-7cb1-8b36-39008532905d"}
+```
+
+An administrator of `acme` has no way in to `globex`. `acme-ops` holds `use-assistant`, and its token is refused at
+`globex`'s path before the assistant is reached, as any token of another tenant is:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $OPS" -H 'Content-Type: application/json' -d "$CTX" $API/globex/assistant/conversations
+```
+
+```
+HTTP/1.1 401 Unauthorized
+x-request-id: 01a2178a-ea00-7727-8811-a02327f9134f
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 108
+Date: Thu, 26 Nov 2026 11:08:29 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a2178a-ea00-7727-8811-a02327f9134f"}
+```
+
+### Where the records are
+
+The tool call is a row in `acme`'s own trail, which `acme`'s administrators can read with `view-audit`. It names `ada`'s
+subject as the actor and the system tenant as the actor's tenant, and the conversation and turn, never what was asked:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADA" "$API/acme/audit?action=agent.tool_call"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a2178a-eb63-768f-9448-0c1ab1ae10d7
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 743
+Date: Thu, 26 Nov 2026 11:08:30 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a2178a-df31-7de1-a695-8812238284a6","occurred_at":"2026-11-26T11:08:26.771Z","event_type":"admin_access","action":"agent.tool_call","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a2178a-06ac-71ab-895c-565df65ac25d","actor_client_id":"01a2178a-0065-7b70-b4da-15fa59a5d21d","actor_name":null,"actor_origin":"system","resource_type":null,"resource_id":null,"request_id":null,"ip":null,"detail":{"tool":"count_subjects","turn":"01a2178a-d7dc-7276-9bb3-42a89923e44c","owner":"01a2178a-06ac-71ab-895c-565df65ac25d","route":"GET /admin/tenants/:tenant/subjects/count","agent_client":"01a2178a-0065-7b70-b4da-15fa59a5d21d","conversation":"01a2178a-d0e2-7b8f-9865-98724ccfc378"}}]}
+```
+
+The turn's own rows are in the system tenant's trail, with the tenant it acted in as `target_tenant` (the id of `acme`,
+`01a2178a-239d-700c-a5ff-6bbfe767619f`), and the system tenant's trail holds no `agent.tool_call` row for this conversation:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADA" "$API/system/audit?action=assistant.turn"
+curl -sS -D - -H "Authorization: Bearer $ADA" "$API/system/audit?action=agent.tool_call"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a2178a-ed2c-70cd-ac83-e02c292eedb3
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 1699
+Date: Thu, 26 Nov 2026 11:08:30 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a2178a-e264-7127-8502-63f9c0e52d3d","occurred_at":"2026-11-26T11:08:27.578Z","event_type":"admin_mutation","action":"assistant.turn","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a2178a-06ac-71ab-895c-565df65ac25d","actor_client_id":null,"actor_name":"ada","actor_origin":"tenant","resource_type":"assistant_conversation","resource_id":"01a2178a-d0e2-7b8f-9865-98724ccfc378","request_id":null,"ip":null,"detail":{"mode":"ask","turn":"01a2178a-d7dc-7276-9bb3-42a89923e44c","phase":"ended","slots":["standard"],"steps":2,"tenant":"0199aa00-0000-7000-8000-000000000001","profile":"free-chat","subject":"01a2178a-06ac-71ab-895c-565df65ac25d","trace_lost":false,"stop_reason":"done","conversation":"01a2178a-d0e2-7b8f-9865-98724ccfc378","target_tenant":"01a2178a-239d-700c-a5ff-6bbfe767619f","tokens_by_slot":{"standard":104}}},{"id":"01a2178a-d892-7713-8033-6d475dc46618","occurred_at":"2026-11-26T11:08:25.072Z","event_type":"admin_mutation","action":"assistant.turn","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a2178a-06ac-71ab-895c-565df65ac25d","actor_client_id":null,"actor_name":"ada","actor_origin":"tenant","resource_type":"assistant_conversation","resource_id":"01a2178a-d0e2-7b8f-9865-98724ccfc378","request_id":null,"ip":null,"detail":{"mode":"ask","turn":"01a2178a-d7dc-7276-9bb3-42a89923e44c","phase":"started","slots":["standard"],"tenant":"0199aa00-0000-7000-8000-000000000001","profile":"free-chat","subject":"01a2178a-06ac-71ab-895c-565df65ac25d","conversation":"01a2178a-d0e2-7b8f-9865-98724ccfc378","target_tenant":"01a2178a-239d-700c-a5ff-6bbfe767619f"}}]}
+HTTP/1.1 200 OK
+x-request-id: 01a2178a-eebb-745c-9b5d-d24f74aa167b
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 12
+Date: Thu, 26 Nov 2026 11:08:31 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[]}
+```

@@ -1446,7 +1446,11 @@ export {
   type GrantAssistantWriteInput,
 } from '#/usecase/grant-assistant-access';
 export { recordAssistantRefusal } from '#/usecase/record-assistant-refusal';
-export type { AssistantGrantRefusal, AssistantMode } from '#/service/assistant-grant-rules';
+export type {
+  AssistantGrantRefusal,
+  AssistantMode,
+  AssistantTargetFacts,
+} from '#/service/assistant-grant-rules';
 export {
   AgentTokenRefused,
   mintAgentToken,

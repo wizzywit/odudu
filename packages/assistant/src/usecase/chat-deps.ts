@@ -25,6 +25,13 @@ export interface ChatCaller {
   readonly grantId: string | undefined;
   readonly requestId: string;
   readonly ip: string;
+  /**
+   * The tenant the request's path names, when a system administrator uses the
+   * assistant in a tenant other than their own: the tenant fields above stay the
+   * administrator's, because the conversation, its grant and its budget are
+   * rows of that tenant. Absent for a conversation in the caller's own tenant.
+   */
+  readonly target?: { readonly id: string; readonly name: string };
 }
 
 /**
@@ -42,6 +49,8 @@ export interface BudgetAuditEvent {
   readonly level?: LevelName;
   readonly stopReason?: StopReason;
   readonly overrunTokens?: number;
+  /** The tenant the turn acted in, when it was not the owner's own. */
+  readonly targetTenantId?: string;
 }
 
 export type AccessOutcome<T> = { kind: 'granted'; value: T } | { kind: 'refused'; reason: string };
