@@ -38,6 +38,15 @@ CREATE TABLE IF NOT EXISTS assistant_conversation_tombstones (
     REFERENCES subjects (tenant_id, id) ON DELETE CASCADE
 );
 
+-- The two foreign keys that the primary key does not lead: a person's deletion
+-- finds their tombstones by the first, and a target tenant's by the second,
+-- which holds only the rows bound to one.
+CREATE INDEX IF NOT EXISTS assistant_conversation_tombstones_owner
+  ON assistant_conversation_tombstones (tenant_id, owner_subject_id);
+CREATE INDEX IF NOT EXISTS assistant_conversation_tombstones_target
+  ON assistant_conversation_tombstones (target_tenant_id, tenant_id)
+  WHERE target_tenant_id IS NOT NULL;
+
 DO $$
 BEGIN
   IF NOT EXISTS (
