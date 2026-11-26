@@ -1,4 +1,10 @@
-import { explainSlots, type StatusDeps } from '@odudu/assistant';
+import {
+  createLanguageModel,
+  explainSlots,
+  type ChatDeps,
+  type ResolvedSlots,
+  type StatusDeps,
+} from '@odudu/assistant';
 
 // The one variable the status route reads again after start; the provider
 // keys are used where a model is called and are not carried here.
@@ -21,4 +27,16 @@ export function assistantFromEnv(
     );
   }
   return { slots, env: { [KEPT]: env[KEPT] } };
+}
+
+/**
+ * The model each slot runs, built where a turn asks for it from the provider
+ * variables of `env`. The keys stay in this closure: nothing else is handed
+ * them, and no status, log or audit row carries one.
+ */
+export function modelsFrom(
+  slots: ResolvedSlots,
+  env: Readonly<Record<string, string | undefined>>,
+): ChatDeps['model'] {
+  return (slot) => createLanguageModel(slots[slot], env);
 }

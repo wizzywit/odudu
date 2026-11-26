@@ -106,6 +106,10 @@ import {
   listEffectiveRolesQuerySchema,
   adminCapabilitiesResponseSchema,
   assistantStatusSchema,
+  assistantConversationSchema,
+  createConversationRequestSchema,
+  sendMessageRequestSchema,
+  SEND_MESSAGE_BODY_LIMIT,
   listEffectiveRolesResponseSchema,
   listTenantsQuerySchema,
   countTenantsQuerySchema,
@@ -2099,6 +2103,55 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'model is configured, otherwise the model each slot runs, the modes offered and the ' +
       'default, the models a person may choose and the provider, with the host of a ' +
       'self-hosted endpoint and never a key.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations',
+    capability: 'use-assistant',
+    responseSchema: assistantConversationSchema,
+    successStatus: 201,
+    bodySchema: createConversationRequestSchema,
+    noIdempotency: 'not-atomic',
+    description:
+      'Starts a conversation for the caller, in `ask` mode unless `act` is named, with the page ' +
+      'the administrator has open as `page_context`: a `route` and, optionally, an `objectType` ' +
+      'and `objectId`, each a short identifier and never free text. `400` for a profile this ' +
+      'server does not offer. `404` when no model is configured.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id',
+    capability: 'use-assistant',
+    responseSchema: assistantConversationSchema,
+    description:
+      'A conversation and its latest messages, oldest first, as the caller\u2019s own. `404` for ' +
+      'one that does not exist or belongs to another administrator, and when no model is configured.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/messages',
+    capability: 'use-assistant',
+    responseSchema: z.string(),
+    successMediaType: 'text/event-stream',
+    bodySchema: sendMessageRequestSchema,
+    bodyLimit: SEND_MESSAGE_BODY_LIMIT,
+    noIdempotency: 'external-io',
+    description:
+      'Sends the caller\u2019s message and streams the turn as server-sent events of AI SDK UI ' +
+      'message chunks. The message is stored before the model is called and each step is stored ' +
+      'as it ends. Closing the connection ends the turn. `409` while a turn of this conversation ' +
+      'is running on this server, `429` when this server is running as many turns as it admits, ' +
+      '`404` for a conversation that is not the caller\u2019s.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/stop',
+    capability: 'use-assistant',
+    responseSchema: z.object({ stopped: z.boolean() }),
+    noIdempotency: 'not-atomic',
+    description:
+      'Ends the conversation\u2019s running turn: `{ "stopped": true }` when this server was ' +
+      'running one, `false` when it was not. The turn stores what it had said.',
   },
 ];
 

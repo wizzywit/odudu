@@ -104,6 +104,21 @@ from .get_admin_tenants_tenant_agents_response_200_items_item_state import (
     GetAdminTenantsTenantAgentsResponse200ItemsItemState,
 )
 from .get_admin_tenants_tenant_agents_state import GetAdminTenantsTenantAgentsState
+from .get_admin_tenants_tenant_assistant_conversations_id_response_200 import (
+    GetAdminTenantsTenantAssistantConversationsIdResponse200,
+)
+from .get_admin_tenants_tenant_assistant_conversations_id_response_200_messages_item import (
+    GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItem,
+)
+from .get_admin_tenants_tenant_assistant_conversations_id_response_200_messages_item_parts_item import (
+    GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItemPartsItem,
+)
+from .get_admin_tenants_tenant_assistant_conversations_id_response_200_messages_item_role import (
+    GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItemRole,
+)
+from .get_admin_tenants_tenant_assistant_conversations_id_response_200_mode import (
+    GetAdminTenantsTenantAssistantConversationsIdResponse200Mode,
+)
 from .get_admin_tenants_tenant_assistant_status_response_200_type_0 import (
     GetAdminTenantsTenantAssistantStatusResponse200Type0,
 )
@@ -805,6 +820,42 @@ from .post_admin_tenant_imports_response_201_client_secrets_item import (
     PostAdminTenantImportsResponse201ClientSecretsItem,
 )
 from .post_admin_tenants_body import PostAdminTenantsBody
+from .post_admin_tenants_tenant_assistant_conversations_body import (
+    PostAdminTenantsTenantAssistantConversationsBody,
+)
+from .post_admin_tenants_tenant_assistant_conversations_body_mode import (
+    PostAdminTenantsTenantAssistantConversationsBodyMode,
+)
+from .post_admin_tenants_tenant_assistant_conversations_body_page_context import (
+    PostAdminTenantsTenantAssistantConversationsBodyPageContext,
+)
+from .post_admin_tenants_tenant_assistant_conversations_id_messages_body import (
+    PostAdminTenantsTenantAssistantConversationsIdMessagesBody,
+)
+from .post_admin_tenants_tenant_assistant_conversations_id_messages_body_message import (
+    PostAdminTenantsTenantAssistantConversationsIdMessagesBodyMessage,
+)
+from .post_admin_tenants_tenant_assistant_conversations_id_messages_body_message_parts_item import (
+    PostAdminTenantsTenantAssistantConversationsIdMessagesBodyMessagePartsItem,
+)
+from .post_admin_tenants_tenant_assistant_conversations_id_stop_response_200 import (
+    PostAdminTenantsTenantAssistantConversationsIdStopResponse200,
+)
+from .post_admin_tenants_tenant_assistant_conversations_response_201 import (
+    PostAdminTenantsTenantAssistantConversationsResponse201,
+)
+from .post_admin_tenants_tenant_assistant_conversations_response_201_messages_item import (
+    PostAdminTenantsTenantAssistantConversationsResponse201MessagesItem,
+)
+from .post_admin_tenants_tenant_assistant_conversations_response_201_messages_item_parts_item import (
+    PostAdminTenantsTenantAssistantConversationsResponse201MessagesItemPartsItem,
+)
+from .post_admin_tenants_tenant_assistant_conversations_response_201_messages_item_role import (
+    PostAdminTenantsTenantAssistantConversationsResponse201MessagesItemRole,
+)
+from .post_admin_tenants_tenant_assistant_conversations_response_201_mode import (
+    PostAdminTenantsTenantAssistantConversationsResponse201Mode,
+)
 from .post_admin_tenants_tenant_clients_body import PostAdminTenantsTenantClientsBody
 from .post_admin_tenants_tenant_clients_id_secret_response_200 import (
     PostAdminTenantsTenantClientsIdSecretResponse200,
@@ -1159,6 +1210,11 @@ __all__ = (
     "GetAdminTenantsTenantAgentsResponse200ItemsItemRemainingBudget",
     "GetAdminTenantsTenantAgentsResponse200ItemsItemState",
     "GetAdminTenantsTenantAgentsState",
+    "GetAdminTenantsTenantAssistantConversationsIdResponse200",
+    "GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItem",
+    "GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItemPartsItem",
+    "GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItemRole",
+    "GetAdminTenantsTenantAssistantConversationsIdResponse200Mode",
     "GetAdminTenantsTenantAssistantStatusResponse200Type0",
     "GetAdminTenantsTenantAssistantStatusResponse200Type1",
     "GetAdminTenantsTenantAssistantStatusResponse200Type1DefaultMode",
@@ -1408,6 +1464,18 @@ __all__ = (
     "PostAdminTenantImportsResponse201",
     "PostAdminTenantImportsResponse201ClientSecretsItem",
     "PostAdminTenantsBody",
+    "PostAdminTenantsTenantAssistantConversationsBody",
+    "PostAdminTenantsTenantAssistantConversationsBodyMode",
+    "PostAdminTenantsTenantAssistantConversationsBodyPageContext",
+    "PostAdminTenantsTenantAssistantConversationsIdMessagesBody",
+    "PostAdminTenantsTenantAssistantConversationsIdMessagesBodyMessage",
+    "PostAdminTenantsTenantAssistantConversationsIdMessagesBodyMessagePartsItem",
+    "PostAdminTenantsTenantAssistantConversationsIdStopResponse200",
+    "PostAdminTenantsTenantAssistantConversationsResponse201",
+    "PostAdminTenantsTenantAssistantConversationsResponse201MessagesItem",
+    "PostAdminTenantsTenantAssistantConversationsResponse201MessagesItemPartsItem",
+    "PostAdminTenantsTenantAssistantConversationsResponse201MessagesItemRole",
+    "PostAdminTenantsTenantAssistantConversationsResponse201Mode",
     "PostAdminTenantsTenantClientsBody",
     "PostAdminTenantsTenantClientsIdSecretResponse200",
     "PostAdminTenantsTenantClientsIdSecretResponse200AllowedActionsItem",

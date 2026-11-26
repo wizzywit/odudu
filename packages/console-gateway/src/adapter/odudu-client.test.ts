@@ -161,3 +161,76 @@ describe('oduduClient: client authentication', () => {
     expect(claims).not.toBeNull();
   });
 });
+
+describe('forwardStream', () => {
+  const CHUNK_MS = 50;
+  const CHUNKS = 8;
+
+  // An admin API whose route writes a chunk every CHUNK_MS and notes whether its
+  // own response was closed before it finished.
+  async function slowUpstream() {
+    const state = { written: 0, closedEarly: false, finished: false };
+    app = Fastify();
+    app.post('/admin/stream', (_request, reply) => {
+      reply.raw.once('close', () => {
+        if (!reply.raw.writableFinished) state.closedEarly = true;
+      });
+      reply.hijack();
+      reply.raw.writeHead(200, { 'content-type': 'text/event-stream' });
+      const tick = () => {
+        if (state.closedEarly || reply.raw.destroyed) return;
+        if (state.written === CHUNKS) {
+          state.finished = true;
+          reply.raw.end();
+          return;
+        }
+        reply.raw.write(`data: chunk${String(state.written)}\n\n`);
+        state.written += 1;
+        setTimeout(tick, CHUNK_MS);
+      };
+      tick();
+    });
+    await app.ready();
+    const port = oduduClient(app, BASE, { key, now: () => NOW }, () =>
+      Promise.reject(new Error('no tenant address')),
+    );
+    return { port, state };
+  }
+
+  const CALL = {
+    method: 'POST',
+    path: '/admin/stream',
+    headers: {},
+    body: undefined,
+    from: FROM,
+  } as const;
+
+  it('hands the first chunk over while the upstream is still writing', async () => {
+    const { port, state } = await slowUpstream();
+    const res = await port.forwardStream(CALL, new AbortController().signal);
+    expect(res.status).toBe(200);
+    const chunks: string[] = [];
+    for await (const chunk of res.body) {
+      chunks.push(String(chunk));
+      if (chunks.length === 1) expect(state.finished).toBe(false);
+    }
+    expect(chunks.join('')).toContain('chunk7');
+    expect(state.finished).toBe(true);
+  });
+
+  it('stops the upstream handler when the response is destroyed', async () => {
+    const { port, state } = await slowUpstream();
+    const gone = new AbortController();
+    const res = await port.forwardStream(CALL, gone.signal);
+    await new Promise((resolve) => res.body.once('data', resolve));
+
+    gone.abort();
+    res.destroy();
+    await new Promise((resolve) => setTimeout(resolve, CHUNK_MS * 3));
+    expect(state.closedEarly).toBe(true);
+    const written = state.written;
+    await new Promise((resolve) => setTimeout(resolve, CHUNK_MS * 3));
+    expect(state.written).toBe(written);
+    expect(state.finished).toBe(false);
+  });
+});

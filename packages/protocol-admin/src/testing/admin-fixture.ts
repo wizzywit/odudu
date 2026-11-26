@@ -81,6 +81,7 @@ import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fast
 import { type inspectImage } from '@odudu/domain-theme';
 import { adminRoutesForTesting } from '#/index';
 import { type VerifyThrottle } from '#/service/domain-throttle';
+import { type AssistantChatPort } from '#/view/routes/assistant';
 
 // Encrypts every signing key this fixture generates, and decrypts every one
 // it signs with — a fixed value is fine because nothing outside this
@@ -296,6 +297,8 @@ export interface AdminFixtureOptions {
   readonly openApp?: (url: string) => DatabaseHandle;
   /** What the assistant's status route answers; disabled when omitted. */
   readonly assistantStatus?: () => AssistantStatus;
+  /** The chat port behind the assistant's conversation routes; absent, they answer 404. */
+  readonly assistantChat?: AssistantChatPort;
 }
 
 function noRecord(): Error {
@@ -417,6 +420,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         ...(options.assistantStatus === undefined
           ? {}
           : { assistantStatus: options.assistantStatus }),
+        ...(options.assistantChat === undefined ? {} : { assistantChat: options.assistantChat }),
         ...(options.auditReadTimeoutMs === undefined
           ? {}
           : { auditReadTimeoutMs: options.auditReadTimeoutMs }),

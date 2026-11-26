@@ -231,7 +231,14 @@ import {
   readTenantHandler,
   type TenantsRouteDeps,
 } from '#/view/routes/tenants';
-import { assistantStatusHandler } from '#/view/routes/assistant';
+import {
+  assistantStatusHandler,
+  createConversationHandler,
+  loadConversationHandler,
+  sendMessageHandler,
+  stopConversationHandler,
+  type AssistantChatPort,
+} from '#/view/routes/assistant';
 import { whoamiHandler } from '#/view/routes/whoami';
 import {
   evaluateClaimsHandler,
@@ -432,6 +439,9 @@ export interface AdminRoutesDeps {
   // from the environment and the composition root hands over: the assistant
   // sits above this package and cannot be imported here. Omitted, it is off.
   assistantStatus?: () => AssistantStatus;
+  // What the conversation routes call, which @odudu/assistant supplies. Omitted,
+  // they answer 404 as if they were not served.
+  assistantChat?: AssistantChatPort;
 }
 
 export type AdminAuthParts = Pick<AdminRoutesDeps, 'database' | 'ownerDatabase' | 'publicBaseUrl'>;
@@ -822,11 +832,18 @@ function buildAdminRoutes(
       ownerDatabase: deps.ownerDatabase.db,
       now: () => clock.now(),
     };
+    const chatDeps = { chat: deps.assistantChat };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
       'GET /admin/tenants/:tenant/assistant/status': assistantStatusHandler({
         status: deps.assistantStatus ?? (() => ({ enabled: false })),
       }),
+      'POST /admin/tenants/:tenant/assistant/conversations': createConversationHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/conversations/:id': loadConversationHandler(chatDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations/:id/messages':
+        sendMessageHandler(chatDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations/:id/stop':
+        stopConversationHandler(chatDeps),
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/count': countSubjectsHandler(countsDeps),
       'GET /admin/tenants/:tenant/subjects/username-policy':

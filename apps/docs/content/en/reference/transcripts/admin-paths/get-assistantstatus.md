@@ -14,7 +14,7 @@ The answer is decided when the server starts, from `ODUDU_ASSISTANT_MODELS` and 
 With no `standard` slot that resolves it is `{"enabled":false}`. Otherwise it names the model each slot runs (a `fast` or `deep`
 slot that is not set runs the `standard` model), the modes offered, the default mode, the distinct models in slot order and
 the provider of the `standard` slot, with the host of a self-hosted endpoint for `openai-compatible` and nothing else of its
-address. No key is ever in it. No other assistant path exists yet, so any other path under `/assistant/` is the ordinary `404`.
+address. No key is ever in it. The conversation routes are on [their own page](./post-assistantconversations-and-the-conversation-routes.md) and answer `404` too until a model is configured; any other path under `/assistant/` is the ordinary `404`.
 
 Both runs are on one stack, on port `3112`, from an empty volume. The tenant and its two clients are made with the CLI, and each client's
 token is got with `client_credentials`:

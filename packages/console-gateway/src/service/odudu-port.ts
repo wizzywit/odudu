@@ -1,3 +1,5 @@
+import { type Readable } from 'node:stream';
+
 /** The browser request an in-process call is made on behalf of. */
 export interface Caller {
   readonly ip: string;
@@ -52,6 +54,18 @@ export interface AdminResponse {
   readonly body: Buffer;
 }
 
+/**
+ * An admin response whose body is read as it is written. `destroy` ends the
+ * upstream response itself, which is what a handler writing it is told by its
+ * response's `close`; the call's signal is not relied on to reach it.
+ */
+export interface AdminStreamResponse {
+  readonly status: number;
+  readonly headers: Readonly<Record<string, string | number | readonly string[] | undefined>>;
+  readonly body: Readable;
+  readonly destroy: () => void;
+}
+
 /** A tenant's discovery document, parsed but not narrowed past `issuer`. */
 export interface DiscoveryDocument {
   readonly issuer: string;
@@ -76,4 +90,6 @@ export interface OduduPort {
   revoke(tenant: string, refreshToken: string, from: Caller): Promise<void>;
   refresh(tenant: string, refreshToken: string, from: Caller): Promise<RefreshOutcome>;
   forward(call: AdminCall): Promise<AdminResponse>;
+  // For a response a handler writes over time; the status line arrives first.
+  forwardStream(call: AdminCall, signal: AbortSignal): Promise<AdminStreamResponse>;
 }

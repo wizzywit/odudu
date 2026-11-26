@@ -40,6 +40,9 @@ const CLASSIFIED: Record<string, 'idempotent' | 'secret' | 'not-atomic' | 'exter
   '/admin/tenants/:tenant/keys/:id/promote': 'idempotent',
   '/admin/tenants/:tenant/keys/:id/retire': 'idempotent',
   '/admin/tenants/:tenant/smtp/test': 'external-io',
+  '/admin/tenants/:tenant/assistant/conversations': 'not-atomic',
+  '/admin/tenants/:tenant/assistant/conversations/:id/messages': 'external-io',
+  '/admin/tenants/:tenant/assistant/conversations/:id/stop': 'not-atomic',
 };
 
 // Response members that look like a secret by name and are not, each
