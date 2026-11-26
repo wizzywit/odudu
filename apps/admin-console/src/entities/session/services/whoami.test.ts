@@ -3,7 +3,11 @@ import { authorityOf, refusedUnknownOf } from '#/entities/session/services/whoam
 import type { Authority } from '#/shared/lib/services/principal';
 import type { GatewayResult } from '#/shared/lib/services/result';
 
-const granted: Authority = { capabilities: ['manage-users'], crossTenant: false };
+const granted: Authority = {
+  capabilities: ['manage-users'],
+  crossTenant: false,
+  assistantAvailable: false,
+};
 const answered: GatewayResult<Authority> = {
   ok: true,
   status: 200,

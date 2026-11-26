@@ -44,13 +44,40 @@ curl -sS \
 
 This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. The caller is the run's own `ada`, holding `tenant-admin`, so `subjectId` is hers.
 
-A client that holds only `use-assistant` sees only that. The run is on a fresh tenant `assist-demo`, so
-its ids are that run's own; the client's token is got with `client_credentials`, as on [`GET /assistant/status`](./get-assistantstatus.md):
+That block shows the answer as it was before `assistant_available` was added, and was not run again: its caller was the run's own `ada`, which this change had no stack for. Every whoami answer now carries `assistant_available`, `true` when the deployment resolved a standard model for the console assistant and `false` otherwise, and is left out of the answer to an AI agent's token, which is told nothing of the assistant; the two blocks below show both.
+
+A client that holds only `use-assistant` sees only that. The run is on a fresh tenant `assist-demo`, so its ids are that run's own; the client's token is got with `client_credentials`, as on [`GET /assistant/status`](./get-assistantstatus.md). On a stack that sets none of the assistant's variables, `assistant_available` is `false`:
 
 ```bash
-curl -sS -H "Authorization: Bearer $USER_TOKEN" http://localhost:3112/admin/tenants/assist-demo/whoami
+curl -sS -D - -H "Authorization: Bearer $USER_TOKEN" http://localhost:3000/admin/tenants/assist-demo/whoami
 ```
 
 ```
-{"subjectId":"01a214d1-d714-7b0a-ad73-b9638e403dc8","issuerTenantId":"01a214d1-d3bc-7dc9-acf6-2b6f2988151e","issuerTenantName":"assist-demo","capabilities":["use-assistant"],"crossTenant":false}
+HTTP/1.1 200 OK
+x-request-id: 01a215fc-7e92-7acc-a93f-71b0eadf216c
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 222
+Date: Thu, 26 Nov 2026 03:53:18 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"subjectId":"01a215fc-7c81-735d-a915-304b29d37308","issuerTenantId":"01a215fc-77dd-71ea-a23a-12e14cc7460e","issuerTenantName":"assist-demo","capabilities":["use-assistant"],"crossTenant":false,"assistant_available":false}
 ```
+
+The same stack started again over the same volume with `ODUDU_ASSISTANT_MODELS` set to `standard=anthropic:claude-model-for-transcript` and `ANTHROPIC_API_KEY` to a placeholder, and a token got again, answers `true`:
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a215fc-99cf-7101-bf68-036a14eb440a
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 221
+Date: Thu, 26 Nov 2026 03:53:25 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"subjectId":"01a215fc-7c81-735d-a915-304b29d37308","issuerTenantId":"01a215fc-77dd-71ea-a23a-12e14cc7460e","issuerTenantName":"assist-demo","capabilities":["use-assistant"],"crossTenant":false,"assistant_available":true}
+```
+
+The console reads this field and asks for the assistant's settings only where it is `true`, so a deployment without an assistant is never sent a request it answers as a path that was never served.

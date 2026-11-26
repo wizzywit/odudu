@@ -19,13 +19,18 @@ beforeAll(preloadConsoleRoutes, 60_000);
 export const GRACE = { tenant: 'acme', subject_id: 's1', username: 'grace' };
 export const ROOT = { tenant: 'system', subject_id: 's0', username: 'root' };
 
-export function whoami(capabilities: readonly string[], crossTenant = false): Answer {
+export function whoami(
+  capabilities: readonly string[],
+  crossTenant = false,
+  assistantAvailable = false,
+): Answer {
   return json({
     subjectId: 's',
     issuerTenantId: 't',
     issuerTenantName: 'acme',
     capabilities,
     crossTenant,
+    assistant_available: assistantAvailable,
   });
 }
 

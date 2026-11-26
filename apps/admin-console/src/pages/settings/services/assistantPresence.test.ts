@@ -11,13 +11,15 @@ import type { Authority } from '#/shared/lib/services/principal';
 const held = (...capabilities: Authority['capabilities']): Authority => ({
   capabilities,
   crossTenant: false,
+  assistantAvailable: true,
 });
 
-it('lets a person who manages or audits the assistant read its settings, and nobody before whoami has answered', () => {
+it('lets a person who manages or audits the assistant read its settings, , and nobody before whoami has answered or where it says the assistant is not available', () => {
   expect(mayReadAssistant(undefined)).toBe(false);
   expect(mayReadAssistant(held('manage-assistant'))).toBe(true);
   expect(mayReadAssistant(held('read-assistant-activity'))).toBe(true);
   expect(mayReadAssistant(held('manage-tenant', 'use-assistant'))).toBe(false);
+  expect(mayReadAssistant({ ...held('manage-assistant'), assistantAvailable: false })).toBe(false);
 });
 
 it('lets only a manager change them', () => {

@@ -10,10 +10,15 @@ export type AssistantPresence = 'absent' | 'pending' | 'failed' | 'ready';
 
 const READERS: readonly AdminCapability[] = ['manage-assistant', 'read-assistant-activity'];
 
-// Nothing is asked until whoami has answered, so a person who holds neither
-// capability is never sent a request that can only be refused.
+// Nothing is asked until whoami has answered that the deployment has the
+// assistant, so a deployment without one is never sent a request it answers as
+// a path never served, and a person who holds neither
+// capability is never sent one that can only be refused.
 export function mayReadAssistant(authority: Authority | undefined): boolean {
-  return authority !== undefined && READERS.some((capability) => holds(authority, capability));
+  return (
+    authority?.assistantAvailable === true &&
+    READERS.some((capability) => holds(authority, capability))
+  );
 }
 
 export function mayChangeAssistant(authority: Authority | undefined): boolean {

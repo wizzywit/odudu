@@ -101,6 +101,7 @@ function authority(
           issuerTenantName: 'acme',
           capabilities: ['view-users'],
           crossTenant: false,
+          assistant_available: false,
         }),
       );
     }
@@ -704,6 +705,7 @@ describe('odudu mcp at a tenant with a domain of its own', () => {
             issuerTenantName: 'acme',
             capabilities: [],
             crossTenant: false,
+            assistant_available: false,
           }),
         );
       }
@@ -881,6 +883,7 @@ describe('odudu mcp keeps a sign-in for the address it was made at', () => {
             issuerTenantName: 'acme',
             capabilities: [],
             crossTenant: false,
+            assistant_available: false,
           }),
         );
       }

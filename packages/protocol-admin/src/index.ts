@@ -868,7 +868,10 @@ function buildAdminRoutes(
     };
     const chatDeps = { chat: deps.assistantChat, offered: tenantOffersAssistant(assistantDeps) };
     const handlers: AdminRouteHandlers = {
-      'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
+      'GET /admin/tenants/:tenant/whoami': whoamiHandler({
+        callerCapabilities,
+        assistantAvailable: deps.assistantSettings !== undefined,
+      }),
       'GET /admin/tenants/:tenant/assistant/status': assistantStatusHandler(assistantDeps),
       'GET /admin/tenants/:tenant/assistant/settings': readAssistantSettingsHandler(assistantDeps),
       'PUT /admin/tenants/:tenant/assistant/settings': putAssistantSettingsHandler(assistantDeps),

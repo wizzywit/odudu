@@ -9468,6 +9468,9 @@
           },
           "crossTenant": {
             "type": "boolean"
+          },
+          "assistant_available": {
+            "type": "boolean"
           }
         },
         "required": [

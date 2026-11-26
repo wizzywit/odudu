@@ -140,7 +140,12 @@ export async function sendMessage(
         ...deps.turn(caller, id),
         advanceRun: (observed) => advance(deps, caller, id, observed),
       },
-      { conversationId: id, generation: prepared.generation, message, signal: AbortSignal.any([signal, turn.signal]) },
+      {
+        conversationId: id,
+        generation: prepared.generation,
+        message,
+        signal: AbortSignal.any([signal, turn.signal]),
+      },
     );
 
     let seq: number | undefined;

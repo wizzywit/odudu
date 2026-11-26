@@ -19,6 +19,7 @@ interface WhoamiBody {
   issuerTenantName: string;
   capabilities: string[];
   crossTenant: boolean;
+  assistant_available: boolean;
 }
 
 async function whoami(token: string, tenantName: string) {
@@ -40,6 +41,12 @@ describe('GET /whoami', () => {
     const body = res.json<WhoamiBody>();
     expect(body.capabilities).toEqual(['view-users']);
     expect(body.crossTenant).toBe(false);
+  });
+
+  it('says the assistant is not available where the deployment has none configured', async () => {
+    const t = await fixture.createTenant(`whoami-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-assistant']);
+    expect((await whoami(token, t.name)).json<WhoamiBody>().assistant_available).toBe(false);
   });
 
   it('names the caller’s own tenant by id and by name, whichever tenant the path names', async () => {

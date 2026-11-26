@@ -40,6 +40,7 @@ it("reads whoami on the tenant in the path, through the contract's schema", asyn
         issuerTenantName: 'acme',
         capabilities: ['view-users', 'manage-tenants'],
         crossTenant: true,
+        assistant_available: true,
       },
       urls,
     ),
@@ -48,7 +49,11 @@ it("reads whoami on the tenant in the path, through the contract's schema", asyn
   expect(urls).toEqual(['/console/api/admin/tenants/acme/whoami']);
   expect(result).toMatchObject({
     ok: true,
-    data: { capabilities: ['view-users', 'manage-tenants'], crossTenant: true },
+    data: {
+      capabilities: ['view-users', 'manage-tenants'],
+      crossTenant: true,
+      assistantAvailable: true,
+    },
   });
 });
 
@@ -60,6 +65,7 @@ it('refuses a capability the contract does not name', async () => {
       issuerTenantName: 'acme',
       capabilities: ['rule-the-world'],
       crossTenant: false,
+      assistant_available: false,
     }),
     'acme',
   );

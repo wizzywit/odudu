@@ -117,7 +117,10 @@ export function conversationRepository(tx: AssistantTx) {
         .update(assistantConversations)
         .set({ runGeneration: next, instanceId: instanceIdOf(next) })
         .where(
-          and(eq(assistantConversations.id, id), eq(assistantConversations.runGeneration, observed)),
+          and(
+            eq(assistantConversations.id, id),
+            eq(assistantConversations.runGeneration, observed),
+          ),
         )
         .returning({ generation: assistantConversations.runGeneration });
       if (rows[0] !== undefined) return rows[0].generation;

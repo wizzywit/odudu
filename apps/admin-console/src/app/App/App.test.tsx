@@ -38,6 +38,7 @@ function whoami(capabilities: readonly string[], crossTenant = false): Answer {
     subjectId: 's',
     issuerTenantId: 't',
     issuerTenantName: 'acme',
+    assistant_available: false,
     capabilities,
     crossTenant,
   });

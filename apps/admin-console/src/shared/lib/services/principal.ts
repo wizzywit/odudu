@@ -9,6 +9,9 @@ export type { AdminCapability };
 export interface Authority {
   capabilities: readonly AdminCapability[];
   crossTenant: boolean;
+  // Whether the deployment has the assistant at all, which whoami says so that
+  // nothing asks for its settings where they are never served.
+  assistantAvailable?: boolean;
 }
 
 export const SYSTEM_TENANT = 'system';
