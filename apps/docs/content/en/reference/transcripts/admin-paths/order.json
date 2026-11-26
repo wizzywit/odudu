@@ -25,6 +25,7 @@
   "get-assistantstatus.md",
   "get-assistantsettings-and-put-assistantsettings.md",
   "post-assistantconversations-and-the-conversation-routes.md",
+  "post-assistantconversationsidapprovals-and-the-act-routes.md",
   "get-domains-post-domains-and-the-domain-routes.md",
   "get-whoami.md",
   "get-subjects.md",
