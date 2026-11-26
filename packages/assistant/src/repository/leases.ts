@@ -50,6 +50,18 @@ export function leaseRepository(tx: AssistantTx) {
       return { ok: true };
     },
 
+    // Whether a turn of the conversation holds a lease that has not lapsed, on any
+    // server. The leases are the tenant's live turns, at most its concurrency
+    // limit, and the read walks those by assistant_turn_leases_live.
+    async liveFor(conversationId: string, now: Date): Promise<boolean> {
+      const rows = await tx.execute(sql`
+        select 1 from assistant_turn_leases
+         where tenant_id = ${TENANT} and expires_at > ${now.toISOString()}::timestamptz
+           and conversation_id = ${conversationId}
+         limit 1`);
+      return rows.length > 0;
+    },
+
     async release(turnId: string): Promise<void> {
       await tx.execute(sql`
         delete from assistant_turn_leases where tenant_id = ${TENANT} and turn_id = ${turnId}`);

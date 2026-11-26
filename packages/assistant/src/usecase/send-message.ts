@@ -14,6 +14,7 @@ import { messageRepository } from '#/repository/messages';
 import { visibleMessages } from '#/usecase/conversation-view';
 import { HISTORY_MESSAGES } from '#/service/context';
 import { leaseTtlMs, stopReasonOf, type AssistantLimits, type StopReason } from '#/service/limits';
+import { titleOf } from '#/service/conversation-title';
 import { pageContextText, readPageContext } from '#/service/page-context';
 import { runKey } from '#/service/run-key';
 import { profileById } from '#/service/profile';
@@ -51,12 +52,19 @@ export type SendOutcome =
   | { kind: 'busy' }
   | { kind: 'saturated' }
   | { kind: 'limited'; retryAfterSeconds: number }
+  // The sign-in the conversation acts under has ended, so no turn could run in it.
+  | { kind: 'ended' }
   // A resume while a change still waits for the person, or with none to resume.
   | { kind: 'waiting' }
   | { kind: 'nothing_waiting' };
 
 // How long a refused caller is told to wait before trying again.
 export const LIMITED_RETRY_SECONDS = 5;
+
+// The text a person typed in a message, its text parts joined.
+function askedText(message: UIMessage): string {
+  return message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n');
+}
 
 // How a turn starts: from the person's new message, or from the stored
 // conversation after they decided a change.
@@ -69,6 +77,7 @@ interface Head {
   readonly maskEmails: boolean;
   readonly limits: AssistantLimits;
   readonly mode: ConversationMode;
+  readonly titled: boolean;
 }
 
 // What a turn needs to know about the conversation before anything is changed:
@@ -97,6 +106,7 @@ async function readHead(deps: ChatDeps, caller: ChatCaller, id: string): Promise
     pageContext: pageContextText(readPageContext(head?.parts)),
     maskEmails: side.maskEmails,
     limits,
+    titled: record.title !== null,
     // Act only where the deployment can propose a change, every tenant involved
     // allows it, and the conversation is in the caller's own tenant.
     mode:
@@ -341,6 +351,9 @@ async function runConversationTurn(
   const profile = head === null ? undefined : profileById(head.profileId);
   if (head === null || profile === undefined) return { kind: 'not_found' };
   const prepared = head;
+  if (deps.continuable !== undefined && !(await deps.continuable(caller, id))) {
+    return { kind: 'ended' };
+  }
 
   const turn = new AbortController();
   const admitted = registry.begin(id, () => {
@@ -549,6 +562,8 @@ async function runConversationTurn(
       await deps.transact(caller.tenantId, async (tx) => {
         await messageRepository(tx).append(id, { role: 'user', parts: message.parts });
         await conversationRepository(tx).touch(id, deps.now());
+        const title = prepared.titled ? null : titleOf(askedText(message));
+        if (title !== null) await conversationRepository(tx).setTitleOnce(id, title);
       });
     }
     const earlier = loaded.earlier;

@@ -46,6 +46,17 @@ import {
 } from '#/admin/audit';
 import { assistantSettingsSchema } from '#/admin/assistant';
 import {
+  assistantConversationExportSchema,
+  assistantConversationSummarySchema,
+  assistantExportMessageSchema,
+  assistantExportedConversationSchema,
+  assistantResumedConversationSchema,
+  lastAssistantConversationResponseSchema,
+  listAssistantConversationsResponseSchema,
+  setConversationArchivedRequestSchema,
+  setConversationArchivedResponseSchema,
+} from '#/admin/assistantConversations';
+import {
   assistantActivityConversationSchema,
   assistantActivityReplaySchema,
   assistantPromptfooCaseSchema,
@@ -1309,6 +1320,73 @@ describeFields(assistantConversationSchema, {
   last_active_at: 'When it last took a message.',
   messages:
     'The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them.',
+});
+describeFields(assistantConversationSummarySchema, {
+  id: 'The conversation’s id.',
+  title:
+    'A short title made from the first thing the person asked, with addresses, links, long numbers and secrets taken out, or `null` before they have asked anything.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'Whether it may only read (`ask`) or may also propose changes (`act`).',
+  created_at: 'When it was started.',
+  last_active_at:
+    'When it last took a message. Retention counts from here, and the list is ordered by it, newest first.',
+  archived: 'True while the person has hidden it from their list. Nothing is removed by hiding.',
+  archived_at: 'When it was hidden, or `null` while it is not.',
+  reported:
+    'True when it was reported, which keeps it past retention; a reported conversation cannot be deleted by its owner.',
+  target_tenant_id:
+    'The tenant it acts in when that is not the person’s own, as for a system administrator; `null` otherwise.',
+});
+describeFields(listAssistantConversationsResponseSchema, {
+  items: 'The caller’s own conversations, newest activity first.',
+  next: 'The cursor for the next page. Absent on the last page.',
+});
+describeFields(assistantResumedConversationSchema, {
+  id: 'The conversation’s id.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'Whether it may only read (`ask`) or may also propose changes (`act`).',
+  title: 'A short title once the conversation has one, otherwise `null`.',
+  created_at: 'When it was started.',
+  last_active_at: 'When it last took a message.',
+  messages:
+    'The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them.',
+  archived: 'True while the person has hidden it from their list.',
+  continuable:
+    'False when the sign-in the conversation acts under has ended, so a new message would be refused: the messages can be read, and a new conversation is the way to carry on.',
+});
+describeFields(lastAssistantConversationResponseSchema, {
+  conversation:
+    'The caller’s most recently active conversation that is not hidden, with its messages, or `null` when they have none.',
+});
+describeFields(setConversationArchivedRequestSchema, {
+  archived: 'True to hide the conversation from the list, false to bring it back.',
+});
+describeFields(setConversationArchivedResponseSchema, {
+  archived: 'Whether the conversation is hidden now.',
+  archived_at:
+    'When it was hidden. Hiding one that is hidden already answers the first time, and bringing one back answers `null`.',
+});
+describeFields(assistantExportMessageSchema, {
+  role: '`user` for the person’s message, `assistant` for the answer.',
+  at: 'When the message was stored.',
+  text: 'The message’s text with secrets hidden, and email addresses too where the tenant masks them.',
+  tools:
+    'For an answer, the names of the tools it called. Their inputs and results are not exported.',
+});
+describeFields(assistantExportedConversationSchema, {
+  id: 'The conversation’s id.',
+  title: 'Its title, or `null`.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'Whether it may only read (`ask`) or may also propose changes (`act`).',
+  created_at: 'When it was started.',
+  last_active_at: 'When it last took a message.',
+});
+describeFields(assistantConversationExportSchema, {
+  exported_at: 'When the export was made.',
+  conversation: 'The conversation’s own fields.',
+  messages:
+    'The conversation’s messages, oldest first, the first 500 at most. The page context the conversation started with is not among them.',
+  truncated: 'True when the conversation holds more messages than the export carries.',
 });
 
 describeFields(assistantApprovalCardSchema, {

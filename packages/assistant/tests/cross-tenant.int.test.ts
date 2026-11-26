@@ -400,9 +400,9 @@ describe('listing a person’s conversations', () => {
     const atY = await started(chat, callerOf(w, 'y'));
     const list = (target: string | null) =>
       withTenant(app.db, w.home, async (tx) =>
-        (await conversationRepository(tx).listByOwner(w.s, null, 50, target)).items.map(
-          (row) => row.id,
-        ),
+        (
+          await conversationRepository(tx).listByOwner(w.s, { archived: false, target, limit: 50 })
+        ).items.map((row) => row.id),
       );
     expect(await list(null)).toEqual([home]);
     expect(await list(w.x)).toEqual([atX]);
