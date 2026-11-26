@@ -10,7 +10,7 @@ import { ConsoleShot } from '@site/src/shared/ui/ConsoleShot';
 
 The assistant is a panel that opens beside any page of the console. You ask a question in plain words, and it reads what it needs from the tenant, as you could, and answers. It is not an area with a menu entry. It needs the `use-assistant` capability, and it is for the administrators of the tenant itself: an administrator of the system tenant who is looking at another tenant does not see it there, since the conversation would belong to nobody in that tenant.
 
-The button is **Ask the assistant**, in the menu and, on a narrow screen, in the top bar. It is drawn only where the server has the assistant switched on, the tenant offers it and you may use it. Where any of those is not true there is no button, no shortcut and nothing asked of the server. The tenant's own switch and limits are in [Settings](./settings.mdx), under **Console assistant**.
+The button is **Ask the assistant**, in the menu and, on a narrow screen, in the top bar, where it reads **Ask** to leave room for the name of the tenant and the menu button. It is drawn only where the server has the assistant switched on, the tenant offers it and you may use it. Where any of those is not true there is no button, no shortcut and nothing asked of the server. The tenant's own switch and limits are in [Settings](./settings.mdx), under **Console assistant**.
 
 <ConsoleShot
   name="assistant-panel"
@@ -36,7 +36,7 @@ The first time you use it in a browser, a notice says where your messages go and
 
 Type in the message field and press Enter. Shift and Enter start a new line. Next to the field a chip says where you are, such as `client my-app` on a client's page: that is sent with your first message, as the address of the page and, on a page of one record, its kind and id, and never as text you typed. The assistant can read what you can read there: clients, subjects, roles, settings and the audit trail.
 
-The conversation starts with your first message, not when the panel opens, so opening it and closing it again costs nothing. Your words appear as you typed them. The answer appears as it is written, with emphasis, lists and code. A link to a console page stays a link; any other address is shown as text, and an image is not shown, since an answer can carry text a tenant wrote.
+The conversation starts with your first message, not when the panel opens, so opening it and closing it again costs nothing. Your words appear as you typed them. The answer appears as it is written, with emphasis, lists, code and tables. A table that is wider than the panel scrolls sideways inside the answer, with the arrow keys once you have tabbed to it, and the page does not move. A link to a console page stays a link; any other address is shown as text, and an image is not shown, since an answer can carry text a tenant wrote.
 
 ## 3. Ask and Act
 
