@@ -739,6 +739,7 @@ const NO_UPKEEP: AssistantReapReport = {
   reservationsDeleted: 0,
   countersDeleted: 0,
   leasesDeleted: 0,
+  writeGrantsRevoked: 0,
   failed: 0,
 };
 
@@ -749,6 +750,7 @@ function addUpkeep(a: AssistantReapReport, b: BudgetUpkeepReport): AssistantReap
     reservationsDeleted: a.reservationsDeleted + b.reservationsDeleted,
     countersDeleted: a.countersDeleted + b.countersDeleted,
     leasesDeleted: a.leasesDeleted + b.leasesDeleted,
+    writeGrantsRevoked: a.writeGrantsRevoked + b.writeGrantsRevoked,
     failed: a.failed,
   };
 }

@@ -2,9 +2,15 @@ import { sql } from 'drizzle-orm';
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { budgetRepository } from '#/repository/budgets';
 import { leaseRepository } from '#/repository/leases';
+import { writeGrantRepository } from '#/repository/write-grants';
 import type { AssistantTx } from '#/repository/tx';
 import { drain } from '#/service/drain';
-import { RESERVATION_SWEEP_AFTER_MS, UPKEEP_BATCH, upkeepCutoffs } from '#/service/limits';
+import {
+  RESERVATION_SWEEP_AFTER_MS,
+  UPKEEP_BATCH,
+  upkeepCutoffs,
+  WRITE_GRANT_STALE_MS,
+} from '#/service/limits';
 
 export interface BudgetUpkeepReport {
   /** Open reservations whose call never reached the provider, given back. */
@@ -14,6 +20,8 @@ export interface BudgetUpkeepReport {
   readonly reservationsDeleted: number;
   readonly countersDeleted: number;
   readonly leasesDeleted: number;
+  /** Write grants of approved changes a dead process left live, revoked. */
+  readonly writeGrantsRevoked: number;
 }
 
 /**
@@ -48,11 +56,21 @@ export async function upkeepBudget(tx: AssistantTx, now: Date): Promise<BudgetUp
     return pruned.reservations + pruned.counters;
   }, UPKEEP_BATCH);
   const lapsed = await drain(() => leases.prune(cutoffs.leasesBefore, UPKEEP_BATCH), UPKEEP_BATCH);
+  const grants = await drain(
+    () =>
+      writeGrantRepository(tx).revokeStale(
+        new Date(now.getTime() - WRITE_GRANT_STALE_MS),
+        now,
+        UPKEEP_BATCH,
+      ),
+    UPKEEP_BATCH,
+  );
   return {
     reservationsReleased: released,
     reservationsCharged: charged,
     reservationsDeleted: reservations,
     countersDeleted: counters,
     leasesDeleted: lapsed,
+    writeGrantsRevoked: grants,
   };
 }

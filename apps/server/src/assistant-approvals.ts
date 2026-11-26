@@ -1,6 +1,6 @@
-import type { ApprovalPorts, ChatCaller } from '@odudu/assistant';
+import { capRefusal, type ApprovalPorts, type ChatCaller } from '@odudu/assistant';
 import { withTenantRetrying } from '@odudu/db';
-import { approvalDigest } from '@odudu/domain-agents';
+import { agentApprovalRepository, approvalDigest } from '@odudu/domain-agents';
 import { auditRepository } from '@odudu/domain-audit';
 import { ADMIN_API_AUDIENCE, ASSISTANT_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
 import { TOOLS } from '@odudu/mcp';
@@ -18,6 +18,7 @@ import {
   tenantLookupRepository,
   tokenGrantRepository,
 } from '@odudu/protocol-oidc';
+import { sql } from 'drizzle-orm';
 import { callAsAssistant, type AssistantChatParts } from '#/assistant-call';
 import { grantWriteBudget } from '#/mcp-deps';
 
@@ -87,6 +88,23 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
       return withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
         const client = await clientRepository(tx).byClientId(ASSISTANT_CLIENT_ID);
         if (client?.builtinAssistant !== true) throw new Error('the assistant client is missing');
+        // The same lock `requestApproval` takes, so two proposals at the caps cannot both pass.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`agent-approvals:${caller.ownerSubjectId}`}))`,
+        );
+        const held = await tx.execute<{ in_conversation: number; for_owner: number }>(sql`
+          select count(*) filter (where c.conversation_id = ${input.conversationId})::int as in_conversation,
+                 count(*)::int as for_owner
+            from agent_approvals a
+            left join assistant_approvals c on c.approval_id = a.id
+           where a.tenant_id = ${tenant.id} and a.subject_id = ${caller.ownerSubjectId}
+             and a.kind = ${ASSISTANT_WRITE_KIND} and a.state = 'pending'
+             and a.expires_at > ${input.now.toISOString()}::timestamptz`);
+        const refusal = capRefusal({
+          inConversation: held[0]?.in_conversation ?? 0,
+          forOwner: held[0]?.for_owner ?? 0,
+        });
+        if (refusal !== null) return { kind: 'refused' as const, reason: refusal };
         try {
           const approval = await requestApproval(
             tx,
@@ -205,7 +223,10 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
             input.tool,
             input.input,
           );
-          if (!(await consumeApproval(tx, found, digest, at))) throw new NotSpent('not_spendable');
+          if (!(await consumeApproval(tx, found, digest, at))) {
+            const held = await agentApprovalRepository(tx).byId(found);
+            throw new NotSpent(held?.state === 'consumed' ? 'spent' : 'not_spendable');
+          }
           try {
             await grantAssistantWrite(
               tx,
@@ -229,7 +250,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
             { refusal: error.refusal, tenantId: tenant.id },
             'an assistant change was not run',
           );
-          return { kind: 'not_approved' };
+          return error.refusal === 'spent' ? { kind: 'spent' } : { kind: 'not_approved' };
         }
         throw error;
       }
@@ -283,9 +304,18 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
         }
         throw error;
       } finally {
-        await withTenantRetrying(parts.database.db, tenant.id, (tx) =>
-          tokenGrantRepository(tx).revoke(approvalId, now()),
-        );
+        // A failed revoke is logged and never replaces what the write came to: the
+        // grant is revoked by the upkeep if it is left.
+        try {
+          await withTenantRetrying(parts.database.db, tenant.id, (tx) =>
+            tokenGrantRepository(tx).revoke(approvalId, now()),
+          );
+        } catch (error) {
+          parts.logger.error(
+            { error: error instanceof Error ? error.name : 'unknown', tenantId: tenant.id },
+            'the grant of an approved assistant change was not revoked',
+          );
+        }
       }
     },
   };

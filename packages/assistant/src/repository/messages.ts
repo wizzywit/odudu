@@ -92,9 +92,23 @@ export function messageRepository(tx: AssistantTx) {
     // message. The check and the write hold the conversation row, so a turn on
     // another server that has appended since is never overwritten or cut off:
     // this one fails instead, and both turns' messages stay.
-    async replaceLast(conversationId: string, seq: number, message: NewMessage): Promise<number> {
+    async replaceLast(
+      conversationId: string,
+      seq: number,
+      message: NewMessage,
+      // The parts the caller last read or wrote: the row is rewritten only while it
+      // still holds them, so a turn on another server that rewrote it first is not undone.
+      expected?: readonly unknown[],
+    ): Promise<number> {
       const { tail } = await lockedTail(conversationId);
       if (tail !== seq) throw new ConversationTailChangedError();
+      if (expected !== undefined) {
+        const held = await tx.execute(sql`
+          select 1 from assistant_messages
+           where conversation_id = ${conversationId} and seq = ${seq}
+             and parts = ${JSON.stringify(expected)}::jsonb`);
+        if (held.length === 0) throw new ConversationTailChangedError();
+      }
       await tx
         .update(assistantMessages)
         .set({ role: message.role, parts: message.parts })

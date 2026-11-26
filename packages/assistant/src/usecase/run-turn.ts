@@ -40,6 +40,9 @@ export interface RunTurnDeps {
   // Present, the twelve changes are offered beside the reads, and each waits for
   // the person; absent, a turn reads only.
   readonly approvals?: TurnApprovals;
+  // Signs each pending approval request, so one that was edited or never made here is
+  // refused before its tool runs. Required whenever `approvals` is.
+  readonly approvalSecret?: Uint8Array;
   readonly log?: (event: string, detail: Record<string, unknown>) => void;
   // Reserves before each model call and settles after it; absent, the turn is unmetered.
   readonly budget?: TurnBudgetPort;
@@ -131,6 +134,9 @@ function buildAgent(
     ],
     tools,
     ...(toolApproval === undefined ? {} : { toolApproval }),
+    ...(deps.approvalSecret === undefined
+      ? {}
+      : { experimental_toolApprovalSecret: deps.approvalSecret }),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     stopWhen: stepCountIs(stepLimit(deps)),
     // The compacted messages carry forward, so a long turn is trimmed once and

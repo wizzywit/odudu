@@ -131,6 +131,7 @@ describe('the exit code of a pass', () => {
             reservationsDeleted: 0,
             countersDeleted: 0,
             leasesDeleted: 0,
+            writeGrantsRevoked: 0,
             failed,
           },
         }),

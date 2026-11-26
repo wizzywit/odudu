@@ -3,6 +3,7 @@ import { TOOLS } from '@odudu/mcp';
 import { describe, expect, it } from 'vitest';
 import {
   afterOf,
+  oversizeField,
   beforeOf,
   changedFields,
   cursorOf,
@@ -108,12 +109,23 @@ describe('the card of a change', () => {
     });
   });
 
-  it('cuts a long value and says it was cut, so a card stays small', () => {
-    const long = 'x'.repeat(CARD_FIELD_MAX * 3);
-    const after = afterOf('update_role_description', ['description'], { description: long });
-    const value = after?.description;
-    expect(typeof value === 'string' && value.length <= CARD_FIELD_MAX + 1).toBe(true);
-    expect(String(value).endsWith('…')).toBe(true);
+  it('names the field whose value would not fit the card whole, and never cuts one', () => {
+    const big = { if_match: '"x"', stylesheet: 'a'.repeat(128 * 1024), tokens: { a: 1 } };
+    expect(oversizeField(['stylesheet', 'tokens'], big)).toBe('stylesheet');
+    const templates = { if_match: '"x"', templates: { 'sign-in': 'b'.repeat(64 * 1024) } };
+    expect(oversizeField(['templates'], templates)).toBe('templates');
+    const exact = { description: 'x'.repeat(CARD_FIELD_MAX) };
+    expect(oversizeField(['description'], exact)).toBeUndefined();
+    const after = afterOf('update_role_description', ['description'], exact);
+    expect(after?.description).toBe(exact.description);
+    expect(oversizeField(['description'], { description: 'x'.repeat(CARD_FIELD_MAX + 1) })).toBe(
+      'description',
+    );
+  });
+
+  it('shows a value that is within the cap whole, with nothing added', () => {
+    const after = afterOf('update_role_description', ['description'], { description: 'short' });
+    expect(after).toEqual({ description: 'short' });
   });
 
   it('answers undefined for a read that does not look like the tool’s answer', () => {

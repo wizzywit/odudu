@@ -589,7 +589,7 @@ anything:
 3. It stores one approval: `requestApproval` with `kind: assistant_write`, the assistant
    client as requester, `instanceId` null and `actionDigest` =
    `approvalDigest({ name: tool, input: { conversation, arguments }, tenantId,
-   ownerSubjectId, instanceId: null })`. The conversation is inside the digest so an
+ownerSubjectId, instanceId: null })`. The conversation is inside the digest so an
    approval cannot be spent in another conversation, and the tool name and every argument
    are in it, so approval for tool A cannot run tool B or a changed input. The card
    (title, target, before, after) is stored beside it in a new assistant-owned table
@@ -652,7 +652,7 @@ route is `POST …/assistant/conversations/:id/approvals/:approvalId` with `{ ap
   the door's `insufficient_scope` before the handler runs. That is the model's own token
   and any outside agent's. The same holds for the resume and mode routes.
 - The handler calls `decideApproval` with `subjectId` from the verified token, `via:
-  'console'`. The owner check is P5's: another administrator, even one holding every
+'console'`. The owner check is P5's: another administrator, even one holding every
   capability, gets `not_owner`, and the route answers 404 so no approval id is confirmed.
   P5 allows no one else to decide; this increment adds no such path.
 - CSRF is the gateway's: every write the browser makes passes its origin guard
@@ -674,3 +674,11 @@ that says what its "until a write has a grant of its own" now is (one grant per 
 `mcp:write`, spent and revoked with the call); its decision that the conversation's own
 grant is `mcp:read` is untouched. Decision recorded for the controller to overrule: the
 design stands unless the controller rules otherwise.
+
+## Review rulings on the design
+
+- The model's own token calling the decision route gets `403 insufficient_scope` from the door, not `401`: accepted, because a token the door authenticated and then refused for its scope is a 403 everywhere in the admin API.
+- A card never shows a prefix: a value longer than `CARD_FIELD_MAX` is refused, not cut, and the assistant tells the person they can make the edit in the console.
+- Pending assistant approvals are capped at 5 a conversation and 10 a person, counted under the owner's approval lock, in addition to P5's 20 shared with CIBA.
+- A pending request carries the SDK's signature, keyed by an HKDF of the KEK with a fixed label; it is a second line behind the digest and the consume.
+- A write grant a dead process left is revoked by the budget upkeep once it is ten minutes old.

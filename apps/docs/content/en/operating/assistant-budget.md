@@ -51,12 +51,16 @@ Per tenant, a bounded batch of each at a time, found through an index so a pass 
 
 An answer in progress holds a lease in the database so a tenant's **Answers at once** limit counts every server. A lease lapses sixty seconds after the answer's own five-minute deadline, six minutes after it began, if nothing released it, so a server that died gives its place back without anyone's help.
 
+## Changes in Act mode
+
+An approved change is a write, so it is counted in the write allowance of the console sign-in it was approved from (`agent_writes_per_grant`, 20 by default, shared with every agent's writes under that sign-in): after that many the person signs in again. It does not count the administrator's own edits in the console. Pending changes are capped at five for a conversation and ten for a person, apart from the 20 pending approvals the tenant allows across the assistant and CIBA. A provider that gives its tool calls small ids it reuses from one answer to the next, such as `call_0`, makes Act mode unusable, because a proposal cannot be told from an earlier one; the assistant refuses the proposal and stays safe, and Ask mode is unaffected. The assistant signs each pending approval with a key derived from `ODUDU_KEK`, so there is nothing more to configure, and a server with an empty `ODUDU_KEK` will not start.
+
 ## Running it
 
 The pass is part of `odudu reap`, which the server also runs on its own timer unless `ODUDU_REAP_ENABLED` is `false`; see [Deploying](./deploying.md). Its report gains an `assistant` object on a pass where it did something, and none otherwise:
 
 ```text
-{"ran":true,"deleted":{ … },"cleared":{ … },"assistant":{"reservationsReleased":0,"reservationsCharged":1,"reservationsDeleted":0,"countersDeleted":0,"leasesDeleted":0,"failed":0}}
+{"ran":true,"deleted":{ … },"cleared":{ … },"assistant":{"reservationsReleased":0,"reservationsCharged":1,"reservationsDeleted":0,"countersDeleted":0,"leasesDeleted":0,"writeGrantsRevoked":0,"failed":0}}
 ```
 
 That example is illustrative: it is not the output of a run against a live stack. `failed` counts the tenants whose upkeep failed. A command run with `odudu reap` exits 1 when it is more than zero, so a cron job or Kubernetes Job shows it, while the retention deletes of that pass stand. The server's own timer logs each failure and runs the next pass on schedule.

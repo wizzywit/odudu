@@ -64,7 +64,12 @@ const NOT_FOUND: ToolResult = {
 
 const WRITE_INPUT = { id: CLIENT, if_match: '"v1"', description: 'New text' };
 
-function setup(model: MockLanguageModelV3, mode: 'ask' | 'act', read: ToolResult = CLIENT_READ) {
+function setup(
+  model: MockLanguageModelV3,
+  mode: 'ask' | 'act',
+  read: ToolResult = CLIENT_READ,
+  approvalSecret?: Uint8Array,
+) {
   const callTool = vi.fn<RunTurnDeps['callTool']>(() => Promise.resolve(read));
   const proposed = vi.fn<TurnApprovals['proposed']>();
   const open = vi.fn<TurnApprovals['open']>((call) =>
@@ -95,6 +100,7 @@ function setup(model: MockLanguageModelV3, mode: 'ask' | 'act', read: ToolResult
     mintToken: () => Promise.resolve({ accessToken: 'token' }),
     callTool,
     approvals: { open, write, proposed },
+    ...(approvalSecret === undefined ? {} : { approvalSecret }),
   });
   return { deps, callTool, open, write, proposed };
 }
@@ -199,6 +205,38 @@ describe('Act mode', () => {
     expect(JSON.stringify(model.doStreamCalls[1]?.prompt)).toContain('as many changes waiting');
   });
 
+  it('refuses a change too large for the card to show whole, and says which field', async () => {
+    const huge = { if_match: '"v1"', stylesheet: 'a{}'.repeat(43_000) };
+    const model = scripted([
+      toolCall('call-1', 'update_theme_draft', huge),
+      answer('That is too large for me to propose.'),
+    ]);
+    const { deps, open, proposed } = setup(model, 'act');
+    await drain(deps(), ask('replace the stylesheet'));
+    expect(open).not.toHaveBeenCalled();
+    expect(proposed).not.toHaveBeenCalled();
+    expect(model.doStreamCalls[1] && JSON.stringify(model.doStreamCalls[1].prompt)).toMatch(
+      /stylesheet.*console/u,
+    );
+  });
+
+  it('tells the model when the conversation or the person already has the most waiting', async () => {
+    for (const [reason, words] of [
+      ['conversation_cap', 'in this conversation'],
+      ['owner_cap', 'for this person'],
+    ] as const) {
+      const model = scripted([
+        toolCall('call-1', 'update_client_metadata', WRITE_INPUT),
+        answer('Too many are waiting.'),
+      ]);
+      const { deps, open, proposed } = setup(model, 'act');
+      open.mockResolvedValueOnce({ kind: 'refused', reason });
+      await drain(deps(), ask('change it'));
+      expect(proposed).not.toHaveBeenCalled();
+      expect(JSON.stringify(model.doStreamCalls[1]?.prompt)).toContain(words);
+    }
+  });
+
   it('does not run a write the SDK reaches without an approval for it', async () => {
     const model = scripted([
       toolCall('call-1', 'update_client_metadata', WRITE_INPUT),
@@ -270,5 +308,67 @@ describe('resuming after a decision', () => {
     );
     expect(write).not.toHaveBeenCalled();
     expect(JSON.stringify(model.doStreamCalls[0]?.prompt)).toContain('declined');
+  });
+});
+
+describe('the signature on a pending request', () => {
+  const secret = new Uint8Array(32).fill(9);
+
+  async function requested() {
+    const first = setup(
+      scripted([toolCall('call-1', 'update_client_metadata', WRITE_INPUT)]),
+      'act',
+      CLIENT_READ,
+      secret,
+    );
+    const out = await drain(first.deps(), ask('change the description'));
+    const part = out.response?.parts.find(
+      (entry) => entry.type === 'tool-update_client_metadata',
+    ) as { approval?: { id: string; signature?: string } } | undefined;
+    return part;
+  }
+
+  function stored(part: unknown, change: (copy: Record<string, unknown>) => void): UIMessage[] {
+    const copy = JSON.parse(JSON.stringify(part)) as Record<string, unknown>;
+    copy.state = 'approval-responded';
+    copy.approval = { ...(copy.approval as object), approved: true };
+    change(copy);
+    return [
+      ask('change the description'),
+      { id: 'a1', role: 'assistant', parts: [copy] } as unknown as UIMessage,
+    ];
+  }
+
+  it('is put on the request, and an approved request that carries it runs', async () => {
+    const part = await requested();
+    expect(part?.approval?.signature).toEqual(expect.any(String));
+    const next = setup(scripted([answer('Done.')]), 'act', CLIENT_READ, secret);
+    await drain(next.deps(stored(part, () => undefined)));
+    expect(next.write).toHaveBeenCalledTimes(1);
+  });
+
+  it('never runs a request whose call was edited, whose signature was removed or that another secret signed', async () => {
+    const part = await requested();
+    const edits: ((copy: Record<string, unknown>) => void)[] = [
+      (copy) => {
+        copy.input = { ...(copy.input as object), description: 'Something else' };
+      },
+      (copy) => {
+        copy.approval = { id: (copy.approval as { id: string }).id, approved: true };
+      },
+    ];
+    for (const change of edits) {
+      const next = setup(scripted([answer('Done.')]), 'act', CLIENT_READ, secret);
+      await drain(next.deps(stored(part, change))).catch(() => undefined);
+      expect(next.write).not.toHaveBeenCalled();
+    }
+    const other = setup(
+      scripted([answer('Done.')]),
+      'act',
+      CLIENT_READ,
+      new Uint8Array(32).fill(1),
+    );
+    await drain(other.deps(stored(part, () => undefined))).catch(() => undefined);
+    expect(other.write).not.toHaveBeenCalled();
   });
 });

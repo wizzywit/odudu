@@ -6,6 +6,7 @@ import type { RunTurnDeps } from '#/usecase/run-turn';
 import type { Entitlements } from '#/service/entitlements';
 import type { LevelName, StopReason } from '#/service/limits';
 import type { Slot } from '#/service/slots';
+import type { CapRefusal } from '#/service/approval-limits';
 import type { WriteOutcome } from '#/service/tool-bridge';
 
 /**
@@ -79,7 +80,7 @@ export interface ApprovalPorts {
       readonly now: Date;
     },
     store: (tx: AssistantTx, opened: { approvalId: string; expiresAt: Date }) => Promise<T>,
-  ) => Promise<{ kind: 'opened'; value: T } | { kind: 'refused'; reason: 'limit' }>;
+  ) => Promise<{ kind: 'opened'; value: T } | { kind: 'refused'; reason: 'limit' | CapRefusal }>;
   /**
    * Records the caller's decision as the approval's owner, from the console,
    * and the `assistant.approval` row with it. `load` names the card in the
@@ -141,6 +142,8 @@ export interface ChatDeps {
   ) => Promise<AccessOutcome<T>>;
   /** Present, Act mode can propose changes; absent, every conversation reads only. */
   readonly approvals?: ApprovalPorts;
+  /** The secret approval requests are signed with; present whenever `approvals` is. */
+  readonly approvalSecret?: Uint8Array;
   /** What a tenant may use; the open implementation reads the tenant's settings. */
   readonly entitlements?: Entitlements;
   /** Writes an `assistant.budget` row. A failure is logged and does not change the outcome. */

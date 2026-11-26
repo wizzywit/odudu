@@ -11,8 +11,11 @@ import {
   clientRepository,
 } from '@odudu/domain-tenant';
 import { loadConfig, newId } from '@odudu/kernel';
+import { upkeepBudget } from '@odudu/assistant';
 import {
+  grantAssistantWrite,
   mintAgentToken,
+  requestApproval,
   standardClaimMappers,
   tenantLookupRepository,
   tokenGrantRepository,
@@ -56,6 +59,19 @@ type Part = Record<string, unknown>;
 function toolCall(id: string, name: string, input: unknown): Part[] {
   return [
     { type: 'tool-call', toolCallId: id, toolName: name, input: JSON.stringify(input) },
+    { type: 'finish', finishReason: { unified: 'tool-calls', raw: undefined }, usage: USAGE },
+  ];
+}
+
+// Several calls in one step, as a model led astray might make.
+function toolCalls(calls: { id: string; name: string; input: unknown }[]): Part[] {
+  return [
+    ...calls.map((call) => ({
+      type: 'tool-call',
+      toolCallId: call.id,
+      toolName: call.name,
+      input: JSON.stringify(call.input),
+    })),
     { type: 'finish', finishReason: { unified: 'tool-calls', raw: undefined }, usage: USAGE },
   ];
 }
@@ -283,39 +299,6 @@ describe('proposing a change in Act mode', () => {
     expect(await approvalStates(w)).toEqual([]);
     expect(await roleDescription(w, role.id)).toBe('Old text');
   });
-
-  it('holds a person to the most pending approvals P5 allows, and says so to the model', async () => {
-    const w = await consoleWorld(s().appDb, BASE, CAPABILITIES);
-    const role = await seedRole(w, 'Old text');
-    const etag = await roleEtag(w, role.id);
-    const calls = Array.from({ length: 21 }, (_, n) =>
-      toolCall(`call-${String(n)}`, 'update_role_description', {
-        id: role.id,
-        if_match: etag,
-        description: `Text ${String(n)}`,
-      }),
-    );
-    const script = scripted([...calls.slice(0, 1), answer('done')]);
-    const chat = chatFor(script.model);
-    // Twenty approvals held by other conversations of the same person.
-    for (let n = 0; n < 20; n += 1) {
-      const other = chatFor(
-        scripted([
-          toolCall(`c-${String(n)}`, 'update_role_description', {
-            id: role.id,
-            if_match: etag,
-            description: `Other ${String(n)}`,
-          }),
-        ]).model,
-      );
-      const otherId = await start(other, w);
-      await say(other, w, otherId, 'change it');
-    }
-    const id = await start(chat, w);
-    await say(chat, w, id, 'change it too');
-    expect(await approvalStates(w)).toHaveLength(20);
-    expect(script.prompts.at(-1)).toContain('as many changes waiting');
-  }, 120_000);
 });
 
 describe('who may decide', () => {
@@ -631,5 +614,153 @@ describe('text the model reads', () => {
     expect(await roleDescription(w, role.id)).toBe('Old text');
     expect(await audit(w, 'assistant.approval')).toEqual([]);
     expect((await assistantGrants(w)).map((grant) => grant.scope)).toEqual(['mcp:read']);
+  });
+});
+
+describe('how many changes may wait at once', () => {
+  async function manyCalls(
+    w: World,
+    role: { id: string },
+    etag: string,
+    count: number,
+    tag: string,
+  ) {
+    const calls = Array.from({ length: count }, (_, n) => ({
+      id: `${tag}-${String(n)}`,
+      name: 'update_role_description',
+      input: { id: role.id, if_match: etag, description: `Text ${tag} ${String(n)}` },
+    }));
+    const chat = chatFor(scripted([toolCalls(calls), answer('done')]).model);
+    const id = await start(chat, w);
+    await say(chat, w, id, 'change it');
+    return { chat, id };
+  }
+
+  it('is five to a conversation: one led astray cannot take more of the person’s allowance', async () => {
+    const w = await consoleWorld(s().appDb, BASE, CAPABILITIES);
+    const role = await seedRole(w, 'Old text');
+    const etag = await roleEtag(w, role.id);
+    const { chat, id } = await manyCalls(w, role, etag, 8, 'a');
+    expect((await chat.approvals(callerOf(w), id))?.length).toBe(5);
+    expect(await approvalStates(w)).toEqual(Array(5).fill('pending'));
+  });
+
+  it('is ten to a person across conversations, and a CIBA request still fits beside them', async () => {
+    const w = await consoleWorld(s().appDb, BASE, CAPABILITIES);
+    const role = await seedRole(w, 'Old text');
+    const etag = await roleEtag(w, role.id);
+    await manyCalls(w, role, etag, 5, 'a');
+    await manyCalls(w, role, etag, 5, 'b');
+    await manyCalls(w, role, etag, 5, 'c');
+    expect(await approvalStates(w)).toHaveLength(10);
+    const asked = await withTenant(s().appDb.db, w.tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ASSISTANT_CLIENT_ID);
+      if (client === null) throw new Error('no client');
+      return requestApproval(
+        tx,
+        { tenantId: w.tenantId },
+        {
+          subjectId: w.subjectId,
+          requestingClientId: client.id,
+          instanceId: null,
+          kind: 'ciba',
+          summary: 'Another agent asks',
+          actionDigest: 'ciba-digest',
+          now: new Date(),
+        },
+      );
+    });
+    expect(asked.kind).toBe('ciba');
+    expect(await approvalStates(w)).toHaveLength(11);
+  }, 120_000);
+});
+
+describe('a change that was made and not remembered', () => {
+  it('is read as made, never as unchanged, when the result was not kept', async () => {
+    const { w, role, chat, id, card } = await proposed();
+    await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', true);
+    await resume(chat, w, id);
+    expect(await roleDescription(w, role.id)).toBe('New text');
+    // The write happened; the conversation forgot it, as after a crash before the store.
+    await s().owner.db.execute(
+      sql`update assistant_messages
+             set parts = replace(replace(parts::text, '"output-available"', '"approval-responded"'),
+                                 '"approved":false', '"approved":true')::jsonb
+           where tenant_id = ${w.tenantId} and conversation_id = ${id} and role = 'assistant'`,
+    );
+    const again = scripted([answer('I will check.')]);
+    const out = await resume(chatFor(again.model), w, id);
+    expect(out).toContain('"stopReason"');
+    expect(again.prompts[0]).toContain('not known');
+    expect(again.prompts[0]).not.toContain('Nothing was changed');
+    const calls = (await audit(w, 'agent.tool_call')).filter(
+      (row) => row.tool === 'update_role_description',
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  it('tells a loser of the race that it may have been made, and never undoes the winner’s record', async () => {
+    const { w, chat, id, card } = await proposed();
+    await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', true);
+    const losers = scripted([answer('Done on the other server.')]);
+    await Promise.allSettled([resume(chat, w, id), resume(chatFor(losers.model), w, id)]);
+    const kept = await rows<{ parts: unknown }>(
+      sql`select parts from assistant_messages
+           where tenant_id = ${w.tenantId} and conversation_id = ${id} and role = 'assistant'
+           order by seq desc limit 1`,
+    );
+    const text = JSON.stringify(kept[0]?.parts);
+    expect(text).toContain('output-available');
+    expect(text).not.toContain('Nothing was changed');
+  });
+});
+
+describe('a grant a dead process left', () => {
+  it('is revoked by the upkeep once it is older than a call can last, and not before', async () => {
+    const w = await consoleWorld(s().appDb, BASE, CAPABILITIES);
+    const lifespans = await withTenant(s().appDb.db, w.tenantId, async () => {
+      const tenant = await tenantLookupRepository(s().owner.db).byName(w.name);
+      if (tenant === null) throw new Error('no tenant');
+      return {
+        ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+        ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+        rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+        rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+      };
+    });
+    const approvalId = newId();
+    await withTenant(s().appDb.db, w.tenantId, (tx) =>
+      grantAssistantWrite(
+        tx,
+        { tenantId: w.tenantId, lifespans },
+        { approvalId, consoleGrantId: w.grantId, expectedSubjectId: w.subjectId, now: new Date() },
+      ),
+    );
+    const sweep = (at: Date) => withTenant(s().appDb.db, w.tenantId, (tx) => upkeepBudget(tx, at));
+    expect((await sweep(new Date())).writeGrantsRevoked).toBe(0);
+    expect((await assistantGrants(w)).at(-1)?.revoked).toBe(false);
+    const later = new Date(Date.now() + 11 * 60_000);
+    expect((await sweep(later)).writeGrantsRevoked).toBe(1);
+    expect((await assistantGrants(w)).at(-1)).toMatchObject({ id: approvalId, revoked: true });
+    expect((await sweep(later)).writeGrantsRevoked).toBe(0);
+  });
+});
+
+describe('the approval signature', () => {
+  it('cannot be switched off by an empty key', () => {
+    expect(() =>
+      assistantChatFor({
+        app: s().app,
+        database: s().appDb,
+        ownerDatabase: s().owner,
+        kek: new Uint8Array(),
+        claimMappers: standardClaimMappers(),
+        logger: createLogger(loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' })),
+        publicBaseUrl: BASE,
+        models: () => {
+          throw new Error('no model');
+        },
+      }),
+    ).toThrow(/empty/u);
   });
 });

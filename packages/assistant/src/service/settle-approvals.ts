@@ -79,7 +79,13 @@ export function settleParts(
   let settled = 0;
   const next = parts.map((part): Part => {
     if (handedBack(part)) {
-      // Settled by an earlier call that did not get to run it.
+      // Settled by an earlier call that did not get to run it, or that ran it
+      // and did not keep the result: the card says which.
+      const spent = cards.find((entry) => entry.toolCallId === part.toolCallId)?.state;
+      if (spent === 'consumed') {
+        settled += 1;
+        return { ...part, state: 'output-error', errorText: UNKNOWN_OUTCOME } as unknown as Part;
+      }
       if (how === 'message') {
         settled += 1;
         return denied(part, NOT_RUN);
@@ -101,7 +107,7 @@ export function settleParts(
       return {
         ...part,
         state: 'approval-responded',
-        approval: { id: part.approval?.id ?? '', approved: true },
+        approval: { ...part.approval, id: part.approval?.id ?? '', approved: true },
       } as unknown as Part;
     }
     if (card.state === 'denied') return denied(part, DECLINED);

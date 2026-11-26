@@ -4,6 +4,13 @@ export { status } from '#/usecase/status';
 export { readSettings, writeSettings } from '#/usecase/settings';
 export { runTurn } from '#/usecase/run-turn';
 export { RunLapsed } from '#/service/run-key';
+export { deriveApprovalSecret } from '#/service/approval-secret';
+export {
+  ASSISTANT_PENDING_PER_CONVERSATION,
+  ASSISTANT_PENDING_PER_OWNER,
+  capRefusal,
+  type CapRefusal,
+} from '#/service/approval-limits';
 export type { RunTurnDeps, StreamResult, TurnInput } from '#/usecase/run-turn';
 export { createChat } from '#/view/chat-route';
 export type {

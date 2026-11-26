@@ -182,6 +182,21 @@ describe('the list of a conversation’s pending changes, at volume', () => {
         join (select id, row_number() over () as n from assistant_conversations
                where tenant_id = ${tenantId} and id <> ${seeded.conversationId}) c
           on c.n = 1 + (a.n % 2000)`;
+    // And five thousand old, spent cards in the one conversation the list is read for.
+    await owner.sql`
+      insert into agent_approvals
+        (id, tenant_id, subject_id, requesting_client_id, kind, summary, action_digest, state, expires_at, created_at)
+      select gen_random_uuid(), ${tenantId}, ${subjectId}, ${clientId}, 'assistant_write', 's', 'd',
+             'consumed', now() - interval '29 days', now() - interval '30 days'
+        from generate_series(1, 5000) n`;
+    await owner.sql`
+      insert into assistant_approvals
+        (tenant_id, approval_id, conversation_id, tool_call_id, tool, card, created_at)
+      select ${tenantId}, a.id, ${seeded.conversationId}, 'old-' || a.id, 'update_role_description',
+             '{}'::jsonb, a.created_at
+        from agent_approvals a
+       where a.tenant_id = ${tenantId} and a.state = 'consumed'
+         and not exists (select 1 from assistant_approvals k where k.approval_id = a.id)`;
     await owner.sql`analyze assistant_approvals`;
     await owner.sql`analyze agent_approvals`;
 
@@ -194,7 +209,7 @@ describe('the list of a conversation’s pending changes, at volume', () => {
       );
       return JSON.stringify(rows[0]?.['QUERY PLAN']);
     });
-    expect(plan).toContain('assistant_approvals_call');
+    expect(plan).toContain('assistant_approvals_recent');
     expect(plan).not.toContain('"Node Type":"Seq Scan"');
   }, 120_000);
 });

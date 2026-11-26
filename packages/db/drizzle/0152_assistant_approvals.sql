@@ -5,15 +5,20 @@
 -- which tool call it is for, so a decision and a resumed run find each other
 -- and a conversation lists its own. It goes with its approval and with its
 -- conversation.
+-- The key a card's foreign key names, so a card cannot point at another tenant's approval.
+CREATE UNIQUE INDEX IF NOT EXISTS agent_approvals_tenant_id ON agent_approvals (tenant_id, id);
+
 CREATE TABLE IF NOT EXISTS assistant_approvals (
   tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
-  approval_id uuid NOT NULL REFERENCES agent_approvals (id) ON DELETE CASCADE,
+  approval_id uuid NOT NULL,
   conversation_id uuid NOT NULL,
   tool_call_id text NOT NULL,
   tool text NOT NULL,
   card jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT assistant_approvals_pkey PRIMARY KEY (approval_id),
+  CONSTRAINT assistant_approvals_approval_fk FOREIGN KEY (tenant_id, approval_id)
+    REFERENCES agent_approvals (tenant_id, id) ON DELETE CASCADE,
   CONSTRAINT assistant_approvals_conversation_fk FOREIGN KEY (tenant_id, conversation_id)
     REFERENCES assistant_conversations (tenant_id, id) ON DELETE CASCADE,
   CONSTRAINT assistant_approvals_tool_call_length CHECK (char_length(tool_call_id) BETWEEN 1 AND 256),
@@ -27,6 +32,11 @@ CREATE TABLE IF NOT EXISTS assistant_approvals (
 -- pending cards are read through.
 CREATE UNIQUE INDEX IF NOT EXISTS assistant_approvals_call
   ON assistant_approvals (tenant_id, conversation_id, tool_call_id);
+
+-- A conversation's recent cards, newest first: an approval lives at most 15 minutes, so
+-- what is still pending is always among the recent ones however long the conversation is.
+CREATE INDEX IF NOT EXISTS assistant_approvals_recent
+  ON assistant_approvals (tenant_id, conversation_id, created_at DESC);
 
 ALTER TABLE assistant_approvals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assistant_approvals FORCE ROW LEVEL SECURITY;

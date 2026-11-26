@@ -24,10 +24,25 @@ export function fenceToolOutput(
   );
 }
 
+// The approval for this call was already spent, so the change may have been
+// made, by a call that ended before its result was kept.
+const SPENT = {
+  error: {
+    title: 'The change may already have been made',
+    detail:
+      'This approval was already used, so the change may already have been made. ' +
+      'Read the target to see, and do not propose it again unless it is not there.',
+  },
+};
+
 export type CallTool = (name: string, input: unknown, signal?: AbortSignal) => Promise<ToolResult>;
 
 /** What running an approved write came to: it ran, or the approval did not cover this call. */
-export type WriteOutcome = { kind: 'done'; result: ToolResult } | { kind: 'not_approved' };
+export type WriteOutcome =
+  | { kind: 'done'; result: ToolResult }
+  | { kind: 'not_approved' }
+  // The approval was already spent: the change may have been made by another call.
+  | { kind: 'spent' };
 
 export type CallWrite = (
   name: string,
@@ -76,7 +91,11 @@ export function toSdkTools(
               signal,
             });
             return fenceToolOutput(
-              outcome.kind === 'done' ? outcome.result.structuredContent : NOT_APPROVED,
+              outcome.kind === 'done'
+                ? outcome.result.structuredContent
+                : outcome.kind === 'spent'
+                  ? SPENT
+                  : NOT_APPROVED,
               mask,
             );
           }

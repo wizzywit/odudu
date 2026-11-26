@@ -88,6 +88,7 @@ interface Loaded {
   readonly earlier: UIMessage[];
   // The last message's number when it is the assistant's, which a resumed turn continues.
   readonly lastSeq: number | undefined;
+  readonly lastParts: unknown[] | undefined;
 }
 
 async function loadMessages(deps: ChatDeps, caller: ChatCaller, id: string): Promise<Loaded> {
@@ -97,6 +98,7 @@ async function loadMessages(deps: ChatDeps, caller: ChatCaller, id: string): Pro
     return {
       earlier: visibleMessages(id, records),
       lastSeq: last?.role === 'assistant' ? last.seq : undefined,
+      lastParts: last?.role === 'assistant' ? (last.parts as unknown[]) : undefined,
     };
   });
 }
@@ -432,6 +434,7 @@ async function runConversationTurn(
         maskEmails: prepared.maskEmails,
         tools: deps.tools,
         mode: prepared.mode,
+        ...(deps.approvalSecret === undefined ? {} : { approvalSecret: deps.approvalSecret }),
         ...(deps.log === undefined ? {} : { log: deps.log }),
         ...(deps.approvals === undefined
           ? {}
@@ -460,6 +463,8 @@ async function runConversationTurn(
     // A resumed turn carries on the answer that asked, so its first store
     // rewrites that message and the ones after it follow.
     let seq: number | undefined = start.kind === 'resume' ? loaded.lastSeq : undefined;
+    // What the stored message holds as far as this turn knows, which its next write must find.
+    let known: unknown[] | undefined = start.kind === 'resume' ? loaded.lastParts : undefined;
     let stored = '';
     // Stores run one after another, so a step never overtakes the one before.
     let stores: Promise<void> = Promise.resolve();
@@ -473,11 +478,12 @@ async function runConversationTurn(
             const written =
               seq === undefined
                 ? await messages.append(id, { role: 'assistant', parts })
-                : await messages.replaceLast(id, seq, { role: 'assistant', parts });
+                : await messages.replaceLast(id, seq, { role: 'assistant', parts }, known);
             await conversationRepository(tx).touch(id, deps.now());
             return written;
           });
           stored = text;
+          known = parts;
         } catch (error) {
           // What cannot be kept is not carried on with: the turn ends, and its
           // later steps are not stored over whatever is there now.

@@ -156,13 +156,33 @@ export function titleOf(tool: string): string {
   return planOf(tool).title;
 }
 
-// A value a card can show: text, cut, or a plain scalar. Anything else is
-// shown as the JSON it is, cut the same way.
+// The text a card shows for a value: the value itself, or the JSON it is.
+function valueText(value: unknown): string {
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+// A value a card can show, whole: a plain scalar, or text. A value too long for
+// the card is refused before a card is made (`oversizeField`), never cut here.
 function scalar(value: unknown): Scalar {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number' || typeof value === 'boolean') return value;
-  const text = typeof value === 'string' ? value : JSON.stringify(value);
-  return text.length <= CARD_FIELD_MAX ? text : `${text.slice(0, CARD_FIELD_MAX)}…`;
+  return valueText(value);
+}
+
+/**
+ * The first field of the call whose value is longer than a card holds, or
+ * undefined. A card that showed a prefix would hide the rest of what the person
+ * approves, so such a call is not proposed.
+ */
+export function oversizeField(names: readonly string[], input: unknown): string | undefined {
+  const record = asRecord(input) ?? {};
+  return names.find((name) => valueText(record[name]).length > CARD_FIELD_MAX);
+}
+
+/** The first member of what the server read that is longer than a card holds. */
+export function oversizeBefore(before: CardFields | null): string | undefined {
+  if (before === null) return undefined;
+  return Object.keys(before).find((name) => valueText(before[name]).length > CARD_FIELD_MAX);
 }
 
 /** The body fields a call names, in the tool's own order. */

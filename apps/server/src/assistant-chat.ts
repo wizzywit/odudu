@@ -1,5 +1,6 @@
 import {
   createChat,
+  deriveApprovalSecret,
   type BudgetAuditEvent,
   RunLapsed,
   type Chat,
@@ -286,6 +287,7 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
       runInstanceId(caller.tenantId, conversationId, key),
     withAccess: accessGranter(parts),
     approvals: approvalPortsFor(parts),
+    approvalSecret: deriveApprovalSecret(parts.kek),
     now: parts.now ?? (() => new Date()),
     newId,
     audit: budgetAuditRecorder(parts),

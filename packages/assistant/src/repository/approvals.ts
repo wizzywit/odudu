@@ -47,14 +47,19 @@ const COLUMNS = sql`
   c.approval_id, c.conversation_id, c.tool_call_id, c.tool, c.card,
   a.state, a.expires_at`;
 
-// The conversation's pending cards, served by the (tenant, conversation) prefix
-// of `assistant_approvals_call` and the approval's primary key.
+// An approval lives at most 15 minutes (the tenant's ttl is capped there), so a card
+// older than an hour cannot be pending and is not read.
+const RECENT_MS = 3_600_000;
+
+// The conversation's pending cards, served by `assistant_approvals_recent` and the
+// approval's primary key.
 export function pendingCardsStatement(conversationId: string, now: Date): SQL {
   return sql`
     select ${COLUMNS}
       from assistant_approvals c
       join agent_approvals a on a.id = c.approval_id
      where c.tenant_id = ${TENANT} and c.conversation_id = ${conversationId}
+       and c.created_at >= ${new Date(now.getTime() - RECENT_MS).toISOString()}::timestamptz
        and a.state = 'pending' and a.expires_at > ${now.toISOString()}::timestamptz
      order by c.created_at desc, c.approval_id desc
      limit ${CONVERSATION_APPROVALS_MAX}`;

@@ -9,15 +9,28 @@ import {
   changedFields,
   cursorOf,
   mayCreate,
+  oversizeBefore,
+  oversizeField,
   readStepOf,
   targetOf,
   titleOf,
 } from '#/service/approval-card';
+import type { CapRefusal } from '#/service/approval-limits';
+import {
+  asRows,
+  capDenial,
+  FAILED_DENIAL,
+  inHistory,
+  oversizeDenial,
+  readFailure,
+  targetDenial,
+} from '#/service/proposal-rules';
 import { approvalPolicy, ASK_MODE_DENIAL } from '#/service/approval-policy';
 import type { CallWrite } from '#/service/tool-bridge';
 
 export type OpenOutcome =
-  { kind: 'opened'; card: AssistantApprovalCard } | { kind: 'refused'; reason: 'limit' };
+  | { kind: 'opened'; card: AssistantApprovalCard }
+  | { kind: 'refused'; reason: CapRefusal | 'limit' };
 
 /**
  * What a turn needs to let the model propose changes: to store one for the
@@ -34,18 +47,6 @@ export interface TurnApprovals {
   /** A change now waits for the person: its card is sent, and the turn will end on it. */
   readonly proposed: (card: AssistantApprovalCard) => void;
 }
-
-// What the model reads when a proposal could not be made. Each is true of the
-// proposal alone and tells it what to do next.
-export const LIMIT_DENIAL =
-  'The person already has as many changes waiting for a decision as are allowed, so this was not proposed. ' +
-  'Tell them to decide on the waiting ones or let them expire.';
-export const UNREADABLE_DENIAL =
-  'The current state of what this would change could not be read, so it was not proposed. ' +
-  'Say so, and try again only if the person asks.';
-export const MISSING_DENIAL =
-  'What this would change does not exist, so it was not proposed. Check the id with a read tool.';
-export const FAILED_DENIAL = 'This change could not be proposed. Say so, and do not retry it.';
 
 export interface PolicyDeps {
   readonly mode: ConversationMode;
@@ -64,8 +65,6 @@ export interface PolicyDeps {
 // A page of overrides holds at most 200 and a tenant at most 500 in all.
 const READ_PAGES = 3;
 
-const asRows = (value: unknown): unknown[] => (Array.isArray(value) ? (value as unknown[]) : []);
-
 type Found = { kind: 'data'; data: unknown } | { kind: 'missing' } | { kind: 'unreadable' };
 
 // Reads the target the way its plan says, following a cursor where the read is
@@ -82,12 +81,8 @@ async function readTarget(deps: PolicyDeps, tool: string, input: unknown): Promi
       cursor === undefined ? step.args : { ...step.args, cursor },
       deps.signal,
     );
-    if (result.isError) {
-      return result.structuredContent.error !== undefined &&
-        (result.structuredContent.error as { status?: unknown }).status === 404
-        ? { kind: 'missing' }
-        : { kind: 'unreadable' };
-    }
+    const failure = readFailure(result);
+    if (failure !== null) return { kind: failure };
     const data = result.structuredContent.data;
     cursor = cursorOf(tool, result.structuredContent);
     if (cursor === undefined) {
@@ -105,18 +100,29 @@ async function propose(
   call: { readonly toolCallId: string; readonly input: unknown },
 ): Promise<ToolApprovalStatus> {
   const names = changedFields(entry, call.input);
+  const tooLong = oversizeField(names, call.input);
+  if (tooLong !== undefined) return { type: 'denied', reason: oversizeDenial(tooLong) };
   const found = await readTarget(deps, entry.name, call.input);
-  if (found.kind === 'missing') return { type: 'denied', reason: MISSING_DENIAL };
-  if (found.kind === 'unreadable') return { type: 'denied', reason: UNREADABLE_DENIAL };
+  if (found.kind === 'missing')
+    return {
+      type: 'denied',
+      reason: targetDenial({ before: null, hasRead: true, mayCreate: false }) ?? '',
+    };
+  if (found.kind === 'unreadable')
+    return {
+      type: 'denied',
+      reason: targetDenial({ before: undefined, hasRead: true, mayCreate: false }) ?? '',
+    };
   const before = beforeOf(entry.name, names, call.input, found.data);
-  if (before === undefined) return { type: 'denied', reason: UNREADABLE_DENIAL };
-  if (
-    before === null &&
-    readStepOf(entry.name, call.input) !== undefined &&
-    !mayCreate(entry.name)
-  ) {
-    return { type: 'denied', reason: MISSING_DENIAL };
-  }
+  const denial = targetDenial({
+    before,
+    hasRead: readStepOf(entry.name, call.input) !== undefined,
+    mayCreate: mayCreate(entry.name),
+  });
+  if (denial !== null) return { type: 'denied', reason: denial };
+  const bigBefore = before === undefined ? undefined : oversizeBefore(before);
+  if (bigBefore !== undefined) return { type: 'denied', reason: oversizeDenial(bigBefore) };
+  if (before === undefined) return { type: 'denied', reason: FAILED_DENIAL };
   const outcome = await deps.approvals.open({
     toolCallId: call.toolCallId,
     tool: entry.name,
@@ -128,7 +134,7 @@ async function propose(
       after: afterOf(entry.name, names, call.input),
     },
   });
-  if (outcome.kind === 'refused') return { type: 'denied', reason: LIMIT_DENIAL };
+  if (outcome.kind === 'refused') return { type: 'denied', reason: capDenial(outcome.reason) };
   deps.approvals.proposed(outcome.card);
   return 'user-approval';
 }
@@ -136,21 +142,6 @@ async function propose(
 interface HistoryMessage {
   readonly role: string;
   readonly content: unknown;
-}
-
-// Whether the call is already in the history the SDK passes: it is then being
-// re-checked after the person's decision, not proposed. The re-check must write
-// nothing, since the approval it would open exists, and the mode is still judged.
-function inHistory(messages: readonly HistoryMessage[], toolCallId: string): boolean {
-  return messages.some(
-    (message) =>
-      message.role === 'assistant' &&
-      Array.isArray(message.content) &&
-      message.content.some(
-        (part: { type?: unknown; toolCallId?: unknown }) =>
-          part.type === 'tool-call' && part.toolCallId === toolCallId,
-      ),
-  );
 }
 
 /**

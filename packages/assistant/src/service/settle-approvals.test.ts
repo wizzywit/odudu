@@ -116,3 +116,27 @@ describe('settleParts for a handed-back change when the person sends another mes
     expect(settled).toMatchObject({ resumable: 0, settled: 1 });
   });
 });
+
+describe('settleParts for a change handed back and already spent', () => {
+  it('closes it as unknown, never as run again, when its card is consumed', () => {
+    const handed = {
+      ...part('1', 'approval-responded'),
+      approval: { id: 'sdk-1', approved: true },
+    } as UIMessage['parts'][number];
+    const settled = settleParts([handed], [card('1', 'consumed')], NOW, 'resume');
+    expect(of(settled, '1')).toMatchObject({ state: 'output-error' });
+    expect(JSON.stringify(of(settled, '1'))).toMatch(/not known/u);
+    expect(settled).toMatchObject({ resumable: 0, settled: 1 });
+  });
+
+  it('keeps the signature the SDK put on the request when it hands one back', () => {
+    const requested = {
+      ...part('1'),
+      approval: { id: 'sdk-1', signature: 'sig' },
+    } as UIMessage['parts'][number];
+    const settled = settleParts([requested], [card('1', 'approved')], NOW, 'resume');
+    expect(of(settled, '1')).toMatchObject({
+      approval: { id: 'sdk-1', signature: 'sig', approved: true },
+    });
+  });
+});

@@ -241,6 +241,10 @@ export function stepLimitFor(profileMaxSteps: number, tenantMaxSteps: number | u
 
 const DAY_MS = 86_400_000;
 
+// A grant made for one approved change lives for the length of the call, which ends within
+// the five minutes of its token. One older than this was left by a process that died.
+export const WRITE_GRANT_STALE_MS = 600_000;
+
 /** The instants before which the upkeep deletes each kind of spent row. */
 export function upkeepCutoffs(now: Date): {
   readonly shortWindowsBefore: Date;

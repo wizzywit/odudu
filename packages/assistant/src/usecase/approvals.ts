@@ -2,6 +2,7 @@ import type { AssistantApprovalCard, AssistantMode } from '@odudu/contracts/admi
 import { approvalCardRepository, type ApprovalCardRow } from '#/repository/approvals';
 import { conversationRepository } from '#/repository/conversations';
 import { messageRepository } from '#/repository/messages';
+import { modeOffered } from '#/service/proposal-rules';
 import { settleParts } from '#/service/settle-approvals';
 import type { ChatCaller, ChatDeps, DecideResult, WithdrawReason } from '#/usecase/chat-deps';
 import { openEntitlements } from '#/usecase/entitlements';
@@ -153,7 +154,7 @@ export async function setConversationMode(
     if (record?.ownerSubjectId !== caller.ownerSubjectId) return 'not_found' as const;
     if (mode === 'act') {
       const limits = await (deps.entitlements ?? openEntitlements(tx)).limits(caller.tenantId);
-      if (deps.approvals === undefined || !limits.modes.includes('act')) {
+      if (!modeOffered({ mode, canPropose: deps.approvals !== undefined, modes: limits.modes })) {
         return 'not_offered' as const;
       }
     }
