@@ -9,10 +9,15 @@ This page covers `GET /assistant/settings` and `PUT /assistant/settings`.
 
 A tenant's own choices for the console assistant: whether it is offered (`assistant_enabled`), the mode a person starts in
 (`assistant_default_mode`, `ask` or `act`), whether email addresses are masked (`assistant_mask_emails`), how many days a trace is kept
-(`assistant_trace_retention_days`, 1 to 365), whether auditors can read conversations (`assistant_auditor_visible`), a month's tokens for
+(`assistant_trace_retention_days`, 1 to 365), whether auditors can read the text of conversations (`assistant_auditor_visible`, off by default), a month's tokens for
 each model slot (`assistant_monthly_tokens_fast`, `_standard` and `_deep`, 0 to 1,000,000,000), how many answers may run at once
 (`assistant_max_concurrent`, 1 to 50) and the steps of one answer (`assistant_max_steps_per_turn`, 1 to 100). A tenant that has chosen
 nothing reads every default, and none of them holds a key: the model keys are read from the server's environment only.
+
+**Not run again since the default changed.** `assistant_auditor_visible` now defaults to `false`: a holder of `read-assistant-activity`
+always reads a conversation's metadata, and its text only while the setting is on. The blocks below were captured when the default was `true`, so
+the first two settings bodies, and the `before` and `after` of the audit row that shows the setting changing, read the opposite of what a
+tenant that has chosen nothing reads now. An integration test runs the new default and the audit row.
 
 `GET` requires `manage-assistant`, or `read-assistant-activity`, which reads and cannot change. `PUT` requires `manage-assistant`. A
 caller holding `use-assistant` alone is refused `403` by both, a request with no token `401`, and an AI agent's token is refused

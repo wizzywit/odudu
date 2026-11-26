@@ -40,6 +40,14 @@ const NEVER: Readonly<Record<string, string>> = {
     'Called by the approval card, which is added after the panel; until it lands no screen lists a conversation\u2019s waiting changes. Remove this entry when the card ships.',
   'POST /admin/tenants/:tenant/assistant/conversations/:id/approvals/:approvalId':
     'Called by the approval card, which is added after the panel; until it lands no screen decides a change. Remove this entry when the card ships.',
+  'GET /admin/tenants/:tenant/assistant/activity':
+    'Called by the assistant activity screen, which is a later increment of the console assistant. Remove this entry when the screen ships.',
+  'GET /admin/tenants/:tenant/assistant/activity/conversations/:id':
+    'Called by the assistant activity screen\u2019s replay, which is a later increment of the console assistant. Remove this entry when the screen ships.',
+  'GET /admin/tenants/:tenant/assistant/activity/conversations/:id/promptfoo':
+    'Called by the assistant activity screen\u2019s export control, which is a later increment of the console assistant. Remove this entry when the screen ships.',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/report':
+    'Called by the panel\u2019s report control and the activity screen, which are later increments of the console assistant. Remove this entry when the control ships.',
   'GET /admin/tenants/:tenant/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/clients/:id/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/mail/preview': FRAMED,

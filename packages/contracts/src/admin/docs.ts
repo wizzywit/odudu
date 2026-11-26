@@ -46,6 +46,26 @@ import {
 } from '#/admin/audit';
 import { assistantSettingsSchema } from '#/admin/assistant';
 import {
+  assistantActivityConversationSchema,
+  assistantActivityReplaySchema,
+  assistantPromptfooCaseSchema,
+  assistantPromptfooMessageSchema,
+  assistantPromptfooMetadataSchema,
+  assistantPromptfooObservedSchema,
+  assistantPromptfooToolCallSchema,
+  assistantPromptfooVarsSchema,
+  assistantReplayApprovalSchema,
+  assistantReplayAskedSchema,
+  assistantReplayConversationSchema,
+  assistantReplayEventSchema,
+  assistantReplayStepSchema,
+  assistantReplayTurnSchema,
+  assistantTokensBySlotSchema,
+  assistantWhyModelSchema,
+  listAssistantActivityQuerySchema,
+  reportConversationResponseSchema,
+} from '#/admin/assistantActivity';
+import {
   clientFieldsSchema,
   clientInstallationSchema,
   countClientsQuerySchema,
@@ -1322,6 +1342,152 @@ describeFields(setConversationModeRequestSchema, {
 });
 describeFields(setConversationModeResponseSchema, { mode: 'The mode the conversation is now in.' });
 
+describeFields(listAssistantActivityQuerySchema, {
+  person: 'Only conversations of this person, by subject id.',
+  conversation: 'Only this conversation, by id.',
+  tool: 'Only conversations in which the assistant called this tool, such as `list_clients`.',
+  outcome:
+    'Only conversations whose latest turn ended this way: `done`, `step_cap`, `awaiting_approval`, `budget_turn`, `budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`.',
+  kind: 'Only conversations that had a change proposed for approval (`approval`), a turn stopped by a budget level (`budget_refusal`) or a tool that failed (`tool_error`).',
+});
+describeFields(assistantTokensBySlotSchema, {
+  fast: 'Tokens, input and output together, spent on the fast model slot.',
+  standard: 'Tokens, input and output together, spent on the standard model slot.',
+  deep: 'Tokens, input and output together, spent on the deep model slot.',
+});
+describeFields(assistantActivityConversationSchema, {
+  id: 'The conversation’s id.',
+  person: 'The subject id of the administrator the conversation belongs to.',
+  person_username: 'That person’s username, or null when they have none or are gone.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'The mode it is in now: `ask` reads only, `act` may also propose changes.',
+  title: 'A short title once it has one, otherwise null.',
+  started_at: 'When it was started.',
+  last_active_at: 'When it last took a message. Retention counts idleness from here.',
+  turns: 'How many turns the trace holds for it.',
+  steps: 'How many model calls those turns made.',
+  tokens: 'The tokens those calls used, by model slot.',
+  stop_reason:
+    'Why the latest turn ended, or null for a conversation with no turn, a turn still running or one whose reason is not recorded.',
+  tools: 'The distinct tools it called, in name order, at most 20.',
+  report_old:
+    'True for a conversation reported more than 180 days ago, which nothing removes.',
+  approvals: 'How many changes the assistant proposed in it for approval.',
+  reported_at:
+    'When a person reported it, or null. A reported conversation is kept past retention.',
+});
+describeFields(assistantReplayConversationSchema, {
+  id: 'The conversation’s id.',
+  person: 'The subject id of the administrator the conversation belongs to.',
+  person_username: 'That person’s username, or null when they have none or are gone.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'The mode it is in now: `ask` reads only, `act` may also propose changes.',
+  started_at: 'When it was started.',
+  last_active_at: 'When it last took a message. Retention counts idleness from here.',
+  reported_at:
+    'When a person reported it, or null. A reported conversation is kept past retention.',
+});
+describeFields(assistantReplayAskedSchema, {
+  at: 'When it was sent.',
+  text: 'What the person typed, joined from its text parts, with secrets hidden and, where the tenant masks them, email addresses.',
+});
+describeFields(assistantReplayStepSchema, {
+  id: 'The step’s id.',
+  parent_step_id: 'The step of another run that started this one, or null.',
+  slot: 'The model slot it ran on: `fast`, `standard` or `deep`.',
+  model: 'The provider and model id that answered.',
+  provider_request_id: 'The id the provider gave the request, or null.',
+  input_tokens: 'The input tokens the provider reported, or null if it reported none.',
+  output_tokens: 'The output tokens the provider reported, or null if it reported none.',
+  started_at: 'When the call began.',
+  ended_at: 'When it ended, or null for one that never closed.',
+});
+describeFields(assistantReplayEventSchema, {
+  seq: 'The event’s place in the turn, from 0.',
+  step_id: 'The step it belongs to, or null for a choice made before a model call.',
+  kind: 'What it records: `model_call`, `text`, `tool_call`, `tool_result`, `tool_error`, `error`, `slot_chosen`, `reservation`, `narrowing`, `policy`, `trimming` or `truncated`.',
+  at: 'When it happened.',
+  payload:
+    'What the event holds, as the trace stored it with secrets masked and cut to 8 KiB. A tool’s input and result and the model’s words are here; the system prompt and the provider key never are.',
+});
+describeFields(assistantWhyModelSchema, {
+  slot: 'The slot chosen.',
+  reason: 'Why: the server’s own word for the rule that chose it.',
+  model: 'The provider and model id that answer, when they are known.',
+});
+describeFields(assistantReplayTurnSchema, {
+  id: 'The turn’s id.',
+  prompt_hash: 'A SHA-256 of the system prompt it ran with. The prompt is not stored.',
+  started_at: 'When it began.',
+  ended_at: 'When it ended, or null for one still running or never closed.',
+  stop_reason: 'Why it ended, or null.',
+  why_model: 'The model choices the server recorded for it.',
+  why_stopped:
+    'What the stop reason meant for this turn, in the server’s words, from the choices and failures it recorded: the level that refused a call, the change it waited on, the error it met.',
+  steps: 'Its model calls, in order.',
+  events: 'What it recorded, in the order it happened.',
+});
+describeFields(assistantReplayApprovalSchema, {
+  id: 'The approval’s id.',
+  tool_call_id: 'The model call it was proposed by.',
+  tool: 'The change tool.',
+  title: 'What the change did, in the server’s words, or null once its card is gone.',
+  target: 'What it changed, as its kind and name, or null once its card is gone.',
+  state: 'Where the approval stands: `pending`, `approved`, `denied`, `expired` or `consumed`.',
+  decided_at: 'When the person decided, or null.',
+});
+describeFields(assistantActivityReplaySchema, {
+  conversation: 'The conversation: who, what kind and when. Its counts are in the list.',
+  asked:
+    'The latest messages the person sent, oldest first, at most 100, masked. They come from the conversation, which the trace does not hold.',
+  turns: 'The latest 25 turns, oldest first.',
+  turns_omitted: 'How many earlier turns the conversation has that are not here.',
+  text_visible:
+    'True when the text is in this answer. False when the tenant has not let auditors read it: kinds, tools, timings, token counts and sizes are shown and text is replaced by a placeholder.',
+  approvals: 'The changes proposed in it with where each stands, newest first.',
+});
+describeFields(assistantPromptfooCaseSchema, {
+  description: 'A line naming the conversation the case was made from.',
+  vars: 'What the case feeds the model: the profile, the mode and the person’s messages.',
+  assert: 'The assertions. Always empty: whoever files the case writes them.',
+  metadata:
+    'Where the case came from, what it holds and leaves out, and what the assistant did when it ran.',
+});
+describeFields(assistantPromptfooMessageSchema, {
+  role: 'Always `user`: the case holds what the person said.',
+  content: 'The message, masked as the replay masks it.',
+});
+describeFields(assistantPromptfooVarsSchema, {
+  profile: 'The kind of conversation it was.',
+  mode: 'The mode it was in when it was exported.',
+  prompt: 'The first message the person sent, for a case with one prompt.',
+  messages: 'Every message the person sent, oldest first, at most 100.',
+});
+describeFields(assistantPromptfooToolCallSchema, {
+  tool: 'The tool the assistant called.',
+  input: 'What it gave the tool, as the trace stored it, masked.',
+});
+describeFields(assistantPromptfooObservedSchema, {
+  stop_reasons: 'Why each turn ended, in order; null for one with no reason recorded.',
+  tool_calls: 'Every tool call the exported turns made, in order. Their results are not here.',
+  answers: 'What the assistant said in each turn, as the trace stored it, masked.',
+});
+describeFields(assistantPromptfooMetadataSchema, {
+  source: 'Always `odudu-assistant-trace`.',
+  version: 'The version of this shape, 1.',
+  conversation: 'The id of the conversation the case was made from.',
+  turns: 'How many turns the case covers: the conversation’s latest 25.',
+  contains: 'What the case holds, in words.',
+  excludes: 'What the case leaves out, in words.',
+  observed: 'What the assistant did in those turns.',
+});
+describeFields(reportConversationResponseSchema, {
+  reported_at:
+    'When the conversation was reported, which is the first time if it was reported before.',
+  reported_count: 'How many conversations the tenant keeps reported, this one included.',
+  near_limit: 'True from 80 reported conversations on: the tenant keeps at most 100.',
+});
+
 const GROUP_WORDS: Fields = {
   id: 'The group’s identifier, a UUID.',
   name: 'The group’s own name, unique among the groups beside it. Fixed once the group is made.',
@@ -1401,9 +1567,9 @@ describeFields(assistantSettingsSchema, {
   assistant_mask_emails:
     'Whether an email address the assistant reads is replaced by its first character, three asterisks and its domain before it is sent to the model provider.',
   assistant_trace_retention_days:
-    'How many days the step-by-step trace of a conversation is kept, from 1 to 365. The audit trail follows its own retention.',
+    'How many days the step-by-step trace of a conversation is kept, from 1 to 365, and how long a conversation may sit idle before it is removed with its messages. A conversation a person reported is kept. The audit trail follows its own retention.',
   assistant_auditor_visible:
-    'Whether people who can read assistant activity may see conversations. People using the assistant are told.',
+    'Whether people who can read assistant activity may also read the text of conversations: what was asked and answered, and what the tools were given and returned. Off by default; they always see who, when, which tools, the tokens and how each answer ended. Each read of text is recorded as `assistant.text_read`. A tenant that saved a value keeps it when the default changes.',
   assistant_monthly_tokens_fast:
     'The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant stops when it is used and names the limit.',
   assistant_monthly_tokens_standard:

@@ -10,9 +10,9 @@ import { buildAdminOpenApiDocument } from '#/view/routes/openapi';
 // shared, and a ceiling over the size now plus 5 per cent, rounded up to a whole
 // kilobyte. Measured at 837,042 bytes with the assistant's settings and chat
 // routes in; the ceiling was 815,104 before those routes were added and the
-// document then measured 817,624, so it is raised to 859,136, 2.6 per cent over.
+// document then measured 817,624, so it is raised to 859,136, 2.6 per cent over. The assistant's activity routes (a replay of a conversation is the largest response) took it to 903,244, and it is raised to 949,248, 5.1 per cent over.
 const ADMIN_DOCUMENT_BASELINE_BYTES = 2_304_007;
-const ADMIN_DOCUMENT_MAX_BYTES = 859_136;
+const ADMIN_DOCUMENT_MAX_BYTES = 949_248;
 
 type Document = ReturnType<typeof buildAdminOpenApiDocument>;
 

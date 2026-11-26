@@ -31,5 +31,5 @@ The quick start's compose file is for trying Odudu out and is not a deployment. 
 6. [Hardening](./hardening.md) is the checklist of every guard the server starts under.
 7. [Custom domains](./custom-domains.md) gives a tenant a public address of its own behind your proxy.
 8. [The assistant's token budget](./assistant-budget.md) says how the console assistant counts what it spends and what `odudu reap` does about a call that was cut off.
-9. [The assistant's trace](./assistant-trace.md) says what the console assistant records of each turn beyond the audit trail, what it masks or never stores, and what a turn whose trace could not be written leaves behind.
+9. [The assistant's trace](./assistant-trace.md) says what the console assistant records of each turn beyond the audit trail, what it masks or never stores, who can read it and how long it is kept, and what a turn whose trace could not be written leaves behind.
 10. [Releasing](./releasing.md) is for the people who publish a version.

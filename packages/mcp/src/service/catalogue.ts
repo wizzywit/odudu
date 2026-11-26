@@ -300,8 +300,18 @@ const WITHHELD: readonly Entry[] = [
       R('POST', '/assistant/conversations/:id/approvals/:approvalId'),
       R('POST', '/assistant/conversations/:id/resume'),
       R('PUT', '/assistant/conversations/:id/mode'),
+      R('POST', '/assistant/conversations/:id/report'),
     ],
     'not-useful',
+  ],
+  [
+    "What the console assistant's conversations say of the people who used it, and of what it did for them: who asked, when, which tools it called, the tokens, and, where the tenant allows it, the text. Not offered to an agent, which reads nothing of the assistant that may be running it nor of the people who use it.",
+    [
+      R('GET', '/assistant/activity'),
+      R('GET', '/assistant/activity/conversations/:id'),
+      R('GET', '/assistant/activity/conversations/:id/promptfoo'),
+    ],
+    'sensitive',
   ],
   [
     "Answers one subject's id token, access token and userinfo claims, which are personal data, under manage-clients, which does not include view-users; its open claim records have no schema to bound them.",

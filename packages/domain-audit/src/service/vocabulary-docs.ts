@@ -201,6 +201,17 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
     'A tenant’s settings for the console assistant changed: whether it is on, its default mode, ' +
     'email masking, trace retention, whether auditors see conversations, or a limit. `detail` ' +
     'gives each changed setting as before and after.',
+  'assistant.report':
+    'A person reported a conversation of the console assistant, which keeps it, with its trace, ' +
+    'past the tenant’s retention. `detail` names the conversation and its owner. Reporting one that ' +
+    'is already reported writes no event, and neither does a report refused because the tenant ' +
+    'already keeps as many as it may. It holds no message text.',
+  'assistant.text_read':
+    'Someone who is not the person it belongs to read the text of a console assistant conversation: ' +
+    'its replay or its test-case export, which show what was asked and answered and what the tools ' +
+    'were given and returned. It is written only while the tenant lets auditors read text, in the ' +
+    'transaction of the read. `detail` names the tenant, the conversation, its owner and which part ' +
+    '(`replay` or `export`), never the text. The owner’s own reads are not recorded.',
   'assistant.turn':
     'A turn of the console assistant began or ended, one event for each. `detail.phase` is ' +
     '`started` or `ended`; both name the tenant, the person, the conversation, the turn, the ' +

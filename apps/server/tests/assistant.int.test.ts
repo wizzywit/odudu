@@ -155,11 +155,11 @@ describe('the assistant status route in the running server', () => {
     expect((await get(on(), w, '/status', await adminToken(w))).statusCode).toBe(403);
   });
 
-  it('serves no other assistant route, so none can be told from a path that never existed', async () => {
+  it('serves no listing of conversations, so that path cannot be told from one that never existed', async () => {
     const w = await s().world(['use-assistant', 'manage-assistant'], 'openid');
     const token = await adminToken(w);
     for (const app of [s().app, on()]) {
-      for (const tail of ['/conversations', '/activity']) {
+      for (const tail of ['/conversations']) {
         expect((await get(app, w, tail, token)).statusCode, tail).toBe(404);
       }
     }
@@ -171,7 +171,7 @@ const CHOSEN = {
   assistant_default_mode: 'act',
   assistant_mask_emails: true,
   assistant_trace_retention_days: 90,
-  assistant_auditor_visible: false,
+  assistant_auditor_visible: true,
   assistant_monthly_tokens_fast: 1000,
   assistant_monthly_tokens_standard: 2000,
   assistant_monthly_tokens_deep: 3000,
@@ -183,7 +183,7 @@ const DEFAULTS = {
   assistant_default_mode: 'ask',
   assistant_mask_emails: false,
   assistant_trace_retention_days: 30,
-  assistant_auditor_visible: true,
+  assistant_auditor_visible: false,
   assistant_monthly_tokens_fast: 2_000_000,
   assistant_monthly_tokens_standard: 5_000_000,
   assistant_monthly_tokens_deep: 1_000_000,
@@ -233,7 +233,7 @@ describe('the assistant settings route', () => {
       assistant_default_mode: { before: 'ask', after: 'act' },
       assistant_mask_emails: { before: false, after: true },
       assistant_trace_retention_days: { before: 30, after: 90 },
-      assistant_auditor_visible: { before: true, after: false },
+      assistant_auditor_visible: { before: false, after: true },
       assistant_monthly_tokens_fast: { before: 2_000_000, after: 1000 },
       assistant_monthly_tokens_standard: { before: 5_000_000, after: 2000 },
       assistant_monthly_tokens_deep: { before: 1_000_000, after: 3000 },

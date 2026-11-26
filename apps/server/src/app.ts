@@ -74,7 +74,11 @@ import {
 import { isMeRoute, meRefusalHeaders, registerMeOpenApiRoute, registerMeRoutes } from '@odudu/me';
 import {
   providerSecrets,
+  exportPromptfoo as exportAssistantPromptfoo,
+  listActivity as listAssistantActivity,
   readSettings as readAssistantSettings,
+  replayConversation as replayAssistantConversation,
+  reportConversation as reportAssistantConversation,
   status as assistantStatus,
   writeSettings as writeAssistantSettings,
   type ChatDeps,
@@ -867,6 +871,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
             assistantSettings: {
               read: readAssistantSettings,
               write: writeAssistantSettings,
+            },
+            assistantActivity: {
+              list: listAssistantActivity,
+              replay: replayAssistantConversation,
+              export: exportAssistantPromptfoo,
+              report: (tx, input) => reportAssistantConversation(tx, input),
             },
           }),
       ...(deps.assistant?.slots == null || deps.assistantModels === undefined

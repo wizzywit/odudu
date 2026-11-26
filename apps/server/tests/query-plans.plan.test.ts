@@ -597,6 +597,14 @@ const NOT_DRIVEN: Readonly<Record<string, string>> = {
     'served only with a model configured; one grant, one conversation and one card by primary key, one conditional update of one agent_approvals row by primary key and one audit row',
   'POST /admin/tenants/:tenant/assistant/conversations/:id/resume':
     'served only with a model configured, and its time is the model\u2019s; the statements are those of a message, the cards of the last message\u2019s tool calls read through assistant_approvals_call (at most 50), and for an approved change one conditional update of its approval, a grant insert and revoke by primary key and the write\u2019s own admin route',
+  'GET /admin/tenants/:tenant/assistant/activity':
+    'served only with a model configured; at most 200 conversations by assistant_conversations_activity (or the owner index), a filter that looks inside a conversation tried on at most 1,000 of them through assistant_turns_conversation and assistant_events_tool_calls, then five aggregate reads by conversation ids (proved at 100,000 turns in packages/assistant/tests/activity.int.test.ts)',
+  'GET /admin/tenants/:tenant/assistant/activity/conversations/:id':
+    'served only with a model configured; one conversation by primary key, its latest 25 turns through assistant_turns_conversation, their steps and events by turn id and the conversation\u2019s cards and messages by primary-key prefixes, all bounded',
+  'GET /admin/tenants/:tenant/assistant/activity/conversations/:id/promptfoo':
+    'served only with a model configured; the reads of the replay',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/report':
+    'served only with a model configured; one advisory lock, one conversation by primary key, a count of at most 100 rows through assistant_conversations_reported, one update by primary key and one audit row',
   'PUT /admin/tenants/:tenant/assistant/conversations/:id/mode':
     'served only with a model configured; reads and updates one conversation by primary key, and withdraws pending changes as the stop route does',
 };

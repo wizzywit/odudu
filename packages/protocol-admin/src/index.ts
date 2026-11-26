@@ -49,6 +49,11 @@ import {
   type Audit as AssistantSettingsAudit,
   type AssistantSettingsStore,
 } from '#/usecase/assistant-settings';
+export type {
+  ActivityPage as AssistantActivityPage,
+  AssistantActivityStore,
+  ReportResult as AssistantReportResult,
+} from '#/usecase/assistant-activity';
 import { type Audit as ThemeAssetAudit } from '#/usecase/theme-assets';
 import { type Audit as TenantExportAudit } from '#/usecase/tenant-export';
 import { type Audit as TenantImportAudit } from '#/usecase/tenant-import';
@@ -260,6 +265,14 @@ import {
   tenantOffersAssistant,
   type AssistantChatPort,
 } from '#/view/routes/assistant';
+import {
+  exportAssistantConversationHandler,
+  listAssistantActivityHandler,
+  replayAssistantConversationHandler,
+  reportAssistantConversationHandler,
+  type AssistantActivityRouteDeps,
+} from '#/view/routes/assistant-activity';
+import { type AssistantActivityStore } from '#/usecase/assistant-activity';
 import { whoamiHandler } from '#/view/routes/whoami';
 import {
   evaluateClaimsHandler,
@@ -468,6 +481,10 @@ export interface AdminRoutesDeps {
   // What the conversation routes call, which @odudu/assistant supplies. Omitted,
   // they answer 404 as if they were not served.
   assistantChat?: AssistantChatPort;
+  // The activity list, replay, export and report over the conversations and the
+  // trace beneath them, from the package this one cannot import. Omitted, those
+  // routes answer as paths that were never served.
+  assistantActivity?: AssistantActivityStore;
 }
 
 export type AdminAuthParts = Pick<AdminRoutesDeps, 'database' | 'ownerDatabase' | 'publicBaseUrl'>;
@@ -735,6 +752,16 @@ function buildAdminRoutes(
       status: deps.assistantStatus ?? (() => ({ enabled: false })),
       ...(deps.assistantSettings === undefined ? {} : { store: deps.assistantSettings }),
     };
+    const activityDeps: AssistantActivityRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: recordAudit,
+      now: () => clock.now(),
+      callerCapabilities,
+      ...(deps.assistantActivity === undefined || deps.assistantSettings === undefined
+        ? {}
+        : { store: deps.assistantActivity, settings: deps.assistantSettings }),
+    };
     const tenantTheme = themeHandlers(themeDeps, 'tenant');
     const clientTheme = themeHandlers(themeDeps, 'client');
     const assetDeps: ThemeAssetRouteDeps = {
@@ -893,6 +920,13 @@ function buildAdminRoutes(
         resumeConversationHandler(chatDeps),
       'PUT /admin/tenants/:tenant/assistant/conversations/:id/mode':
         setConversationModeHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/activity': listAssistantActivityHandler(activityDeps),
+      'GET /admin/tenants/:tenant/assistant/activity/conversations/:id':
+        replayAssistantConversationHandler(activityDeps),
+      'GET /admin/tenants/:tenant/assistant/activity/conversations/:id/promptfoo':
+        exportAssistantConversationHandler(activityDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations/:id/report':
+        reportAssistantConversationHandler(activityDeps),
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/count': countSubjectsHandler(countsDeps),
       'GET /admin/tenants/:tenant/subjects/username-policy':

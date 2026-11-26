@@ -208,6 +208,10 @@ shown once — a registration token, a client secret, a one-time password.
 | `POST`   | `/admin/tenants/{tenant}/assistant/conversations/:id/approvals/:approvalId` | Approve or refuse a proposed change        |
 | `POST`   | `/admin/tenants/{tenant}/assistant/conversations/:id/resume`                | Carry a conversation on after a decision   |
 | `PUT`    | `/admin/tenants/{tenant}/assistant/conversations/:id/mode`                  | Switch a conversation between Ask and Act  |
+| `GET`    | `/admin/tenants/{tenant}/assistant/activity`                                | List the tenant's assistant conversations  |
+| `GET`    | `/admin/tenants/{tenant}/assistant/activity/conversations/:id`              | Replay one conversation                    |
+| `GET`    | `/admin/tenants/{tenant}/assistant/activity/conversations/:id/promptfoo`    | Export a conversation as a test case       |
+| `POST`   | `/admin/tenants/{tenant}/assistant/conversations/:id/report`                | Keep a conversation past retention         |
 | `GET`    | `/admin/tenants/{tenant}/domains`                                           | List domains                               |
 | `POST`   | `/admin/tenants/{tenant}/domains`                                           | Register a domain                          |
 | `GET`    | `/admin/tenants/{tenant}/domains/passkey-impact`                            | Count the passkeys a switch hides          |

@@ -5,7 +5,7 @@ description: What the console assistant records of each turn beyond the audit tr
 
 # The assistant's trace
 
-The console assistant leaves two records. The [audit trail](../concepts/consent-and-audit.mdx) says that a turn happened and what it cost, and holds no message text. The trace says why: what the model was given and answered, which tools it called with what, what they returned, and the choices the server made around each model call. This page is for the person who runs the server and answers for what that record holds.
+The console assistant leaves two records. The [audit trail](../concepts/consent-and-audit.mdx) says that a turn happened and what it cost, and holds no message text. The trace says why: what the model was given and answered, which tools it called with what, what they returned, and the choices the server made around each model call. This page is for the person who runs the server and answers for what that record holds, who can read it and how long it is kept.
 
 ## What a turn records
 
@@ -86,11 +86,45 @@ The trace is written in short transactions at the start and end of each model ca
 
 ## Who can read it
 
-Nothing reads the trace yet, not the model, not the console and not an API. The assistant has no tool that reads these tables, and the audit trail and the trace are not among the things it can see. The route that lists conversations and replays a turn will need the `read-assistant-activity` capability, which a tenant restricts with **Auditors can read conversations**.
+Not the model: the assistant has no tool that reads these tables, and the audit trail and the trace are not among the things it can see. A person always reads their own conversations, in full, through the conversation routes. Others read them through three admin routes that need `read-assistant-activity`, which `tenant-admin` carries. What they get depends on a tenant setting, **Let auditors read conversation text** (`assistant_auditor_visible`), which is **off by default**.
+
+**Metadata, always.** A holder of the capability sees who used the assistant, the profile and mode, when a conversation started and was last active, its turns, steps and tokens by model slot, the tools it called by name, how each turn stopped and why, the changes it proposed and what was decided, whether it is reported, and, in a replay, the kind, time and size of every event. The list never hides a row because of the setting.
+
+**Text, when the tenant allows it.** What the person asked, what the model answered, and what each tool was given and returned are shown only while the setting is on. While it is off the replay and the export give the same structure with the placeholder `[text not visible to auditors in this tenant]` where the words were, and the size of what was left out; `text_visible` says which. A tenant that saved a value before the default changed keeps it; a tenant that never did starts with the text hidden.
+
+**Every read of text is recorded.** When a replay or an export returns text to someone other than the person the conversation belongs to, an `assistant.text_read` event is written in the same transaction as the read, naming the reader, the conversation, its owner and the part (`replay` or `export`), never the text. A read that is refused or returns no text leaves none. The event is an admin change, so a tenant's audit event types cannot drop it, and the owner is on its `resource` and `detail`, so the reads of a person's conversations can be listed for them with `GET /admin/tenants/{tenant}/audit?action=assistant.text_read`. Telling the person, in the console or by mail, is not done yet: it belongs to the increment that lists a person's own conversations, and until then the record is the only trace of a read.
+
+No operator or system-tenant path reads a tenant's conversation text. A system administrator reaching a tenant's routes is a reader of that tenant like any other, bound by its setting and recorded the same way, and nothing in the server, the command line or the console reads a conversation outside those routes.
+
+- `GET /admin/tenants/{tenant}/assistant/activity` lists the tenant's conversations, newest activity first. It filters by `person`, `conversation`, `tool`, `outcome` (how the latest turn ended) and `kind` (`approval`, `budget_refusal` or `tool_error`), and pages with a signed cursor at up to 200 a page. A filter that looks inside conversations (`tool`, `outcome`, `kind`) looks at no more than 1,000 conversations a request, so a page it does not fill is returned short, even empty, with `next` to carry on from. `report_old` marks a conversation reported more than 180 days ago.
+- `GET /admin/tenants/{tenant}/assistant/activity/conversations/{id}` replays one: its latest 25 turns, oldest first, each with its steps, its events, why each model was chosen and why the turn stopped, the changes proposed with where each stands, and what the person asked.
+- `GET /admin/tenants/{tenant}/assistant/activity/conversations/{id}/promptfoo` exports it as a [promptfoo](https://www.promptfoo.dev) test case, as a JSON download.
+
+Tool inputs, tool results and the model's words in a replay are as the trace stored them, masked. What the person asked is not in the trace: it comes from the conversation, and is masked when it is read, with the same rules and, where the tenant masks email addresses, those as well. The export holds the person's messages, the tools the assistant called with their inputs, the answer text and why each turn stopped, and it says so in its `metadata.contains` and `metadata.excludes`: it leaves out the system prompt, what the tools returned, the model's reasoning and any key. It has no assertions; whoever files it writes them. The shape it holds to is the published schema of the route's response.
+
+The same `404` that a path never served gets answers a deployment with no model configured, and a conversation that is not this tenant's. An AI agent's token is refused all three routes, and the assistant has no tool for them. A conversation is read in the tenant it belongs to.
+
+### Reporting a conversation
+
+`POST /admin/tenants/{tenant}/assistant/conversations/{id}/report` keeps a conversation, with its turns, steps, events and approval cards, past retention. The person it belongs to may report it, and so may someone holding `read-assistant-activity`, whatever the setting says, since reporting shows no text; anyone else gets `404`. Reporting one already reported answers the same `reported_at` and changes nothing. A tenant keeps at most 100 reported conversations, and a further one is refused with `409`, because a conversation kept for good is not weighed by the retention that bounds the rest. The response says `near_limit` from 80, and the list flags a conversation reported more than 180 days ago, so someone can see what has been kept; nothing removes one. The route does not un-report. A report that takes effect is audited as `assistant.report`; one that changes nothing is not.
 
 ## Retention
 
-A tenant's **Keep traces for** setting (`assistant_trace_retention_days`, 30 days by default) is stored, but nothing yet removes trace rows when they pass it. They go when their conversation does: deleting a person deletes their conversations, and with them every turn, step and event. The pass that applies the setting is not yet in place, so until it is, the trace of a conversation stays as long as the conversation.
+A tenant's **Keep traces for** setting (`assistant_trace_retention_days`, 1 to 365, 30 by default) is applied by `odudu reap`, which the server also runs on its own timer, so the trace is bounded the way the audit trail is. The pass runs after the retention deletes of every tenant have committed, in a transaction of its own for each tenant, and takes three things, each against the tenant's window counted back from the pass:
+
+| What             | Removed when                                      | With it                                      |
+| ---------------- | ------------------------------------------------- | -------------------------------------------- |
+| A turn           | it started more than the window ago               | its steps and events                         |
+| An approval card | it was made more than the window ago              | nothing; the approval keeps its own 30 days  |
+| A conversation   | it has had no activity for longer than the window | its messages, turns, steps, events and cards |
+
+A turn exactly the window old is kept and one a moment older goes. The window is at least a day, and an approval lives at most 15 minutes, so a card the pass removes was settled hours before. A conversation that has been reported, and everything under it, is never removed by these. Each kind goes in rounds of 1,000, at most ten rounds for a tenant in a pass, found through an index by age, so a tenant with a backlog costs a bounded amount and the next pass takes the rest; the pass waits two seconds at most for a row a live turn holds and leaves it to the next one.
+
+A conversation idle for longer than the window is removed whole, and so is what the person said in it: a person's history in the console lasts as long as the window after they last used it. Report a conversation to keep it.
+
+The report of `odudu reap` carries what the pass did under `assistant`, as `turnsDeleted`, `approvalCardsDeleted` and `conversationsDeleted` beside the budget upkeep's counts, and `failed` counts the tenants for which either half failed. The command exits `1` when it is more than zero, so a scheduled job shows it, while the other tenants and the other half of that tenant's work stand. Shortening the setting removes more on the next pass; lengthening it does not bring back what a pass has removed.
+
+Deleting a person still deletes their conversations at once, and with them every turn, step and event.
 
 ## OpenTelemetry
 

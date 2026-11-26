@@ -323,6 +323,10 @@ a phase note.
 
 ### Work owed, and the phase each belongs to
 
+- **Telling a person that someone read their assistant conversation's text, and un-reporting a conversation** (2026-11-26): every read of text by
+  another person is audited as `assistant.text_read` with the owner named, so the reads can be listed for the owner, but the console notice and
+  the mail, and an owner-scoped list of reads, belong to the conversation-list increment of **P5c**. The report cap (100) has no release: a
+  route that un-reports belongs to the activity screen of **P5c**.
 - **Twelve administrative capabilities a gap audit against mature identity
   providers found the server lacking** (2026-09-29): more required actions,
   several sign-in flows, per-step authenticator settings and a

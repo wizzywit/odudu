@@ -72,7 +72,7 @@ An approved change is a write, so it is counted in the write allowance of the co
 The pass is part of `odudu reap`, which the server also runs on its own timer unless `ODUDU_REAP_ENABLED` is `false`; see [Deploying](./deploying.md). Its report gains an `assistant` object on a pass where it did something, and none otherwise:
 
 ```text
-{"ran":true,"deleted":{ … },"cleared":{ … },"assistant":{"reservationsReleased":0,"reservationsCharged":1,"reservationsDeleted":0,"countersDeleted":0,"leasesDeleted":0,"writeGrantsRevoked":0,"failed":0}}
+{"ran":true,"deleted":{ … },"cleared":{ … },"assistant":{"reservationsReleased":0,"reservationsCharged":1,"reservationsDeleted":0,"countersDeleted":0,"leasesDeleted":0,"writeGrantsRevoked":0,"turnsDeleted":0,"approvalCardsDeleted":0,"conversationsDeleted":0,"failed":0}}
 ```
 
-That example is illustrative: it is not the output of a run against a live stack. `failed` counts the tenants whose upkeep failed. A command run with `odudu reap` exits 1 when it is more than zero, so a cron job or Kubernetes Job shows it, while the retention deletes of that pass stand. The server's own timer logs each failure and runs the next pass on schedule.
+That example is illustrative: it is not the output of a run against a live stack. `failed` counts the tenants whose upkeep failed; the last three counts are the trace retention pass, which [The assistant's trace](./assistant-trace.md) describes. A command run with `odudu reap` exits 1 when it is more than zero, so a cron job or Kubernetes Job shows it, while the retention deletes of that pass stand. The server's own timer logs each failure and runs the next pass on schedule.

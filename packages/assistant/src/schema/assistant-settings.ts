@@ -8,7 +8,7 @@ export const assistantSettings = pgTable('assistant_settings', {
   assistantDefaultMode: text('assistant_default_mode').notNull().default('ask'),
   assistantMaskEmails: boolean('assistant_mask_emails').notNull().default(false),
   assistantTraceRetentionDays: integer('assistant_trace_retention_days').notNull().default(30),
-  assistantAuditorVisible: boolean('assistant_auditor_visible').notNull().default(true),
+  assistantAuditorVisible: boolean('assistant_auditor_visible').notNull().default(false),
   assistantMonthlyTokensFast: bigint('assistant_monthly_tokens_fast', { mode: 'number' })
     .notNull()
     .default(2_000_000),

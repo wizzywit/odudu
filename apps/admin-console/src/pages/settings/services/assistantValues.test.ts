@@ -38,7 +38,7 @@ it('says each default as the server holds it', () => {
   expect(said('assistant_enabled')).toContain('Default: on.');
   expect(said('assistant_default_mode')).toContain('Default: Ask.');
   expect(said('assistant_mask_emails')).toContain('Default: off.');
-  expect(said('assistant_auditor_visible')).toContain('Default: on.');
+  expect(said('assistant_auditor_visible')).toContain('Default: off.');
   expect(said('assistant_trace_retention_days')).toContain('Default: 30 days.');
   expect(said('assistant_monthly_tokens_standard')).toContain('Default: 5,000,000 tokens.');
   expect(said('assistant_max_steps_per_turn')).toContain('Default: 20 steps.');

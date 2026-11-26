@@ -18,7 +18,7 @@ const tokenLimit = z.number().int().min(TOKENS_RANGE.min).max(TOKENS_RANGE.max);
 
 // What one tenant has chosen for its assistant. A tenant that has chosen
 // nothing reads the defaults: on, Ask first, addresses unmasked, traces kept
-// 30 days, conversations visible to auditors. The three token limits are a
+// 30 days, conversation text hidden from auditors. The three token limits are a
 // month's allowance for each model slot.
 export const assistantSettingsSchema = z.object({
   assistant_enabled: z.boolean(),
@@ -53,7 +53,7 @@ export const ASSISTANT_SETTING_DEFAULTS: AssistantSettings = {
   assistant_default_mode: 'ask',
   assistant_mask_emails: false,
   assistant_trace_retention_days: 30,
-  assistant_auditor_visible: true,
+  assistant_auditor_visible: false,
   assistant_monthly_tokens_fast: 2_000_000,
   assistant_monthly_tokens_standard: 5_000_000,
   assistant_monthly_tokens_deep: 1_000_000,

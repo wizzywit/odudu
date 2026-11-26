@@ -3,6 +3,7 @@
 
 IDEMPOTENT_OPERATIONS: frozenset[tuple[str, str]] = frozenset(
     {
+        ("POST", "/admin/tenants/{tenant}/assistant/conversations/{id}/report"),
         ("POST", "/admin/tenants/{tenant}/clients/{id}/theme/publish"),
         ("POST", "/admin/tenants/{tenant}/clients/{id}/theme/versions/{versionId}/restore"),
         ("POST", "/admin/tenants/{tenant}/domains"),

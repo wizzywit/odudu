@@ -108,6 +108,96 @@ from .get_admin_tenants_tenant_agents_response_200_items_item_state import (
     GetAdminTenantsTenantAgentsResponse200ItemsItemState,
 )
 from .get_admin_tenants_tenant_agents_state import GetAdminTenantsTenantAgentsState
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_promptfoo_response_200 import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_promptfoo_response_200_assert_item import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200AssertItem,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_promptfoo_response_200_metadata import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200Metadata,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_promptfoo_response_200_metadata_observed import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200MetadataObserved,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_promptfoo_response_200_metadata_observed_stop_reasons_item_type_0 import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200MetadataObservedStopReasonsItemType0,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_promptfoo_response_200_metadata_observed_tool_calls_item import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200MetadataObservedToolCallsItem,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_promptfoo_response_200_vars import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200Vars,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_promptfoo_response_200_vars_messages_item import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200VarsMessagesItem,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_promptfoo_response_200_vars_mode import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200VarsMode,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200 import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_approvals_item import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200ApprovalsItem,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_approvals_item_state import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200ApprovalsItemState,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_asked_item import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200AskedItem,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_conversation import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200Conversation,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_conversation_mode import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200ConversationMode,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_turns_item import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItem,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_turns_item_events_item import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemEventsItem,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_turns_item_events_item_kind import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemEventsItemKind,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_turns_item_events_item_payload import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemEventsItemPayload,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_turns_item_steps_item import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemStepsItem,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_turns_item_steps_item_slot import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemStepsItemSlot,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_turns_item_stop_reason_type_0 import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemStopReasonType0,
+)
+from .get_admin_tenants_tenant_assistant_activity_conversations_id_response_200_turns_item_why_model_item import (
+    GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemWhyModelItem,
+)
+from .get_admin_tenants_tenant_assistant_activity_kind import (
+    GetAdminTenantsTenantAssistantActivityKind,
+)
+from .get_admin_tenants_tenant_assistant_activity_outcome import (
+    GetAdminTenantsTenantAssistantActivityOutcome,
+)
+from .get_admin_tenants_tenant_assistant_activity_response_200 import (
+    GetAdminTenantsTenantAssistantActivityResponse200,
+)
+from .get_admin_tenants_tenant_assistant_activity_response_200_items_item import (
+    GetAdminTenantsTenantAssistantActivityResponse200ItemsItem,
+)
+from .get_admin_tenants_tenant_assistant_activity_response_200_items_item_mode import (
+    GetAdminTenantsTenantAssistantActivityResponse200ItemsItemMode,
+)
+from .get_admin_tenants_tenant_assistant_activity_response_200_items_item_stop_reason_type_0 import (
+    GetAdminTenantsTenantAssistantActivityResponse200ItemsItemStopReasonType0,
+)
+from .get_admin_tenants_tenant_assistant_activity_response_200_items_item_tokens import (
+    GetAdminTenantsTenantAssistantActivityResponse200ItemsItemTokens,
+)
 from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200 import (
     GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200,
 )
@@ -866,6 +956,9 @@ from .post_admin_tenants_tenant_assistant_conversations_id_messages_body_message
 from .post_admin_tenants_tenant_assistant_conversations_id_messages_body_message_parts_item import (
     PostAdminTenantsTenantAssistantConversationsIdMessagesBodyMessagePartsItem,
 )
+from .post_admin_tenants_tenant_assistant_conversations_id_report_response_200 import (
+    PostAdminTenantsTenantAssistantConversationsIdReportResponse200,
+)
 from .post_admin_tenants_tenant_assistant_conversations_id_stop_response_200 import (
     PostAdminTenantsTenantAssistantConversationsIdStopResponse200,
 )
@@ -1252,6 +1345,36 @@ __all__ = (
     "GetAdminTenantsTenantAgentsResponse200ItemsItemRemainingBudget",
     "GetAdminTenantsTenantAgentsResponse200ItemsItemState",
     "GetAdminTenantsTenantAgentsState",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200AssertItem",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200Metadata",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200MetadataObserved",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200MetadataObservedStopReasonsItemType0",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200MetadataObservedToolCallsItem",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200Vars",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200VarsMessagesItem",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdPromptfooResponse200VarsMode",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200ApprovalsItem",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200ApprovalsItemState",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200AskedItem",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200Conversation",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200ConversationMode",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItem",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemEventsItem",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemEventsItemKind",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemEventsItemPayload",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemStepsItem",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemStepsItemSlot",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemStopReasonType0",
+    "GetAdminTenantsTenantAssistantActivityConversationsIdResponse200TurnsItemWhyModelItem",
+    "GetAdminTenantsTenantAssistantActivityKind",
+    "GetAdminTenantsTenantAssistantActivityOutcome",
+    "GetAdminTenantsTenantAssistantActivityResponse200",
+    "GetAdminTenantsTenantAssistantActivityResponse200ItemsItem",
+    "GetAdminTenantsTenantAssistantActivityResponse200ItemsItemMode",
+    "GetAdminTenantsTenantAssistantActivityResponse200ItemsItemStopReasonType0",
+    "GetAdminTenantsTenantAssistantActivityResponse200ItemsItemTokens",
     "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200",
     "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem",
     "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemAfterType0",
@@ -1520,6 +1643,7 @@ __all__ = (
     "PostAdminTenantsTenantAssistantConversationsIdMessagesBody",
     "PostAdminTenantsTenantAssistantConversationsIdMessagesBodyMessage",
     "PostAdminTenantsTenantAssistantConversationsIdMessagesBodyMessagePartsItem",
+    "PostAdminTenantsTenantAssistantConversationsIdReportResponse200",
     "PostAdminTenantsTenantAssistantConversationsIdStopResponse200",
     "PostAdminTenantsTenantAssistantConversationsResponse201",
     "PostAdminTenantsTenantAssistantConversationsResponse201MessagesItem",

@@ -14,9 +14,9 @@ T = TypeVar("T", bound="GetAdminTenantsTenantAssistantStatusResponse200Type1Slot
 class GetAdminTenantsTenantAssistantStatusResponse200Type1Slots:
     """
     Attributes:
-        fast (str):
-        standard (str):
-        deep (str):
+        fast (str): Tokens, input and output together, spent on the fast model slot.
+        standard (str): Tokens, input and output together, spent on the standard model slot.
+        deep (str): Tokens, input and output together, spent on the deep model slot.
     """
 
     fast: str

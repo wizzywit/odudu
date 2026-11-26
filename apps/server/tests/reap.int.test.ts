@@ -719,6 +719,99 @@ describe('assistant budget upkeep inside the pass', () => {
   });
 });
 
+describe('assistant trace retention inside the pass', () => {
+  async function tenantWithTrace(): Promise<{ tenantId: string; oldTurn: string }> {
+    const tenantId = newId();
+    const subjectId = newId();
+    const conversationId = newId();
+    const oldTurn = newId();
+    await owner.db.execute(
+      sql`INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`trace-${tenantId}`})`,
+    );
+    await owner.db.execute(
+      sql`INSERT INTO subjects (id, tenant_id, type) VALUES (${subjectId}, ${tenantId}, 'user')`,
+    );
+    await owner.db.execute(sql`
+      INSERT INTO assistant_conversations
+        (tenant_id, id, owner_subject_id, instance_id, profile, mode, last_active_at)
+      VALUES (${tenantId}, ${conversationId}, ${subjectId}, ${newId()}, 'free-chat', 'ask',
+              ${at(-1 * HOUR)}::timestamptz)
+    `);
+    await owner.db.execute(sql`
+      INSERT INTO assistant_turns (tenant_id, id, conversation_id, profile, prompt_hash, started_at)
+      VALUES (${tenantId}, ${oldTurn}, ${conversationId}, 'free-chat', ${'d'.repeat(64)},
+              ${at(-40 * DAY)}::timestamptz),
+             (${tenantId}, ${newId()}, ${conversationId}, 'free-chat', ${'d'.repeat(64)},
+              ${at(-1 * HOUR)}::timestamptz)
+    `);
+    return { tenantId, oldTurn };
+  }
+
+  it('removes the turns past the tenant’s window, reports them under assistant and does so once', async () => {
+    const { tenantId, oldTurn } = await tenantWithTrace();
+    const outcome = await runPass();
+    expect(outcome.ran && outcome.assistant?.turnsDeleted).toBeGreaterThanOrEqual(1);
+    const left = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM assistant_turns WHERE tenant_id = ${tenantId}`,
+    );
+    expect(left).toHaveLength(1);
+    expect(left.map((row) => row.id)).not.toContain(oldTurn);
+    const again = await runPass();
+    expect(again.ran && (again.assistant?.turnsDeleted ?? 0)).toBe(0);
+  });
+
+  it('keeps the budget upkeep and the other tenants when the trace pass throws, and counts the tenant once', async () => {
+    const { tenantId } = await tenantWithTrace();
+    const told: { event: string; tenantId: unknown }[] = [];
+    const outcome = await reap(
+      {
+        database: appDb,
+        ownerDatabase: owner,
+        traceUpkeep: () => Promise.reject(new Error('the delete timed out')),
+        upkeep: () => Promise.reject(new Error('the sweep timed out')),
+        log: (event, detail) => told.push({ event, tenantId: detail.tenantId }),
+      },
+      NOW,
+      POLICY,
+    );
+    const failed = outcome.ran ? (outcome.assistant?.failed ?? 0) : 0;
+    const tenants = await owner.db.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM tenants`,
+    );
+    expect(failed).toBe(tenants[0]?.n);
+    expect(reapExitCode(outcome)).toBe(1);
+    const events = told.filter((entry) => entry.tenantId === tenantId).map((entry) => entry.event);
+    expect(events.sort()).toEqual(['assistant_trace_reap_failed', 'assistant_upkeep_failed']);
+  });
+
+  it('exits non-zero when only the trace pass failed, and still does the budget upkeep', async () => {
+    await tenantWithTrace();
+    let budgetRan = 0;
+    const outcome = await reap(
+      {
+        database: appDb,
+        ownerDatabase: owner,
+        traceUpkeep: () => Promise.reject(new Error('the delete timed out')),
+        upkeep: () => {
+          budgetRan += 1;
+          return Promise.resolve({
+            reservationsReleased: 0,
+            reservationsCharged: 0,
+            reservationsDeleted: 0,
+            countersDeleted: 0,
+            leasesDeleted: 0,
+            writeGrantsRevoked: 0,
+          });
+        },
+      },
+      NOW,
+      POLICY,
+    );
+    expect(budgetRan).toBeGreaterThanOrEqual(1);
+    expect(reapExitCode(outcome)).toBe(1);
+  });
+});
+
 describe('rotated-out client secrets', () => {
   it('clears one past its window and audits it, and keeps one inside it', async () => {
     const tenantId = newId();

@@ -436,7 +436,7 @@ Privacy and records
 Mask email addresses
 Off
 An address in what the assistant reads is replaced before it is sent to the model provider by its first letter, three asterisks and its domain, so the domain still shows. Default: off.
-Auditors can read conversations
+Let auditors read conversation text
 On
 People who can read assistant activity see what was asked and what the assistant did. Everyone using the assistant is told so. Default: on.
 Keep traces for

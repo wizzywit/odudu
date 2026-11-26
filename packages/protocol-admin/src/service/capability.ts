@@ -110,6 +110,11 @@ import {
   putAssistantSettingsRequestSchema,
   assistantApprovalListSchema,
   assistantConversationSchema,
+  assistantActivityReplaySchema,
+  assistantPromptfooCaseSchema,
+  listAssistantActivityQuerySchema,
+  listAssistantActivityResponseSchema,
+  reportConversationResponseSchema,
   createConversationRequestSchema,
   decideApprovalRequestSchema,
   decideApprovalResponseSchema,
@@ -2248,6 +2253,71 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'still waiting, as refused. `409` where `act` is not offered: the deployment cannot ' +
       'propose changes, or the tenant\u2019s limits do not allow the mode. `404` for a ' +
       'conversation that is not the caller\u2019s. Not offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/activity',
+    capability: 'read-assistant-activity',
+    responseSchema: listAssistantActivityResponseSchema,
+    querystringSchema: listAssistantActivityQuerySchema,
+    description:
+      'The tenant\u2019s assistant conversations, newest activity first, each with its person, ' +
+      'mode, turns, steps, tokens by model slot, why the latest turn stopped, the tools it ' +
+      'called, the changes it proposed and whether it is reported (`report_old` for one reported ' +
+      'more than 180 days ago). This is metadata, and a holder of the capability always gets it; ' +
+      'it holds no text. `person` and `conversation` narrow by owner and id; `tool`, `outcome` ' +
+      '(the latest turn\u2019s stop reason) and `kind` (`approval`, `budget_refusal` or ' +
+      '`tool_error`) look inside each conversation, and look at no more than 1,000 conversations ' +
+      'a request, so a page they do not fill is returned short, even empty, with `next` to carry ' +
+      'on from. `limit` is at most 200. `404` where the deployment has no assistant. Not offered ' +
+      'to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/activity/conversations/:id',
+    capability: 'read-assistant-activity',
+    responseSchema: assistantActivityReplaySchema,
+    description:
+      'One conversation as the trace holds it: its latest 25 turns, oldest first, each with its ' +
+      'steps (model, slot, tokens, request id), its events as they were recorded, why each ' +
+      'model was chosen and why the turn stopped from the choices the server recorded; the ' +
+      'changes the assistant proposed with where each stands; and what the person asked. The ' +
+      'kinds, tool names, timings, token counts and sizes are always there. The text (what ' +
+      'was asked and answered, and what the tools were given and returned, masked) is there ' +
+      'only while the tenant\u2019s **Let auditors read conversation text** setting is on, and ' +
+      '`text_visible` says which; otherwise each is replaced by a placeholder and its size. ' +
+      'A read that returns text, by someone other than the conversation\u2019s owner, is ' +
+      'audited as `assistant.text_read`. The system prompt is a hash. `404` for a conversation ' +
+      'that is not this tenant\u2019s and where there is no assistant. Not offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/activity/conversations/:id/promptfoo',
+    capability: 'read-assistant-activity',
+    responseSchema: assistantPromptfooCaseSchema,
+    description:
+      'The conversation as one promptfoo test case, as a JSON download: the person\u2019s messages, ' +
+      'the tools the assistant called with their inputs, the answers it gave and why each turn ' +
+      'stopped, with `metadata.contains` and `metadata.excludes` saying what is and is not in it. ' +
+      'It carries no assertions: whoever files it writes them. Text is subject to the same ' +
+      'setting and the same record as the replay: while the setting is off the messages, inputs ' +
+      'and answers are a placeholder and the case holds the tool names and stop reasons only. ' +
+      'Not offered to an agent.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/report',
+    capability: 'use-assistant',
+    alsoAdmits: ['read-assistant-activity'],
+    responseSchema: reportConversationResponseSchema,
+    description:
+      'Keeps the conversation, with its trace, past the tenant\u2019s retention. Its owner may ' +
+      'report it; someone who holds `read-assistant-activity` may report any conversation, since ' +
+      'reporting shows no text. Reporting one that is already reported answers the ' +
+      'same `reported_at` and changes nothing. A tenant keeps at most 100: `409` beyond that, ' +
+      'and `near_limit` is true from 80. ' +
+      '`404` for a conversation the caller may not report. Audited as `assistant.report`. Not ' +
+      'offered to an agent.',
   },
 ];
 
