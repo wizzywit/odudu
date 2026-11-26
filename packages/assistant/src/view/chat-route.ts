@@ -17,7 +17,8 @@ export type SendResult =
   | { kind: 'stream'; response: Response }
   | { kind: 'not_found' }
   | { kind: 'busy' }
-  | { kind: 'saturated' };
+  | { kind: 'saturated' }
+  | { kind: 'limited'; retryAfterSeconds: number };
 
 /**
  * The assistant's chat as a framework-neutral port: each call takes a caller

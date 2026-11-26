@@ -1,3 +1,4 @@
+import { upkeepBudget, type BudgetUpkeepReport } from '@odudu/assistant';
 import { CONSOLE_SESSION_IDLE_SECONDS } from '@odudu/console-gateway';
 import { lineageRootCtes } from '@odudu/domain-agents';
 import {
@@ -76,7 +77,17 @@ export type ReapSkipReason =
 
 export type ReapOutcome =
   | { readonly ran: false; readonly reason: ReapSkipReason }
-  | { readonly ran: true; readonly deleted: ReapReport; readonly cleared: ClearReport };
+  | {
+      readonly ran: true;
+      readonly deleted: ReapReport;
+      readonly cleared: ClearReport;
+      /**
+       * What the console assistant's budget upkeep did. Present only when it did
+       * something, so an install that never uses the assistant reads the same
+       * report as before.
+       */
+      readonly assistant?: BudgetUpkeepReport;
+    };
 
 /**
  * One window per table that has one of its own, in seconds. `refresh_tokens`
@@ -716,6 +727,28 @@ export function assertReapOrder(order: readonly TableName[] = REAP_ORDER): void 
   }
 }
 
+const NO_UPKEEP: BudgetUpkeepReport = {
+  reservationsReleased: 0,
+  reservationsCharged: 0,
+  reservationsDeleted: 0,
+  countersDeleted: 0,
+  leasesDeleted: 0,
+};
+
+function addUpkeep(a: BudgetUpkeepReport, b: BudgetUpkeepReport): BudgetUpkeepReport {
+  return {
+    reservationsReleased: a.reservationsReleased + b.reservationsReleased,
+    reservationsCharged: a.reservationsCharged + b.reservationsCharged,
+    reservationsDeleted: a.reservationsDeleted + b.reservationsDeleted,
+    countersDeleted: a.countersDeleted + b.countersDeleted,
+    leasesDeleted: a.leasesDeleted + b.leasesDeleted,
+  };
+}
+
+function didAnything(report: BudgetUpkeepReport): boolean {
+  return Object.values(report).some((count) => count > 0);
+}
+
 function emptyReport(): ReapReport {
   const report = {} as Record<TableName, number>;
   for (const table of REAP_ORDER) report[table] = 0;
@@ -742,17 +775,28 @@ async function reapTenant(
   tenantId: string,
   now: Date,
   policy: RetentionPolicy,
-): Promise<{ deleted: ReapReport; cleared: ClearReport }> {
+): Promise<{ deleted: ReapReport; cleared: ClearReport; assistant: BudgetUpkeepReport }> {
   const report = emptyReport();
   const tenant = await retentionTenantOf(tx, tenantId);
   // Deleted since its page was read: nothing of it is left to reap.
-  if (tenant === undefined) return { deleted: report, cleared: { client_previous_secrets: 0 } };
+  if (tenant === undefined) {
+    return {
+      deleted: report,
+      cleared: { client_previous_secrets: 0 },
+      assistant: NO_UPKEEP,
+    };
+  }
   for (const table of REAP_ORDER) {
     const result = await tx.execute(RETENTION_RULES[table].statement(now, policy, tenant));
     report[table] = result.count;
   }
   const clientPreviousSecrets = await expireRotatedClientSecrets(tx, now);
-  return { deleted: report, cleared: { client_previous_secrets: clientPreviousSecrets } };
+  const assistant = await upkeepBudget(tx, now);
+  return {
+    deleted: report,
+    cleared: { client_previous_secrets: clientPreviousSecrets },
+    assistant,
+  };
 }
 
 export interface ReapDeps {
@@ -833,11 +877,18 @@ export async function reap(
 
   const deleted = emptyReport();
   let clientPreviousSecrets = 0;
+  let assistant = NO_UPKEEP;
   for (const tenantReport of pass.values) {
     for (const table of REAP_ORDER) deleted[table] += tenantReport.deleted[table];
     clientPreviousSecrets += tenantReport.cleared.client_previous_secrets;
+    assistant = addUpkeep(assistant, tenantReport.assistant);
   }
-  return { ran: true, deleted, cleared: { client_previous_secrets: clientPreviousSecrets } };
+  return {
+    ran: true,
+    deleted,
+    cleared: { client_previous_secrets: clientPreviousSecrets },
+    ...(didAnything(assistant) ? { assistant } : {}),
+  };
 }
 
 // Reads its own configuration and opens its own connections, the way the

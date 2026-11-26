@@ -1,10 +1,12 @@
 import {
   createChat,
+  type BudgetAuditEvent,
   type Chat,
   type ChatCaller,
   type ChatDeps,
   type RunTurnDeps,
 } from '@odudu/assistant';
+import { auditRepository } from '@odudu/domain-audit';
 import { type DatabaseHandle, withTenant, withTenantRetrying } from '@odudu/db';
 import { ADMIN_API_AUDIENCE, clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -209,6 +211,32 @@ function toolRunner(parts: AssistantChatParts, caller: ChatCaller) {
   };
 }
 
+// What the budget leaves in the audit trail: who, which level and slot, and
+// never the conversation's text. A write failing is the caller's to log.
+function budgetAuditRecorder(parts: AssistantChatParts): NonNullable<ChatDeps['audit']> {
+  return (event: BudgetAuditEvent) =>
+    withTenantRetrying(parts.database.db, event.tenantId, (tx) =>
+      auditRepository(tx).record({
+        eventType: 'admin_mutation',
+        action: 'assistant.budget',
+        outcome: event.outcome,
+        actorTenantId: event.tenantId,
+        actorSubjectId: event.subjectId,
+        resourceType: 'assistant_conversation',
+        resourceId: event.conversationId,
+        detail: {
+          tenant: event.tenantId,
+          subject: event.subjectId,
+          turn: event.turnId,
+          slot: event.slot,
+          ...(event.level === undefined ? {} : { level: event.level }),
+          ...(event.stopReason === undefined ? {} : { stop_reason: event.stopReason }),
+          ...(event.overrunTokens === undefined ? {} : { overrun_tokens: event.overrunTokens }),
+        },
+      }),
+    );
+}
+
 /** The assistant's chat, wired to this process: its database, its admin API and its models. */
 export function assistantChatFor(parts: AssistantChatParts): Chat {
   const mint = assistantTokenMint(parts);
@@ -220,6 +248,7 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
       runInstanceId(caller.tenantId, grantOf(caller), conversationId),
     now: parts.now ?? (() => new Date()),
     newId,
+    audit: budgetAuditRecorder(parts),
     log: (event, detail) => {
       parts.logger.warn(detail, event);
     },

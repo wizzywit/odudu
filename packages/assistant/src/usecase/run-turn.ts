@@ -3,15 +3,25 @@ import {
   convertToModelMessages,
   stepCountIs,
   ToolLoopAgent,
+  wrapLanguageModel,
   type LanguageModel,
   type ToolSet,
   type UIMessage,
 } from 'ai';
+import { compactHistory } from '#/service/compact';
 import { boundHistory } from '#/service/context';
+import { inputUpperBound } from '#/service/estimate';
 import { maskEmailAddresses } from '#/service/mask-emails';
 import type { TaskProfile } from '#/service/profile';
+import {
+  MAX_OUTPUT_TOKENS,
+  MAX_REQUEST_TOKENS,
+  requestText,
+  toolDefinitionsText,
+} from '#/service/request-size';
 import { buildSystemPrompt } from '#/service/system-prompt';
 import { toSdkTools } from '#/service/tool-bridge';
+import type { TurnBudgetPort } from '#/usecase/budget-hooks';
 
 export interface RunTurnDeps {
   readonly model: LanguageModel;
@@ -20,6 +30,10 @@ export interface RunTurnDeps {
   // The tenant's `assistant_mask_emails`, read for each turn.
   readonly maskEmails?: boolean;
   readonly tools: readonly RegisteredTool[];
+  // Reserves before each model call and settles after it; absent, the turn is unmetered.
+  readonly budget?: TurnBudgetPort;
+  // The tenant's most steps for one turn; the profile's own cap applies if it is lower.
+  readonly maxStepsPerTurn?: number;
   readonly history: (conversationId: string) => Promise<readonly UIMessage[]>;
   // A short admin token for one call, acting for the conversation's agent
   // instance; `key` is the conversation, which names the run. Calls running
@@ -48,16 +62,65 @@ export interface TurnInput {
   readonly signal: AbortSignal;
 }
 
-function buildAgent(deps: RunTurnDeps, tools: ToolSet) {
+// Every model call goes through the budget's `markSent` first, so a call the
+// process dies in the middle of is known to have reached the provider.
+function metered(deps: RunTurnDeps): LanguageModel {
+  const { model, budget } = deps;
+  if (budget === undefined || typeof model === 'string') return model;
+  return wrapLanguageModel({
+    model,
+    middleware: {
+      wrapStream: async ({ doStream }) => {
+        await budget.markSent();
+        return doStream();
+      },
+      wrapGenerate: async ({ doGenerate }) => {
+        await budget.markSent();
+        return doGenerate();
+      },
+    },
+  });
+}
+
+interface Progress {
+  steps: number;
+  lastFinish: string | undefined;
+}
+
+function stepLimit(deps: RunTurnDeps): number {
+  return Math.min(deps.profile.maxSteps, deps.maxStepsPerTurn ?? deps.profile.maxSteps);
+}
+
+function buildAgent(
+  deps: RunTurnDeps,
+  tools: ToolSet,
+  toolDefinitions: string,
+  progress: Progress,
+) {
   const prompt = buildSystemPrompt(deps.profile, masking(deps)(deps.tenantText));
   return new ToolLoopAgent({
-    model: deps.model,
+    model: metered(deps),
     instructions: [
       { role: 'system', content: prompt.static },
       { role: 'system', content: prompt.tenant },
     ],
     tools,
-    stopWhen: stepCountIs(deps.profile.maxSteps),
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
+    stopWhen: stepCountIs(stepLimit(deps)),
+    // The compacted messages carry forward, so a long turn is trimmed once and
+    // not again at every step, and what is reserved is what is sent.
+    prepareStep: async ({ messages, instructions }) => {
+      const fixed = inputUpperBound(requestText(instructions, [], toolDefinitions));
+      const compacted = compactHistory(messages, Math.max(0, MAX_REQUEST_TOKENS - fixed));
+      await deps.budget?.beforeCall(requestText(instructions, compacted, toolDefinitions));
+      if (typeof deps.model === 'string') await deps.budget?.markSent();
+      return { messages: compacted };
+    },
+    onStepEnd: async (step) => {
+      progress.steps += 1;
+      progress.lastFinish = step.finishReason;
+      await deps.budget?.afterCall(step.usage);
+    },
   });
 }
 
@@ -67,12 +130,17 @@ export interface StartedTurn {
   readonly result: StreamResult;
   /** The tools the turn runs with, which turning its stream into UI chunks needs. */
   readonly tools: ToolSet;
+  /** The steps the turn may take, and how far it has got, for the reason it ended. */
+  readonly maxSteps: number;
+  readonly progress: () => { steps: number; lastFinish: string | undefined };
 }
 
 /**
  * One turn of a conversation: the model answers, reading through the read
- * tools only, up to the profile's step cap. Every tool call takes its own
- * token for the conversation's instance, so none outlives the call it served.
+ * tools only, up to the lower of the profile's step cap and the tenant's. Every
+ * tool call takes its own token for the conversation's instance, so none
+ * outlives the call it served. With a budget, each model call is reserved first
+ * and a refusal ends the turn.
  */
 export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<StartedTurn> {
   const reads = deps.tools.filter((entry) => entry.access === 'read');
@@ -84,12 +152,18 @@ export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<St
     },
     masking(deps),
   );
-  const agent = buildAgent(deps, tools);
+  const progress: Progress = { steps: 0, lastFinish: undefined };
+  const agent = buildAgent(deps, tools, await toolDefinitionsText(tools), progress);
   const earlier = boundHistory(await deps.history(input.conversationId));
   const messages = await convertToModelMessages([...earlier, input.message], {
     ignoreIncompleteToolCalls: true,
   });
-  return { result: await agent.stream({ messages, abortSignal: input.signal }), tools };
+  return {
+    result: await agent.stream({ messages, abortSignal: input.signal }),
+    tools,
+    maxSteps: stepLimit(deps),
+    progress: () => ({ ...progress }),
+  };
 }
 
 export async function runTurn(deps: RunTurnDeps, input: TurnInput): Promise<StreamResult> {

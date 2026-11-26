@@ -1051,6 +1051,13 @@
       "when": 1792444983737,
       "tag": "0149_assistant_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1792531383737,
+      "tag": "0151_assistant_budget_upkeep",
+      "breakpoints": true
     }
   ]
 }

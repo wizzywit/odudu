@@ -30,12 +30,13 @@ class AssistantSettingsGetResponse:
         assistant_auditor_visible (bool): Whether people who can read assistant activity may see conversations. People
             using the assistant are told.
         assistant_monthly_tokens_fast (int): The tokens the tenant may spend each month on the fast model slot, from 0
-            to 1,000,000,000. The assistant does not yet stop at it.
+            to 1,000,000,000. The assistant stops when it is used and names the limit.
         assistant_monthly_tokens_standard (int): The tokens the tenant may spend each month on the standard model slot,
             from 0 to 1,000,000,000.
         assistant_monthly_tokens_deep (int): The tokens the tenant may spend each month on the deep model slot, from 0
             to 1,000,000,000.
-        assistant_max_concurrent (int): How many answers the tenant may have in progress at the same time, from 1 to 50.
+        assistant_max_concurrent (int): How many answers the tenant may have in progress at the same time, on any
+            server, from 1 to 50. A further message is refused with `429`.
         assistant_max_steps_per_turn (int): The most model and tool calls one answer may take before it stops, from 1 to
             100.
     """

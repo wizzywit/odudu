@@ -10004,7 +10004,7 @@ export interface paths {
         put?: never;
         /**
          * Requires the "use-assistant" capability.
-         * @description Sends the caller’s message and streams the turn as server-sent events of AI SDK UI message chunks. The message is stored before the model is called and each step is stored as it ends. Closing the connection ends the turn. `409` while a turn of this conversation is running on this server, `429` when this server is running as many turns as it admits, `404` for a conversation that is not the caller’s. Takes no `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, which a record cannot cover without holding the call open, so a request naming one is refused with `400` (`about:blank#idempotency-external-io`) and nothing is applied.
+         * @description Sends the caller’s message and streams the turn as server-sent events of AI SDK UI message chunks. The message is stored before the model is called and each step is stored as it ends. Closing the connection ends the turn. Each model call is reserved against the tenant’s token limits first, and a limit that refuses ends the turn with an error part that names the level and who can change it, never moving to a cheaper model. A `data-budget_warning` part says a level has passed 80 percent, and the last part, `data-turn_end`, carries a `stopReason`: `done`, `step_cap`, `budget_turn`, `budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`. `409` while a turn of this conversation is running on this server. `429` with a `Retry-After` when this server is running as many turns as it admits, or when the tenant already has as many in progress, on any server, as its settings allow. `404` for a conversation that is not the caller’s. Takes no `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, which a record cannot cover without holding the call open, so a request naming one is refused with `400` (`about:blank#idempotency-external-io`) and nothing is applied.
          */
         post: {
             parameters: {
@@ -10217,13 +10217,13 @@ export interface components {
             assistant_trace_retention_days: number;
             /** @description Whether people who can read assistant activity may see conversations. People using the assistant are told. */
             assistant_auditor_visible: boolean;
-            /** @description The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant does not yet stop at it. */
+            /** @description The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant stops when it is used and names the limit. */
             assistant_monthly_tokens_fast: number;
             /** @description The tokens the tenant may spend each month on the standard model slot, from 0 to 1,000,000,000. */
             assistant_monthly_tokens_standard: number;
             /** @description The tokens the tenant may spend each month on the deep model slot, from 0 to 1,000,000,000. */
             assistant_monthly_tokens_deep: number;
-            /** @description How many answers the tenant may have in progress at the same time, from 1 to 50. */
+            /** @description How many answers the tenant may have in progress at the same time, on any server, from 1 to 50. A further message is refused with `429`. */
             assistant_max_concurrent: number;
             /** @description The most model and tool calls one answer may take before it stops, from 1 to 100. */
             assistant_max_steps_per_turn: number;
