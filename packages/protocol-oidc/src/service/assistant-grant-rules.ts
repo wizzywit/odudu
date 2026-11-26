@@ -78,9 +78,10 @@ export interface AssistantTargetFacts {
 // system tenant, the target exists and is enabled, and it offers the assistant.
 function targetRefusal(grounds: AssistantGrantGrounds): AssistantGrantRefusal | null {
   const { target } = grounds;
-  if (target === undefined || target?.id === grounds.tenantId) return null;
+  if (target === undefined) return null;
+  if (target?.id === grounds.tenantId) return null;
   if (!isSystemTenantId(grounds.tenantId)) return 'target_not_allowed';
-  if (target === null || !target.enabled) return 'target_unavailable';
+  if (!target?.enabled) return 'target_unavailable';
   return target.assistantEnabled ? null : 'target_assistant_disabled';
 }
 

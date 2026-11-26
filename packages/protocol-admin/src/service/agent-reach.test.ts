@@ -29,8 +29,7 @@ describe('where an agent token is admitted', () => {
   });
 
   it('needs the marker only the endpoint signs', () => {
-    const { viaEndpoint: _unused, ...unmarked } = bound.agent;
-    expect(agentReaches({ ...bound, agent: unmarked })).toBe(false);
+    expect(agentReaches({ ...bound, agent: { assistantTarget: X } })).toBe(false);
   });
 
   it('needs the system tenant as the issuer', () => {

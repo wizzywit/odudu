@@ -179,7 +179,9 @@ async function call(
 
 // A tool answered with data, as against an error the admin API returned for it.
 function answered(body: string): boolean {
-  return body.includes('tool-output-available') && !/tool-output-available[^\n]*\\"error\\"/u.test(body);
+  return (
+    body.includes('tool-output-available') && !/tool-output-available[^\n]*\\"error\\"/u.test(body)
+  );
 }
 
 async function open(who: World, at: string): Promise<string> {
@@ -279,9 +281,9 @@ describe('creating the conversation', () => {
     expect(
       await rows(sql`select 1 from assistant_conversations where tenant_id = ${x.tenantId}`),
     ).toEqual([]);
-    expect(await rows(sql`select 1 from token_grants where id = ${id} and tenant_id = ${x.tenantId}`)).toEqual(
-      [],
-    );
+    expect(
+      await rows(sql`select 1 from token_grants where id = ${id} and tenant_id = ${x.tenantId}`),
+    ).toEqual([]);
   });
 
   it('is invisible to the target’s own row-level security context', async () => {
@@ -331,7 +333,10 @@ describe('creating the conversation', () => {
 
   it('is refused to a system administrator without manage-tenants, and without use-assistant', async () => {
     const x = await tenantWith();
-    for (const held of [['use-assistant', 'view-users'], ['manage-tenants', 'view-users']]) {
+    for (const held of [
+      ['use-assistant', 'view-users'],
+      ['manage-tenants', 'view-users'],
+    ]) {
       const op = await operator(held);
       const res = await call(op, x.name, 'POST', '', { page_context: CONTEXT });
       expect(res.statusCode, held.join()).toBe(403);
@@ -360,8 +365,9 @@ describe('creating the conversation', () => {
   it('answers 404 for a target that does not exist, and refuses Act with nothing written', async () => {
     const op = await operator();
     const x = await tenantWith();
-    expect((await call(op, `nobody-${newId()}`, 'POST', '', { page_context: CONTEXT })).statusCode)
-      .toBe(401);
+    expect(
+      (await call(op, `nobody-${newId()}`, 'POST', '', { page_context: CONTEXT })).statusCode,
+    ).toBe(401);
     const act = await call(op, x.name, 'POST', '', { page_context: CONTEXT, mode: 'act' });
     expect(act.statusCode).toBe(403);
     expect(await nConversations(op.tenantId, op.subjectId)).toBe(0);
@@ -695,12 +701,10 @@ describe('what the administrator holds, and what ends the conversation', () => {
     const id = await open(op, x.name);
     await say(op, x.name, id, 'list_subjects');
     await s().owner.db.execute(sql`delete from tenants where id = ${x.tenantId}`);
-    expect(
-      await rows(sql`select id from assistant_conversations where id = ${id}`),
-    ).toEqual([]);
+    expect(await rows(sql`select id from assistant_conversations where id = ${id}`)).toEqual([]);
     expect(await rows(sql`select id from token_grants where id = ${id}`)).toEqual([]);
-    expect(
-      await rows(sql`select 1 from assistant_messages where conversation_id = ${id}`),
-    ).toEqual([]);
+    expect(await rows(sql`select 1 from assistant_messages where conversation_id = ${id}`)).toEqual(
+      [],
+    );
   });
 });

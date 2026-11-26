@@ -11,15 +11,12 @@ export interface AgentReach {
   readonly pathTenantEnabled: boolean;
 }
 
-// Whether an agent token is admitted at the tenant a path names. An agent acts
-// in the tenant that issued its token and nowhere else. The one exception is
-// the console assistant of a system administrator, whose grant names the tenant
-// its conversation was created for: that token is admitted there and at no
-// other tenant (the system tenant included), only when the grant is the
-// built-in assistant client's (`assistantTarget` is set from that alone), the
-// token carries the marker only the MCP endpoint signs, the issuer is the system
-// tenant, the target is enabled and the token holds no write scope. What the
-// administrator holds is still checked on every call by `authorizeAdmin`.
+// Whether an agent token is admitted at the tenant a path names: the tenant that
+// issued it, and nothing else, except the console assistant of a system
+// administrator, whose grant (the built-in assistant client's) names one target.
+// That token is admitted at that enabled target alone, with the endpoint marker,
+// from the system tenant and without the write scope (ADR 0060's last amendment).
+// `authorizeAdmin` still checks what the administrator holds on every call.
 export function agentReaches(reach: AgentReach): boolean {
   const target = reach.agent.assistantTarget;
   if (target === undefined) return reach.issuerTenantId === reach.pathTenantId;

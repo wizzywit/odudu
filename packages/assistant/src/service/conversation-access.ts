@@ -1,5 +1,5 @@
 import type { AssistantSettings } from '@odudu/contracts/admin';
-import type { ConversationMode } from '#/repository/conversations';
+import type { TurnMode } from '#/service/turn-summary';
 import type { AssistantLimits } from '#/service/limits';
 
 // What the rules below read of the caller and of a stored conversation.
@@ -42,7 +42,7 @@ export function conversationIsCallers(
 interface TenantSide {
   readonly enabled: boolean;
   readonly maskEmails: boolean;
-  readonly modes: readonly ConversationMode[];
+  readonly modes: readonly TurnMode[];
 }
 
 /**

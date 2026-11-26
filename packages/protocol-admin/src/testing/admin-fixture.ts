@@ -155,10 +155,7 @@ export interface AdminFixture {
     options: AgentTokenOptions,
   ): Promise<string>;
   // `agentToken` for a subject of the system tenant, which is not created by `createTenant`.
-  systemAgentToken(
-    capabilities: readonly string[],
-    options: AgentTokenOptions,
-  ): Promise<string>;
+  systemAgentToken(capabilities: readonly string[], options: AgentTokenOptions): Promise<string>;
   // The owner's grant behind an MCP token held by `agentClientId` (the
   // built-in MCP client by default), and the admin-audience token
   // `mintAgentToken` mints from it, so a test reaches the admin API with a

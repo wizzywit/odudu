@@ -315,7 +315,11 @@ function turnApprovals(
           // Only an Act conversation of the caller runs a change, and only the
           // one the card was stored for.
           const record = await conversationRepository(tx).byId(id);
-          if (record === undefined || !conversationIsCallers(record, caller) || record.mode !== 'act') {
+          if (
+            record === undefined ||
+            !conversationIsCallers(record, caller) ||
+            record.mode !== 'act'
+          ) {
             return undefined;
           }
           const card = await approvalCardRepository(tx).byCall(id, context.toolCallId);

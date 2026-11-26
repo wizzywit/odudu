@@ -48,11 +48,7 @@ describe('a conversation in another tenant', () => {
 
   it.each([
     ['a target that was not found', { target: null }, 'target_unavailable'],
-    [
-      'a disabled target tenant',
-      { target: { ...TARGET, enabled: false } },
-      'target_unavailable',
-    ],
+    ['a disabled target tenant', { target: { ...TARGET, enabled: false } }, 'target_unavailable'],
     [
       'a target tenant that switched the assistant off',
       { target: { ...TARGET, assistantEnabled: false } },

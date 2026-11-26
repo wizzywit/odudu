@@ -67,7 +67,10 @@ function scripted(seen: Seen[]): MockLanguageModelV3 {
     doStream: (options) => {
       const reply = call % 2 === 0 ? CALL : ANSWER;
       call += 1;
-      seen.push({ prompt: options.prompt, tools: (options.tools ?? []) as { name: string }[] });
+      seen.push({
+        prompt: options.prompt,
+        tools: (options.tools ?? []).map((tool) => ({ name: tool.name })),
+      });
       return Promise.resolve({
         stream: convertArrayToReadableStream([
           { type: 'stream-start', warnings: [] },
