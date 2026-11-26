@@ -26,10 +26,16 @@ async function openArea(page: Page, context: Context, area: string): Promise<voi
 const TERMS_VIEW = { width: 1100, height: 1070 } as const;
 const AUTHENTICATORS_VIEW = { width: 1100, height: 1040 } as const;
 const PASSWORD_VIEW = { width: 1100, height: 890 } as const;
+const ASSISTANT_VIEW = { width: 1100, height: 1180 } as const;
 
 // Scrolled so the section's heading sits just under the strip of section links.
-async function openSection(page: Page, context: Context, heading: string): Promise<void> {
-  await openArea(page, context, `${DEMO}/settings`);
+async function openSection(
+  page: Page,
+  context: Context,
+  heading: string,
+  tenant = DEMO,
+): Promise<void> {
+  await openArea(page, context, `${tenant}/settings`);
   const title = page.getByRole('heading', { level: 2, name: heading, exact: true });
   await title.waitFor();
   await title.evaluate((element) => {
@@ -404,7 +410,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'settings',
-    alt: 'The Settings page: a strip of section links from General to Audit retention, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min.',
+    alt: 'The Settings page: a strip of section links from General to Console assistant, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min.',
     caption: 'Every section of the settings saves on its own.',
     signedIn: true,
     expect: [
@@ -416,7 +422,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'settings-rail',
-    alt: 'The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications and Records, with the section in view marked.',
+    alt: 'The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications, Records and Assistant, with the section in view marked.',
     caption:
       'On a wide screen the list stays beside the sections, grouped, with the section in view marked.',
     signedIn: true,
@@ -455,6 +461,24 @@ export const SCREENS: readonly Screen[] = [
     viewport: PASSWORD_VIEW,
     expect: [{ heading: 'Password policy' }, { label: 'Check against known breaches' }],
     open: (page, context) => openSection(page, context, 'Password policy'),
+  },
+  {
+    name: 'settings-assistant',
+    alt: 'The Console assistant section of the Settings page, in three groups: Availability with a switch for offering the assistant and the mode it starts in, Privacy and records with email masking, auditor access and trace retention, and Limits with the monthly tokens of each model slot, the answers at once and the steps in one answer. Each setting says its default.',
+    caption: 'The assistant’s settings, each with its default beside it.',
+    signedIn: true,
+    viewport: ASSISTANT_VIEW,
+    expect: [{ heading: 'Console assistant' }, { label: 'Offer the assistant' }],
+    open: (page, context) => openSection(page, context, 'Console assistant'),
+  },
+  {
+    name: 'settings-assistant-phone',
+    alt: 'The Console assistant section of the Settings page on a phone: the same groups in a single column, with each setting’s switch or field above its default and range.',
+    caption: 'On a narrow screen the assistant’s settings stack in one column.',
+    signedIn: true,
+    viewport: { width: 390, height: 1500 },
+    expect: [{ heading: 'Console assistant' }, { label: 'Offer the assistant' }],
+    open: (page, context) => openSection(page, context, 'Console assistant'),
   },
   {
     name: 'email',

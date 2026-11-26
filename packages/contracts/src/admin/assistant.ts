@@ -21,6 +21,69 @@ export const assistantStatusSchema = z.discriminatedUnion('enabled', [
 ]);
 export type AssistantStatus = z.infer<typeof assistantStatusSchema>;
 
+// The ranges the server holds each setting to. The database repeats them as
+// CHECK constraints; the console reads them to say what a field accepts.
+const TOKENS_RANGE = { min: 0, max: 1_000_000_000 } as const;
+export const ASSISTANT_SETTING_RANGES = {
+  assistant_trace_retention_days: { min: 1, max: 365 },
+  assistant_monthly_tokens_fast: TOKENS_RANGE,
+  assistant_monthly_tokens_standard: TOKENS_RANGE,
+  assistant_monthly_tokens_deep: TOKENS_RANGE,
+  assistant_max_concurrent: { min: 1, max: 50 },
+  assistant_max_steps_per_turn: { min: 1, max: 100 },
+} as const;
+
+const tokenLimit = z.number().int().min(TOKENS_RANGE.min).max(TOKENS_RANGE.max);
+
+// What one tenant has chosen for its assistant. A tenant that has chosen
+// nothing reads the defaults: on, Ask first, addresses unmasked, traces kept
+// 30 days, conversations visible to auditors. The three token limits are a
+// month's allowance for each model slot.
+export const assistantSettingsSchema = z.object({
+  assistant_enabled: z.boolean(),
+  assistant_default_mode: assistantModeSchema,
+  assistant_mask_emails: z.boolean(),
+  assistant_trace_retention_days: z
+    .number()
+    .int()
+    .min(ASSISTANT_SETTING_RANGES.assistant_trace_retention_days.min)
+    .max(ASSISTANT_SETTING_RANGES.assistant_trace_retention_days.max),
+  assistant_auditor_visible: z.boolean(),
+  assistant_monthly_tokens_fast: tokenLimit,
+  assistant_monthly_tokens_standard: tokenLimit,
+  assistant_monthly_tokens_deep: tokenLimit,
+  assistant_max_concurrent: z
+    .number()
+    .int()
+    .min(ASSISTANT_SETTING_RANGES.assistant_max_concurrent.min)
+    .max(ASSISTANT_SETTING_RANGES.assistant_max_concurrent.max),
+  assistant_max_steps_per_turn: z
+    .number()
+    .int()
+    .min(ASSISTANT_SETTING_RANGES.assistant_max_steps_per_turn.min)
+    .max(ASSISTANT_SETTING_RANGES.assistant_max_steps_per_turn.max),
+});
+export type AssistantSettings = z.infer<typeof assistantSettingsSchema>;
+
+// Open defaults, conservative on purpose: a deployment that wants more raises
+// them per tenant. The migration's column defaults repeat these.
+export const ASSISTANT_SETTING_DEFAULTS: AssistantSettings = {
+  assistant_enabled: true,
+  assistant_default_mode: 'ask',
+  assistant_mask_emails: false,
+  assistant_trace_retention_days: 30,
+  assistant_auditor_visible: true,
+  assistant_monthly_tokens_fast: 2_000_000,
+  assistant_monthly_tokens_standard: 5_000_000,
+  assistant_monthly_tokens_deep: 1_000_000,
+  assistant_max_concurrent: 5,
+  assistant_max_steps_per_turn: 20,
+};
+
+// A full replace, so a setting a later release adds is never changed by a
+// caller that has not heard of it.
+export const putAssistantSettingsRequestSchema = assistantSettingsSchema.strict();
+export type PutAssistantSettingsRequest = z.infer<typeof putAssistantSettingsRequestSchema>;
 // Where the administrator is when a conversation starts: three short values
 // the console derives from its own router, never text a person typed, so
 // nothing a browser sends reaches the model as free text.

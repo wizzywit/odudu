@@ -1,0 +1,11 @@
+# Adds the console assistant to the local stack, for a transcript or a
+# screenshot of its settings: COMPOSE_FILE=compose.yaml:compose.assistant.yaml.
+# Not part of compose.yaml, because the server refuses an empty value for
+# either variable, so passing them through with no default would stop the
+# stack from starting at all. The key is read from the environment only, and
+# nothing here ever calls a model.
+services:
+  odudu:
+    environment:
+      ODUDU_ASSISTANT_MODELS: ${ODUDU_ASSISTANT_MODELS:?name a model, for example standard=anthropic:model-name}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set a key, which no call ever uses}

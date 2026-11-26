@@ -9,8 +9,11 @@ export { FENCE_CLOSE, FENCE_OPEN };
  * holds data and never instructions. Both the answer and a refusal come back
  * under their own key (`data`, `error`), as the MCP tools label them.
  */
-export function fenceToolOutput(output: unknown): string {
-  return fence(JSON.stringify(output));
+export function fenceToolOutput(
+  output: unknown,
+  mask: (text: string) => string = (text) => text,
+): string {
+  return fence(mask(JSON.stringify(output)));
 }
 
 export type CallTool = (name: string, input: unknown, signal?: AbortSignal) => Promise<ToolResult>;
@@ -24,7 +27,11 @@ const FAILED = { error: { title: 'The tool could not be run' } };
  * model's arguments before `execute` runs, so a malformed call reaches the
  * model as a refusal and never reaches `call`.
  */
-export function toSdkTools(tools: readonly RegisteredTool[], call: CallTool): ToolSet {
+export function toSdkTools(
+  tools: readonly RegisteredTool[],
+  call: CallTool,
+  mask?: (text: string) => string,
+): ToolSet {
   const set: ToolSet = {};
   for (const entry of tools) {
     set[entry.name] = tool({
@@ -34,7 +41,7 @@ export function toSdkTools(tools: readonly RegisteredTool[], call: CallTool): To
         const signal = options.abortSignal;
         try {
           const result = await call(entry.name, input, signal);
-          return fenceToolOutput(result.structuredContent);
+          return fenceToolOutput(result.structuredContent, mask);
         } catch (error) {
           if (signal?.aborted === true) throw error;
           return fenceToolOutput(FAILED);

@@ -83,6 +83,7 @@ const EMAIL_MAIL_QUERY = 'email/services/mailQuery.ts';
 const ACCESS = 'settings/services/accessSections.ts';
 const PASSWORD = 'settings/services/passwordSection.ts';
 const PLATFORM = 'settings/services/platformSections.ts';
+const ASSISTANT = 'settings/services/assistantSection.ts';
 const SETTINGS_WORDS = 'settings/services/settingsPageWords.ts';
 const KEYS_WORDS = 'signing-keys/services/keysWords.ts';
 const KEYS_CONFIRM = 'signing-keys/services/confirm.ts';
@@ -624,6 +625,25 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Password lifetime': page(PASSWORD, "label: 'Password lifetime'"),
   'Failures before a lockout': page(ACCESS, "label: 'Failures before a lockout'"),
   'Keep events for': page(PLATFORM, "label: 'Keep events for'"),
+  Assistant: page(ASSISTANT, "ASSISTANT_NAV_GROUP = 'Assistant'"),
+  'Console assistant': page(ASSISTANT, "title: 'Console assistant'"),
+  'Offer the assistant': page(ASSISTANT, "label: 'Offer the assistant'"),
+  'Starts in': page(ASSISTANT, "label: 'Starts in'"),
+  'Ask: the assistant only reads': page(ASSISTANT, "label: 'Ask: the assistant only reads'"),
+  'Act: it may propose changes, each waiting for approval': page(
+    ASSISTANT,
+    "label: 'Act: it may propose changes, each waiting for approval'",
+  ),
+  'Privacy and records': page(ASSISTANT, "privacy: 'Privacy and records'"),
+  'Mask email addresses': page(ASSISTANT, "label: 'Mask email addresses'"),
+  'Auditors can read conversations': page(ASSISTANT, "label: 'Auditors can read conversations'"),
+  'Keep traces for': page(ASSISTANT, "label: 'Keep traces for'"),
+  Limits: page(ASSISTANT, "limits: 'Limits'"),
+  'Fast model, each month': page(ASSISTANT, "label: 'Fast model, each month'"),
+  'Standard model, each month': page(ASSISTANT, "label: 'Standard model, each month'"),
+  'Deep model, each month': page(ASSISTANT, "label: 'Deep model, each month'"),
+  'Answers at once': page(ASSISTANT, "label: 'Answers at once'"),
+  'Steps in one answer': page(ASSISTANT, "label: 'Steps in one answer'"),
   Enabled: page(ACCESS, "label: 'Enabled'"),
   'Clear all lockouts': page('settings/services/lockouts.ts', "'Clear all lockouts'"),
   'Disable demo': template(

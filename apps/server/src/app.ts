@@ -72,7 +72,13 @@ import {
   type ToolLimiterOptions,
 } from '@odudu/mcp';
 import { isMeRoute, meRefusalHeaders, registerMeOpenApiRoute, registerMeRoutes } from '@odudu/me';
-import { status as assistantStatus, type ChatDeps, type StatusDeps } from '@odudu/assistant';
+import {
+  readSettings as readAssistantSettings,
+  status as assistantStatus,
+  writeSettings as writeAssistantSettings,
+  type ChatDeps,
+  type StatusDeps,
+} from '@odudu/assistant';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -851,7 +857,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
       deploymentSmtp: deps.deploymentSmtp ?? false,
       outboxMaxAttempts: deps.outboxMaxAttempts ?? DEFAULT_OUTBOX_MAX_ATTEMPTS,
-      assistantStatus: () => assistantStatus(deps.assistant ?? { slots: null, env: {} }),
+      assistantStatus: (settings) =>
+        assistantStatus(deps.assistant ?? { slots: null, env: {} }, settings),
+      // A deployment with no model has no assistant to configure.
+      ...(deps.assistant === undefined || deps.assistant.slots === null
+        ? {}
+        : {
+            assistantSettings: {
+              read: readAssistantSettings,
+              write: writeAssistantSettings,
+            },
+          }),
       ...(deps.assistant?.slots == null || deps.assistantModels === undefined
         ? {}
         : {

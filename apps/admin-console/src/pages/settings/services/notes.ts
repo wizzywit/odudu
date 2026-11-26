@@ -1,4 +1,4 @@
-import { TENANT_SETTING_RANGES } from '@odudu/contracts/admin';
+import { ASSISTANT_SETTING_RANGES, TENANT_SETTING_RANGES } from '@odudu/contracts/admin';
 import { formatSpan } from '#/shared/lib/services/format';
 import { rangeSentence } from '#/shared/lib/services/numbers';
 import type { SettingField } from '#/pages/settings/services/sections';
@@ -10,10 +10,16 @@ export interface SettingRange {
 
 // The range the server holds the setting to, as it reports it in a refusal.
 export function settingRange(field: SettingField): SettingRange | null {
-  const range = Object.hasOwn(TENANT_SETTING_RANGES, field.name)
-    ? TENANT_SETTING_RANGES[field.name]
-    : undefined;
+  const ranges: Readonly<Partial<Record<string, { min: number; max?: number }>>> = {
+    ...TENANT_SETTING_RANGES,
+    ...ASSISTANT_SETTING_RANGES,
+  };
+  const range = Object.hasOwn(ranges, field.name) ? ranges[field.name] : undefined;
   return range === undefined ? null : { min: range.min, max: range.max };
+}
+
+function grouped(value: number): string {
+  return value.toLocaleString('en-US');
 }
 
 export function rangeRule(field: SettingField): string | null {
@@ -21,7 +27,9 @@ export function rangeRule(field: SettingField): string | null {
   if (range === null) return null;
   const seconds = field.control === 'seconds';
   const unit = field.control === 'count' && field.unit !== undefined ? ` ${field.unit}` : '';
-  return rangeSentence(range.min, range.max, seconds ? formatSpan : String, unit);
+  // A token limit runs to a billion, which is read in groups of three.
+  const show = seconds ? formatSpan : field.unit === 'tokens' ? grouped : String;
+  return rangeSentence(range.min, range.max, show, unit);
 }
 
 export function fieldDescription(field: SettingField): string | undefined {

@@ -160,6 +160,41 @@ describe('runTurn', () => {
     expect(sent.indexOf(FENCE_OPEN)).toBeLessThan(sent.indexOf('ignore previous instructions'));
   });
 
+  describe('email masking', () => {
+    const PEOPLE: ToolResult = {
+      isError: false,
+      content: [{ type: 'text', text: '{}' }],
+      structuredContent: { data: [{ username: 'ada', email: 'ada@example.com' }] },
+    };
+
+    async function sentToModel(maskEmails: boolean | undefined): Promise<string> {
+      const model = scripted([toolCall('c1', 'list_clients', '{}'), answer('ok')]);
+      const { deps } = depsFor(model, {
+        callTool: () => Promise.resolve(PEOPLE),
+        tenantText: 'Reach the owner at owner@acme.example.',
+        ...(maskEmails === undefined ? {} : { maskEmails }),
+      });
+      await finish(deps);
+      return model.doStreamCalls.map((call) => JSON.stringify(call.prompt)).join('\n');
+    }
+
+    it('sends the model no raw address, in a result or in the tenant text, when on', async () => {
+      const sent = await sentToModel(true);
+      expect(sent).not.toContain('ada@example.com');
+      expect(sent).not.toContain('owner@acme.example');
+      expect(sent).toContain('a***@example.com');
+      expect(sent).toContain('o***@acme.example');
+    });
+
+    it('sends the raw address when off, and when nothing says', async () => {
+      for (const setting of [false, undefined]) {
+        const sent = await sentToModel(setting);
+        expect(sent).toContain('ada@example.com');
+        expect(sent).toContain('owner@acme.example');
+      }
+    });
+  });
+
   it('offers no write tool', async () => {
     const model = scripted([answer('hi')]);
     const { deps } = depsFor(model);

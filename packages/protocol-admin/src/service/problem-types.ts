@@ -17,6 +17,12 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'The audit read ran past its five second bound because its filters match too many rows ' +
       'to serve cheaply. Narrow the time range with `from` and `to`.',
   },
+  'not-found': {
+    status: 404,
+    summary:
+      'No resource at this path. The assistant’s settings answer it where the deployment ' +
+      'has no assistant, exactly as a path that was never served does.',
+  },
   'service-account': {
     status: 409,
     summary:

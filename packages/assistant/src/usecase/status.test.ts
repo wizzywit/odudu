@@ -1,3 +1,4 @@
+import { ASSISTANT_SETTING_DEFAULTS } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import { resolveSlots } from '#/service/slots';
 import { status } from '#/usecase/status';
@@ -59,5 +60,30 @@ describe('status', () => {
     });
     expect(result).toMatchObject({ provider: { kind: 'openai' } });
     expect(result).not.toHaveProperty('provider.host');
+  });
+});
+
+describe('status for a tenant', () => {
+  const env = {
+    ODUDU_ASSISTANT_MODELS: 'standard=anthropic:mid',
+    ANTHROPIC_API_KEY: 'k',
+  };
+  const slots = resolveSlots(env);
+
+  it('is disabled for a tenant that switched the assistant off, whatever is configured', () => {
+    const off = { ...ASSISTANT_SETTING_DEFAULTS, assistant_enabled: false };
+    expect(status({ slots, env }, off)).toEqual({ enabled: false });
+  });
+
+  it('offers the default mode the tenant chose', () => {
+    const chosen = { ...ASSISTANT_SETTING_DEFAULTS, assistant_default_mode: 'act' as const };
+    expect(status({ slots, env }, chosen)).toMatchObject({ enabled: true, defaultMode: 'act' });
+  });
+
+  it('starts in Ask for a tenant that chose nothing', () => {
+    expect(status({ slots, env }, ASSISTANT_SETTING_DEFAULTS)).toMatchObject({
+      defaultMode: 'ask',
+    });
+    expect(status({ slots, env })).toMatchObject({ defaultMode: 'ask' });
   });
 });
